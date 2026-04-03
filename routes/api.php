@@ -534,29 +534,70 @@ $router->post('/api/settings/base-info/project/purge-all', 'ProjectSettingsContr
 
 
 
-
-
-
 /* =========================================
- * 직원 / 부서 / 직책
+ * 사용자 프로필 API (정규화 완료)
  * ========================================= */
 
-/* =========================
-   직원
-========================= */
+// 프로필 조회 (내정보 + 특정 사용자 통합)
+$router->get('/api/user/profile/detail', 'ProfileController@apiDetail', [
+    'key' => 'api.profile.view',
+    'name' => '프로필 조회',
+    'description' => '내 프로필 또는 특정 사용자 프로필 조회',
+    'category' => '프로필'
+]);
 
-// 직원 검색 (GET 유지)
+// 프로필 저장 (생성 + 수정 + 이미지 + 이름 전부 통합)
+$router->post('/api/user/profile/save', 'ProfileController@apiSave', [
+    'key' => 'api.profile.save',
+    'name' => '프로필 저장',
+    'description' => '프로필 생성 및 수정 (이미지 포함)',
+    'category' => '프로필'
+]);
+
+// 비밀번호 변경
+$router->post('/api/user/profile/change-password', 'ProfileController@apiChangePassword', [
+    'key' => 'api.profile.change_password',
+    'name' => '비밀번호 변경',
+    'category' => '보안'
+]);
+
+// 2FA 설정
+$router->post('/api/user/profile/update-2fa', 'ProfileController@apiUpdateTwoFactor', [
+    'key' => 'api.profile.update_2fa',
+    'name' => '2단계 인증 설정',
+    'category' => '보안'
+]);
+
+/* =========================================
+ * 직원 관리 API
+ * ========================================= */
+
+// 직원 검색
 $router->get('/api/settings/employee/search', 'EmployeeSettingsController@apiSearch');
 
-// 직원 목록 (🔥 GET + POST 둘 다 허용)
+// 직원 목록 (GET + POST 허용)
 $router->get('/api/settings/employee/list', 'EmployeeSettingsController@apiList');
 $router->post('/api/settings/employee/list', 'EmployeeSettingsController@apiList');
 
 // 직원 저장
 $router->post('/api/settings/employee/save', 'EmployeeSettingsController@apiSave');
 
-// 직원 순서 변경
+// 직원 삭제 (추가 추천)
+$router->post('/api/settings/employee/delete', 'EmployeeSettingsController@apiDelete');
+
+// 상태 변경 (추가 추천)
+$router->post('/api/settings/employee/update-status', 'EmployeeSettingsController@apiUpdateStatus');
+
+// 순서 변경
 $router->post('/api/settings/employee/reorder', 'EmployeeSettingsController@apiReorder');
+
+
+
+
+
+
+
+
 
 
 
@@ -862,78 +903,6 @@ $router->post('/api/user/external-accounts/delete', 'ExternalAccountController@a
 
 
 
-/* =========================================
- * 사용자 프로필 API
- * ========================================= */
-// 내 프로필 조회 (세션 기반, user_id 없음)
-$router->get('/api/user/profile', 'ProfileController@apiProfileMe', [
-    'key' => 'api.profile.me',
-    'name' => '내 프로필 조회',
-    'description' => '현재 로그인한 사용자의 프로필 조회 (세션 기반)',
-    'category' => '프로필'
-]);
-
-// 프로필 조회
-$router->get('/api/user/profile/get', 'ProfileController@apiGet', [
-    'key' => 'api.profile.view',
-    'name' => '프로필 조회',
-    'description' => '사용자 프로필 단건 조회',
-    'category' => '프로필'
-]);
-
-// 프로필 생성
-$router->post('/api/user/profile/create', 'ProfileController@apiCreate', [
-    'key' => 'api.profile.create',
-    'name' => '프로필 생성',
-    'description' => '사용자 프로필 생성',
-    'category' => '프로필'
-]);
-
-// 프로필 이미지 수정
-$router->post('/api/user/profile/update-image', 'ProfileController@apiUpdateImage', [
-    'key' => 'api.profile.update_image',
-    'name' => '프로필 이미지 수정',
-    'description' => '사용자 프로필 이미지 업로드',
-    'category' => '프로필'
-]);
-
-// 직원 이름 수정
-$router->post('/api/user/profile/update-name', 'ProfileController@apiUpdateName', [
-    'key' => 'api.profile.update_name',
-    'name' => '직원 이름 수정',
-    'description' => '사용자 이름 수정',
-    'category' => '프로필'
-]);
-
-// 사용자 + 프로필 정보
-$router->get('/api/user/profile/user-info', 'ProfileController@apiGetUserInfo', [
-    'key' => 'api.profile.userinfo',
-    'name' => '사용자 정보 조회',
-    'description' => '사용자 + 프로필 통합 정보 조회',
-    'category' => '프로필'
-]);
-
-// 2FA
-$router->post('/api/user/profile/update-2fa', 'ProfileController@apiUpdateTwoFactor', [
-    'key' => 'api.profile.update_2fa',
-    'name' => '2단계 인증 설정',
-    'description' => '사용자의 2단계 인증 활성화/비활성화 설정',
-    'category' => '보안'
-]);
-
-// 프로필수정
-$router->post('/api/user/profile/update', 'ProfileController@apiUpdateProfile', [
-    'key' => 'api.profile.update',
-    'name' => '내 프로필 수정',
-    'category' => '프로필'
-]);
-
-// 프로필 내 비밀번호변경
-$router->post('/api/user/profile/change-password', 'ProfileController@apiChangePassword', [
-    'key' => 'api.profile.changepassword',
-    'name' => '내 비밀번호변경 수정',
-    'category' => '프로필'
-]);
 
 
 

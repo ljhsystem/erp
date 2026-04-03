@@ -27,7 +27,12 @@ class PermissionRegistry
     /** ------------------------------------------------------------
      *  권한 등록 (Router::get/post 에서 자동 호출됨)
      * ------------------------------------------------------------ */
-    public static function register(string $key, string $name = null, string $description = null, string $category = null)
+    public static function register(
+        string $key,
+        ?string $name = null,
+        ?string $description = null,
+        ?string $category = null
+    )
     {
         self::init();
 

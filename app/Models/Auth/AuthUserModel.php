@@ -430,7 +430,13 @@ class AuthUserModel
     } 
     
 
-
+    public function hardDeleteByUserId(string $userId): bool
+    {
+        $sql = "DELETE FROM auth_users WHERE id = ?";
+        $stmt = $this->pdo->prepare($sql);
+    
+        return $stmt->execute([$userId]);
+    }
 
     
 }

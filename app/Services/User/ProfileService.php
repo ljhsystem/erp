@@ -9,6 +9,7 @@ use App\Services\File\FileService;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\CodeHelper;
 use Core\Helpers\ActorHelper;
+use Core\Security\Crypto;
 use Core\LoggerFactory;
 
 class ProfileService
@@ -33,9 +34,71 @@ class ProfileService
     }
 
     /* ============================================================
-     * 1) 유저 + 프로필 조회
+     * 직원 전체 조회
      * ============================================================ */
-    public function getProfile(string $userId): ?array
+    public function getList(array $filters = []): array
+    {
+        $this->logger->info("ProfileService::getAllProfiles START", [
+            'actor'   => ActorHelper::resolve('USER'),
+            'filters' => $filters
+        ]);
+    
+        try {
+            $this->logger->info("ProfileService::getAllProfiles DB QUERY", [
+                'fn'      => 'UserProfileModel::getAllProfiles',
+                'filters' => $filters
+            ]);
+    
+            $list = $this->profiles->getList($filters);
+    
+            $this->logger->info("ProfileService::getAllProfiles END", [
+                'count' => is_array($list) ? count($list) : 0
+            ]);
+    
+            return $list;
+    
+        } catch (\Throwable $e) {
+            $this->logger->error("ProfileService::getAllProfiles EXCEPTION", [
+                'filters' => $filters,
+                'error'   => $e->getMessage(),
+                'trace'   => $e->getTraceAsString()
+            ]);
+            return [];
+        }
+    }
+
+    /* ============================================================
+     * 사용자 기본 정보 가져오기
+     * ============================================================ */
+    public function getDetail(string $userId): ?array
+    {
+        $this->logger->info('getDetail 호출', [
+            'user_id' => $userId
+        ]);
+    
+        // 1. Users
+        $user = $this->users->getById($userId);
+    
+        if (!$user) {
+            return null;
+        }
+    
+        // 2. Profile
+        $profile = $this->profiles->getByUserId($userId);
+    
+        // 3. 병합
+        $result = array_merge(
+            $user,
+            $profile ?? []
+        );
+    
+        return $result;
+    }
+
+    /* ============================================================
+     * 유저 + 프로필 조회(UserId기준)
+     * ============================================================ */
+    public function getByUserId(string $userId): ?array
     {
         $this->logger->info("ProfileService::getProfile START", [
             'userId' => $userId,
@@ -67,270 +130,573 @@ class ProfileService
         }
     }
 
-    /* ============================================================
-     * 2) 직원 전체 조회
-     * ============================================================ */
-    public function getAllProfiles(array $filters = []): array
+
+
+    // ============================================================
+    // 직원 검색 (Select2용)
+    // ============================================================
+    public function search(string $q = '', int $limit = 20): array
     {
-        $this->logger->info("ProfileService::getAllProfiles START", [
-            'actor'   => ActorHelper::resolve('USER'),
-            'filters' => $filters
+        $this->logger->info("ProfileService::searchEmployees START", [
+            'actor' => ActorHelper::resolve('USER'),
+            'q'     => $q,
+            'limit' => $limit
         ]);
-    
+
         try {
-            $this->logger->info("ProfileService::getAllProfiles DB QUERY", [
-                'fn'      => 'UserProfileModel::getAllProfiles',
-                'filters' => $filters
+            $limit = max(1, min(100, (int)$limit));
+
+            $this->logger->info("ProfileService::searchEmployees DB QUERY", [
+                'fn'    => 'UserProfileModel::searchEmployees',
+                'q'     => $q,
+                'limit' => $limit
             ]);
-    
-            $list = $this->profiles->getAllProfiles($filters);
-    
-            $this->logger->info("ProfileService::getAllProfiles END", [
-                'count' => is_array($list) ? count($list) : 0
+
+            $rows = $this->profiles->search($q, $limit);
+
+            $this->logger->info("ProfileService::searchEmployees END", [
+                'count' => is_array($rows) ? count($rows) : 0
             ]);
-    
-            return $list;
-    
+
+            return $rows;
+
         } catch (\Throwable $e) {
-            $this->logger->error("ProfileService::getAllProfiles EXCEPTION", [
-                'filters' => $filters,
-                'error'   => $e->getMessage(),
-                'trace'   => $e->getTraceAsString()
+            $this->logger->error("ProfileService::searchEmployees EXCEPTION", [
+                'q'     => $q,
+                'limit' => $limit,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
+
             return [];
         }
     }
 
-    /* ============================================================
-     * 3) 프로필 생성 (user_id 반드시 존재해야 함)
-     *  - UUID는 여기서 생성됨
-     *  - 직원코드(code) 자동 생성
-     * ============================================================ */
-    public function createProfile(array $data): array
+
+
+    public function save(array $data, array $files = []): array
     {
-        $this->logger->info("ProfileService::createProfile START", [
-            'actor'         => ActorHelper::resolve('USER'),
-            'user_id'       => $data['user_id'] ?? null,
-            'employee_name' => $data['employee_name'] ?? null,
-            'keys'          => array_keys($data)
+        $actor  = ActorHelper::resolve('USER');
+        $userId = trim((string)($data['id'] ?? ''));
+        $isCreate = ($userId === '');
+
+        $this->logger->info("ProfileService::save START", [
+            'actor'     => $actor,
+            'userId'    => $userId,
+            'isCreate'  => $isCreate,
+            'data_keys' => array_keys($data),
+            'file_keys' => array_keys($files),
         ]);
 
-        try {
-            if (empty($data['user_id'])) {
-                $this->logger->warning("ProfileService::createProfile VALIDATION FAIL", [
-                    'reason' => 'user_id 누락',
-                    'data'   => $data,
-                    'debug' => $data   // 🔥 추가
-                ]);
-                return ['success' => false, 'message' => 'user_id 누락'];
-            }
-            if (empty($data['employee_name'])) {
-                $this->logger->warning("ProfileService::createProfile VALIDATION FAIL", [
-                    'reason' => '직원 이름 누락',
-                    'data'   => $data
-                ]);
-                return ['success' => false, 'message' => '직원 이름 누락'];
-            }
-
-            // ⭐ UUID 생성 (PK)
-            $data['id'] = UuidHelper::generate();
-            $this->logger->info("ProfileService::createProfile UUID GENERATED", [
-                'id' => $data['id']
-            ]);
-
-            // ⭐ 직원 코드 자동 생성
-            $data['code'] = CodeHelper::generateEmployeeCode($this->pdo);
-            $this->logger->info("ProfileService::createProfile CODE GENERATED", [
-                'code' => $data['code']
-            ]);
-
-            // 생성자 기록
-            $data['created_by'] = $data['created_by'] ?? ActorHelper::resolve('USER');
-            $this->logger->info("ProfileService::createProfile CREATED_BY", [
-                'created_by' => $data['created_by']
-            ]);
-
-            // DB 저장
-            $this->logger->info("ProfileService::createProfile DB INSERT", [
-                'fn' => 'UserProfileModel::createProfile',
-                'user_id' => $data['user_id'],
-                'id'      => $data['id'],
-                'code'    => $data['code']
-            ]);
-
-            $ok = $this->profiles->createProfile($data);
-
-            $this->logger->info("ProfileService::createProfile END", [
-                'success' => $ok,
-                'user_id' => $data['user_id'],
-                'id'      => $data['id'],
-                'code'    => $data['code']
-            ]);
-
-            return [
-                'success' => $ok,
-                'id'      => $data['id'],
-                'code'    => $data['code']
-            ];
-
-        } catch (\Throwable $e) {
-            $this->logger->error("ProfileService::createProfile EXCEPTION", [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'data'  => $data
-            ]);
-            return ['success' => false, 'message' => '예외 발생'];
-        }
-    }
-
-    /* ============================================================
-     * 4) 프로필 수정 (화이트리스트 + updated_by)
-     * ============================================================ */
-    public function updateProfile(string $userId, array $data): array
-    {
-        $this->logger->info("ProfileService::updateProfile START", [
-            'actor' => ActorHelper::resolve('USER'),
-            'userId' => $userId,
-            'input_keys' => array_keys($data)
-        ]);
+        $uploadedNewFiles = [];
+        $deleteAfterCommit = [];
 
         try {
-            $allowed = [
-                'employee_name','phone','address','address_detail',
-                'department_id','position_id',
-                'certificate_name','certificate_file',
-                'profile_image','rrn_image',
-                'note','memo',
-                'doc_hire_date','real_hire_date','doc_retire_date','real_retire_date',
-                'emergency_phone','rrn'
-            ];
+            /* ============================================================
+            * 1) 공통 기본값 / 검증
+            * ============================================================ */
+            $username = trim((string)($data['username'] ?? ''));
+            $password = (string)($data['password'] ?? '');
+            $employeeName = trim((string)($data['employee_name'] ?? ''));
+            
+            /* 🔥 신규 생성일 때만 username 체크 */
+            if ($isCreate && $username === '') {
+                return ['success' => false, 'message' => '아이디는 필수입니다.'];
+            }
 
-            $payload = [];
-            foreach ($allowed as $f) {
-                if (array_key_exists($f, $data)) {
-                    $payload[$f] = $data[$f];
+            if ($employeeName === '') {
+                return ['success' => false, 'message' => '직원명은 필수입니다.'];
+            }
+
+            if ($isCreate && $password === '') {
+                return ['success' => false, 'message' => '비밀번호는 필수입니다.'];
+            }
+
+            /* ============================================================
+            * 2) username 중복 체크
+            *    - 신규: 있으면 실패
+            *    - 수정: 본인 아이디면 허용
+            * ============================================================ */
+            $exists = $this->users->existsByUsername($username);
+
+            if ($exists) {
+                if ($isCreate) {
+                    return ['success' => false, 'message' => '이미 사용중인 아이디입니다.'];
+                }
+
+                $currentUsername = $this->users->getUsername($userId);
+                if ($currentUsername !== $username) {
+                    return ['success' => false, 'message' => '이미 사용중인 아이디입니다.'];
                 }
             }
 
-            $this->logger->info("ProfileService::updateProfile FILTERED", [
-                'userId' => $userId,
-                'payload_keys' => array_keys($payload)
-            ]);
+            /* ============================================================
+            * 3) AUTH 데이터 구성
+            * ============================================================ */
+            $authData = [];
 
-            // 실제 변경할 필드가 없으면 "성공"으로 처리 (auth_users만 변경되는 경우 대비)
-            if (empty($payload)) {
-                $this->logger->info("ProfileService::updateProfile EMPTY PAYLOAD (SKIP)", [
-                    'userId' => $userId
-                ]);
-                return ['success' => true];
+            /* username - 값 있을 때만 */
+            if (isset($data['username']) && trim($data['username']) !== '') {
+                $authData['username'] = trim($data['username']);
+            }
+            
+            /* email */
+            if (array_key_exists('email', $data)) {
+                $authData['email'] = trim((string)$data['email']);
+            }
+            
+            /* role_id - 🔥 핵심 */
+            if (array_key_exists('role_id', $data)) {
+                if ($data['role_id'] !== '') {
+                    $authData['role_id'] = $data['role_id'];
+                }
+                // ❌ 빈값이면 아예 넣지 않는다 (NULL 덮어쓰기 방지)
+            }
+            
+            /* flags */
+            if (array_key_exists('two_factor_enabled', $data)) {
+                $authData['two_factor_enabled'] = ($data['two_factor_enabled'] == '1') ? 1 : 0;
+            }
+            
+            if (array_key_exists('email_notify', $data)) {
+                $authData['email_notify'] = ($data['email_notify'] == '1') ? 1 : 0;
+            }
+            
+            if (array_key_exists('sms_notify', $data)) {
+                $authData['sms_notify'] = ($data['sms_notify'] == '1') ? 1 : 0;
             }
 
-            // 변경자 기록
-            $payload['updated_by'] = ActorHelper::resolve('USER');
-            $this->logger->info("ProfileService::updateProfile UPDATED_BY", [
-                'userId' => $userId,
-                'updated_by' => $payload['updated_by']
-            ]);
+            if ($password !== '') {
+                $authData['password'] = password_hash($password, PASSWORD_DEFAULT);
+                $authData['password_updated_at'] = date('Y-m-d H:i:s');
+                $authData['password_updated_by'] = $actor;
+            }
 
-            $this->logger->info("ProfileService::updateProfile DB UPDATE", [
-                'fn' => 'UserProfileModel::updateProfile',
-                'userId' => $userId,
-                'payload_keys' => array_keys($payload)
-            ]);
+            /* ============================================================
+            * 4) PROFILE 데이터 구성
+            * ============================================================ */
+            $profileData = [];
 
-            $ok = $this->profiles->updateProfile($userId, $payload);
-
-            $this->logger->info("ProfileService::updateProfile END", [
-                'userId' => $userId,
-                'success' => $ok
-            ]);
-
-            return ['success' => $ok];
-
-        } catch (\Throwable $e) {
-            $this->logger->error("ProfileService::updateProfile EXCEPTION", [
-                'userId' => $userId,
-                'error'  => $e->getMessage(),
-                'trace'  => $e->getTraceAsString()
-            ]);
-            return ['success' => false, 'message' => '예외 발생'];
-        }
-    }
-
-    /* ============================================================
-     * 5) 기본 정보 수정 (Basic Tab 전용)
-     * ============================================================ */
-    public function updateBasicInfo(string $userId, array $data): array
-    {
-        $this->logger->info("ProfileService::updateBasicInfo START", [
-            'actor' => ActorHelper::resolve('USER'),
-            'userId' => $userId,
-            'input_keys' => array_keys($data)
-        ]);
-
-        try {
-            $allowed = [
+            $profileFields = [
                 'employee_name','phone','address','address_detail',
                 'department_id','position_id',
-                'certificate_name','certificate_file',
-                'profile_image','rrn_image',
-                'note','memo',
+                'certificate_name','note','memo',
                 'doc_hire_date','real_hire_date','doc_retire_date','real_retire_date',
-                'emergency_phone','rrn'
+                'emergency_phone'
             ];
 
-            $payload = [];
-            foreach ($allowed as $f) {
-                if (array_key_exists($f, $data)) {
-                    $payload[$f] = $data[$f];
+            foreach ($profileFields as $field) {
+                if (array_key_exists($field, $data)) {
+                    $profileData[$field] = ($data[$field] === '') ? null : $data[$field];
                 }
             }
 
-            $this->logger->info("ProfileService::updateBasicInfo FILTERED", [
-                'userId' => $userId,
-                'payload_keys' => array_keys($payload)
-            ]);
+            /* ============================================================
+            * 5) 주민번호 처리
+            *    - 빈값이면 기존 유지
+            *    - 마스킹값은 저장 금지
+            * ============================================================ */
+            $rrnInput = trim((string)($data['rrn'] ?? ''));
 
-            if (empty($payload)) {
-                $msg = '수정할 데이터가 없습니다.';
-                $this->logger->warning("ProfileService::updateBasicInfo EMPTY PAYLOAD", [
-                    'userId' => $userId,
-                    'message' => $msg
-                ]);
-                return ['success' => false, 'message' => $msg];
+            if (strpos($rrnInput, '*') !== false) {
+                return ['success' => false, 'message' => '마스킹된 주민번호는 저장할 수 없습니다.'];
             }
 
-            // 변경자 기록
-            $payload['updated_by'] = ActorHelper::resolve('USER');
+            $rrnRaw = preg_replace('/\D+/', '', $rrnInput);
+            if ($rrnRaw !== '') {
+                $crypto = new Crypto();
+                $profileData['rrn'] = $crypto->encryptResidentNumber($rrnRaw);
+            }
 
-            $this->logger->info("ProfileService::updateBasicInfo DB UPDATE", [
-                'fn' => 'UserProfileModel::updateProfile',
-                'userId' => $userId,
-                'payload_keys' => array_keys($payload),
-                'updated_by' => $payload['updated_by']
-            ]);
+            /* ============================================================
+            * 6) 수정 시 현재 프로필 조회
+            * ============================================================ */
+            $currentProfile = null;
+            if (!$isCreate) {
+                $currentProfile = $this->profiles->getByUserId($userId);
+            }
 
-            $ok = $this->profiles->updateProfile($userId, $payload);
+            /* ============================================================
+            * 7) 파일 업로드 처리
+            *    - save는 "파일 업로드 + DB 반영용 path 세팅"만 한다
+            *    - 직접 DB update 하지 않는다
+            * ============================================================ */
 
-            $this->logger->info("ProfileService::updateBasicInfo END", [
-                'userId' => $userId,
-                'success' => $ok
+            // 7-1. 프로필 이미지
+            if (!empty($files['profile_image']['name'])) {
+                $upload = $this->fileService->uploadProfile($files['profile_image']);
+
+                if (empty($upload['success']) || empty($upload['db_path'])) {
+                    return ['success' => false, 'message' => $upload['message'] ?? '프로필 이미지 업로드 실패'];
+                }
+
+                $profileData['profile_image'] = $upload['db_path'];
+                $uploadedNewFiles[] = $upload['db_path'];
+
+                if (!$isCreate && !empty($currentProfile['profile_image'])) {
+                    $deleteAfterCommit[] = $currentProfile['profile_image'];
+                }
+            }
+
+            // 7-2. 주민번호 이미지
+            if (!empty($files['rrn_image']['name'])) {
+                $upload = $this->fileService->uploadPrivateIdDoc($files['rrn_image']);
+
+                if (empty($upload['success']) || empty($upload['db_path'])) {
+                    return ['success' => false, 'message' => $upload['message'] ?? '신분증 이미지 업로드 실패'];
+                }
+
+                $profileData['rrn_image'] = $upload['db_path'];
+                $uploadedNewFiles[] = $upload['db_path'];
+
+                if (!$isCreate && !empty($currentProfile['rrn_image'])) {
+                    $deleteAfterCommit[] = $currentProfile['rrn_image'];
+                }
+            }
+
+            // 7-3. 자격증 파일
+            if (!empty($files['certificate_file']['name'])) {
+                $upload = $this->fileService->uploadCertificate($files['certificate_file']);
+
+                if (empty($upload['success']) || empty($upload['db_path'])) {
+                    return ['success' => false, 'message' => $upload['message'] ?? '자격증 파일 업로드 실패'];
+                }
+
+                $profileData['certificate_file'] = $upload['db_path'];
+                $uploadedNewFiles[] = $upload['db_path'];
+
+                if (!$isCreate && !empty($currentProfile['certificate_file'])) {
+                    $deleteAfterCommit[] = $currentProfile['certificate_file'];
+                }
+            }
+
+            /* ============================================================
+            * 8) 삭제 플래그 처리
+            *    - save 안에서만 "null 세팅 + 커밋 후 파일 삭제" 처리
+            * ============================================================ */
+            if (!$isCreate) {
+                if (!empty($data['profile_image_delete']) && $data['profile_image_delete'] == "1") {
+                    if (empty($profileData['profile_image']) && !empty($currentProfile['profile_image'])) {
+                        $profileData['profile_image'] = null;
+                        $deleteAfterCommit[] = $currentProfile['profile_image'];
+                    }
+                }
+
+                if (!empty($data['rrn_image_delete']) && $data['rrn_image_delete'] == "1") {
+                    if (empty($profileData['rrn_image']) && !empty($currentProfile['rrn_image'])) {
+                        $profileData['rrn_image'] = null;
+                        $deleteAfterCommit[] = $currentProfile['rrn_image'];
+                    }
+                }
+
+                if (!empty($data['certificate_file_delete']) && $data['certificate_file_delete'] == "1") {
+                    if (empty($profileData['certificate_file']) && !empty($currentProfile['certificate_file'])) {
+                        $profileData['certificate_file'] = null;
+                        $deleteAfterCommit[] = $currentProfile['certificate_file'];
+                    }
+                }
+            }
+
+            /* ============================================================
+            * 9) 신규 / 수정 저장
+            * ============================================================ */
+            $this->pdo->beginTransaction();
+
+            try {
+                if ($isCreate) {
+                    $newUserId = UuidHelper::generate();
+
+                    $authData['id'] = $newUserId;
+                    $authData['created_by'] = $actor;
+
+                    $userOk = $this->users->createUser($authData);
+                    if (!$userOk) {
+                        throw new \Exception('사용자 생성 실패');
+                    }
+
+                    $profileData['user_id'] = $newUserId;
+                    $profileData['created_by'] = $actor;
+
+                    $profileResult = $this->profiles->create($profileData);
+                    if (empty($profileResult['success'])) {
+                        throw new \Exception($profileResult['message'] ?? '프로필 생성 실패');
+                    }
+
+                    $this->pdo->commit();
+
+                    foreach (array_unique($deleteAfterCommit) as $path) {
+                        $this->deleteFile($path);
+                    }
+
+                    return [
+                        'success' => true,
+                        'id'      => $newUserId,
+                        'code'    => $profileResult['code'] ?? null,
+                        'message' => '저장 완료'
+                    ];
+                }
+
+                /* 1️⃣ users 업데이트 */
+                if (!empty($authData)) {
+                    $okUser = $this->users->updateUserDirect($userId, $authData);
+
+                    if ($okUser === false) {
+                        throw new \Exception('사용자 정보 수정 실패');
+                    }
+                }
+
+                /* 2️⃣ profiles 업데이트 */
+                $result = $this->profiles->updateByUserId($userId, $profileData);
+
+                if ($result === false) {
+                    throw new \Exception('수정 실패');
+                }
+
+                $this->pdo->commit();
+
+                foreach (array_unique($deleteAfterCommit) as $path) {
+                    $this->deleteFile($path);
+                }
+
+                return [
+                    'success' => true,
+                    'id'      => $userId,
+                    'message' => '저장 완료'
+                ];
+
+            } catch (\Throwable $e) {
+                $this->pdo->rollBack();
+
+                // 롤백 시 새로 업로드한 파일은 정리
+                foreach (array_unique($uploadedNewFiles) as $path) {
+                    $this->deleteFile($path);
+                }
+
+                throw $e;
+            }
+
+        } catch (\Throwable $e) {
+            $this->logger->error("ProfileService::save EXCEPTION", [
+                'userId'    => $userId,
+                'isCreate'  => $isCreate,
+                'error'     => $e->getMessage(),
+                'trace'     => $e->getTraceAsString(),
             ]);
 
             return [
-                'success' => $ok,
-                'message' => $ok ? '프로필이 수정되었습니다.' : '프로필 수정 실패'
+                'success' => false,
+                'message' => '저장 실패',
+                'error'   => $e->getMessage()
+            ];
+        }
+    }
+
+/* ============================================================
+ * 직원 삭제 (영구 삭제)
+ * ============================================================ */
+public function delete(string $userId): array
+{
+    $actor = ActorHelper::resolve('USER');
+
+    $this->logger->info("ProfileService::delete START", [
+        'actor'  => $actor,
+        'userId' => $userId
+    ]);
+
+    try {
+        if ($userId === '') {
+            return ['success' => false, 'message' => 'user_id 누락'];
+        }
+
+        $this->pdo->beginTransaction();
+
+        try {
+            // 1. 프로필 조회 (파일 정리용)
+            $profile = $this->profiles->getByUserId($userId);
+
+            // 2. DB 삭제
+            $profileOk = $this->profiles->hardDeleteByUserId($userId);
+            $userOk    = $this->users->hardDeleteByUserId($userId);
+
+            if (!$profileOk || !$userOk) {
+                throw new \Exception('삭제 실패');
+            }
+
+            $this->pdo->commit();
+
+            // 3. 파일 삭제 (커밋 이후)
+            if (!empty($profile['profile_image'])) {
+                $this->deleteFile($profile['profile_image']);
+            }
+
+            if (!empty($profile['rrn_image'])) {
+                $this->deleteFile($profile['rrn_image']);
+            }
+
+            if (!empty($profile['certificate_file'])) {
+                $this->deleteFile($profile['certificate_file']);
+            }
+
+            return [
+                'success' => true,
+                'message' => '직원 삭제 완료'
             ];
 
         } catch (\Throwable $e) {
-            $this->logger->error("ProfileService::updateBasicInfo EXCEPTION", [
-                'userId' => $userId,
-                'error'  => $e->getMessage(),
-                'trace'  => $e->getTraceAsString()
-            ]);
-            return ['success' => false, 'message' => '예외 발생'];
+            $this->pdo->rollBack();
+            throw $e;
         }
+
+    } catch (\Throwable $e) {
+        $this->logger->error("ProfileService::delete EXCEPTION", [
+            'userId' => $userId,
+            'error'  => $e->getMessage()
+        ]);
+
+        return [
+            'success' => false,
+            'message' => '삭제 실패',
+            'error'   => $e->getMessage()
+        ];
     }
+}
+
+
+
+
+
+
+
+
+
+/* ============================================================
+ * 직원 상태 변경 (활성/비활성)
+ * ============================================================ */
+public function updateStatus(string $userId, bool $isActive): array
+{
+    $actor = ActorHelper::resolve('USER');
+
+    $this->logger->info("ProfileService::updateStatus START", [
+        'actor'    => $actor,
+        'userId'   => $userId,
+        'isActive' => $isActive
+    ]);
+
+    try {
+        if ($userId === '') {
+            return [
+                'success' => false,
+                'message' => 'user_id 누락'
+            ];
+        }
+
+        $data = [
+            'is_active' => $isActive ? 1 : 0
+        ];
+
+        if ($isActive) {
+            // 활성화
+            $data['deleted_at'] = null;
+            $data['deleted_by'] = null;
+        } else {
+            // 비활성화
+            $data['deleted_at'] = date('Y-m-d H:i:s');
+            $data['deleted_by'] = $actor;
+        }
+
+        $data['updated_at'] = date('Y-m-d H:i:s');
+        $data['updated_by'] = $actor;
+
+        $ok = $this->profiles->updateStatus($userId, $data);
+
+        $this->logger->info("ProfileService::updateStatus END", [
+            'userId'  => $userId,
+            'success' => $ok
+        ]);
+
+        return [
+            'success' => (bool)$ok,
+            'message' => $isActive ? '계정이 활성화되었습니다.' : '계정이 비활성화되었습니다.'
+        ];
+
+    } catch (\Throwable $e) {
+        $this->logger->error("ProfileService::updateStatus EXCEPTION", [
+            'userId' => $userId,
+            'error'  => $e->getMessage(),
+            'trace'  => $e->getTraceAsString()
+        ]);
+
+        return [
+            'success' => false,
+            'message' => '상태 변경 실패',
+            'error'   => $e->getMessage()
+        ];
+    }
+}
+
+
+
+
+public function reorder(array $changes): void
+{
+    $this->pdo->beginTransaction();
+
+    try {
+
+        // 1️⃣ 임시값
+        foreach ($changes as $c) {
+            $this->profiles->updateCode(
+                $c['id'],
+                $c['newCode'] + 10000
+            );
+        }
+
+        // 2️⃣ 실제값
+        foreach ($changes as $c) {
+            $this->profiles->updateCode(
+                $c['id'],
+                $c['newCode']
+            );
+        }
+
+        $this->pdo->commit();
+
+    } catch (\Throwable $e) {
+        $this->pdo->rollBack();
+        throw $e;
+    }
+}
+
+
+public function findByName(string $name): ?array
+{
+    return $this->profiles->findByName($name);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     /* ============================================================
      * 6) 프로필 이미지 업데이트 (기존 파일 삭제 포함)
@@ -349,7 +715,7 @@ class ProfileService
                 'userId' => $userId
             ]);
 
-            $current  = $this->profiles->getProfileByUserId($userId);
+            $current  = $this->profiles->getByUserId($userId);
             $oldImage = $current['profile_image'] ?? null;
 
             $this->logger->info("ProfileService::updateProfileImage CURRENT", [
@@ -436,7 +802,7 @@ class ProfileService
                 'userId' => $userId
             ]);
 
-            $current = $this->profiles->getProfileByUserId($userId);
+            $current = $this->profiles->getByUserId($userId);
             $old     = $current['certificate_file'] ?? null;
 
             $this->logger->info("ProfileService::updateCertificateFile CURRENT", [
@@ -527,7 +893,7 @@ class ProfileService
                 'userId' => $userId
             ]);
 
-            $current = $this->profiles->getProfileByUserId($userId);
+            $current = $this->profiles->getByUserId($userId);
             $old     = $current['rrn_image'] ?? null;
 
             $this->logger->info("ProfileService::updateIdDocument CURRENT", [
@@ -593,78 +959,6 @@ class ProfileService
 
         } catch (\Throwable $e) {
             $this->logger->error("ProfileService::updateIdDocument EXCEPTION", [
-                'userId' => $userId,
-                'error'  => $e->getMessage(),
-                'trace'  => $e->getTraceAsString()
-            ]);
-            return ['success' => false, 'message' => '예외 발생'];
-        }
-    }
-
-    /* ============================================================
-     * 9) auth_users + user_profiles 동시 수정
-     * ============================================================ */
-    public function updateFullProfile(string $userId, array $authData, array $profileData): array
-    {
-        $this->logger->info("ProfileService::updateFullProfile START", [
-            'actor' => ActorHelper::resolve('USER'),
-            'userId' => $userId,
-            'auth_keys' => array_keys($authData),
-            'profile_keys' => array_keys($profileData)
-        ]);
-
-        try {
-            $currentUserId = ActorHelper::resolve('USER');
-
-            // auth_users 쪽 updated_by 세팅
-            if (!empty($authData)) {
-                $authData['updated_by'] = $authData['updated_by'] ?? $currentUserId;
-            }
-
-            // profile 쪽 updated_by 세팅
-            if (!empty($profileData)) {
-                $profileData['updated_by'] = $profileData['updated_by'] ?? $currentUserId;
-            }
-
-            $this->logger->info("ProfileService::updateFullProfile PREPARED", [
-                'userId' => $userId,
-                'authData_updated_by' => $authData['updated_by'] ?? null,
-                'profileData_updated_by' => $profileData['updated_by'] ?? null
-            ]);
-
-            $authOK = true;
-            if (!empty($authData)) {
-                $this->logger->info("ProfileService::updateFullProfile AUTH UPDATE", [
-                    'fn' => 'AuthUserModel::updateUserDirect',
-                    'userId' => $userId,
-                    'auth_keys' => array_keys($authData)
-                ]);
-                $authOK = $this->users->updateUserDirect($userId, $authData);
-            }
-
-            $profileOK = true;
-            if (!empty($profileData)) {
-                $this->logger->info("ProfileService::updateFullProfile PROFILE UPDATE", [
-                    'fn' => 'ProfileService::updateProfile',
-                    'userId' => $userId,
-                    'profile_keys' => array_keys($profileData)
-                ]);
-                $profileOK = $this->updateProfile($userId, $profileData)['success'];
-            }
-
-            $success = ($authOK && $profileOK);
-
-            $this->logger->info("ProfileService::updateFullProfile END", [
-                'userId' => $userId,
-                'authOK' => $authOK,
-                'profileOK' => $profileOK,
-                'success' => $success
-            ]);
-
-            return ['success' => $success];
-
-        } catch (\Throwable $e) {
-            $this->logger->error("ProfileService::updateFullProfile EXCEPTION", [
                 'userId' => $userId,
                 'error'  => $e->getMessage(),
                 'trace'  => $e->getTraceAsString()
@@ -746,129 +1040,12 @@ class ProfileService
     }
 
 
-    /* ============================================================
-     * 7) 사용자 기본 정보 가져오기
-     * ============================================================ */
-    public function getUserById(string $id): ?array
-    {
-        $this->logger->info('getUserById 호출', [
-            'user_id' => $id
-        ]);
-
-        $user = $this->users->getById($id);
-
-        $this->logger->info('getUserById 호출', [
-            'user_id' => $id,
-            'found'   => $user !== null
-        ]);
-
-        return $user;
-    }
-
-    // ============================================================
-    // 직원 검색 (Select2용)
-    // ============================================================
-    public function searchEmployees(string $q = '', int $limit = 20): array
-    {
-        $this->logger->info("ProfileService::searchEmployees START", [
-            'actor' => ActorHelper::resolve('USER'),
-            'q'     => $q,
-            'limit' => $limit
-        ]);
-
-        try {
-            $limit = max(1, min(100, (int)$limit));
-
-            $this->logger->info("ProfileService::searchEmployees DB QUERY", [
-                'fn'    => 'UserProfileModel::searchEmployees',
-                'q'     => $q,
-                'limit' => $limit
-            ]);
-
-            $rows = $this->profiles->searchEmployees($q, $limit);
-
-            $this->logger->info("ProfileService::searchEmployees END", [
-                'count' => is_array($rows) ? count($rows) : 0
-            ]);
-
-            return $rows;
-
-        } catch (\Throwable $e) {
-            $this->logger->error("ProfileService::searchEmployees EXCEPTION", [
-                'q'     => $q,
-                'limit' => $limit,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return [];
-        }
-    }
-
-    public function reorderProfiles(array $changes): void
-    {
-        $this->pdo->beginTransaction();
-    
-        try {
-    
-            // 1️⃣ 임시값
-            foreach ($changes as $c) {
-                $this->profiles->updateCode(
-                    $c['id'],
-                    $c['newCode'] + 10000
-                );
-            }
-    
-            // 2️⃣ 실제값
-            foreach ($changes as $c) {
-                $this->profiles->updateCode(
-                    $c['id'],
-                    $c['newCode']
-                );
-            }
-    
-            $this->pdo->commit();
-    
-        } catch (\Throwable $e) {
-            $this->pdo->rollBack();
-            throw $e;
-        }
-    }
 
 
-    public function updateStatus(string $userId, string $action): array
-    {
-        $actor = ActorHelper::resolve('USER');
 
-        try {
 
-            $isActive = ($action === 'activate') ? 1 : 0;
 
-            $ok = $this->users->updateUserDirect($userId, [
-                'is_active' => $isActive,
-                'updated_by' => $actor
-            ]);
 
-            return [
-                'success' => $ok,
-                'message' => $ok
-                    ? ($isActive ? '계정이 활성화되었습니다.' : '계정이 비활성화되었습니다.')
-                    : '상태 변경 실패'
-            ];
-
-        } catch (\Throwable $e) {
-
-            return [
-                'success' => false,
-                'message' => $e->getMessage()
-            ];
-        }
-    }
-
-    public function findByName(string $name): ?array
-    {
-        return $this->profiles->findByName($name);
-    }
     
 
 }

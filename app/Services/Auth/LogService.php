@@ -160,7 +160,7 @@ class LogService
     // ---------------------------------------------------------------
     // 관리자 승인
     // ---------------------------------------------------------------
-    public function approved(string $userId, string $approvedByUserId, string $approvedByUsername = null): void
+    public function approved(string $userId, string $approvedByUserId, ?string $approvedByUsername = null): void
     {
         $this->writeLog([
             'user_id'       => $userId,
@@ -220,7 +220,7 @@ class LogService
     // ---------------------------------------------------------------
     // 로그아웃
     // ---------------------------------------------------------------
-    public function logout(string $userId = null, string $username = null): void
+    public function logout(?string $userId = null, ?string $username = null): void
     {
         $this->writeLog([
             'user_id'       => $userId,

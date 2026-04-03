@@ -1,10 +1,12 @@
 <?php
 // 경로: PROJECT_ROOT . '/index.php';
-//주석처리테스트
 use Core\Router;
 use Core\Session;
 use Core\Database;
 use Core\PermissionRegistry;
+
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
 
 /* ============================================================
  * 1) 프로젝트 루트 정의

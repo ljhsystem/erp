@@ -14,222 +14,9 @@ class UserProfileModel
     }
 
     /* ============================================================
-     * 1. 단일 프로필 조회 (user_id)
-     * ============================================================ */
-    public function getProfileByUserId(string $userId): ?array
-    {
-        $sql = "
-            SELECT *
-            FROM user_profiles
-            WHERE user_id = ?
-            LIMIT 1
-        ";
-
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute([$userId]);
-
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-    }
-
-    /* ============================================================
-     * 2. 직원 이름 중복 확인 (단일 함수로 정리)
-     * ============================================================ */
-    public function existsByEmployeeName(string $employeeName): bool
-    {
-        $sql = "SELECT COUNT(*) FROM user_profiles WHERE employee_name = ?";
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute([$employeeName]);
-        return (int)$stmt->fetchColumn() > 0;
-    }
-
-    /* ============================================================
-     * 3. 직원 프로필 생성
-     * ============================================================ */
-    public function createProfile(array $data): bool
-    {
-        $sql = "
-            INSERT INTO user_profiles (
-                id, code, user_id, employee_name,
-                phone, address, address_detail,
-                department_id, position_id,
-                doc_hire_date, real_hire_date,
-                doc_retire_date, real_retire_date,
-                rrn, rrn_image,
-                emergency_phone, 
-                profile_image, certificate_name, certificate_file,
-                note, memo,
-                created_at, created_by
-            )
-            VALUES (
-                :id, :code, :user_id, :employee_name,
-                :phone, :address, :address_detail,
-                :department_id, :position_id,
-                :doc_hire_date, :real_hire_date,
-                :doc_retire_date, :real_retire_date,
-                :rrn, :rrn_image,
-                :emergency_phone, 
-                :profile_image, :certificate_name, :certificate_file,
-                :note, :memo,
-                NOW(), :created_by
-        )
-        ";
-
-        $stmt = $this->db->prepare($sql);
-
-        return $stmt->execute([
-            ':id'               => $data['id'],
-            ':code'             => $data['code'],
-            ':user_id'          => $data['user_id'],
-            ':employee_name'    => $data['employee_name'],
-            ':phone'            => $data['phone'] ?? null,
-            ':address'          => $data['address'] ?? null,
-            ':address_detail'   => $data['address_detail'] ?? null,
-            ':department_id'    => $data['department_id'] ?? null,
-            ':position_id'      => $data['position_id'] ?? null,
-            ':doc_hire_date'    => $data['doc_hire_date'] ?? null,
-            ':real_hire_date'   => $data['real_hire_date'] ?? null,
-            ':doc_retire_date'  => $data['doc_retire_date'] ?? null,
-            ':real_retire_date' => $data['real_retire_date'] ?? null,
-            ':rrn'              => $data['rrn'] ?? null,
-            ':rrn_image'        => $data['rrn_image'] ?? null,
-            ':emergency_phone'  => $data['emergency_phone'] ?? null,   
-            ':profile_image'    => $data['profile_image'] ?? null,
-            ':certificate_name' => $data['certificate_name'] ?? null,
-            ':certificate_file' => $data['certificate_file'] ?? null,
-            ':note'             => $data['note'] ?? null,
-            ':memo'             => $data['memo'] ?? null,
-            ':created_by'       => $data['created_by'] ?? null
-        ]);
-    }
-
-    /* ============================================================
-     * 4. 부분 업데이트 (user_id 기준)
-     * ============================================================ */
-    public function updateProfile(string $userId, array $data): bool
-    {
-        if (empty($data)) {
-            return true;
-        }
-
-        $fields = [];
-        $values = [];
-
-        foreach ($data as $key => $value) {
-            $fields[] = "`{$key}` = ?";
-            $values[] = $value;
-        }
-
-        $fields[] = "updated_at = NOW()";
-        $sql = "UPDATE user_profiles SET " . implode(", ", $fields) . " WHERE user_id = ?";
-        $values[] = $userId;
-
-        $stmt = $this->db->prepare($sql);
-        return $stmt->execute($values);
-    }
-
-    /* ============================================================
-     * 5. 프로필 이미지 변경 (updatedBy optional)
-     * ============================================================ */
-    public function updateProfileImage(string $userId, string $imagePath, ?string $updatedBy = null): bool
-    {
-        $sql = "
-            UPDATE user_profiles
-               SET profile_image = ?, 
-                   updated_by = ?, 
-                   updated_at = NOW()
-             WHERE user_id = ?
-        ";
-
-        return $this->db->prepare($sql)->execute([$imagePath, $updatedBy, $userId]);
-    }
-
-    /* ============================================================
-     * 6. 직위/부서 업데이트
-     * ============================================================ */
-    public function updateDeptPos(string $userId, ?string $departmentId, ?string $positionId): bool
-    {
-        $sql = "
-            UPDATE user_profiles
-               SET department_id = ?, 
-                   position_id = ?, 
-                   updated_at = NOW()
-             WHERE user_id = ?
-        ";
-
-        return $this->db->prepare($sql)->execute([$departmentId, $positionId, $userId]);
-    }
-
-    /* ============================================================
-    * 7. 사용자 + 프로필 JOIN (role → role_id로 수정)
+    * 직원 전체 목록 조회 (JOIN 포함)
     * ============================================================ */
-    public function getUserWithProfile(string $userId): ?array
-    {
-        $sql = "
-            SELECT 
-                u.id AS user_id,
-                u.username,
-                u.email,
-                u.role_id,
-                u.two_factor_enabled,
-                u.email_notify,
-                u.sms_notify,
-
-                /* ===== 로그인 관련 ===== */
-                u.last_login,
-                u.last_login_ip,
-                u.last_login_device,
-
-                /* ===== 비밀번호 변경 기록 ===== */
-                u.password_updated_at,
-                u.password_updated_by,
-
-                /* ===== 생성/수정/삭제 기록 ===== */
-                u.created_at AS user_created_at,
-                u.created_by AS user_created_by,
-                u.updated_at AS user_updated_at,
-                u.updated_by AS user_updated_by,
-                u.deleted_at,
-                u.deleted_by,
-
-                /* ===== 프로필 ===== */
-                p.*
-            FROM auth_users u
-            LEFT JOIN user_profiles p 
-                ON p.user_id = u.id                
-            WHERE u.id = ?
-            LIMIT 1
-        ";
-
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute([$userId]);
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-    }
-
-
-    /* ============================================================
-     * 8. 직원 이름 수정
-     * ============================================================ */
-    public function updateEmployeeName(string $userId, string $employeeName, ?string $updatedBy = null): bool
-    {
-        $sql = "
-            UPDATE user_profiles
-               SET employee_name = :name,
-                   updated_by = :updated_by,
-                   updated_at = NOW()
-             WHERE user_id = :user_id
-        ";
-
-        return $this->db->prepare($sql)->execute([
-            ':name'       => $employeeName,
-            ':updated_by' => $updatedBy,
-            ':user_id'    => $userId
-        ]);
-    }
-
-    /* ============================================================
-    * 9. 직원 전체 목록 조회 (JOIN 포함)
-    * ============================================================ */
-    public function getAllProfiles(array $filters = []): array
+    public function getList(array $filters = []): array
     {
         $sql = "
             SELECT
@@ -447,38 +234,79 @@ class UserProfileModel
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+    /* ============================================================
+     * 단일 프로필 조회 (user_id)
+     * ============================================================ */
+    public function getByUserId(string $userId): ?array
+    {
+        $sql = "
+            SELECT *
+            FROM user_profiles
+            WHERE user_id = ?
+            LIMIT 1
+        ";
 
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$userId]);
+
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
 
 
     /* ============================================================
-    * 프로필 전체 업데이트 (user_id 기준)
+    * 사용자 + 프로필 JOIN (role → role_id로 수정)
     * ============================================================ */
-    public function updateProfileByUserId(string $userId, array $data): bool
+    public function getUserWithProfile(string $userId): ?array
     {
-        if (empty($data)) {
-            return true;
-        }
+        $sql = "
+            SELECT 
+                u.id AS user_id,
+                u.username,
+                u.email,
+                u.role_id,
+                u.two_factor_enabled,
+                u.email_notify,
+                u.sms_notify,
 
-        $fields = [];
-        $values = [];
+                /* ===== 로그인 관련 ===== */
+                u.last_login,
+                u.last_login_ip,
+                u.last_login_device,
 
-        foreach ($data as $key => $value) {
-            $fields[] = "`{$key}` = ?";
-            $values[] = $value;
-        }
+                /* ===== 비밀번호 변경 기록 ===== */
+                u.password_updated_at,
+                u.password_updated_by,
 
-        $fields[] = "updated_at = NOW()";
-        $sql = "UPDATE user_profiles SET " . implode(", ", $fields) . " WHERE user_id = ?";
-        $values[] = $userId;
+                /* ===== 생성/수정/삭제 기록 ===== */
+                u.created_at AS user_created_at,
+                u.created_by AS user_created_by,
+                u.updated_at AS user_updated_at,
+                u.updated_by AS user_updated_by,
+                u.deleted_at,
+                u.deleted_by,
+
+                /* ===== 프로필 ===== */
+                p.*
+            FROM auth_users u
+            LEFT JOIN user_profiles p 
+                ON p.user_id = u.id                
+            WHERE u.id = ?
+            LIMIT 1
+        ";
 
         $stmt = $this->db->prepare($sql);
-        return $stmt->execute($values);
+        $stmt->execute([$userId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
+
+
+
+
    /* ============================================================
-    * 10. 직원 검색 (Select2용)
+    * 직원 검색 (Select2용)
     * ============================================================ */
-    public function searchEmployees(string $q = '', int $limit = 20): array
+    public function search(string $q = '', int $limit = 20): array
     {
         $limit = max(1, min(100, (int)$limit));
 
@@ -533,22 +361,265 @@ class UserProfileModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    public function updateCode(string $id, int $newCode): bool
+
+
+
+
+
+
+
+    /* ============================================================
+     * 직원 프로필 생성
+     * ============================================================ */
+    public function create(array $data): bool
     {
-        $sql = "UPDATE user_profiles SET code = :code WHERE id = :id";
+        $sql = "
+            INSERT INTO user_profiles (
+                id, code, user_id, employee_name,
+                phone, address, address_detail,
+                department_id, position_id,
+                doc_hire_date, real_hire_date,
+                doc_retire_date, real_retire_date,
+                rrn, rrn_image,
+                emergency_phone, 
+                profile_image, certificate_name, certificate_file,
+                note, memo,
+                created_at, created_by
+            )
+            VALUES (
+                :id, :code, :user_id, :employee_name,
+                :phone, :address, :address_detail,
+                :department_id, :position_id,
+                :doc_hire_date, :real_hire_date,
+                :doc_retire_date, :real_retire_date,
+                :rrn, :rrn_image,
+                :emergency_phone, 
+                :profile_image, :certificate_name, :certificate_file,
+                :note, :memo,
+                NOW(), :created_by
+        )
+        ";
+
         $stmt = $this->db->prepare($sql);
 
-        $ok = $stmt->execute([
-            ':code' => $newCode,
-            ':id'   => $id
+        return $stmt->execute([
+            ':id'               => $data['id'],
+            ':code'             => $data['code'],
+            ':user_id'          => $data['user_id'],
+            ':employee_name'    => $data['employee_name'],
+            ':phone'            => $data['phone'] ?? null,
+            ':address'          => $data['address'] ?? null,
+            ':address_detail'   => $data['address_detail'] ?? null,
+            ':department_id'    => $data['department_id'] ?? null,
+            ':position_id'      => $data['position_id'] ?? null,
+            ':doc_hire_date'    => $data['doc_hire_date'] ?? null,
+            ':real_hire_date'   => $data['real_hire_date'] ?? null,
+            ':doc_retire_date'  => $data['doc_retire_date'] ?? null,
+            ':real_retire_date' => $data['real_retire_date'] ?? null,
+            ':rrn'              => $data['rrn'] ?? null,
+            ':rrn_image'        => $data['rrn_image'] ?? null,
+            ':emergency_phone'  => $data['emergency_phone'] ?? null,   
+            ':profile_image'    => $data['profile_image'] ?? null,
+            ':certificate_name' => $data['certificate_name'] ?? null,
+            ':certificate_file' => $data['certificate_file'] ?? null,
+            ':note'             => $data['note'] ?? null,
+            ':memo'             => $data['memo'] ?? null,
+            ':created_by'       => $data['created_by'] ?? null
         ]);
+    }
 
-        if (!$ok) {
-            throw new \Exception('코드 업데이트 실패');
+    /* ============================================================
+     * 부분 업데이트 (user_id 기준)
+     * ============================================================ */
+    public function updateByUserId(string $userId, array $data): bool
+    {
+        if (empty($data)) {
+            return true;
         }
 
-        return true;
+        $fields = [];
+        $values = [];
+
+        foreach ($data as $key => $value) {
+            $fields[] = "`{$key}` = ?";
+            $values[] = $value;
+        }
+
+        $fields[] = "updated_at = NOW()";
+        $sql = "UPDATE user_profiles SET " . implode(", ", $fields) . " WHERE user_id = ?";
+        $values[] = $userId;
+
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute($values);
     }
+
+
+
+
+/* ============================================================
+ * 프로필 삭제 (user_id 기준)
+ * ============================================================ */
+public function hardDeleteByUserId(string $userId): bool
+{
+    $sql = "DELETE FROM user_profiles WHERE user_id = ?";
+    $stmt = $this->db->prepare($sql);
+    return $stmt->execute([$userId]);
+}
+
+
+/* ============================================================
+ * 상태 변경 (활성 / 비활성)
+ * ============================================================ */
+public function updateStatus(string $userId, array $data): bool
+{
+    $sql = "
+        UPDATE auth_users
+        SET 
+            is_active   = :is_active,
+            deleted_at  = :deleted_at,
+            deleted_by  = :deleted_by,
+            updated_at  = :updated_at,
+            updated_by  = :updated_by
+        WHERE id = :id
+    ";
+
+    $stmt = $this->db->prepare($sql);
+
+    return $stmt->execute([
+        ':is_active'  => $data['is_active'],
+        ':deleted_at' => $data['deleted_at'],
+        ':deleted_by' => $data['deleted_by'],
+        ':updated_at' => $data['updated_at'],
+        ':updated_by' => $data['updated_by'],
+        ':id'         => $userId
+    ]);
+}
+
+
+public function updateCode(string $id, int $newCode): bool
+{
+    $sql = "UPDATE user_profiles SET code = :code WHERE id = :id";
+    $stmt = $this->db->prepare($sql);
+
+    $ok = $stmt->execute([
+        ':code' => $newCode,
+        ':id'   => $id
+    ]);
+
+    if (!$ok) {
+        throw new \Exception('코드 업데이트 실패');
+    }
+
+    return true;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+    /* ============================================================
+     * 프로필 이미지 변경 (updatedBy optional)
+     * ============================================================ */
+    public function updateProfileImage(string $userId, string $imagePath, ?string $updatedBy = null): bool
+    {
+        $sql = "
+            UPDATE user_profiles
+               SET profile_image = ?, 
+                   updated_by = ?, 
+                   updated_at = NOW()
+             WHERE user_id = ?
+        ";
+
+        return $this->db->prepare($sql)->execute([$imagePath, $updatedBy, $userId]);
+    }
+
+    /* ============================================================
+     * 6. 직위/부서 업데이트
+     * ============================================================ */
+    public function updateDeptPos(string $userId, ?string $departmentId, ?string $positionId): bool
+    {
+        $sql = "
+            UPDATE user_profiles
+               SET department_id = ?, 
+                   position_id = ?, 
+                   updated_at = NOW()
+             WHERE user_id = ?
+        ";
+
+        return $this->db->prepare($sql)->execute([$departmentId, $positionId, $userId]);
+    }
+
+
+    /* ============================================================
+     * 8. 직원 이름 수정
+     * ============================================================ */
+    public function updateEmployeeName(string $userId, string $employeeName, ?string $updatedBy = null): bool
+    {
+        $sql = "
+            UPDATE user_profiles
+               SET employee_name = :name,
+                   updated_by = :updated_by,
+                   updated_at = NOW()
+             WHERE user_id = :user_id
+        ";
+
+        return $this->db->prepare($sql)->execute([
+            ':name'       => $employeeName,
+            ':updated_by' => $updatedBy,
+            ':user_id'    => $userId
+        ]);
+    }
+
+
+    /* ============================================================
+    * 프로필 전체 업데이트 (user_id 기준)
+    * ============================================================ */
+    public function updateProfileByUserId(string $userId, array $data): bool
+    {
+        if (empty($data)) {
+            return true;
+        }
+
+        $fields = [];
+        $values = [];
+
+        foreach ($data as $key => $value) {
+            $fields[] = "`{$key}` = ?";
+            $values[] = $value;
+        }
+
+        $fields[] = "updated_at = NOW()";
+        $sql = "UPDATE user_profiles SET " . implode(", ", $fields) . " WHERE user_id = ?";
+        $values[] = $userId;
+
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute($values);
+    }
+
+
+
     public function findByName(string $name): ?array
     {
         $sql = "
@@ -563,5 +634,23 @@ class UserProfileModel
     
         return $stmt->fetch() ?: null;
     }
+
+
+
+    /* ============================================================
+     * 직원 이름 중복 확인 (단일 함수로 정리)
+     * Validation (보조 기능)
+     * ============================================================ */
+    public function existsByName(string $employeeName): bool
+    {
+        $sql = "SELECT COUNT(*) FROM user_profiles WHERE employee_name = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$employeeName]);
+        return (int)$stmt->fetchColumn() > 0;
+    }
+
+
+
+
 
 }

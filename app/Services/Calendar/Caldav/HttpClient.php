@@ -117,7 +117,7 @@ class HttpClient
 
         if ($bodyRes === false) {
             $err = curl_error($ch);
-            curl_close($ch);
+            //curl_close($ch);
 
             $this->logger->error('[HTTP] curl failed', ['error' => $err]);
 
@@ -128,7 +128,7 @@ class HttpClient
             ];
         }
 
-        curl_close($ch);
+        //curl_close($ch);
 
         if ($status >= 400) {
             $this->logger->warning('[HTTP] error response', [

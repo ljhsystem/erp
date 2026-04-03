@@ -53,45 +53,13 @@ class ProfileController
         ]);
     }
 
-    // ============================================================
-    // API: 내 프로필 조회 (user_id 없이)
-    // URL: GET /api/user/profile
-    // permission: api.profile.me
-    // controller: ProfileController@apiProfileMe
-    // ============================================================
-    public function apiProfileMe()
-    {
-        header('Content-Type: application/json; charset=UTF-8');
-    
-        $userId = $_SESSION['user']['id'] ?? null;
-    
-        if (!$userId) {
-            http_response_code(401);
-            echo json_encode([
-                'success' => false,
-                'message' => '로그인이 필요합니다.'
-            ]);
-            return;
-        }
-    
-        $profile = $this->profileService->getProfile($userId);
-    
-        if (!$profile) {
-            echo json_encode([
-                'success' => false,
-                'message' => '프로필 정보를 찾을 수 없습니다.'
-            ]);
-            return;
-        }
-    
-        echo json_encode([
-            'success' => true,
-            'data'    => $profile
-        ], JSON_UNESCAPED_UNICODE);
-    }
-    
-    
-    
+
+
+
+
+
+
+
     
 
     // ============================================================
@@ -107,259 +75,123 @@ class ProfileController
         ]);
     }
     
-    
+
+
+
+
+
+
 
     // ============================================================
-    // API: 프로필 단일 조회
-    // URL: GET /user/profile/get?user_id=xxx
+    // API: 프로필 상세 조회 (통합)
+    // URL: GET /api/user/profile/detail
     // permission: api.profile.view
-    // controller: ProfileController@apiGet
+    // controller: ProfileController@apiDetail
     // ============================================================
-    public function apiGet()
+    public function apiDetail()
     {
-        header('Content-Type: application/json; charset=utf-8');
+        header('Content-Type: application/json; charset=UTF-8');
 
-        $userId = $_GET['user_id'] ?? '';
-        echo json_encode(
-            $this->profileService->getProfile($userId)
-        );
-    }
-
-    // ============================================================
-    // API: 프로필 생성
-    // URL: POST /user/profile/create
-    // permission: api.profile.create
-    // controller: ProfileController@apiCreate
-    // ============================================================
-    public function apiCreate()
-    {
-        header('Content-Type: application/json; charset=utf-8');
-
-        echo json_encode(
-            $this->profileService->createProfile($_POST)
-        );
-    }
-
-    // ============================================================
-    // API: 프로필 이미지 업로드
-    // URL: POST /user/profile/update-image
-    // permission: api.profile.update_image
-    // controller: ProfileController@apiUpdateImage
-    // ============================================================
-    public function apiUpdateImage()
-    {
-        header('Content-Type: application/json; charset=utf-8');
-    
         try {
-            // ✅ 로그인 사용자 기준 (POST로 user_id 받지 않음)
-            if (empty($_SESSION['user']['id'])) {
-                throw new \Exception('인증이 필요합니다.');
+
+            // 🔥 1️⃣ user_id 우선
+            $userId = $_GET['user_id'] ?? null;
+
+            // 🔥 2️⃣ 없으면 세션 fallback
+            if (!$userId) {
+                $userId = $_SESSION['user']['id'] ?? null;
             }
-    
-            if (empty($_FILES['profile_image'])) {
-                throw new \Exception('업로드된 파일이 없습니다.');
+
+            if (!$userId) {
+                throw new \Exception('user_id 또는 로그인 정보가 필요합니다.');
             }
-    
-            $userId = $_SESSION['user']['id'];
-            $file   = $_FILES['profile_image'];
-    
-            $result = $this->profileService->updateProfileImage($userId, $file);
-    
-            echo json_encode($result, JSON_UNESCAPED_UNICODE);
-    
+
+            $profile = $this->profileService->getDetail($userId);
+
+            if (!$profile) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => '프로필 정보를 찾을 수 없습니다.'
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            echo json_encode([
+                'success' => true,
+                'data' => $profile
+            ], JSON_UNESCAPED_UNICODE);
+
         } catch (\Throwable $e) {
+
             http_response_code(400);
+
             echo json_encode([
                 'success' => false,
                 'message' => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
     }
-    
 
-    // ============================================================
-    // API: 직원 이름 수정
-    // URL: POST /user/profile/update-name
-    // permission: api.profile.update_name
-    // controller: ProfileController@apiUpdateName
-    // ============================================================
-    public function apiUpdateName()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    public function apiSave()
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $userId = $_POST['user_id'] ?? '';
-        $name   = $_POST['employee_name'] ?? '';
+        try {
 
-        echo json_encode(
-            $this->profileService->updateBasicInfo($userId, [
-                'employee_name' => $name
-            ])
-        );
-    }
-
-    // ============================================================
-    // API: 사용자 + 프로필 통합 조회
-    // URL: GET /user/profile/user-info?user_id=xxx
-    // permission: api.profile.userinfo
-    // controller: ProfileController@apiGetUserInfo
-    // ============================================================
-    public function apiGetUserInfo()
-    {
-        header('Content-Type: application/json; charset=utf-8');
-
-        $userId = $_GET['user_id'] ?? '';
-        echo json_encode(
-            $this->profileService->getProfile($userId)
-        );
-    }
-
-    // ============================================================
-    // API: 2단계 인증 활성/비활성 변경
-    // URL: POST /user/profile/update-2fa
-    // permission: api.profile.update_2fa
-    // controller: ProfileController@apiUpdateTwoFactor
-    // ============================================================
-    public function apiUpdateTwoFactor()
-    {
-        header('Content-Type: application/json; charset=utf-8');
-
-        $userId  = $_POST['user_id'] ?? '';
-        $enabled = (int)($_POST['enabled'] ?? 0);
-
-        echo json_encode(
-            $this->profileService->updateTwoFactorEnabled($userId, $enabled)
-        );
-    }
-
-    // ============================================================
-    // API: 내 프로필 전체 수정 (세션 기반)
-    // URL: POST /api/user/profile/update
-    // permission: api.profile.update
-    // controller: ProfileController@apiUpdateProfile
-    // ============================================================
-    public function apiUpdateProfile()
-    {  
-        header('Content-Type: application/json; charset=utf-8');
-
-        $userId = $_SESSION['user']['id'];
-
-        /* =========================
-        * 🔹 FormData 수신
-        * ========================= */
-        $input = $_POST;
-
-        /* =========================
-        * 🔐 auth_users
-        * ========================= */
-        $authData = [];
-
-        if (isset($input['email'])) {
-            $authData['email'] = trim($input['email']);
-        }
-        if (isset($input['two_factor_enabled'])) {
-            $authData['two_factor_enabled'] = (int)$input['two_factor_enabled'];
-        }
-        if (isset($input['email_notify'])) {
-            $authData['email_notify'] = (int)$input['email_notify'];
-        }
-        if (isset($input['sms_notify'])) {
-            $authData['sms_notify'] = (int)$input['sms_notify'];
-        }
-
-        /* =========================
-        * 👤 user_profiles
-        * ========================= */
-        $profileData = [];
-
-        foreach ([
-            'employee_name',
-            'phone',
-            'emergency_phone',
-            'address',
-            'address_detail',
-            'certificate_name'
-        ] as $field) {
-            if (array_key_exists($field, $input)) {
-                $profileData[$field] = $input[$field];
-            }
-        }
-
-        /* =========================
-        * 📎 자격증 파일
-        * ========================= */
-        if (!empty($_FILES['certificate_file']['name'])) {
-            $upload = $this->profileService->updateCertificateFile(
-                $userId,
-                $_FILES['certificate_file']
-            );
-
-            if (empty($upload['success'])) {
-                echo json_encode($upload, JSON_UNESCAPED_UNICODE);
-                return;
+            if (empty($_SESSION['user']['id'])) {
+                throw new \Exception('인증이 필요합니다.');
             }
 
-            $profileData['certificate_file'] = $upload['certificate_file'];
-        }
+            $userId = $_SESSION['user']['id'];
 
-        /* =========================
-        * 🔄 통합 업데이트
-        * ========================= */
-        $result = $this->profileService->updateFullProfile(
-            $userId,
-            $authData,
-            $profileData
-        );
+            /* =========================
+            * 🔹 FormData 수신
+            * ========================= */
+            $input = $_POST;
+            $files = $_FILES;
 
-        echo json_encode([
-            'success' => $result['success'],
-            'message' => $result['success']
-                ? '저장되었습니다.'
-                : '저장 실패'
-        ], JSON_UNESCAPED_UNICODE);
-    }
+            /* =========================
+            * 🔥 핵심: id만 추가
+            * ========================= */
+            $input['id'] = $userId;
 
-    // ============================================================
-    // API: 내 비밀번호 변경 (세션 기반)
-    // URL: POST /api/user/profile/change-password
-    // permission: api.profile.changepassword
-    // controller: ProfileController@apiChangePassword
-    // ============================================================
+            /* =========================
+            * 🔥 서비스에 전부 위임
+            * ========================= */
+            $result = $this->profileService->save($input, $files);
 
-    public function apiChangePassword()
-    {
-        header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'success' => $result['success'],
+                'message' => $result['message'] ?? '',
+                'error'   => $result['error'] ?? null   // 🔥 디버깅용
+            ], JSON_UNESCAPED_UNICODE);
 
-        $userId = $_SESSION['user']['id'];
+        } catch (\Throwable $e) {
 
-        $current = trim($_POST['current_password'] ?? '');
-        $new     = trim($_POST['new_password'] ?? '');
-        $confirm = trim($_POST['confirm_password'] ?? '');
+            http_response_code(400);
 
-        // 1️⃣ 기본 검증
-        if ($current === '' || $new === '' || $confirm === '') {
             echo json_encode([
                 'success' => false,
-                'message' => '모든 항목을 입력하세요.'
+                'message' => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
-            return;
         }
-
-        if ($new !== $confirm) {
-            echo json_encode([
-                'success' => false,
-                'message' => '새 비밀번호가 일치하지 않습니다.'
-            ], JSON_UNESCAPED_UNICODE);
-            return;
-        }
-
-        // 2️⃣ AuthService에 위임 (검증 포함)
-        $result = $this->authService->changePasswordWithVerify(
-            $userId,
-            $current,
-            $new
-        );
-
-        echo json_encode($result, JSON_UNESCAPED_UNICODE);
     }
 
 

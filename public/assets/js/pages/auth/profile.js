@@ -4,8 +4,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     /* =====================================================
      * API
      * ===================================================== */
-    const API_ME     = '/api/user/profile';          // GET
-    const API_UPDATE = '/api/user/profile/update';   // POST (FormData)
+    const API_ME     = '/api/user/profile/detail';   // ✅
+    const API_UPDATE = '/api/user/profile/save';     // ✅
 
     /* =====================================================
     * External Accounts API
@@ -263,7 +263,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             fd.append('profile_image', file);
     
             try {
-            const res = await fetch('/api/user/profile/update-image', {
+            const res = await fetch('/api/user/profile/save', {
                 method: 'POST',
                 credentials: 'same-origin',
                 body: fd
