@@ -229,13 +229,23 @@ class Router
     /* ============================================================
        5. 네임스페이스 해석
        ============================================================ */
-    private function resolveNamespace(string $filePath, string $shortName): string
-    {
-        $relative = str_replace(PROJECT_ROOT . '/app/Controllers/', '', $filePath);
-        $dir = str_replace('/', '\\', dirname($relative));
-
-        return ($dir === '.' || $dir === '')
-            ? "App\\Controllers\\{$shortName}"
-            : "App\\Controllers\\{$dir}\\{$shortName}";
-    }
+       private function resolveNamespace(string $filePath, string $shortName): string
+       {
+           // 🔥 1. 경로 슬래시 통일
+           $filePath = str_replace('\\', '/', $filePath);
+           $basePath = str_replace('\\', '/', PROJECT_ROOT . '/app/Controllers/');
+       
+           // 🔥 2. 상대경로 추출
+           $relative = str_replace($basePath, '', $filePath);
+       
+           // 🔥 3. 디렉토리 추출
+           $dir = dirname($relative);
+       
+           // 🔥 4. namespace용 변환
+           $dir = str_replace('/', '\\', $dir);
+       
+           return ($dir === '.' || $dir === '')
+               ? "App\\Controllers\\{$shortName}"
+               : "App\\Controllers\\{$dir}\\{$shortName}";
+       }
 }

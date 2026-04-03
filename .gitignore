@@ -1,3 +1,25 @@
-web/secure-config/db_config.php
-secure-config/
-.vscode/
+# VS / IDE
+.vs/
+*.suo
+*.user
+*.cache
+
+# Logs
+storage/logs/*
+*.log
+
+# Sessions
+storage/sessions/*
+
+# Backups
+storage/*backups/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Composer
+vendor/
+
+# Env
+.env

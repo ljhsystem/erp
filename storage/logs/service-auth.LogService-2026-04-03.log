@@ -1,1 +1,0 @@
-[2026-04-03T08:22:09.197606+09:00] service-auth.LogService.INFO: AuthLog {"id":"037ebfe3-543e-4c32-abf5-5ec67712be3c","user_id":"f113b666-ff40-4f93-a7e7-8cea4cdc9c28","username":"ljhsystem","log_type":"auth","action_type":"login","detail":"정상로그인성공","success":1} []
