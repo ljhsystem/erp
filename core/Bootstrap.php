@@ -1,8 +1,6 @@
 <?php
 // 경로: PROJECT_ROOT . '/core/Bootstrap.php'
-
 //namespace Core;
-
 use Core\LoggerFactory;
 
 // ============================================================
