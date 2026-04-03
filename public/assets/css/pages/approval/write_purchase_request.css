@@ -1,0 +1,22 @@
+﻿/* 📄 경로: /assets/css/pages/dashboard/approval/write_purchase_request.css */
+
+.approval-main {
+	padding: 60px 20px 60px 260px;
+	min-height: calc(100vh - 120px);
+	box-sizing: border-box;
+	background-color: #fdfdfd;
+}
+
+	.approval-main h5 {
+		font-weight: bold;
+		color: #2c3e50;
+	}
+
+	.approval-main .form-control,
+	.approval-main textarea {
+		font-size: 0.95rem;
+	}
+
+	.approval-main .btn {
+		min-width: 100px;
+	}

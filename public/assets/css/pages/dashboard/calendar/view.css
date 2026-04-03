@@ -1,0 +1,522 @@
+﻿/* 📄 /public/assets/css/pages/dashboard/calendar/view.css */
+
+/* =========================================================
+   Center Calendar (FullCalendar)
+========================================================= */
+  
+  #calendar {
+    flex: 1;        
+    min-height: 0;
+  }
+
+/* ===========================
+ * Synology-style Event Pill
+ * =========================== */
+/* 공통 */
+.fc .shint-ev {
+  display: flex;
+  align-items: center;
+  gap: 0px;
+  padding: 2px 4px;
+  font-size: 12.5px;
+  line-height: 1.3;
+}
+
+  
+  
+  /* =========================================================
+     DayGrid 밀도 조절 (스크롤 방지 핵심)
+  ========================================================= */
+  
+  /* 날짜 셀 내부 여백 축소 */
+  .fc .fc-daygrid-day-frame {
+    padding: 2px 3px;           /* 🔽 기본값보다 줄임 */
+  }
+
+/* FC 기본 pill 제거 (안전 버전) */
+.fc .fc-daygrid-event {
+  background: transparent;
+  border: none;
+}
+
+  
+  /* pill 내부 */
+  .fc .fc-daygrid-event .fc-event-main {
+    padding: 1px 5px;           /* 🔽 2px 6px → 1px 5px */
+    line-height: 1.25;          /* 🔧 높이 안정화 */
+  }
+  
+  
+  /* =========================================================
+     "+n more" 줄 높이 안정화
+  ========================================================= */
+  .fc .fc-daygrid-more-link {
+    font-size: 11px;
+    padding: 1px 4px;
+  }
+  
+  
+
+  
+  /* 필터로 숨긴 이벤트 */
+.fc .is-hidden-by-filter {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+
+
+
+/* 🔥 Mini → Main Calendar Date Flash */
+.fc .fc-daygrid-day.is-flash {
+  animation: fc-date-flash 1.2s ease-out;
+}
+
+@keyframes fc-date-flash {
+  0% {
+    background-color: rgba(59,130,246,0.35); /* 파랑 */
+  }
+  60% {
+    background-color: rgba(59,130,246,0.18);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.fc .fc-daygrid-event,
+.fc .fc-daygrid-block-event {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+/* 🔥 이벤트 DOM 잘림 방지 (DOT 표시 핵심) */
+.fc .fc-event-main,
+.fc .fc-event-main-frame {
+  overflow: visible !important;
+}
+
+
+
+
+
+
+
+/* ===========================
+ * Synology-style Event Pill
+ * =========================== */
+/* ⏱ 시간 이벤트 */
+.fc .shint-ev.is-time {
+  background: transparent;
+}
+
+.fc .shint-ev.is-time .shint-ev-bar {
+  width: 4px;
+  height: 14px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.fc .shint-ev.is-time .shint-ev-title {
+  color: #111827;   /* 더 진하게 */
+}
+
+  /* 강조 바 */
+/* bar (색상은 JS에서) */
+.fc .shint-ev-bar {
+  width: 4px;
+  height: 14px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.shint-ev {
+  display: flex;
+  align-items: center;
+  gap: 0;   /* 반드시 0 */
+}
+
+.shint-ev-bar {
+  width: 4px;
+  height: 14px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  margin-right: 4px;   /* 여기로 이동 */
+}
+
+/* 📅 종일 이벤트 */
+.fc .shint-ev.is-allday {
+  border-radius: 6px;
+}
+
+/* 종일 이벤트 */
+.fc .shint-ev.is-allday .shint-ev-title {
+  color: #1f2937;
+}
+
+/* 제목 */
+.fc .shint-ev-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+/* 우측 점 (색상은 JS에서) */
+.fc .shint-ev-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* FC 기본 pill 제거 (안전한 방식) */
+.fc .fc-daygrid-event {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* 내부는 투명 유지하되 우리가 만든 wrap는 살린다 */
+.fc .fc-event-main,
+.fc .fc-event-main-frame {
+  background: transparent !important;
+}
+
+/* 🔧 DayGrid 이벤트 높이 안정화 */
+.fc .fc-daygrid-block-event {
+  padding: 0 !important;
+}
+
+.fc .fc-daygrid-block-event .fc-event-main-frame {
+  overflow: visible !important;
+}
+
+.shint-ev-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.fc .shint-ev {
+  position: relative;
+}
+
+/* 날짜-only 태스크 배경 충돌 제거 */
+.fc-daygrid-event.fc-task-event {
+  background: transparent !important;
+  border: none !important;
+}
+
+.shint-ev {
+  border-radius: 6px;
+}
+
+
+.right-list-check-circle {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #ccc;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  margin-right: 8px;
+}
+
+.right-list-check-circle.is-completed {
+  background: #3b82f6;
+  border-color: #3b82f6;
+}
+
+/*완료부분*/
+.shint-ev-title.is-completed {
+  text-decoration: line-through !important;
+  color: #9ca3af !important;
+  opacity: 0.65;
+}
+
+.fc-header-toolbar.is-search-hidden {
+  display: none !important;
+}
+
+
+
+.fc-list-table {
+  width: 100%;
+}
+
+
+/* 🔥 날짜 제목 */
+.fc .fc-list-day-cushion {
+  padding-left: 18px !important;
+}
+
+/* 🔥 이벤트 전체 줄 정렬 */
+.fc .fc-list-event td {
+  padding-left: 90px !important;
+}
+
+
+
+
+/* 🔥 검색결과(listMonth) 좌측 여백 추가 */
+.fc .fc-list-event-title {
+  padding-left: 16px !important;
+}
+
+.fc .fc-header-toolbar {
+  margin-bottom: 4px !important;
+  padding: 10px 10px 0 10px;
+}
+
+.fc-theme-standard .fc-scrollgrid {
+  border-top: none !important;
+}
+
+/* 🔥 listMonth 높이 강제 제한 */
+.fc-list {
+  height: 90% !important;
+}
+
+.fc-list-table {
+  height: auto;
+}
+
+.fc-list .fc-scroller {
+  max-height: 100% !important;
+  overflow-y: auto !important;
+}
+
+
+.syno-admin-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-left: 8px;
+  display: inline-block;
+}
+
+
+
+
+
+
+
+
+
+
+
+/* FullCalendar 기본 버튼 스타일 제거 */
+.fc .fc-button {
+  background: #1f2937;
+  border: none;
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 0 !important;   /* 🔥 그룹에서만 처리 */
+  transition: all 0.15s ease;
+}
+
+.fc .fc-button:hover {
+  background: #111827;
+}
+
+.fc .fc-button:focus {
+  box-shadow: none;
+}
+
+.fc .fc-button-primary:not(:disabled).fc-button-active {
+  background: #2563eb;
+}
+
+/* 헤더 레이아웃 재정렬 (중앙 강조형) */
+.fc .fc-header-toolbar {
+  margin-bottom: 18px;
+  padding: 8px 4px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.fc .fc-toolbar-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #111827;
+}
+
+
+/* hover: 더 진하게만 */
+.fc .fc-header-toolbar .fc-prev-button:hover,
+.fc .fc-header-toolbar .fc-next-button:hover {
+  background: #0b1220;
+  border-color: #0b1220;
+  color: #ffffff;
+}
+
+/* 오늘 셀 기본 강조 */
+.fc .fc-day-today {
+  position: relative;
+  z-index: 1;
+}
+
+.fc .fc-header-toolbar .fc-today-button {
+  background: #111827;          /* ✅ 네이비 기본 */
+  color: #ffffff;
+  border: 1px solid #000000;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.10);
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+}
+
+.fc .fc-header-toolbar .fc-today-button:hover {
+color: #fb0000;
+}
+
+/* =========================================
+   🔥 View Buttons 
+========================================= */
+.fc .fc-button-group {
+  background: #f3f4f6;
+  border-radius: 10px;
+  padding: 4px;
+  display: inline-flex;
+  overflow: hidden;
+}
+
+/* 내부 버튼 기본 */
+.fc .fc-button-group .fc-button {
+  background: transparent;
+  color: #374151;
+  border: none;
+  border-radius: 0 !important;
+}
+
+/* 첫번째 버튼 */
+.fc .fc-button-group .fc-button:first-child {
+  border-top-left-radius: 8px !important;
+  border-bottom-left-radius: 8px !important;
+}
+
+/* 마지막 버튼 */
+.fc .fc-button-group .fc-button:last-child {
+  border-top-right-radius: 8px !important;
+  border-bottom-right-radius: 8px !important;
+}
+
+/* 활성 */
+.fc .fc-button-group .fc-button.fc-button-active {
+  background: #111827 !important;
+  color: #ffffff !important;
+}
+
+/* 검색버튼 숨김 */
+.fc-searchView-button.is-hidden-search {
+  display: none !important;
+}
+
+/* 🔥 검색버튼이 숨겨진 상태에서 month를 좌측 라운드 */
+.fc .fc-searchView-button.is-hidden-search + .fc-dayGridMonth-button {
+  border-top-left-radius: 8px !important;
+  border-bottom-left-radius: 8px !important;
+}
+
+/* 검색결과 기본 No events 문구 숨김 */
+.fc .fc-list-empty {
+  display: none;
+}
+
+/* =====================================
+   Empty Search State
+===================================== */
+.calendar-empty-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.empty-card {
+  background: white;
+  border-radius: 14px;
+  padding: 32px 40px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+  text-align: center;
+  pointer-events: auto;
+}
+
+.empty-icon {
+  font-size: 40px;
+  margin-bottom: 14px;
+}
+
+.empty-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 8px;
+}
+
+.empty-desc {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 20px;
+}
+
+
+
+
+/* syno-row를 flex로 정렬하고 gap 주기 */
+
+/* 리스트 한 줄 */
+.syno-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;              /* 🔥 시간과 제목 사이 간격 */
+}
+
+/* 시간 영역 */
+.syno-repeat {
+  min-width: 75px;        /* 🔥 시간 영역 고정폭 */
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* 제목 영역 */
+.syno-title {
+  flex: 1;                /* 🔥 남은 영역 다 차지 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+
+/* Synology Deleted 이벤트 표시 */
+.fc-event.event-synology-deleted::before {
+
+  content: "SND";
+
+  display: inline-flex;     /* 🔥 inline-block → inline-flex */
+  align-items: center;      /* 🔥 세로 정렬 */
+  justify-content: center;
+
+  margin-right: 2px;
+
+  font-size: 10px;
+  font-weight: 700;
+
+  background: #ef4444;
+  color: #fff;
+
+  padding: 1px 4px;
+  border-radius: 3px;
+
+  vertical-align: middle;   /* 🔥 텍스트 라인에 맞춤 */
+}
+
+.fc-event.event-synology-deleted {
+  display: inline-flex;
+  align-items: center;
+}

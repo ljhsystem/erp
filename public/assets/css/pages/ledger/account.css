@@ -1,0 +1,1026 @@
+/* 📄 /public/assets/css/pages/ledger/account.css */
+
+/* ==============================
+   PAGE
+============================== */
+html, body{
+    height:100%;
+    overflow:hidden;
+}
+
+.main-content{
+    height:calc(100vh - 120px);
+    overflow-y:hidden;
+}
+
+.account-main{
+    position:relative;
+    background:#f8f9fa;
+}
+
+.account-page{
+    width:100%;
+    max-width:none;
+    margin:0 auto;
+}
+
+/* ===== 테이블 박스 ===== */
+
+.table-box{
+    border:1px solid #ddd;
+    border-radius:8px;
+    background:#fff;
+    padding:15px;
+    margin-bottom:20px;
+  
+    overflow: visible;   /* ✅ 박스는 숨기지 말고 */
+  }
+
+.table-box table {
+    margin-bottom: 0;
+}
+
+.table-box thead th:first-child {
+    border-top-left-radius: 8px;
+}
+
+.table-box thead th:last-child {
+    border-top-right-radius: 8px;
+}
+.table-responsive {
+    overflow-x: auto;
+}
+.table-box .table-responsive{
+    border-radius:8px;
+    overflow-x:auto;
+    overflow-y:visible;
+  }
+
+.table-box table{ margin-bottom:0; }
+
+#account-table th{
+    background:#e9ecef;
+    font-weight:600;
+}
+/* ==============================
+   HEADER
+============================== */
+
+.account-main .page-header{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+}
+
+
+/* ==============================
+   DATATABLE TOOLBAR
+============================== */
+
+.top-bar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:10px;
+}
+
+.dt-search{
+    flex:1;
+}
+
+.dt-buttons,
+.dt-length{
+    flex-shrink:0;
+}
+
+/* =========================
+   DataTable 열표시 스크롤
+========================= */
+
+.dt-button-collection {
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+
+.dt-button-collection .dt-button {
+    display: block;
+}
+
+
+
+
+
+
+/* ==============================
+   TABLE
+============================== */
+
+/* 선택된 행 강조 */
+.selected-row td{
+    background:#dcdcdc !important;
+}
+
+.text-success-soft{
+    color:#198754;
+    font-weight:500;
+}
+
+.text-primary-soft{
+    color:#0d6efd;
+    font-weight:500;
+}
+
+.text-warning-soft{
+    color:#d39e00;
+    font-weight:500;
+}
+
+.text-danger-soft{
+    color:#dc3545;
+    font-weight:500;
+}
+
+.text-muted-soft{
+    color:#6c757d;
+}
+
+#account-table{
+    background:#fff;
+}
+
+#account-table th{
+    background:#e9ecef;
+    font-weight:600;
+}
+
+
+/* ==============================
+   MODAL
+============================== */
+
+.modal-dialog.modal-lg{
+    max-width:900px;
+    width:95vw;
+}
+
+.account-modal-body{
+    max-height:75vh;
+    overflow-y:auto;
+}
+
+
+/* ==============================
+   CARD
+============================== */
+
+.card{
+    border:1px solid #e1e6ef;
+    border-radius:10px;
+    background:#ffffff;
+    box-shadow:0 3px 8px rgba(0,0,0,.04);
+}
+
+.card-header{
+    background:#c5c5c5;
+    font-weight:600;
+    font-size:13px;
+}
+
+
+/* ==============================
+   ERP TOOLTIP
+============================== */
+
+.tooltip-container{
+    position:absolute;
+    top:28px;
+    left:0;
+    z-index:1000;
+    display:none;
+
+    width:320px;
+    padding:12px;
+
+    background:#fff8c6;
+    border:1px solid #d6c66f;
+    border-radius:6px;
+    box-shadow:0 3px 8px rgba(0,0,0,0.2);
+}
+
+.tooltip-container ul{
+    padding-left:18px;
+}
+
+.tooltip-trigger{
+    cursor:pointer;
+    margin-left:4px;
+}
+
+
+/* ===== 검색폼 전체 ===== */
+
+/* 검색폼 전체 가운데 */
+.search-form-container{
+    border:1px solid #ddd;
+    border-radius: 8px;      /* 모서리 둥글게 */
+    background:#f8f8f8;
+    padding:20px;
+    margin:0 0 20px 0;
+
+    width:100%;
+}
+
+.search-form-title{
+    font-weight:600;
+    margin-bottom:10px;
+    display:block;
+}
+
+
+
+/* ===== 기간 영역 ===== */
+
+/* 기간 영역 */
+.period-row{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:10px;
+    width:100%;
+}
+
+.period-label-area{
+    width:90px;
+    font-weight:600;
+}
+
+.label-btn{
+    background:none;
+    border:none;
+    font-weight:600;
+    padding:0;
+}
+
+.date-type-select{
+    width:120px;
+}
+
+.period-quick-btns{
+    display:flex;
+    gap:5px;
+}
+
+.date-range{
+    display:flex;
+    align-items:center;
+    gap:5px;
+}
+
+
+
+/* ===== 검색어 ===== */
+
+/* 검색 영역 */
+.search-wrapper{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    width:100%;
+}
+
+.search-label-area{
+    width:90px;
+    font-weight:600;
+}
+
+/* 검색 조건 행 간격 */
+.search-condition{
+    display:flex;
+    gap:8px;
+    align-items:center;
+    margin-bottom:8px;
+}
+
+.search-condition:not(:last-child){
+    margin-bottom:8px;
+}
+
+.search-field{
+    width:150px;
+}
+
+.search-input{
+    width:350px;
+}
+
+/* ===== 검색 버튼 ===== */
+
+.search-btn-area{
+    display:flex;
+    justify-content:center;
+    margin-top:12px;
+}
+/* ===== 툴팁 ===== */
+
+.period-label-area,
+.search-label-area{
+    position:relative;
+    display:inline-flex;
+    align-items:center;
+    width:auto;
+}
+
+.tooltip-container{
+    position:absolute;
+    top:30px;
+    left:0;
+    background:#fff9c4;
+    border:1px solid #ddd;
+    padding:10px;
+    width:260px;
+    display:none;
+    z-index:999;
+}
+
+
+
+
+/* =========================
+   SEARCH INPUT HEIGHT FIX
+========================= */
+
+.period-row select,
+.period-row input,
+.period-row button,
+.search-wrapper select,
+.search-wrapper input,
+.search-wrapper button {
+
+    height:38px;
+    min-height:38px;
+
+    padding:6px 10px;
+
+    font-size:14px;
+
+    line-height:1.2;
+
+    box-sizing:border-box;
+}
+
+
+.search-wrapper input[type="date"]{
+    height:38px;
+}
+
+.period-quick-btns button{
+    height:38px;
+    padding:0 12px;
+}
+
+.search-wrapper select{
+    height:38px;
+}
+
+.search-wrapper input,
+.search-wrapper select{
+    border-radius:6px;
+}
+
+.period-row input[type="date"]{
+    height:38px;
+}
+
+.period-quick-btns button{
+    height:38px;
+    padding:0 12px;
+}
+
+
+.reorder-handle{
+    cursor:move;
+    text-align:center;
+}
+
+/* DataTables processing spinner overlay */
+
+.dataTables_wrapper {
+    position: relative;
+}
+
+.dataTables_processing {
+    position: absolute !important;
+    inset: 0;
+
+    align-items: center;
+    justify-content: center;
+
+    background: rgba(255,255,255,0.6);
+
+    z-index: 9999 !important;
+}
+
+.dataTables_processing[style*="display: block"] {
+    display: flex !important;
+}
+
+
+
+/* 날짜 영역 */
+.date-range{
+    display:flex;
+    align-items:center;
+    gap:8px;
+}
+
+/* 날짜 input wrapper */
+.date-input{
+    position:relative;
+    width:140px;
+}
+
+/* input */
+.date-input input{
+    width:100%;
+    padding-right:32px;
+}
+
+/* 아이콘 */
+.date-icon{
+    position:absolute;
+    right:8px;
+    top:50%;
+    transform:translateY(-50%);
+    font-size:16px;
+    cursor:pointer;
+    opacity:0.7;
+}
+
+.date-icon:hover{
+    opacity:1;
+}
+
+/* ~ */
+.date-tilde{
+    font-weight:600;
+}
+
+
+
+/* 검색폼 열고닫기 */
+
+.search-form-container{
+    position:relative;
+    padding-top:14px;
+}
+
+/* 라인 */
+.search-form-container::before{
+    content:"";
+    position:absolute;
+    left:0;
+    right:0;
+    top:0;
+    border-top:0px solid #ddd;
+}
+
+/* 버튼 */
+.search-toggle-text{
+    position:absolute;
+    top:-9px;
+    right:60px;
+
+    background:#fff;
+    padding:0 8px;
+
+    font-size:12px;
+    color:#666;
+    cursor:pointer;
+}
+
+.search-toggle-text:hover{
+    color:#000;
+}
+
+/* 검색폼 숨김 */
+.search-form-body.hidden{
+    display:none;
+}
+
+/* 🔥 접혔을 때 */
+.search-form-container.collapsed{
+    padding:0;
+    height:0;
+    border-top:0px solid #ddd;
+}
+
+
+/* =========================
+   MODAL Z-INDEX FIX
+========================= */
+
+.modal-backdrop {
+    z-index: 30000 !important;
+}
+
+.modal {
+    z-index: 30010 !important;
+}
+
+.date-input-wrap{
+    position:relative;
+}
+
+.date-input-wrap input{
+    padding-right:40px;
+}
+
+.date-icon{
+    position:absolute;
+    right:10px;
+    top:50%;
+    transform:translateY(-50%);
+    cursor:pointer;
+    color:#666;
+}
+
+.date-icon:hover{
+    color:#0d6efd;
+}
+
+.tooltip{
+    z-index:40020 !important;
+}
+
+
+/* =========================
+   ADMIN PICKER FIX
+========================= */
+
+.picker-root{
+    position:relative;
+    z-index:40000 !important;
+}
+
+.picker{
+    z-index:40010 !important;
+}
+
+/* =========================
+   통장 파일박스
+========================= */
+.file-upload-box{
+    border:2px dashed #d0d5dd;
+    padding:15px;
+    text-align:center;
+    cursor:pointer;
+    border-radius:8px;    
+}
+
+.file-upload-box.drag-over{
+    background:#f5f8ff;
+    border-color:#3b82f6;
+}
+
+/* =========================
+   FILE LIST (사업자등록증)
+========================= */
+
+.file-list{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+}
+
+
+.file-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    border:1px solid #ddd;
+    border-radius:6px;
+    padding:8px 12px;
+    background:#fff;
+}
+
+.file-actions{
+
+    display:flex;
+    align-items:center;
+    gap:6px;
+
+    font-size:13px;
+
+}
+
+.file-preview{
+    color:#0d6efd;
+    text-decoration:none;
+    cursor:pointer;
+}
+
+.file-preview:hover{
+    text-decoration:underline;
+}
+
+.file-delete{
+    color:#dc3545;
+    cursor:pointer;
+}
+
+.file-delete:hover{
+    text-decoration:underline;
+}
+
+.file-divider{
+    color:#999;
+}
+
+.file-status{
+    text-align:center;
+    font-size:13px;
+}
+
+.file-line{
+    margin-bottom:4px;
+}
+
+.file-links a{
+    text-decoration:none;
+    font-weight:500;
+}
+
+.file-link-open{
+    color:#0d6efd;
+}
+
+.file-link-delete{
+    color:#dc3545;
+}
+
+.file-divider{
+    margin:0 6px;
+    color:#aaa;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* =========================
+   휴지통
+========================= */
+
+.account-trash-layout{
+    position:relative;
+    height:420px;
+    overflow:hidden;
+}
+
+/* 좌측 리스트 */
+.trash-left{
+    height:100%;
+    overflow-y:auto;
+    transition:width .25s ease;
+    width:100%;
+}
+
+/* 상세 열렸을 때 좌측 축소 */
+.account-trash-layout.detail-open .trash-left{
+    width:calc(100% - 420px);
+}
+
+/* 오른쪽 상세 */
+.trash-right{
+    position:absolute;
+    top:0;
+    right:0;
+
+    width:420px;
+    height:100%;
+
+    background:#fafafa;
+    border-left:1px solid #ddd;
+
+    display:flex;
+    flex-direction:column;
+
+    transform:translateX(100%);
+    transition:transform .25s ease;
+}
+
+/* 열림 */
+.trash-right.open{
+    transform:translateX(0);
+}
+
+
+
+
+
+/* 상세 */
+#account-trash-detail{
+    flex:1;
+    overflow-y:auto;
+    padding:20px;
+    display:none;
+}
+
+/* 툴바 */
+.trash-toolbar{
+    margin-bottom:10px;
+}
+
+#account-trash-detail table{
+    width:100%;
+}
+
+#account-trash-detail th{
+    width:140px;
+    color:#555;
+    font-weight:600;
+}
+
+#account-trash-detail td{
+    color:#222;
+    word-break:break-word;
+}
+
+#account-trash-detail tr{
+    border-bottom:1px solid #eee;
+}
+
+
+
+
+
+/* =========================
+   TABLE CROSS HIGHLIGHT
+========================= */
+
+#account-table td,
+#account-table th{
+    transition: background .12s ease;
+}
+
+/* 행 강조 */
+#account-table tr.row-highlight td{
+    background:#f1f7ff;
+}
+
+/* 열 강조 */
+#account-table td.col-highlight,
+#account-table th.col-highlight{
+    background:#e9f2ff;
+}
+
+/* 교차 셀 강조 */
+#account-table tr.row-highlight td.col-highlight{
+    background:#c5dcff;   /* 원하는 색상 */
+}
+
+
+/* =========================
+   거래유형 카드 정렬
+========================= */
+
+#accountModal .card-body .row{
+    align-items:stretch;
+    margin-bottom:8px;
+}
+
+#accountModal select{
+    width:100%;
+}
+
+#accountModal .form-label{
+    font-size:12px;
+    margin-bottom:3px;
+    font-weight:600;
+    color:#495057;
+}
+
+#accountModal input.form-control-sm,
+#accountModal select.form-select-sm{
+    height:32px;
+}
+
+
+/* =========================
+   INPUT FIELD EMPHASIS
+========================= */
+#accountModal .form-control,
+#accountModal .form-select{
+    border:1px solid #cfd6df;
+    border-radius:7px;
+    background-color:#ffffff;   /* 🔥 background → background-color */
+    transition:all .15s ease;
+}
+
+/* hover */
+#accountModal .form-control:hover,
+#accountModal .form-select:hover{
+    border-color:#9fb7e3;
+    background-color:#f9fbff;   /* 🔥 동일하게 변경 */
+}
+
+/* focus */
+#accountModal .form-control:focus,
+#accountModal .form-select:focus{
+    border-color:#4c8df6;
+    background-color:#ffffff;   /* 🔥 동일하게 변경 */
+    box-shadow:0 0 0 2px rgba(76,141,246,.15);
+}
+
+/* =========================
+   INPUT ACTION BUTTON
+   (상태확인 / 주소검색)
+========================= */
+#accountModal .input-group .btn{
+    background:#f1f3f6;
+    border:1px solid #cfd6df;
+    color:#495057;
+    font-size:12px;
+    padding:3px 10px;
+    border-radius:6px;
+    transition:all .15s ease;
+}
+
+/* hover */
+#accountModal .input-group .btn:hover{
+    background:#e7ecf3;
+    border-color:#b9c3d3;
+}
+
+/* 클릭 */
+#Modal .input-group .btn:active{
+    background:#dfe6f1;
+}
+
+
+/* =========================
+   ACCOUNT SPLIT LAYOUT
+   계정 70% / 보조계정 30%
+========================= */
+
+.account-split-layout{
+    display:flex;
+    gap:15px;
+    align-items:stretch;
+    width:100%;
+    min-height:520px;
+}
+
+/* 좌측 계정 테이블 */
+
+.account-left-panel{
+    flex:1 1 auto;
+    min-width:0;
+}
+
+/* 우측 보조계정 */
+
+.account-right-panel{
+    flex:0 0 26%;
+    min-width:360px;
+    max-width:480px;
+    display:none;
+}
+/* 보조계정 박스 */
+
+.subaccount-box{
+    border:1px solid #ddd;
+    border-radius:8px;
+    background:#fff;
+    padding:12px;
+
+    height:100%;
+    display:flex;
+    flex-direction:column;
+}
+
+/* 보조계정 헤더 */
+
+.subaccount-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:10px;
+}
+
+/* 보조계정 테이블 영역 */
+
+.subaccount-table-wrap{
+    flex:1;
+    overflow:auto;
+}
+
+/* 보조계정 테이블 */
+
+#subaccount-table{
+    background:#fff;
+    margin-bottom:0;
+}
+
+#subaccount-table th{
+    background:#e9ecef;
+    font-weight:600;
+}
+
+/* =========================
+   보조계정 버튼 개선
+========================= */
+
+.sub-btn{
+    font-size:12px;
+    padding:2px 8px;
+    margin-left:6px;
+    border-radius:6px;
+    cursor:pointer;
+    font-weight:500;
+    transition:all 0.15s ease;
+
+    border:1px solid #e5e7eb;
+    background:#f9fafb;
+    color:#495057;
+}
+
+/* 🔥 추가 버튼 (미사용) */
+.sub-btn.add{
+    background:#ffffff;
+    border-color:#c8e6c9;
+    color:#2e7d32;
+}
+
+/* 🔥 수정 버튼 (사용중) */
+.sub-btn.edit{
+    background:#e3f2fd;
+    border-color:#bbdefb;
+    color:#1565c0;
+}
+
+/* hover */
+.sub-btn:hover{
+    filter:brightness(0.95);
+}
+
+
+
+
+#btnCloseSubPanel{
+    width:28px;
+    height:28px;
+    padding:0;
+    font-size:16px;
+    line-height:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+}
+
+
+.balance-box-inner{
+    font-weight:600;
+    font-size:14px;
+
+    padding:6px 12px;
+    border-radius:8px;
+
+    background:#f1f5f9;
+    border:1px solid #e2e8f0;
+}
+
+
+
+/* =========================
+   반응형
+========================= */
+
+@media (max-width:1200px){
+
+    .account-split-layout{
+        flex-direction:column;
+    }
+
+    .account-left-panel,
+    .account-right-panel{
+        flex:0 0 100%;
+        max-width:100%;
+    }
+
+}

@@ -1,0 +1,27 @@
+# 정리된 .htaccess 예시
+Options -Indexes
+
+RewriteEngine On
+RewriteBase /
+
+# 숨김파일(.git 등) 차단
+RewriteRule (^|/)\. - [F,L]
+
+# 파비콘 기본 경로 처리
+RewriteRule ^favicon\.ico$ /index.php?route=favicon [L]
+
+# 내부 디렉터리 접근 금지
+RewriteRule ^(app|core|vendor|storage)(/|$) - [F,L]
+
+# 특정 민감 파일 차단
+<FilesMatch "^(composer\.(json|lock)|package\.json|yarn\.lock|\.env(\..*)?|phpunit\.xml(\.dist)?|artisan)$">
+  Require all denied
+</FilesMatch>
+
+# 정적 파일 및 디렉토리는 rewrite 하지 않음
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# 나머지 모든 요청을 index.php로 전달
+RewriteRule ^ index.php [QSA,L]

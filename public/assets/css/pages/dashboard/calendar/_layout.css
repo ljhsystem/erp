@@ -1,0 +1,209 @@
+﻿/* 📄 /public/assets/css/pages/dashboard/calendar/_layout.css */
+/* =========================================================
+   Container
+========================================================= */
+.calendar-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* =========================================================
+   Shell (SINGLE COLUMN)
+   🔥 ERP sidebar와 충돌 방지 핵심
+========================================================= */
+.calendar-shell {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  min-height: 0;
+}
+
+
+/* =========================================================
+   Center (FullCalendar 기준축)
+========================================================= */
+.calendar-center {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--card-bg);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 0;
+  margin-left: 0;
+  margin-right: 0;
+  transition:
+    margin-left 0.28s cubic-bezier(.4,0,.2,1),
+    margin-right 0.28s cubic-bezier(.4,0,.2,1);
+
+    overflow: visible !important;   /* 🔥 hidden 제거 */
+}
+
+
+.calendar-shell:not(.left-collapsed) .calendar-center {
+  margin-left: 12px;
+}
+.calendar-shell:not(.right-collapsed) .calendar-center {
+  margin-right: 12px;
+}
+
+
+.calendar-shell.right-collapsed .calendar-right-wrap {
+  width: 0;
+  overflow: hidden;
+}
+
+
+
+
+/* FullCalendar 안정화 */
+.calendar-center .fc,
+.calendar-center .fc-scrollgrid {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+/* LEFT */
+.calendar-left {
+  position: relative;
+  flex: 0 0 300px;
+  transition:
+  width 0.28s cubic-bezier(.4,0,.2,1),
+  margin 0.28s cubic-bezier(.4,0,.2,1),
+  opacity 0.2s ease;
+}
+
+
+.calendar-shell.left-collapsed .calendar-left {
+  flex-basis: 0 !important;
+  width: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  overflow: hidden;
+}
+
+
+/* RIGHT – SINGLE SOURCE OF TRUTH */
+.calendar-right-wrap {
+  flex: 0 0 320px;
+  width: 320px;
+
+  display: flex;
+  overflow: hidden;
+}
+
+/* 닫힘 */
+.calendar-shell.right-collapsed .calendar-right-wrap {
+  flex-basis: 0;
+  width: 0;
+  overflow: hidden;
+}
+
+
+/* =========================================================
+   LEFT PANEL (Overlay Drawer)
+========================================================= */
+.calendar-left {
+  position: relative;
+  top: 0;
+  left: 0;
+  bottom: 0;
+
+  width: 300px;
+  max-width: 90vw;
+  height: 98% !important;
+
+  background: var(--card-bg);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 12px;
+
+  z-index: 20;
+
+  transform: translateX(0);
+  transition: transform .25s ease;
+
+  
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;  
+}
+
+.cal-scroll:hover { 
+   flex: 1;         
+  min-height: 0;     
+   overflow-y: auto;  
+   overflow-x: hidden; 
+ }
+
+.calendar-left.is-hidden {
+  transform: translateX(-100%);
+  pointer-events: none;
+}
+
+
+
+.calendar-right-wrap {
+  height: 98% !important;
+}
+
+
+/* 상태 제어 (단일 책임) */
+.calendar-right-panel.is-open {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 내부 패널 전환 */
+.right-list-panel,
+.right-edit-panel {
+  display: none;
+  flex: 1;
+  min-height: 0;
+}
+
+.calendar-right-panel.is-list .right-list-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar-right-panel.is-edit .right-edit-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+/* =========================================================
+   Page overflow
+========================================================= */
+
+
+.calendar-page,
+.calendar-shell,
+.calendar-center {
+  height: 98%;
+  min-height: 0;
+}
+
+.calendar-center {
+  overflow: hidden;
+  padding: 0;
+}
+
+.calendar-center .fc {
+  height: 100% !important;
+}
+
+.calendar-page {
+  height: calc(100vh - var(--header-height) - var(--footer-height));
+  /* height: 110%; */
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+
+
+

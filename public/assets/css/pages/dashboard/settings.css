@@ -1,0 +1,306 @@
+﻿/* 📄 /public/assets/css/pages/dashboard/settings.css */
+/* ==========================================================
+   SUKHYANG ERP - SETTINGS 공통 레이아웃
+   - 가운데 세로 메뉴 제거
+   - 상단 2단 탭 구조
+   - 설정 페이지 전용
+   ========================================================== */
+
+/* ==========================================================
+   1. 전체 래퍼
+   ========================================================== */
+   .settings-main {  
+    width: 100%;
+    max-width: 100%;
+    padding: 4px 0 20px;
+    overflow-x: hidden;
+    background: transparent;
+}
+
+.settings-page-header {
+    margin-left:  30px;
+    margin-bottom: 10px;    
+}
+
+.settings-title {
+    margin: 0;
+    font-size: 1.08rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+/* ==========================================================
+   2. 1차 카테고리 탭
+   ========================================================== */
+.settings-cat-tabs-wrap {
+    margin-left:  30px;
+    margin-bottom: 10px;
+}
+
+.settings-cat-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.settings-cat-tabs .nav-link {
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text);
+    background: #fff;
+    border: 1px solid var(--color-border);
+    box-shadow: none;
+}
+
+.settings-cat-tabs .nav-link:hover {
+    color: var(--color-primary);
+    background: rgba(13,110,253,.05);
+    border-color: var(--color-border);
+}
+
+.settings-cat-tabs .nav-link.active {
+    color: #fff;
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+/* ==========================================================
+   3. 2차 서브 탭
+   ========================================================== */
+.settings-sub-tabs-wrap {
+    margin-bottom: 0;
+}
+
+.settings-sub-tabs {
+    border-bottom: 1px solid var(--color-border);
+    gap: 4px 4px;
+    flex-wrap: wrap;
+}
+
+.settings-sub-tabs .nav-item {
+    margin-bottom: 0;
+}
+
+.settings-sub-tabs .nav-link {
+    border-radius: 10px 10px 0 0;
+    color: var(--color-text);
+    padding: 9px 14px;
+    font-size: 14px;
+    border: 1px solid transparent;
+    background: transparent;
+    margin-bottom: -1px;
+}
+
+.settings-sub-tabs .nav-link:hover {
+    background: rgba(13,110,253,.05);
+    color: var(--color-primary);
+    border-color: transparent;
+}
+
+.settings-sub-tabs .nav-link.active {
+    font-weight: 700;
+    color: var(--color-primary);
+    background: #fff;
+    border-color: var(--color-border) var(--color-border) #fff;
+}
+
+/* ==========================================================
+   4. 본문 카드
+   ========================================================== */
+.settings-content-card {
+    background: #fff;
+    border: 1px solid var(--color-border);
+    border-top: 0;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    padding: 14px;
+    overflow: hidden;
+    min-width: 0;
+}
+
+/* ==========================================================
+   5. 설정 페이지 내부 공통
+   ========================================================== */
+.settings-main .section,
+.settings-main .card,
+.settings-main .content-card,
+.settings-main .content-section {
+    background: #fff;
+    border: 1px solid var(--color-border);
+    box-shadow: none;
+}
+
+.settings-main .table-area-wrapper {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+}
+
+.settings-main .form-label {
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.settings-main .form-control,
+.settings-main .form-select {
+    min-height: 38px;
+}
+
+/* ==========================================================
+   6. ERP 일반 테이블
+   ========================================================== */
+.settings-main .erp-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    border-collapse: collapse;
+    margin-bottom: 0;
+}
+
+.settings-main .erp-table th {
+    background: #f1f3f5;
+    font-weight: 700;
+    color: #333;
+    border: 1px solid #e5e7eb;
+    padding: 12px 14px;
+    font-size: 14px;
+    vertical-align: middle;
+}
+
+.settings-main .erp-table td {
+    border: 1px solid #e5e7eb;
+    padding: 11px 14px;
+    font-size: 14px;
+    background: #fff;
+    vertical-align: middle;
+}
+
+/* ==========================================================
+   7. DataTables 공통
+   ========================================================== */
+.settings-main .dataTables_wrapper {
+    width: 100%;
+    overflow: hidden;
+}
+
+.settings-main .dt-top {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.settings-main .dt-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.settings-main .dataTables_filter {
+    margin: 0;
+}
+
+.settings-main .dataTables_filter label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    margin: 0;
+}
+
+.settings-main .dataTables_filter input {
+    width: 220px;
+    max-width: 100%;
+    margin-left: 0 !important;
+}
+
+.settings-main .dt-buttons {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.settings-main .dt-buttons .btn,
+.settings-main .dt-button.btn {
+    margin: 0 !important;
+}
+
+.settings-main .dataTables_length,
+.settings-main .dataTables_info,
+.settings-main .dataTables_paginate {
+    margin: 0;
+    font-size: 13px;
+}
+
+.settings-main .dataTables_wrapper .dataTables_paginate .paginate_button {
+    padding: 5px 10px;
+    border-radius: 6px;
+    border: 1px solid #e6e6e6;
+    background: #fff;
+    color: #6c757d !important;
+    cursor: pointer;
+    margin-left: 2px;
+}
+
+.settings-main .dataTables_wrapper .dataTables_paginate .paginate_button.current,
+.settings-main .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+    background: #f8f9fa !important;
+    color: #333 !important;
+    border-color: #d0d0d0 !important;
+}
+
+.settings-main div.dataTables_scrollBody {
+    border-bottom: 1px solid var(--color-border);
+}
+
+/* ==========================================================
+   8. 모달 / 이미지
+   ========================================================== */
+#originalImageModal .modal-dialog {
+    max-width: 720px;
+}
+
+#originalImageModal #original-image-view {
+    max-width: 640px;
+    width: 100%;
+}
+
+/* ==========================================================
+   9. 반응형
+   ========================================================== */
+@media (max-width: 991.98px) {
+    .settings-main {
+        padding-top: 0;
+        padding-bottom: 16px;
+    }
+
+    .settings-cat-tabs,
+    .settings-sub-tabs {
+        gap: 4px;
+    }
+
+    .settings-cat-tabs .nav-link,
+    .settings-sub-tabs .nav-link {
+        font-size: 13px;
+        padding: 7px 10px;
+    }
+
+    .settings-content-card {
+        padding: 12px;
+    }
+
+    .settings-main .dt-top,
+    .settings-main .dt-bottom {
+        justify-content: flex-start;
+    }
+
+    .settings-main .dataTables_filter input {
+        width: 160px;
+    }
+}

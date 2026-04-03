@@ -1,0 +1,604 @@
+/* 📄 /public/assets/css/pages/dashboard/settings/cover.css */
+
+/* ==============================
+   PAGE
+============================== */
+.cover-page{
+    width:100%;
+    max-width:none;
+    margin:0;
+    padding:0;
+    background:transparent;
+}
+
+.cover-page .content-area{
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    min-height:0;
+}
+
+
+
+.cover-page .page-header,
+.cover-main .page-header{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:14px;
+}
+
+
+.date-range{
+    display:flex;
+    align-items:center;
+    gap:8px;
+}
+
+.date-input{
+    position:relative;
+    width:140px;
+}
+
+.date-input input{
+    width:100%;
+    padding-right:32px;
+}
+
+
+
+.cover-page .content-area{
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    min-height:0;
+}
+
+
+
+
+/* ==============================
+   SEARCH FORM
+============================== */
+.search-form-container{
+    position:relative;
+    border:1px solid #e5e7eb;
+    border-radius:8px;
+    background:#f8f9fb;
+    padding:16px;
+    margin:0 0 14px 0;
+    width:100%;
+    overflow:visible;
+    z-index:20;
+}
+
+.search-form-title{
+    font-weight:600;
+    margin-bottom:10px;
+    display:block;
+}
+
+.period-row{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:10px;
+    width:100%;
+}
+
+.period-label-area{
+    width:90px;
+    font-weight:600;
+}
+
+.label-btn{
+    background:none;
+    border:none;
+    font-weight:600;
+    padding:0;
+}
+
+.date-type-select{
+    width:120px;
+}
+
+.period-quick-btns{
+    display:flex;
+    gap:5px;
+}
+
+.date-range{
+    display:flex;
+    align-items:center;
+    gap:8px;
+}
+
+.search-wrapper{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    width:100%;
+}
+
+.search-label-area{
+    width:90px;
+    font-weight:600;
+}
+
+.search-condition{
+    display:flex;
+    gap:8px;
+    align-items:center;
+    margin-bottom:8px;
+}
+
+.search-condition:not(:last-child){
+    margin-bottom:8px;
+}
+
+.search-field{
+    width:150px;
+}
+
+.search-input{
+    width:350px;
+}
+
+.search-btn-area{
+    display:flex;
+    justify-content:center;
+    margin-top:12px;
+}
+
+.period-row select,
+.period-row input,
+.period-row button,
+.search-wrapper select,
+.search-wrapper input,
+.search-wrapper button{
+    height:38px;
+    min-height:38px;
+    padding:6px 10px;
+    font-size:14px;
+    line-height:1.2;
+    box-sizing:border-box;
+}
+
+.search-wrapper input,
+.search-wrapper select{
+    border-radius:6px;
+}
+
+.date-input-wrap{
+    position:relative;
+}
+
+.date-input-wrap input{
+    padding-right:10px;
+}
+
+.date-tilde{
+    font-weight:600;
+}
+
+.search-toggle-text{
+    position:absolute;
+    top:-9px;
+    right:60px;
+    background:#fff;
+    padding:0 8px;
+    font-size:12px;
+    color:#666;
+    cursor:pointer;
+}
+
+.search-toggle-text:hover{
+    color:#000;
+}
+
+.search-form-body.hidden{
+    display:none;
+}
+
+.search-form-container.collapsed{
+    padding:0;
+    height:0;
+    border-top:0;
+}
+
+/* ==============================
+   MODAL
+============================== */
+
+/* 커버 신규/수정 모달만 적용 */
+#coverImageModal .modal-dialog.modal-lg{
+    max-width:900px;
+    width:95vw;
+}
+
+#coverImageModal .cover-modal-body{
+    max-height:75vh;
+    overflow-y:auto;
+}
+
+/* 휴지통 모달 전용 */
+#coverTrashModal .modal-dialog{
+    max-width:1100px;
+    width:min(1100px, calc(100vw - 32px));
+    margin:1.75rem auto;
+}
+
+#coverTrashModal .modal-content{
+    width:100%;
+    overflow:hidden;
+}
+
+#coverTrashModal .modal-body{
+    overflow-x:auto;
+    overflow-y:auto;
+}
+
+#coverTrashModal table{
+    width:100%;
+    table-layout:auto;
+}
+
+/* 혹시 내부 wrapper 때문에 우측 삐져나오면 차단 */
+#coverTrashModal .table-responsive,
+#coverTrashModal .trash-table-wrap{
+    width:100%;
+    overflow-x:auto;
+    overflow-y:hidden;
+}
+
+
+/* ==============================
+   PREVIEW
+============================== */
+.table-img-preview{
+    border-radius:6px;
+    box-shadow:0 2px 8px rgba(0,0,0,.08);
+}
+
+/* ==============================
+   MOBILE
+============================== */
+@media (max-width:900px){
+    #coverImageModal .modal-dialog.modal-lg{
+        max-width:98vw;
+        width:98vw;
+    }
+
+    #coverTrashModal .modal-dialog{
+        width:calc(100vw - 16px);
+        max-width:calc(100vw - 16px);
+        margin:.5rem auto;
+    }
+}
+
+
+/* =========================================
+   COVER TRASH MODAL
+========================================= */
+
+/* 모달 크기 */
+#coverTrashModal .modal-dialog{
+    max-width: 1280px;
+    width: calc(100vw - 40px);
+    margin: 24px auto;
+}
+
+#coverTrashModal .modal-content{
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+#coverTrashModal .modal-header{
+    padding: 16px 20px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+#coverTrashModal .modal-body{
+    padding: 0;
+    overflow: hidden;
+    background: #fff;
+}
+
+/* 전체 레이아웃 */
+.cover-trash-layout{
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    min-height: 620px;
+    height: 72vh;
+    overflow: hidden;
+}
+
+/* 왼쪽 목록 영역 */
+.cover-trash-left{
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 16px 18px 18px 18px;
+    overflow: hidden;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 오른쪽 상세 영역 */
+.cover-trash-right{
+    flex: 0 0 0;
+    width: 0;
+    min-width: 0;
+    overflow: hidden;
+    background: #fff;
+    border-left: 0;
+    transition: width .22s ease, flex-basis .22s ease, border-color .22s ease;
+}
+
+.cover-trash-layout.detail-open .cover-trash-right{
+    flex: 0 0 380px;
+    width: 380px;
+    min-width: 380px;
+    border-left: 1px solid #e5e7eb;
+}
+
+/* 툴바 */
+.trash-toolbar{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+    padding: 0;
+}
+
+/* 기존 HTML 그대로 살리기 위해 첫 2개 왼쪽, 마지막 1개 오른쪽 */
+.trash-toolbar > .btn{
+    flex: 0 0 auto;
+}
+
+.trash-toolbar > .btn:nth-child(3){
+    margin-left: auto;
+}
+
+/* 테이블 감싸는 영역 */
+.cover-trash-left .table-responsive{
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+}
+
+/* DataTables 정렬 */
+#cover-trash-table_wrapper{
+    width: 100%;
+}
+
+#cover-trash-table_wrapper .row,
+#cover-trash-table_wrapper .dt-layout-row{
+    margin-left: 0;
+    margin-right: 0;
+}
+
+#cover-trash-table_wrapper .col-sm-12,
+#cover-trash-table_wrapper .col-md-6,
+#cover-trash-table_wrapper .col-md-5,
+#cover-trash-table_wrapper .col-md-7,
+#cover-trash-table_wrapper .dt-layout-cell{
+    padding-left: 0;
+    padding-right: 0;
+}
+
+#cover-trash-table_wrapper .dataTables_length,
+#cover-trash-table_wrapper .dt-length{
+    margin-bottom: 10px;
+}
+
+#cover-trash-table_wrapper .dataTables_filter,
+#cover-trash-table_wrapper .dt-search{
+    margin-bottom: 10px;
+    text-align: right;
+}
+
+#cover-trash-table_wrapper .dataTables_filter label,
+#cover-trash-table_wrapper .dt-search label{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#cover-trash-table_wrapper .dataTables_filter input,
+#cover-trash-table_wrapper .dt-search input{
+    min-width: 220px;
+    height: 36px;
+    margin-left: 6px;
+}
+
+#cover-trash-table_wrapper .dataTables_info,
+#cover-trash-table_wrapper .dt-info{
+    padding-top: 10px;
+}
+
+#cover-trash-table_wrapper .dataTables_paginate,
+#cover-trash-table_wrapper .dt-paging{
+    padding-top: 6px;
+}
+
+/* 테이블 */
+#cover-trash-table{
+    width: 100% !important;
+    table-layout: auto;
+    margin-bottom: 0 !important;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+#cover-trash-table thead th{
+    white-space: nowrap;
+    vertical-align: middle;
+    background: #f8f9fb;
+}
+
+#cover-trash-table tbody td{
+    vertical-align: middle;
+}
+
+#cover-trash-table tbody tr{
+    cursor: pointer;
+}
+
+#cover-trash-table tbody tr.is-active > td{
+    background: #eef6ff !important;
+}
+
+/* 썸네일 */
+#cover-trash-table .table-img-preview{
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 8px;
+    display: block;
+    margin: 0 auto;
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+
+/* 상세 패널 */
+#cover-trash-detail{
+    display: none;
+    height: 100%;
+    padding: 18px;
+    overflow-y: auto;
+    background: #fff;
+}
+
+.cover-trash-layout.detail-open #cover-trash-detail{
+    display: block;
+}
+
+.cover-trash-detail-card{
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.cover-trash-detail-head{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.cover-trash-detail-title{
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: #111827;
+}
+
+.cover-trash-detail-close{
+    border: 0;
+    background: transparent;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    color: #374151;
+}
+
+.cover-trash-preview{
+    width: 100%;
+    min-height: 220px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.cover-trash-preview img{
+    max-width: 100%;
+    max-height: 280px;
+    object-fit: contain;
+    display: block;
+}
+
+.cover-trash-empty-preview{
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.cover-trash-detail-grid{
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    gap: 10px 12px;
+    align-items: start;
+}
+
+.cover-trash-detail-grid .label{
+    font-weight: 700;
+    color: #374151;
+}
+
+.cover-trash-detail-grid .value{
+    color: #111827;
+    word-break: break-word;
+}
+
+/* 버튼 줄바꿈 방지 */
+#coverTrashModal .btn{
+    white-space: nowrap;
+}
+
+/* 반응형 */
+@media (max-width: 1200px){
+    #coverTrashModal .modal-dialog{
+        width: calc(100vw - 20px);
+        margin: 10px auto;
+    }
+
+    .cover-trash-layout{
+        flex-direction: column;
+        height: auto;
+        min-height: 0;
+    }
+
+    .cover-trash-left{
+        padding: 14px;
+    }
+
+    .cover-trash-right,
+    .cover-trash-layout.detail-open .cover-trash-right{
+        width: 100%;
+        min-width: 100%;
+        flex: 0 0 auto;
+        border-left: 0;
+        border-top: 1px solid #e5e7eb;
+    }
+
+    #cover-trash-detail{
+        max-height: 360px;
+    }
+
+    .trash-toolbar{
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
+
+    .trash-toolbar > .btn:nth-child(3){
+        margin-left: 0;
+    }
+
+    #cover-trash-table_wrapper .dataTables_filter,
+    #cover-trash-table_wrapper .dt-search{
+        text-align: left;
+    }
+}

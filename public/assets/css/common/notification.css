@@ -1,0 +1,107 @@
+﻿/* 📄 /public/assets/css/common/notification.css */
+
+/* =========================================================
+   📦 Notify Container
+========================================================= */
+
+#app-notify-container {
+  position: fixed;
+
+  bottom: 200px;   /* 🔥 푸터 기준 200px 위 */
+
+  left: 50%;
+  transform: translateX(-50%);
+
+  z-index: 100000;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+
+  pointer-events: none;
+}
+
+
+
+/* 모달 카드 기준 정렬 (안전장치) */
+.shint-modal__card {
+  position: relative;
+}
+
+/* =========================================================
+   🔔 Toast Base
+========================================================= */
+.app-toast {
+  min-width: 280px;
+  max-width: 460px;
+
+  padding: 14px 20px;
+
+  border-radius: 14px;
+
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+
+  color: #ffffff;
+
+  box-shadow:
+    0 10px 28px rgba(0,0,0,0.18),
+    0 4px 10px rgba(0,0,0,0.08);
+
+  opacity: 0;
+  transform: translateY(-18px) scale(0.96);
+
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s cubic-bezier(.2,.8,.2,1);
+
+  pointer-events: auto;
+}
+
+/* 등장 애니메이션 */
+.app-toast.is-show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* =========================================================
+   🎨 Type Colors (ERP 톤 유지)
+========================================================= */
+.app-toast--info {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+}
+
+.app-toast--success {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.app-toast--warning {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.app-toast--error {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+/* =========================================================
+   📱 반응형 대응
+========================================================= */
+@media (max-width: 768px) {
+
+  #app-notify-container {
+    top: 70px;
+    width: 100%;
+    padding: 0 20px;
+  }
+
+  body.is-modal-open #app-notify-container {
+    top: 16px;
+  }
+
+  .app-toast {
+    width: 100%;
+    max-width: none;
+  }
+}

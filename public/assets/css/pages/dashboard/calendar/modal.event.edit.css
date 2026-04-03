@@ -1,0 +1,868 @@
+﻿/* 📄 /public/assets/css/pages/dashboard/calendar/modal.event.edit.css */
+/* =========================================================
+   Event Create / Edit Modal – Synology Final CSS
+========================================================= */
+/* ===============================
+   🔧 Event Modal Height System
+=============================== */
+#modal-event-edit {
+  --evt-field-h: 30px;
+  --evt-radius: 10px;
+  --time-picker-w: 78px;
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+
+  display: grid;
+  place-items: center;
+  padding: 20px;
+
+  /* ✅ 변수 참조 */
+  background: var(--modal-backdrop-bg);
+  backdrop-filter: var(--modal-backdrop-blur);
+}
+
+#modal-event-edit .shint-input,
+#modal-event-edit .shint-select,
+#modal-event-edit .shint-calbtn,
+#modal-event-edit #event-repeat-btn {
+  height: var(--evt-field-h);
+  min-height: var(--evt-field-h);
+  border-radius: var(--evt-radius);
+  font-size: 14px;
+}
+
+
+
+
+
+
+
+#modal-event-edit.is-hidden {
+  display: none;
+}
+
+/* ===============================
+   Modal Card (🔥 더 넓게)
+=============================== */
+#modal-event-edit .shint-modal__card {
+  width: 600px;                 /* 🔥 640 → 700 */
+  max-width: 96vw;
+  max-height: 92vh;
+
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 24px 60px rgba(0,0,0,.25);
+
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+/* ===============================
+   Header
+=============================== */
+#modal-event-edit .shint-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 14px 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+#modal-event-edit .shint-modal__title {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* ===============================
+   Body
+=============================== */
+#modal-event-edit .shint-modal__body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding-bottom: 24px;   /* 하단 여유 */
+}
+
+
+/* ===============================
+   Section title
+=============================== */
+#modal-event-edit .shint-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 20px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* ===============================
+   Row layout
+=============================== */
+#modal-event-edit .shint-row {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 10px;
+  align-items: center;
+}
+
+#modal-event-edit .shint-row.row-reminders {
+  align-items: flex-start;
+}
+
+#modal-event-edit .shint-ico {
+  width: 34px;
+  text-align: center;
+  color: #475569;
+}
+
+#modal-event-edit .shint-field {
+  position: relative;
+  min-width: 0;
+}
+
+
+
+
+
+
+/* ===============================
+   날짜 / 시간
+=============================== */
+/* 날짜+시간 한 줄 */
+#modal-event-edit .evt-dt-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap; /* 🔥 줄바꿈 금지 */
+  width: 100%;
+}
+
+/* ===============================
+   날짜 / 시간 공통
+=============================== */
+#modal-event-edit .evt-date-wrap,
+#modal-event-edit .evt-time-wrap {
+  height: var(--evt-field-h);
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* ===============================
+   날짜 (넉넉하게)
+=============================== */
+#modal-event-edit .evt-date-wrap {
+  flex: 0 0 140px;          /* 🔥 날짜 고정폭 */
+}
+
+#modal-event-edit .evt-date-wrap .shint-input,
+#modal-event-edit .evt-time-wrap .shint-input {
+  width: 100%;
+  padding-right: 34px;     /* 📅 아이콘 공간 */
+  height: 100%;
+  line-height: calc(var(--evt-field-h) - 2px);
+}
+
+
+/* ===============================
+   시간 (정확히 09:00 맞춤)
+=============================== */
+#modal-event-edit .evt-time-wrap {
+  flex: 0 0 78px;           /* 🔥 시간 최소 안전폭 */
+}
+
+#modal-event-edit .evt-time-wrap .shint-input {
+  width: 100%;
+  text-align: center;
+  padding-right: 24px;      /* ▾ caret 공간 */
+}
+
+/* 🔥 Time List Picker (캘린더 전용 안정화) */
+#time-list-picker {
+  position: fixed !important;
+  z-index: 999999 !important;
+  width: 78px;
+}
+
+/* 내부 리스트 폭 고정 */
+#time-list-picker .time-list,
+#time-list-picker .time-list-inner {
+  width: 78px;
+}
+
+/* 시간 항목 */
+#time-list-picker .time-item {
+  padding: 6px 4px;
+  text-align: center;
+  font-size: 13px;
+}
+
+
+/* 아이콘 */
+#modal-event-edit .evt-ico,
+#modal-event-edit .evt-caret {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 13px;
+  color: #64748b;
+}
+
+
+#modal-event-edit .evt-caret {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+
+  width: 0;
+  height: 0;
+
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid #64748b;
+
+  pointer-events: none;
+}
+
+
+/* ~ */
+#modal-event-edit .evt-tilde {
+  margin: 0 2px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+/* 종일 */
+#modal-event-edit .evt-allday {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 🔥 온종일 이벤트 */
+#modal-event-edit.is-allday .evt-time-wrap {
+  display: none;
+}
+
+#modal-event-edit.is-allday .evt-date-wrap {
+  flex: 1 1 0;
+}
+
+/* 🔥 picker는 무조건 위 */
+#today-picker,
+#datetime-picker {
+  z-index: 999999 !important;
+}
+
+/* 모달 overflow 영향 제거 */
+#modal-event-edit .shint-modal__body {
+  overflow: auto;
+}
+
+/* ===============================
+   Inputs / Selects
+=============================== */
+#modal-event-edit .shint-input,
+#modal-event-edit .shint-select {
+  width: 100%;
+  height: var(--evt-field-h);
+  min-height: var(--evt-field-h);
+  line-height: calc(var(--evt-field-h) - 2px);
+  border-radius: var(--evt-radius);
+  border: 1px solid #cbd5e1;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+#modal-event-edit .shint-textarea {
+  height: 80px;
+  min-height: 120px;
+  padding: 10px 12px;
+  resize: none;
+}
+
+
+#modal-event-edit .shint-input--xl {
+  height: var(--evt-field-h);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+
+
+/* ===============================
+   Date / Time grid
+=============================== */
+#modal-event-edit .shint-grid4 {
+  display: grid;
+  grid-template-columns:
+    minmax(140px, 1fr) 90px
+    auto
+    minmax(140px, 1fr) 90px;
+  gap: 8px;
+  align-items: center;
+}
+
+#modal-event-edit .shint-tilde {
+  color: #64748b;
+  font-weight: 600;
+}
+
+/* ===============================
+   Calendar + Color (🔥 한 줄 고정)
+=============================== */
+#modal-event-edit .evt-calendar-wrap {
+  width: 100%;              /* 🔥 가로 폭 확정 */
+  justify-content: space-between; /* 🔥 양쪽 끝 정렬 안정 */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+
+/* ===============================
+   🎨 Event Color Button
+=============================== */
+.shint-colorbtn {
+  min-width: 56px;          /* 🔥 기존보다 살짝 넓게 */
+  padding: 6px 10px;        /* 좌우 여백 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;                 /* ● 과 ▼ 간격 */
+
+  border-radius: 10px;
+}
+
+#modal-event-edit .shint-colorbtn {
+  flex: 0 0 40px;     /* 🔥 추가 */
+  width: var(--evt-field-h);
+  height: var(--evt-field-h);
+  flex-shrink: 0;
+
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+#modal-event-edit .evt-event-color {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: #9CA3AF;
+
+  flex: 0 0 14px;        /* 🔥 중요 */
+  display: inline-block;
+}
+
+.evt-event-color {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.evt-event-color.is-none {
+  background:
+    linear-gradient(45deg, #d1d5db 25%, transparent 25%) 0 0/6px 6px,
+    linear-gradient(-45deg, #d1d5db 25%, transparent 25%) 0 0/6px 6px,
+    linear-gradient(45deg, transparent 75%, #d1d5db 75%) 0 0/6px 6px,
+    linear-gradient(-45deg, transparent 75%, #d1d5db 75%) 0 0/6px 6px;
+}
+.evt-color-option.is-selected {
+  box-shadow: 0 0 0 2px #2563eb;
+}
+
+
+
+/* 🎨 무색(투명) 표시 – 체커보드 */
+.evt-color-option--none {
+  position: relative;
+  background:
+    linear-gradient(45deg, #e5e7eb 25%, transparent 25%),
+    linear-gradient(-45deg, #e5e7eb 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e5e7eb 75%),
+    linear-gradient(-45deg, transparent 75%, #e5e7eb 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
+  border: 1px solid #d1d5db;
+}
+
+
+/* 선택되었을 때 */
+.evt-color-option--none.is-selected {
+  box-shadow: 0 0 0 2px #2563eb;
+}
+
+
+/* ===============================
+   🎨 이벤트 색상 DOT - 무색
+=============================== */
+#event-color-dot.is-none {
+  background:
+    linear-gradient(45deg, #d1d5db 25%, transparent 25%) 0 0 / 6px 6px,
+    linear-gradient(-45deg, #d1d5db 25%, transparent 25%) 0 0 / 6px 6px,
+    linear-gradient(45deg, transparent 75%, #d1d5db 75%) 0 0 / 6px 6px,
+    linear-gradient(-45deg, transparent 75%, #d1d5db 75%) 0 0 / 6px 6px;
+}
+
+
+
+
+
+/* =========================================================
+   🔔 Event Reminders (핵심 수정)
+========================================================= */
+
+
+
+/* 알림 영역 (스크롤 ❌) */
+#modal-event-edit #event-reminders {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+
+/* 🔔 알림 전체 row는 높이 고정 컨테이너 */
+#modal-event-edit .shint-row:has(#event-reminders) {
+  align-items: flex-start;          /* 🔥 중앙정렬 금지 */
+}
+
+
+/* 🔔 기본: 알림 row는 숨김 */
+#modal-event-edit .evt-reminder-row {
+  display: none;
+}
+
+/* 🔔 열렸을 때만 표시 */
+#modal-event-edit .evt-reminder-row.is-open {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 🔔 + 추가 버튼은 항상 보임 */
+#modal-event-edit #event-reminders > .shint-btn {
+  height: var(--evt-field-h);
+  min-height: var(--evt-field-h);
+  align-self: flex-start;
+}
+
+
+/* 🔔 이벤트 시 select */
+#modal-event-edit .evt-reminder-row select.shint-select {
+  flex: 1;
+  height: var(--evt-field-h);
+}
+
+/* 🔔 − 버튼 */
+#modal-event-edit .evt-reminder-row .shint-iconbtn {
+  width: var(--evt-field-h);
+  height: var(--evt-field-h);
+  border-radius: var(--evt-radius);
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+
+/* ===============================
+   Buttons
+=============================== */
+#modal-event-edit .shint-btn--ghost,
+#modal-event-edit .shint-btn--light {
+  height: var(--evt-field-h);
+  min-height: var(--evt-field-h);
+  padding: 0 14px;
+  border-radius: var(--evt-radius);
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  font-size: 13px;
+}
+/* ===============================
+   Calendar Button (NEW)
+=============================== */
+#modal-event-edit .shint-calbtn {
+  height: var(--evt-field-h);
+  min-height: var(--evt-field-h);
+
+  flex: 1 1 auto;
+  min-width: 0;
+
+  padding: 0 12px;
+  border-radius: var(--evt-radius);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+
+  border: 1px solid #cbd5e1;
+  background: #fff;
+
+  font-size: 14px;
+  cursor: pointer;
+
+  justify-content: flex-start;   /* 🔥 이름 좌측 */
+  text-align: left;
+}
+
+/* 캘린더 색 (■ 네모) */
+#modal-event-edit .evt-cal-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: #94a3b8;
+  flex-shrink: 0;
+}
+
+/* 캘린더 이름 */
+#modal-event-edit .evt-cal-name {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ===============================
+   Repeat Button (FIX ALIGN)
+=============================== */
+#modal-event-edit #event-repeat-btn {
+  display: flex;
+  align-items: center;
+
+  justify-content: space-between; /* 🔥 핵심 */
+  text-align: left;               /* 🔥 텍스트 좌측 */
+
+  padding: 0 12px;
+  height: var(--evt-field-h);
+  min-height: var(--evt-field-h);
+
+  gap: 8px;
+}
+
+/* 화살표 아이콘은 오른쪽 고정 */
+#modal-event-edit #event-repeat-btn i {
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+/* ===============================
+   Repeat Dropdown (FINAL FIX)
+=============================== */
+
+#modal-event-edit .evt-repeat-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+
+  max-height: 200px;        /* ✅ 높이 한 행 감소 */
+  overflow-y: auto;
+
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+
+  box-shadow: 0 12px 30px rgba(0,0,0,.2);
+  z-index: 50;
+
+  padding: 4px 0;
+
+  display: flex;
+  flex-direction: column;
+}
+
+/* 항목 */
+#modal-event-edit .evt-repeat-menu button {
+  width: 100%;
+  padding: 8px 14px;
+
+  text-align: left;
+  font-size: 14px;
+
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+#modal-event-edit .evt-repeat-menu button:hover {
+  background: #f1f5f9;
+}
+
+/* ===============================
+   Divider (사용자 지정 위)
+=============================== */
+#modal-event-edit .evt-repeat-menu hr {
+  flex-shrink: 0;              /* 🔥 flex에서 눌리지 않게 */
+  height: 1px;
+  margin: 6px 0;               /* 너무 크지 않게 */
+  border: 0;
+
+  background-color: #1a1a1b;   /* 🔥 기존보다 진한 회색 */
+}
+
+
+
+
+/* ===============================
+   Calendar List (PORTAL)
+=============================== */
+body > #event-calendar-list {
+  box-sizing: border-box;
+  position: absolute;
+  z-index: 1000000;
+
+  /* 🔥 JS에서 width 제어 */
+  width: auto;
+
+  max-height: 260px;
+  overflow-y: auto;
+
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(0,0,0,.2);
+
+  padding: 6px 0;
+}
+
+
+body > #event-calendar-list[hidden] {
+  display: none !important;
+}
+
+/* ===============================
+   Calendar Item
+=============================== */
+body > #event-calendar-list .evt-cal-item {
+  width: 100%;
+  padding: 8px 12px;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+
+  font-size: 14px;
+  justify-content: flex-start; /* 🔥 강제 */
+  text-align: left;           /* ✅ 강제 좌측 */
+}
+
+body > #event-calendar-list .evt-cal-item:hover {
+  background: #f1f5f9;
+}
+
+/* ■ 캘린더 컬러 */
+body > #event-calendar-list .evt-cal-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+/* 캘린더 이름 */
+body > #event-calendar-list .evt-cal-name {
+  flex: 1;
+  min-width: 0;
+
+  text-align: left;           /* ✅ 좌측 고정 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 선택됨 */
+body > #event-calendar-list .evt-cal-item.is-active {
+  background: #eef2ff;
+}
+
+
+/* ===============================
+   🎨 Event Color Palette (ONLY ONE)
+=============================== */
+/* 🎨 Event Color Palette */
+#evt-color-palette {
+  position: absolute;
+  z-index: 1000000;
+
+  display: flex;              /* 🔥 grid → flex */
+  align-items: center;
+  gap: 12px;
+
+  padding: 10px 12px;
+  background: #fff;
+  border: none;
+  outline: 1px solid #e5e7eb;
+  border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(0,0,0,.25);
+
+  min-width: 280px;
+}
+
+
+/* 무색 영역 */
+#evt-color-palette .evt-color-none {
+  align-items: stretch;
+}
+
+#evt-color-palette .evt-color-none::after {
+  height: auto;
+  align-self: stretch;
+}
+
+
+
+/* 색상 grid */
+#evt-color-palette .evt-color-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 20px);
+  grid-auto-rows: 20px;
+  gap: 6px;
+}
+
+/* 공통 버튼 */
+#evt-color-palette .evt-color-option {
+  border: none;
+  outline: none;
+  box-shadow: inset 0 0 0 1px #e5e7eb;
+}
+
+
+/* 일반 색상 */
+#evt-color-palette .evt-color-option:not(.evt-color-option--none) {
+  background: var(--c);
+}
+
+/* 무색 */
+.evt-color-option--none {
+  background:
+    linear-gradient(45deg, #e5e7eb 25%, transparent 25%),
+    linear-gradient(-45deg, #e5e7eb 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e5e7eb 75%),
+    linear-gradient(-45deg, transparent 75%, #e5e7eb 75%);
+  background-size: 8px 8px;
+}
+
+/* 선택 */
+.evt-color-option.is-selected,
+.evt-color-option--none.is-selected {
+  box-shadow:
+    inset 0 0 0 1px #e5e7eb,
+    0 0 0 2px #2563eb;
+}
+
+#evt-color-palette .evt-color-option.is-selected,
+#evt-color-palette .evt-color-option--none.is-selected {
+  box-shadow:
+    inset 0 0 0 1px #e5e7eb,
+    0 0 0 2px #2563eb !important;
+}
+
+
+/* time input 위에 올라타는 아이콘 클릭 가로채기 방지 */
+.evt-time-wrap .evt-caret,
+.evt-time-wrap .evt-ico {
+  pointer-events: none;
+}
+
+
+
+
+
+/* ================================
+   🔁 Repeat Scope Overlay
+================================ */
+
+.repeat-scope-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  background: rgba(0,0,0,0.35);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.repeat-scope-box {
+  width: 320px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px 22px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  font-size: 14px;
+}
+
+.repeat-scope-box h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.repeat-scope-box label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.repeat-scope-box input[type="radio"] {
+  accent-color: #2563eb;
+}
+
+.repeat-scope-box .actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.repeat-scope-box button {
+  min-width: 64px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  cursor: pointer;
+}
+
+.repeat-scope-box button:hover {
+  background: #f3f4f6;
+}
+
+#repeatApply {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+#repeatApply:hover {
+  background: #1d4ed8;
+}

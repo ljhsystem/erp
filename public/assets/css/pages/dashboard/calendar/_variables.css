@@ -1,0 +1,26 @@
+﻿/* 📄 /public/assets/css/pages/dashboard/calendar/_variables.css */
+
+/* 🔥 전역 변수로 승격 */
+:root {
+  --bg: #f5f6f8;
+  --card-bg: #ffffff;
+  --border: #e2e5ea;
+  --text: #222;
+  --muted: #777;
+  --primary: #3b82f6;
+  --danger: #ef4444;
+  --shadow: 0 2px 6px rgba(0,0,0,.08);
+
+  /* ===============================
+     Form Control Tokens
+  =============================== */
+  --field-h: 38px;
+  --field-radius: 12px;
+  --field-px: 12px;
+
+  /* ===============================
+     🔥 Modal Backdrop Tokens (GLOBAL)
+  =============================== */
+  --modal-backdrop-bg: transparent;
+  --modal-backdrop-blur: none;
+}

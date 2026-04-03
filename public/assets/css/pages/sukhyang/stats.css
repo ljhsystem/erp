@@ -1,0 +1,18 @@
+﻿/* 📄 경로: /public/assets/css/pages/sukhyang/stats.css */
+
+.sukhyang-stats-main {
+	padding: 60px 20px 60px 260px;
+	min-height: calc(100vh - 120px);
+	background-color: #f8f9fa;
+	box-sizing: border-box;
+}
+
+.page-title {
+	font-size: 1.25rem;
+	font-weight: 700;
+	margin-bottom: 1.5rem;
+}
+
+.card {
+	height: 100%;
+}

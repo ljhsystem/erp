@@ -1,0 +1,47 @@
+﻿/* 📄 경로: /assets/css/pages/dashboard/approval/status.css */
+
+.approval-status-main {
+	padding: 60px 20px 60px 260px;
+	background-color: #f8f9fa;
+	min-height: calc(100vh - 120px);
+	box-sizing: border-box;
+}
+
+	.approval-status-main h5 {
+		font-weight: 700;
+	}
+
+.approval-flow {
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+}
+
+	.approval-flow .step {
+		padding: 4px 8px;
+		border-radius: 20px;
+		font-size: 0.75rem;
+		font-weight: 500;
+		background-color: #dee2e6;
+		color: #495057;
+	}
+
+	.approval-flow .approved {
+		background-color: #198754;
+		color: white;
+	}
+
+	.approval-flow .current {
+		background-color: #ffc107;
+		color: black;
+	}
+
+	.approval-flow .pending {
+		background-color: #ced4da;
+		color: #6c757d;
+	}
+
+	.approval-flow .rejected {
+		background-color: #dc3545;
+		color: white;
+	}

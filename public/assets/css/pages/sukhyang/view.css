@@ -1,0 +1,27 @@
+﻿/* 📄 경로: /public/assets/css/pages/sukhyang/view.css */
+
+.sukhyang-view-main {
+	padding: 60px 20px 60px 260px;
+	min-height: calc(100vh - 120px);
+	box-sizing: border-box;
+	background-color: #f8f9fa;
+}
+
+.page-title {
+	font-weight: 700;
+	font-size: 1.25rem;
+	margin-bottom: 1.25rem;
+}
+
+.card {
+	max-width: 700px;
+	margin-bottom: 2rem;
+}
+
+.card-body strong {
+	font-weight: 600;
+}
+
+.card-body .btn + .btn {
+	margin-left: 0.5rem;
+}

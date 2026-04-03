@@ -1,0 +1,31 @@
+﻿/* 📄 경로: /public/assets/css/pages/layout/footer.css */
+
+.footer {
+	background: var(--color-surface, #fff);
+	color: var(--color-text-muted, #6c757d);
+	font-size: .875rem;
+	border-top: 1px solid var(--color-border, #e6eaf0);
+	padding: 0.5rem 0.75rem;
+	text-align: center;
+	/* 레이아웃 변수 사용(없으면 44px로 폴백) */
+	min-height: var(--footer-height, 44px);
+	/* 수직 가운데 정렬 */
+	display: flex;
+	align-items: center;
+	justify-content: center;	
+}
+
+/* 필요할 때만 고정 푸터 사용: <footer class="footer footer-fixed"> */
+.footer-fixed {
+	position: fixed;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	width: 100%;
+	z-index: var(--z-footer, 1200); /* sidebar 990 / border 995 보다 높게 */
+}
+
+/* 인쇄 시 푸터 숨김 */
+@media print {
+	.footer { display: none; }
+}

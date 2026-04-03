@@ -1,0 +1,71 @@
+/* 📄 /public/assets/css/pages/_layout/vision.css */
+
+/* Vision 섹션 전체 영역 */
+#vision {
+	width: 100%;
+	color: white;
+	background-size: cover;
+	display: flex;
+	flex-direction: column; /* 세로 흐름 정렬 */
+	align-items: center; /* 중앙 정렬 */
+	text-align: center;
+	padding-top: 7rem; /* ✅ 상단 여백 제거 */
+	padding-bottom: 3rem;
+	overflow: hidden; /* ✅ margin 병합 방지 */
+}
+
+	/* 섹션 타이틀 (h1) */
+	#vision h1 {
+		color: black;
+		font-size: 2.8rem;
+		margin: 0 0 1rem 0;
+	}
+
+	/* Vision 설명 (직접 container 아래에 p가 있을 경우) */
+	#vision > .container > p {
+		color: #555;
+		font-size: 1.2rem;
+		margin: 0 0 2rem 0;
+	}
+
+	/* Welcome 문구 */
+	#vision h4 {
+		font-size: 2.2rem;
+		color: black;
+		margin: 0 0 0.5rem; /* ✅ 상단 여백 제거 */
+	}
+
+	/* 실행 전문가 텍스트 */
+	#vision h2 {
+		font-size: 2.0rem;
+		margin: 0.5rem 0 1.5rem;
+		letter-spacing: 1.5px;
+		font-family: 'Varela Round', sans-serif;
+		color: black;
+	}
+
+	/* 메인 메시지 */
+	#vision p {
+		max-width: 600px;
+		margin: 0 auto;
+		font-size: 1.2rem;
+		line-height: 2rem;
+		color: #333;
+	}
+
+/* 깜빡이는 문구 */
+.blinking {
+	display: inline-block;
+	-webkit-animation: blink 3.0s ease-in-out infinite alternate;
+	animation: blink 3.0s ease-in-out infinite alternate;
+}
+
+@keyframes blink {
+	0% {
+		opacity: 0;
+	}
+
+	100% {
+		opacity: 1;
+	}
+}

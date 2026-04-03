@@ -1,0 +1,64 @@
+﻿/* 📄 /public/assets/css/pages/dashboard/report.css */
+
+/* 페이지 전용 여유값(필요시 조정) */
+:root {
+	--report-extra-vspace: 24px; /* 필요에 따라 8~32px로 조정 */
+}
+
+/* 📊 보고서 메인 레이아웃 */
+.report-main {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	padding: 20px;
+	/* 헤더/푸터 높이를 레이아웃 변수에서 빼고 추가 여유 확보 */
+	min-height: calc(100vh - var(--header-height) - var(--footer-height) - var(--report-extra-vspace));
+	box-sizing: border-box;
+	/* 수평 스크롤 방지, 세로 스크롤은 필요 시 허용 */
+	overflow-x: hidden;
+	overflow-y: auto;
+	background-color: #f8f9fa;
+}
+
+/* iOS 주소창 등 뷰포트 변화 대응 */
+@supports (height: 100dvh) {
+	.report-main {
+		min-height: calc(100dvh - var(--header-height) - var(--footer-height) - var(--report-extra-vspace));
+	}
+}
+
+/* 이하 기존 스타일 유지 / 소폭 조정 */
+.report-main .filter-section .form-label {
+	font-weight: 500;
+}
+
+.report-main .filter-section .form-control,
+.report-main .filter-section .form-select {
+	font-size: .9rem;
+}
+
+.report-main .card .table {
+	margin-bottom: 0;
+}
+
+.report-main .table th, .report-main .table td {
+	vertical-align: middle;
+}
+
+.report-main h6 {
+	font-weight: bold;
+	font-size: .95rem;
+}
+
+/* 모바일 패딩 조정 */
+@media (max-width: 768px) {
+	.report-main {
+		padding: 60px 10px;
+	}
+}
+
+/* 표로 인한 수평 스크롤을 테이블 자체에서 처리(필요 시) */
+.report-main .table-responsive {
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+}

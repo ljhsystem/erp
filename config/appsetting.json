@@ -1,0 +1,38 @@
+{
+  
+  "IsDevelopment": false,
+
+  "Security": {
+    "RRNKey": "sukhyang-super-secret-key-2026-32byte"
+  },
+
+  "SmtpSettings": {
+    "Host": "smtp.gmail.com",
+    "Port": 587,
+    "SMTPSecure": "tls",
+    "UserName": "ljhsystem66@gmail.com",
+    "Password": "mfizppsciwuzyuqt",
+    "SenderName": "석향앱관리자",
+    "AdminEmail": "suk-hyang@daum.net"
+  },
+
+  "BusinessApi": {
+    "BaseUrl": "https://api.odcloud.kr/api/nts-businessman/v1/status",
+    "ServiceKey": "0cfd48aa2744e37d80cb192b7283979b5a6987b722c559f913653fb8e5b08243"
+  },
+
+
+  "InternalApiSecret": "change_this_to_a_secure_random_value_32+chars",
+
+  "Logger": {
+    "Path": "storage/logs/app.log",
+    "Level": "info"
+  },
+
+  "KakaoBot": {
+    "NodePath": "/usr/local/bin/node",
+    "Script": "/app/kakaoserver.js",
+    "WorkingDirectory": "/app"
+  }
+  
+}

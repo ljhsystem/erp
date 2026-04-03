@@ -1,0 +1,290 @@
+﻿/* 📄 /public/assets/css/pages/dashboard/calendar/modal.trash.css */
+/* =========================================
+   🔥 Trash Modal - Final Clean Version (Restore Included)
+========================================= */
+
+/* 카드 */
+.shint-modal__card--large {
+  width: 880px;
+  max-width: 95vw;
+  border-radius: 10px;
+  margin: 0 auto;
+}
+
+/* 탭 */
+.trash-tabs {
+  display: flex;
+  background: #eef1f5;
+  padding: 4px;
+  border-radius: 8px;
+  margin: 12px 16px 0;
+  gap: 4px;
+}
+
+.trash-tab {
+  flex: 1;
+  padding: 6px 0;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.trash-tab.is-active {
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* 본문 */
+.trash-body {
+  padding: 14px 16px;
+}
+
+/* 툴바 */
+.trash-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.trash-toolbar-left,
+.trash-toolbar-right {
+  display: flex;
+  gap: 8px;
+}
+
+.trash-toolbar .btn {
+  padding: 5px 12px;
+  font-size: 13px;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+/* Split Layout */
+.trash-body-split {
+  display: flex;
+  height: 440px;
+}
+
+/* 리스트 영역 */
+.trash-list-area {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* 테이블 */
+.trash-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.trash-table th,
+.trash-table td {
+  padding: 8px 10px;
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trash-table th {
+  background: #f5f6f8;
+  font-weight: 600;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.trash-table tbody tr {
+  transition: background 0.15s ease;
+  cursor: pointer;
+}
+
+.trash-table tbody tr:hover {
+  background: #f3f6ff;
+}
+
+/* 상세 패널 */
+.trash-detail-area {
+  display: none;
+  width: 280px;
+  padding: 16px;
+  background: #f8f9fb;
+  border-left: 1px solid #e5e7eb;
+
+  height: 100%;
+  overflow: hidden;
+  flex-direction: column;
+}
+
+.trash-detail-area.is-open {
+  display: flex;      /* 🔥 block 금지 */
+  flex-direction: column;
+}
+
+.trash-detail-content:hover {
+  flex: 1;
+  min-height: 0;      /* 🔥 이거 없으면 overflow 안 먹는 경우 많음 */
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+}
+
+.trash-detail-title {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+.trash-detail-meta {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.trash-detail-desc {
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-word;
+  margin-bottom: 14px;
+}
+
+/* 상세 액션 버튼 */
+.trash-detail-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ===============================
+   🎯 복원 버튼 스타일
+================================ */
+
+.btn-trash-restore {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.btn-trash-restore:hover {
+  background: #d1fae5;
+  color: #047857;
+  border-color: #6ee7b7;
+}
+
+/* ===============================
+   🔥 영구삭제 버튼 (톤다운 경고)
+================================ */
+
+.btn-trash-delete {
+  background: #fff5f5;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.btn-trash-delete:hover {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fca5a5;
+}
+
+/* 빈 상태 */
+.trash-empty-row td {
+  text-align: center;
+  color: #9ca3af;
+  padding: 24px 0;
+}
+
+
+/* ===============================
+   🔥 Detail Empty Header
+================================ */
+.trash-detail-empty {
+  text-align: center;
+  font-weight: 600;
+  font-size: 14px;
+  color: #6b7280;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 14px;
+}
+
+/* ===============================
+   🔥 Meta Layout 개선
+================================ */
+.trash-meta-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.trash-meta-label {
+  font-weight: 600;
+  color: #374151;
+}
+
+.trash-meta-value {
+  color: #6b7280;
+  text-align: right;
+  max-width: 60%;
+  word-break: break-word;
+}
+
+/* ===============================
+   🔥 Description Box
+================================ */
+.trash-desc-block {
+  margin-top: 12px;
+  padding: 10px;
+  background: #ffffff;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+
+/* ===============================
+   🔥 Description Section (Flat Style)
+================================ */
+
+.trash-desc-title {
+  margin-top: 14px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ===============================
+   🔥 Description Section - Clean Layout
+================================ */
+
+.trash-desc-section {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.trash-desc-header {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+.trash-desc-text {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #374151;
+  white-space: pre-wrap;
+}

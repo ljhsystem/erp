@@ -1,0 +1,520 @@
+﻿/* 📄 /public/assets/css/pages/dashboard/calendar/sidebar.left.css */
+
+/* =========================================================
+   Left Sidebar (FINAL - Scoped + No ERP Sidebar Conflict)
+   - ✅ 메인 ERP .sidebar 와 충돌 방지: .calendar-page 스코프 격리
+   - ✅ grid 폭/레이아웃을 건드리지 않고 overlay(drawer)로만 동작
+   - ✅ 기존 기능(메뉴/서브메뉴/팔레트/hover-fix) 1개도 삭제 없음
+========================================================= */
+
+/* =========================================================
+   좌측 패널 기본 (SCOPED)
+========================================================= */
+.calendar-page .calendar-left {
+  position: relative;
+}
+
+
+/* ✅ 숨김 상태: 레이아웃 영향을 0으로 */
+.calendar-page .calendar-left.is-hidden,
+.calendar-page .calendar-left.is-collapsed {
+  transform: translateX(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ✅ 부모(.calendar-shell)가 position:relative 여야 기준점이 됨
+   (layout.css에서 이미 넣는 게 베스트지만, 혹시 누락 대비) */
+.calendar-page .calendar-shell {
+  position: relative;
+}
+
+
+
+
+
+/* =========================================================
+   섹션 타이틀 공통
+========================================================= */
+.calendar-page .cal-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  margin-bottom: 8px;
+  font-size: .95rem;
+}
+
+/* 작은 아이콘 버튼 공통 (+, ...) */
+.calendar-page .icon-btn{
+  border:0;
+  background:transparent;
+  border-radius:8px;
+  width:32px;
+  height:32px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+}
+.calendar-page .icon-btn:hover{ background: rgba(0,0,0,.06); }
+
+/* =========================================================
+   Create Split Button (UI)
+========================================================= */
+.calendar-page .split-action{
+  display:flex;
+  width:100%;
+  border-radius:10px;
+  overflow:hidden;
+  box-shadow: var(--shadow);
+}
+
+.calendar-page .split-action .split-main{
+  flex:1;
+  border:0;
+  background: var(--primary);
+  color:#fff;
+  font-weight:700;
+  padding:10px 12px;
+  cursor:pointer;
+}
+
+.calendar-page .split-action .split-toggle{
+  width:44px;
+  border:0;
+  background: rgba(59,130,246,.95);
+  color:#fff;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-left: 1px solid rgba(255,255,255,.25);
+}
+
+.calendar-page .split-action .split-main:hover,
+.calendar-page .split-action .split-toggle:hover{ filter: brightness(.98); }
+.calendar-page .split-action .split-main:active,
+.calendar-page .split-action .split-toggle:active{ filter: brightness(.96); }
+
+/* 생성 드롭다운 메뉴 */
+.calendar-page .event-create-menu{
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  z-index: 260; /* ✅ left panel 위에서 더 위 */
+
+  width: 100%;
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+/* 🔥 이거 반드시 추가 */
+.calendar-page .cal-section {
+  position: relative;
+}
+
+
+.calendar-page .event-create-menu.is-hidden{ display:none; }
+
+.calendar-page .event-create-menu .menu-item{
+  width:100%;
+  padding:10px 10px;
+  border:0;
+  background: transparent;
+  border-radius:8px;
+  text-align:left;
+  cursor:pointer;
+  font-weight:600;
+}
+.calendar-page .event-create-menu .menu-item:hover{
+  background: rgba(0,0,0,.05);
+}
+
+/* =========================================================
+   Calendars List (checkbox color + menu UI) FULL
+========================================================= */
+.calendar-page .cal-list{
+  list-style:none;
+  padding:0;
+  margin:0;
+}
+
+.calendar-page .cal-item{
+  position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:6px 6px;
+  border-radius:8px;
+  --cal: var(--cal-color, #3b82f6); /* ✅ fallback */
+  overflow: visible;
+}
+.calendar-page .cal-item:hover{ background: rgba(0,0,0,.04); }
+
+.calendar-page .cal-label{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex:1;
+  cursor:pointer;
+  min-width: 0;
+}
+
+/* ✅ native checkbox 숨김(접근성은 유지) */
+.calendar-page .cal-checkbox{
+  position:absolute;
+  opacity:0;
+  width:1px;
+  height:1px;
+  pointer-events:none;
+}
+
+/* ✅ 화면 표시용 체크박스 */
+.calendar-page .cal-checkbox-ui{
+  width:16px;
+  height:16px;
+  border-radius:4px;
+  border: 1.5px solid rgba(0,0,0,.25);
+  display:inline-grid;
+  place-items:center;
+  background:#fff;
+  flex: 0 0 auto;
+}
+
+/* ✅ 체크되면 Synology 색 적용 */
+.calendar-page .cal-checkbox:checked + .cal-checkbox-ui{
+  background: var(--cal);
+  border-color: var(--cal);
+}
+
+/* ✅ 체크 표시 */
+.calendar-page .cal-checkbox:checked + .cal-checkbox-ui::after{
+  content:"";
+  width:8px;
+  height:5px;
+  border-left:2px solid #fff;
+  border-bottom:2px solid #fff;
+  transform: rotate(-45deg);
+  margin-top:-1px;
+}
+
+/* 키보드 포커스 */
+.calendar-page .cal-checkbox:focus-visible + .cal-checkbox-ui{
+  outline: 3px solid rgba(37,99,235,.18);
+  outline-offset: 2px;
+}
+
+.calendar-page .cal-name{
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ... 버튼 (hover 때만 보이게, 클릭은 항상 가능하게) */
+.calendar-page .cal-more{
+  opacity:0;
+  transition: opacity .12s ease;
+}
+.calendar-page .cal-item:hover .cal-more{ opacity:1; }
+
+/* 컨텍스트 메뉴 */
+.calendar-page .cal-menu{
+  position:absolute;
+  right:6px;
+  top:38px;
+  width:220px;
+  padding:6px;
+  background: var(--card-bg, #fff);
+  border:1px solid var(--border, rgba(0,0,0,.12));
+  box-shadow: var(--shadow, 0 12px 30px rgba(0,0,0,.12));
+  border-radius:10px;
+
+  /* ✅ ERP/FullCalendar 위로 확실히 */
+  z-index: 400;
+}
+.calendar-page .cal-menu.is-hidden{ display:none; }
+
+.calendar-page .cal-menu-item{
+  width:100%;
+  border:0;
+  background:transparent;
+  padding:10px 10px;
+  border-radius:8px;
+  text-align:left;
+  cursor:pointer;
+  font-weight:600;
+  font-size:.9rem;
+}
+.calendar-page .cal-menu-item:hover{ background: rgba(0,0,0,.06); }
+
+/* 나의 캘린더 헤더 접기/펼치기 */
+.calendar-page .cal-title-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
+.calendar-page .cal-collapsible{ position: relative; }
+
+/* 버튼 기본 상태: 완전 숨김 (자리 차지 X) */
+.calendar-page .cal-collapse-btn{
+  width: 0;
+  margin-right: 0;
+  padding: 0;
+  opacity: 0;
+  visibility: hidden;
+  overflow: hidden;
+
+  transition:
+    width .15s ease,
+    margin .15s ease,
+    opacity .12s ease;
+}
+
+/* hover 시에만 버튼 등장 */
+.calendar-page .cal-collapsible:hover .cal-collapse-btn{
+  width: 32px;          /* icon-btn 기본 크기 */
+  margin-right: 4px;   /* 제목과 간격 */
+  opacity: 1;
+  visibility: visible;
+}
+
+.calendar-page .cal-title-text{ flex:1; }
+
+/* 아이콘 기본: ▼ (회전 없음) */
+.calendar-page .cal-collapse-btn i{
+  transition: transform .15s ease;
+  transform: rotate(180deg);
+}
+
+/* 접힌 상태: ▲ */
+.calendar-page .cal-collapsible.is-collapsed .cal-collapse-btn i{
+  transform: rotate(0deg);
+}
+
+.calendar-page .cal-collapsible-body{
+  overflow: visible;   /* 🔥 서브메뉴 살림 */
+}
+
+.calendar-page .cal-collapsible-body.is-hidden{
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none; /* 클릭만 차단 */
+}
+
+/* + 버튼 메뉴 */
+.calendar-page .cal-title-actions{
+  position: relative;
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.calendar-page .cal-add-menu{
+  position:absolute;
+  right:0;
+  top: calc(100% + 8px);
+  width: 220px;
+  padding: 6px;
+  background: var(--card-bg, #fff);
+  border:1px solid var(--border, rgba(0,0,0,.12));
+  box-shadow: var(--shadow, 0 12px 30px rgba(0,0,0,.12));
+  border-radius:10px;
+
+  /* ✅ 위로 */
+  z-index: 420;
+}
+.calendar-page .cal-add-menu.is-hidden{ display:none; }
+
+.calendar-page .cal-add-item{
+  width:100%;
+  border:0;
+  background:transparent;
+  padding:10px 10px;
+  border-radius:8px;
+  text-align:left;
+  cursor:pointer;
+  font-weight:600;
+  font-size:.9rem;
+}
+.calendar-page .cal-add-item:hover{ background: rgba(0,0,0,.06); }
+
+/* 서브메뉴 */
+.calendar-page .cal-menu-row{
+  position: relative;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  border-radius:8px;
+}
+.calendar-page .cal-menu-row:hover{ background: rgba(0,0,0,.06); }
+
+.calendar-page .cal-sub-arrow{
+  font-size: 12px;
+  opacity: .65;
+  margin-right: 8px;
+  pointer-events:none;
+}
+
+.calendar-page .cal-menu-divider{
+  height:1px;
+  background: var(--border, rgba(0,0,0,.12));
+  margin:6px 4px;
+}
+
+.calendar-page .cal-submenu{
+  position:absolute;
+  left: calc(100% + 8px);
+  top: 0;
+  width: 300px;
+  padding:6px;
+  background: var(--card-bg, #fff);
+  border:1px solid var(--border, rgba(0,0,0,.12));
+  box-shadow: var(--shadow, 0 12px 30px rgba(0,0,0,.12));
+  border-radius:10px;
+
+  /* ✅ 기존 999 유지 + 충돌 방지(캘린더 전용으로만) */
+  z-index: 520;
+}
+.calendar-page .cal-submenu.is-hidden{ display:none; }
+
+.calendar-page .cal-subitem{
+  width:100%;
+  border:0;
+  background:transparent;
+  padding:10px 10px;
+  border-radius:8px;
+  text-align:left;
+  cursor:pointer;
+  font-weight:600;
+  font-size:.9rem;
+  display:flex;
+  gap:8px;
+  align-items:center;
+}
+.calendar-page .cal-subitem:hover{ background: rgba(0,0,0,.06); }
+
+/* 색상 팔레트 */
+.calendar-page .cal-color-grid{
+  display: grid;
+  grid-template-columns: repeat(10, 22px); /* ✅ 셀 = 버튼 크기 */
+  gap: 6px;
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+/* 색상 버튼 */
+.calendar-page .cal-color{
+  width: 22px;
+  height: 22px;
+  box-sizing: border-box; /* ✅ border 포함 계산 */
+  border-radius: 6px;
+  border: 1px solid rgba(0,0,0,.12);
+  background: var(--c);
+  cursor: pointer;
+}
+
+/* hover */
+.calendar-page .cal-color:hover{
+  transform: translateY(-1px);
+}
+
+/* 선택됨 */
+.calendar-page .cal-color.is-active,
+.calendar-page .cal-color.is-selected{
+  outline: 2px solid var(--primary, #2563eb);
+  outline-offset: 2px;
+}
+
+/* ===============================
+   Color Submenu Hover FIX
+================================ */
+
+/* hover 영역 확장 (틈 방지) */
+.calendar-page .cal-menu-row.has-sub {
+  position: relative;
+}
+
+.calendar-page .cal-menu-row.has-sub::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: -16px;
+  width: 16px;
+  height: 100%;
+}
+
+/* =========================================================
+   Responsive (LEFT)
+========================================================= */
+@media (max-width: 1200px) {
+  .calendar-page .calendar-left {
+    width: 260px;
+  }
+}
+
+@media (max-width: 768px) {
+  .calendar-page .calendar-left {
+    display: none;
+  }
+}
+
+
+
+
+/* ======================================
+   GLOBAL PALETTE FIX (body scope)
+====================================== */
+
+.global-color-palette {
+  position: fixed;
+  background: #ffffff;              /* 🔥 흰색 고정 */
+  border: 1px solid rgba(0,0,0,.08);
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(0,0,0,.18);
+  padding: 12px;
+  z-index: 200000 !important;
+}
+
+.global-color-palette .cal-color-grid{
+  display: grid;
+  grid-template-columns: repeat(10, 22px);
+  gap: 6px;
+  padding: 6px;
+}
+
+.global-color-palette .cal-color{
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid rgba(0,0,0,.12);
+  cursor: pointer;
+}
+
+.global-color-palette .cal-color:hover{
+  transform: translateY(-1px);
+}
+
+.global-color-palette .cal-color.is-selected{
+  outline: 2px solid var(--primary, #2563eb);
+  outline-offset: 2px;
+}
+
+/* ===== GLOBAL PALETTE COLOR FIX ===== */
+
+.global-color-palette .cal-color {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid rgba(0,0,0,.12);
+  background: var(--c);   /* 🔥 이게 핵심 */
+  cursor: pointer;
+}
+.global-color-palette.is-hidden {
+  display: none !important;
+}
+

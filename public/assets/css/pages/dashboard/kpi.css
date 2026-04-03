@@ -1,0 +1,64 @@
+﻿/* 📄 /public/assets/css/pages/dashboard/kpi.css */
+
+/* 페이지 전용 세로 여유(필요시 조정) */
+:root {
+	--kpi-extra-vspace: 20px; /* 필요에 따라 8~32px로 조정 */
+}
+
+.kpi-main {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	padding: 20px;
+	box-sizing: border-box;
+	/* 가로: 사이드바가 열려 있을 때와 접혀 있을 때를 모두 고려한 최대 너비 설정 */
+	/* main-content(부모)가 이미 margin-left로 사이드바 너비를 적용하므로
+     kpi-main은 뷰포트 기준으로 최대 너비만 제한해서 넘침을 방지합니다. */
+	max-width: calc(100vw - var(--sidebar-width));
+	width: 100%;
+	/* 세로: 헤더/푸터 높이를 빼고 내부에서만 스크롤 발생하도록 제한 */
+	max-height: calc(100vh - var(--header-height) - var(--footer-height) - var(--kpi-extra-vspace));
+	overflow-x: hidden;
+	overflow-y: auto;
+	/* 바닥에 fixed footer 가려지지 않도록 여유 확보 */
+	padding-bottom: calc(var(--footer-height) + 12px);
+	background-color: #f8f9fa;
+}
+
+/* 사이드바 접힘 상태를 고려 (layout.css에서 body.is-sidebar-collapsed 사용) */
+body.is-sidebar-collapsed .kpi-main {
+	max-width: calc(100vw - var(--sidebar-width-collapsed));
+}
+
+/* iOS 주소창 등 뷰포트 변화 대응 (가능하면 100dvh 사용) */
+@supports (height: 100dvh) {
+	.kpi-main {
+		max-height: calc(100dvh - var(--header-height) - var(--footer-height) - var(--kpi-extra-vspace));
+	}
+}
+
+/* KPI 카드 스타일 유지 */
+.kpi-card {
+	height: 100%;
+	padding: 1rem;
+	border-radius: .75rem;
+	box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+	.kpi-card h6 {
+		font-size: .95rem;
+		font-weight: 500;
+	}
+
+	.kpi-card h4 {
+		font-size: 1.5rem;
+		font-weight: bold;
+		margin-top: .5rem;
+	}
+
+/* 내부 가로가 긴 요소(테이블, 차트 등)는 자체적으로 스크롤 처리 권장 */
+.kpi-main .table-responsive,
+.kpi-main .overflow-auto {
+	-webkit-overflow-scrolling: touch;
+	overflow-x: auto;
+}

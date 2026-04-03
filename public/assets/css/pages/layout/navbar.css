@@ -1,0 +1,125 @@
+﻿/* 📄 /public/assets/css/pages/layout/navbar.css
+   - layout.css 변수만 참조하도록 정리
+   - 중복 초기화(body, :root) 제거
+   - 모바일 토글/스크롤/액션 영역 정돈
+*/
+
+/* 고정 상단 바 */
+.top-nav {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	width: 100%;
+	background-color: var(--color-primary, #0d6efd) !important;
+	color: #fff;
+	height: var(--header-height, 60px);
+	box-shadow: 0 1px 0 rgba(0,0,0,.06), 0 6px 16px rgba(0,0,0,.06);
+	z-index: 4000 !important; /* ↑ breadcrumb 보다 확실히 높게 */
+}
+
+/* 컨테이너 정렬/간격 */
+.top-nav .container-fluid {
+  height: var(--header-height, 60px);
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+/* 브랜드 */
+.navbar-brand {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #fff !important;
+  letter-spacing: .2px;
+  white-space: nowrap;
+}
+
+/* 모바일 토글 */
+.navbar-toggler {
+  border-color: rgba(255,255,255,.35);
+}
+.navbar-toggler:focus { box-shadow: 0 0 0 .15rem rgba(255,255,255,.25); }
+
+/* 1차 메뉴 (좌측) */
+.top-menu { scrollbar-width: thin; }
+.top-menu::-webkit-scrollbar { height: 6px; }
+.top-menu::-webkit-scrollbar-thumb { background: rgba(255,255,255,.25); border-radius: 3px; }
+
+.top-nav .nav-link {
+  color: #fff !important;
+  font-weight: 600;
+  padding: .25rem .75rem;
+  border-radius: .375rem;
+  white-space: nowrap;
+  transition: background-color .15s ease, color .15s ease;
+}
+.top-nav .nav-link:hover,
+.top-nav .nav-link:focus {
+  background-color: rgba(255,255,255,.12);
+  color: #fff !important;
+  text-decoration: none;
+}
+.top-nav .nav-link.active {
+  background-color: rgba(255,255,255,.22);
+  color: #fff !important;
+}
+
+/* 우측 액션 */
+.navbar-actions { color: #fff; white-space: nowrap; }
+.navbar-actions .btn {
+  font-size: .8rem;
+  padding: .25rem .55rem;
+  line-height: 1.2;
+  border-color: rgba(255,255,255,.6) !important;
+}
+#current-time { font-weight: 700; color: var(--color-accent, #f57607); }
+.user-name    { color: #e9eefb; }
+#session-timer { color: #e9eefb; }
+
+/* 고정 헤더 높이만큼 상단 여백 확보 */
+.fixed-top-space { height: var(--header-height, 60px); }
+
+/* 반응형 */
+@media (max-width: 991.98px) {
+  .top-nav .container-fluid { gap: .25rem; }
+
+  /* 토글로 메뉴가 접히므로 링크 패딩 약간 확대 */
+  .top-nav .nav-link { padding: .4rem .6rem; }
+
+  .navbar-actions { font-size: .9rem; }
+  .navbar-actions .btn { padding: .2rem .5rem; }
+}
+
+/* 모션 최소화 */
+@media (prefers-reduced-motion: reduce) {
+  .top-nav .nav-link { transition: none; }
+}
+
+/* 브랜드 */
+.navbar-brand {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #fff !important;
+  letter-spacing: .2px;
+  white-space: nowrap;
+}
+/* 네브바 메인 로고 */
+.navbar-logo {
+  height: 22px;        /* ✅ 기본 PC 사이즈 */
+  max-height: 22px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+}
+@media (max-width: 991.98px) {
+  .top-nav .container-fluid { gap: .25rem; }
+  .navbar-logo {
+    height: 18px;      /* 📱 모바일에서는 더 작게 */
+    max-height: 18px;
+  }
+
+  .navbar-brand {
+    font-size: .95rem;
+  }
+}

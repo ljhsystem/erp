@@ -1,0 +1,847 @@
+﻿/* 📄 /public/assets/css/pages/dashboard/calendar/sidebar.right.css */
+
+/* =========================================================
+   Right Sidebar – FIXED (ONLY ONE PANEL VISIBLE)
+========================================================= */
+
+/* 🔥 기본: 무조건 숨김 */
+.calendar-right-panel {
+  display: none;
+  flex: 1;
+  min-width: 0;
+
+  height: 100%;
+  background: var(--card-bg);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 12px;
+}
+
+/* 🔥 오직 is-open 하나만 표시 */
+.calendar-right-panel.is-open {
+  display: flex;
+  flex-direction: column;
+}
+
+/* =========================================================
+   ⚠️ 중요: 내부 패널은 display 제어 금지
+========================================================= */
+.calendar-page .right-list-panel,
+.calendar-page .right-edit-panel {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  /* ❌ display:flex 절대 금지 */
+}
+
+
+/* =========================================================
+   Base Wrapper (SCOPED)
+========================================================= */
+
+/* 부모 기준점 */
+.calendar-page .calendar-shell {
+  position: relative;
+}
+
+
+/* 🔥 작업추가 드롭다운은 항상 클릭 가능 */
+#right-list-list-dd {
+  position: fixed;
+  min-width: 220px;
+  max-height: 240px;
+  overflow-y: auto;
+
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+
+  z-index: 9999;
+  pointer-events: auto;
+}
+
+
+/* =========================================================
+   Add Task Input (누락된 부분)
+========================================================= */
+.calendar-page .right-list-add input {
+  width: 100%;
+  height: 38px;
+
+  border: 1px solid var(--border);
+  border-radius: 10px;
+
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 700;
+
+  outline: none;
+}
+
+.calendar-page .right-list-add input::placeholder {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.calendar-page .right-list-add input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(59,130,246,.15);
+}
+
+/* 🔥 드롭다운은 항상 클릭 가능 */
+.calendar-page .right-list-dd {
+  pointer-events: auto;
+  z-index: 999; /* 충분히 위로 */
+}
+
+/* 필터 드롭다운과 시각 구분 */
+#right-list-list-dd .right-list-dd-item {
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+/* 필터 전용 */
+.calendar-page .right-list-dd:not(#right-list-list-dd) {
+  position: absolute;
+  left: 0;
+  top: 42px;
+  width: 280px;
+}
+
+.right-list-add-wrap {
+  position: relative;
+  width: 100%;
+}
+
+#right-list-add-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 34px 0 12px;
+  box-sizing: border-box;
+}
+
+.right-list-add-btn {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+
+  width: 22px;
+  height: 22px;
+
+  border: none;
+  background: transparent;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: pointer;
+  opacity: .6;
+}
+
+.right-list-add-btn:hover {
+  opacity: 1;
+}
+
+.right-list-add-btn.is-hidden {
+  display: none;
+}
+
+
+/* =========================================================
+   Topbar
+========================================================= */
+.calendar-page .right-list-topbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 8px;
+}
+
+.calendar-page .right-list-dd-trigger {
+  border: 0;
+  background: transparent;
+  padding: 4px 8px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-weight: 900;
+  font-size: 18px;
+  color: #111;
+}
+.calendar-page .right-list-dd-trigger:hover {
+  background: rgba(0,0,0,.05);
+}
+
+.calendar-page .right-list-dd-label {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.calendar-page .right-list-close {
+  border: 0;
+  background: transparent;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.calendar-page .right-list-close:hover {
+  background: rgba(0,0,0,.06);
+}
+
+/* =========================================================
+   Dropdown (Filter)
+========================================================= */
+.calendar-page .right-list-dd {
+  position: absolute;
+  left: 0;
+  top: 42px;
+  width: 280px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 8px;
+  z-index: 520;
+}
+.calendar-page .right-list-dd.is-hidden { display:none; }
+
+.calendar-page .right-list-dd-group-title {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 6px 8px 4px;
+}
+
+.calendar-page .right-list-dd-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+}
+.calendar-page .right-list-dd-item:hover {
+  background: rgba(0,0,0,.06);
+}
+
+.calendar-page .right-list-dd-item em {
+  font-style: normal;
+  color: var(--muted);
+}
+
+.calendar-page .right-list-dd-item > .bi-check2 { opacity:0; }
+.calendar-page .right-list-dd-item.is-active > .bi-check2 { opacity:1; }
+
+.calendar-page .right-list-dd-sep {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 6px 0;
+}
+
+.calendar-page .right-list-dd-cta {
+  justify-content: center;
+  font-weight: 900;
+}
+
+/* =========================================================
+   Submenu (Date Picker Trigger)
+========================================================= */
+.calendar-page .right-list-dd-item.has-submenu {
+  position: relative;
+  padding: 0;
+}
+
+.calendar-page .right-list-dd-item-row {
+  padding: 10px;
+  border-radius: 10px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.calendar-page .right-list-dd-submenu {
+  position: absolute;
+  top: 0;
+  right: calc(100% + 10px);
+  width: 220px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 10px;
+  z-index: 530;
+}
+.calendar-page .right-list-dd-submenu.is-hidden { display:none; }
+
+.calendar-page .right-list-date-open {
+  width: 100%;
+  height: 120px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--muted);
+  font-weight: 800;
+  cursor: pointer;
+}
+.calendar-page .right-list-date-open:hover {
+  background: rgba(0,0,0,.04);
+}
+
+/* =========================================================
+   Add / Meta
+========================================================= */
+.calendar-page .right-list-add {
+  padding: 8px 0 6px;
+}
+
+.calendar-page .right-list-meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 4px 0 10px;
+  flex-wrap: wrap;
+}
+
+.calendar-page .right-list-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--muted);
+  cursor: pointer;
+}
+.calendar-page .right-list-chip:hover {
+  background: rgba(59,130,246,.08);
+  border-radius: 8px;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* =========================================================
+   Task List
+========================================================= */
+.calendar-page .right-list-task-list {
+  flex: 1;
+  min-height: 380px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.calendar-page .right-list-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 40px 0;
+}
+
+/* =========================================================
+   Task Row
+========================================================= */
+.calendar-page .right-list-row {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 2px;
+}
+
+.calendar-page .right-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.calendar-page .right-list-due {
+  font-size: 12px;
+  color: #666;
+}
+.calendar-page .right-list-due.is-overdue {
+  color: #dc2626;
+  font-weight: 800;
+}
+
+/* =========================================================
+   More Menu
+========================================================= */
+.calendar-page .right-list-more-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  color: #6b7280;
+}
+.calendar-page .right-list-more-btn:hover {
+  background: rgba(0,0,0,.06);
+  color: #111;
+}
+
+.calendar-page .right-list-row.is-menu-open .right-list-more-btn {
+  background: rgba(59,130,246,.12);
+  color: #2563eb;
+}
+
+.calendar-page .right-list-more-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  min-width: 96px;
+
+  /* 🔥 완전 불투명 처리 */
+  background-color: #ffffff;
+  opacity: 1;
+  backdrop-filter: none;
+  isolation: isolate;
+
+  border: 1px solid var(--border);
+  border-radius: 8px;
+
+  /* 🔥 그림자 강화 (비침 방지 시각 보정) */
+  box-shadow: 0 8px 20px rgba(0,0,0,.18);
+
+  z-index: 999; /* 600 → 확실히 위로 */
+}
+
+.calendar-page .right-list-row.is-menu-open .right-list-more-menu {
+  display: block;
+}
+
+.calendar-page .right-list-more-menu button {
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  background: none;
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+}
+.calendar-page .right-list-more-menu button:hover {
+  background: #f3f4f6;
+}
+.calendar-page .right-list-more-menu .is-delete {
+  color: #dc2626;
+}
+
+/* =========================================================
+   Completed Tasks (유지)
+========================================================= */
+.calendar-page .right-list-completed { margin-top: 10px; }
+
+
+/* grid 내부 폭 꼬임 방지 */
+.calendar-page .right-edit-panel * {
+  min-width: 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+/* =========================================================
+   Completed Section – FINAL UX
+========================================================= */
+
+/* 래퍼 */
+.calendar-page .right-list-completed {
+  margin-top: 10px;
+}
+
+/* ================================
+   Header
+================================ */
+.calendar-page .right-list-completed-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  padding: 6px 8px;
+  margin-top: 12px;
+
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--muted);
+
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background .12s ease;
+}
+
+.calendar-page .right-list-completed-header:hover {
+  background: rgba(0,0,0,.05);
+}
+
+/* ================================
+   Left (icon + text)
+================================ */
+.calendar-page .right-list-completed-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 🔥 아이콘: 기본은 아예 제거 */
+.calendar-page .completed-toggle-icon {
+  display: none;
+  font-size: 12px;
+}
+
+/* 🔥 hover 시에만 아이콘 등장 */
+.calendar-page
+.right-list-completed-header:hover
+.completed-toggle-icon {
+  display: inline-block;
+}
+
+/* 접힘: 아래 */
+.calendar-page .right-list-completed.is-collapsed
+.completed-toggle-icon {
+  transform: rotate(0deg);
+}
+
+/* 펼침: 위 */
+.calendar-page .right-list-completed.is-open
+.completed-toggle-icon {
+  transform: rotate(180deg);
+}
+
+/* ================================
+   Clear Button (TEXT STYLE)
+================================ */
+
+/* 기본: 숨김 + 자리 미차지 */
+.calendar-page .right-list-completed-clear {
+  display: none;
+  margin-left: auto;
+
+  font-size: 12px;
+  font-weight: 700;
+
+  color: var(--muted);
+  background: none;
+  border: 0;
+  padding: 0;
+
+  text-decoration: underline;
+  text-underline-offset: 2px;
+
+  cursor: pointer;
+}
+
+/* hover 시에만 표시 */
+.calendar-page
+.right-list-completed-header:hover
+.right-list-completed-clear {
+  display: inline-block;
+}
+
+/* hover 효과도 동일 톤 */
+.calendar-page .right-list-completed-clear:hover {
+  color: #111;
+}
+
+/* ================================
+   Completed List
+================================ */
+.calendar-page .right-list-completed-list {
+  margin-top: 4px;
+}
+
+.calendar-page .right-list-completed.is-collapsed
+.right-list-completed-list {
+  display: none;
+}
+
+/* ================================
+   Completed Row
+================================ */
+.calendar-page .right-list-completed-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 6px 4px;
+  font-size: 13px;
+  border-radius: 8px;
+
+  transition: background .12s ease;
+}
+
+.calendar-page .right-list-completed-row:hover {
+  background: rgba(0,0,0,.04);
+}
+
+.calendar-page .right-list-check-circle.is-completed {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #3b82f6;
+  flex-shrink: 0;
+}
+
+.calendar-page .right-list-title.is-completed {
+  text-decoration: line-through;
+}
+
+.calendar-page .right-list-completed-row .right-list-due {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+
+
+
+
+
+
+
+
+
+
+/* =========================================================
+   Right Sidebar – Edit Panel (Task Edit)
+========================================================= */
+
+.calendar-page .right-edit-panel {
+  display: none;
+  flex-direction: column;
+
+  height: 100%;
+  background: var(--card-bg);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 12px;
+}
+
+.calendar-page .right-edit-panel.is-open {
+  display: flex;
+}
+
+/* =========================================================
+   Topbar
+========================================================= */
+.calendar-page .right-edit-panel .task-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+
+  border-bottom: 1px solid var(--border);
+}
+
+.calendar-page .right-edit-panel .task-close {
+  border: 0;
+  background: transparent;
+  width: 34px;
+  height: 34px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.calendar-page .right-edit-panel .task-close:hover {
+  background: rgba(0,0,0,.06);
+}
+
+/* =========================================================
+   Edit Form Layout
+========================================================= */
+.calendar-page .task-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 라벨 */
+.calendar-page .task-form-label {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--muted);
+}
+
+/* 인풋 / 셀렉트 */
+.calendar-page .task-input,
+.calendar-page .task-textarea {
+  width: 100%;
+  height: 36px;
+
+  border: 1px solid var(--border);
+  border-radius: 10px;
+
+  padding: 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+
+  outline: none;
+}
+
+.calendar-page .task-textarea {
+  height: 80px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+/* 포커스 */
+.calendar-page .task-input:focus,
+.calendar-page .task-textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(59,130,246,.15);
+}
+
+/* =========================================================
+   Date + Select Row
+========================================================= */
+.calendar-page .task-edit-form select {
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-weight: 700;
+}
+
+/* =========================================================
+   Actions
+========================================================= */
+.calendar-page .task-edit-actions {
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.calendar-page .task-edit-actions .btn-primary {
+  width: 100%;
+  height: 38px;
+
+  border-radius: 10px;
+  border: 0;
+
+  background: var(--primary);
+  color: #fff;
+
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.calendar-page .task-edit-actions .btn-primary:hover {
+  background: #2563eb;
+}
+
+
+
+
+/* =========================================================
+   Task Edit – Custom List Selector
+========================================================= */
+
+.calendar-page .tasklist-selector {
+  position: relative;
+}
+
+.calendar-page .tasklist-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.calendar-page .tasklist-color {
+  width: 12px;
+  height: 12px;
+
+  border-radius: 3px;     /* 🔥 네모 (살짝 둥글게) */
+  /* 완전 각진 네모 원하면 0px */
+
+  background: #94a3b8;
+  flex-shrink: 0;
+}
+
+.calendar-page .right-edit-panel .tasklist-selector {
+  position: relative;
+  display: block; 
+}
+
+.calendar-page .right-edit-panel .tasklist-dropdown {
+  position: absolute;      /* 🔥 fixed → absolute */
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;                /* width 대신 right 사용 */ 
+  z-index: 100;
+  max-height: 220px;
+  overflow-y: auto;
+
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+
+.calendar-page .tasklist-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.calendar-page .tasklist-item:hover {
+  background: rgba(0,0,0,.06);
+}
+
+.calendar-page .tasklist-dropdown.is-hidden {
+  display: none;
+}
+.calendar-page .right-list-row {
+  position: relative;
+  z-index: 1;   /* 기본 레이어 */
+}
+
+.calendar-page .right-list-row.is-menu-open {
+  z-index: 50;  /* 메뉴 열렸을 때 최상단 */
+}

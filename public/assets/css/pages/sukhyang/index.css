@@ -1,0 +1,46 @@
+﻿/* 📄 경로: /public/assets/css/pages/sukhyang/index.css */
+
+/* 전체 패딩 및 레이아웃 */
+.sukhyang-main {
+	padding: 60px 20px 60px 260px;
+	min-height: calc(100vh - 120px);
+	box-sizing: border-box;
+	background-color: #fdfdfd;
+}
+
+/* 카드 제목 스타일 */
+.card h6 {
+	font-weight: 600;
+	margin-bottom: 0.5rem;
+}
+
+/* 카드 정렬 및 여백 */
+.summary-card {
+	border-radius: 10px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* 문서 리스트 스타일 */
+.doc-list li {
+	padding: 6px 10px;
+	border-bottom: 1px solid #dee2e6;
+}
+
+	.doc-list li:last-child {
+		border-bottom: none;
+	}
+
+/* 상단 타이틀 스타일 */
+.page-title {
+	font-weight: 700;
+	margin-bottom: 1.2rem;
+	font-size: 1.25rem;
+}
+
+/* 반응형: 모바일에서 카드 세로 정렬 */
+@media (max-width: 768px) {
+	.row-cols-md-3 > .col {
+		flex: 0 0 100%;
+		max-width: 100%;
+	}
+}

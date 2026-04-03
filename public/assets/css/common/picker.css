@@ -1,0 +1,607 @@
+﻿/* 📄 /public/assets/css/common/picker.css */
+/* =========================================================
+   Admin Picker (FINAL v3: Premium UI)
+   - base / mini / datetime 공용
+   - Inline + Floating 분기
+========================================================= */
+:root {
+  --p-primary: #3b82f6;
+  --p-primary-soft: rgba(59,130,246,.12);
+}
+
+.picker,
+.picker * { box-sizing: border-box; }
+
+/* =========================================================
+   Theme Tokens
+========================================================= */
+.picker{
+  /* Light (기본) */
+  --p-bg: #ffffff;
+  --p-surface: #ffffff;
+  --p-text: #0f172a;
+  --p-muted: #64748b;
+
+  --p-border: rgba(15, 23, 42, .12);
+  --p-soft: rgba(15, 23, 42, .06);
+
+  --p-danger: #ef4444;
+
+  --p-radius: 14px;
+  --p-radius-sm: 12px;
+
+  --p-shadow:
+    0 18px 40px rgba(2, 6, 23, .14),
+    0  6px 14px rgba(2, 6, 23, .10);
+
+  color: var(--p-text);
+  background: var(--p-bg);
+
+  border: 1px solid var(--p-border);
+  border-radius: var(--p-radius);
+
+  font-family: system-ui, -apple-system, BlinkMacSystemFont;
+  width: 308px;
+
+  /* 기본은 "팝업" 기준 */
+  position: fixed;
+  z-index: 9999;
+  box-shadow: var(--p-shadow);
+
+  /* 바깥 패딩은 루트에 두고, 실제 패널도 동일 톤 유지 */
+  padding: 3px;
+}
+
+
+.picker.is-hidden{
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* =========================================================
+   Inline Mode
+   - 좌측 사이드바/인라인 영역에서는 fixed 금지
+========================================================= */
+.calendar-left .picker,
+.mini-calendar-wrap .picker,
+.mini-picker-container .picker,
+.task-submenu-calendar .picker{
+  position: static;
+  width: 100%;
+  max-width: 100%;
+  box-shadow: none;
+  border-radius: 12px;
+  padding: 10px;
+}
+
+/* =========================================================
+   Admin Picker Panel (공통 래퍼)
+========================================================= */
+.admin-picker{
+  background: inherit; /* 의도적 placeholder */
+}
+
+.admin-picker__panel{
+  background: var(--p-surface);
+  border: 1px solid var(--p-soft);
+  border-radius: var(--p-radius-sm);
+  padding: 12px;
+}
+
+/* calendar/time 영역은 투명(패널이 표면) */
+.admin-picker__calendar,
+.admin-picker__time{
+  background: transparent;
+}
+
+
+/* 🔑 선택 강조가 잘리지 않도록 */
+.picker,
+.admin-picker__panel,
+.picker-inner{
+  overflow: visible;
+}
+
+
+/* =========================================================
+   Inner Layout
+========================================================= */
+.picker-inner{
+  width:100%;
+  display:flex;
+  flex-direction:column;
+  gap: 10px;
+}
+
+/* footer 없는 경우 */
+.picker-inner.no-footer{
+  gap: 8px;
+}
+
+/* =========================================================
+   Header (연/월 + 이전/다음)
+========================================================= */
+.picker-cal-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+}
+
+.picker-ym{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+/* select를 “칩”처럼 */
+.picker-ym select{
+  height: 34px;
+  border: 1px solid var(--p-soft);
+  background: rgba(15, 23, 42, .03);
+  color: var(--p-text);
+
+  border-radius: 10px;
+  padding: 0 30px 0 10px;
+
+  font-size: 14px;
+  font-weight: 900;
+  cursor:pointer;
+
+  appearance:none;
+  -webkit-appearance:none;
+  line-height: 34px;
+}
+
+/* caret */
+.picker-year,
+.picker-month{
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--p-muted) 50%),
+    linear-gradient(135deg, var(--p-muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 10px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.picker-nav{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.picker-nav-btn{
+  width: 34px;
+  height: 34px;
+
+  border-radius: 10px;
+  border: 1px solid var(--p-soft);
+  background: rgba(15, 23, 42, .03);
+
+  color: var(--p-text);
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1;
+
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+
+  transition: transform .08s ease, background .12s ease, box-shadow .12s ease;
+}
+.picker-nav-btn:hover{
+  background: rgba(15, 23, 42, .06);
+}
+.picker-nav-btn:active{
+  transform: translateY(1px);
+}
+
+/* =========================================================
+   Weekdays
+========================================================= */
+.picker-weekdays{
+  display:grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+
+  margin: 0;
+  padding: 2px 0 0;
+
+  text-align:center;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--p-muted);
+}
+
+/* =========================================================
+   Calendar Grid
+   ✅ 핵심 수정: day가 셀을 “가득 채우도록”
+========================================================= */
+.picker-cal-grid{
+  display:grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+
+  margin: 0;
+  padding: 0;
+}
+
+/* day (셀 채우기) */
+.picker-day{
+  width: 100%;
+  height: 36px;            /* 안정적인 높이 */
+  border: 1px solid transparent;
+  border-radius: 10px;
+
+  background: transparent;
+  cursor:pointer;
+
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--p-text);
+
+  display:flex;
+  align-items:center;
+  justify-content:center;
+
+  transition: background .12s ease, box-shadow .12s ease, transform .08s ease, border-color .12s ease;
+}
+
+.picker-day:hover{
+  background: var(--p-primary-soft);
+  border-color: rgba(59,130,246,.10);
+}
+
+.picker-day.is-outside{
+  color: rgba(100,116,139,.55);
+  font-weight: 800;
+}
+
+/* today = 얇은 링 */
+.picker-day.is-today{
+  box-shadow: inset 0 0 0 1.5px rgba(15,23,42,.22);
+}
+
+/* selected = primary filled */
+.picker-day.is-selected{
+  background: var(--p-primary);
+  color: #fff;
+  box-shadow:
+    0 8px 18px rgba(59,130,246,.25);
+}
+
+/* =========================================================
+   Focus Ring
+========================================================= */
+.picker-day:focus-visible,
+.picker-nav-btn:focus-visible,
+.picker-ym select:focus-visible,
+.picker-btn:focus-visible,
+.time-fields select:focus-visible{
+  outline:none;
+  box-shadow: 0 0 0 4px rgba(59,130,246,.18);
+}
+
+/* =========================================================
+   Footer (오늘 / 지우기)
+========================================================= */
+.picker-cal-footer{
+  display:flex;
+  justify-content:space-between;
+  gap: 8px;
+
+  margin-top: 8px;
+  padding-top: 10px;
+
+  border-top: 1px solid var(--p-soft);
+}
+
+.picker-inner.no-footer .picker-cal-footer{
+  display:none;
+  margin:0;
+  padding:0;
+  border:0;
+}
+
+.picker-btn{
+  height: 34px;
+  padding: 0 12px;
+
+  border: 1px solid var(--p-soft);
+  background: rgba(15, 23, 42, .03);
+  color: var(--p-text);
+
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 900;
+
+  cursor:pointer;
+  transition: background .12s ease, transform .08s ease;
+}
+.picker-btn:hover{
+  background: rgba(15, 23, 42, .06);
+}
+.picker-btn:active{
+  transform: translateY(1px);
+}
+
+/* =========================================================
+   Time Picker
+========================================================= */
+.picker-time{
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--p-soft);
+
+  display:flex;
+  flex-direction:column;
+  gap: 10px;
+}
+
+.picker-time-toggle{
+  display:flex;
+  align-items:center;
+  gap: 8px;
+
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--p-text);
+  user-select:none;
+}
+
+/* 체크박스 클릭 영역 개선 */
+.picker-time-toggle input{
+  width: 16px;
+  height: 16px;
+}
+
+.time-fields{
+  display:grid;
+  grid-template-columns: 1.05fr auto 1.05fr .95fr;
+  gap: 8px;
+  align-items:center;
+}
+
+.time-fields select{
+  height: 36px;
+  padding: 0 10px;
+
+  border-radius: 12px;
+  border: 1px solid var(--p-soft);
+
+  font-size: 13px;
+  font-weight: 900;
+
+  background: rgba(15, 23, 42, .03);
+  color: var(--p-text);
+}
+
+.time-fields .colon{
+  color: rgba(100,116,139,.8);
+  font-weight: 900;
+  text-align:center;
+}
+
+.time-fields.is-disabled{
+  opacity:.35;
+  pointer-events:none;
+}
+
+
+
+
+
+/* =========================================================
+   Reduced Motion
+========================================================= */
+@media (prefers-reduced-motion: reduce){
+  .picker-nav-btn,
+  .picker-btn,
+  .picker-day{
+    transition: none;
+  }
+}
+
+
+
+
+
+
+/* =========================================================
+   Time List Picker (공용)
+   - Quick / Edit / 어디서든 재사용
+========================================================= */
+
+/* 루트 컨테이너 */
+.time-list {
+  width: 100%;
+}
+
+/* 스크롤 영역 */
+.time-list-inner {
+  display: flex;
+  flex-direction: column;
+
+  border-radius: 12px;
+  overflow-y: auto;
+
+  /* picker 톤과 일치 */
+  background: transparent;
+}
+
+/* 개별 항목 */
+.time-item {
+  height: 32px;
+  line-height: 32px;
+
+  padding: 0 12px;
+  text-align: center;
+
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+
+  cursor: pointer;
+  user-select: none;
+
+  border-radius: 8px;
+  color: var(--p-text);
+
+  transition:
+    background .12s ease,
+    color .12s ease,
+    transform .08s ease;
+}
+
+/* hover */
+.time-item:hover {
+  background: var(--p-primary-soft);
+}
+
+/* active (선택된 시간) */
+.time-item.is-active {
+  background: var(--p-primary);
+  color: #fff;
+
+  box-shadow:
+    0 6px 14px rgba(59,130,246,.25);
+}
+
+/* 클릭 눌림 느낌 */
+.time-item:active {
+  transform: translateY(1px);
+}
+
+/* =========================================================
+   Scrollbar (선택 사항 – 고급 UX)
+========================================================= */
+
+.time-list-inner::-webkit-scrollbar {
+  width: 8px;
+}
+
+.time-list-inner::-webkit-scrollbar-thumb {
+  background: rgba(15,23,42,.18);
+  border-radius: 8px;
+}
+
+.time-list-inner::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+
+/* ================================
+ * Picker Root (공용)
+================================ */
+.picker,
+.admin-picker {
+  box-sizing: border-box;
+}
+
+/* ===============================
+   Date / DateTime Picker
+=============================== */
+.picker:not(.is-time-list) .admin-picker__panel {
+  padding: 12px;
+}
+
+/* ===============================
+   Time List Picker ONLY
+=============================== */
+.picker.is-time-list .admin-picker__panel {
+  padding: 6px;
+}
+
+/* 시간 리스트 전용 */
+.picker.is-time-list .time-list {
+  width: 100%;
+}
+
+.picker.is-time-list .time-item {
+  height: 32px;
+  line-height: 32px;
+  border-radius: 8px;
+}
+
+
+/* 리스트 아이템도 강제로 100% */
+.time-list,
+.time-list-item {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* 공통 picker */
+.picker-panel {
+  width: 100%;
+}
+
+/* account 전용 */
+.picker-account .picker-item {
+    font-size: 13px;
+}
+
+.picker-item {
+  padding: 8px 10px;          /* 🔥 핵심 */
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+
+  transition: all .12s ease;
+}
+
+.picker-item:hover {
+  background: var(--p-primary-soft);
+  color: var(--p-primary);
+}
+
+.picker-list {
+  max-height: 240px;
+  overflow-y: auto;
+  margin-top: 6px;
+  padding-right: 4px;
+}
+
+.picker-item:active {
+  transform: translateY(1px);
+}
+
+.picker-item.is-selected {
+  background: var(--p-primary);
+  color: #fff;
+}
+
+.picker-account .account-code {
+  color: #94a3b8;
+  font-size: 12px;
+  margin-right: 6px;
+}
+
+.picker-account .account-name {
+  flex: 1;
+}
+
+
+
+

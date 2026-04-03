@@ -1,0 +1,26 @@
+﻿/* 📄 경로: /public/assets/css/pages/sukhyang/file_register.css */
+
+.file-register-main {
+	padding: 60px 20px 60px 260px;
+	min-height: calc(100vh - 120px);
+	box-sizing: border-box;
+	background-color: #f8f9fa;
+}
+
+.page-title {
+	font-weight: 700;
+	font-size: 1.25rem;
+	margin-bottom: 1rem;
+}
+
+.card {
+	max-width: 600px;
+}
+
+.form-label {
+	font-weight: 600;
+}
+
+.btn + .btn {
+	margin-left: 0.5rem;
+}

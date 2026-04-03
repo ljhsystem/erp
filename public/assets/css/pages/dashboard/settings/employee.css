@@ -1,0 +1,810 @@
+/* 📄 /public/assets/css/pages/dashboard/settings/employee.css */
+
+/* ==============================
+   PAGE
+============================== */
+.employee-page{
+    width:100%;
+    max-width:none;
+    margin:0;
+    padding:0;
+    background:transparent;
+}
+
+.employee-page .content-area{
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    min-height:0;
+}
+
+.employee-page .page-header,
+#employee-main .page-header{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:14px;
+}
+
+.date-range{
+    display:flex;
+    align-items:center;
+    gap:8px;
+}
+
+.date-input{
+    position:relative;
+    width:140px;
+}
+
+.date-input input{
+    width:100%;
+    padding-right:32px;
+}
+
+/* ==============================
+   SEARCH FORM
+============================== */
+.search-form-container{
+    position:relative;
+    border:1px solid #e5e7eb;
+    border-radius:8px;
+    background:#f8f9fb;
+    padding:16px;
+    margin:0 0 14px 0;
+    width:100%;
+    overflow:visible;
+    z-index:20;
+}
+
+.search-form-title{
+    font-weight:600;
+    margin-bottom:10px;
+    display:block;
+}
+
+.period-row{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:10px;
+    width:100%;
+}
+
+.period-label-area{
+    width:90px;
+    font-weight:600;
+}
+
+.label-btn{
+    background:none;
+    border:none;
+    font-weight:600;
+    padding:0;
+}
+
+.date-type-select{
+    width:120px;
+}
+
+.period-quick-btns{
+    display:flex;
+    gap:5px;
+}
+
+.search-wrapper{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    width:100%;
+}
+
+.search-label-area{
+    width:90px;
+    font-weight:600;
+}
+
+.search-condition{
+    display:flex;
+    gap:8px;
+    align-items:center;
+    margin-bottom:8px;
+}
+
+.search-condition:not(:last-child){
+    margin-bottom:8px;
+}
+
+.search-field{
+    width:150px;
+}
+
+.search-input{
+    width:350px;
+}
+
+.search-btn-area{
+    display:flex;
+    justify-content:center;
+    margin-top:12px;
+}
+
+.period-row select,
+.period-row input,
+.period-row button,
+.search-wrapper select,
+.search-wrapper input,
+.search-wrapper button{
+    height:38px;
+    min-height:38px;
+    padding:6px 10px;
+    font-size:14px;
+    line-height:1.2;
+    box-sizing:border-box;
+}
+
+.search-wrapper input,
+.search-wrapper select{
+    border-radius:6px;
+}
+
+
+
+.date-tilde{
+    font-weight:600;
+}
+
+.search-toggle-text{
+    position:absolute;
+    top:-9px;
+    right:60px;
+    background:#fff;
+    padding:0 8px;
+    font-size:12px;
+    color:#666;
+    cursor:pointer;
+}
+
+.search-toggle-text:hover{
+    color:#000;
+}
+
+.search-form-body.hidden{
+    display:none;
+}
+
+.search-form-container.collapsed{
+    padding:0;
+    height:0;
+    border-top:0;
+}
+
+/* ==============================
+   EMPLOYEE TABLE PREVIEW
+============================== */
+.employee-img-preview{
+    border-radius:6px;
+    box-shadow:0 2px 8px rgba(0,0,0,.08);
+}
+
+/* ==============================
+   EMPLOYEE MODAL
+============================== */
+#employeeCreateModal .modal-dialog.modal-xl,
+#employeeEditModal .modal-dialog.modal-xl{
+    max-width:1200px;
+    width:95vw;
+}
+
+#employeeCreateModal .modal-body,
+#employeeEditModal .modal-body{
+    max-height:75vh;
+    overflow-y:auto;
+}
+
+/* ==============================
+   EMPLOYEE TRASH MODAL
+============================== */
+#employeeTrashModal .modal-dialog{
+    max-width:1280px;
+    width:calc(100vw - 40px);
+    margin:24px auto;
+}
+
+#employeeTrashModal .modal-content{
+    border-radius:12px;
+    overflow:hidden;
+}
+
+#employeeTrashModal .modal-header{
+    padding:16px 20px;
+    border-bottom:1px solid #e5e7eb;
+}
+
+#employeeTrashModal .modal-body{
+    padding:0;
+    overflow:hidden;
+    background:#fff;
+}
+
+/* 전체 레이아웃 */
+.employee-trash-layout{
+    display:flex;
+    align-items:stretch;
+    width:100%;
+    min-height:620px;
+    height:72vh;
+    overflow:hidden;
+}
+
+/* 왼쪽 목록 */
+.employee-trash-left{
+    flex:1 1 auto;
+    min-width:0;
+    padding:16px 18px 18px 18px;
+    overflow:hidden;
+    background:#fff;
+    display:flex;
+    flex-direction:column;
+}
+
+/* 오른쪽 상세 */
+.employee-trash-right{
+    flex:0 0 0;
+    width:0;
+    min-width:0;
+    overflow:hidden;
+    background:#fff;
+    border-left:0;
+    transition:width .22s ease, flex-basis .22s ease, border-color .22s ease;
+}
+
+.employee-trash-layout.detail-open .employee-trash-right{
+    flex:0 0 380px;
+    width:380px;
+    min-width:380px;
+    border-left:1px solid #e5e7eb;
+}
+
+/* 툴바 */
+.trash-toolbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom:14px;
+    padding:0;
+}
+
+.trash-toolbar > .btn{
+    flex:0 0 auto;
+}
+
+.trash-toolbar > .btn:nth-child(3){
+    margin-left:auto;
+}
+
+/* 테이블 영역 */
+.employee-trash-left .table-responsive{
+    flex:1 1 auto;
+    min-height:0;
+    overflow:auto;
+    border:1px solid #e5e7eb;
+    border-radius:10px;
+}
+
+/* DataTables 정렬 */
+#employee-trash-table_wrapper{
+    width:100%;
+}
+
+#employee-trash-table_wrapper .row,
+#employee-trash-table_wrapper .dt-layout-row{
+    margin-left:0;
+    margin-right:0;
+}
+
+#employee-trash-table_wrapper .col-sm-12,
+#employee-trash-table_wrapper .col-md-6,
+#employee-trash-table_wrapper .col-md-5,
+#employee-trash-table_wrapper .col-md-7,
+#employee-trash-table_wrapper .dt-layout-cell{
+    padding-left:0;
+    padding-right:0;
+}
+
+#employee-trash-table_wrapper .dataTables_length,
+#employee-trash-table_wrapper .dt-length{
+    margin-bottom:10px;
+}
+
+#employee-trash-table_wrapper .dataTables_filter,
+#employee-trash-table_wrapper .dt-search{
+    margin-bottom:10px;
+    text-align:right;
+}
+
+#employee-trash-table_wrapper .dataTables_filter label,
+#employee-trash-table_wrapper .dt-search label{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+}
+
+#employee-trash-table_wrapper .dataTables_filter input,
+#employee-trash-table_wrapper .dt-search input{
+    min-width:220px;
+    height:36px;
+    margin-left:6px;
+}
+
+#employee-trash-table_wrapper .dataTables_info,
+#employee-trash-table_wrapper .dt-info{
+    padding-top:10px;
+}
+
+#employee-trash-table_wrapper .dataTables_paginate,
+#employee-trash-table_wrapper .dt-paging{
+    padding-top:6px;
+}
+
+/* 테이블 */
+#employee-trash-table{
+    width:100% !important;
+    table-layout:auto;
+    margin-bottom:0 !important;
+    border-collapse:separate;
+    border-spacing:0;
+}
+
+#employee-trash-table thead th{
+    white-space:nowrap;
+    vertical-align:middle;
+    background:#f8f9fb;
+}
+
+#employee-trash-table tbody td{
+    vertical-align:middle;
+}
+
+#employee-trash-table tbody tr{
+    cursor:pointer;
+}
+
+#employee-trash-table tbody tr.is-active > td{
+    background:#eef6ff !important;
+}
+
+/* 상세 패널 */
+#employee-trash-detail{
+    display:none;
+    height:100%;
+    padding:18px;
+    overflow-y:auto;
+    background:#fff;
+}
+
+.employee-trash-layout.detail-open #employee-trash-detail{
+    display:block;
+}
+
+.employee-trash-detail-card{
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+}
+
+.employee-trash-detail-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+}
+
+.employee-trash-detail-title{
+    margin:0;
+    font-size:16px;
+    font-weight:700;
+    color:#111827;
+}
+
+.employee-trash-detail-close{
+    border:0;
+    background:transparent;
+    font-size:24px;
+    line-height:1;
+    cursor:pointer;
+    color:#374151;
+}
+
+.employee-trash-preview{
+    width:100%;
+    min-height:220px;
+    border:1px solid #e5e7eb;
+    border-radius:10px;
+    background:#f8fafc;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+}
+
+.employee-trash-preview img{
+    max-width:100%;
+    max-height:280px;
+    object-fit:contain;
+    display:block;
+}
+
+.employee-trash-empty-preview{
+    color:#6b7280;
+    font-size:14px;
+}
+
+.employee-trash-detail-grid{
+    display:grid;
+    grid-template-columns:90px 1fr;
+    gap:10px 12px;
+    align-items:start;
+}
+
+.employee-trash-detail-grid .label{
+    font-weight:700;
+    color:#374151;
+}
+
+.employee-trash-detail-grid .value{
+    color:#111827;
+    word-break:break-word;
+}
+
+#employeeTrashModal .btn{
+    white-space:nowrap;
+}
+
+
+
+
+/* ==============================
+   FIX: DATE PICKER INPUT
+============================== */
+.date-input-wrap{
+    position:relative;
+    width:100%;
+}
+
+.date-input-wrap input{
+    width:100%;
+    padding-right:36px;
+}
+
+.date-input-wrap .date-icon{
+    position:absolute;
+    top:50%;
+    right:6px;
+    transform:translateY(-50%);
+    width:28px;
+    height:28px;
+    border:1px solid #d1d5db;
+    border-radius:6px;
+    background:#f9fafb;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    padding:0;
+}
+
+.date-input-wrap .date-icon:hover{
+    background:#eef2f7;
+}
+
+/* ==============================
+   FIX: MODAL SCROLL BUG
+============================== */
+#employeeEditModal .modal-body{
+    max-height:75vh;
+    overflow-y:auto;
+    overflow-x:hidden;
+}
+
+/* ==============================
+   FIX: IMAGE OVERFLOW
+============================== */
+#employeeEditModal img{
+    max-width:100%;
+    height:auto;
+    display:block;
+}
+
+
+.employee-log-section {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+  
+  .log-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 12px;
+    background: #fff;
+  }
+  
+  .log-card.danger {
+    border-color: #f5c2c2;
+    background: #fff5f5;
+  }
+  
+  .log-title {
+    font-weight: 700;
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
+  
+  .log-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 13px;
+  }
+  
+  .log-row.full {
+    flex-direction: column;
+  }
+  
+  .device-box {
+    font-size: 12px;
+    background: #f1f3f5;
+    padding: 6px;
+    border-radius: 4px;
+    word-break: break-all;
+  }
+
+/* =========================
+   조직/역할 select 튜닝
+========================= */
+
+#edit_tab_group .form-select{
+    height:36px;
+    font-size:13px;
+    padding:4px 10px;
+}
+
+/* select2 쓰는 경우 */
+#edit_tab_group .select2-container .select2-selection--single{
+    height:36px !important;
+    display:flex;
+    align-items:center;
+}
+
+#edit_tab_group .select2-selection__rendered{
+    line-height:36px !important;
+    font-size:13px;
+}
+
+#edit_tab_group .select2-selection__arrow{
+    height:36px !important;
+}
+/* =========================
+   select2 clear 버튼 위치 수정
+========================= */
+
+.select2-container--default .select2-selection--single{
+    position:relative;
+    padding-right:30px; /* 🔥 공간 확보 */
+}
+
+/* X 버튼 오른쪽으로 */
+.select2-container--default .select2-selection__clear{
+    position:absolute;
+    right:24px;   /* 🔥 핵심 */
+    left:auto !important;
+    top:50%;
+    transform:translateY(-50%);
+    z-index:2;
+}
+
+/* 드롭다운 화살표 */
+.select2-container--default .select2-selection__arrow{
+    right:6px;
+}
+
+
+/* =========================
+   파일 박스 통일
+========================= */
+
+.employee-file-preview-box{
+    height:180px;              /* 🔥 핵심 */
+    width:100%;
+    border:1px solid #e5e7eb;
+    border-radius:8px;
+    overflow:hidden;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:#f8fafc;
+    position:relative;
+}
+
+/* 이미지 통일 */
+.employee-file-preview-img{
+    width:100%;
+    height:100%;
+    object-fit:cover;          /* 🔥 핵심 */
+}
+
+
+/* 클릭 가능 이미지 */
+#edit_profile_preview,
+#edit_id_preview,
+#edit_cert_preview_img{
+    cursor:pointer;
+}
+
+
+.employee-file-preview-img.no-file{
+    cursor:default;
+    opacity:0.6;
+}
+
+.employee-file-delete-btn{
+    position:absolute;
+    top:6px;
+    right:6px;
+    z-index:2;
+}
+
+/* =========================
+   파일 hover 상태 표시
+========================= */
+
+.employee-file-preview-box{
+    position:relative;
+    margin-bottom:20px;
+}
+
+.employee-file-input{
+    margin-top:4px;
+}
+
+.employee-file-name{
+    margin-top:4px;
+    font-size:12px;
+}
+
+.employee-file-preview-box::after{
+    content: attr(data-label);
+    position:absolute;
+    top:0;
+    left:0;
+    right:0;
+    bottom:0;
+    background:rgba(0,0,0,0.45);
+    color:#fff;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:13px;
+    opacity:0;
+    transition:0.2s;
+    pointer-events:none;
+}
+
+.employee-file-preview-box:hover::after{
+    opacity:1;
+}
+
+
+/* =========================
+   자격증 input-group 완전 정렬 FIX
+========================= */
+
+.employee-cert-name-group{    
+    margin-top:10px;
+    margin-bottom:6px;
+}
+
+/* 아이콘 */
+.employee-cert-name-group .input-group-text{
+    background-color: #f5c2c2;
+    border:1px solid #000000;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:0 12px;
+    line-height:36px;      /* 🔥 핵심 */
+    height:auto;           /* 🔥 중요 */
+    border-right:0;
+}
+
+/* 입력창 */
+.employee-cert-name-group .form-control{
+    border:1px solid #000000;
+    padding:0 12px;
+    line-height:36px;      /* 🔥 핵심 */
+    height:auto;           /* 🔥 중요 */
+    border-left:0;
+}
+
+/* 아이콘 미세 정렬 */
+.employee-cert-name-group .input-group-text i{
+    line-height:1;
+    font-size:13px;
+}
+
+
+/* 비밀번호 밑에 설명 */
+.form-text{
+    margin-top:4px;
+    margin-left: 10px;
+    display:block;
+}
+
+
+/* ==============================
+   MOBILE
+============================== */
+@media (max-width:1200px){
+    #employeeTrashModal .modal-dialog{
+        width:calc(100vw - 20px);
+        margin:10px auto;
+    }
+
+    .employee-trash-layout{
+        flex-direction:column;
+        height:auto;
+        min-height:0;
+    }
+
+    .employee-trash-left{
+        padding:14px;
+    }
+
+    .employee-trash-right,
+    .employee-trash-layout.detail-open .employee-trash-right{
+        width:100%;
+        min-width:100%;
+        flex:0 0 auto;
+        border-left:0;
+        border-top:1px solid #e5e7eb;
+    }
+
+    #employee-trash-detail{
+        max-height:360px;
+    }
+
+    .trash-toolbar{
+        flex-wrap:wrap;
+        justify-content:flex-start;
+    }
+
+    .trash-toolbar > .btn:nth-child(3){
+        margin-left:0;
+    }
+
+    #employee-trash-table_wrapper .dataTables_filter,
+    #employee-trash-table_wrapper .dt-search{
+        text-align:left;
+    }
+}
+
+@media (max-width:900px){
+    #employeeCreateModal .modal-dialog.modal-xl,
+    #employeeEditModal .modal-dialog.modal-xl{
+        max-width:98vw;
+        width:98vw;
+    }
+
+    #employeeTrashModal .modal-dialog{
+        width:calc(100vw - 16px);
+        max-width:calc(100vw - 16px);
+        margin:.5rem auto;
+    }
+}

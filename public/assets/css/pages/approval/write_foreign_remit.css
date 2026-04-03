@@ -1,0 +1,20 @@
+﻿/* 📄 경로: /assets/css/pages/dashboard/approval/write_foreign_remit.css */
+
+.approval-main {
+	padding: 60px 20px 60px 260px;
+	min-height: calc(100vh - 120px);
+	background-color: #f8f9fa;
+	box-sizing: border-box;
+}
+
+	.approval-main h5 {
+		font-weight: 700;
+	}
+
+	.approval-main .form-label {
+		font-weight: 500;
+	}
+
+	.approval-main textarea.form-control {
+		resize: vertical;
+	}

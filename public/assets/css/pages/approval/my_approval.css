@@ -1,0 +1,78 @@
+﻿/* 📄 경로: /public/assets/css/pages/approval/my_approval.css */
+
+/* 메인 영역 스타일 조정 */
+.my-approval-main {
+    padding: 60px 20px 60px 260px;
+    background-color: #f8f9fa;
+    min-height: calc(100vh - 120px);
+    box-sizing: border-box;
+}
+
+/* 결재 목록 상단 버튼 영역 */
+.my-approval-header {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 1rem;
+}
+    
+/* 결재 목록 테이블 */
+.my-approval-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    font-size: 0.95rem;
+}
+
+.my-approval-table th, .my-approval-table td {
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid #e9ecef;
+    text-align: left;
+}
+
+.my-approval-table th {
+    background: #f1f3f5;
+    font-weight: 600;
+    color: #495057;
+}
+
+.my-approval-table tr:last-child td {
+    border-bottom: none;
+}
+
+.my-approval-table tr:hover {
+    background: #f8f9fa;
+}
+
+/* 상태 뱃지 */
+.approval-status-badge {
+    display: inline-block;
+    padding: 0.25em 0.7em;
+    border-radius: 0.7em;
+    font-size: 0.85em;
+    font-weight: 500;
+    color: #fff;
+    background: #6c757d;
+}
+
+.approval-status-badge.approved { background: #198754; }
+.approval-status-badge.pending { background: #ffc107; color: #212529; }
+.approval-status-badge.rejected { background: #dc3545; }
+
+/* 테이블 내 아이콘 */
+.my-approval-table .icon {
+    font-size: 1.1em;
+    margin-right: 0.3em;
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+    .my-approval-main {
+        margin-left: 0;
+        padding-top: 60px;
+    }
+    .my-approval-table th, .my-approval-table td {
+        padding: 0.5rem 0.5rem;
+        font-size: 0.9rem;
+    }
+}

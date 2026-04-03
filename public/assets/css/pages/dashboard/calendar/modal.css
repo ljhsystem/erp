@@ -1,0 +1,343 @@
+﻿/* =========================================================
+   Modal – COMMON (Base Only)
+   Used by: quick / event.edit / task.edit / view
+========================================================= */
+
+/* =========================================================
+   Body Scroll Lock
+========================================================= */
+body.is-modal-open {
+  overflow: hidden;
+}
+
+/* =========================================================
+   Modal Overlay
+========================================================= */
+.shint-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+
+  display: grid;
+  place-items: center;
+
+  padding: max(18px, env(safe-area-inset-top))
+           max(18px, env(safe-area-inset-right))
+           max(18px, env(safe-area-inset-bottom))
+           max(18px, env(safe-area-inset-left));
+
+  /* ✅ 변수 기반 */
+  background: var(--modal-backdrop-bg, rgba(15, 23, 42, .45));
+  backdrop-filter: var(--modal-backdrop-blur, blur(6px));
+
+  opacity: 1;
+  transition: opacity .16s ease;
+
+  overscroll-behavior: none;
+}
+
+
+/* hidden */
+.shint-modal.is-hidden {
+  display: none;
+}
+
+/* leaving animation */
+.shint-modal.is-leaving {
+  opacity: 0;
+}
+
+/* =========================================================
+   Modal Card (Base)
+========================================================= */
+.shint-modal__card {
+  width: min(720px, 96vw);
+  max-height: min(86vh, 900px);
+
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, .35);
+  box-shadow: 0 18px 60px rgba(0,0,0,.22);
+
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  outline: none;
+
+  transform: translateY(0);
+  opacity: 1;
+  transition: transform .18s ease, opacity .18s ease;
+}
+
+/* leaving motion */
+.shint-modal.is-leaving .shint-modal__card {
+  transform: translateY(8px);
+  opacity: 0;
+}
+
+/* size modifiers (layout only) */
+.shint-modal__card--quick { width: min(560px, 96vw); }
+.shint-modal__card--view  { width: min(520px, 96vw); }
+
+/* =========================================================
+   Head / Body / Foot
+========================================================= */
+.shint-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 14px 16px;
+  background: #fff;
+
+  border-bottom: 1px solid rgba(148, 163, 184, .25);
+
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.shint-modal__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -.2px;
+  color: #0f172a;
+
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shint-modal__body {
+  padding: 14px 16px 16px;
+
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
+
+  -webkit-overflow-scrolling: touch;
+}
+
+.shint-modal__foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+
+  padding: 12px 16px;
+  background: #fff;
+
+  border-top: 1px solid rgba(148, 163, 184, .25);
+
+  position: sticky;
+  bottom: 0;
+}
+
+/* =========================================================
+   Icon Buttons (X, more, etc.)
+========================================================= */
+.shint-iconbtn {
+  width: 34px;
+  height: 34px;
+
+  display: inline-grid;
+  place-items: center;
+
+  border: 0;
+  background: transparent;
+  border-radius: 10px;
+
+  cursor: pointer;
+  font-size: 22px;
+  color: #0f172a;
+
+  transition: background .12s ease, transform .06s ease;
+}
+
+.shint-iconbtn:hover {
+  background: rgba(148, 163, 184, .22);
+}
+
+.shint-iconbtn:active {
+  transform: translateY(1px);
+}
+
+.shint-iconbtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, .18);
+}
+
+/* =========================================================
+   Tabs (Shared)
+========================================================= */
+.shint-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 2px;
+  margin-bottom: 12px;
+
+  border-bottom: 1px solid rgba(148, 163, 184, .25);
+}
+
+.shint-tab {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+
+  padding: 10px 8px;
+  font-weight: 800;
+  color: #334155;
+
+  border-bottom: 2px solid transparent;
+  transition: color .12s ease, border-color .12s ease;
+}
+
+.shint-tab:hover {
+  color: #0f172a;
+}
+
+.shint-tab.is-active {
+  color: #0f172a;
+  border-bottom-color: #0f172a;
+}
+
+.shint-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, .18);
+  border-radius: 10px;
+}
+
+/* =========================================================
+   Form Layout (Shared)
+========================================================= */
+.shint-form {
+  display: grid;
+  gap: 12px;
+}
+
+.shint-row {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.shint-ico {
+  width: 28px;
+  height: 36px;
+
+  display: grid;
+  place-items: center;
+
+  font-weight: 900;
+  color: #334155;
+  user-select: none;
+}
+
+.shint-field {
+  min-width: 0;
+}
+
+.shint-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 520px) {
+  .shint-grid2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================
+   Inputs (Base)
+========================================================= */
+.shint-input,
+.shint-select,
+.shint-textarea {
+  width: 100%;
+  box-sizing: border-box;
+
+  border: 1px solid rgba(148, 163, 184, .55);
+  border-radius: 12px;
+  background: #fff;
+
+  font-size: 14px;
+  color: #0f172a;
+
+  outline: none;
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+
+/* ✅ input만 height 사용 */
+.shint-input {
+  height: var(--field-h);
+  padding: 0 var(--field-px);
+}
+
+/* ✅ select 전용 */
+.shint-select {
+  appearance: auto; 
+  padding: 10px 12px;
+  height: auto;          /* ⭐ 핵심 */
+  line-height: normal;   /* ⭐ 핵심 */
+}
+
+.shint-input--xl {
+  font-size: 16px;
+  padding: 12px;
+  font-weight: 800;
+}
+
+.shint-textarea {
+  resize: vertical;
+  min-height: 90px;
+}
+
+.shint-input:focus,
+.shint-select:focus,
+.shint-textarea:focus {
+  border-color: rgba(37, 99, 235, .65);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, .12);
+}
+
+/* =========================================================
+   Check / Hint
+========================================================= */
+.shint-check {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+
+  font-size: 13px;
+  color: #334155;
+  user-select: none;
+}
+
+.shint-inline {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.shint-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+/* =========================================================
+   Reduced Motion
+========================================================= */
+@media (prefers-reduced-motion: reduce) {
+  .shint-modal,
+  .shint-modal__card,
+  .shint-iconbtn,
+  .shint-tab {
+    transition: none !important;
+  }
+}

@@ -1,0 +1,49 @@
+﻿/* 📄 경로: /assets/css/pages/dashboard/approval/write_leave_request.css */
+
+.approval-main {
+	padding: 60px 20px 60px 260px;
+	min-height: calc(100vh - 120px);
+	box-sizing: border-box;
+	background-color: #f9f9f9;
+}
+
+	.approval-main h5 {
+		font-weight: bold;
+		margin-bottom: 1.5rem;
+	}
+
+.form-label {
+	font-weight: 600;
+	color: #333;
+}
+
+.form-control,
+.form-select {
+	border-radius: 0.4rem;
+	font-size: 0.95rem;
+}
+
+textarea.form-control {
+	resize: vertical;
+	min-height: 120px;
+}
+
+button[type="submit"],
+button[type="reset"] {
+	padding: 0.4rem 1.2rem;
+	font-size: 0.95rem;
+	border-radius: 0.3rem;
+}
+
+button[type="submit"] {
+	background-color: #0d6efd;
+	border: none;
+	color: white;
+}
+
+button[type="reset"] {
+	background-color: #6c757d;
+	border: none;
+	color: white;
+	margin-left: 0.5rem;
+}

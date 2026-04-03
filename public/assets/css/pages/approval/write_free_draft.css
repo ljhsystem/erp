@@ -1,0 +1,21 @@
+﻿/* 📄 경로: /assets/css/pages/dashboard/approval/write_free_draft.css */
+
+.approval-main {
+	padding: 60px 20px 60px 260px;
+	background-color: #f8f9fa;
+	min-height: calc(100vh - 120px);
+	box-sizing: border-box;
+}
+
+	.approval-main h5 {
+		font-weight: 700;
+	}
+
+	.approval-main .form-label {
+		font-weight: 500;
+	}
+
+	.approval-main textarea.form-control {
+		resize: vertical;
+		min-height: 180px;
+	}

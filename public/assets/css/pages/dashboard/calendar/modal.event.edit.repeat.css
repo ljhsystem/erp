@@ -1,0 +1,148 @@
+﻿/* 📄 /public/assets/css/pages/dashboard/calendar/modal.event.edit.repeat.css */
+/* 📄 modal.event.edit.repeat.css */
+
+/* Overlay */
+#modal-event-edit-repeat {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  display: grid;
+  place-items: center;
+  /* ✅ 변수 참조 */
+  background: var(--modal-backdrop-bg);
+  backdrop-filter: var(--modal-backdrop-blur);
+}
+#modal-event-edit-repeat.is-hidden { display:none; }
+
+/* Card */
+#modal-event-edit-repeat .shint-modal__card {
+  width: 600px;
+  max-width: 96vw;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 24px 60px rgba(0,0,0,.25);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+#modal-event-edit-repeat .shint-modal__head {
+  padding: 14px 20px;
+  border-bottom: 1px solid #e5e7eb;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+#modal-event-edit-repeat .shint-modal__title {
+  font-size:15px;
+  font-weight:700;
+}
+
+/* Body */
+#modal-event-edit-repeat .shint-modal__body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* Row base */
+.repeat-row {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  align-items: start;
+  gap: 14px;
+}
+.repeat-label {
+  font-size:13px;
+  font-weight:600;
+  color:#334155;
+  padding-top:4px;
+}
+
+/* Inline / Stack */
+.repeat-inline {
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.repeat-stack {
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+/* Weekdays */
+.repeat-weekdays {
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.repeat-weekdays label {
+  padding:4px 8px;
+  border-radius:8px;
+  border:1px solid #cbd5e1;
+  font-size:13px;
+}
+
+/* Inputs */
+.shint-select,
+.shint-input {
+  height:30px;
+  border-radius:10px;
+  border:1px solid #cbd5e1;
+  padding:0 10px;
+  font-size:13px;
+}
+.w-sm { width:70px; }
+.w-md { width:120px; }
+.w-date { width:140px; }
+
+/* Radio */
+.shint-radio {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-size:13px;
+}
+.shint-radio input { accent-color:#2563eb; }
+
+/* Summary */
+.repeat-summary {
+  font-size:13px;
+  font-weight:600;
+  color:#0f172a;
+  padding-top:4px;
+}
+
+/* Divider */
+#modal-event-edit-repeat hr {
+  border:0;
+  height:1px;
+  background:#e5e7eb;
+}
+
+/* Footer */
+#modal-event-edit-repeat .shint-modal__foot {
+  padding:14px 20px;
+  border-top:1px solid #e5e7eb;
+  display:flex;
+  justify-content:flex-end;
+  gap:10px;
+}
+
+/* ===============================
+   Visibility helpers
+=============================== */
+#modal-event-edit-repeat .is-hidden {
+  display: none !important;
+}
+
+/* 종료 비활성 입력 */
+#modal-event-edit-repeat .is-disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  border-color: #e5e7eb;
+  cursor: not-allowed;
+}

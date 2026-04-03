@@ -1,0 +1,94 @@
+[2025-12-18 18:08:49] Secondary 복원 완료: sukhyang_2025-12-18_171751.sql
+[2025-12-18 18:18:03] Secondary 복원 완료: sukhyang_2025-12-18_171751.sql
+[2025-12-18 18:29:26] Secondary 복원 완료: sukhyang_2025-12-18_171751.sql
+[2025-12-18 18:41:38] Secondary 복원 완료: sukhyang_2025-12-18_171751.sql
+[2025-12-18 18:49:40] Secondary 복원 완료: sukhyang_2025-12-18_171751.sql
+[2025-12-21 17:34:48] Secondary 복원 완료: sukhyang_2025-12-21_172400.sql
+[2026-01-08 23:34:23] Secondary 복원 완료: sukhyang_2026-01-08_231834.sql
+[2026-01-30 14:23:26] Secondary 복원 완료: sukhyang_2026-01-30_141353.sql
+[2026-03-19 22:30:04] ❌ FAILED: sukhyang_2026-03-19_221325.sql / --------------
+INSERT INTO `auth_logs` (`id`,`user_id`,`username`,`log_type`,`action_type`,`action_detail`,`ip_address`,`user_agent`,`success`,`ref_table`,`ref_id`,`created_at`,`created_by`) VALUES ('78dc36cb-d404-11f0-9a96-909f33c822b4',NULL,'ljhsystem2','auth','login','미승인/비활성계정:승인대기','192.168.1.1','Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36','0','auth_users','b509cb66-fd08-4673-8a64-cd768d5faf22','2025-12-08 16:06:52','b509cb66-fd08-4673-8a64-cd768d5faf22')
+--------------
+
+ERROR 1146 (42S02) at line 594: Table 'sukhyang.auth_logs' doesn't exist
+[2026-03-19 22:31:01] Secondary 복원 완료: sukhyang_2026-01-30_141353.sql
+[2026-03-19 22:47:02] ❌ FAILED: sukhyang_2026-03-19_221325.sql / --------------
+CREATE TABLE `system_projects` (
+  `id` varchar(36) NOT NULL COMMENT '프로젝트 고유 ID (UUID)',
+  `code` int(11) NOT NULL AUTO_INCREMENT COMMENT '순번 (AUTO_INCREMENT)',
+  `project_name` varchar(100) DEFAULT NULL COMMENT '프로젝트명 (내부 식별용)',
+  `client_id` varchar(36) DEFAULT NULL COMMENT '거래처 ID (ledger_clients.id FK)',
+  `employee_id` varchar(36) DEFAULT NULL COMMENT '담당 직원 ID (user_profiles.id FK)',
+  `site_agent` varchar(100) DEFAULT NULL COMMENT '현장대리인',
+  `contract_type` varchar(50) DEFAULT NULL COMMENT '계약형태 (예: 도급, 하도급 등)',
+  `director` varchar(50) DEFAULT NULL COMMENT '소장',
+  `manager` varchar(50) DEFAULT NULL COMMENT '실장',
+  `business_type` varchar(50) DEFAULT NULL COMMENT '업종',
+  `housing_type` varchar(50) DEFAULT NULL COMMENT '주력분야',
+  `construction_name` varchar(100) DEFAULT NULL COMMENT '공사명 (프로젝트 정식 명칭)',
+  `site_region_city` varchar(50) DEFAULT NULL COMMENT '공사지역 (시도)',
+  `site_region_district` varchar(50) DEFAULT NULL COMMENT '공사지역 (시군구)',
+  `site_region_address` varchar(255) DEFAULT NULL COMMENT '공사지역 상세주소',
+  `work_type` varchar(50) DEFAULT NULL COMMENT '공종 (예: 석공사, 토목공사 등)',
+  `work_subtype` varchar(50) DEFAULT NULL COMMENT '공종 세분류',
+  `work_detail_type` varchar(100) DEFAULT NULL COMMENT '세부 공사종류',
+  `contract_work_type` varchar(50) DEFAULT NULL COMMENT '도급 종류 (직영, 하도 등)',
+  `bid_type` varchar(50) DEFAULT NULL COMMENT '입찰형태 (지명, 경쟁, 수의 등)',
+  `client_name` varchar(100) DEFAULT NULL COMMENT '발주자명',
+  `client_type` varchar(50) DEFAULT NULL COMMENT '발주자 분류 (공공, 민간 등)',
+  `permit_agency` varchar(100) DEFAULT NULL COMMENT '인허가기관',
+  `permit_date` date DEFAULT NULL COMMENT '인허가일자',
+  `contract_date` date DEFAULT NULL COMMENT '계약일자',
+  `start_date` date DEFAULT NULL COMMENT '착공일자',
+  `completion_date` date DEFAULT NULL COMMENT '준공일자',
+  `bid_notice_date` date DEFAULT NULL COMMENT '입찰공고일',
+  `initial_contract_amount` decimal(18,2) DEFAULT NULL COMMENT '최초 계약금액(공급가액)',
+  `authorized_company_seal` varchar(100) DEFAULT NULL COMMENT '사용인감명',
+  `note` varchar(255) DEFAULT NULL COMMENT '비고',
+  `memo` text COMMENT '상세 메모',
+  `is_active` tinyint(1) DEFAULT '1' COMMENT '진행상태 (1=진행중, 0=완료/종료)',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '등록일시',
+  `created_by` varchar(100) DEFAULT NULL COMMENT '등록자ID',
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
+  `updated_by` varchar(100) DEFAULT NULL COMMENT '수정자ID',
+  `deleted_at` datetime DEFAULT NULL COMMENT '삭제일시',
+  `deleted_by` varchar(100) DEFAULT NULL COMMENT '삭제자ID',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE KEY `uk_code` (`code`) USING BTREE,
+  KEY `idx_client_id` (`client_id`) USING BTREE,
+  KEY `idx_employee_id` (`employee_id`) USING BTREE,
+  KEY `idx_is_active` (`is_active`) USING BTREE,
+  KEY `idx_manage_name` (`project_name`) USING BTREE,
+  CONSTRAINT `fk_projects_client` FOREIGN KEY (`client_id`) REFERENCES `system_clients` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_projects_employee` FOREIGN KEY (`employee_id`) REFERENCES `user_profiles` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COMMENT='프로젝트(현장/공사) 관리 테이블 (UUID + 순번 구조)'
+--------------
+
+ERROR 1005 (HY000) at line 3962: Can't create table `sukhyang`.`system_projects` (errno: 121 "Duplicate key on write or update")
+[2026-03-19 23:15:32] Secondary 복원 완료: sukhyang_2026-03-19_224932.sql
+[2026-03-27 15:42:02] ❌ FAILED: sukhyang_2026-03-27_154010.sql / --------------
+CREATE TABLE `auth_logs` (
+  `id` varchar(36) NOT NULL COMMENT 'UUID',
+  `user_id` varchar(36) DEFAULT NULL COMMENT 'auth_users.id 참조',
+  `username` varchar(50) DEFAULT NULL COMMENT '로그인 ID (삭제된 계정 포함)',
+  `log_type` enum('auth','user','system') NOT NULL DEFAULT 'auth' COMMENT '로그 유형 (auth=인증, user=업무, system=시스템)',
+  `action_type` varchar(50) NOT NULL COMMENT '행동 유형 (login, logout, password_change, approve, reject, etc.)',
+  `action_detail` text COMMENT '추가 설명 (예: IP, User-Agent, 이유 등)',
+  `ip_address` varchar(45) DEFAULT NULL COMMENT '접속 IP',
+  `user_agent` varchar(255) DEFAULT NULL COMMENT '브라우저/기기 정보',
+  `success` tinyint(1) DEFAULT '1' COMMENT '성공 여부 (1=성공, 0=실패)',
+  `ref_table` varchar(100) DEFAULT NULL COMMENT '관련 테이블명 (예: user_profiles, documents)',
+  `ref_id` varchar(36) DEFAULT NULL COMMENT '관련 레코드 ID',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '기록 일시',
+  `created_by` varchar(36) DEFAULT NULL COMMENT '행위자 (관리자 승인 등)',
+  PRIMARY KEY (`id`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_action_type` (`action_type`),
+  KEY `idx_log_type` (`log_type`) USING BTREE,
+  KEY `idx_created_at` (`created_at`) USING BTREE,
+  CONSTRAINT `fk_auth_logs_user` FOREIGN KEY (`user_id`) REFERENCES `auth_users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='사용자 인증 및 승인 로그 테이블'
+--------------
+
+ERROR 1050 (42S01) at line 13: Table 'auth_logs' already exists
+[2026-03-27 15:59:26] Secondary 복원 완료: sukhyang_2026-03-27_154010.sql

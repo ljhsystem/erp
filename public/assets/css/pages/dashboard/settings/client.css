@@ -1,0 +1,100 @@
+/* 📄 /public/assets/css/pages/dashboard/settings/client.css */
+
+/* ==============================
+   PAGE
+============================== */
+.client-page{
+    width:100%;
+    margin:0;
+    padding:0;
+    background:transparent;
+}
+
+/* ==============================
+   HEADER
+============================== */
+.client-page .page-header{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:14px;
+}
+
+.client-count{
+    font-size:1rem;
+    margin-left:35px;
+}
+
+/* ==============================
+   MODAL SIZE ONLY
+============================== */
+.modal-dialog.modal-lg{
+    max-width:900px;
+    width:95vw;
+}
+
+.client-modal-body{
+    max-height:75vh;
+    overflow-y:auto;
+}
+
+/* ==============================
+   CLIENT ONLY (전용 UI)
+============================== */
+
+/* 카드 (거래처 전용이면 유지 가능) */
+.card{
+    border:1px solid #e1e6ef;
+    border-radius:10px;
+    background:#ffffff;
+    box-shadow:0 3px 8px rgba(0,0,0,.04);
+}
+
+.card-header{
+    background:#c5c5c5;
+    font-weight:600;
+    font-size:13px;
+}
+
+/* 파일 업로드 (거래처만 쓰면 유지) */
+.file-upload-box{
+    border:2px dashed #d0d5dd;
+    padding:15px;
+    text-align:center;
+    cursor:pointer;
+    border-radius:8px;
+}
+
+.file-upload-box.drag-over{
+    background:#f5f8ff;
+    border-color:#3b82f6;
+}
+
+/* 파일 리스트 */
+.file-list{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+}
+
+.file-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    border:1px solid #ddd;
+    border-radius:6px;
+    padding:8px 12px;
+    background:#fff;
+}
+
+/* ==============================
+   MOBILE
+============================== */
+@media (max-width:900px){
+
+    .modal-dialog.modal-lg{
+        max-width:98vw;
+        width:98vw;
+    }
+
+}

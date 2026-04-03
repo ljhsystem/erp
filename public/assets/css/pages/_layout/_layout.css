@@ -1,0 +1,86 @@
+﻿/* 📄 /public/assets/css/pages/_layout/_layout.css
+   =======================================================
+   SUKHYANG ERP - 공통 페이지 프레임 전용 (헤더/푸터 X)
+   ======================================================= */
+
+/* ==============================
+   전체 문서 기본 설정
+   ============================== */
+html,
+body {
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 100%;
+    font-family: 'SUITE', sans-serif;
+    background-color: #f8f9fa;
+    color: #212529;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+}
+
+/* ==============================
+   본문(main) 기본 구조
+   ============================== */
+main,
+.main-content {
+    display: block;
+    box-sizing: border-box;
+    padding-top: 56px;   /* 네비 높이에 맞춰 통일 */
+    padding-bottom: 50px;
+    min-height: calc(100vh - 130px);
+}
+
+/* 제목 블록 */
+.intro-title {
+    margin: 1rem auto 2rem auto;
+    text-align: left;
+    max-width: 1200px;
+    padding: 0 1rem;
+}
+
+/* h1 기본 상단 마진 제거 → 페이지 간 일관성 확보 */
+.intro-title h1 {
+    font-size: 1.9rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem 0; /* top을 0으로 고정 */
+}
+
+.intro-title p {
+    font-size: 1.1rem;
+    color: #666;
+    margin: 0;
+}
+
+/* ==============================
+   공통 컨테이너 및 링크 스타일
+   ============================== */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+    box-sizing: border-box;
+}
+
+a {
+    text-decoration: none;
+    color: inherit;
+}
+
+button,
+.btn {
+    font-family: inherit;
+}
+
+/* ==============================
+   반응형 폰트 조정
+   ============================== */
+@media (max-width: 600px) {
+    .intro-title h1 {
+        font-size: 1.5rem;
+    }
+
+    .intro-title p {
+        font-size: 0.95rem;
+    }
+}

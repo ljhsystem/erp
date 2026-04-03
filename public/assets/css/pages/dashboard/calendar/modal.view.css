@@ -1,0 +1,781 @@
+﻿/* 📄 /public/assets/css/pages/dashboard/calendar/modal.css */
+
+/* =========================================================
+   6. Modal (FULL REPLACE)
+========================================================= */
+
+/* ✅ body scroll lock (JS에서 토글 추천) */
+body.is-modal-open {
+  overflow: hidden;
+  /* iOS에서 스크롤 튐 방지용은 JS에서 position:fixed 처리하는게 더 확실하지만,
+     일단 CSS만으로도 대부분 케이스 커버 */
+}
+
+
+
+/* ===== Modal base ===== */
+.shint-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+
+  display: grid;
+  place-items: center;
+
+  /* 모바일 safe-area 대응 */
+  padding: max(18px, env(safe-area-inset-top))
+           max(18px, env(safe-area-inset-right))
+           max(18px, env(safe-area-inset-bottom))
+           max(18px, env(safe-area-inset-left));
+
+  /* ✅ 변수 참조 */
+  background: var(--modal-backdrop-bg);
+  backdrop-filter: var(--modal-backdrop-blur);
+
+  /* 등장/퇴장 */
+  opacity: 1;
+  transition: opacity .16s ease;
+}
+
+/* 닫힘 */
+.shint-modal.is-hidden {
+  display: none;
+}
+
+/* ✅ 오픈/클로즈 애니메이션용 (선택) */
+.shint-modal.is-leaving {
+  opacity: 0;
+}
+
+/* ✅ 모달 내부 클릭/스크롤은 정상, 바깥쪽은 잠금 */
+.shint-modal {
+  overscroll-behavior: none;
+}
+
+/* ===== Modal card ===== */
+.shint-modal__card {
+  width: min(720px, 96vw);
+  max-height: min(86vh, 900px);
+
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, .35);
+  box-shadow: 0 18px 60px rgba(0,0,0,.22);
+
+  overflow: hidden;
+
+  display: flex;
+  flex-direction: column;
+
+  transform: translateY(0);
+  transition: transform .18s ease, opacity .18s ease;
+  opacity: 1;
+
+  /* 키보드 포커스 링이 카드 밖으로 잘리지 않게 */
+  outline: none;
+}
+
+/* ✅ 오픈/클로즈 모션(선택) */
+.shint-modal.is-leaving .shint-modal__card {
+  transform: translateY(8px);
+  opacity: 0;
+}
+
+.shint-modal__card--quick { width: min(560px, 96vw); }
+.shint-modal__card--view  { width: min(520px, 96vw); }
+
+/* ===== Modal head ===== */
+.shint-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(148, 163, 184, .25);
+  background: #fff;
+
+  /* 헤더가 살짝 떠 보이게 */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.shint-modal__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -.2px;
+  color: #0f172a;
+
+  /* 제목이 길면 줄임 */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== Modal body ===== */
+.shint-modal__body {
+  padding: 14px 16px 16px;
+
+  /* 내용이 길면 body만 스크롤 */
+  overflow: auto;
+  overscroll-behavior: contain;
+
+  /* 스크롤바가 레이아웃 흔들지 않게 */
+  scrollbar-gutter: stable both-edges;
+
+  /* iOS 부드러운 스크롤 */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ===== Modal foot ===== */
+.shint-modal__foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+
+  padding: 12px 16px;
+  border-top: 1px solid rgba(148, 163, 184, .25);
+  background: #fff;
+
+  /* 하단 고정감 */
+  position: sticky;
+  bottom: 0;
+}
+
+/* ===== Icon Buttons ===== */
+.shint-iconbtn,
+.shint-iconbtn2 {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+
+  border-radius: 10px;
+
+  display: inline-grid;
+  place-items: center;
+
+  transition: background .12s ease, transform .06s ease;
+}
+
+.shint-iconbtn {
+  width: 34px;
+  height: 34px;
+  font-size: 22px;
+  color: #0f172a;
+}
+
+.shint-iconbtn2 {
+  width: 38px;
+  height: 38px;
+  font-size: 18px;
+  color: #0f172a;
+}
+
+.shint-iconbtn:hover,
+.shint-iconbtn2:hover {
+  background: rgba(148, 163, 184, .22);
+}
+
+.shint-iconbtn:active,
+.shint-iconbtn2:active {
+  transform: translateY(1px);
+}
+
+.shint-iconbtn:focus-visible,
+.shint-iconbtn2:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, .18);
+}
+
+/* ===== Tabs ===== */
+.shint-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 2px;
+  margin-bottom: 12px;
+
+  border-bottom: 1px solid rgba(148, 163, 184, .25);
+}
+
+.shint-tab {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+
+  padding: 10px 8px;
+  font-weight: 800;
+  color: #334155;
+
+  border-bottom: 2px solid transparent;
+  transition: color .12s ease, border-color .12s ease;
+}
+
+.shint-tab:hover {
+  color: #0f172a;
+}
+
+.shint-tab.is-active {
+  color: #0f172a;
+  border-bottom-color: #0f172a;
+}
+
+.shint-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, .18);
+  border-radius: 10px;
+}
+
+/* ===== Form layout ===== */
+.shint-form { display: grid; gap: 12px; }
+
+.shint-row {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.shint-ico {
+  width: 28px;
+  height: 36px;
+
+  display: grid;
+  place-items: center;
+
+  color: #334155;
+  font-weight: 900;
+  user-select: none;
+}
+
+.shint-field { min-width: 0; }
+
+.shint-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 520px) {
+  .shint-grid2 { grid-template-columns: 1fr; }
+}
+
+/* ===== Inputs ===== */
+.shint-input,
+.shint-select,
+.shint-textarea {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, .55);
+  border-radius: 12px;
+
+  padding: 10px 12px;
+  outline: none;
+
+  font-size: 14px;
+  color: #0f172a;
+  background: #fff;
+
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+
+.shint-input--xl {
+  font-size: 16px;
+  padding: 12px 12px;
+  font-weight: 800;
+}
+
+.shint-textarea {
+  resize: vertical;
+  min-height: 90px;
+}
+
+.shint-input:focus,
+.shint-select:focus,
+.shint-textarea:focus {
+  border-color: rgba(37, 99, 235, .65);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, .12);
+}
+
+.shint-select--sm {
+  width: auto;
+  padding: 8px 10px;
+}
+
+/* ===== Check / inline ===== */
+.shint-inline {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.shint-check {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+
+  font-size: 13px;
+  color: #334155;
+  user-select: none;
+}
+
+.shint-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+/* ===== Buttons ===== */
+.shint-btn {
+  border: 1px solid rgba(148, 163, 184, .55);
+  background: #fff;
+  color: #0f172a;
+
+  padding: 10px 14px;
+  border-radius: 12px;
+
+  cursor: pointer;
+  font-weight: 800;
+
+  transition: background .12s ease, transform .06s ease, filter .12s ease;
+}
+
+.shint-btn:hover {
+  background: rgba(148, 163, 184, .16);
+}
+
+.shint-btn:active {
+  transform: translateY(1px);
+}
+
+.shint-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, .18);
+}
+
+.shint-btn--primary {
+  border-color: transparent;
+  background: #2563eb;
+  color: #fff;
+}
+
+.shint-btn--primary:hover { filter: brightness(.97); }
+
+.shint-btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: #0f172a;
+}
+
+.shint-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+
+.shint-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+
+  background: #3b82f6;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.12);
+}
+
+/* ===== View modal ===== */
+.shint-viewtitle {
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -.2px;
+  color: #0f172a;
+  line-height: 1.25;
+
+  /* 길면 줄바꿈 */
+  word-break: break-word;
+}
+
+.shint-viewmeta { display: grid; gap: 10px; }
+
+.shint-vrow {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.shint-vsub {
+  font-size: 14px;
+  color: #0f172a;
+  padding-top: 6px;
+}
+
+.shint-vdesc {
+  font-size: 14px;
+  color: #0f172a;
+  white-space: pre-wrap;
+  line-height: 1.55;
+  padding-top: 6px;
+}
+
+/* ===== View actions + menu ===== */
+.shint-viewactions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+
+  padding: 10px 12px;
+  border-top: 1px solid rgba(148, 163, 184, .25);
+  background: #fff;
+}
+
+.shint-morewrap { position: relative; }
+
+.shint-moremenu {
+  position: absolute;
+  right: 0;
+  bottom: 44px;
+  min-width: 140px;
+
+  background: #fff;
+  border: 1px solid rgba(148, 163, 184, .35);
+  border-radius: 12px;
+  box-shadow: 0 18px 60px rgba(0,0,0,.18);
+
+  overflow: hidden;
+
+  /* 메뉴가 너무 길어질 때 */
+  max-height: min(320px, 60vh);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.shint-moremenu.is-hidden { display: none; }
+
+.shint-moreitem {
+  width: 100%;
+  text-align: left;
+
+  padding: 10px 12px;
+  border: 0;
+  background: #fff;
+
+  cursor: pointer;
+  font-weight: 800;
+  color: #0f172a;
+
+  transition: background .12s ease;
+}
+
+.shint-moreitem:hover { background: rgba(148, 163, 184, .16); }
+
+.shint-moreitem:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 3px rgba(37, 99, 235, .18);
+}
+
+/* ===== Optional: modal close hit-area (X 버튼이 작게 느껴질 때) ===== */
+.shint-modal__head .shint-iconbtn {
+  /* 클릭 영역은 넓게 유지 */
+  padding: 4px;
+}
+
+/* ===== Reduced motion ===== */
+@media (prefers-reduced-motion: reduce) {
+  .shint-modal,
+  .shint-modal__card,
+  .shint-iconbtn,
+  .shint-iconbtn2,
+  .shint-btn,
+  .shint-tab {
+    transition: none !important;
+  }
+}
+
+
+
+
+
+
+/* ==================================================
+   1. 제목 + 컬러 input-group
+   ================================================== */
+   .evt-input-group{
+    display: flex;
+    width: 100%;
+    align-items: stretch;   /* input / 버튼 높이 완전 동일 */
+  }
+  
+  /* 제목 input */
+  .evt-input{
+    flex: 1;
+    min-width: 0;
+  
+    height: 44px;
+    line-height: 44px;
+    padding: 0 14px;
+  
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  
+  /* 오른쪽 suffix 버튼 (컬러 트리거) */
+  .evt-input-suffix{
+    width: 44px;
+    height: 44px;
+  
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  
+    padding: 0;
+  
+    border: 1px solid #c7d2fe;
+    border-left: none;
+  
+    border-top-right-radius: 12px;
+    border-bottom-right-radius: 12px;
+  
+    background: #fff;
+    cursor: pointer;
+  }
+  
+  .evt-input-suffix:hover{
+    background: #f8fafc;
+  }
+  
+  /* caret 아이콘 보정 */
+  .evt-input-suffix i{
+    font-size: 10px;
+    line-height: 1;
+  }
+  
+  
+  /* ==================================================
+     2. 컬러 dot (버튼 안)
+     ================================================== */
+  .evt-color-dot{
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid #d1d5db;
+    background: transparent;
+    box-sizing: border-box;
+  }
+  
+  
+  /* ==================================================
+     3. 팔레트 포지션 기준
+     ================================================== */
+  .shint-field{
+    position: relative;   /* 팔레트 기준점 */
+  }
+  
+  
+  /* ==================================================
+     4. 컬러 팔레트 (드롭다운)
+     ================================================== */
+     .evt-color-palette{
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+    
+      padding: 8px;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.15);
+      z-index: 200;
+    
+      display: grid;
+      grid-template-columns: repeat(11, 22px);
+      grid-auto-rows: 22px;
+      gap: 6px;
+    
+      width: max-content;
+    }
+  
+  
+  /* ==================================================
+     5. 컬러 옵션 (전부 동그라미)
+     ================================================== */
+     .evt-color-option{
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,0,0,.12);
+      background: var(--c);
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+    
+    .evt-color-option:hover{
+      transform: translateY(-1px);
+    }
+    
+    .evt-color-option.is-selected{
+      outline: 2px solid var(--primary,#2563eb);
+      outline-offset: 2px;
+    }
+  
+  
+  /* ==================================================
+     6. 투명(색상 없음)
+     ================================================== */
+   .evt-color-option--none{
+    grid-column: 1;
+    grid-row: 1 / span 2;   /* 🔥 핵심 */
+  
+    background:
+      linear-gradient(45deg,#e5e7eb 25%,transparent 25%),
+      linear-gradient(-45deg,#e5e7eb 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#e5e7eb 75%),
+      linear-gradient(-45deg,transparent 75%,#e5e7eb 75%);
+    background-size:8px 8px;
+  }
+
+  
+
+
+
+
+
+/* =========================================================
+   🎨 Color / Calendar Layout (FINAL)
+========================================================= */
+
+/* 색상 라인 전체 */
+.shint-colorline {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+
+/* =========================================================
+   캘린더 선택 (select only, 색 언급 없음)
+========================================================= */
+
+.shint-calpick--inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 캘린더 색 네모 (view/list 전용) */
+.shint-color {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: #cbd5f5;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.15);
+}
+
+/* 캘린더 셀렉트 */
+.shint-select--calendar {
+  width: 100%;
+}
+
+/* =========================================================
+   Field Label
+========================================================= */
+
+.shint-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 6px;
+}
+
+/* =========================================================
+   Color Trigger Button (Menu-style)
+========================================================= */
+
+.color-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+
+  padding: 8px 12px;
+  min-height: 36px;
+
+  border: 1px solid rgba(148, 163, 184, .55);
+  border-radius: 10px;
+  background: #fff;
+
+  cursor: pointer;
+
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+
+  transition: background .12s ease,
+              border-color .12s ease,
+              box-shadow .12s ease;
+}
+
+.color-trigger:hover {
+  background: rgba(148, 163, 184, .12);
+}
+
+.color-trigger:focus-visible {
+  outline: none;
+  border-color: rgba(37, 99, 235, .6);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .18);
+}
+
+/* 버튼 텍스트 */
+.color-text {
+  white-space: nowrap;
+}
+
+/* ▶ 메뉴 느낌 화살표 */
+.color-trigger::after {
+  content: '▸';
+  margin-left: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+
+
+
+/*이벤트뷰의 반복이벤트*/
+#view-repeat {
+  white-space: nowrap;   /* 🔥 줄바꿈 금지 */
+}
+#view-repeat {
+  white-space: nowrap;
+  word-break: keep-all;  /* 한글 단어 쪼개짐 방지 */
+}
+
+
+/*이벤트뷰의 제목및 이벤트컬러*/
+.shint-viewtitle-wrap {
+  display: flex;
+  align-items: center;
+}
+
+
+/* 제목 옆 이벤트 컬러 점 */
+.shint-view-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;     /* ⭐ 중요 */
+  flex-shrink: 0;
+  margin-left: 10px;
+}
+
+.view-repeat {
+  margin-top: 2px;        /* 날짜와 간격 */
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+  word-break: keep-all;
+}

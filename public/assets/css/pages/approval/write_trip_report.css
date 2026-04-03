@@ -1,0 +1,38 @@
+﻿/* 📄 경로: /assets/css/pages/dashboard/approval/write_trip_report.css */
+
+.approval-main {
+	padding: 60px 20px 60px 260px;
+	min-height: calc(100vh - 120px);
+	background-color: #f9f9f9;
+	box-sizing: border-box;
+}
+
+	.approval-main h5 {
+		font-weight: bold;
+		margin-bottom: 1.5rem;
+	}
+
+	.approval-main .form-label {
+		font-weight: 500;
+		color: #333;
+	}
+
+	.approval-main .form-control,
+	.approval-main textarea,
+	.approval-main select {
+		font-size: 0.95rem;
+		border-radius: 0.375rem;
+	}
+
+	.approval-main textarea {
+		resize: vertical;
+	}
+
+	.approval-main .btn {
+		min-width: 100px;
+		font-weight: 500;
+	}
+
+		.approval-main .btn + .btn {
+			margin-left: 0.5rem;
+		}

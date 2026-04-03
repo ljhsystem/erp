@@ -1,0 +1,21 @@
+﻿/* 📄 /public/assets/css/pages/layout/spinner.css */
+
+/* 스피너 */
+#global-loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(2px);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 99999;
+}
+
+#global-loading-overlay .spinner-border {
+  width: 4rem;
+  height: 4rem;
+}
