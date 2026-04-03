@@ -1,5 +1,6 @@
 <?php
 // 경로: PROJECT_ROOT . '/index.php';
+//주석테스트2
 use Core\Router;
 use Core\Session;
 use Core\Database;
