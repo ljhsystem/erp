@@ -33,7 +33,8 @@ window.AdminPicker = AdminPicker;
 
         DEPARTMENT_LIST: '/api/settings/department/list',
         POSITION_LIST: '/api/settings/position/list',
-        ROLE_LIST: '/api/settings/role/list'
+        ROLE_LIST: '/api/settings/role/list',
+        UPDATE_STATUS: '/api/settings/employee/update-status'
     };
 
     /* =========================================================
@@ -525,10 +526,10 @@ window.AdminPicker = AdminPicker;
 
                 const fd = new FormData();
                 fd.append('id', id);
-                fd.append('action', mode);
+                fd.append('is_active', mode === 'activate' ? '1' : '0');
 
                 try {
-                    const res = await fetch(API.SAVE, {
+                    const res = await fetch(API.UPDATE_STATUS, {
                         method: 'POST',
                         body: fd
                     });
@@ -614,9 +615,9 @@ window.AdminPicker = AdminPicker;
     function resetEmployeeFormForCreate() {
         const form = document.getElementById('employee-edit-form');
         form?.reset();
-
+    
         $('#employeeModalTitle').html('<i class="bi bi-person-plus"></i> 새 직원 추가');
-
+    
         $('#edit_employee_id').val('');
         $('#edit_employee_code').val('');
 
@@ -690,6 +691,23 @@ window.AdminPicker = AdminPicker;
                 e.preventDefault();
 
                 const formData = new FormData(this);
+
+                // ✅ 추가 (여기!!)
+                formData.set(
+                    'two_factor_enabled',
+                    document.getElementById('edit_two_factor').checked ? '1' : '0'
+                );
+                
+                formData.set(
+                    'email_notify',
+                    document.getElementById('edit_email_notify').checked ? '1' : '0'
+                );
+                
+                formData.set(
+                    'sms_notify',
+                    document.getElementById('edit_sms_notify').checked ? '1' : '0'
+                );
+
                 const id = $('#edit_employee_id').val();
 
                 if (!id) {
@@ -761,11 +779,13 @@ window.AdminPicker = AdminPicker;
         $('#edit_profile_image').val('');
         $('#edit_rrn_image').val('');
         $('#edit_certificate_file').val('');
+        $('#edit_bank_file').val('');
         $('#edit_profile_image_delete').val('0');
         $('#edit_rrn_image_delete').val('0');
         $('#edit_certificate_file_delete').val('0');
+        $('#edit_bank_file_delete').val('0');
 
-        $('#edit_employee_id').val(row.id || row.user_id || '');
+        $('#edit_employee_id').val(row.user_id || '');
         $('#edit_employee_code').val(row.code || '');
         $('#edit_employee_username').val(row.username || '');
         $('#edit_employee_name').val(row.employee_name || '');
@@ -787,6 +807,11 @@ window.AdminPicker = AdminPicker;
         $('#edit_real_retire_date').val(row.real_retire_date || '');
 
         $('#edit_certificate_name').val(row.certificate_name || '');
+
+        $('#edit_bank_name').val(row.bank_name || '');
+        $('#edit_account_number').val(row.account_number || '');
+        $('#edit_account_holder').val(row.account_holder || '');
+
 
         $('#edit_two_factor').prop('checked', String(row.two_factor_enabled) === '1');
         $('#edit_email_notify').prop('checked', String(row.email_notify) === '1');
@@ -814,14 +839,24 @@ window.AdminPicker = AdminPicker;
             .on('error', function () {
                 $(this).attr('src', '/public/assets/img/placeholder-cert.png');
             });
-
+        
+        $('#edit_bank_preview')
+            .attr('src', getBankPreview(row.bank_file || ''))
+            .data('file-path', row.bank_file || '')
+            .off('error')
+            .on('error', function () {
+                $(this).attr('src', '/public/assets/img/placeholder-bank.png');
+            });
+        
         $('#edit_profile_delete_btn').toggle(!!row.profile_image);
         $('#edit_id_delete_btn').toggle(!!row.rrn_image);
         $('#edit_cert_delete_btn').toggle(!!row.certificate_file);
-
+        $('#edit_bank_delete_btn').toggle(!!row.bank_file);
+        
         $('#profile_box').attr('data-label', row.profile_image ? '원본 보기' : '업로드');
         $('#id_box').attr('data-label', row.rrn_image ? '원본 보기' : '업로드');
         $('#cert_box').attr('data-label', row.certificate_file ? '원본 보기' : '업로드');
+        $('#bank_box').attr('data-label', row.bank_file ? '원본 보기' : '업로드');
 
         $('#edit_created_at').text(row.user_created_at || '');
         $('#edit_created_by').text(
@@ -886,6 +921,20 @@ window.AdminPicker = AdminPicker;
         }
     }
 
+    function getBankPreview(filePath) {
+        if (!filePath) {
+            return '/public/assets/img/placeholder-bank.png';
+        }
+    
+        const ext = String(filePath).split('.').pop().toLowerCase();
+    
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+            return `/api/file/preview?path=${encodeURIComponent(filePath)}`;
+        }
+    
+        return '/public/assets/img/has-bank-file.png';
+    }
+
     /* =========================================================
        Select2 로딩
     ========================================================= */
@@ -913,7 +962,7 @@ window.AdminPicker = AdminPicker;
 
             list.forEach((row) => {
                 const id =
-                    row.id ??
+                    row.user_id ??
                     row.department_id ??
                     row.position_id ??
                     row.role_id ??
@@ -1197,6 +1246,28 @@ window.AdminPicker = AdminPicker;
                 $('#edit_certificate_file_delete').val('1');
                 $('#edit_certificate_name').val('');
                 $('#cert_box').attr('data-label', '업로드');
+
+
+                $('#edit_cert_preview_img')
+                    .attr('src', '/public/assets/img/placeholder-cert.png')
+                    .data('file-path', '');
+                $('#edit_cert_delete_btn').hide();
+                $('#edit_certificate_file_delete').val('0');
+                $('#edit_certificate_name').val('');
+                $('#cert_box').attr('data-label', '업로드');
+                
+                $('#edit_bank_preview')
+                    .attr('src', '/public/assets/img/placeholder-bank.png')
+                    .data('file-path', '');
+                $('#edit_bank_delete_btn').hide();
+                $('#edit_bank_file_delete').val('0');
+                $('#bank_box').attr('data-label', '업로드');
+                
+                $('#edit_bank_name').val('');
+                $('#edit_account_number').val('');
+                $('#edit_account_holder').val('');
+
+
                 $(this).hide();
             });
 
@@ -1266,6 +1337,71 @@ window.AdminPicker = AdminPicker;
                         .data('file-path', '');
                 }
             });
+
+        $(document)
+            .off('click.bankPreview')
+            .on('click.bankPreview', '#edit_bank_preview', function () {
+                const filePath = $(this).data('file-path');
+                const src = $(this).attr('src');
+
+                if (!filePath && (!src || src.includes('placeholder-bank.png'))) {
+                    $('#edit_bank_file').trigger('click');
+                    return;
+                }
+
+                if (filePath) {
+                    const url = `/api/file/preview?path=${encodeURIComponent(filePath)}`;
+                    window.open(url, '_blank');
+                    return;
+                }
+
+                window.open(src, '_blank');
+            });                             
+        $(document)
+            .off('click.employeeBankDelete')
+            .on('click.employeeBankDelete', '#edit_bank_delete_btn', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                $('#edit_bank_preview')
+                    .attr('src', '/public/assets/img/placeholder-bank.png')
+                    .data('file-path', '');
+
+                const $input = $('#edit_bank_file');
+                const $newInput = $input.clone().val('');
+                $input.replaceWith($newInput);
+
+                $('#edit_bank_file_delete').val('1');
+                $('#bank_box').attr('data-label', '업로드');
+                $(this).hide();
+            });
+
+        $(document)
+            .off('change.employeeBankPreview', '#edit_bank_file')
+            .on('change.employeeBankPreview', '#edit_bank_file', function () {
+                const file = this.files?.[0];
+                if (!file) return;
+
+                $('#edit_bank_file_delete').val('0');
+                $('#edit_bank_delete_btn').show();
+                $('#bank_box').attr('data-label', '원본 보기');
+
+                const ext = file.name.split('.').pop().toLowerCase();
+
+                if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        $('#edit_bank_preview')
+                            .attr('src', e.target.result)
+                            .data('file-path', '');
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    $('#edit_bank_preview')
+                        .attr('src', '/public/assets/img/has-bank-file.png')
+                        .data('file-path', '');
+                }
+            });
     }
 
     function resolveFileSrc(path, fallback = '') {
@@ -1324,6 +1460,19 @@ window.AdminPicker = AdminPicker;
             }
         });
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     
 })();

@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/controllers/auth/LoginController.php'
+// 경로: PROJECT_ROOT . '/app/Controllers/Auth/LoginController.php'
 namespace App\Controllers\Auth;
 
 use Core\DbPdo;

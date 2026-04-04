@@ -8,6 +8,7 @@
 /* ============================================================
  * 1. Core 네임스페이스: 실제 구현부
  * ============================================================ */
+
 namespace Core;
 
 //use Core\LoggerFactory;
@@ -24,15 +25,15 @@ if (!function_exists(__NAMESPACE__ . '\storage_log')) {
     //     }
     //     return $logger;
     // }
-//     🔥 이유
+    //     🔥 이유
 
-// 👉 Storage는 최하위(Core Root)
+    // 👉 Storage는 최하위(Core Root)
 
-// Logger 쓰면 안됨
-// DB 쓰면 안됨
-// Session 쓰면 안됨
+    // Logger 쓰면 안됨
+    // DB 쓰면 안됨
+    // Session 쓰면 안됨
 
-// 👉 “의존성 0” 이어야 정상
+    // 👉 “의존성 0” 이어야 정상
     function storage_log()
     {
         return new class {
@@ -76,7 +77,7 @@ function storage_bucket_map(): array
         'private://certificate'  => STORAGE_UPLOADS . '/certificate',
         'private://id_doc'       => STORAGE_UPLOADS . '/id_doc',
         'private://raw'          => STORAGE_UPLOADS . '/raw',
-        'private://bank_copy'    => STORAGE_UPLOADS . '/bank_copy',
+        'private://bank_file'    => STORAGE_UPLOADS . '/bank_file',
     ];
 }
 

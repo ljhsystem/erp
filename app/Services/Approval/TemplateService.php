@@ -1,9 +1,9 @@
 <?php
-// 경로: PROJECT_ROOT/app/services/approval/TemplateService.php
+// 경로: PROJECT_ROOT/app/Services/Approval/TemplateService.php
 namespace App\Services\Approval;
 
 use PDO;
-use App\Models\User\UserApprovalTemplateModel;
+use App\Models\User\ApprovalTemplateModel;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
 
@@ -16,7 +16,7 @@ class TemplateService
     public function __construct(PDO $pdo)
     {
         $this->pdo    = $pdo;
-        $this->model  = new UserApprovalTemplateModel($pdo);
+        $this->model  = new ApprovalTemplateModel($pdo);
         $this->logger = LoggerFactory::getLogger('service-approval.ApprovalTemplateService');
     }
 

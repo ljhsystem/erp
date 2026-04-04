@@ -1,9 +1,9 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/auth/RoleService.php'
+// 경로: PROJECT_ROOT . '/app/Services/Auth/RoleService.php'
 namespace App\Services\Auth;
 
 use PDO;
-use App\Models\Auth\AuthRoleModel;
+use App\Models\Auth\RoleModel;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\CodeHelper;
 use Core\LoggerFactory;
@@ -11,13 +11,13 @@ use Core\LoggerFactory;
 class RoleService
 {
     private readonly PDO $pdo;
-    private AuthRoleModel $model;
+    private RoleModel $model;
     private $logger;
 
     public function __construct(PDO $pdo)
     {
         $this->pdo    = $pdo;
-        $this->model  = new AuthRoleModel($pdo);
+        $this->model  = new RoleModel($pdo);
         $this->logger = LoggerFactory::getLogger('service-auth.RoleService');
     }
 

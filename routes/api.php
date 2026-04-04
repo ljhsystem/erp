@@ -49,7 +49,7 @@ $router->post('/api/integration/biz-status', 'ExternalIntegrationController@apiB
 /* =========================================================
  * 회사 기본정보 단건 조회
  * ========================================================= */
-$router->get('/api/settings/base-info/company/detail', 'CompanySettingsController@apiDetail', [
+$router->get('/api/settings/base-info/company/detail', 'CompanyController@apiDetail', [
     'key'         => 'api.settings.base-info.company.view',
     'name'        => '회사 기본정보 조회',
     'description' => '시스템에 단 1건 존재하는 회사 기본정보 조회',
@@ -59,7 +59,7 @@ $router->get('/api/settings/base-info/company/detail', 'CompanySettingsControlle
 /* =========================================================
  * 회사 기본정보 저장 (신규 / 수정)
  * ========================================================= */
-$router->post('/api/settings/base-info/company/save', 'CompanySettingsController@apiSave', [
+$router->post('/api/settings/base-info/company/save', 'CompanyController@apiSave', [
     'key'         => 'api.settings.base-info.company.save',
     'name'        => '회사 기본정보 저장',
     'description' => '시스템에 단 1건 존재하는 회사 기본정보 신규/수정',
@@ -73,7 +73,7 @@ $router->post('/api/settings/base-info/company/save', 'CompanySettingsController
 /* =========================================================
  * 브랜드 자산 조회 (단건 / 활성)
  * ========================================================= */
-$router->post('/api/settings/base-info/brand/get', 'BrandSettingsController@apiSearch', [
+$router->post('/api/settings/base-info/brand/get', 'BrandController@apiSearch', [
     'key'         => 'api.settings.base-info.brand.view',
     'name'        => '브랜드 자산 조회',
     'description' => '메인로고 / 파비콘 활성 자산 조회',
@@ -83,7 +83,7 @@ $router->post('/api/settings/base-info/brand/get', 'BrandSettingsController@apiS
 /* =========================================================
  * 브랜드 자산 목록 조회
  * ========================================================= */
-$router->post('/api/settings/base-info/brand/list', 'BrandSettingsController@apiList', [
+$router->post('/api/settings/base-info/brand/list', 'BrandController@apiList', [
     'key'         => 'api.settings.base-info.brand.list',
     'name'        => '브랜드 자산 목록 조회',
     'description' => '브랜드 자산 전체 목록 조회',
@@ -93,7 +93,7 @@ $router->post('/api/settings/base-info/brand/list', 'BrandSettingsController@api
 /* =========================================================
  * 브랜드 자산 저장 (업로드)
  * ========================================================= */
-$router->post('/api/settings/base-info/brand/upload', 'BrandSettingsController@apiSave', [
+$router->post('/api/settings/base-info/brand/upload', 'BrandController@apiSave', [
     'key'         => 'api.settings.base-info.brand.save',
     'name'        => '브랜드 자산 저장',
     'description' => '브랜드 로고 및 파비콘 업로드/교체',
@@ -103,7 +103,7 @@ $router->post('/api/settings/base-info/brand/upload', 'BrandSettingsController@a
 /* =========================================================
  * 브랜드 자산 삭제
  * ========================================================= */
-$router->post('/api/settings/base-info/brand/delete', 'BrandSettingsController@apiDelete', [
+$router->post('/api/settings/base-info/brand/delete', 'BrandController@apiDelete', [
     'key'         => 'api.settings.base-info.brand.delete',
     'name'        => '브랜드 자산 삭제',
     'description' => '브랜드 로고 및 파비콘 삭제',
@@ -113,7 +113,7 @@ $router->post('/api/settings/base-info/brand/delete', 'BrandSettingsController@a
 /* =========================================================
  * 브랜드 자산 활성화
  * ========================================================= */
-$router->post('/api/settings/base-info/brand/activate', 'BrandSettingsController@apiActivate', [
+$router->post('/api/settings/base-info/brand/activate', 'BrandController@apiActivate', [
     'key'         => 'api.settings.base-info.brand.activate',
     'name'        => '브랜드 자산 활성화',
     'description' => '브랜드 로고 및 파비콘 활성화',
@@ -125,7 +125,7 @@ $router->post('/api/settings/base-info/brand/activate', 'BrandSettingsController
 /* =========================================================
  * 커버 이미지 목록 조회
  * ========================================================= */
-$router->get('/api/settings/base-info/cover/list', 'CoverSettingsController@apiList', [
+$router->get('/api/settings/base-info/cover/list', 'CoverController@apiList', [
     'key'         => 'api.settings.base-info.cover.list',
     'name'        => '커버 이미지 목록 조회',
     'description' => '커버 이미지 전체 목록을 조회합니다.',
@@ -135,7 +135,7 @@ $router->get('/api/settings/base-info/cover/list', 'CoverSettingsController@apiL
 /* =========================================================
  * 커버 이미지 저장 (신규 / 수정)
  * ========================================================= */
-$router->post('/api/settings/base-info/cover/save', 'CoverSettingsController@apiSave', [
+$router->post('/api/settings/base-info/cover/save', 'CoverController@apiSave', [
     'key'         => 'api.settings.base-info.cover.save',
     'name'        => '커버 이미지 저장',
     'description' => '커버 이미지를 신규 등록하거나 수정합니다.',
@@ -145,7 +145,7 @@ $router->post('/api/settings/base-info/cover/save', 'CoverSettingsController@api
 /* =========================================================
  * 커버 이미지 삭제 (소프트삭제)
  * ========================================================= */
-$router->post('/api/settings/base-info/cover/delete', 'CoverSettingsController@apiDelete', [
+$router->post('/api/settings/base-info/cover/delete', 'CoverController@apiDelete', [
     'key'         => 'api.settings.base-info.cover.delete',
     'name'        => '커버 이미지 삭제',
     'description' => '커버 이미지를 소프트삭제 처리합니다.',
@@ -155,7 +155,7 @@ $router->post('/api/settings/base-info/cover/delete', 'CoverSettingsController@a
 /* =========================================================
  * 커버 이미지 휴지통 목록 조회
  * ========================================================= */
-$router->get('/api/settings/base-info/cover/trash', 'CoverSettingsController@apiTrashList', [
+$router->get('/api/settings/base-info/cover/trash', 'CoverController@apiTrashList', [
     'key'         => 'api.settings.base-info.cover.trash.list',
     'name'        => '커버 이미지 휴지통 목록 조회',
     'description' => '삭제된 커버 이미지 목록을 조회합니다.',
@@ -165,7 +165,7 @@ $router->get('/api/settings/base-info/cover/trash', 'CoverSettingsController@api
 /* =========================================================
  * 커버 이미지 복원 (단건)
  * ========================================================= */
-$router->post('/api/settings/base-info/cover/restore', 'CoverSettingsController@apiRestore', [
+$router->post('/api/settings/base-info/cover/restore', 'CoverController@apiRestore', [
     'key'         => 'api.settings.base-info.cover.restore',
     'name'        => '커버 이미지 복원',
     'description' => '삭제된 커버 이미지를 복원합니다.',
@@ -175,7 +175,7 @@ $router->post('/api/settings/base-info/cover/restore', 'CoverSettingsController@
 /* =========================================================
  * 커버 이미지 완전삭제 (단건)
  * ========================================================= */
-$router->post('/api/settings/base-info/cover/purge', 'CoverSettingsController@apiPurge', [
+$router->post('/api/settings/base-info/cover/purge', 'CoverController@apiPurge', [
     'key'         => 'api.settings.base-info.cover.purge',
     'name'        => '커버 이미지 완전삭제',
     'description' => '삭제된 커버 이미지를 DB와 스토리지에서 완전히 삭제합니다.',
@@ -185,7 +185,7 @@ $router->post('/api/settings/base-info/cover/purge', 'CoverSettingsController@ap
 /* =========================================================
  * 커버 이미지 순서 변경
  * ========================================================= */
-$router->post('/api/settings/base-info/cover/reorder', 'CoverSettingsController@apiReorder', [
+$router->post('/api/settings/base-info/cover/reorder', 'CoverController@apiReorder', [
     'key'         => 'api.settings.base-info.cover.reorder',
     'name'        => '커버 이미지 순서 변경',
     'description' => '커버 이미지 정렬 순서를 변경합니다.',
@@ -195,7 +195,7 @@ $router->post('/api/settings/base-info/cover/reorder', 'CoverSettingsController@
 /* =========================================================
  * 커버 이미지 복원 (다건)
  * ========================================================= */
-$router->post('/api/settings/base-info/cover/restore-bulk', 'CoverSettingsController@apiRestoreBulk', [
+$router->post('/api/settings/base-info/cover/restore-bulk', 'CoverController@apiRestoreBulk', [
     'key'         => 'api.settings.base-info.cover.restore-bulk',
     'name'        => '커버 이미지 일괄 복원',
     'description' => '삭제된 커버 이미지를 여러 건 복원합니다.',
@@ -205,7 +205,7 @@ $router->post('/api/settings/base-info/cover/restore-bulk', 'CoverSettingsContro
 /* =========================================================
  * 커버 이미지 완전삭제 (다건)
  * ========================================================= */
-$router->post('/api/settings/base-info/cover/purge-bulk', 'CoverSettingsController@apiPurgeBulk', [
+$router->post('/api/settings/base-info/cover/purge-bulk', 'CoverController@apiPurgeBulk', [
     'key'         => 'api.settings.base-info.cover.purge-bulk',
     'name'        => '커버 이미지 일괄 완전삭제',
     'description' => '삭제된 커버 이미지를 여러 건 완전히 삭제합니다.',
@@ -215,7 +215,7 @@ $router->post('/api/settings/base-info/cover/purge-bulk', 'CoverSettingsControll
 /* =========================================================
  * 커버 이미지 전체 완전삭제
  * ========================================================= */
-$router->post('/api/settings/base-info/cover/purge-all', 'CoverSettingsController@apiPurgeAll', [
+$router->post('/api/settings/base-info/cover/purge-all', 'CoverController@apiPurgeAll', [
     'key'         => 'api.settings.base-info.cover.purge-all',
     'name'        => '커버 이미지 전체 완전삭제',
     'description' => '휴지통에 있는 커버 이미지를 전체 완전히 삭제합니다.',
@@ -232,7 +232,7 @@ $router->post('/api/settings/base-info/cover/purge-all', 'CoverSettingsControlle
 /* =========================================================
  * 거래처 검색 (검색폼용)
  * ========================================================= */
-$router->get('/api/settings/base-info/client/search', 'ClientSettingsController@apiSearch', [
+$router->get('/api/settings/base-info/client/search', 'ClientController@apiSearch', [
     'key'         => 'api.settings.base-info.client.search',
     'name'        => '거래처 검색',
     'description' => '검색 조건 기반 거래처 목록 조회',
@@ -242,7 +242,7 @@ $router->get('/api/settings/base-info/client/search', 'ClientSettingsController@
 /* =========================================================
  * 거래처 목록 조회
  * ========================================================= */
-$router->get('/api/settings/base-info/client/list', 'ClientSettingsController@apiList', [
+$router->get('/api/settings/base-info/client/list', 'ClientController@apiList', [
     'key'         => 'api.settings.base-info.client.list',
     'name'        => '거래처 목록 조회',
     'description' => '전체 거래처 목록을 조회합니다.',
@@ -252,7 +252,7 @@ $router->get('/api/settings/base-info/client/list', 'ClientSettingsController@ap
 /* =========================================================
  * 거래처 상세 조회
  * ========================================================= */
-$router->get('/api/settings/base-info/client/detail', 'ClientSettingsController@apiDetail', [
+$router->get('/api/settings/base-info/client/detail', 'ClientController@apiDetail', [
     'key'         => 'api.settings.base-info.client.detail',
     'name'        => '거래처 상세 조회',
     'description' => '특정 거래처 상세 정보를 조회합니다.',
@@ -262,7 +262,7 @@ $router->get('/api/settings/base-info/client/detail', 'ClientSettingsController@
 /* =========================================================
  * 거래처 저장 (신규 / 수정)
  * ========================================================= */
-$router->post('/api/settings/base-info/client/save', 'ClientSettingsController@apiSave', [
+$router->post('/api/settings/base-info/client/save', 'ClientController@apiSave', [
     'key'         => 'api.settings.base-info.client.save',
     'name'        => '거래처 저장',
     'description' => '거래처를 신규 등록하거나 수정합니다.',
@@ -272,7 +272,7 @@ $router->post('/api/settings/base-info/client/save', 'ClientSettingsController@a
 /* =========================================================
  * 거래처 삭제 (소프트삭제)
  * ========================================================= */
-$router->post('/api/settings/base-info/client/delete', 'ClientSettingsController@apiDelete', [
+$router->post('/api/settings/base-info/client/delete', 'ClientController@apiDelete', [
     'key'         => 'api.settings.base-info.client.delete',
     'name'        => '거래처 삭제',
     'description' => '거래처를 삭제 처리합니다.',
@@ -282,7 +282,7 @@ $router->post('/api/settings/base-info/client/delete', 'ClientSettingsController
 /* =========================================================
  * 거래처 순서 변경
  * ========================================================= */
-$router->post('/api/settings/base-info/client/reorder', 'ClientSettingsController@apiReorder', [
+$router->post('/api/settings/base-info/client/reorder', 'ClientController@apiReorder', [
     'key'         => 'api.settings.base-info.client.reorder',
     'name'        => '거래처 순서 변경',
     'description' => '거래처 정렬 순서를 변경합니다.',
@@ -292,7 +292,7 @@ $router->post('/api/settings/base-info/client/reorder', 'ClientSettingsControlle
 /* =========================================================
  * 거래처 엑셀 다운로드
  * ========================================================= */
-$router->get('/api/settings/base-info/clients/excel', 'ClientSettingsController@apiDownload', [
+$router->get('/api/settings/base-info/clients/excel', 'ClientController@apiDownload', [
     'key'         => 'api.settings.base-info.client.excel',
     'name'        => '거래처 엑셀 다운로드',
     'description' => '전체 거래처 데이터를 엑셀로 다운로드합니다.',
@@ -302,7 +302,7 @@ $router->get('/api/settings/base-info/clients/excel', 'ClientSettingsController@
 /* =========================================================
  * 거래처 엑셀 양식 다운로드
  * ========================================================= */
-$router->get('/api/settings/base-info/clients/template', 'ClientSettingsController@apiTemplate', [
+$router->get('/api/settings/base-info/clients/template', 'ClientController@apiTemplate', [
     'key'         => 'api.settings.base-info.client.template',
     'name'        => '거래처 엑셀 양식 다운로드',
     'description' => '거래처 등록용 엑셀 양식을 다운로드합니다.',
@@ -312,7 +312,7 @@ $router->get('/api/settings/base-info/clients/template', 'ClientSettingsControll
 /* =========================================================
  * 거래처 엑셀 업로드
  * ========================================================= */
-$router->post('/api/settings/base-info/client/excel-upload', 'ClientSettingsController@apiSaveFromExcel', [
+$router->post('/api/settings/base-info/client/excel-upload', 'ClientController@apiSaveFromExcel', [
     'key'         => 'api.settings.base-info.client.excel-upload',
     'name'        => '거래처 엑셀 업로드',
     'description' => '엑셀 파일을 통해 거래처 데이터를 등록합니다.',
@@ -324,7 +324,7 @@ $router->post('/api/settings/base-info/client/excel-upload', 'ClientSettingsCont
 /* =========================================================
  * 거래처 휴지통 목록 조회
  * ========================================================= */
-$router->get('/api/settings/base-info/client/trash', 'ClientSettingsController@apiTrashList', [
+$router->get('/api/settings/base-info/client/trash', 'ClientController@apiTrashList', [
     'key'         => 'api.settings.base-info.client.trash.list',
     'name'        => '거래처 휴지통 목록',
     'description' => '삭제된 거래처 목록을 조회합니다.',
@@ -334,7 +334,7 @@ $router->get('/api/settings/base-info/client/trash', 'ClientSettingsController@a
 /* =========================================================
  * 거래처 복원 (단건)
  * ========================================================= */
-$router->post('/api/settings/base-info/client/restore', 'ClientSettingsController@apiRestore', [
+$router->post('/api/settings/base-info/client/restore', 'ClientController@apiRestore', [
     'key'         => 'api.settings.base-info.client.restore',
     'name'        => '거래처 복원',
     'description' => '삭제된 거래처를 복원합니다.',
@@ -344,7 +344,7 @@ $router->post('/api/settings/base-info/client/restore', 'ClientSettingsControlle
 /* =========================================================
  * 거래처 완전삭제 (단건)
  * ========================================================= */
-$router->post('/api/settings/base-info/client/purge', 'ClientSettingsController@apiPurge', [
+$router->post('/api/settings/base-info/client/purge', 'ClientController@apiPurge', [
     'key'         => 'api.settings.base-info.client.purge',
     'name'        => '거래처 완전삭제',
     'description' => '거래처를 DB 및 파일까지 완전히 삭제합니다.',
@@ -354,7 +354,7 @@ $router->post('/api/settings/base-info/client/purge', 'ClientSettingsController@
 /* =========================================================
  * 거래처 선택 복원
  * ========================================================= */
-$router->post('/api/settings/base-info/client/restore-bulk', 'ClientSettingsController@apiRestoreBulk', [
+$router->post('/api/settings/base-info/client/restore-bulk', 'ClientController@apiRestoreBulk', [
     'key'         => 'api.settings.base-info.client.restore-bulk',
     'name'        => '거래처 일괄 복원',
     'description' => '여러 거래처를 동시에 복원합니다.',
@@ -364,7 +364,7 @@ $router->post('/api/settings/base-info/client/restore-bulk', 'ClientSettingsCont
 /* =========================================================
  * 거래처 선택 완전삭제
  * ========================================================= */
-$router->post('/api/settings/base-info/client/purge-bulk', 'ClientSettingsController@apiPurgeBulk', [
+$router->post('/api/settings/base-info/client/purge-bulk', 'ClientController@apiPurgeBulk', [
     'key'         => 'api.settings.base-info.client.purge-bulk',
     'name'        => '거래처 일괄 완전삭제',
     'description' => '여러 거래처를 동시에 완전 삭제합니다.',
@@ -374,7 +374,7 @@ $router->post('/api/settings/base-info/client/purge-bulk', 'ClientSettingsContro
 /* =========================================================
  * 거래처 전체 완전삭제
  * ========================================================= */
-$router->post('/api/settings/base-info/client/purge-all', 'ClientSettingsController@apiPurgeAll', [
+$router->post('/api/settings/base-info/client/purge-all', 'ClientController@apiPurgeAll', [
     'key'         => 'api.settings.base-info.client.purge-all',
     'name'        => '거래처 전체 완전삭제',
     'description' => '휴지통의 모든 거래처를 완전히 삭제합니다.',
@@ -396,7 +396,7 @@ $router->post('/api/settings/base-info/client/purge-all', 'ClientSettingsControl
  * ========================================= */
 
 // 프로젝트 검색
-$router->get('/api/settings/base-info/project/search', 'ProjectSettingsController@apiSearch', [
+$router->get('/api/settings/base-info/project/search', 'ProjectController@apiSearch', [
     'key'         => 'api.settings.base-info.project.search',
     'name'        => '프로젝트 검색',
     'description' => '프로젝트 검색용 목록 조회',
@@ -404,7 +404,7 @@ $router->get('/api/settings/base-info/project/search', 'ProjectSettingsControlle
 ]);
 
 // 프로젝트 목록 조회
-$router->get('/api/settings/base-info/project/list', 'ProjectSettingsController@apiList', [
+$router->get('/api/settings/base-info/project/list', 'ProjectController@apiList', [
     'key'         => 'api.settings.base-info.project.list',
     'name'        => '프로젝트 목록 조회',
     'description' => '프로젝트 전체 목록 조회',
@@ -412,7 +412,7 @@ $router->get('/api/settings/base-info/project/list', 'ProjectSettingsController@
 ]);
 
 // 프로젝트 저장
-$router->post('/api/settings/base-info/project/save', 'ProjectSettingsController@apiSave', [
+$router->post('/api/settings/base-info/project/save', 'ProjectController@apiSave', [
     'key'         => 'api.settings.base-info.project.save',
     'name'        => '프로젝트 저장',
     'description' => '프로젝트 신규 등록 및 수정',
@@ -420,7 +420,7 @@ $router->post('/api/settings/base-info/project/save', 'ProjectSettingsController
 ]);
 
 // 프로젝트 삭제
-$router->post('/api/settings/base-info/project/delete', 'ProjectSettingsController@apiDelete', [
+$router->post('/api/settings/base-info/project/delete', 'ProjectController@apiDelete', [
     'key'         => 'api.settings.base-info.project.delete',
     'name'        => '프로젝트 삭제',
     'description' => '프로젝트 삭제 처리',
@@ -428,7 +428,7 @@ $router->post('/api/settings/base-info/project/delete', 'ProjectSettingsControll
 ]);
 
 // 프로젝트 상세
-$router->get('/api/settings/base-info/project/detail', 'ProjectSettingsController@apiDetail', [
+$router->get('/api/settings/base-info/project/detail', 'ProjectController@apiDetail', [
     'key'         => 'api.settings.base-info.project.detail',
     'name'        => '프로젝트 상세 조회',
     'description' => '프로젝트 상세 정보 조회',
@@ -436,7 +436,7 @@ $router->get('/api/settings/base-info/project/detail', 'ProjectSettingsControlle
 ]);
 
 // 순서변경
-$router->post('/api/settings/base-info/project/reorder', 'ProjectSettingsController@apiReorder', [
+$router->post('/api/settings/base-info/project/reorder', 'ProjectController@apiReorder', [
     'key'         => 'api.settings.base-info.project.reorder',
     'name'        => '프로젝트 순서 변경',
     'description' => '프로젝트 정렬 순서 변경',
@@ -444,7 +444,7 @@ $router->post('/api/settings/base-info/project/reorder', 'ProjectSettingsControl
 ]);
 
 // 엑셀 다운로드
-$router->get('/api/settings/base-info/project/excel', 'ProjectSettingsController@apiDownloadAllExcel', [
+$router->get('/api/settings/base-info/project/excel', 'ProjectController@apiDownloadAllExcel', [
     'key'         => 'api.settings.base-info.project.excel',
     'name'        => '프로젝트 엑셀 다운로드',
     'description' => '프로젝트 전체 엑셀 다운로드',
@@ -452,7 +452,7 @@ $router->get('/api/settings/base-info/project/excel', 'ProjectSettingsController
 ]);
 
 // 엑셀 템플릿
-$router->get('/api/settings/base-info/project/template', 'ProjectSettingsController@apiDownloadTemplate', [
+$router->get('/api/settings/base-info/project/template', 'ProjectController@apiDownloadTemplate', [
     'key'         => 'api.settings.base-info.project.template',
     'name'        => '프로젝트 엑셀 템플릿',
     'description' => '프로젝트 업로드용 템플릿 다운로드',
@@ -460,7 +460,7 @@ $router->get('/api/settings/base-info/project/template', 'ProjectSettingsControl
 ]);
 
 // 엑셀 업로드
-$router->post('/api/settings/base-info/project/excel-upload', 'ProjectSettingsController@apiExcelUpload', [
+$router->post('/api/settings/base-info/project/excel-upload', 'ProjectController@apiExcelUpload', [
     'key'         => 'api.settings.base-info.project.excel-upload',
     'name'        => '프로젝트 엑셀 업로드',
     'description' => '프로젝트 엑셀 데이터 업로드',
@@ -474,7 +474,7 @@ $router->post('/api/settings/base-info/project/excel-upload', 'ProjectSettingsCo
 ========================================================= */
 
 // 휴지통 목록
-$router->get('/api/settings/base-info/project/trash', 'ProjectSettingsController@apiTrashList', [
+$router->get('/api/settings/base-info/project/trash', 'ProjectController@apiTrashList', [
     'key'         => 'api.settings.base-info.project.trash',
     'name'        => '프로젝트 휴지통 목록',
     'description' => '삭제된 프로젝트 목록 조회',
@@ -482,7 +482,7 @@ $router->get('/api/settings/base-info/project/trash', 'ProjectSettingsController
 ]);
 
 // 복원
-$router->post('/api/settings/base-info/project/restore', 'ProjectSettingsController@apiRestore', [
+$router->post('/api/settings/base-info/project/restore', 'ProjectController@apiRestore', [
     'key'         => 'api.settings.base-info.project.restore',
     'name'        => '프로젝트 복원',
     'description' => '삭제된 프로젝트 복원',
@@ -490,7 +490,7 @@ $router->post('/api/settings/base-info/project/restore', 'ProjectSettingsControl
 ]);
 
 // 완전삭제
-$router->post('/api/settings/base-info/project/purge', 'ProjectSettingsController@apiPurge', [
+$router->post('/api/settings/base-info/project/purge', 'ProjectController@apiPurge', [
     'key'         => 'api.settings.base-info.project.purge',
     'name'        => '프로젝트 영구 삭제',
     'description' => '프로젝트 완전 삭제',
@@ -498,7 +498,7 @@ $router->post('/api/settings/base-info/project/purge', 'ProjectSettingsControlle
 ]);
 
 // 선택 복원
-$router->post('/api/settings/base-info/project/restore-bulk', 'ProjectSettingsController@apiRestoreBulk', [
+$router->post('/api/settings/base-info/project/restore-bulk', 'ProjectController@apiRestoreBulk', [
     'key'         => 'api.settings.base-info.project.restore-bulk',
     'name'        => '프로젝트 선택 복원',
     'description' => '선택한 프로젝트 복원',
@@ -506,7 +506,7 @@ $router->post('/api/settings/base-info/project/restore-bulk', 'ProjectSettingsCo
 ]);
 
 // 선택 삭제
-$router->post('/api/settings/base-info/project/purge-bulk', 'ProjectSettingsController@apiPurgeBulk', [
+$router->post('/api/settings/base-info/project/purge-bulk', 'ProjectController@apiPurgeBulk', [
     'key'         => 'api.settings.base-info.project.purge-bulk',
     'name'        => '프로젝트 선택 삭제',
     'description' => '선택한 프로젝트 영구 삭제',
@@ -514,7 +514,7 @@ $router->post('/api/settings/base-info/project/purge-bulk', 'ProjectSettingsCont
 ]);
 
 // 전체 삭제
-$router->post('/api/settings/base-info/project/purge-all', 'ProjectSettingsController@apiPurgeAll', [
+$router->post('/api/settings/base-info/project/purge-all', 'ProjectController@apiPurgeAll', [
     'key'         => 'api.settings.base-info.project.purge-all',
     'name'        => '프로젝트 전체 삭제',
     'description' => '모든 프로젝트 영구 삭제',
@@ -573,31 +573,28 @@ $router->post('/api/user/profile/update-2fa', 'ProfileController@apiUpdateTwoFac
  * ========================================= */
 
 // 직원 검색
-$router->get('/api/settings/employee/search', 'EmployeeSettingsController@apiSearch');
+$router->get('/api/settings/employee/search', 'EmployeeController@apiSearch');
+
+
+// 직원 검색(select2)
+$router->get('/api/settings/employee/search-picker', 'EmployeeController@apiSearchPicker');
+
 
 // 직원 목록 (GET + POST 허용)
-$router->get('/api/settings/employee/list', 'EmployeeSettingsController@apiList');
-$router->post('/api/settings/employee/list', 'EmployeeSettingsController@apiList');
+$router->get('/api/settings/employee/list', 'EmployeeController@apiList');
+$router->post('/api/settings/employee/list', 'EmployeeController@apiList');
 
 // 직원 저장
-$router->post('/api/settings/employee/save', 'EmployeeSettingsController@apiSave');
+$router->post('/api/settings/employee/save', 'EmployeeController@apiSave');
 
 // 직원 삭제 (추가 추천)
-$router->post('/api/settings/employee/delete', 'EmployeeSettingsController@apiDelete');
+$router->post('/api/settings/employee/delete', 'EmployeeController@apiDelete');
 
 // 상태 변경 (추가 추천)
-$router->post('/api/settings/employee/update-status', 'EmployeeSettingsController@apiUpdateStatus');
+$router->post('/api/settings/employee/update-status', 'EmployeeController@apiUpdateStatus');
 
 // 순서 변경
-$router->post('/api/settings/employee/reorder', 'EmployeeSettingsController@apiReorder');
-
-
-
-
-
-
-
-
+$router->post('/api/settings/employee/reorder', 'EmployeeController@apiReorder');
 
 
 
@@ -608,11 +605,11 @@ $router->post('/api/settings/employee/reorder', 'EmployeeSettingsController@apiR
 ========================= */
 
 // 부서 목록 (GET + POST 허용)
-$router->get('/api/settings/department/list', 'DepartmentSettingsController@apiList');
-$router->post('/api/settings/department/list', 'DepartmentSettingsController@apiList');
+$router->get('/api/settings/department/list', 'DepartmentController@apiList');
+$router->post('/api/settings/department/list', 'DepartmentController@apiList');
 
 // 부서 저장
-$router->post('/api/settings/department/save', 'DepartmentSettingsController@apiSave');
+$router->post('/api/settings/department/save', 'DepartmentController@apiSave');
 
 
 
@@ -623,11 +620,11 @@ $router->post('/api/settings/department/save', 'DepartmentSettingsController@api
 ========================= */
 
 // 직책 목록 (GET + POST 허용)
-$router->get('/api/settings/position/list', 'PositionSettingsController@apiList');
-$router->post('/api/settings/position/list', 'PositionSettingsController@apiList');
+$router->get('/api/settings/position/list', 'PositionController@apiList');
+$router->post('/api/settings/position/list', 'PositionController@apiList');
 
 // 직책 저장
-$router->post('/api/settings/position/save', 'PositionSettingsController@apiSave');
+$router->post('/api/settings/position/save', 'PositionController@apiSave');
 
 
 
@@ -637,49 +634,49 @@ $router->post('/api/settings/position/save', 'PositionSettingsController@apiSave
 /* =========================================
  * 역할 / 권한
  * ========================================= */
-$router->post('/api/settings/role/list', 'RoleSettingsController@apiList', [
+$router->post('/api/settings/role/list', 'RoleController@apiList', [
     'key' => 'api.settings.role.list',
     'name' => '역할 목록 조회',
     'description' => '역할 리스트 조회',
     'category' => '권한관리'
 ]);
 
-$router->post('/api/settings/role/save', 'RoleSettingsController@apiSave', [
+$router->post('/api/settings/role/save', 'RoleController@apiSave', [
     'key' => 'api.settings.role.save',
     'name' => '역할 저장',
     'description' => '역할 정보 저장',
     'category' => '권한관리'
 ]);
 
-$router->post('/api/settings/permission/list', 'PermissionSettingsController@apiList', [
+$router->post('/api/settings/permission/list', 'PermissionController@apiList', [
     'key' => 'api.settings.permission.list',
     'name' => '권한 목록 조회',
     'description' => '전체 권한 조회',
     'category' => '권한관리'
 ]);
 
-$router->post('/api/settings/permission/save', 'PermissionSettingsController@apiSave', [
+$router->post('/api/settings/permission/save', 'PermissionController@apiSave', [
     'key' => 'api.settings.permission.save',
     'name' => '권한 저장',
     'description' => '권한 정보 저장',
     'category' => '권한관리'
 ]);
 
-$router->post('/api/settings/role-permission/list', 'RolePermissionSettingsController@apiList', [
+$router->post('/api/settings/role-permission/list', 'RolePermissionController@apiList', [
     'key' => 'api.settings.rolepermission.list',
     'name' => '역할별 권한 조회',
     'description' => '역할에 부여된 권한 목록 조회',
     'category' => '권한관리'
 ]);
 
-$router->post('/api/settings/role-permission/assign', 'RolePermissionSettingsController@apiAssign', [
+$router->post('/api/settings/role-permission/assign', 'RolePermissionController@apiAssign', [
     'key' => 'api.settings.rolepermission.assign',
     'name' => '권한 부여',
     'description' => '역할에 권한 부여',
     'category' => '권한관리'
 ]);
 
-$router->post('/api/settings/role-permission/remove', 'RolePermissionSettingsController@apiRemove', [
+$router->post('/api/settings/role-permission/remove', 'RolePermissionController@apiRemove', [
     'key' => 'api.settings.rolepermission.remove',
     'name' => '권한 제거',
     'description' => '역할에서 권한 제거',
@@ -690,42 +687,46 @@ $router->post('/api/settings/role-permission/remove', 'RolePermissionSettingsCon
 /* =========================================
  * 결재(Approval)
  * ========================================= */
-$router->post('/api/settings/approval/template/list', 'ApprovalSettingsController@apiTemplateList', [
+$router->post('/api/settings/approval/template/list', 'ApprovalTemplateController@apiTemplateList', [
     'key' => 'api.settings.approval.template.list',
     'name' => '결재 템플릿 목록',
     'description' => '결재 템플릿 리스트 조회',
     'category' => '결재관리'
 ]);
 
-$router->post('/api/settings/approval/template/save', 'ApprovalSettingsController@apiTemplateSave', [
+
+
+
+
+$router->post('/api/settings/approval/template/save', 'ApprovalTemplateController@apiTemplateSave', [
     'key' => 'api.settings.approval.template.save',
     'name' => '결재 템플릿 저장',
     'description' => '템플릿 저장',
     'category' => '결재관리'
 ]);
 
-$router->post('/api/settings/approval/template/delete', 'ApprovalSettingsController@apiTemplateDelete', [
+$router->post('/api/settings/approval/template/delete', 'ApprovalTemplateController@apiTemplateDelete', [
     'key' => 'api.settings.approval.template.delete',
     'name' => '결재 템플릿 삭제',
     'description' => '템플릿 삭제',
     'category' => '결재관리'
 ]);
 
-$router->post('/api/settings/approval/step/list', 'ApprovalSettingsController@apiStepList', [
+$router->post('/api/settings/approval/step/list', 'ApprovalTemplateController@apiStepList', [
     'key' => 'api.settings.approval.step.list',
     'name' => '결재 단계 목록',
     'description' => '결재 단계 리스트 조회',
     'category' => '결재관리'
 ]);
 
-$router->post('/api/settings/approval/step/save', 'ApprovalSettingsController@apiStepSave', [
+$router->post('/api/settings/approval/step/save', 'ApprovalTemplateController@apiStepSave', [
     'key' => 'api.settings.approval.step.save',
     'name' => '결재 단계 저장',
     'description' => '결재 단계 저장',
     'category' => '결재관리'
 ]);
 
-$router->post('/api/settings/approval/step/delete', 'ApprovalSettingsController@apiStepDelete', [
+$router->post('/api/settings/approval/step/delete', 'ApprovalTemplateController@apiStepDelete', [
     'key' => 'api.settings.approval.step.delete',
     'name' => '결재 단계 삭제',
     'description' => '결재 단계 삭제',
@@ -737,42 +738,42 @@ $router->post('/api/settings/approval/step/delete', 'ApprovalSettingsController@
  * 시스템 설정
  * ========================================= */
 //사이트정보
-$router->get('/api/settings/system/site/get', 'SystemSettingsController@apiSiteGet', [
+$router->get('/api/settings/system/site/get', 'SystemController@apiSiteGet', [
     'key'         => 'api.settings.system.site.view',
     'name'        => '사이트 설정 조회',
     'description' => '사이트 기본설정(SITE) 카테고리 설정값 조회',
     'category'    => '시스템설정'
 ]);
 
-$router->post('/api/settings/system/site/save', 'SystemSettingsController@apiSiteSave', [
+$router->post('/api/settings/system/site/save', 'SystemController@apiSiteSave', [
     'key'         => 'api.settings.system.site.edit',
     'name'        => '사이트 설정 저장',
     'description' => '사이트 기본설정(SITE) 카테고리 설정값 저장',
     'category'    => '시스템설정'
 ]);
 //세션
-$router->get('/api/settings/system/session/get', 'SystemSettingsController@apiSessionGet', [
+$router->get('/api/settings/system/session/get', 'SystemController@apiSessionGet', [
     'key'         => 'api.settings.system.session.view',
     'name'        => '세션 설정 조회',
     'description' => '세션 관리(SESSION) 카테고리 설정값 조회',
     'category'    => '시스템설정'
 ]);
 
-$router->post('/api/settings/system/session/save', 'SystemSettingsController@apiSessionSave', [
+$router->post('/api/settings/system/session/save', 'SystemController@apiSessionSave', [
     'key'         => 'api.settings.system.session.edit',
     'name'        => '세션 설정 저장',
     'description' => '세션 관리(SESSION) 카테고리 설정값 저장',
     'category'    => '시스템설정'
 ]);
 //보안정책
-$router->get('/api/settings/system/security/get', 'SystemSettingsController@apiSecurityGet', [
+$router->get('/api/settings/system/security/get', 'SystemController@apiSecurityGet', [
     'key'         => 'api.settings.system.security.view',
     'name'        => '보안 설정 조회',
     'description' => '보안 정책(SECURITY) 카테고리 설정값 조회',
     'category'    => '시스템설정'
 ]);
 
-$router->post('/api/settings/system/security/save', 'SystemSettingsController@apiSecuritySave', [
+$router->post('/api/settings/system/security/save', 'SystemController@apiSecuritySave', [
     'key'         => 'api.settings.system.security.edit',
     'name'        => '보안 설정 저장',
     'description' => '보안 정책(SECURITY) 카테고리 설정값 저장',
@@ -784,7 +785,7 @@ $router->post('/api/settings/system/security/save', 'SystemSettingsController@ap
  * 시스템 설정 - 외부 API
  * ========================================= */
 // 외부 API 설정 조회
-$router->get('/api/settings/system/api/get', 'SystemSettingsController@apiApiGet', [
+$router->get('/api/settings/system/api/get', 'SystemController@apiApiGet', [
     'key'         => 'api.settings.system.api.view',
     'name'        => '외부 API 설정 조회',
     'description' => '외부 연동(API) 설정 값을 조회',
@@ -792,7 +793,7 @@ $router->get('/api/settings/system/api/get', 'SystemSettingsController@apiApiGet
 ]);
 
 // 외부 API 설정 저장
-$router->post('/api/settings/system/api/save', 'SystemSettingsController@apiApiSave', [
+$router->post('/api/settings/system/api/save', 'SystemController@apiApiSave', [
     'key'         => 'api.settings.system.api.edit',
     'name'        => '외부 API 설정 저장',
     'description' => '외부 연동(API) 설정 값을 저장',
@@ -809,7 +810,7 @@ $router->get('/api/external/ping', 'ExternalApiController@ping', [
     'description'     => '외부 API 접근 가능 여부 확인',
     'category'        => '외부API',
     'skip_permission' => true,          // ⭐ 핵심
-    'middleware'      => ['ApiAccessMiddleware']   
+    'middleware'      => ['ApiAccessMiddleware']
 ]);
 //외부 API - 직원 조회(테스트 25.12.16)
 $router->get('/api/external/employees/list', 'ExternalEmployeeController@list', [
@@ -838,7 +839,7 @@ $router->get('/api/external/employees', 'ExternalApiController@employees', [
 // ------------------------------------------------------------
 
 //외부 서비스 연동 (설정조회)
-$router->get('/api/settings/system/external-services/get', 'SystemSettingsController@apiExternalServicesGet', [
+$router->get('/api/settings/system/external-services/get', 'SystemController@apiExternalServicesGet', [
     'key'         => 'api.settings.system.external.view',
     'name'        => '외부 서비스 연동 설정 조회',
     'description' => '외부 서비스 연동 시스템 설정 조회',
@@ -847,7 +848,7 @@ $router->get('/api/settings/system/external-services/get', 'SystemSettingsContro
 
 
 //외부 서비스 연동 (설정저장장)
-$router->post('/api/settings/system/external-services/save', 'SystemSettingsController@apiExternalServicesSave', [
+$router->post('/api/settings/system/external-services/save', 'SystemController@apiExternalServicesSave', [
     'key'         => 'api.settings.system.external.edit',
     'name'        => '외부 서비스 연동 설정 저장',
     'description' => '외부 서비스 연동 시스템 설정 저장',
@@ -973,21 +974,21 @@ $router->get('/api/system/storage/bucket-browse', 'FileController@apiBucketBrows
 
 
 // 🔹 DB 백업 설정 조회
-$router->get('/api/settings/system/database/get', 'SystemSettingsController@apiDatabaseGet', [
+$router->get('/api/settings/system/database/get', 'SystemController@apiDatabaseGet', [
     'key'         => 'api.settings.system.database.view',
     'name'        => 'DB 백업 설정 조회',
     'description' => '데이터베이스 백업 설정 정보 조회',
     'category'    => '시스템설정'
 ]);
 // 🔹 DB 백업 설정 저장
-$router->post('/api/settings/system/database/save', 'SystemSettingsController@apiDatabaseSave', [
+$router->post('/api/settings/system/database/save', 'SystemController@apiDatabaseSave', [
     'key'         => 'api.settings.system.database.edit',
     'name'        => 'DB 백업 설정 저장',
     'description' => '데이터베이스 백업 설정 저장',
     'category'    => '시스템설정'
 ]);
 // 🔹 DB 백업 즉시 실행
-$router->post('/api/settings/system/database/run', 'SystemSettingsController@apiBackupRun', [
+$router->post('/api/settings/system/database/run', 'SystemController@apiBackupRun', [
     'key'         => 'api.settings.system.database.run',
     'name'        => 'DB 백업 실행',
     'description' => '데이터베이스 백업 기능 실행',
@@ -995,7 +996,7 @@ $router->post('/api/settings/system/database/run', 'SystemSettingsController@api
 ]);
 
 // 데이터베이스백업: 상태정보(경로/최신백업)
-$router->get('/api/settings/system/database/info', 'SystemSettingsController@apiBackupInfo', [
+$router->get('/api/settings/system/database/info', 'SystemController@apiBackupInfo', [
     'key' => 'api.settings.system.database.view',
     'name' => 'DB 백업 상태 조회',
     'description' => '백업 저장 경로 및 최신 백업 파일 정보 조회',
@@ -1003,7 +1004,7 @@ $router->get('/api/settings/system/database/info', 'SystemSettingsController@api
 ]);
 
 // 데이터베이스백업: 로그 조회
-$router->get('/api/settings/system/database/log', 'SystemSettingsController@apiBackupLog', [
+$router->get('/api/settings/system/database/log', 'SystemController@apiBackupLog', [
     'key' => 'api.settings.system.database.view',
     'name' => 'DB 백업 로그 조회',
     'description' => '백업 로그 텍스트 조회',
@@ -1011,7 +1012,7 @@ $router->get('/api/settings/system/database/log', 'SystemSettingsController@apiB
 ]);
 
 // 데이터베이스 이중화 상태 조회
-$router->get('/api/settings/system/database/replication-status', 'SystemSettingsController@apiDatabaseReplicationStatus', [
+$router->get('/api/settings/system/database/replication-status', 'SystemController@apiDatabaseReplicationStatus', [
     'key'         => 'api.settings.system.database.view',
     'name'        => 'DB 이중화 상태 조회',
     'description' => 'Primary / Secondary 데이터베이스 이중화(Replication) 상태 및 지연 시간 조회',
@@ -1020,7 +1021,8 @@ $router->get('/api/settings/system/database/replication-status', 'SystemSettings
 
 // 🔹 Secondary DB 복원 실행 (수동 / 자동 공용)
 $router->post(
-    '/api/settings/system/database/restore-secondary', 'SystemSettingsController@apiRestoreSecondary',
+    '/api/settings/system/database/restore-secondary',
+    'SystemController@apiRestoreSecondary',
     [
         'key'         => 'api.settings.system.database.restore',
         'name'        => 'Secondary DB 복원 실행',
@@ -1031,7 +1033,8 @@ $router->post(
 
 // 🔹 Secondary DB 최신 복원 상태 조회
 $router->get(
-    '/api/settings/system/database/secondary-restore-info', 'SystemSettingsController@apiSecondaryRestoreInfo',
+    '/api/settings/system/database/secondary-restore-info',
+    'SystemController@apiSecondaryRestoreInfo',
     [
         'key'         => 'api.settings.system.database.view',
         'name'        => 'Secondary DB 최신 복원 상태 조회',
@@ -1041,7 +1044,7 @@ $router->get(
 );
 
 // 🔹 시스템 로그 내용 조회
-$router->post('/api/settings/system/logs/view', 'SystemSettingsController@apiLogView', [
+$router->post('/api/settings/system/logs/view', 'SystemController@apiLogView', [
     'key'         => 'api.settings.system.logs.view',
     'name'        => '시스템 로그 내용 조회',
     'description' => '선택한 로그 파일의 내용을 조회 (대용량 로그는 일부만 반환)',
@@ -1049,7 +1052,7 @@ $router->post('/api/settings/system/logs/view', 'SystemSettingsController@apiLog
 ]);
 
 // 🔹 시스템 로그 파일 삭제
-$router->post('/api/settings/system/logs/delete', 'SystemSettingsController@apiLogDelete', [
+$router->post('/api/settings/system/logs/delete', 'SystemController@apiLogDelete', [
     'key'         => 'api.settings.system.logs.delete',
     'name'        => '시스템 로그 파일 삭제',
     'description' => '선택한 로그 파일 1개를 삭제',
@@ -1057,7 +1060,7 @@ $router->post('/api/settings/system/logs/delete', 'SystemSettingsController@apiL
 ]);
 
 // 🔹 시스템 로그 전체 삭제
-$router->post('/api/settings/system/logs/delete-all', 'SystemSettingsController@apiLogDeleteAll', [
+$router->post('/api/settings/system/logs/delete-all', 'SystemController@apiLogDeleteAll', [
     'key'         => 'api.settings.system.logs.delete_all',
     'name'        => '시스템 로그 전체 삭제',
     'description' => '시스템 로그 디렉터리 내 모든 로그 파일 삭제',
@@ -1125,21 +1128,21 @@ $router->post('/approval/request/step/delete', 'ApprovalRequestController@apiDel
 
 
 
-$router->get ('/api/dashboard/calendar/list',        'CalendarController@apiList');
+$router->get('/api/dashboard/calendar/list',        'CalendarController@apiList');
 $router->get('/api/dashboard/calendar/events-all',   'CalendarController@apiEventsAll');
-$router->get ('/api/dashboard/calendar/events',      'CalendarController@apiEvents');
-$router->post('/api/dashboard/calendar/event/create','CalendarController@apiEventCreate');
-$router->post('/api/dashboard/calendar/event/update','CalendarController@apiEventUpdate');
-$router->post('/api/dashboard/calendar/event/delete','CalendarController@apiEventDelete');
+$router->get('/api/dashboard/calendar/events',      'CalendarController@apiEvents');
+$router->post('/api/dashboard/calendar/event/create', 'CalendarController@apiEventCreate');
+$router->post('/api/dashboard/calendar/event/update', 'CalendarController@apiEventUpdate');
+$router->post('/api/dashboard/calendar/event/delete', 'CalendarController@apiEventDelete');
 
-$router->get ('/api/dashboard/calendar/tasks',       'CalendarController@apiTasks');
+$router->get('/api/dashboard/calendar/tasks',       'CalendarController@apiTasks');
 $router->post('/api/dashboard/calendar/task/create', 'CalendarController@apiTaskCreate');
 $router->post('/api/dashboard/calendar/task/toggle-complete', 'CalendarController@apiToggleTaskComplete');
 $router->post('/api/dashboard/calendar/task/update', 'CalendarController@apiTaskUpdate');
 $router->post('/api/dashboard/calendar/task/delete', 'CalendarController@apiTaskDelete');
 
-$router->get('/api/dashboard/calendar/tasks-all',     'CalendarController@apiTasksAll' );
-  
+$router->get('/api/dashboard/calendar/tasks-all',     'CalendarController@apiTasksAll');
+
 // 캘린더 / 작업목록 컬렉션 삭제
 $router->post('/api/dashboard/calendar/collection/delete', 'CalendarController@apiCollectionDelete');
 
@@ -1148,11 +1151,13 @@ $router->post('/api/dashboard/calendar/collection/delete', 'CalendarController@a
 $router->post('/api/dashboard/calendar/event/hard-delete', 'CalendarController@apiEventHardDelete');
 
 //DB 전체 재빌드라 GET 금지
-  $router->post('/api/dashboard/calendar/cache-rebuild','CalendarController@apiCacheRebuild'
+$router->post(
+    '/api/dashboard/calendar/cache-rebuild',
+    'CalendarController@apiCacheRebuild'
 );
 
 // 캘린더 / 태스크삭제(하드)
-$router->post('/api/dashboard/calendar/task/hard-delete','CalendarController@apiTaskHardDelete');
+$router->post('/api/dashboard/calendar/task/hard-delete', 'CalendarController@apiTaskHardDelete');
 
 // 어드민캘린더 컬러 수정
 $router->post('/api/dashboard/calendar/update-admin-color', 'CalendarController@apiUpdateAdminColor');
@@ -1162,16 +1167,16 @@ $router->get('/api/dashboard/calendar/tasks-panel', 'CalendarController@apiTasks
 
 
 //소프트 삭제된 이벤트조회
-$router->get(    '/api/dashboard/calendar/events-deleted',    'CalendarController@apiEventsDeleted');
+$router->get('/api/dashboard/calendar/events-deleted',    'CalendarController@apiEventsDeleted');
 
 //소프트 삭제된 태스크조회
-$router->get(    '/api/dashboard/calendar/tasks-deleted','CalendarController@apiTasksDeleted');
+$router->get('/api/dashboard/calendar/tasks-deleted', 'CalendarController@apiTasksDeleted');
 
 //소프트 삭제된 이벤트 전체삭제
-$router->post(    '/api/dashboard/calendar/event/hard-delete-all',    'CalendarController@apiEventHardDeleteAll');
+$router->post('/api/dashboard/calendar/event/hard-delete-all',    'CalendarController@apiEventHardDeleteAll');
 
 //소프트 삭제된 태스크 전체삭제
-$router->post(    '/api/dashboard/calendar/task/hard-delete-all',    'CalendarController@apiTaskHardDeleteAll');
+$router->post('/api/dashboard/calendar/task/hard-delete-all',    'CalendarController@apiTaskHardDeleteAll');
 
 //소프트 삭제된 이벤트복원
 $router->post('/api/dashboard/calendar/event/restore',    'CalendarController@apiEventRestore');
@@ -1221,7 +1226,7 @@ $router->post('/api/ledger/account/restore-bulk', 'AccountController@apiRestoreB
 $router->post('/api/ledger/account/hard-delete-bulk', 'AccountController@apiHardDeleteBulk');
 $router->post('/api/ledger/account/hard-delete-all', 'AccountController@apiHardDeleteAll');
 
-$router->get( '/api/ledger/accounts/excel', 'AccountController@apidownloadAllExcel');
+$router->get('/api/ledger/accounts/excel', 'AccountController@apidownloadAllExcel');
 
 /* =========================================================
 보조계정 관리
@@ -1236,4 +1241,3 @@ $router->post('/api/ledger/sub-account/delete', 'SubAccountController@apiDelete'
 ========================================================= */
 $router->get('/api/ledger/account/search', 'AccountController@apiSearch');
 $router->get('/api/ledger/account/posting', 'AccountController@apiPosting');
-

@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/calendar/caldav/Parser.php'
+// 경로: PROJECT_ROOT . '/app/Services/Calendar/Caldav/Parser.php'
 namespace App\Services\Calendar\Caldav;
 
 /**

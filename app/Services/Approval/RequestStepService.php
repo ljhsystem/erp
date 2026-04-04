@@ -1,11 +1,11 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/approval/RequestStepService.php'
+// 경로: PROJECT_ROOT . '/app/Services/Approval/RequestStepService.php'
 namespace App\Services\Approval;
 
 use PDO;
-use App\Models\User\UserApprovalRequestModel;
-use App\Models\User\UserApprovalRequestStepModel;
-use App\Models\User\UserApprovalTemplateStepModel;
+use App\Models\User\ApprovalRequestModel;
+use App\Models\User\ApprovalRequestStepModel;
+use App\Models\User\ApprovalTemplateStepModel;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
 
@@ -20,8 +20,8 @@ class RequestStepService
     public function __construct(PDO $pdo)
     {
         $this->pdo         = $pdo;
-        $this->requestModel = new UserApprovalRequestModel($pdo);
-        $this->stepModel    = new UserApprovalRequestStepModel($pdo);
+        $this->requestModel = new ApprovalRequestModel($pdo);
+        $this->stepModel    = new ApprovalRequestStepModel($pdo);
         $this->logger          = LoggerFactory::getLogger('service-approval.step');
     }
 
@@ -146,7 +146,7 @@ class RequestStepService
      * ============================================================ */
     public function getTemplateSteps(string $templateId): array
     {
-        $tplModel = new UserApprovalTemplateStepModel($this->pdo);
+        $tplModel = new ApprovalTemplateStepModel($this->pdo);
 
         return $tplModel->getSteps($templateId);
     }

@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/system/ClientService.php'
+// 경로: PROJECT_ROOT . '/app/Services/System/ClientService.php'
 // 설명:
 //  - 거래처(Client) 관리 서비스
 //  - UUID / Code 생성은 Service 책임
@@ -8,7 +8,7 @@
 namespace App\Services\System;
 
 use PDO;
-use App\Models\System\SystemClientModel;
+use App\Models\System\ClientModel;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\CodeHelper;
 use Core\Helpers\ActorHelper;
@@ -18,18 +18,18 @@ use Core\LoggerFactory;
 class ClientService
 {
     private readonly PDO $pdo;
-    private SystemClientModel $model;
+    private ClientModel $model;
     private $logger;
 
     public function __construct(PDO $pdo)
     {
         $this->pdo         = $pdo;
-        $this->model  = new SystemClientModel($this->pdo);
+        $this->model  = new ClientModel($this->pdo);
         $this->logger = LoggerFactory::getLogger('service-system.ClientService');
 
         $this->logger->info('ClientService initialized');
     }
-    
+
 
     /* ============================================================
      * 1. 전체 목록 조회
@@ -46,7 +46,6 @@ class ClientService
             ]);
 
             return $rows;
-
         } catch (\Throwable $e) {
             $this->logger->error('getList() failed', [
                 'exception' => $e->getMessage()
@@ -57,7 +56,7 @@ class ClientService
 
     /* ============================================================
      * 2. 단건 조회 (id 기준)
-     * ============================================================ */ 
+     * ============================================================ */
     public function getById(string $id): ?array
     {
         $this->logger->info('getById() called', ['id' => $id]);
@@ -72,7 +71,6 @@ class ClientService
             }
 
             return $row;
-
         } catch (\Throwable $e) {
 
             $this->logger->error('getById() exception', [
@@ -97,7 +95,6 @@ class ClientService
 
         try {
             return $this->model->search($filters);
-
         } catch (\Throwable $e) {
             $this->logger->error('search() exception', [
                 'filters'   => $filters,
@@ -119,7 +116,6 @@ class ClientService
         try {
 
             return $this->model->searchPicker($keyword);
-
         } catch (\Throwable $e) {
 
             $this->logger->error('searchClient() exception', [
@@ -134,7 +130,7 @@ class ClientService
     public function save(array $data, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
-    
+
         $this->logger->info('save() called', [
             'mode'      => !empty($data['id']) ? 'UPDATE' : 'INSERT',
             'id'        => $data['id'] ?? null,
@@ -142,27 +138,27 @@ class ClientService
             'actorType' => $actorType,
             'actor'     => $actor
         ]);
-    
+
         try {
-    
-            $data = $this->normalize($data); 
+
+            $data = $this->normalize($data);
             $id = $data['id'] ?? null;
-    
+
             /* --------------------------------------------------------
              * UPDATE
              * -------------------------------------------------------- */
             if ($id) {
-    
+
                 $before = $this->model->getById($id);
-    
+
                 if (!$before) {
                     return [
                         'success' => false,
                         'message' => '존재하지 않는 거래처입니다.'
                     ];
                 }
-    
-                $data['updated_by'] = $actor; 
+
+                $data['updated_by'] = $actor;
 
                 if (!$this->model->updateById($id, $data)) {
                     return [
@@ -170,41 +166,40 @@ class ClientService
                         'message' => '거래처 수정 실패'
                     ];
                 }
-    
+
                 return [
                     'success' => true,
                     'id'      => $id
                 ];
             }
-    
+
             /* --------------------------------------------------------
              * INSERT
              * -------------------------------------------------------- */
             $newId   = UuidHelper::generate();
             $newCode = CodeHelper::generateClientCode($this->pdo);
-    
+
             $insertData = array_merge($data, [
                 'id'         => $newId,
                 'code'       => $newCode,
                 'created_by' => $actor,
                 'updated_by' => $actor
             ]);
-    
+
             if (!$this->model->create($insertData)) {
                 return [
                     'success' => false,
                     'message' => '거래처 등록 실패'
                 ];
             }
-    
+
             return [
                 'success' => true,
                 'id'      => $newId,
                 'code'    => $newCode
             ];
-    
         } catch (\Throwable $e) {
-    
+
             return [
                 'success' => false,
                 'message' => $e->getMessage()
@@ -214,24 +209,24 @@ class ClientService
 
 
 
-    
+
     /* ============================================================
      * 4. 삭제
      * ============================================================ */
     public function delete(string $id, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
-    
+
         $this->logger->info('delete() called', [
             'id'        => $id,
             'actorType' => $actorType,
             'actor'     => $actor
         ]);
-    
+
         try {
-    
+
             $item = $this->model->getById($id);
-    
+
             if (!$item) {
                 $this->logger->warning('delete() not found', ['id' => $id]);
                 return [
@@ -239,31 +234,30 @@ class ClientService
                     'message' => '존재하지 않는 거래처입니다.'
                 ];
             }
-    
+
             if (!$this->model->deleteById($id, $actor)) {
-    
+
                 $this->logger->error('delete() DB failed', [
                     'id'   => $id,
                     'user' => $actor
                 ]);
-    
+
                 return [
                     'success' => false,
                     'message' => '거래처 삭제 실패'
                 ];
             }
-    
+
             $this->logger->info('delete() success', ['id' => $id]);
-    
+
             return ['success' => true];
-    
         } catch (\Throwable $e) {
-    
+
             $this->logger->error('delete() exception', [
                 'id'        => $id,
                 'exception' => $e->getMessage()
             ]);
-    
+
             return [
                 'success' => false,
                 'message' => $e->getMessage()
@@ -290,24 +284,24 @@ class ClientService
     public function restore(string $id, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
-    
+
         $this->logger->info('restore() called', [
             'id'        => $id,
             'actorType' => $actorType,
             'actor'     => $actor
         ]);
-        
+
         $client = $this->model->getById($id);
-    
+
         if (!$client) {
             return [
                 'success' => false,
                 'message' => '존재하지 않는 거래처입니다.'
             ];
         }
-    
+
         $ok = $this->model->restoreById($id, $actor);
-    
+
         return [
             'success' => $ok
         ];
@@ -319,13 +313,13 @@ class ClientService
     public function purge(string $id, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
-    
+
         $this->logger->info('purge() called', [
             'id'        => $id,
             'actorType' => $actorType,
             'actor'     => $actor
         ]);
-        
+
         $client = $this->model->getById($id);
 
         if (!$client) {
@@ -340,7 +334,7 @@ class ClientService
             // FileService delete
         }
 
-        if (!empty($client['bank_copy'])) {
+        if (!empty($client['bank_file'])) {
             // FileService delete
         }
 
@@ -359,7 +353,7 @@ class ClientService
     public function restoreBulk(array $ids, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
-    
+
         $this->logger->info('restoreBulk() called', [
             'ids'       => $ids,
             'actorType' => $actorType,
@@ -386,7 +380,7 @@ class ClientService
     public function purgeBulk(array $ids, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
-    
+
         $this->logger->info('purgeBulk() called', [
             'ids'       => $ids,
             'actorType' => $actorType,
@@ -428,7 +422,6 @@ class ClientService
                 'success' => $ok,
                 'message' => $ok ? '전체 삭제 완료' : '전체 삭제 실패'
             ];
-
         } catch (\Throwable $e) {
 
             $this->logger->error('purgeAll() exception', [
@@ -466,7 +459,6 @@ class ClientService
                     $row['id'],
                     $tempCode
                 );
-
             }
 
             /* 2️⃣ 실제 코드 적용 */
@@ -477,7 +469,6 @@ class ClientService
                     $row['id'],
                     $row['newCode']
                 );
-
             }
 
             $this->pdo->commit();
@@ -485,7 +476,6 @@ class ClientService
             $this->logger->info('reorder() success');
 
             return true;
-
         } catch (\Throwable $e) {
 
             $this->pdo->rollBack();
@@ -495,7 +485,6 @@ class ClientService
             ]);
 
             throw $e;
-
         }
     }
 
@@ -507,22 +496,22 @@ class ClientService
     public function saveFromExcel(array $data, string $actorType = 'SYSTEM_EXCEL_UPLOAD'): bool
     {
         $actor = ActorHelper::resolve($actorType);
-    
+
         $this->logger->info('saveFromExcel() called', [
             'actorType' => $actorType,
             'actor'     => $actor,
             'data'      => $data
         ]);
-    
+
         $data['id'] = UuidHelper::generate();
 
         if (empty($data['code'])) {
             $data['code'] = CodeHelper::generateClientCode($this->pdo);
         }
-    
+
         $data['created_by'] = $actor;
         $data['updated_by'] = $actor;
-    
+
         return $this->model->saveFromExcel($data);
     }
 
@@ -541,18 +530,14 @@ class ClientService
         if (isset($data['business_number'])) {
             $data['business_number'] = preg_replace('/\D/', '', $data['business_number']);
         }
-    
+
         // 빈값 → null
         foreach ($data as $k => $v) {
             if ($v === '') {
                 $data[$k] = null;
             }
         }
-    
+
         return $data;
     }
-
-
-
-
 }

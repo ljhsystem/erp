@@ -6,8 +6,28 @@ use Core\Session;
 use Core\Database;
 use Core\PermissionRegistry;
 
-ini_set('display_errors', '1');
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
+
+set_error_handler(function($severity, $message, $file, $line) {
+    echo "<pre>🔥 PHP ERROR:\n$message\n$file:$line</pre>";
+    exit;
+});
+
+set_exception_handler(function($e) {
+    echo "<pre>🔥 EXCEPTION:\n" . $e->getMessage() . "\n" . $e->getFile() . ":" . $e->getLine() . "</pre>";
+    exit;
+});
+
+
+
+
+
+
+
+
+
 
 /* ============================================================
  * 1) 프로젝트 루트 정의

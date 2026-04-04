@@ -1,11 +1,11 @@
 <?php
-// 경로: PROJECT_ROOT/app/services/auth/PermissionService.php
+// 경로: PROJECT_ROOT/app/Services/Auth/PermissionService.php
 namespace App\Services\Auth;
 
 use PDO;
-use App\Models\Auth\AuthUserModel;
-use App\Models\Auth\AuthPermissionModel;
-use App\Models\Auth\AuthRolePermissionModel;
+use App\Models\Auth\UserModel;
+use App\Models\Auth\PermissionModel;
+use App\Models\Auth\RolePermissionModel;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\CodeHelper;
 use Core\LoggerFactory;
@@ -21,9 +21,9 @@ class PermissionService
     public function __construct(PDO $pdo)
     {
         $this->pdo           = $pdo;
-        $this->permModel     = new AuthPermissionModel($pdo);
-        $this->rolePermModel = new AuthRolePermissionModel($pdo);
-        $this->userModel     = new AuthUserModel($pdo);
+        $this->permModel     = new PermissionModel($pdo);
+        $this->rolePermModel = new RolePermissionModel($pdo);
+        $this->userModel     = new UserModel($pdo);
         $this->logger        = LoggerFactory::getLogger('service-auth.PermissionService');
     }
 

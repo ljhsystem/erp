@@ -1,21 +1,21 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/user/ExternalAccountService.php'
+// 경로: PROJECT_ROOT . '/app/Services/User/ExternalAccountService.php'
 namespace App\Services\User;
 
 use PDO;
-use App\Models\User\UserExternalAccountModel;
+use App\Models\User\ExternalAccountModel;
 use Core\LoggerFactory;
 
 class ExternalAccountService
 {
     private readonly PDO $pdo;
-    private UserExternalAccountModel $model;
+    private ExternalAccountModel $model;
     private $logger;
 
     public function __construct(PDO $pdo)
     {
         $this->pdo         = $pdo;
-        $this->model  = new UserExternalAccountModel($pdo);
+        $this->model  = new ExternalAccountModel($pdo);
         $this->logger = LoggerFactory::getLogger('service-user.ExternalAccountService');
     }
 
@@ -92,7 +92,11 @@ class ExternalAccountService
             $data['last_connected_at'] =
                 (int)$input['is_connected'] === 1 ? date('Y-m-d H:i:s') : null;
         }
-    
+        
+        if (!empty($input['base_url'])) {
+            $data['base_url'] = trim($input['base_url']);
+        }
+
         $ok = $this->model->saveOrUpdate(
             $userId,
             $serviceKey,
@@ -100,12 +104,24 @@ class ExternalAccountService
             $data,
             $userId
         );
-    
+        
+        if (!$ok) {
+            return [
+                'success' => false,
+                'message' => '외부 서비스 계정 저장 실패'
+            ];
+        }
+        
+        /* 🔥 반드시 여기서 실행 */
+        try {
+            $this->verifyConnection($serviceKey);
+        } catch (\Throwable $e) {
+            // 저장은 성공했으므로 무시
+        }
+        
         return [
-            'success' => $ok,
-            'message' => $ok
-                ? '외부 서비스 계정이 저장되었습니다.'
-                : '외부 서비스 계정 저장 실패'
+            'success' => true,
+            'message' => '외부 서비스 계정이 저장되었습니다.'
         ];
     }
     
@@ -179,7 +195,55 @@ public function markFailure(string $serviceKey, string $error): void
     );
 }
 
+/* =========================================================
+ * 6. 외부 서비스 실제 연결 검증
+ * ========================================================= */
+public function verifyConnection(string $serviceKey): void
+{
+    if ($serviceKey !== 'synology') {
+        return;
+    }
 
+    $account = $this->model->getByUserAndService(
+        $this->userId(),
+        $serviceKey
+    );
+
+    if (!$account) {
+        throw new \RuntimeException('계정 정보 없음');
+    }
+
+    $cfg = [
+        'base_url' => $account['base_url'] ?? '',
+        'username' => $account['external_login_id'] ?? '',
+        'password' => $account['external_password'] ?? '',
+    ];
+
+    if (!$cfg['base_url'] || !$cfg['username']) {
+        throw new \RuntimeException('Synology 설정 누락');
+    }
+
+    $this->logger->info('verifyConnection start', [
+        'user_id' => $this->userId(),
+        'service_key' => $serviceKey,
+        'account' => $account
+    ]);
+
+    try {
+        $client = new \App\Services\Calendar\CalDavClient($cfg);
+
+        // 🔥 핵심: 이 호출 자체가 연결 테스트
+        $client->listPrincipals();
+
+        $this->markSuccess($serviceKey);
+
+    } catch (\Throwable $e) {
+
+        $this->markFailure($serviceKey, $e->getMessage());
+
+        throw $e;
+    }
+}
 
     
 }

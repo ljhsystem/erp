@@ -42,6 +42,11 @@
               </button>
             </li>
             <li class="nav-item">
+              <button class="nav-link" data-bs-toggle="tab" data-bs-target="#edit_tab_bank" type="button">
+                계좌정보
+              </button>
+            </li>
+            <li class="nav-item">
               <button class="nav-link" data-bs-toggle="tab" data-bs-target="#edit_tab_notify" type="button">
                 2단계/알림
               </button>
@@ -411,9 +416,98 @@
 
               </div>
             </div>
-
             <!-- ==========================
-                 5. 알림설정
+                5. 계좌정보 탭
+            ========================== -->
+            <div class="tab-pane fade" id="edit_tab_bank">
+
+            <div class="row">
+
+              <!-- 좌측: 계좌 정보 -->
+              <div class="col-md-6">
+
+                <div class="bank-left-wrap">
+
+                  <!-- 은행명 -->
+                  <div class="mb-3">
+                    <label class="form-label">은행명</label>
+                    <input type="text"
+                      name="bank_name"
+                      id="edit_bank_name"
+                      class="form-control form-control-sm">
+                  </div>
+
+                  <!-- 계좌번호 -->
+                  <div class="mb-3">
+                    <label class="form-label">계좌번호</label>
+                    <input type="text"
+                      name="account_number"
+                      id="edit_account_number"
+                      class="form-control form-control-sm">
+                  </div>
+
+                  <!-- 예금주 -->
+                  <div class="mb-3">
+                    <label class="form-label">예금주</label>
+                    <input type="text"
+                      name="account_holder"
+                      id="edit_account_holder"
+                      class="form-control form-control-sm">
+                  </div>
+
+                </div>
+
+              </div>
+
+              <!-- 우측: 통장 파일 -->
+              <div class="col-md-6">
+
+                <div class="bank-right-wrap text-center">
+
+                  <label class="form-label fw-semibold">통장 사본</label>
+
+                  <!-- 미리보기 -->
+                  <div class="employee-file-preview-box" id="bank_box" data-label="업로드">
+
+                    <img src="/public/assets/img/placeholder-bank.png"
+                      id="edit_bank_preview"
+                      class="employee-file-preview-img"
+                      alt="통장 사본 미리보기">
+
+                    <button type="button"
+                      id="edit_bank_delete_btn"
+                      class="btn btn-light border employee-file-delete-btn"
+                      style="display:none;">
+                      <i class="bi bi-x"></i>
+                    </button>
+
+                  </div>
+
+                  <!-- 파일 -->
+                  <input type="file"
+                    name="bank_file"
+                    id="edit_bank_file"
+                    accept="image/*,application/pdf"
+                    class="form-control form-control-sm employee-file-input">
+
+                  <input type="hidden"
+                    name="bank_file_delete"
+                    id="edit_bank_file_delete"
+                    value="0">
+
+                  <div class="form-text small text-muted">
+                    이미지 또는 PDF 업로드 가능
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
+
+            </div>
+            <!-- ==========================
+                 6. 알림설정
             =========================== -->
             <div class="tab-pane fade" id="edit_tab_notify">
               <div class="row g-3">
@@ -455,7 +549,7 @@
             </div>
 
             <!-- ==========================
-                 6. 노트/메모 탭
+                 7. 노트/메모 탭
             =========================== -->
             <div class="tab-pane fade" id="edit_tab_note">
               <div class="row g-3">
@@ -480,7 +574,7 @@
             </div>
 
             <!-- ==========================
-                 7. 기록(Log) 탭
+                 8. 기록(Log) 탭
             =========================== -->
             <div class="tab-pane fade" id="edit_tab_logs">
 

@@ -1,9 +1,9 @@
 <?php
-// 경로: PROJECT_ROOT/app/services/user/PositionService.php
+// 경로: PROJECT_ROOT/app/Services/User/PositionService.php
 namespace App\Services\User;
 
 use PDO;
-use App\Models\User\UserPositionModel;
+use App\Models\User\PositionModel;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\CodeHelper;
 use Core\LoggerFactory;
@@ -11,13 +11,13 @@ use Core\LoggerFactory;
 class PositionService
 {
     private readonly PDO $pdo;
-    private UserPositionModel $model;
+    private PositionModel $model;
     private $logger;
 
     public function __construct(PDO $pdo)
     {
         $this->pdo         = $pdo;
-        $this->model  = new UserPositionModel($pdo);
+        $this->model  = new PositionModel($pdo);
         $this->logger = LoggerFactory::getLogger('service-user.PositionService');
     }
 

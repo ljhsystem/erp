@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/controllers/dashboard/CalendarController.php'
+// 경로: PROJECT_ROOT . '/app/Controllers/Dashboard/CalendarController.php'
 // 대시보드>일정/캘린더 API 컨트롤러
 declare(strict_types=1);
 namespace App\Controllers\Dashboard;
@@ -9,23 +9,23 @@ use Core\DbPdo;
 use App\Services\User\ProfileService;
 use App\Services\User\ExternalAccountService;
 use App\Services\System\SettingService;
-use App\Models\Dashboard\DashboardCalendarListModel;
-use App\Services\Calendar\CalendarQueryService;
-use App\Services\Calendar\CalendarCrudService;
-use App\Services\Calendar\CalendarSyncService;
-use App\Services\Calendar\CalendarTrashService;
+use App\Models\Dashboard\CalendarListModel;
+use App\Services\Calendar\QueryService;
+use App\Services\Calendar\CrudService;
+use App\Services\Calendar\SyncService;
+use App\Services\Calendar\TrashService;
 
 
 class CalendarController
 {
-    private CalendarQueryService $query;
-    private CalendarSyncService $sync;
+    private QueryService $query;
+    private SyncService $sync;
     
     public function __construct()
     {
         Session::requireAuth();
-        $this->query = new CalendarQueryService(DbPdo::conn());
-        $this->sync = new CalendarSyncService(DbPdo::conn());
+        $this->query = new QueryService(DbPdo::conn());
+        $this->sync = new SyncService(DbPdo::conn());
     }    
 
     private function hasSynology(): bool
@@ -101,7 +101,7 @@ class CalendarController
         }    
 
         $externalService = new ExternalAccountService(DbPdo::conn());
-        $this->sync = new CalendarSyncService(DbPdo::conn());
+        $this->sync = new SyncService(DbPdo::conn());
         $account = $externalService->getMyAccount('synology');
     
         $this->synologyLoginId =
@@ -240,7 +240,7 @@ class CalendarController
         }
     
         // 3️⃣ 백그라운드 작업 실행
-        $service = new CalendarSyncService(DbPdo::conn());
+        $service = new SyncService(DbPdo::conn());
     
         $service->rebuildFullCache(
             $synologyLoginId,
@@ -442,7 +442,7 @@ class CalendarController
         $this->assertCalendarWritePermission($calendarId);
     
         try {       
-            $service = new CalendarCrudService(DbPdo::conn());
+            $service = new CrudService(DbPdo::conn());
             $result  = $service->createEvent($payload);
 
             $uid = $result['data']['uid'] ?? null;
@@ -453,7 +453,7 @@ class CalendarController
                 
                 if ($uid && $synologyLoginId) {
                 
-                    (new CalendarSyncService(DbPdo::conn()))          
+                    (new SyncService(DbPdo::conn()))          
                         ->syncOneEventByUid(
                             $uid,
                             $synologyLoginId,
@@ -511,7 +511,7 @@ class CalendarController
         }
         try {
             
-            $crud = new CalendarCrudService(DbPdo::conn());
+            $crud = new CrudService(DbPdo::conn());
 
             $res  = $crud->updateEvent($payload);
 
@@ -530,7 +530,7 @@ class CalendarController
                 
                 if ($uid && $synologyLoginId) {
                 
-                    (new CalendarSyncService(DbPdo::conn()))
+                    (new SyncService(DbPdo::conn()))
                         ->syncOneEventByUid(
                             $uid,
                             $synologyLoginId,
@@ -631,7 +631,7 @@ class CalendarController
     
         try {
     
-            $crud = new CalendarCrudService(DbPdo::conn());
+            $crud = new CrudService(DbPdo::conn());
             
             $res = $crud->deleteComponent([
                 'uid' => $uid
@@ -691,7 +691,7 @@ class CalendarController
     
         try {
     
-            $crud =  new CalendarCrudService(DbPdo::conn());
+            $crud =  new CrudService(DbPdo::conn());
             $res  = $crud->createTask($payload);
     
             if (empty($res['success'])) {
@@ -710,7 +710,7 @@ class CalendarController
                 
                 if ($uid && $synologyLoginId) {
                 
-                    (new CalendarSyncService(DbPdo::conn()))
+                    (new SyncService(DbPdo::conn()))
                     
                         ->syncOneTaskByUid(
                             $uid,
@@ -775,7 +775,7 @@ class CalendarController
             }
     
             // 3️⃣ DB 업데이트 (항상 허용)
-            $crud =  new CalendarCrudService(DbPdo::conn());
+            $crud =  new CrudService(DbPdo::conn());
             $res  = $crud->updateTask($payload);
     
             if (empty($res['success'])) {
@@ -800,7 +800,7 @@ class CalendarController
                 
                 if ($uid && $synologyLoginId) {
                 
-                    (new CalendarSyncService(DbPdo::conn()))
+                    (new SyncService(DbPdo::conn()))
                     
                         ->syncOneTaskByUid(
                             $uid,
@@ -855,7 +855,7 @@ class CalendarController
     
         try {
     
-            $crud = new CalendarCrudService(DbPdo::conn());
+            $crud = new CrudService(DbPdo::conn());
             
             $res  = $crud->deleteTask($payload);
     
@@ -900,7 +900,7 @@ class CalendarController
     
         try {
     
-            $crud =  new CalendarCrudService(DbPdo::conn());
+            $crud =  new CrudService(DbPdo::conn());
 
             // 🔥 calendar_id 조회 (QueryService)
             $calendarId = $this->query->getCalendarIdByHref($payload['collection_href']);
@@ -957,8 +957,8 @@ class CalendarController
         }
     
         try {
-            $service =  new CalendarTrashService(DbPdo::conn());
-    
+            $service =  new TrashService(DbPdo::conn());
+            
             $synologyLoginId = $this->getSynologyLoginId();
     
             if (!$synologyLoginId) {
@@ -1020,7 +1020,7 @@ class CalendarController
     
         try {
     
-            $service =  new CalendarTrashService(DbPdo::conn());
+            $service =  new TrashService(DbPdo::conn());
             $synologyLoginId = $this->getSynologyLoginId();
     
             if (!$synologyLoginId) {
@@ -1104,7 +1104,7 @@ class CalendarController
         try {
     
             // 2️⃣ DB 업데이트
-            $crud =  new CalendarCrudService(DbPdo::conn());
+            $crud =  new CrudService(DbPdo::conn());
             $res  = $crud->toggleTaskComplete($uid, $calendarId, $completed);
     
             if (empty($res['success'])) {
@@ -1121,7 +1121,7 @@ class CalendarController
                 
                 if ($synologyLoginId) {
                 
-                    (new CalendarSyncService(DbPdo::conn()))                    
+                    (new SyncService(DbPdo::conn()))                    
                         ->syncOneTaskByUid(
                             $uid,
                             $synologyLoginId,
@@ -1202,7 +1202,7 @@ class CalendarController
         }
     
         try {
-            $model = new DashboardCalendarListModel(DbPdo::conn());            
+            $model = new CalendarListModel(DbPdo::conn());            
     
             $model->updateAdminColor(
                 $calendarId,
@@ -1251,7 +1251,7 @@ class CalendarController
                 ]);
             }
             
-            $service = new CalendarTrashService(DbPdo::conn());     
+            $service = new TrashService(DbPdo::conn());     
             $rows    = $service->getDeletedEvents($synologyLoginId);
     
             if (!is_array($rows)) {
@@ -1296,7 +1296,7 @@ class CalendarController
                 ]);
             }            
 
-            $service = new CalendarTrashService(DbPdo::conn());  
+            $service = new TrashService(DbPdo::conn());  
             $rows    = $service->getDeletedTasks($synologyLoginId);
     
             if (!is_array($rows)) {
@@ -1328,7 +1328,7 @@ class CalendarController
         $this->guardApi();
     
         try {
-            $service = new CalendarTrashService(DbPdo::conn());  
+            $service = new TrashService(DbPdo::conn());  
             $synologyLoginId = $this->getSynologyLoginId();
 
             if (!$synologyLoginId) {
@@ -1381,7 +1381,7 @@ class CalendarController
     
         try {   
 
-            $service = new CalendarTrashService(DbPdo::conn());  
+            $service = new TrashService(DbPdo::conn());  
             $synologyLoginId = $this->getSynologyLoginId();
     
             if (!$synologyLoginId) {
@@ -1472,7 +1472,7 @@ class CalendarController
 
             $uid = (string)$payload['uid'];
 
-            $service = new CalendarTrashService(DbPdo::conn()); 
+            $service = new TrashService(DbPdo::conn()); 
 
             // 🔥 QueryService 사용
             $calendarId = $this->query->getEventCalendarId($uid);
@@ -1543,7 +1543,7 @@ class CalendarController
 
             $uid = (string)$payload['uid'];
 
-            $service = new CalendarTrashService(DbPdo::conn()); 
+            $service = new TrashService(DbPdo::conn()); 
             // 🔥 QueryService 사용
             $calendarId = $this->query->getTaskCalendarId($uid);
 
@@ -1601,7 +1601,7 @@ class CalendarController
 
         try {
 
-            $crud = new CalendarCrudService(DbPdo::conn()); 
+            $crud = new CrudService(DbPdo::conn()); 
             $deletedCount = 0;
             $failed       = [];
 
@@ -1675,8 +1675,8 @@ class CalendarController
             /* ===============================
             * 사용자
             * =============================== */
-            $profile = $profileService->getProfile($userId) ?? [];
-            $user    = $profileService->getUserById($userId) ?? [];
+            $profile = $profileService->getDetail($userId) ?? [];
+            $user    = $profileService->getDetail($userId) ?? [];
 
             $profileImagePath = $profile['profile_image'] ?? null;
 

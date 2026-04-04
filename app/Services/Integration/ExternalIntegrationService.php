@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/ledger/ExternalIntegrationService.php'
+// 경로: PROJECT_ROOT . '/app/Services/Integration/ExternalIntegrationService.php'
 //국세청 / 공공데이터 사업자 상태 조회 API
 namespace App\Services\Integration;
 
@@ -51,14 +51,37 @@ class ExternalIntegrationService
             CURLOPT_HTTPHEADER => [
                 "Content-Type: application/json"
             ],
-            CURLOPT_POSTFIELDS => $payload
+            CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_TIMEOUT => 10
         ]);
     
         $response = curl_exec($ch);
     
+        // 🔥 1. curl 실패 체크
+        if ($response === false) {
+            $error = curl_error($ch);
+            curl_close($ch);
+            throw new \RuntimeException("API 호출 실패: {$error}");
+        }
+    
+        // 🔥 2. 응답 로그 (디버깅용)
+        // file_put_contents('/tmp/biz_api.log', $response.PHP_EOL, FILE_APPEND);
+    
+        $data = json_decode($response, true);
+    
+        // 🔥 3. JSON 파싱 실패 체크
+        if ($data === null) {
+            curl_close($ch);
+            throw new \RuntimeException("JSON 파싱 실패: " . $response);
+        }
+    
         curl_close($ch);
     
-        return json_decode($response, true);
+        // 🔥 4. 정상 포맷으로 반환 (중요)
+        return [
+            'success' => true,
+            'data' => $data
+        ];
     }
 
 }

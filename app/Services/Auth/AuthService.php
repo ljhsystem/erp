@@ -1,9 +1,9 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/auth/AuthService.php'
+// 경로: PROJECT_ROOT . '/app/Services/Auth/AuthService.php'
 namespace App\Services\Auth;
 
 use PDO;
-use App\Models\Auth\AuthUserModel;
+use App\Models\Auth\UserModel;
 use App\Services\Auth\LogService;
 use App\Services\User\ProfileService;
 use App\Services\Auth\AccountLockService;
@@ -28,7 +28,7 @@ class AuthService
     public function __construct(PDO $pdo)
     {
         $this->pdo = $pdo;
-        $this->authUserModel  = new AuthUserModel($pdo);
+        $this->authUserModel  = new UserModel($pdo);
         $this->profileService  = new ProfileService($pdo);
         $this->authLogService  = new LogService($pdo);
         $this->accountLockService = new AccountLockService($pdo);
@@ -721,11 +721,11 @@ class AuthService
 
     /* ============================================================
     * 9) 직원(사용자) 추가
-    * 기능: auth_users + user_profiles 동시에 생성
+    * 기능: auth_users + user_employees 동시에 생성
     * 역할:
     *   - UUID 발급
     *   - USER CODE 자동생성 (auth_users.code)
-    *   - EMPLOYEE CODE 자동생성 (user_profiles.code)
+    *   - EMPLOYEE CODE 자동생성 (user_employees.code)
     *   - 트랜잭션 관리
     * ============================================================ */
     public function createUserWithProfile(array $data): array
@@ -775,7 +775,7 @@ class AuthService
         // -----------------------------
         $userId       = UuidHelper::generate();                // UUID
         $userCode     = CodeHelper::generateUserCode($this->pdo);       // auth_users.code
-        $employeeCode = CodeHelper::generateEmployeeCode($this->pdo);   // user_profiles.code
+        $employeeCode = CodeHelper::generateEmployeeCode($this->pdo);   // user_employees.code
 
         $adminId      = $_SESSION['user']['id'] ?? null;
         $passwordHash = password_hash($password, PASSWORD_DEFAULT);
@@ -804,9 +804,9 @@ class AuthService
             ]);
 
             /* ---------------------------------------------------
-            * (2) user_profiles INSERT
+            * (2) user_employees INSERT
             * --------------------------------------------------- */
-            $this->profileService->createProfile([
+            $this->profileService->save([
                 'user_id'       => $userId,
                 'code'          => $employeeCode,
                 'employee_name' => $employeeName,

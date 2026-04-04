@@ -81,7 +81,7 @@
 </div>
 
 <!-- ====================== 모달 Include ====================== -->
-<?php include __DIR__ . '/partials/organization_approval_templates_modal_create.php'; ?>
+<?php //include __DIR__ . '/partials/organization_approval_templates_modal_create.php'; ?>
 <?php include __DIR__ . '/partials/organization_approval_templates_modal_edit.php'; ?>
-<?php include __DIR__ . '/partials/organization_approval_step_modal_create.php'; ?>
+<?php //include __DIR__ . '/partials/organization_approval_step_modal_create.php'; ?>
 <?php include __DIR__ . '/partials/organization_approval_step_modal_edit.php'; ?>

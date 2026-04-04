@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/calendar/caldav/HttpClient.php'
+// 경로: PROJECT_ROOT . '/app/Services/Calendar/Caldav/HttpClient.php'
 namespace App\Services\Calendar\Caldav;
 
 use Core\LoggerFactory;

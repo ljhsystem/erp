@@ -1,11 +1,11 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/user/ApprovalWorkflowService.php'
+// 경로: PROJECT_ROOT . '/app/Services/User/ApprovalWorkflowService.php'
 namespace App\Services\User;
 
-use App\Models\User\UserApprovalTemplateModel;
-use App\Models\User\UserApprovalTemplateStepModel;
-use App\Models\User\UserApprovalRequestModel;
-use App\Models\User\UserApprovalRequestStepModel;
+use App\Models\User\ApprovalTemplateModel;
+use App\Models\User\ApprovalTemplateStepModel;
+use App\Models\User\ApprovalRequestModel;
+use App\Models\User\ApprovalRequestStepModel;
 use App\Services\User\ProfileService;
 use App\Services\Mail\MailService;
 use Core\LoggerFactory;
@@ -28,11 +28,11 @@ class ApprovalWorkflowService
     {
         $this->pdo               = $pdo;
 
-        $this->templateModel     = new UserApprovalTemplateModel($pdo);
-        $this->templateStepModel = new UserApprovalTemplateStepModel($pdo);
+        $this->templateModel     = new ApprovalTemplateModel($pdo);
+        $this->templateStepModel = new ApprovalTemplateStepModel($pdo);
 
-        $this->requestModel      = new UserApprovalRequestModel($pdo);
-        $this->requestStepModel  = new UserApprovalRequestStepModel($pdo);
+        $this->requestModel      = new ApprovalRequestModel($pdo);
+        $this->requestStepModel  = new ApprovalRequestStepModel($pdo);
 
         $this->profileService    = new ProfileService($pdo);
         $this->mailService       = new MailService();
@@ -105,7 +105,7 @@ class ApprovalWorkflowService
 
         $stmt = $this->pdo->prepare("
             SELECT user_id
-            FROM user_profiles
+            FROM user_employees
             WHERE role_id = ?
             ORDER BY user_id
             LIMIT 1

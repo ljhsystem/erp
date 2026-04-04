@@ -1,8 +1,6 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/controllers/api/ExternalIntegrationController.php'
+// 경로: PROJECT_ROOT . '/app/Controllers/Api/ExternalIntegrationController.php'
 namespace App\Controllers\Api;
-
-// require_once PROJECT_ROOT . '/app/services/integration/ExternalIntegrationService.php';
 
 use Core\Session;
 use App\Services\Integration\ExternalIntegrationService;

@@ -1,8 +1,6 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/backup/DatabaseBackupService.php'
+// 경로: PROJECT_ROOT . '/app/Services/Backup/DatabaseBackupService.php'
 namespace App\Services\Backup;
-
-// require_once PROJECT_ROOT . '/app/services/system/SettingService.php';
 
 use PDO;
 use Throwable;

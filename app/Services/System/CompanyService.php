@@ -1,22 +1,20 @@
 <?php
-// PROJECT_ROOT. '/app/services/system/CompanyService.php'
+// PROJECT_ROOT. '/app/Services/System/CompanyService.php'
 namespace App\Services\System;
 
-// require_once PROJECT_ROOT . '/app/models/system/SystemCompanyModel.php';
-
 use PDO;
-use App\Models\System\SystemCompanyModel;
+use App\Models\System\CompanyModel;
 use Core\Helpers\UuidHelper;
 
 class CompanyService
 {
     private readonly PDO $pdo;
-    private SystemCompanyModel $model;
+    private CompanyModel $model;
 
     public function __construct(PDO $pdo)
     {
         $this->pdo         = $pdo;
-        $this->model = new SystemCompanyModel($pdo);
+        $this->model = new CompanyModel($pdo);
     }
 
     public function get(): ?array

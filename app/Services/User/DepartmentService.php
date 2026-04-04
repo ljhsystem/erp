@@ -1,11 +1,9 @@
 <?php
-// 경로: PROJECT_ROOT/app/services/user/DepartmentService.php
+// 경로: PROJECT_ROOT/app/Services/User/DepartmentService.php
 namespace App\Services\User;
 
-// require_once PROJECT_ROOT . '/app/models/user/UserDepartmentModel.php';
-
 use PDO;
-use App\Models\User\UserDepartmentModel;
+use App\Models\User\DepartmentModel;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\CodeHelper;
 use Core\LoggerFactory;
@@ -13,13 +11,13 @@ use Core\LoggerFactory;
 class DepartmentService
 {
     private readonly PDO $pdo;
-    private UserDepartmentModel $model;
+    private DepartmentModel $model;
     private $logger;
 
     public function __construct(PDO $pdo)
     {
         $this->pdo         = $pdo;
-        $this->model  = new UserDepartmentModel($pdo);
+        $this->model  = new DepartmentModel($pdo);
         $this->logger = LoggerFactory::getLogger('service-user.DepartmentService');
     }
 

@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT/app/controllers/system/LayoutController.php
+// 경로: PROJECT_ROOT/app/Controllers/System/LayoutController.php
 
 namespace App\Controllers\System;
 

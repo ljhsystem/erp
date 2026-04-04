@@ -1,13 +1,9 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/system/CoverImageService.php'
-
+// 경로: PROJECT_ROOT . '/app/Services/System/CoverImageService.php'
 namespace App\Services\System;
 
-//require_once PROJECT_ROOT . '/app/models/system/SystemCoverImageModel.php';
-//require_once PROJECT_ROOT . '/app/services/file/FileService.php';
-
 use PDO;
-use App\Models\System\SystemCoverImageModel;
+use App\Models\System\CoverImageModel;
 use App\Services\File\FileService;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\CodeHelper;
@@ -19,14 +15,14 @@ class CoverImageService
 {
     private readonly PDO $pdo;
     private FileService $fileService;
-    private SystemCoverImageModel $model;
+    private CoverImageModel $model;
     private $logger;
 
     public function __construct(PDO $pdo)
     {
         $this->pdo         = $pdo;
         $this->fileService = new FileService($pdo);
-        $this->model       = new SystemCoverImageModel();
+        $this->model       = new CoverImageModel();
         $this->logger      = LoggerFactory::getLogger('service-system.CoverImageService');
 
         $this->logger->info('SystemCoverImageService initialized');

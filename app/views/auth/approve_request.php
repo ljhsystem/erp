@@ -31,7 +31,7 @@ try {
         SELECT u.id, u.code, u.username, u.approved, u.created_at,
                p.employee_name, p.profile_image
           FROM auth_users u
-     LEFT JOIN user_profiles p ON p.user_id = u.id
+     LEFT JOIN user_employees p ON p.user_id = u.id
          WHERE u.code = ?
          LIMIT 1
     ";

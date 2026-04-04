@@ -1,8 +1,6 @@
 <?php
-// 경로: PROJECT_ROOT/app/services/system/LayoutService.php
+// 경로: PROJECT_ROOT/app/Services/System/LayoutService.php
 namespace App\Services\System;
-
-//require_once PROJECT_ROOT . '/app/services/system/SettingService.php';
 
 use PDO;
 use Throwable;

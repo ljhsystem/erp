@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/mail/Mailer.php'
+// 경로: PROJECT_ROOT . '/app/Services/Mail/Mailer.php'
 namespace App\Services\Mail;
 
 use PHPMailer\PHPMailer\PHPMailer;

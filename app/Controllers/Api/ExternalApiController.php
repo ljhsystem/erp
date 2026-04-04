@@ -1,21 +1,18 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/controllers/api/ExternalApiController.php'
+// 경로: PROJECT_ROOT . '/app/Controllers/Api/ExternalApiController.php'
 namespace App\Controllers\Api;
 
-// require_once PROJECT_ROOT . '/app/services/user/ProfileService.php';
-// require_once PROJECT_ROOT . '/core/Database.php';
-
-use App\Services\User\ProfileService;
+use App\Services\System\EmployeeService;
 use Core\Database;
 
 class ExternalApiController
 {
-    private ProfileService $profileService;
+    private EmployeeService $employeeService;
 
     public function __construct()
     {
         $pdo = Database::getInstance()->getConnection();
-        $this->profileService = new ProfileService($pdo);
+        $this->employeeService = new EmployeeService($pdo);
     }
 
     /**
@@ -45,7 +42,7 @@ class ExternalApiController
 
         try {
             // ✅ 내부에서 이미 쓰고 있는 로직 재사용
-            $rows = $this->profileService->getAllProfiles();
+            $rows = $this->employeeService->getList();
 
             /**
              * 🔐 외부 노출용으로 필드 제한

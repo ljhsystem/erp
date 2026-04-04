@@ -1,10 +1,10 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/auth/ApprovalService.php'
+// 경로: PROJECT_ROOT . '/app/Services/Auth/ApprovalService.php'
 namespace App\Services\Auth;
 
 use PDO;
-use App\Models\Auth\AuthUserModel;
-use App\Models\Auth\AuthLogModel;
+use App\Models\Auth\UserModel;
+use App\Models\Auth\LogModel;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\ConfigHelper;
 use Core\LoggerFactory;
@@ -19,8 +19,8 @@ class ApprovalService
     public function __construct(PDO $pdo)
     {
         $this->pdo       = $pdo;
-        $this->authLogs  = new AuthLogModel($pdo);
-        $this->authUsers = new AuthUserModel($pdo);
+        $this->authLogs  = new LogModel($pdo);
+        $this->authUsers = new UserModel($pdo);
         $this->logger    = LoggerFactory::getLogger('service-auth.ApprovalService');
     }
 

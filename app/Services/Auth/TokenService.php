@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/auth/TokenService.php'
+// 경로: PROJECT_ROOT . '/app/Services/Auth/TokenService.php'
 namespace App\Services\Auth;
 
 use PDO;

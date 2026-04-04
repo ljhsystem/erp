@@ -1,11 +1,12 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/calendar/caldav/ObjectClient.php'
+// 경로: PROJECT_ROOT . '/app/Services/Calendar/Caldav/ObjectClient.php'
 namespace App\Services\Calendar\Caldav;
 
 use Core\LoggerFactory;
 use App\Services\Calendar\Caldav\HttpClient;
 use App\Services\Calendar\Caldav\Ics;
 use App\Services\Calendar\Caldav\Parser;
+use App\Services\Calendar\Time;
 
 class ObjectClient
 {
@@ -15,6 +16,7 @@ class ObjectClient
     private HttpClient $http;
     private Ics $ics;
     private Parser $parser;
+
 
     // ✅ (HttpClient, Ics, Parser) 순서로 "고정"
     public function __construct(HttpClient $http, Ics $ics, Parser $parser)
@@ -55,13 +57,13 @@ class ObjectClient
             $attrs = [];
         
             if ($from) {
-                $start = \App\Services\Calendar\CalendarTime::parseLocal($from)
+                $start = Time::parseLocal($from)
                     ->format('Ymd\THis');
                 $attrs[] = 'start="' . $start . '"';
             }
         
             if ($to) {
-                $end = \App\Services\Calendar\CalendarTime::parseLocal($to)
+                $end = Time::parseLocal($to)
                     ->format('Ymd\THis');
                 $attrs[] = 'end="' . $end . '"';
             }

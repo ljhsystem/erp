@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/mail/MailToken.php'
+// 경로: PROJECT_ROOT . '/app/Services/Mail/MailToken.php'
 declare(strict_types=1);//PHP 파일에서 엄격한 타입 검사(Strict Type Checking)를 활성화하는 선언
 namespace App\Services\Mail;
 

@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/controllers/home/AboutController.php'
+// 경로: PROJECT_ROOT . '/app/Controllers/Home/AboutController.php'
 namespace App\Controllers\Home;
 
 use Core\DbPdo;

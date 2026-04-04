@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/controllers/system/ErrorController.php'
+// 경로: PROJECT_ROOT . '/app/Controllers/System/ErrorController.php'
 namespace App\Controllers\System;
 
 class ErrorController

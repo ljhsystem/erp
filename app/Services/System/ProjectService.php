@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/system/ProjectService.php'
+// 경로: PROJECT_ROOT . '/app/Services/System/ProjectService.php'
 // 설명:
 //  - 프로젝트(Project) 관리 서비스
 //  - UUID 생성은 Service 책임
@@ -9,9 +9,9 @@
 namespace App\Services\System;
 
 use PDO;
-use App\Models\System\SystemProjectModel;
-use App\Models\System\SystemClientModel;
-use App\Models\User\UserProfileModel;
+use App\Models\System\ProjectModel;
+use App\Models\System\ClientModel;
+use App\Models\User\EmployeeModel;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\CodeHelper;
 use Core\Helpers\ActorHelper;
@@ -20,17 +20,17 @@ use Core\LoggerFactory;
 class ProjectService
 {
     private readonly PDO $pdo;
-    private SystemProjectModel $model;
-    private SystemClientModel $clientModel;
-    private UserProfileModel $userprofileModel;
+    private ProjectModel $model;
+    private ClientModel $clientModel;
+    private EmployeeModel $employeeModel;
     private $logger;
 
     public function __construct(PDO $pdo)
     {
         $this->pdo         = $pdo;
-        $this->model  = new SystemProjectModel($this->pdo);
-        $this->clientModel  = new SystemClientModel($this->pdo);
-        $this->userprofileModel  = new UserProfileModel($this->pdo);
+        $this->model  = new ProjectModel($this->pdo);
+        $this->clientModel  = new ClientModel($this->pdo);
+        $this->employeeModel  = new EmployeeModel($this->pdo);
         $this->logger = LoggerFactory::getLogger('service-system.ProjectService');
         $this->logger->info('ProjectService initialized');
     }

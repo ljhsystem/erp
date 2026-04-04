@@ -1,11 +1,9 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/auth/LogService.php'
+// 경로: PROJECT_ROOT . '/app/Services/Auth/LogService.php'
 namespace App\Services\Auth;
 
-// require_once PROJECT_ROOT . '/app/models/auth/AuthLogModel.php';
-
 use PDO;
-use App\Models\Auth\AuthLogModel;
+use App\Models\Auth\LogModel;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
 
@@ -18,7 +16,7 @@ class LogService
     public function __construct(PDO $pdo)
     {
         $this->pdo    = $pdo;
-        $this->authLogs   = new AuthLogModel($pdo);
+        $this->authLogs   = new LogModel($pdo);
         $this->logger = LoggerFactory::getLogger('service-auth.LogService');
     }
 

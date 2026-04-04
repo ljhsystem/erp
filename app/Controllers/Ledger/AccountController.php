@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/controllers/ledger/AccountController.php'
+// 경로: PROJECT_ROOT . '/app/Controllers/Ledger/AccountController.php'
 // 설명:
 //  - 회계 계정과목 관리 컨트롤러
 

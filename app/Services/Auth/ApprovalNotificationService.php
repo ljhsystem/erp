@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/auth/ApprovalNotificationService.php'
+// 경로: PROJECT_ROOT . '/app/Services/Auth/ApprovalNotificationService.php'
 namespace App\Services\Auth;
 
 use PDO;
@@ -67,7 +67,7 @@ class ApprovalNotificationService
                 throw new \RuntimeException(curl_error($ch));
             }
 
-            curl_close($ch);
+            //curl_close($ch);
 
             $this->logger->info('승인 메일 발송 성공', [
                 'admin' => $adminEmail,

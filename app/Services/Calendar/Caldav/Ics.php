@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/calendar/caldav/caldav/Ics.php'
+// 경로: PROJECT_ROOT . '/app/Services/Calendar/Caldav/caldav/Ics.php'
 namespace App\Services\Calendar\Caldav;
 
 class Ics

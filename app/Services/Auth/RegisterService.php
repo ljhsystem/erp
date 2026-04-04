@@ -1,13 +1,13 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/auth/RegisterService.php'
+// 경로: PROJECT_ROOT . '/app/Services/Auth/RegisterService.php'
 namespace App\Services\Auth;
 
 use PDO;
-use App\Models\Auth\AuthUserModel;
-use App\Models\User\UserProfileModel;
+use App\Models\Auth\UserModel;
+use App\Models\User\EmployeeModel;
+use App\Models\Auth\LogModel;
 use App\Services\Auth\AuthService;
 use App\Services\Mail\MailService;
-use App\Models\Auth\AuthLogModel;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\CodeHelper;
 use Core\LoggerFactory;
@@ -16,7 +16,7 @@ class RegisterService
 {
     private readonly PDO $pdo;
     private $usersModel;
-    private $profileModel;
+    private $employeeModel;
     private $userService;
     private $mailService;
     private $authLogs;
@@ -25,11 +25,11 @@ class RegisterService
     public function __construct(PDO $pdo)
     {
         $this->pdo          = $pdo;
-        $this->usersModel     = new AuthUserModel($pdo);
-        $this->profileModel  = new UserProfileModel($pdo);
+        $this->usersModel     = new UserModel($pdo);
+        $this->employeeModel  = new EmployeeModel($pdo);
+        $this->authLogs      = new LogModel($pdo); // ✅ DB 로그용
         $this->userService   = new AuthService($pdo);
         $this->mailService   = new MailService();
-        $this->authLogs      = new AuthLogModel($pdo); // ✅ DB 로그용
         $this->logger        = LoggerFactory::getLogger('service-auth.RegisterService');
     }
 
@@ -49,7 +49,7 @@ class RegisterService
          * ------------------------------------------------------------ */
         $userId        = UuidHelper::generate();                    // 🔥 auth_users.id
         $userCode      = CodeHelper::generateUserCode($this->pdo);  // 🔥 auth_users.code
-        $employeeCode  = CodeHelper::generateEmployeeCode($this->pdo); // 🔥 user_profiles.code
+        $employeeCode  = CodeHelper::generateEmployeeCode($this->pdo); // 🔥 user_employees.code
 
         // 3. 회원가입 시도 로그
         $this->logger->info('register 시도', [
@@ -103,7 +103,7 @@ class RegisterService
         }
 
         // ✅ 직원 이름 중복 체크 추가
-        if ($this->profileModel->existsByEmployeeName($name)) {
+        if ($this->employeeModel->existsByUsername($name)) {
             $this->logger->warning('register 실패 - 직원 이름 중복', [
                 'username'       => $username,
                 'employee_name'  => $name
@@ -188,8 +188,8 @@ class RegisterService
             // ✅ 방금 생성한 사용자를 자기 자신이 생성한 것으로 기록
             $this->usersModel->setCreatedBySelf($userId);
 
-            // 4-3) user_profiles 생성
-            $okProfile = $this->profileModel->createProfile([
+            // 4-3) user_employees 생성
+            $okProfile = $this->employeeModel->create([
                 'id'              => UuidHelper::generate(),  
                 'code'            => $employeeCode,
                 'user_id'         => $userId,
@@ -270,7 +270,7 @@ class RegisterService
         ]);
 
         // 5. 회원가입 + 프로필 + 코드 생성 성공 로그
-        $this->logger->info('register 성공 (auth_users + user_profiles + codes)', [
+        $this->logger->info('register 성공 (auth_users + user_employees + codes)', [
             'username'      => $username,
             'user_code'     => $userCode,
             'employee_code' => $employeeCode

@@ -1,9 +1,9 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/approval/RequestService.php'
+// 경로: PROJECT_ROOT . '/app/Services/Approval/RequestService.php'
 namespace App\Services\Approval;
 
 use PDO;
-use App\Models\User\UserApprovalRequestModel;
+use App\Models\User\ApprovalRequestModel;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
 
@@ -16,7 +16,7 @@ class RequestService
     public function __construct(PDO $pdo)
     {
         $this->pdo         = $pdo;
-        $this->model = new UserApprovalRequestModel($this->pdo);
+        $this->model = new ApprovalRequestModel($this->pdo);
         $this->logger = LoggerFactory::getLogger('service-user.ApprovalRequestService');
     }
 

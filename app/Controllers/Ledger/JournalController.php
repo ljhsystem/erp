@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/controllers/ledger/JournalController.php'
+// 경로: PROJECT_ROOT . '/app/Controllers/Ledger/JournalController.php'
 
 namespace App\Controllers\Ledger;
 

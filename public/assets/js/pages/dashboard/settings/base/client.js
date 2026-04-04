@@ -67,9 +67,9 @@ window.AdminPicker = AdminPicker;
     
         /* 금융 */
         bank_name : { label:"은행명", visible:false },   // 🔥 추가
-        manufacture_number : { label:"계좌번호", visible:false },
+        account_number : { label:"계좌번호", visible:false },
         account_holder : { label:"예금주", visible:false }, // 🔥 추가
-        bank_copy : { label:"통장사본", visible:false },
+        bank_file : { label:"통장사본", visible:false },
     
         /* 거래 */
         trade_category : { label:"거래구분", visible:false }, // 🔥 추가
@@ -206,7 +206,7 @@ function initClientPage($){
             if(drop){
                 drop.dataset.original = "0";
             }            
-            const delBank = document.getElementById('delete_bank_copy');
+            const delBank = document.getElementById('delete_bank_file');
             if(delBank){
                 delBank.value = '0';
             }        
@@ -639,8 +639,8 @@ function initClientPage($){
     
                         const bankText = document.getElementById('bankCopyText');
                         const bankDrop = document.getElementById('bankCopyUpload');
-                        const bankDelete = document.getElementById('delete_bank_copy');
-                        const bankInput = document.getElementById('modal_bank_copy');
+                        const bankDelete = document.getElementById('delete_bank_file');
+                        const bankInput = document.getElementById('modal_bank_file');
     
                         if (bankText) {
                             bankText.innerHTML =
@@ -810,7 +810,7 @@ function initClientPage($){
 
             if(key === 'id') return;
             if(key === 'business_certificate') return;
-            if(key === 'bank_copy') return;
+            if(key === 'bank_file') return;
     
             const el = document.getElementById('modal_' + key);
     
@@ -890,11 +890,11 @@ function initClientPage($){
         const bankText = document.getElementById('bankCopyText');
         const drop = document.getElementById('bankCopyUpload');
         if(bankText){
-            if(data.bank_copy){
+            if(data.bank_file){
                 if(drop){
                     drop.dataset.original = "1";
                 }
-                const path = encodeURIComponent(data.bank_copy);
+                const path = encodeURIComponent(data.bank_file);
                 bankText.innerHTML = `
                 <div class="file-status">       
                     <div class="upload-guide">
@@ -936,13 +936,13 @@ function initClientPage($){
                     btnDelete.onclick = function(e){                
                         e.stopPropagation();                
                         if(!confirm('통장사본을 삭제하시겠습니까?')) return;                
-                        const del = document.getElementById('delete_bank_copy');
+                        const del = document.getElementById('delete_bank_file');
                         const drop = document.getElementById('bankCopyUpload');
-                        const input = document.getElementById('modal_bank_copy');                
+                        const input = document.getElementById('modal_bank_file');                
                         if(del) del.value = '1';                
                         if(drop) drop.dataset.original = "0";                
                         if(input) input.value = '';
-                        const bankfileName = data.bank_copy.split('/').pop();
+                        const bankfileName = data.bank_file.split('/').pop();
                         const shortName = shortenFileName(bankfileName, 20);                        
                         bankText.innerHTML = `
                         📄 <strong>통장사본</strong> (${shortName})
@@ -995,7 +995,7 @@ function initClientPage($){
                     // 🔥 핵심: display 일때만 가공
                     if(type !== 'display') return data;
                 
-                    if(field === "bank_copy")
+                    if(field === "bank_file")
                         return data ? "등록됨" : "";
                 
                     if(field === "business_number")
@@ -1087,7 +1087,7 @@ function initClientPage($){
 
     function initBankCopyUpload(){
         const drop  = document.getElementById('bankCopyUpload');
-        const input = document.getElementById('modal_bank_copy');
+        const input = document.getElementById('modal_bank_file');
         const text  = document.getElementById('bankCopyText');    
         if(!drop || !input || !text) return;    
         if(!drop.dataset.original){

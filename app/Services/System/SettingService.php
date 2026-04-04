@@ -1,21 +1,21 @@
 <?php
-// 경로: PROJECT_ROOT/app/services/system/SettingService.php
+// 경로: PROJECT_ROOT/app/Services/System/SettingService.php
 namespace App\Services\System;
 
 use PDO;
-use App\Models\System\SystemSettingConfigModel;
+use App\Models\System\SettingConfigModel;
 use Core\LoggerFactory;
 
 class SettingService
 {
     private readonly PDO $pdo;
-    private SystemSettingConfigModel $model;
+    private SettingConfigModel $model;
     private $logger;
 
     public function __construct(PDO $pdo)
     {
         $this->pdo         = $pdo;
-        $this->model  = new SystemSettingConfigModel($pdo);
+        $this->model  = new SettingConfigModel($pdo);
         $this->logger = LoggerFactory::getLogger('service-system.SettingService');
 
         $this->logger->debug('[INIT] SystemSettingService initialized');

@@ -1,9 +1,9 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/system/BrandService.php'
+// 경로: PROJECT_ROOT . '/app/Services/System/BrandService.php'
 namespace App\Services\System;
 
 use PDO;
-use App\Models\System\SystemBrandModel;
+use App\Models\System\BrandModel;
 use App\Services\File\FileService;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
@@ -19,7 +19,7 @@ class BrandService
     public function __construct(PDO $pdo)
     {
         $this->pdo         = $pdo;
-        $this->model       = new SystemBrandModel($pdo);
+        $this->model       = new BrandModel($pdo);
         $this->fileService = new FileService($pdo);
         $this->logger      = LoggerFactory::getLogger('service-system.BrandService');
     }

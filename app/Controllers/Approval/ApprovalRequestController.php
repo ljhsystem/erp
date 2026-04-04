@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/controllers/approval/ApprovalRequestController.php'
+// 경로: PROJECT_ROOT . '/app/Controllers/Approval/ApprovalRequestController.php'
 namespace App\Controllers\Approval;
 
 use Core\Session;

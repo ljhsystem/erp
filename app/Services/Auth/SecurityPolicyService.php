@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/auth/SecurityPolicyService.php'
+// 경로: PROJECT_ROOT . '/app/Services/Auth/SecurityPolicyService.php'
 namespace App\Services\Auth;
 
 use PDO;

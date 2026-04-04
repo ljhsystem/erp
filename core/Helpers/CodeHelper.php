@@ -54,11 +54,11 @@ class CodeHelper
     }
 
     /* ============================================================
-     * 3) 직원 프로필 코드 생성 (user_profiles)
+     * 3) 직원 프로필 코드 생성 (user_employees)
      * ============================================================ */
     public static function generateEmployeeCode($pdo): int
     {
-        return self::generateCode($pdo, 'user_profiles');
+        return self::generateCode($pdo, 'user_employees');
     }
 
     /* ============================================================

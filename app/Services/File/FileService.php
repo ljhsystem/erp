@@ -1,10 +1,10 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/file/FileService.php'
+// 경로: PROJECT_ROOT . '/app/Services/File/FileService.php'
 // 설명: 파일 업로드, 삭제, 교체 등의 비즈니스 정책 서비스 계층
 namespace App\Services\File;
 
 use PDO;
-use App\Models\System\SystemFileUploadPoliciesModel;
+use App\Models\System\FileUploadPoliciesModel;
 use function Core\storage_upload;
 use function Core\storage_delete;
 use function Core\storage_resolve_abs;
@@ -15,15 +15,15 @@ use Core\LoggerFactory;
 class FileService
 {
     private readonly PDO $pdo;
-    private SystemFileUploadPoliciesModel $policyModel;
+    private FileUploadPoliciesModel $policyModel;
     private $logger;
 
     public function __construct(PDO $pdo)
     {
         $this->pdo         = $pdo;
         $this->logger = LoggerFactory::getLogger('service-file.FileService');
-        $this->policyModel = new SystemFileUploadPoliciesModel($pdo);
-        $this->logger->info("📦 FileService 초기화 완료"); 
+        $this->policyModel = new FileUploadPoliciesModel($pdo);
+        $this->logger->info("📦 FileService 초기화 완료");
     }
 
     /* --------------------------------------------------------
@@ -117,7 +117,7 @@ class FileService
     {
         return $this->runUpload(
             $file,
-            'private://bank_copy',
+            'private://bank_file',
             ['jpg', 'jpeg', 'png', 'pdf'],
             10 * 1024 * 1024,
             ['image/jpeg', 'image/png', 'application/pdf']
@@ -351,7 +351,7 @@ class FileService
     {
         // 1️⃣ DB 정책 조회
         $policy = $this->policyModel->findByKey($policyKey);
-    
+
         // 2️⃣ DB 정책 있으면 → 그걸 우선 사용
         if ($policy) {
             if ((int)$policy['is_active'] !== 1) {
@@ -360,7 +360,7 @@ class FileService
                     'message' => '비활성화된 업로드 정책입니다.'
                 ];
             }
-    
+
             return $this->runUpload(
                 $file,
                 $policy['bucket'],
@@ -371,7 +371,7 @@ class FileService
                     : []
             );
         }
-    
+
         // 3️⃣ DB 정책 없으면 → 기존 하드코딩 fallback
         return match ($policyKey) {
             'profile_image'  => $this->uploadProfile($file),
@@ -385,9 +385,9 @@ class FileService
             ]
         };
     }
-    
-    
-    
+
+
+
     /* ============================================================
      * 정책 목록 조회
      * ============================================================ */
@@ -395,7 +395,7 @@ class FileService
     {
         return $this->policyModel->getAll();
     }
-    
+
 
     /* ============================================================
      * 정책 저장 (신규 + 수정 통합)
@@ -407,13 +407,13 @@ class FileService
             // UUID 그대로 사용 (string)
             return $this->policyModel->update($data['id'], $data);
         }
-    
+
         // 신규 생성 → Service 책임으로 UUID 생성
         $data['id'] = UuidHelper::generate();
-    
+
         return $this->policyModel->create($data);
     }
-    
+
 
     /* ============================================================
     * 정책 수정 (전용)
@@ -423,11 +423,11 @@ class FileService
         if (empty($data['id'])) {
             return false;
         }
-    
+
         // UUID 그대로 전달
         return $this->policyModel->update($data['id'], $data);
     }
-    
+
 
     /* ============================================================
      * 정책 삭제
@@ -436,8 +436,8 @@ class FileService
     {
         return $this->policyModel->delete($id);
     }
-    
-    
+
+
     /* ============================================================
     * 정책 활성/비활성 전용 (Model 메서드 그대로 사용)
     * ============================================================ */
@@ -445,8 +445,4 @@ class FileService
     {
         return $this->policyModel->setActive($id, (bool)$isActive, $userId);
     }
-    
-    
-
-
 }

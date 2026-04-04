@@ -1,9 +1,9 @@
 <?php
-// 경로: PROJECT_ROOT/app/services/approval/TemplateStepService.php
+// 경로: PROJECT_ROOT/app/Services/Approval/TemplateStepService.php
 namespace App\Services\Approval;
 
 use PDO;
-use App\Models\User\UserApprovalTemplateStepModel;
+use App\Models\User\ApprovalTemplateStepModel;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
 
@@ -16,7 +16,7 @@ class TemplateStepService
     public function __construct(\PDO $pdo)
     {
         $this->pdo    = $pdo;
-        $this->model  = new UserApprovalTemplateStepModel($pdo);
+        $this->model  = new ApprovalTemplateStepModel($pdo);
         $this->logger = LoggerFactory::getLogger('service-approval.ApprovalTemplateStepService');
     }
 

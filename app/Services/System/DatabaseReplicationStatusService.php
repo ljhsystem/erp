@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT/app/services/system/DatabaseReplicationStatusService.php
+// 경로: PROJECT_ROOT/app/Services/System/DatabaseReplicationStatusService.php
 namespace App\Services\System;
 
 use PDO;

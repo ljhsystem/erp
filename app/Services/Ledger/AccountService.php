@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/ledger/AccountService.php'
+// 경로: PROJECT_ROOT . '/app/Services/Ledger/AccountService.php'
 // 설명:
 //  - 회계 계정과목 서비스
 //  - 계정 생성 / 수정 / 삭제 / 조회
@@ -7,23 +7,23 @@
 namespace App\Services\Ledger;
 
 use PDO;
-use App\Models\Ledger\LedgerAccountModel;
-use App\Models\Ledger\LedgerSubAccountModel;
+use App\Models\Ledger\AccountModel;
+use App\Models\Ledger\SubAccountModel;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
 
 class AccountService
 {
     private readonly PDO $pdo;
-    private LedgerAccountModel $model;
-    private LedgerSubAccountModel $subModel;
+    private AccountModel $model;
+    private SubAccountModel $subModel;
     private $logger;
 
     public function __construct(PDO $pdo)
     {
         $this->pdo         = $pdo;
-        $this->model  = new LedgerAccountModel($this->pdo);
-        $this->subModel = new LedgerSubAccountModel($this->pdo);
+        $this->model  = new AccountModel($this->pdo);
+        $this->subModel = new SubAccountModel($this->pdo);
         $this->logger = LoggerFactory::getLogger('service-ledger.AccountService');
         $this->logger->info('AccountService initialized');
     }

@@ -1,9 +1,9 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/auth/AccountLockService.php'
+// 경로: PROJECT_ROOT . '/app/Services/Auth/AccountLockService.php'
 namespace App\Services\Auth;
 
 use PDO;
-use App\Models\Auth\AuthUserModel;
+use App\Models\Auth\UserModel;
 use Core\Helpers\ConfigHelper;
 use Core\LoggerFactory;
 
@@ -16,7 +16,7 @@ class AccountLockService
     public function __construct(PDO $pdo)
     {
         $this->pdo         = $pdo;
-        $this->authUserModel = new AuthUserModel($pdo);
+        $this->authUserModel = new UserModel($pdo);
         $this->logger = LoggerFactory::getLogger('service-auth.AccountLockService');
     }
 

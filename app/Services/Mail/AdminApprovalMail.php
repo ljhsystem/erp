@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/mail/AdminApprovalMail.php'
+// 경로: PROJECT_ROOT . '/app/Services/Mail/AdminApprovalMail.php'
 declare(strict_types=1);
 namespace App\Services\Mail;
 

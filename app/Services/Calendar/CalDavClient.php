@@ -1,4 +1,5 @@
 <?php
+// 경로: PROJECT_ROOT . '/app/Services/Calendar/CalendarCrudService.php'
 declare(strict_types=1);
 
 namespace App\Services\Calendar;
@@ -8,6 +9,7 @@ use App\Services\Calendar\Caldav\CollectionClient;
 use App\Services\Calendar\Caldav\ObjectClient;
 use App\Services\Calendar\Caldav\Parser;
 use App\Services\Calendar\Caldav\Ics;
+use App\Services\Calendar\Time;
 use Core\LoggerFactory;
 use Psr\Log\LoggerInterface;
 
@@ -392,7 +394,7 @@ XML;
         if ($dt === '') return '';
     
         // CalendarTime은 "서울시간 DateTimeImmutable"로 파싱
-        $local = \App\Services\Calendar\CalendarTime::parseLocal($dt);
+        $local = Time::parseLocal($dt);
     
         // CalDAV query용 UTC(Z) 문자열로 변환
         return $local

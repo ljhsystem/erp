@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/controllers/home/ContactController.php'
+// 경로: PROJECT_ROOT . '/app/Controllers/Home/ContactController.php'
 namespace App\Controllers\Home;
 
 use App\Services\Mail\MailService;

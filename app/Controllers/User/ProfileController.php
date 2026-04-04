@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/controllers/user/ProfileController.php'
+// 경로: PROJECT_ROOT . '/app/Controllers/User/ProfileController.php'
 namespace App\Controllers\User;
 
 use Core\Session;

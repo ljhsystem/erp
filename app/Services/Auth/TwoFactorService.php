@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/services/auth/TwoFactorService.php'
+// 경로: PROJECT_ROOT . '/app/Services/Auth/TwoFactorService.php'
 namespace App\Services\Auth;
 
 use Core\Session;

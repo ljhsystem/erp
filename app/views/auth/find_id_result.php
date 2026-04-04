@@ -38,7 +38,7 @@ if (!$name || !$email) {
         $stmt = $conn->prepare("
               SELECT a.username
               FROM auth_users AS a
-              INNER JOIN user_profiles AS p ON a.id = p.user_id
+              INNER JOIN user_employees AS p ON a.id = p.user_id
               WHERE p.employee_name = ? AND a.email = ?
               LIMIT 1
           ");

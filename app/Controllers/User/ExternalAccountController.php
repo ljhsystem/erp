@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/controllers/user/ExternalAccountController.php'
+// 경로: PROJECT_ROOT . '/app/Controllers/User/ExternalAccountController.php'
 namespace App\Controllers\User;
 
 use Core\Session;
@@ -59,6 +59,14 @@ class ExternalAccountController
         
         $data = $this->service->getMyAccount($serviceKey);    
 
+        /* 🔥 추가 시작 */
+        try {
+            $this->service->verifyConnection($serviceKey);
+        } catch (\Throwable $e) {
+            // 실패해도 페이지는 열려야 함
+        }
+        /* 🔥 추가 끝 */
+
         echo json_encode([
             'success' => true,
             'data'    => $data
@@ -92,6 +100,13 @@ class ExternalAccountController
             unset($input['service_key'], $input['provider']);
             
             $result = $this->service->saveMyAccount($serviceKey, $input);
+            /* 🔥 추가 시작 */
+            try {
+                $this->service->verifyConnection($serviceKey);
+            } catch (\Throwable $e) {
+                // 여기서 죽이면 안됨 (저장은 이미 성공했기 때문)
+            }
+            /* 🔥 추가 끝 */
             
             echo json_encode($result, JSON_UNESCAPED_UNICODE);            
 
