@@ -32,7 +32,7 @@ class ClientService
 
 
     /* ============================================================
-     * 1. 전체 목록 조회
+     * 전체 목록 조회
      * ============================================================ */
     public function getList(): array
     {
@@ -55,7 +55,7 @@ class ClientService
     }
 
     /* ============================================================
-     * 2. 단건 조회 (id 기준)
+     * 단건 조회 (id 기준)
      * ============================================================ */
     public function getById(string $id): ?array
     {
@@ -85,7 +85,7 @@ class ClientService
 
 
     /* ============================================================
-     * 5. 검색
+     * 검색
      * ============================================================ */
     public function search(array $filters): array
     {
@@ -105,7 +105,7 @@ class ClientService
     }
 
     /* ============================================================
-    * 8. 거래처 자동검색 (입력 자동완성)
+    * 거래처 자동검색 (입력 자동완성)
     * ============================================================ */
     public function searchPicker(string $keyword): array
     {
@@ -211,7 +211,7 @@ class ClientService
 
 
     /* ============================================================
-     * 4. 삭제
+     * 삭제
      * ============================================================ */
     public function delete(string $id, string $actorType = 'USER'): array
     {
@@ -347,97 +347,10 @@ class ClientService
 
 
 
-    /* =========================================================
-    선택 복원
-    ========================================================= */
-    public function restoreBulk(array $ids, string $actorType = 'USER'): array
-    {
-        $actor = ActorHelper::resolve($actorType);
-
-        $this->logger->info('restoreBulk() called', [
-            'ids'       => $ids,
-            'actorType' => $actorType,
-            'actor'     => $actor
-        ]);
-        if (empty($ids)) {
-            return [
-                'success' => false,
-                'message' => '복원할 거래처가 없습니다.'
-            ];
-        }
-
-        $ok = $this->model->restoreBulkByIds($ids, $actor);
-
-        return [
-            'success' => $ok,
-            'message' => $ok ? '선택 복원 완료' : '선택 복원 실패'
-        ];
-    }
-
-    /* =========================================================
-    선택 완전삭제
-    ========================================================= */
-    public function purgeBulk(array $ids, string $actorType = 'USER'): array
-    {
-        $actor = ActorHelper::resolve($actorType);
-
-        $this->logger->info('purgeBulk() called', [
-            'ids'       => $ids,
-            'actorType' => $actorType,
-            'actor'     => $actor
-        ]);
-
-        if (empty($ids)) {
-            return [
-                'success' => false,
-                'message' => '삭제할 거래처가 없습니다.'
-            ];
-        }
-
-        $ok = $this->model->hardDeleteBulkByIds($ids);
-
-        return [
-            'success' => $ok,
-            'message' => $ok ? '선택 삭제 완료' : '선택 삭제 실패'
-        ];
-    }
-
-    /* =========================================================
-    전체 완전삭제
-    ========================================================= */
-    public function purgeAll(string $actorType = 'USER'): array
-    {
-        $actor = ActorHelper::resolve($actorType);
-
-        $this->logger->info('purgeAll() called', [
-            'actorType' => $actorType,
-            'actor'     => $actor
-        ]);
-
-        try {
-
-            $ok = $this->model->hardDeleteAllDeleted();
-
-            return [
-                'success' => $ok,
-                'message' => $ok ? '전체 삭제 완료' : '전체 삭제 실패'
-            ];
-        } catch (\Throwable $e) {
-
-            $this->logger->error('purgeAll() exception', [
-                'exception' => $e->getMessage()
-            ]);
-
-            return [
-                'success' => false,
-                'message' => $e->getMessage()
-            ];
-        }
-    }
 
 
     /* ============================================================
-    * 6. 코드 순서 변경 (RowReorder)
+    * 코드 순서 변경 (RowReorder)
     * ============================================================ */
     public function reorder(array $changes): bool
     {
@@ -490,8 +403,29 @@ class ClientService
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     /* ============================================================
-    * 7. 엑셀 업로드 저장
+    * 엑셀 업로드 저장
     * ============================================================ */
     public function saveFromExcel(array $data, string $actorType = 'SYSTEM_EXCEL_UPLOAD'): bool
     {
@@ -517,13 +451,21 @@ class ClientService
 
 
 
+
+
+
+
+
+
+
+    //삭제예정
     public function findByName(string $name): ?array
     {
         return $this->model->findByName($name);
     }
 
 
-
+   //삭제예정
     private function normalize(array $data): array
     {
         // 숫자 필드

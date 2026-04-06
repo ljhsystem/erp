@@ -6,17 +6,17 @@ use PDO;
 
 class ClientModel
 {
-    // 2. PDO 보관
+    // PDO 보관
     private PDO $db;
 
-    // 3. 생성자 – 외부에서 PDO 주입 또는 자동 연결
+    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?: \Core\Database::getInstance()->getConnection();
     }
 
     /* -------------------------------------------------------------
-     * 7. 거래처 전체 목록
+     * 거래처 전체 목록
      * ------------------------------------------------------------- */
     public function getList(): array
     {
@@ -66,7 +66,7 @@ class ClientModel
 
 
     /* -------------------------------------------------------------
-     * 8. 거래처 단일 조회 (code 기준)
+     * 거래처 단일 조회 (code 기준)
      * ------------------------------------------------------------- */
     public function getById(string $id): ?array
     {
@@ -229,7 +229,7 @@ class ClientModel
 
 
     /* -------------------------------------------------------------
-     * 4. 거래처 생성
+     * 거래처 생성
      * ------------------------------------------------------------- */
     public function create(array $data): bool
     {
@@ -445,7 +445,7 @@ class ClientModel
         return $stmt->execute($params);
     }
     /* -------------------------------------------------------------
-    * 6. 거래처 삭제 (id 기준)
+    * 거래처 삭제 (id 기준)
     * ------------------------------------------------------------- */
     public function deleteById(string $id, string $actor): bool
     {
@@ -552,70 +552,9 @@ class ClientModel
 
 
 
-    /* -------------------------------------------------------------
-    * 선택 복원
-    * ------------------------------------------------------------- */
-    public function restoreBulkByIds(array $ids, string $actor): bool
-    {
-        if (empty($ids)) return false;
-
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
-
-        $sql = "
-            UPDATE system_clients
-            SET
-                deleted_at = NULL,
-                deleted_by = NULL,
-                updated_by = ?
-            WHERE id IN ($placeholders)
-        ";
-
-        $stmt = $this->db->prepare($sql);
-
-        $params = array_merge([$actor], $ids);
-
-        $stmt->execute($params);
-
-        return $stmt->rowCount() > 0;
-    }
 
     /* -------------------------------------------------------------
-    * 선택 완전삭제
-    * ------------------------------------------------------------- */
-    public function hardDeleteBulkByIds(array $ids): bool
-    {
-        if (empty($ids)) return false;
-
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
-
-        $sql = "
-            DELETE FROM system_clients
-            WHERE id IN ($placeholders)
-        ";
-
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($ids);
-
-        return $stmt->rowCount() > 0;
-    }
-
-    /* -------------------------------------------------------------
-    * 전체 완전삭제
-    * ------------------------------------------------------------- */
-    public function hardDeleteAllDeleted(): bool
-    {
-        $stmt = $this->db->prepare("
-            DELETE FROM system_clients
-            WHERE deleted_at IS NOT NULL
-        ");
-
-        $stmt->execute();
-
-        return true;
-    }
-
-    /* -------------------------------------------------------------
-     * 9. ID 기준 코드 변경
+     * ID 기준 코드 변경
      * ------------------------------------------------------------- */
     public function updateCode(string $id, string $newCode): bool
     {
@@ -636,7 +575,7 @@ class ClientModel
 
 
     /* -------------------------------------------------------------
-    * 11. 사업자번호 기준 Upsert (엑셀 업로드용)
+    * 사업자번호 기준 Upsert (엑셀 업로드용)
     * ------------------------------------------------------------- */
     public function saveFromExcel(array $data): bool
     {
@@ -695,7 +634,7 @@ class ClientModel
     }
 
 
-
+    //삭제예정
     public function findByName(string $name): ?array
     {
         $stmt = $this->db->prepare("

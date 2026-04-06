@@ -17,32 +17,56 @@ class CompanyService
         $this->model = new CompanyModel($pdo);
     }
 
-    public function get(): ?array
+    public function get(): array
     {
-        return $this->model->getOne();
+        return $this->model->getOne() ?? [];
     }
-
+    
     public function save(array $data, string $userId): array
     {
         $this->pdo->beginTransaction();
-
+    
         try {
+    
             $exists = $this->model->getOne();
-
+    
             if ($exists) {
+    
                 $data['updated_by'] = $userId;
-                $this->model->updateById($exists['id'], $data);
+    
+                $ok = $this->model->updateById($exists['id'], $data);
+    
+                if (!$ok) {
+                    throw new \Exception('수정 실패');
+                }
+    
+                $message = '수정 완료';
+    
             } else {
+    
                 $data['id']         = UuidHelper::generate();
                 $data['created_by'] = $userId;
-                $this->model->create($data);
+    
+                $ok = $this->model->create($data);
+    
+                if (!$ok) {
+                    throw new \Exception('등록 실패');
+                }
+    
+                $message = '등록 완료';
             }
-
+    
             $this->pdo->commit();
-            return ['success' => true];
-
+    
+            return [
+                'success' => true,
+                'message' => $message
+            ];
+    
         } catch (\Throwable $e) {
+    
             $this->pdo->rollBack();
+    
             return [
                 'success' => false,
                 'message' => $e->getMessage()

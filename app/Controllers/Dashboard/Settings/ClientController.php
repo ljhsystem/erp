@@ -537,6 +537,48 @@ class ClientController
 
 
 
+
+    // ============================================================
+    // API: 거래처 선택 복원
+    // URL: POST /api/settings/base-info/client/restore-bulk
+    // ============================================================
+    public function apiRestoreBulk(): void
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+
+        try {
+            $input = json_decode(file_get_contents('php://input'), true);
+            $ids = $input['ids'] ?? [];
+
+            if (empty($ids) || !is_array($ids)) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => '복원할 거래처 아이디가 없습니다.'
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            $result = $this->service->restoreBulk($ids, 'USER');
+
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            echo json_encode([
+                'success' => false,
+                'message' => '선택 복원 실패',
+                'error'   => $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE);
+        }
+
+        exit;
+    }
+
+
+    public function apiRestoreAll(): void
+    {
+    }
+
+
+
     // ============================================================
     // API: 거래처 완전삭제
     // URL: POST /api/settings/base-info/client/purge
@@ -586,41 +628,6 @@ class ClientController
                 'success' => false,
                 'message' => '완전삭제 실패',
                 'error' => $e->getMessage()
-            ], JSON_UNESCAPED_UNICODE);
-        }
-
-        exit;
-    }
-
-
-    // ============================================================
-    // API: 거래처 선택 복원
-    // URL: POST /api/settings/base-info/client/restore-bulk
-    // ============================================================
-    public function apiRestoreBulk(): void
-    {
-        header('Content-Type: application/json; charset=UTF-8');
-
-        try {
-            $input = json_decode(file_get_contents('php://input'), true);
-            $ids = $input['ids'] ?? [];
-
-            if (empty($ids) || !is_array($ids)) {
-                echo json_encode([
-                    'success' => false,
-                    'message' => '복원할 거래처 아이디가 없습니다.'
-                ], JSON_UNESCAPED_UNICODE);
-                exit;
-            }
-
-            $result = $this->service->restoreBulk($ids, 'USER');
-
-            echo json_encode($result, JSON_UNESCAPED_UNICODE);
-        } catch (\Throwable $e) {
-            echo json_encode([
-                'success' => false,
-                'message' => '선택 복원 실패',
-                'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
 
@@ -689,6 +696,9 @@ class ClientController
     }
 
 
+
+
+
     // ============================================================
     // API: 거래처 순서 변경 (RowReorder)
     // URL: POST /api/settings/base-info/client/reorder
@@ -729,6 +739,80 @@ class ClientController
 
         exit;
     }
+
+
+
+    // ============================================================
+    // API: 거래처 양식 엑셀 다운로드
+    // URL: GET /api/settings/base-info/clients/template
+    // permission: 
+    // controller: ClientController@apiTemplate
+    // ============================================================    
+    public function apiTemplate(): void
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('거래처양식');
+
+        /* ============================================================
+        * 헤더
+        * ============================================================ */
+        $headers = [
+            '거래처명',
+            '상호',
+            '대표자명',
+            '사업자등록번호',
+            '사업자상태',
+            '전화번호',
+            '이메일',
+            '등록일자',
+            '비고'
+        ];
+
+        $sheet->fromArray($headers, null, 'A1');
+
+        /* ============================================================
+        * 시드 데이터 (10건 이상)
+        * ============================================================ */
+        $rows = [
+            ['석향', '주식회사 석향', '이정호', '123-45-67890', '계속사업자', '02-1234-5678', 'admin@sukhyang.co.kr', '2026-01-01', '본사'],
+            ['경동하우징', '주식회사 경동하우징', '김영수', '234-56-78901', '계속사업자', '02-2345-6789', 'kdhousing@example.com', '2026-01-02', '주요 발주처'],
+            ['다옴홀딩스', '주식회사 다옴홀딩스', '정복선', '345-67-89012', '계속사업자', '02-3456-7890', 'daom@example.com', '2026-01-03', '민간 거래처'],
+            ['선경이엔씨', '주식회사 선경이엔씨', '박선우', '456-78-90123', '계속사업자', '031-456-7890', 'skenc@example.com', '2026-01-04', '협력사'],
+            ['세림건설', '주식회사 세림건설', '최민호', '567-89-01234', '계속사업자', '032-567-8901', 'serim@example.com', '2026-01-05', '건설사'],
+            ['한빛개발', '주식회사 한빛개발', '윤지훈', '678-90-12345', '계속사업자', '042-678-9012', 'hanbit@example.com', '2026-01-06', '개발사'],
+            ['청우종합건설', '주식회사 청우종합건설', '오세훈', '789-01-23456', '계속사업자', '051-789-0123', 'cwconst@example.com', '2026-01-07', '원도급사'],
+            ['미래디자인', '주식회사 미래디자인', '강다은', '890-12-34567', '계속사업자', '053-890-1234', 'design@example.com', '2026-01-08', '디자인 협력업체'],
+            ['대한석재', '대한석재', '임성호', '901-23-45678', '계속사업자', '041-901-2345', 'stone@example.com', '2026-01-09', '자재업체'],
+            ['우림산업', '주식회사 우림산업', '한지수', '135-79-24680', '계속사업자', '061-135-2468', 'woorim@example.com', '2026-01-10', '자재 납품'],
+            ['동해물류', '주식회사 동해물류', '서동민', '246-80-13579', '계속사업자', '033-246-1357', 'logi@example.com', '2026-01-11', '운송업체'],
+            ['세영무역', '주식회사 세영무역', '문태성', '357-91-24680', '계속사업자', '070-357-2468', 'trade@example.com', '2026-01-12', '수입 관련'],
+        ];
+
+        $sheet->fromArray($rows, null, 'A2');
+
+        /* ============================================================
+        * 자동 컬럼폭
+        * ============================================================ */
+        foreach (range('A', 'I') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $filename = 'client_template.xlsx';
+
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header("Content-Disposition: attachment; filename=\"$filename\"");
+        header('Cache-Control: max-age=0');
+
+        $writer = new Xlsx($spreadsheet);
+        $writer->save('php://output');
+
+        $spreadsheet->disconnectWorksheets();
+        unset($spreadsheet);
+
+        exit;
+    }
+
 
 
 
@@ -949,75 +1033,4 @@ class ClientController
 
 
 
-
-    // ============================================================
-    // API: 거래처 양식 엑셀 다운로드
-    // URL: GET /api/settings/base-info/clients/template
-    // permission: 
-    // controller: ClientController@apiTemplate
-    // ============================================================    
-    public function apiTemplate(): void
-    {
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('거래처양식');
-
-        /* ============================================================
-        * 헤더
-        * ============================================================ */
-        $headers = [
-            '거래처명',
-            '상호',
-            '대표자명',
-            '사업자등록번호',
-            '사업자상태',
-            '전화번호',
-            '이메일',
-            '등록일자',
-            '비고'
-        ];
-
-        $sheet->fromArray($headers, null, 'A1');
-
-        /* ============================================================
-        * 시드 데이터 (10건 이상)
-        * ============================================================ */
-        $rows = [
-            ['석향', '주식회사 석향', '이정호', '123-45-67890', '계속사업자', '02-1234-5678', 'admin@sukhyang.co.kr', '2026-01-01', '본사'],
-            ['경동하우징', '주식회사 경동하우징', '김영수', '234-56-78901', '계속사업자', '02-2345-6789', 'kdhousing@example.com', '2026-01-02', '주요 발주처'],
-            ['다옴홀딩스', '주식회사 다옴홀딩스', '정복선', '345-67-89012', '계속사업자', '02-3456-7890', 'daom@example.com', '2026-01-03', '민간 거래처'],
-            ['선경이엔씨', '주식회사 선경이엔씨', '박선우', '456-78-90123', '계속사업자', '031-456-7890', 'skenc@example.com', '2026-01-04', '협력사'],
-            ['세림건설', '주식회사 세림건설', '최민호', '567-89-01234', '계속사업자', '032-567-8901', 'serim@example.com', '2026-01-05', '건설사'],
-            ['한빛개발', '주식회사 한빛개발', '윤지훈', '678-90-12345', '계속사업자', '042-678-9012', 'hanbit@example.com', '2026-01-06', '개발사'],
-            ['청우종합건설', '주식회사 청우종합건설', '오세훈', '789-01-23456', '계속사업자', '051-789-0123', 'cwconst@example.com', '2026-01-07', '원도급사'],
-            ['미래디자인', '주식회사 미래디자인', '강다은', '890-12-34567', '계속사업자', '053-890-1234', 'design@example.com', '2026-01-08', '디자인 협력업체'],
-            ['대한석재', '대한석재', '임성호', '901-23-45678', '계속사업자', '041-901-2345', 'stone@example.com', '2026-01-09', '자재업체'],
-            ['우림산업', '주식회사 우림산업', '한지수', '135-79-24680', '계속사업자', '061-135-2468', 'woorim@example.com', '2026-01-10', '자재 납품'],
-            ['동해물류', '주식회사 동해물류', '서동민', '246-80-13579', '계속사업자', '033-246-1357', 'logi@example.com', '2026-01-11', '운송업체'],
-            ['세영무역', '주식회사 세영무역', '문태성', '357-91-24680', '계속사업자', '070-357-2468', 'trade@example.com', '2026-01-12', '수입 관련'],
-        ];
-
-        $sheet->fromArray($rows, null, 'A2');
-
-        /* ============================================================
-        * 자동 컬럼폭
-        * ============================================================ */
-        foreach (range('A', 'I') as $col) {
-            $sheet->getColumnDimension($col)->setAutoSize(true);
-        }
-
-        $filename = 'client_template.xlsx';
-
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header("Content-Disposition: attachment; filename=\"$filename\"");
-        header('Cache-Control: max-age=0');
-
-        $writer = new Xlsx($spreadsheet);
-        $writer->save('php://output');
-
-        $spreadsheet->disconnectWorksheets();
-        unset($spreadsheet);
-
-        exit;
-    }
 }

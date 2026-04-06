@@ -14,59 +14,106 @@ class BrandModel
         $this->db = $db;
     }
     /* =========================================================
-     * 7. 모든 자산 타입 조회
+     * 모든 자산 타입 조회
      * ========================================================= */
     public function getList(array $filters = []): array
     {
-        $sql = "SELECT * FROM system_brand_assets WHERE 1=1";
+        $sql = "
+            SELECT
+                b.*,
+
+                CASE 
+                    WHEN b.created_by LIKE 'SYSTEM:%' THEN b.created_by
+                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
+                    ELSE b.created_by
+                END AS created_by_name,
+
+                CASE 
+                    WHEN b.updated_by LIKE 'SYSTEM:%' THEN b.updated_by
+                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
+                    ELSE b.updated_by
+                END AS updated_by_name
+
+            FROM system_brand_assets b
+
+            LEFT JOIN user_employees p1
+                ON b.created_by NOT LIKE 'SYSTEM:%'
+            AND p1.user_id = REPLACE(b.created_by, 'USER:', '')
+
+            LEFT JOIN user_employees p2
+                ON b.updated_by NOT LIKE 'SYSTEM:%'
+            AND p2.user_id = REPLACE(b.updated_by, 'USER:', '')
+
+            WHERE 1=1
+        ";
+
         $params = [];
-    
+
         if (!empty($filters['asset_type'])) {
-            $sql .= " AND asset_type = :asset_type";
+            $sql .= " AND b.asset_type = :asset_type";
             $params[':asset_type'] = $filters['asset_type'];
         }
-    
+
         if (isset($filters['is_active'])) {
-            $sql .= " AND is_active = :is_active";
+            $sql .= " AND b.is_active = :is_active";
             $params[':is_active'] = $filters['is_active'];
         }
-    
-        $sql .= " ORDER BY created_at DESC";
-    
+
+        $sql .= " ORDER BY b.created_at DESC";
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
-    
+
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
     /* =========================================================
-     * 5. 단건 조회 (ID 기준)
+     * 단건 조회 (ID 기준)
      * ========================================================= */
     public function getById(string $id): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT *
-            FROM system_brand_assets
-            WHERE id = :id
+            SELECT
+                b.*,
+
+                CASE 
+                    WHEN b.created_by LIKE 'SYSTEM:%' THEN b.created_by
+                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
+                    ELSE b.created_by
+                END AS created_by_name,
+
+                CASE 
+                    WHEN b.updated_by LIKE 'SYSTEM:%' THEN b.updated_by
+                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
+                    ELSE b.updated_by
+                END AS updated_by_name
+
+            FROM system_brand_assets b
+
+            LEFT JOIN user_employees p1
+                ON b.created_by NOT LIKE 'SYSTEM:%'
+            AND p1.user_id = REPLACE(b.created_by, 'USER:', '')
+
+            LEFT JOIN user_employees p2
+                ON b.updated_by NOT LIKE 'SYSTEM:%'
+            AND p2.user_id = REPLACE(b.updated_by, 'USER:', '')
+
+            WHERE b.id = :id
             LIMIT 1
         ");
+    
         $stmt->execute([
             ':id' => $id
         ]);
-
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        // 🔥 디버깅 로그 추가
-        error_log("🔍 getById 호출: ID = {$id}");
-        error_log("🔍 getById 결과: " . json_encode($result));
-
-        return $result ?: null;
+    
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
+
   /* =========================================================
-     * 1. 활성 브랜드 자산 조회 (타입별 1건)
+     * 활성 브랜드 자산 조회 (타입별 1건)
      * ========================================================= */
-    public function getByType(string $assetType): ?array
+    public function getActiveByType(string $assetType): ?array
     {
         $stmt = $this->db->prepare("
             SELECT *
@@ -76,16 +123,20 @@ class BrandModel
             ORDER BY created_at DESC
             LIMIT 1
         ");
+    
         $stmt->execute([
             ':asset_type' => $assetType
         ]);
-
+    
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
 
+
+
+
     /* =========================================================
-     * 3. 신규 브랜드 자산 등록
+     * 신규 브랜드 자산 등록
      * ========================================================= */
     public function create(array $data): bool
     {
@@ -132,7 +183,7 @@ class BrandModel
 
 
     /* =========================================================
-     * 6. 자산 삭제 (DB만)
+     * 자산 삭제 (DB만)
      * ========================================================= */
     public function deleteById(string $id): bool
     {
@@ -147,47 +198,38 @@ class BrandModel
     }
 
 
-
-    /* =========================================================
-     * 4. 동일 타입 기존 자산 비활성화
-     * ========================================================= */
-    public function deactivateByType(string $assetType, string $userId): int
+    public function updateStatusById(string $id, int $isActive, string $userId): bool
     {
         $stmt = $this->db->prepare("
             UPDATE system_brand_assets
-            SET
-                is_active  = 0,
+            SET is_active = :is_active,
+                updated_at = NOW(),
+                updated_by = :updated_by
+            WHERE id = :id
+        ");
+
+        return $stmt->execute([
+            ':id'         => $id,
+            ':is_active'  => $isActive,
+            ':updated_by' => $userId
+        ]);
+    }
+    public function deactivateByAssetType(string $assetType, string $userId): bool
+    {
+        $stmt = $this->db->prepare("
+            UPDATE system_brand_assets
+            SET is_active = 0,
                 updated_at = NOW(),
                 updated_by = :updated_by
             WHERE asset_type = :asset_type
               AND is_active = 1
         ");
-
-        $stmt->execute([
+    
+        return $stmt->execute([
             ':asset_type' => $assetType,
-            ':updated_by' => $userId,
+            ':updated_by' => $userId
         ]);
-
-        return $stmt->rowCount();
     }
 
 
-
 }
-    // /* =========================================================
-    //  * 2. 특정 타입 전체 목록 조회 (관리용)
-    //  * ========================================================= */
-    // public function getAllByType(string $assetType): array
-    // {
-    //     $stmt = $this->db->prepare("
-    //         SELECT *
-    //         FROM system_brand_assets
-    //         WHERE asset_type = :asset_type
-    //         ORDER BY created_at DESC
-    //     ");
-    //     $stmt->execute([
-    //         ':asset_type' => $assetType
-    //     ]);
-
-    //     return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    // }

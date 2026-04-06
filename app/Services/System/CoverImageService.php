@@ -30,7 +30,7 @@ class CoverImageService
 
 
     /* ============================================================
-     * 2. 관리자 목록 조회
+     * 관리자 목록 조회
      * ============================================================ */
     public function getList(array $filters = []): array
     {
@@ -59,9 +59,30 @@ class CoverImageService
             return [];
         }
     }
-
     /* ============================================================
-     * 4. 단건 조회
+     * 공개용 목록 조회(사용자용)
+     * ============================================================ */
+    public function getPublicList(): array
+    {
+        $this->logger->info('getPublicList() called');
+
+        $rows = $this->model->getPublicList();
+
+        return array_map(function ($row) {
+            return [
+                'id'          => $row['id'] ?? null,
+                'code'        => $row['code'] ?? null,
+                'year'        => $row['year'],
+                'title'       => $row['title'],
+                'alt'         => $row['alt'],
+                'description' => $row['description'],
+                'url'         => storage_to_url($row['src']),
+            ];
+        }, $rows);
+    }
+    
+    /* ============================================================
+     * 단건 조회
      * ============================================================ */
     public function getById(string $id): ?array
     {
@@ -91,7 +112,7 @@ class CoverImageService
 
 
     /* ============================================================
-     * 5. 저장 (신규 + 수정)
+     * 저장 (신규 + 수정)
      * ============================================================ */
     public function save(array $data): array
     {
@@ -102,7 +123,7 @@ class CoverImageService
         ]);
 
         try {
-            $coverId = trim((string)($data['cover_id'] ?? ''));
+            $coverId = trim((string)($data['id'] ?? ''));
             $newSrc  = null;
 
             if (!empty($data['file']) && (int)($data['file']['error'] ?? 4) === UPLOAD_ERR_OK) {
@@ -206,7 +227,7 @@ class CoverImageService
     }
 
     /* ============================================================
-     * 6. 삭제 → 휴지통 이동
+     * 삭제 → 휴지통 이동
      * ============================================================ */
     public function delete(string $id): array
     {
@@ -265,7 +286,7 @@ class CoverImageService
 
 
     /* ============================================================
-     * 3. 휴지통 목록 조회
+     * 휴지통 목록 조회
      * ============================================================ */
     public function getTrashList(): array
     {
@@ -296,7 +317,7 @@ class CoverImageService
 
 
     /* ============================================================
-     * 7. 복원
+     * 복원
      * ============================================================ */
     public function restore(string $id): array
     {
@@ -345,8 +366,32 @@ class CoverImageService
         }
     }
 
+    public function restoreBulk(array $ids): array
+    {
+        if (empty($ids)) {
+            return ['success' => false, 'message' => 'ID 없음'];
+        }   
+    
+        $success = 0;
+    
+        foreach ($ids as $id) {
+            $res = $this->restore($id);
+            if ($res['success'] ?? false) {
+                $success++;
+            }
+        }
+    
+        return [
+            'success' => true,
+            'message' => "복원 완료 ({$success}건)"
+        ];
+    }
+
+
+
+
     /* ============================================================
-     * 8. 하드삭제
+     * 하드삭제
      * ============================================================ */
     public function purge(string $id): array
     {
@@ -391,26 +436,6 @@ class CoverImageService
         }
     }
     
-    public function restoreBulk(array $ids): array
-    {
-        if (empty($ids)) {
-            return ['success' => false, 'message' => 'ID 없음'];
-        }   
-    
-        $success = 0;
-    
-        foreach ($ids as $id) {
-            $res = $this->restore($id);
-            if ($res['success'] ?? false) {
-                $success++;
-            }
-        }
-    
-        return [
-            'success' => true,
-            'message' => "복원 완료 ({$success}건)"
-        ];
-    }
     public function purgeBulk(array $ids): array
     {
         if (empty($ids)) {
@@ -419,17 +444,74 @@ class CoverImageService
     
         $success = 0;
     
-        foreach ($ids as $id) {
-            $res = $this->purge($id);
-            if ($res['success'] ?? false) {
-                $success++;
+        $this->pdo->beginTransaction();
+
+        try {
+        
+            $success = 0;
+        
+            foreach ($ids as $id) {
+                $res = $this->purge($id);
+                if ($res['success'] ?? false) {
+                    $success++;
+                }
             }
+        
+            $this->pdo->commit();
+        
+            return [
+                'success' => true,
+                'message' => "삭제 완료 ({$success}건)"
+            ];
+        
+        } catch (\Throwable $e) {
+        
+            $this->pdo->rollBack();
+        
+            return [
+                'success' => false,
+                'message' => $e->getMessage()
+            ];
         }
     
         return [
             'success' => true,
             'message' => "삭제 완료 ({$success}건)"
         ];
+    }
+    public function restoreAll(): array
+    {
+        $actor = ActorHelper::user();
+    
+        $this->logger->info('restoreAll() called');
+    
+        try {
+    
+            $rows = $this->model->getDeleted();
+    
+            $success = 0;
+    
+            foreach ($rows as $row) {
+    
+                $ok = $this->model->restoreById($row['id'], $actor);
+    
+                if ($ok) {
+                    $success++;
+                }
+            }
+    
+            return [
+                'success' => true,
+                'message' => "전체 복원 완료 ({$success}건)"
+            ];
+    
+        } catch (\Throwable $e) {
+    
+            return [
+                'success' => false,
+                'message' => $e->getMessage()
+            ];
+        }
     }
 
     /* =========================================================
@@ -438,28 +520,44 @@ class CoverImageService
     public function purgeAll(string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
-
+    
         $this->logger->info('cover.purgeAll() called', [
             'actorType' => $actorType,
             'actor'     => $actor
         ]);
-
+    
+        $this->pdo->beginTransaction();
+    
         try {
-
-            // 🔹 DB 삭제 (모델만 호출)
-            $ok = $this->model->hardDeleteAllDeleted();
-
+    
+            $rows = $this->model->getDeleted();
+    
+            foreach ($rows as $row) {
+    
+                // 1️⃣ 파일 삭제
+                if (!empty($row['src'])) {
+                    $this->fileService->delete($row['src']);
+                }
+    
+                // 2️⃣ DB 단건 삭제 (🔥 규칙 준수)
+                $this->model->hardDeleteById($row['id']);
+            }
+    
+            $this->pdo->commit();
+    
             return [
-                'success' => $ok,
-                'message' => $ok ? '전체 삭제 완료' : '전체 삭제 실패'
+                'success' => true,
+                'message' => '전체 삭제 완료'
             ];
-
+    
         } catch (\Throwable $e) {
-
+    
+            $this->pdo->rollBack();
+    
             $this->logger->error('cover.purgeAll() exception', [
                 'exception' => $e->getMessage()
             ]);
-
+    
             return [
                 'success' => false,
                 'message' => $e->getMessage()
@@ -523,26 +621,5 @@ class CoverImageService
     }
 
 
-    /* ============================================================
-     * 1. 공개용 목록 조회(사용자용)
-     * ============================================================ */
-    public function getPublicList(): array
-    {
-        $this->logger->info('getPublicList() called');
 
-        $rows = $this->model->getPublicList();
-
-        return array_map(function ($row) {
-            return [
-                'id'          => $row['id'] ?? null,
-                'code'        => $row['code'] ?? null,
-                'year'        => $row['year'],
-                'title'       => $row['title'],
-                'alt'         => $row['alt'],
-                'description' => $row['description'],
-                'url'         => storage_to_url($row['src']),
-            ];
-        }, $rows);
-    }
-    
 }

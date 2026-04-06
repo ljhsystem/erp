@@ -19,60 +19,74 @@ class BrandController //기능묶음 단위
 
     /* ============================================================
     API: 브랜드 자산 목록 조회
-    URL: POST /api/settings/base-info/brand/list
-    permission: api.settings.baseinfo.brand.list
-    controller: BrandController@apiBrandList
     ============================================================ */
     public function apiList()
     {
         header('Content-Type: application/json; charset=utf-8');
-
-        $type = $_POST['asset_type'] ?? null; // 🔥 asset_type이 없으면 모든 타입 조회
-        $data = $type ? $this->service->getByType($type) : $this->service->getList();
-
-        // 🔥 디버깅 로그 추가
+    
+        $filters = [];
+    
+        if (!empty($_POST['asset_type'])) {
+            $filters['asset_type'] = $_POST['asset_type'];
+        }
+    
+        if (isset($_POST['is_active'])) {
+            $filters['is_active'] = (int)$_POST['is_active'];
+        }
+    
+        $data = $this->service->getList($filters);
+    
         error_log("🔍 apiBrandList 응답: " . json_encode($data));
-
+    
         echo json_encode([
             'success' => true,
             'data'    => $data
         ], JSON_UNESCAPED_UNICODE);
     }
-
-    /* ============================================================
-    API: 브랜드 자산 조회 (타입별)
-    URL: POST /api/settings/base-info/brand/get
-    permission: api.settings.baseinfo.brand.view
-    controller: BrandController@apiBrandGet
-    ============================================================ */
-    public function apiSearch()
+    public function apiDetail()
     {
         header('Content-Type: application/json; charset=utf-8');
-
-        $type = $_POST['asset_type'] ?? '';
-        if (!$type) {
-            echo json_encode(['success' => false, 'message' => '자산 타입이 누락되었습니다.']);
+    
+        $id = $_POST['id'] ?? '';
+    
+        if (!$id) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'ID 누락'
+            ]);
             return;
         }
-
-        $data = $this->service->getActive($type);
-
-        // 🔥 디버깅 로그 추가
-        error_log("🔍 apiBrandGet 응답: " . json_encode($data));
-
+    
+        $data = $this->service->getById($id);
+    
         echo json_encode([
             'success' => true,
             'data'    => $data
         ], JSON_UNESCAPED_UNICODE);
     }
-
-
-
+    public function apiActiveType(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+    
+        $assetType = $_POST['asset_type'] ?? '';
+    
+        if (!$assetType) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'asset_type 누락'
+            ]);
+            return;
+        }
+    
+        $data = $this->service->getActive($assetType);
+    
+        echo json_encode([
+            'success' => true,
+            'data'    => $data
+        ], JSON_UNESCAPED_UNICODE);
+    }
     /* ============================================================
    API: 브랜드 자산 업로드
-   URL: POST /api/settings/base-info/brand/upload
-   permission: api.settings.baseinfo.brand.save
-   controller: BrandController@apiBrandUpload
    ============================================================ */
     public function apiSave()
     {
@@ -95,7 +109,7 @@ class BrandController //기능묶음 단위
             return;
         }
 
-        $result = $this->service->save($assetType, $file, $userId);
+        $result = $this->service->save($assetType, $file);
 
         // 🔥 디버깅 로그 추가
         error_log("📤 apiBrandUpload 응답: " . json_encode($result));
@@ -104,48 +118,9 @@ class BrandController //기능묶음 단위
     }
 
 
-
-    /* ============================================================
-    API: 브랜드 자산 활성화
-    URL: POST /api/settings/base-info/brand/activate
-    permission: api.settings.baseinfo.brand.activate
-    controller: BrandController@apiBrandActivate
-    ============================================================ */
-    public function apiActivate()
-    {
-        header('Content-Type: application/json; charset=utf-8');
-
-        $fileId = $_POST['file_id'] ?? '';
-        if (!$fileId) {
-            echo json_encode(['success' => false, 'message' => '파일 ID가 누락되었습니다.']);
-            return;
-        }
-
-        $result = $this->service->activate($fileId, $_SESSION['user']['id']);
-
-        if ($result['success']) {
-            // 활성화된 파일 정보 반환
-            $file = $this->service->getById($fileId);
-            $result['data'] = [
-                'asset_type' => $file['asset_type'],
-                'url'        => $file['url'],
-            ];
-        }
-
-        // 🔥 디버깅 로그 추가
-        error_log("🔄 apiBrandActivate 응답: " . json_encode($result));
-
-        echo json_encode($result);
-    }
-
-
-
-
     /* ============================================================
     API: 브랜드 자산 삭제
-    URL: POST /api/settings/base-info/brand/delete
-    permission: api.settings.baseinfo.brand.delete
-    controller: BrandController@apiBrandDelete
+  
     ============================================================ */
     public function apiDelete()
     {
@@ -164,4 +139,32 @@ class BrandController //기능묶음 단위
 
         echo json_encode($result);
     }
+
+    /* ============================================================
+    API: 브랜드 자산 활성화
+    ============================================================ */
+    public function apiUpdateStatus()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+    
+        $id     = $_POST['id'] ?? '';
+        $status = isset($_POST['status']) ? (int)$_POST['status'] : null;
+    
+        if (!$id || $status === null) {
+            echo json_encode([
+                'success' => false,
+                'message' => '필수값 누락'
+            ]);
+            return;
+        }
+    
+        if ($status === 1) {
+            $result = $this->service->activate($id);
+        } else {
+            $result = $this->service->deactivate($id);
+        }
+    
+        echo json_encode($result, JSON_UNESCAPED_UNICODE);
+    }
+
 }

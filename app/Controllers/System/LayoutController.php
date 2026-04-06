@@ -44,11 +44,12 @@ class LayoutController
         $expireTime     = (int)($session['expire_time'] ?? (time() + ($sessionTimeout * 60)));
 
 
-    
+
         // 2. 브랜드 관련 데이터
-        $brandAssets = $this->brandService->getActiveAssets();
-        $mainLogoUrl = $brandAssets['main_logo_url'] ?? null;
-        $faviconUrl  = $brandAssets['favicon_url'] ?? null;
+        $mainLogo   = $this->brandService->getActive('main_logo');
+        $favicon    = $this->brandService->getActive('favicon');
+        $mainLogoUrl = $mainLogo['url'] ?? null;
+        $faviconUrl  = $favicon['url'] ?? null;
     
         // 3. 페이지 데이터 준비
         $pageTitle   = $params['pageTitle'] ?? 'SUKHYANG ERP';

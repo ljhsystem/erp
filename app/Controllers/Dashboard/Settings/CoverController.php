@@ -17,50 +17,63 @@ class CoverController
         $this->service = new CoverImageService(DbPdo::conn());
     }
 
-
-
     /* ============================================================
-       API: 커버 이미지 목록 조회
-       URL: POST /api/settings/base-info/cover/list
-       permission: api.settings.baseinfo.cover.list
-       controller: CoverController@apiCoverList
-       ============================================================ */
+       목록
+    ============================================================ */
     public function apiList()
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $rawFilters = $_POST['filters'] ?? $_GET['filters'] ?? '[]';
-
-        if (is_string($rawFilters)) {
-            $filters = json_decode($rawFilters, true);
-        } else {
-            $filters = $rawFilters;
-        }
-
-        if (!is_array($filters)) {
-            $filters = [];
+        $filters = $_POST['filters'] ?? $_GET['filters'] ?? [];
+        if (is_string($filters)) {
+            $filters = json_decode($filters, true) ?? [];
         }
 
         $data = $this->service->getList($filters);
 
-        echo json_encode([
-            'success' => true,
-            'data'    => $data,
-        ], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['success'=>true,'data'=>$data], JSON_UNESCAPED_UNICODE);
     }
 
     /* ============================================================
-       API: 커버 이미지 저장 (신규/수정)
-       URL: POST /api/settings/base-info/cover/save
-       permission: api.settings.baseinfo.cover.save
-       controller: CoverController@apiCoverSave
-       ============================================================ */
+       오픈목록
+    ============================================================ */
+    public function apiPublicList()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+
+        $data = $this->service->getPublicList();
+
+        echo json_encode(['success'=>true,'data'=>$data], JSON_UNESCAPED_UNICODE);
+    }
+
+    /* ============================================================
+       단건조회
+    ============================================================ */
+    public function apiDetail()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+
+        $id = $_GET['id'] ?? $_POST['id'] ?? null;
+
+        if (!$id) {
+            echo json_encode(['success'=>false,'message'=>'ID 누락'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $data = $this->service->getById($id);
+
+        echo json_encode(['success'=>true,'data'=>$data], JSON_UNESCAPED_UNICODE);
+    }
+
+    /* ============================================================
+       저장
+    ============================================================ */
     public function apiSave()
     {
         header('Content-Type: application/json; charset=utf-8');
 
         $payload = [
-            'cover_id'    => $_POST['cover_id'] ?? '',
+            'id'          => $_POST['id'] ?? '',
             'year'        => $_POST['year'] ?? '',
             'title'       => $_POST['title'] ?? '',
             'alt'         => $_POST['alt'] ?? '',
@@ -70,181 +83,132 @@ class CoverController
             'updated_by'  => $_SESSION['user']['id'] ?? null,
         ];
 
-        $result = $this->service->save($payload);
-
-        echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        echo json_encode($this->service->save($payload), JSON_UNESCAPED_UNICODE);
     }
 
     /* ============================================================
-       API: 커버 이미지 삭제
-       URL: POST /api/settings/base-info/cover/delete
-       permission: api.settings.baseinfo.cover.delete
-       controller: CoverController@apiCoverDelete
-       ============================================================ */
+       소프트 삭제
+    ============================================================ */
     public function apiDelete()
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $id = $_POST['cover_id'] ?? null;
+        $id = $_POST['id'] ?? null;
 
         if (!$id) {
-            echo json_encode([
-                'success' => false,
-                'message' => '커버 이미지 아이디 누락'
-            ], JSON_UNESCAPED_UNICODE);
+            echo json_encode(['success'=>false,'message'=>'ID 누락'], JSON_UNESCAPED_UNICODE);
             return;
         }
 
-        $result = $this->service->delete($id);
-
-        echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        echo json_encode($this->service->delete($id), JSON_UNESCAPED_UNICODE);
     }
 
     /* ============================================================
-        API: 커버 이미지 휴지통 목록 조회
-        ============================================================ */
+       휴지통 목록
+    ============================================================ */
     public function apiTrashList()
     {
-        Session::requireAuth();
         header('Content-Type: application/json; charset=utf-8');
 
         $data = $this->service->getTrashList();
 
-        echo json_encode([
-            'success' => true,
-            'data'    => $data,
-        ], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['success'=>true,'data'=>$data], JSON_UNESCAPED_UNICODE);
     }
 
     /* ============================================================
-        API: 커버 이미지 복원
-        ============================================================ */
+       단건 복원
+    ============================================================ */
     public function apiRestore()
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $id = $_POST['cover_id'] ?? $_POST['id'] ?? null;
+        $id = $_POST['id'] ?? null;
 
         if (!$id) {
-            echo json_encode([
-                'success' => false,
-                'message' => 'ID 누락'
-            ], JSON_UNESCAPED_UNICODE);
+            echo json_encode(['success'=>false,'message'=>'ID 누락'], JSON_UNESCAPED_UNICODE);
             return;
         }
 
-        $result = $this->service->restore($id);
-
-        echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        echo json_encode($this->service->restore($id), JSON_UNESCAPED_UNICODE);
     }
+
     /* ============================================================
-        API: 커버 이미지 하드삭제
-        ============================================================ */
-    public function apiPurge()
-    {
-        header('Content-Type: application/json; charset=utf-8');
-
-        $id = $_POST['cover_id'] ?? null;
-
-        if ($id === '') {
-            echo json_encode([
-                'success' => false,
-                'message' => 'cover_id가 누락되었습니다.'
-            ], JSON_UNESCAPED_UNICODE);
-            return;
-        }
-
-        $result = $this->service->purge($id);
-
-        echo json_encode($result, JSON_UNESCAPED_UNICODE);
-    }
-
-
-
-
+       선택 복원
+    ============================================================ */
     public function apiRestoreBulk()
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $raw = file_get_contents('php://input');
-        $json = json_decode($raw, true);
+        $ids = json_decode(file_get_contents('php://input'), true)['ids'] ?? [];
 
-        $ids = $json['ids'] ?? [];
-
-        $result = $this->service->restoreBulk($ids);
-
-        echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        echo json_encode($this->service->restoreBulk($ids), JSON_UNESCAPED_UNICODE);
     }
 
+    /* ============================================================
+       전체 복원
+    ============================================================ */
+    public function apiRestoreAll()
+    {
+        header('Content-Type: application/json; charset=utf-8');
 
+        echo json_encode($this->service->restoreAll(), JSON_UNESCAPED_UNICODE);
+    }
+
+    /* ============================================================
+       영구삭제 단건
+    ============================================================ */
+    public function apiPurge()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+
+        $id = $_POST['id'] ?? null;
+
+        if (!$id) {
+            echo json_encode(['success'=>false,'message'=>'ID 누락'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        echo json_encode($this->service->purge($id), JSON_UNESCAPED_UNICODE);
+    }
+
+    /* ============================================================
+       영구삭제 선택
+    ============================================================ */
     public function apiPurgeBulk()
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $raw = file_get_contents('php://input');
-        $json = json_decode($raw, true);
+        $ids = json_decode(file_get_contents('php://input'), true)['ids'] ?? [];
 
-        $ids = $json['ids'] ?? [];
-
-        $result = $this->service->purgeBulk($ids);
-
-        echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        echo json_encode($this->service->purgeBulk($ids), JSON_UNESCAPED_UNICODE);
     }
 
+    /* ============================================================
+       영구삭제 전체
+    ============================================================ */
     public function apiPurgeAll()
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        try {
-
-            $result = $this->service->purgeAll();
-
-            echo json_encode($result, JSON_UNESCAPED_UNICODE);
-        } catch (\Throwable $e) {
-
-            echo json_encode([
-                'success' => false,
-                'message' => '전체 삭제 실패',
-                'error'   => $e->getMessage()
-            ], JSON_UNESCAPED_UNICODE);
-        }
+        echo json_encode($this->service->purgeAll(), JSON_UNESCAPED_UNICODE);
     }
 
-
-
-
-    public function apiReorder(): void
+    /* ============================================================
+       순서변경
+    ============================================================ */
+    public function apiReorder()
     {
         header('Content-Type: application/json; charset=UTF-8');
 
-        try {
+        $changes = json_decode(file_get_contents('php://input'), true)['changes'] ?? [];
 
-            $payload = json_decode(file_get_contents('php://input'), true);
-            $changes = $payload['changes'] ?? [];
-
-            if (!$changes) {
-                echo json_encode([
-                    'success' => false,
-                    'message' => '변경 데이터 없음'
-                ]);
-                return;
-            }
-
-            // 🔥 한번에 reorder 처리
-            $this->service->reorder($changes);
-
-            echo json_encode([
-                'success' => true
-            ]);
-        } catch (\Throwable $e) {
-
-            echo json_encode([
-                'success' => false,
-                'message' => '순서 저장 실패',
-                'error'   => $e->getMessage()
-            ]);
+        if (!$changes) {
+            echo json_encode(['success'=>false,'message'=>'변경 데이터 없음']);
+            return;
         }
 
-        exit;
+        $this->service->reorder($changes);
+
+        echo json_encode(['success'=>true]);
     }
 }

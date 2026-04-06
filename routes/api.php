@@ -43,9 +43,6 @@ $router->post('/api/integration/biz-status', 'ExternalIntegrationController@apiB
 ]);
 
 
-
-
-
 /* =========================================================
  * 회사 기본정보 단건 조회
  * ========================================================= */
@@ -53,7 +50,10 @@ $router->get('/api/settings/base-info/company/detail', 'CompanyController@apiDet
     'key'         => 'api.settings.base-info.company.view',
     'name'        => '회사 기본정보 조회',
     'description' => '시스템에 단 1건 존재하는 회사 기본정보 조회',
-    'category'    => '시스템설정'
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
 ]);
 
 /* =========================================================
@@ -63,22 +63,13 @@ $router->post('/api/settings/base-info/company/save', 'CompanyController@apiSave
     'key'         => 'api.settings.base-info.company.save',
     'name'        => '회사 기본정보 저장',
     'description' => '시스템에 단 1건 존재하는 회사 기본정보 신규/수정',
-    'category'    => '시스템설정'
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
 ]);
 
 
-
-
-
-/* =========================================================
- * 브랜드 자산 조회 (단건 / 활성)
- * ========================================================= */
-$router->post('/api/settings/base-info/brand/get', 'BrandController@apiSearch', [
-    'key'         => 'api.settings.base-info.brand.view',
-    'name'        => '브랜드 자산 조회',
-    'description' => '메인로고 / 파비콘 활성 자산 조회',
-    'category'    => '시스템설정'
-]);
 
 /* =========================================================
  * 브랜드 자산 목록 조회
@@ -87,18 +78,54 @@ $router->post('/api/settings/base-info/brand/list', 'BrandController@apiList', [
     'key'         => 'api.settings.base-info.brand.list',
     'name'        => '브랜드 자산 목록 조회',
     'description' => '브랜드 자산 전체 목록 조회',
-    'category'    => '시스템설정'
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
 ]);
 
+
 /* =========================================================
- * 브랜드 자산 저장 (업로드)
+ * 브랜드 자산 단건 조회
+ * ========================================================= */
+$router->post('/api/settings/base-info/brand/get', 'BrandController@apiDetail', [
+    'key'         => 'api.settings.base-info.brand.detail',
+    'name'        => '브랜드 자산 단건 조회',
+    'description' => '브랜드 자산 단건 조회 (ID 기준)',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+
+/* =========================================================
+ * 브랜드 자산 검색
+ * ========================================================= */
+$router->post('/api/settings/base-info/brand/active-type', 'BrandController@apiActiveType', [
+    'key'         => 'api.settings.base-info.brand.active-type',
+    'name'        => '브랜드 자산 활성 조회',
+    'description' => '타입별 활성 브랜드 자산 조회',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+
+/* =========================================================
+ * 브랜드 자산 저장 (신규 / 수정)
  * ========================================================= */
 $router->post('/api/settings/base-info/brand/upload', 'BrandController@apiSave', [
     'key'         => 'api.settings.base-info.brand.save',
     'name'        => '브랜드 자산 저장',
-    'description' => '브랜드 로고 및 파비콘 업로드/교체',
-    'category'    => '시스템설정'
+    'description' => '브랜드 자산 신규 등록 또는 수정',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
 ]);
+
 
 /* =========================================================
  * 브랜드 자산 삭제
@@ -106,19 +133,29 @@ $router->post('/api/settings/base-info/brand/upload', 'BrandController@apiSave',
 $router->post('/api/settings/base-info/brand/delete', 'BrandController@apiDelete', [
     'key'         => 'api.settings.base-info.brand.delete',
     'name'        => '브랜드 자산 삭제',
-    'description' => '브랜드 로고 및 파비콘 삭제',
-    'category'    => '시스템설정'
+    'description' => '브랜드 자산 삭제',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
 ]);
 
+
 /* =========================================================
- * 브랜드 자산 활성화
+ * 브랜드 자산 상태 변경 (활성/비활성)
  * ========================================================= */
-$router->post('/api/settings/base-info/brand/activate', 'BrandController@apiActivate', [
-    'key'         => 'api.settings.base-info.brand.activate',
-    'name'        => '브랜드 자산 활성화',
-    'description' => '브랜드 로고 및 파비콘 활성화',
-    'category'    => '시스템설정'
+$router->post('/api/settings/base-info/brand/updatestatus', 'BrandController@apiUpdateStatus', [
+    'key'         => 'api.settings.base-info.brand.status',
+    'name'        => '브랜드 자산 상태 변경',
+    'description' => '브랜드 자산 활성/비활성 처리',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['update'],
+    'log'         => true,
 ]);
+
+
+
 
 
 
@@ -128,38 +165,70 @@ $router->post('/api/settings/base-info/brand/activate', 'BrandController@apiActi
 $router->get('/api/settings/base-info/cover/list', 'CoverController@apiList', [
     'key'         => 'api.settings.base-info.cover.list',
     'name'        => '커버 이미지 목록 조회',
-    'description' => '커버 이미지 전체 목록을 조회합니다.',
-    'category'    => '시스템설정'
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
 ]);
 
 /* =========================================================
- * 커버 이미지 저장 (신규 / 수정)
+ * 커버 이미지 오픈 목록 조회
+ * ========================================================= */
+$router->get('/api/settings/base-info/cover/public', 'CoverController@apiPublicList', [
+    'key'         => 'api.settings.base-info.cover.public',
+    'name'        => '커버 이미지 오픈 목록 조회',
+    'category'    => '시스템설정',
+    'auth'        => false,
+    'permissions' => [],
+    'log'         => false,
+]);
+
+/* =========================================================
+ * 커버 이미지 단건 조회
+ * ========================================================= */
+$router->get('/api/settings/base-info/cover/detail', 'CoverController@apiDetail', [
+    'key'         => 'api.settings.base-info.cover.detail',
+    'name'        => '커버 이미지 단건 조회',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 커버 이미지 저장
  * ========================================================= */
 $router->post('/api/settings/base-info/cover/save', 'CoverController@apiSave', [
     'key'         => 'api.settings.base-info.cover.save',
     'name'        => '커버 이미지 저장',
-    'description' => '커버 이미지를 신규 등록하거나 수정합니다.',
-    'category'    => '시스템설정'
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
 ]);
 
 /* =========================================================
- * 커버 이미지 삭제 (소프트삭제)
+ * 커버 이미지 삭제 (소프트)
  * ========================================================= */
 $router->post('/api/settings/base-info/cover/delete', 'CoverController@apiDelete', [
     'key'         => 'api.settings.base-info.cover.delete',
     'name'        => '커버 이미지 삭제',
-    'description' => '커버 이미지를 소프트삭제 처리합니다.',
-    'category'    => '시스템설정'
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
 ]);
 
 /* =========================================================
- * 커버 이미지 휴지통 목록 조회
+ * 커버 이미지 휴지통 목록
  * ========================================================= */
 $router->get('/api/settings/base-info/cover/trash', 'CoverController@apiTrashList', [
     'key'         => 'api.settings.base-info.cover.trash.list',
-    'name'        => '커버 이미지 휴지통 목록 조회',
-    'description' => '삭제된 커버 이미지 목록을 조회합니다.',
-    'category'    => '시스템설정'
+    'name'        => '커버 이미지 휴지통 목록',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
 ]);
 
 /* =========================================================
@@ -168,18 +237,70 @@ $router->get('/api/settings/base-info/cover/trash', 'CoverController@apiTrashLis
 $router->post('/api/settings/base-info/cover/restore', 'CoverController@apiRestore', [
     'key'         => 'api.settings.base-info.cover.restore',
     'name'        => '커버 이미지 복원',
-    'description' => '삭제된 커버 이미지를 복원합니다.',
-    'category'    => '시스템설정'
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
 ]);
 
 /* =========================================================
- * 커버 이미지 완전삭제 (단건)
+ * 커버 이미지 복원 (다건)
+ * ========================================================= */
+$router->post('/api/settings/base-info/cover/restore-bulk', 'CoverController@apiRestoreBulk', [
+    'key'         => 'api.settings.base-info.cover.restore.bulk',
+    'name'        => '커버 이미지 일괄 복원',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 커버 이미지 복원 (전체)
+ * ========================================================= */
+$router->post('/api/settings/base-info/cover/restore-all', 'CoverController@apiRestoreAll', [
+    'key'         => 'api.settings.base-info.cover.restore.all',
+    'name'        => '커버 이미지 전체 복원',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 커버 이미지 영구삭제 (단건)
  * ========================================================= */
 $router->post('/api/settings/base-info/cover/purge', 'CoverController@apiPurge', [
     'key'         => 'api.settings.base-info.cover.purge',
-    'name'        => '커버 이미지 완전삭제',
-    'description' => '삭제된 커버 이미지를 DB와 스토리지에서 완전히 삭제합니다.',
-    'category'    => '시스템설정'
+    'name'        => '커버 이미지 영구 삭제',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 커버 이미지 영구삭제 (다건)
+ * ========================================================= */
+$router->post('/api/settings/base-info/cover/purge-bulk', 'CoverController@apiPurgeBulk', [
+    'key'         => 'api.settings.base-info.cover.purge.bulk',
+    'name'        => '커버 이미지 일괄 영구 삭제',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 커버 이미지 영구삭제 (전체)
+ * ========================================================= */
+$router->post('/api/settings/base-info/cover/purge-all', 'CoverController@apiPurgeAll', [
+    'key'         => 'api.settings.base-info.cover.purge.all',
+    'name'        => '커버 이미지 전체 영구 삭제',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
 ]);
 
 /* =========================================================
@@ -188,38 +309,10 @@ $router->post('/api/settings/base-info/cover/purge', 'CoverController@apiPurge',
 $router->post('/api/settings/base-info/cover/reorder', 'CoverController@apiReorder', [
     'key'         => 'api.settings.base-info.cover.reorder',
     'name'        => '커버 이미지 순서 변경',
-    'description' => '커버 이미지 정렬 순서를 변경합니다.',
-    'category'    => '시스템설정'
-]);
-
-/* =========================================================
- * 커버 이미지 복원 (다건)
- * ========================================================= */
-$router->post('/api/settings/base-info/cover/restore-bulk', 'CoverController@apiRestoreBulk', [
-    'key'         => 'api.settings.base-info.cover.restore-bulk',
-    'name'        => '커버 이미지 일괄 복원',
-    'description' => '삭제된 커버 이미지를 여러 건 복원합니다.',
-    'category'    => '시스템설정'
-]);
-
-/* =========================================================
- * 커버 이미지 완전삭제 (다건)
- * ========================================================= */
-$router->post('/api/settings/base-info/cover/purge-bulk', 'CoverController@apiPurgeBulk', [
-    'key'         => 'api.settings.base-info.cover.purge-bulk',
-    'name'        => '커버 이미지 일괄 완전삭제',
-    'description' => '삭제된 커버 이미지를 여러 건 완전히 삭제합니다.',
-    'category'    => '시스템설정'
-]);
-
-/* =========================================================
- * 커버 이미지 전체 완전삭제
- * ========================================================= */
-$router->post('/api/settings/base-info/cover/purge-all', 'CoverController@apiPurgeAll', [
-    'key'         => 'api.settings.base-info.cover.purge-all',
-    'name'        => '커버 이미지 전체 완전삭제',
-    'description' => '휴지통에 있는 커버 이미지를 전체 완전히 삭제합니다.',
-    'category'    => '시스템설정'
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
 ]);
 
 
@@ -228,16 +321,6 @@ $router->post('/api/settings/base-info/cover/purge-all', 'CoverController@apiPur
 
 
 
-
-/* =========================================================
- * 거래처 검색 (검색폼용)
- * ========================================================= */
-$router->get('/api/settings/base-info/client/search', 'ClientController@apiSearch', [
-    'key'         => 'api.settings.base-info.client.search',
-    'name'        => '거래처 검색',
-    'description' => '검색 조건 기반 거래처 목록 조회',
-    'category'    => '거래원장'
-]);
 
 /* =========================================================
  * 거래처 목록 조회
@@ -258,6 +341,22 @@ $router->get('/api/settings/base-info/client/detail', 'ClientController@apiDetai
     'description' => '특정 거래처 상세 정보를 조회합니다.',
     'category'    => '거래원장'
 ]);
+
+
+
+/* =========================================================
+ * 거래처 검색 (검색폼용)
+ * ========================================================= */
+$router->get('/api/settings/base-info/client/search', 'ClientController@apiSearch', [
+    'key'         => 'api.settings.base-info.client.search',
+    'name'        => '거래처 검색',
+    'description' => '검색 조건 기반 거래처 목록 조회',
+    'category'    => '거래원장'
+]);
+
+
+
+
 
 /* =========================================================
  * 거래처 저장 (신규 / 수정)

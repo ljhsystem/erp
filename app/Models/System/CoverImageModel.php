@@ -15,7 +15,7 @@ class CoverImageModel
 
 
     /* =============================================================
-     * 2. 전체 목록 조회 (관리자용)
+     * 전체 목록 조회 (관리자용)
      *  - 기본은 활성 데이터만 조회
      * ============================================================= */
     public function getList(array $filters = []): array
@@ -96,9 +96,40 @@ class CoverImageModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /* =============================================================
+    * 공개 페이지용 목록 조회 (About, Home 등)
+    *  - 활성 데이터만 조회
+    *  - 코드 기준 정렬
+    * ============================================================= */
+    public function getPublicList(): array
+    {
+        $sql = "
+            SELECT
+                id,
+                code,
+                year,
+                title,
+                alt,
+                description,
+                src,        
+                created_at,
+                created_by,
+                updated_at,
+                updated_by,
+                deleted_at,
+                deleted_by
+            FROM system_coverimage_assets
+            WHERE deleted_at IS NULL
+            ORDER BY code ASC
+        ";
+
+        $stmt = $this->db->query($sql);
+        return $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+    }
+
 
     /* =============================================================
-     * 4. 단건 조회
+     * 단건 조회
      * ============================================================= */
     public function getById(string $id): ?array
     {
@@ -148,7 +179,7 @@ class CoverImageModel
     }
 
     /* =============================================================
-     * 5. 생성
+     * 생성
      * ============================================================= */
     public function create(array $data): bool
     {
@@ -180,7 +211,7 @@ class CoverImageModel
     }
 
     /* =============================================================
-     * 6. 수정
+     * 수정
      * ============================================================= */
     public function updateById(string $id, array $data): bool
     {
@@ -204,7 +235,7 @@ class CoverImageModel
 
 
     /* =============================================================
-     * 7. 휴지통 이동 (소프트삭제)
+     * 휴지통 이동 (소프트삭제)
      * ============================================================= */
     public function deleteById(string $id, ?string $deletedBy): bool
     {
@@ -230,7 +261,7 @@ class CoverImageModel
 
 
     /* =============================================================
-     * 3. 휴지통 목록 조회
+     * 휴지통 목록 조회
      * ============================================================= */
     public function getDeleted(): array
     {
@@ -285,7 +316,7 @@ class CoverImageModel
 
 
     /* =============================================================
-     * 8. 휴지통 복원
+     * 휴지통 복원
      * ============================================================= */
     public function restoreById(string $id, ?string $updatedBy): bool
     {
@@ -309,7 +340,7 @@ class CoverImageModel
     
 
     /* =============================================================
-     * 9. 하드삭제
+     * 하드삭제
      * ============================================================= */
      public function hardDeleteById(string $id): bool
      {
@@ -324,38 +355,6 @@ class CoverImageModel
 
 
 
-
-
-
-
-     public function hardDeleteBulkByIds(array $ids): bool
-     {
-         if (empty($ids)) return false;
-     
-         $placeholders = implode(',', array_fill(0, count($ids), '?'));
-     
-         $sql = "DELETE FROM system_coverimage_assets WHERE id IN ($placeholders)";
-     
-         $stmt = $this->db->prepare($sql);
-         $stmt->execute($ids);
-     
-         return $stmt->rowCount() > 0;
-     }
-     
-     public function hardDeleteAllDeleted(): bool
-     {
-         $stmt = $this->db->prepare("
-             DELETE FROM system_coverimage_assets
-             WHERE deleted_at IS NOT NULL
-         ");
-     
-         $stmt->execute();
-     
-         return true;
-     }
-
-
-
      public function updateCode(string $id, string $newCode): bool
      {
          $sql = "UPDATE system_coverimage_assets SET code = :newCode WHERE id = :id";
@@ -364,46 +363,12 @@ class CoverImageModel
          $ok = $stmt->execute(['newCode' => $newCode, 'id' => $id]);
  
          if (!$ok) {
-             throw new \Exception('쿼리 실행 실패');
-         }
-         if ($stmt->rowCount() === 0) {
-             throw new \Exception('업데이트된 행이 없습니다.');
-         }
- 
-         return true;
+            throw new \Exception('쿼리 실행 실패');
+        }
+        
+        return true;
      }
 
-
-    /* =============================================================
-    * 1. 공개 페이지용 목록 조회 (About, Home 등)
-    *  - 활성 데이터만 조회
-    *  - 코드 기준 정렬
-    * ============================================================= */
-    public function getPublicList(): array
-    {
-        $sql = "
-            SELECT
-                id,
-                code,
-                year,
-                title,
-                alt,
-                description,
-                src,        
-                created_at,
-                created_by,
-                updated_at,
-                updated_by,
-                deleted_at,
-                deleted_by
-            FROM system_coverimage_assets
-            WHERE deleted_at IS NULL
-            ORDER BY code ASC
-        ";
-
-        $stmt = $this->db->query($sql);
-        return $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
-    }
 
 
 }

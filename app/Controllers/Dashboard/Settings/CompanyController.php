@@ -53,37 +53,51 @@ class CompanyController
     public function apiSave()
     {
         header('Content-Type: application/json; charset=utf-8');
-
-        $userId = $_SESSION['user']['id'] ?? null;
-        if (!$userId) {
-            echo json_encode(['success' => false, 'message' => '인증 오류']);
-            return;
+    
+        try {
+    
+            $userId = $_SESSION['user']['id'] ?? null;
+            if (!$userId) {
+                throw new \Exception('인증 오류');
+            }
+    
+            $input = $_POST ?: json_decode(file_get_contents('php://input'), true);
+    
+            $data = [
+                'company_name_ko' => trim($input['company_name_ko'] ?? ''),
+                'company_name_en' => trim($input['company_name_en'] ?? '') ?: null,
+                'ceo_name'        => trim($input['ceo_name'] ?? '') ?: null,
+                'biz_number'      => preg_replace('/[^0-9]/', '', $input['biz_number'] ?? ''),
+                'corp_number'     => preg_replace('/[^0-9]/', '', $input['corp_number'] ?? ''),
+                'found_date'      => $input['found_date'] ?? null,
+                'biz_type'        => $input['biz_type'] ?? null,
+                'biz_item'        => $input['biz_item'] ?? null,
+                'addr_main'       => $input['addr_main'] ?? null,
+                'addr_detail'     => $input['addr_detail'] ?? null,
+                'tel'             => $input['tel'] ?? null,
+                'fax'             => $input['fax'] ?? null,
+                'tax_email'       => $input['tax_email'] ?? null,
+                'sub_email'       => $input['sub_email'] ?? null,
+                'company_website' => $input['company_website'] ?? null,
+                'sns_instagram'   => $input['sns_instagram'] ?? null,
+                'company_about'   => $input['company_about'] ?? null,
+                'company_history' => $input['company_history'] ?? null,
+            ];
+    
+            if ($data['company_name_ko'] === '') {
+                throw new \Exception('회사명은 필수입니다.');
+            }
+    
+            $result = $this->service->save($data, $userId);
+    
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+    
+        } catch (\Throwable $e) {
+    
+            echo json_encode([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE);
         }
-
-        $data = [
-            'company_name_ko' => trim($_POST['company_name_ko'] ?? ''),
-            'company_name_en' => trim($_POST['company_name_en'] ?? '') ?: null,
-            'ceo_name'        => trim($_POST['ceo_name'] ?? '') ?: null,
-            'biz_number'      => preg_replace('/[^0-9]/', '', $_POST['biz_number'] ?? ''),
-            'corp_number'     => preg_replace('/[^0-9]/', '', $_POST['corp_number'] ?? ''),
-            'found_date'      => $_POST['found_date'] ?? null,
-            'biz_type'        => $_POST['biz_type'] ?? null,
-            'biz_item'        => $_POST['biz_item'] ?? null,
-            'addr_main'       => $_POST['addr_main'] ?? null,
-            'addr_detail'     => $_POST['addr_detail'] ?? null,
-            'tel'             => $_POST['tel'] ?? null,
-            'fax'             => $_POST['fax'] ?? null,
-            'tax_email'       => $_POST['tax_email'] ?? null,
-            'sub_email'       => $_POST['sub_email'] ?? null,
-            'company_website' => $_POST['company_website'] ?? null,
-            'sns_instagram'   => $_POST['sns_instagram'] ?? null,
-            'company_about'   => $_POST['company_about'] ?? null,
-            'company_history' => $_POST['company_history'] ?? null,
-        ];
-
-        echo json_encode(
-            $this->service->save($data, $userId),
-            JSON_UNESCAPED_UNICODE
-        );
     }
 }
