@@ -59,12 +59,12 @@
 ========================================================= */
 
 /* 🔥 여기 넣는거다 */
-$templateUrl = '/api/settings/base-info/clients/template';
-$downloadUrl = '/api/settings/base-info/clients/excel';
+$templateUrl = '/api/settings/base-info/client/template';
+$downloadUrl = '/api/settings/base-info/client/excel';
 $uploadUrl   = '/api/settings/base-info/client/excel-upload';
 
 $modalId        = 'clientExcelModal';
-$formId         = 'client-excel-form';
+$formId         = 'clientExcelForm';
 $modalTitle     = '거래처 엑셀관리';
 
 $fileInputId    = 'clientExcelFile';

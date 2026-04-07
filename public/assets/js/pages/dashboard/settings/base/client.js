@@ -17,13 +17,27 @@ window.AdminPicker = AdminPicker;
     ========================= */
     const API = {
         LIST: "/api/settings/base-info/client/list",
+        DETAIL: "/api/settings/base-info/client/detail",
+    
         SAVE: "/api/settings/base-info/client/save",
         DELETE: "/api/settings/base-info/client/delete",
-        DETAIL: "/api/settings/base-info/client/detail",
+    
         TRASH: "/api/settings/base-info/client/trash",
         RESTORE: "/api/settings/base-info/client/restore",
+        RESTORE_BULK: "/api/settings/base-info/client/restore-bulk",
+        RESTORE_ALL: "/api/settings/base-info/client/restore-all",
+    
         PURGE: "/api/settings/base-info/client/purge",
-        REORDER: "/api/settings/base-info/client/reorder"
+        PURGE_BULK: "/api/settings/base-info/client/purge-bulk",
+        PURGE_ALL: "/api/settings/base-info/client/purge-all",
+    
+        REORDER: "/api/settings/base-info/client/reorder",
+    
+        EXCEL_UPLOAD: "/api/settings/base-info/client/excel-upload",
+        EXCEL_DOWNLOAD: "/api/settings/base-info/client/download",
+        EXCEL_TEMPLATE: "/api/settings/base-info/client/template",
+    
+        SEARCH_PICKER: "/api/settings/base-info/client/search-picker"
     };
 
     // fetch(API.DETAIL + '?code=' + code);
@@ -138,7 +152,8 @@ function initClientPage($){
     initModal();              // Bootstrap Modal 초기화
     initAdminDatePicker();    // 날짜 선택기
     initBizCertUpload();      // 사업자등록증 업로드 UI
-    initBankCopyUpload();     // 통장사본 업로드 UI
+    initBankFileUpload();     // 통장사본 업로드 UI
+    initExcelDataset();       // 엑셀파일 업로드
     /* --------------------------------------------------------
        2. 핵심 데이터 영역 (🔥 가장 중요)
        - DataTable 생성 → 이후 모든 기능이 여기에 의존
@@ -179,6 +194,21 @@ function initClientPage($){
     -------------------------------------------------------- */
     bindGlobalEvents();            // ESC, resize 등
 }
+
+
+    // initClientPage 위 or 아래 아무데나
+    function initExcelDataset() {
+
+        const excelForm = document.getElementById('clientExcelForm');
+
+        if (!excelForm) return;
+
+        excelForm.dataset.templateUrl = API.EXCEL_TEMPLATE;
+        excelForm.dataset.downloadUrl = API.EXCEL_DOWNLOAD;
+        excelForm.dataset.uploadUrl   = API.EXCEL_UPLOAD;
+
+    }
+
 
     function initModal(){
         const modalEl = document.getElementById('clientModal');
@@ -588,8 +618,12 @@ function initClientPage($){
                         /* 🔥 핵심: URL 세팅 (JS에서 처리) */
                         trashModalEl.dataset.listUrl      = API.TRASH;
                         trashModalEl.dataset.restoreUrl   = API.RESTORE;
+                        trashModalEl.dataset.restoreBulkUrl = API.RESTORE_BULK;
+                        trashModalEl.dataset.restoreAllUrl  = API.RESTORE_ALL;
+                        
                         trashModalEl.dataset.deleteUrl    = API.PURGE;
-                        trashModalEl.dataset.deleteAllUrl = API.PURGE;
+                        trashModalEl.dataset.deleteBulkUrl = API.PURGE_BULK;
+                        trashModalEl.dataset.deleteAllUrl = API.PURGE_ALL;
                     
                         const modal = new bootstrap.Modal(trashModalEl);
                         modal.show();
@@ -699,17 +733,33 @@ function initClientPage($){
         /* ================================
         더블클릭 → 수정 모달
         ================================ */
-        $('#client-table tbody').on('dblclick', 'tr', function () {    
-            const data = clientTable.row(this).data();
-            if (!data) return;    
-            window.isNewClient = false;    
-            document.getElementById('clientModalLabel').textContent = '거래처 정보 수정';    
-            $('#btnDeleteClient').show();    
-            clientModal.show();    
-            setTimeout(() => {    
-                $('#modal_client_id').val(data.id ?? '');    
-                fillModal(data);    
-            }, 0);    
+        $('#client-table tbody').on('dblclick', 'tr', async function () {
+
+            const row = clientTable.row(this).data();
+            if (!row) return;
+        
+            try {
+                const res = await fetch(API.DETAIL + '?id=' + row.id);
+                const json = await res.json();
+        
+                if (!json.success) {
+                    AppCore.notify('error', '상세조회 실패');
+                    return;
+                }
+        
+                const data = json.data;
+        
+                window.isNewClient = false;
+                $('#btnDeleteClient').show();
+                $('#modal_client_id').val(data.id);
+        
+                fillModal(data);
+                clientModal.show();
+        
+            } catch (e) {
+                console.error(e);
+                AppCore.notify('error', '서버 오류');
+            }
         });
     
         /* ================================
@@ -1085,7 +1135,7 @@ function initClientPage($){
         return base.substring(0, keep) + '...' + ext;
     }
 
-    function initBankCopyUpload(){
+    function initBankFileUpload(){
         const drop  = document.getElementById('bankCopyUpload');
         const input = document.getElementById('modal_bank_file');
         const text  = document.getElementById('bankCopyText');    
@@ -1173,18 +1223,18 @@ function initClientPage($){
             try{
     
                 const res = await checkBusinessStatus(bizNo);
-    
-                if(!res || res.status_code !== "OK"){
+
+                if(!res || !res.data || res.data.status_code !== "OK"){
                     AppCore.notify('error','사업자 조회 실패');
                     return;
                 }
-    
-                if(!res.data || !res.data.length){
+                
+                if(!res.data.data || !res.data.data.length){
                     AppCore.notify('warning','조회 결과 없음');
                     return;
                 }
-    
-                const info = res.data[0];
+                
+                const info = res.data.data[0];
                 const statusSelect = document.getElementById('modal_business_status');
     
                 /* ===============================

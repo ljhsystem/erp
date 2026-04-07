@@ -234,7 +234,7 @@ function storage_upload(array $file, string $bucket, array $allowedExt, int $max
             $finfo = finfo_open(FILEINFO_MIME_TYPE);
             if ($finfo !== false) {
                 $mime = finfo_file($finfo, $tmp) ?: null;
-                finfo_close($finfo);
+                // 🔥 finfo_close 제거 (PHP 8.5)
             }
         }
     }

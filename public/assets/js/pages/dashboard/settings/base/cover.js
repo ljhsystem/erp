@@ -28,15 +28,39 @@ window.AdminPicker = AdminPicker;
     console.log('[base-cover.js] loaded');
 
     /* =========================================================
-       API
-    ========================================================= */
+    * API 정의 (🔥 라우터 100% 일치)
+    * ========================================================= */
     const API = {
+
+        /* 목록 */
         LIST: "/api/settings/base-info/cover/list",
+
+        /* 오픈목록 */
+        PUBLIC_LIST: "/api/settings/base-info/cover/public",
+
+        /* 단건 */
+        DETAIL: "/api/settings/base-info/cover/detail",
+
+        /* 저장 */
         SAVE: "/api/settings/base-info/cover/save",
+
+        /* 삭제 (소프트) */
         DELETE: "/api/settings/base-info/cover/delete",
+
+        /* 휴지통 */
         TRASH: "/api/settings/base-info/cover/trash",
+
+        /* 복원 */
         RESTORE: "/api/settings/base-info/cover/restore",
-        FORCE_DELETE: "/api/settings/base-info/cover/force-delete",
+        RESTORE_BULK: "/api/settings/base-info/cover/restore-bulk",
+        RESTORE_ALL: "/api/settings/base-info/cover/restore-all",
+
+        /* 영구삭제 */
+        PURGE: "/api/settings/base-info/cover/purge",
+        PURGE_BULK: "/api/settings/base-info/cover/purge-bulk",
+        PURGE_ALL: "/api/settings/base-info/cover/purge-all",
+
+        /* 순서 */
         REORDER: "/api/settings/base-info/cover/reorder"
     };
 
@@ -295,8 +319,9 @@ window.AdminPicker = AdminPicker;
                         /* 🔥 핵심: JS에서 API 세팅 (통일 규칙) */
                         trashModalEl.dataset.listUrl      = API.TRASH;
                         trashModalEl.dataset.restoreUrl   = API.RESTORE;
-                        trashModalEl.dataset.deleteUrl    = API.FORCE_DELETE;
-                        trashModalEl.dataset.deleteAllUrl = API.FORCE_DELETE;
+                        
+                        trashModalEl.dataset.deleteUrl    = API.PURGE;
+                        trashModalEl.dataset.deleteAllUrl = API.PURGE_ALL;
                 
                         const modal = new bootstrap.Modal(trashModalEl);
                         modal.show();
@@ -558,7 +583,7 @@ window.AdminPicker = AdminPicker;
 
             $.post(
                 API.DELETE,
-                { cover_id: coverId },
+                { id: coverId },
                 function (res) {
                     if (res && res.success) {
                         resetCoverAfterAction();

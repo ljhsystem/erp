@@ -1,6 +1,6 @@
 {
     "require": {
-        "phpoffice/phpspreadsheet": "1.25.2",
+        "phpoffice/phpspreadsheet": "^2.0",
         "maennchen/zipstream-php": "^2.4",
         "monolog/monolog": "^3.9",
         "phpmailer/phpmailer": "^7.0"

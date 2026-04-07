@@ -322,14 +322,18 @@ $router->post('/api/settings/base-info/cover/reorder', 'CoverController@apiReord
 
 
 
+
+
 /* =========================================================
  * 거래처 목록 조회
  * ========================================================= */
 $router->get('/api/settings/base-info/client/list', 'ClientController@apiList', [
     'key'         => 'api.settings.base-info.client.list',
     'name'        => '거래처 목록 조회',
-    'description' => '전체 거래처 목록을 조회합니다.',
-    'category'    => '거래원장'
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
 ]);
 
 /* =========================================================
@@ -338,96 +342,58 @@ $router->get('/api/settings/base-info/client/list', 'ClientController@apiList', 
 $router->get('/api/settings/base-info/client/detail', 'ClientController@apiDetail', [
     'key'         => 'api.settings.base-info.client.detail',
     'name'        => '거래처 상세 조회',
-    'description' => '특정 거래처 상세 정보를 조회합니다.',
-    'category'    => '거래원장'
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
 ]);
 
-
-
 /* =========================================================
- * 거래처 검색 (검색폼용)
+ * 거래처 자동완성 검색 (Picker)
  * ========================================================= */
-$router->get('/api/settings/base-info/client/search', 'ClientController@apiSearch', [
-    'key'         => 'api.settings.base-info.client.search',
-    'name'        => '거래처 검색',
-    'description' => '검색 조건 기반 거래처 목록 조회',
-    'category'    => '거래원장'
+$router->get('/api/settings/base-info/client/search-picker', 'ClientController@apiSearchPicker', [
+    'key'         => 'api.settings.base-info.client.search-picker',
+    'name'        => '거래처 자동검색',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
 ]);
 
-
-
-
-
 /* =========================================================
- * 거래처 저장 (신규 / 수정)
+ * 거래처 저장
  * ========================================================= */
 $router->post('/api/settings/base-info/client/save', 'ClientController@apiSave', [
     'key'         => 'api.settings.base-info.client.save',
     'name'        => '거래처 저장',
-    'description' => '거래처를 신규 등록하거나 수정합니다.',
-    'category'    => '거래원장'
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
 ]);
 
 /* =========================================================
- * 거래처 삭제 (소프트삭제)
+ * 거래처 삭제 (soft)
  * ========================================================= */
 $router->post('/api/settings/base-info/client/delete', 'ClientController@apiDelete', [
     'key'         => 'api.settings.base-info.client.delete',
     'name'        => '거래처 삭제',
-    'description' => '거래처를 삭제 처리합니다.',
-    'category'    => '거래원장'
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
 ]);
 
 /* =========================================================
- * 거래처 순서 변경
- * ========================================================= */
-$router->post('/api/settings/base-info/client/reorder', 'ClientController@apiReorder', [
-    'key'         => 'api.settings.base-info.client.reorder',
-    'name'        => '거래처 순서 변경',
-    'description' => '거래처 정렬 순서를 변경합니다.',
-    'category'    => '거래원장'
-]);
-
-/* =========================================================
- * 거래처 엑셀 다운로드
- * ========================================================= */
-$router->get('/api/settings/base-info/clients/excel', 'ClientController@apiDownload', [
-    'key'         => 'api.settings.base-info.client.excel',
-    'name'        => '거래처 엑셀 다운로드',
-    'description' => '전체 거래처 데이터를 엑셀로 다운로드합니다.',
-    'category'    => '거래원장'
-]);
-
-/* =========================================================
- * 거래처 엑셀 양식 다운로드
- * ========================================================= */
-$router->get('/api/settings/base-info/clients/template', 'ClientController@apiTemplate', [
-    'key'         => 'api.settings.base-info.client.template',
-    'name'        => '거래처 엑셀 양식 다운로드',
-    'description' => '거래처 등록용 엑셀 양식을 다운로드합니다.',
-    'category'    => '거래원장'
-]);
-
-/* =========================================================
- * 거래처 엑셀 업로드
- * ========================================================= */
-$router->post('/api/settings/base-info/client/excel-upload', 'ClientController@apiSaveFromExcel', [
-    'key'         => 'api.settings.base-info.client.excel-upload',
-    'name'        => '거래처 엑셀 업로드',
-    'description' => '엑셀 파일을 통해 거래처 데이터를 등록합니다.',
-    'category'    => '거래원장'
-]);
-
-
-
-/* =========================================================
- * 거래처 휴지통 목록 조회
+ * 거래처 휴지통
  * ========================================================= */
 $router->get('/api/settings/base-info/client/trash', 'ClientController@apiTrashList', [
     'key'         => 'api.settings.base-info.client.trash.list',
     'name'        => '거래처 휴지통 목록',
-    'description' => '삭제된 거래처 목록을 조회합니다.',
-    'category'    => '거래원장'
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
 ]);
 
 /* =========================================================
@@ -436,8 +402,34 @@ $router->get('/api/settings/base-info/client/trash', 'ClientController@apiTrashL
 $router->post('/api/settings/base-info/client/restore', 'ClientController@apiRestore', [
     'key'         => 'api.settings.base-info.client.restore',
     'name'        => '거래처 복원',
-    'description' => '삭제된 거래처를 복원합니다.',
-    'category'    => '거래원장'
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 거래처 복원 (bulk)
+ * ========================================================= */
+$router->post('/api/settings/base-info/client/restore-bulk', 'ClientController@apiRestoreBulk', [
+    'key'         => 'api.settings.base-info.client.restore-bulk',
+    'name'        => '거래처 일괄 복원',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 거래처 전체 복원
+ * ========================================================= */
+$router->post('/api/settings/base-info/client/restore-all', 'ClientController@apiRestoreAll', [
+    'key'         => 'api.settings.base-info.client.restore-all',
+    'name'        => '거래처 전체 복원',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
 ]);
 
 /* =========================================================
@@ -446,28 +438,22 @@ $router->post('/api/settings/base-info/client/restore', 'ClientController@apiRes
 $router->post('/api/settings/base-info/client/purge', 'ClientController@apiPurge', [
     'key'         => 'api.settings.base-info.client.purge',
     'name'        => '거래처 완전삭제',
-    'description' => '거래처를 DB 및 파일까지 완전히 삭제합니다.',
-    'category'    => '거래원장'
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
 ]);
 
 /* =========================================================
- * 거래처 선택 복원
- * ========================================================= */
-$router->post('/api/settings/base-info/client/restore-bulk', 'ClientController@apiRestoreBulk', [
-    'key'         => 'api.settings.base-info.client.restore-bulk',
-    'name'        => '거래처 일괄 복원',
-    'description' => '여러 거래처를 동시에 복원합니다.',
-    'category'    => '거래원장'
-]);
-
-/* =========================================================
- * 거래처 선택 완전삭제
+ * 거래처 완전삭제 (bulk)
  * ========================================================= */
 $router->post('/api/settings/base-info/client/purge-bulk', 'ClientController@apiPurgeBulk', [
     'key'         => 'api.settings.base-info.client.purge-bulk',
     'name'        => '거래처 일괄 완전삭제',
-    'description' => '여러 거래처를 동시에 완전 삭제합니다.',
-    'category'    => '거래원장'
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
 ]);
 
 /* =========================================================
@@ -476,8 +462,58 @@ $router->post('/api/settings/base-info/client/purge-bulk', 'ClientController@api
 $router->post('/api/settings/base-info/client/purge-all', 'ClientController@apiPurgeAll', [
     'key'         => 'api.settings.base-info.client.purge-all',
     'name'        => '거래처 전체 완전삭제',
-    'description' => '휴지통의 모든 거래처를 완전히 삭제합니다.',
-    'category'    => '거래원장'
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 거래처 순서 변경
+ * ========================================================= */
+$router->post('/api/settings/base-info/client/reorder', 'ClientController@apiReorder', [
+    'key'         => 'api.settings.base-info.client.reorder',
+    'name'        => '거래처 순서 변경',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 거래처 엑셀 양식
+ * ========================================================= */
+$router->get('/api/settings/base-info/client/template', 'ClientController@apiDownloadTemplate', [
+    'key'         => 'api.settings.base-info.client.template',
+    'name'        => '거래처 엑셀 양식 다운로드',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
+/* =========================================================
+ * 거래처 엑셀 업로드
+ * ========================================================= */
+$router->post('/api/settings/base-info/client/excel-upload', 'ClientController@apiSaveFromExcel', [
+    'key'         => 'api.settings.base-info.client.excel-upload',
+    'name'        => '거래처 엑셀 업로드',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 거래처 엑셀 다운로드
+ * ========================================================= */
+$router->get('/api/settings/base-info/client/excel', 'ClientController@apiDownload', [
+    'key'         => 'api.settings.base-info.client.excel',
+    'name'        => '거래처 엑셀 다운로드',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
 ]);
 
 

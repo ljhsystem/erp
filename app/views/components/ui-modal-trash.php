@@ -45,6 +45,7 @@ $emptyMessage = $emptyMessage ?? '삭제된 데이터를 선택하세요';
                         <div class="trash-toolbar">
                             <button class="btn btn-success btn-sm btn-restore-selected" id="<?= $btnRestoreId ?>">선택복원</button>
                             <button class="btn btn-danger btn-sm btn-delete-selected" id="<?= $btnDeleteId ?>">선택영구삭제</button>
+                            <button class="btn btn-outline-success btn-sm btn-restore-all" id="btnRestoreAll_<?= $type ?>">전체복원</button>
                             <button class="btn btn-outline-danger btn-sm btn-delete-all" id="<?= $btnDeleteAll ?>">전체영구삭제</button>
                         </div>
 

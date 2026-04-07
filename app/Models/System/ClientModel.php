@@ -18,51 +18,111 @@ class ClientModel
     /* -------------------------------------------------------------
      * 거래처 전체 목록
      * ------------------------------------------------------------- */
-    public function getList(): array
+    public function getList(array $filters = []): array
     {
-        $stmt = $this->db->query("
+        $sql = "
             SELECT
                 c.*,
-
-            CASE 
-                WHEN c.created_by LIKE 'SYSTEM:%' THEN c.created_by
-                WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
-                ELSE c.created_by
-            END AS created_by_name,
-
-            CASE 
-                WHEN c.updated_by LIKE 'SYSTEM:%' THEN c.updated_by
-                WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
-                ELSE c.updated_by
-            END AS updated_by_name,
-
-            CASE 
-                WHEN c.deleted_by LIKE 'SYSTEM:%' THEN c.deleted_by
-                WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
-                ELSE c.deleted_by
-            END AS deleted_by_name
-
+    
+                CASE 
+                    WHEN c.created_by LIKE 'SYSTEM:%' THEN c.created_by
+                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
+                    ELSE c.created_by
+                END AS created_by_name,
+    
+                CASE 
+                    WHEN c.updated_by LIKE 'SYSTEM:%' THEN c.updated_by
+                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
+                    ELSE c.updated_by
+                END AS updated_by_name,
+    
+                CASE 
+                    WHEN c.deleted_by LIKE 'SYSTEM:%' THEN c.deleted_by
+                    WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
+                    ELSE c.deleted_by
+                END AS deleted_by_name
+    
             FROM system_clients c
-
+    
             LEFT JOIN user_employees p1
                 ON c.created_by NOT LIKE 'SYSTEM:%'
-            AND p1.user_id = REPLACE(c.created_by, 'USER:', '')
-
+                AND p1.user_id = REPLACE(c.created_by, 'USER:', '')
+    
             LEFT JOIN user_employees p2
                 ON c.updated_by NOT LIKE 'SYSTEM:%'
-            AND p2.user_id = REPLACE(c.updated_by, 'USER:', '')
-
+                AND p2.user_id = REPLACE(c.updated_by, 'USER:', '')
+    
             LEFT JOIN user_employees p3
                 ON c.deleted_by NOT LIKE 'SYSTEM:%'
-            AND p3.user_id = REPLACE(c.deleted_by, 'USER:', '')
-
+                AND p3.user_id = REPLACE(c.deleted_by, 'USER:', '')
+    
             WHERE c.deleted_at IS NULL
-            ORDER BY c.code ASC
-        ");
-
+        ";
+    
+        $params = [];
+    
+        // 🔥 기존 search 로직 흡수
+        if (!empty($filters)) {
+    
+            $allowed = [
+                'code','client_name','company_name','ceo_name',
+                'business_number','business_status','phone','email',
+                'registration_date','note','memo','address','address_detail',
+                'client_type','tax_type','client_category',
+                'created_at','updated_at'
+            ];
+    
+            $likeFields = [
+                'client_name','company_name','ceo_name',
+                'business_status','email','note','address','address_detail'
+            ];
+    
+            $dateFields = ['registration_date','created_at','updated_at'];
+    
+            foreach ($filters as $f) {
+    
+                $field = $f['field'] ?? '';
+                $value = $f['value'] ?? '';
+    
+                if (!in_array($field, $allowed, true)) continue;
+                if ($value === '' || $value === null) continue;
+    
+                // 🔥 날짜
+                if (in_array($field, $dateFields, true)) {
+    
+                    if (is_array($value) && isset($value['start'], $value['end'])) {
+                        $sql .= " AND c.$field BETWEEN ? AND ?";
+                        $params[] = $value['start'];
+                        $params[] = $value['end'];
+                    } else {
+                        $sql .= " AND c.$field = ?";
+                        $params[] = $value;
+                    }
+    
+                    continue;
+                }
+    
+                // 🔥 LIKE
+                if (in_array($field, $likeFields, true)) {
+                    $sql .= " AND c.$field LIKE ?";
+                    $params[] = "%{$value}%";
+                    continue;
+                }
+    
+                // 🔥 일반
+                $sql .= " AND c.$field = ?";
+                $params[] = $value;
+            }
+        }
+    
+        // 🔥 정렬 통일
+        $sql .= " ORDER BY c.registration_date DESC, c.code ASC";
+    
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+    
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-
 
 
     /* -------------------------------------------------------------
@@ -114,102 +174,6 @@ class ClientModel
 
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
-
-    /* -------------------------------------------------------------
-     * 거래처 검색 (필터 기능 포함)
-     * ------------------------------------------------------------- */
-    public function search(array $filters = []): array
-    {
-        $sql = "SELECT * FROM system_clients WHERE deleted_at IS NULL";
-        $params = [];
-
-        $allowed = [
-            'code',
-            'client_name',
-            'company_name',
-            'ceo_name',
-            'business_number',
-            'business_status',
-            'phone',
-            'email',
-            'registration_date',
-            'note',
-            'memo',
-            'address',
-            'address_detail',
-            'client_type',
-            'tax_type',
-            'client_category',
-
-            // 🔥 추가
-            'created_at',
-            'updated_at'
-        ];
-
-        $likeFields = [
-            'client_name',
-            'company_name',
-            'ceo_name',
-            'business_status',
-            'email',
-            'note',
-            'address',
-            'address_detail'
-        ];
-
-        $supportedDateFields = [
-            'registration_date',
-            'created_at',
-            'updated_at'
-        ];
-        $unsupportedDateFields = ['deal_date', 'occur_date', 'issue_date'];
-
-        foreach ($filters as $f) {
-            $field = $f['field'] ?? '';
-            $value = $f['value'] ?? '';
-
-            if (in_array($field, $unsupportedDateFields, true)) {
-                return [];
-            }
-
-            if (!in_array($field, $allowed, true)) continue;
-
-            if ($value === '' || $value === null) continue;
-
-            if (in_array($field, $supportedDateFields, true)) {
-
-                // 기간 검색
-                if (is_array($value) && isset($value['start'], $value['end'])) {
-                    $sql .= " AND $field BETWEEN ? AND ?";
-                    $params[] = $value['start'];
-                    $params[] = $value['end'];
-                    continue;
-                }
-
-                // 🔥 단일 날짜 검색 추가
-                $sql .= " AND $field = ?";
-                $params[] = $value;
-                continue;
-            }
-
-            if (in_array($field, $likeFields, true)) {
-                $sql .= " AND {$field} LIKE ?";
-                $params[] = "%{$value}%";
-                continue;
-            }
-
-            $sql .= " AND {$field} = ?";
-            $params[] = $value;
-        }
-
-        $sql .= " ORDER BY registration_date DESC, code ASC";
-
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($params);
-
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-
 
     public function searchPicker(string $keyword): array
     {
@@ -574,81 +538,6 @@ class ClientModel
     }
 
 
-    /* -------------------------------------------------------------
-    * 사업자번호 기준 Upsert (엑셀 업로드용)
-    * ------------------------------------------------------------- */
-    public function saveFromExcel(array $data): bool
-    {
-        $sql = "
-            INSERT INTO system_clients (
-                id, code, client_name, company_name, registration_date,
-                business_number, business_status,
-                phone, email, ceo_name,client_type,
-                tax_type,payment_term,
-                note, created_by, updated_by
-            ) VALUES (
-                :id, :code, :client_name, :company_name, :registration_date,
-                :business_number, :business_status,
-                :phone, :email, :ceo_name,
-                :client_type,
-                :tax_type,
-                :payment_term,
-                :note, :created_by, :updated_by
-            )
-            ON DUPLICATE KEY UPDATE
-                client_name = VALUES(client_name),
-                company_name = VALUES(company_name),
-                phone = VALUES(phone),
-                email = VALUES(email),
-                ceo_name = VALUES(ceo_name),
-                client_type = VALUES(client_type),
-                tax_type = VALUES(tax_type),
-                payment_term = VALUES(payment_term),
-                business_status = VALUES(business_status),
-                note = VALUES(note),
-                updated_by = VALUES(updated_by)
-        ";
-
-        $stmt = $this->db->prepare($sql);
-        if (empty($data['created_by']) || empty($data['updated_by'])) {
-            throw new \Exception('actor 없음');
-        }
-        return $stmt->execute([
-            'id' => $data['id'],
-            'code' => $data['code'] ?? null,
-            'client_name' => $data['client_name'] ?? '',
-            'company_name' => $data['company_name'] ?? null,
-            'registration_date' => $data['registration_date'] ?? date('Y-m-d'),
-            'business_number' => $data['business_number'] ?? null,
-            'business_status' => $data['business_status'] ?? null,
-            'phone' => $data['phone'] ?? null,
-            'email' => $data['email'] ?? null,
-            'ceo_name' => $data['ceo_name'] ?? null,
-            'client_type' => $data['client_type'] ?? null,
-            'tax_type' => $data['tax_type'] ?? null,
-            'payment_term' => $data['payment_term'] ?? null,
-            'note' => $data['note'] ?? null,
-            'created_by' => $data['created_by'],
-            'updated_by' => $data['updated_by']
-        ]);
-    }
 
 
-    //삭제예정
-    public function findByName(string $name): ?array
-    {
-        $stmt = $this->db->prepare("
-            SELECT id, client_name
-            FROM system_clients
-            WHERE client_name = :name
-            AND deleted_at IS NULL
-            LIMIT 1
-        ");
-
-        $stmt->execute([
-            'name' => trim($name)
-        ]);
-
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-    }
 }

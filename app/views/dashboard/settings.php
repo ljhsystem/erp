@@ -89,7 +89,7 @@ if (!headers_sent()) {
 
 // 8-1-1) 기초정보관리 - 회사정보
 if ($cat === 'base-info' && $sub === 'company') {
-    $pageScripts .= AssetHelper::js('/assets/js/pages/dashboard/settings/base/company.js');
+    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/base/company.js');
 }
 
 // 8-1-2) 기초정보관리 - 브랜드

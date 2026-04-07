@@ -73,7 +73,7 @@ class CoverController
         header('Content-Type: application/json; charset=utf-8');
 
         $payload = [
-            'id'          => $_POST['id'] ?? '',
+            'id'          => $_POST['id'] ?? $_POST['cover_id'] ?? '',
             'year'        => $_POST['year'] ?? '',
             'title'       => $_POST['title'] ?? '',
             'alt'         => $_POST['alt'] ?? '',
@@ -92,14 +92,16 @@ class CoverController
     public function apiDelete()
     {
         header('Content-Type: application/json; charset=utf-8');
-
-        $id = $_POST['id'] ?? null;
-
+    
+        $input = json_decode(file_get_contents('php://input'), true);
+    
+        $id = $_POST['id'] ?? $input['id'] ?? null;
+    
         if (!$id) {
             echo json_encode(['success'=>false,'message'=>'ID 누락'], JSON_UNESCAPED_UNICODE);
             return;
         }
-
+    
         echo json_encode($this->service->delete($id), JSON_UNESCAPED_UNICODE);
     }
 
@@ -122,7 +124,8 @@ class CoverController
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $id = $_POST['id'] ?? null;
+        $input = json_decode(file_get_contents('php://input'), true);
+        $id = $_POST['id'] ?? $input['id'] ?? null;
 
         if (!$id) {
             echo json_encode(['success'=>false,'message'=>'ID 누락'], JSON_UNESCAPED_UNICODE);
@@ -138,9 +141,11 @@ class CoverController
     public function apiRestoreBulk()
     {
         header('Content-Type: application/json; charset=utf-8');
-
-        $ids = json_decode(file_get_contents('php://input'), true)['ids'] ?? [];
-
+    
+        $input = json_decode(file_get_contents('php://input'), true);
+    
+        $ids = $input['ids'] ?? $_POST['ids'] ?? [];
+    
         echo json_encode($this->service->restoreBulk($ids), JSON_UNESCAPED_UNICODE);
     }
 
@@ -161,7 +166,8 @@ class CoverController
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $id = $_POST['id'] ?? null;
+        $input = json_decode(file_get_contents('php://input'), true);
+        $id = $_POST['id'] ?? $input['id'] ?? null;
 
         if (!$id) {
             echo json_encode(['success'=>false,'message'=>'ID 누락'], JSON_UNESCAPED_UNICODE);
@@ -177,9 +183,11 @@ class CoverController
     public function apiPurgeBulk()
     {
         header('Content-Type: application/json; charset=utf-8');
-
-        $ids = json_decode(file_get_contents('php://input'), true)['ids'] ?? [];
-
+    
+        $input = json_decode(file_get_contents('php://input'), true);
+    
+        $ids = $input['ids'] ?? $_POST['ids'] ?? [];
+    
         echo json_encode($this->service->purgeBulk($ids), JSON_UNESCAPED_UNICODE);
     }
 

@@ -128,6 +128,65 @@ class CodeHelper
         return self::generateCode($pdo, 'system_coverimage_assets');
     }
 
+    public static function normalizeCoverImageCodes($pdo): void
+    {
+        $pdo->beginTransaction();
+    
+        try {
+    
+            // 1️⃣ 전체 조회 (삭제 포함)
+            $stmt = $pdo->query("
+                SELECT id, deleted_at, code
+                FROM system_coverimage_assets
+            ");
+    
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    
+            // 2️⃣ 임시 이동 (충돌 방지)
+            $pdo->exec("
+                UPDATE system_coverimage_assets
+                SET code = code + 100000
+            ");
+    
+            // 3️⃣ 정렬 (🔥 핵심: 활성 먼저, 휴지통 뒤)
+            usort($rows, function ($a, $b) {
+    
+                $aDeleted = empty($a['deleted_at']) ? 0 : 1;
+                $bDeleted = empty($b['deleted_at']) ? 0 : 1;
+    
+                if ($aDeleted !== $bDeleted) {
+                    return $aDeleted <=> $bDeleted;
+                }
+    
+                return (int)$a['code'] <=> (int)$b['code'];
+            });
+    
+            // 4️⃣ 재부여
+            $seq = 1;
+    
+            foreach ($rows as $row) {
+    
+                $stmt = $pdo->prepare("
+                    UPDATE system_coverimage_assets
+                    SET code = :code
+                    WHERE id = :id
+                ");
+    
+                $stmt->execute([
+                    ':code' => $seq++,
+                    ':id'   => $row['id']
+                ]);
+            }
+    
+            $pdo->commit();
+    
+        } catch (\Throwable $e) {
+    
+            $pdo->rollBack();
+            throw $e;
+        }
+    }
+    
     /* ============================================================
     * 11) 보조계정 코드 생성 (ledger_sub_accounts)
     * account_id 기준으로 sub_code 증가

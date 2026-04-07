@@ -60,7 +60,7 @@ class ExternalIntegrationService
         // 🔥 1. curl 실패 체크
         if ($response === false) {
             $error = curl_error($ch);
-            curl_close($ch);
+            //curl_close($ch);
             throw new \RuntimeException("API 호출 실패: {$error}");
         }
     
@@ -71,11 +71,11 @@ class ExternalIntegrationService
     
         // 🔥 3. JSON 파싱 실패 체크
         if ($data === null) {
-            curl_close($ch);
+            //curl_close($ch);
             throw new \RuntimeException("JSON 파싱 실패: " . $response);
         }
     
-        curl_close($ch);
+        //curl_close($ch);
     
         // 🔥 4. 정상 포맷으로 반환 (중요)
         return [

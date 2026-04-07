@@ -2,6 +2,11 @@
  * 회사 기본정보 설정 JS
  * 경로: /public/assets/js/pages/dashboard/settings/base/company.js
  */
+import {
+    formatBizNumber,
+    formatCorpNumber,
+    formatPhone
+} from '/public/assets/js/common/format.js';
 
 (function () {
     "use strict";
@@ -33,9 +38,28 @@
      * 이벤트 바인딩
      * ========================================================= */
     function bindEvents() {
+
         $("#btn-save-all").on("click", function () {
             saveCompanyInfo();
         });
+    
+        /* 🔥 자동 포맷 추가 */
+        $wrapper.on("input", "[name='biz_number']", function () {
+            this.value = formatBizNumber(this.value);
+        });
+    
+        $wrapper.on("input", "[name='corp_number']", function () {
+            this.value = formatCorpNumber(this.value);
+        });
+    
+        $wrapper.on("input", "[name='tel']", function () {
+            this.value = formatPhone(this.value);
+        });
+    
+        $wrapper.on("input", "[name='fax']", function () {
+            this.value = formatPhone(this.value);
+        });
+    
     }
 
     /* =========================================================
@@ -81,8 +105,9 @@
         $wrapper.find("[name='company_name_en']").val(data.company_name_en || "");
         $wrapper.find("[name='ceo_name']").val(data.ceo_name || "");
 
-        $wrapper.find("[name='biz_number']").val(data.biz_number || "");
-        $wrapper.find("[name='corp_number']").val(data.corp_number || "");
+        $wrapper.find("[name='biz_number']").val(formatBizNumber(data.biz_number || ""));
+    
+        $wrapper.find("[name='corp_number']").val(formatCorpNumber(data.corp_number || ""));
 
         // ❗ 날짜 정규화 (0000-00-00 방지)
         $wrapper.find("[name='found_date']").val(normalizeDate(data.found_date));
@@ -93,8 +118,8 @@
         $wrapper.find("[name='addr_main']").val(data.addr_main || "");
         $wrapper.find("[name='addr_detail']").val(data.addr_detail || "");
 
-        $wrapper.find("[name='tel']").val(data.tel || "");
-        $wrapper.find("[name='fax']").val(data.fax || "");
+        $wrapper.find("[name='tel']").val(formatPhone(data.tel || ""));
+        $wrapper.find("[name='fax']").val(formatPhone(data.fax || ""));
         $wrapper.find("[name='tax_email']").val(data.tax_email || "");
         $wrapper.find("[name='sub_email']").val(data.sub_email || "");
         $wrapper.find("[name='company_website']").val(data.company_website || "");

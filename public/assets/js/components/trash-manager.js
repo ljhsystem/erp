@@ -235,7 +235,26 @@
 
             return;
         }
+        /* 전체 복원 */
+        if (e.target.closest('.btn-restore-all')) {
 
+            if (!confirm('전체 복원하시겠습니까?')) return;
+
+            const restoreAllUrl = restoreUrl + '-all';
+
+            const res = await fetch(restoreAllUrl, {
+                method: 'POST'
+            });
+
+            const json = await res.json();
+
+            if (json.success) {
+                AppCore?.notify('success', '전체 복원 완료');
+                triggerChange(modal);
+            }
+
+            return;
+        }
         /* 전체 삭제 */
         if (e.target.closest('.btn-delete-all')) {
 

@@ -8,6 +8,7 @@ use App\Services\File\FileService;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\CodeHelper;
 use Core\Helpers\ActorHelper;
+use Core\Helpers\DataHelper;
 use Core\LoggerFactory;
 use function Core\storage_to_url;
 
@@ -117,46 +118,61 @@ class CoverImageService
     public function save(array $data): array
     {
         $actor = ActorHelper::user();
-
+    
         $this->logger->info('save() called', [
-            'cover_id' => $data['cover_id'] ?? null
+            'cover_id' => $data['id'] ?? null
         ]);
-
+    
         try {
             $coverId = trim((string)($data['id'] ?? ''));
             $newSrc  = null;
-
+    
+            /* =========================
+               1. 파일 업로드
+            ========================= */
             if (!empty($data['file']) && (int)($data['file']['error'] ?? 4) === UPLOAD_ERR_OK) {
+    
                 $upload = $this->fileService->upload(
                     $data['file'],
                     'public://covers',
                     ['jpg', 'jpeg', 'png', 'webp'],
                     10 * 1024 * 1024
                 );
-
+    
                 if (empty($upload['success'])) {
                     return [
                         'success' => false,
                         'message' => $upload['message'] ?? '파일 업로드 실패'
                     ];
                 }
-
+    
                 $newSrc = $upload['db_path'];
             }
-
-            /* -----------------------------
-             * UPDATE
-             * ----------------------------- */
+    
+            /* =========================
+               2. 신규일 경우 이미지 필수
+            ========================= */
+            if ($coverId === '' && !$newSrc) {
+                return [
+                    'success' => false,
+                    'message' => '이미지는 필수입니다.'
+                ];
+            }
+    
+            /* =========================
+               3. UPDATE
+            ========================= */
             if ($coverId !== '') {
+    
                 $before = $this->model->getById($coverId);
-
+    
                 if (!$before) {
                     return [
                         'success' => false,
                         'message' => '존재하지 않는 항목입니다.'
                     ];
                 }
-
+    
                 $updateData = [
                     'year'        => $data['year'] ?? null,
                     'title'       => $data['title'] ?? null,
@@ -165,30 +181,31 @@ class CoverImageService
                     'src'         => $newSrc ?: ($before['src'] ?? null),
                     'updated_by'  => $actor,
                 ];
-
+    
                 if (!$this->model->updateById($coverId, $updateData)) {
                     return [
                         'success' => false,
                         'message' => 'DB 업데이트 실패'
                     ];
                 }
-
+    
+                // 기존 파일 삭제
                 if ($newSrc && !empty($before['src'])) {
                     $this->fileService->delete($before['src']);
                 }
-
+    
                 return [
                     'success' => true,
                     'id'      => $coverId
                 ];
             }
-
-            /* -----------------------------
-             * INSERT
-             * ----------------------------- */
+    
+            /* =========================
+               4. INSERT
+            ========================= */
             $newId   = UuidHelper::generate();
             $newCode = CodeHelper::generateHomeAboutCoverImageCode($this->pdo);
-
+    
             $insertData = [
                 'id'          => $newId,
                 'code'        => $newCode,
@@ -196,29 +213,29 @@ class CoverImageService
                 'title'       => $data['title'] ?? null,
                 'alt'         => $data['alt'] ?? null,
                 'description' => $data['description'] ?? null,
-                'src'         => $newSrc,
-                'is_active'   => 1,
+                'src'         => $newSrc, // 🔥 null 아님 (위에서 필수 체크함)
                 'created_by'  => $actor,
                 'updated_by'  => $actor,
             ];
-
+    
             if (!$this->model->create($insertData)) {
                 return [
                     'success' => false,
                     'message' => 'DB INSERT 실패'
                 ];
             }
-
+    
             return [
                 'success' => true,
                 'id'      => $newId
             ];
-
+    
         } catch (\Throwable $e) {
+    
             $this->logger->error('save() exception', [
                 'exception' => $e->getMessage()
             ]);
-
+    
             return [
                 'success' => false,
                 'message' => $e->getMessage()
@@ -249,7 +266,7 @@ class CoverImageService
                 ];
             }
     
-            if ((int)($item['is_active'] ?? 1) === 0) {
+            if (!empty($item['deleted_at'])) {
                 return [
                     'success' => false,
                     'message' => '이미 휴지통에 있습니다.'
@@ -262,7 +279,9 @@ class CoverImageService
                     'message' => '휴지통 이동 실패'
                 ];
             }
-    
+            
+            DataHelper::resequenceCoverImageCodes($this->pdo);
+
             return [
                 'success' => true,
                 'message' => '휴지통으로 이동되었습니다.'
@@ -334,23 +353,24 @@ class CoverImageService
                 ];
             }
     
-            if ((int)($item['is_active'] ?? 1) === 1) {
+            if (empty($item['deleted_at'])) {
                 return [
                     'success' => false,
-                    'message' => '이미 활성 상태입니다.'
+                    'message' => '이미 복원된 항목입니다.'
                 ];
             }
     
-            if (!$this->model->restoreById($id, $actor)) {
+            if ($this->model->restoreById($id, $actor)) {
+
                 return [
-                    'success' => false,
-                    'message' => '복원 실패'
+                    'success' => true,
+                    'message' => '복원 완료'
                 ];
             }
-    
+            
             return [
-                'success' => true,
-                'message' => '복원 완료'
+                'success' => false,
+                'message' => '복원 실패'
             ];
     
         } catch (\Throwable $e) {
@@ -370,115 +390,46 @@ class CoverImageService
     {
         if (empty($ids)) {
             return ['success' => false, 'message' => 'ID 없음'];
-        }   
-    
-        $success = 0;
-    
-        foreach ($ids as $id) {
-            $res = $this->restore($id);
-            if ($res['success'] ?? false) {
-                $success++;
-            }
         }
-    
-        return [
-            'success' => true,
-            'message' => "복원 완료 ({$success}건)"
-        ];
-    }
-
-
-
-
-    /* ============================================================
-     * 하드삭제
-     * ============================================================ */
-    public function purge(string $id): array
-    {
-        $this->logger->info('purge() called', ['id' => $id]);
-
-        try {
-            $item = $this->model->getById($id);
-
-            if (!$item) {
-                return [
-                    'success' => false,
-                    'message' => '항목이 존재하지 않습니다.'
-                ];
-            }
-
-            if (!$this->model->hardDeleteById($id)) {
-                return [
-                    'success' => false,
-                    'message' => 'DB 하드삭제 실패'
-                ];
-            }
-
-            if (!empty($item['src'])) {
-                $this->fileService->delete($item['src']);
-            }
-
-            return [
-                'success' => true,
-                'message' => '삭제 완료'
-            ];
-
-        } catch (\Throwable $e) {
-            $this->logger->error('purge() exception', [
-                'id'        => $id,
-                'exception' => $e->getMessage()
-            ]);
-
-            return [
-                'success' => false,
-                'message' => $e->getMessage()
-            ];
-        }
-    }
-    
-    public function purgeBulk(array $ids): array
-    {
-        if (empty($ids)) {
-            return ['success' => false, 'message' => 'ID 없음'];
-        }
-    
-        $success = 0;
     
         $this->pdo->beginTransaction();
-
+    
         try {
-        
+    
             $success = 0;
-        
+    
             foreach ($ids as $id) {
-                $res = $this->purge($id);
+    
+                $res = $this->restore($id);
+    
                 if ($res['success'] ?? false) {
                     $success++;
+                } else {
+                    throw new \Exception("복원 실패: {$id}");
                 }
             }
-        
+    
+            DataHelper::resequenceCoverImageCodes($this->pdo);
+    
             $this->pdo->commit();
-        
+    
             return [
                 'success' => true,
-                'message' => "삭제 완료 ({$success}건)"
+                'message' => "복원 완료 ({$success}건)"
             ];
-        
+    
         } catch (\Throwable $e) {
-        
+    
             $this->pdo->rollBack();
-        
+    
             return [
                 'success' => false,
                 'message' => $e->getMessage()
             ];
         }
-    
-        return [
-            'success' => true,
-            'message' => "삭제 완료 ({$success}건)"
-        ];
     }
+
+
     public function restoreAll(): array
     {
         $actor = ActorHelper::user();
@@ -500,12 +451,120 @@ class CoverImageService
                 }
             }
     
+            DataHelper::resequenceCoverImageCodes($this->pdo);
+
             return [
                 'success' => true,
                 'message' => "전체 복원 완료 ({$success}건)"
             ];
     
         } catch (\Throwable $e) {
+    
+            return [
+                'success' => false,
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+    /* ============================================================
+     * 하드삭제
+     * ============================================================ */
+    public function purge(string $id): array
+    {
+        $this->logger->info('purge() called', ['id' => $id]);
+
+        try {
+            $item = $this->model->getById($id);
+
+            if (!$item) {
+                return [
+                    'success' => false,
+                    'message' => '항목이 존재하지 않습니다.'
+                ];
+            }
+
+            if ($this->model->hardDeleteById($id)) {
+
+                if (!empty($item['src'])) {
+                    $this->fileService->delete($item['src']);
+                }
+            
+                DataHelper::resequenceCoverImageCodes($this->pdo);
+            
+                return [
+                    'success' => true,
+                    'message' => '삭제 완료'
+                ];
+            }
+            
+            return [
+                'success' => false,
+                'message' => 'DB 하드삭제 실패'
+            ];
+
+        } catch (\Throwable $e) {
+            $this->logger->error('purge() exception', [
+                'id'        => $id,
+                'exception' => $e->getMessage()
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+    
+    public function purgeBulk(array $ids): array
+    {
+        if (empty($ids)) {
+            return ['success' => false, 'message' => 'ID 없음'];
+        }
+    
+        $this->pdo->beginTransaction();
+    
+        try {
+    
+            $success = 0;
+            $filesToDelete = [];
+    
+            foreach ($ids as $id) {
+    
+                $item = $this->model->getById($id);
+    
+                if (!$item) {
+                    throw new \Exception("항목 없음: {$id}");
+                }
+    
+                if (!$this->model->hardDeleteById($id)) {
+                    throw new \Exception("삭제 실패: {$id}");
+                }
+    
+                if (!empty($item['src'])) {
+                    $filesToDelete[] = $item['src'];
+                }
+    
+                $success++;
+            }
+    
+            DataHelper::resequenceCoverImageCodes($this->pdo);
+    
+            $this->pdo->commit();
+    
+            // 🔥 트랜잭션 밖에서 파일 삭제
+            foreach ($filesToDelete as $src) {
+                $this->fileService->delete($src);
+            }
+    
+            return [
+                'success' => true,
+                'message' => "삭제 완료 ({$success}건)"
+            ];
+    
+        } catch (\Throwable $e) {
+    
+            $this->pdo->rollBack();
     
             return [
                 'success' => false,
@@ -544,7 +603,9 @@ class CoverImageService
             }
     
             $this->pdo->commit();
-    
+
+            DataHelper::resequenceCoverImageCodes($this->pdo);
+            
             return [
                 'success' => true,
                 'message' => '전체 삭제 완료'

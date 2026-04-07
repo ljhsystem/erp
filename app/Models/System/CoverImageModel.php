@@ -207,7 +207,19 @@ class CoverImageModel
             )
         ";
 
-        return $this->db->prepare($sql)->execute($data);
+        $stmt = $this->db->prepare($sql);
+
+        return $stmt->execute([
+            ':id'          => $data['id'],
+            ':code'        => $data['code'],
+            ':year'        => $data['year'],
+            ':title'       => $data['title'],
+            ':alt'         => $data['alt'],
+            ':description' => $data['description'],
+            ':src'         => $data['src'],
+            ':created_by'  => $data['created_by'],
+            ':updated_by'  => $data['updated_by'],
+        ]);
     }
 
     /* =============================================================
