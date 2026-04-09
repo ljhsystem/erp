@@ -108,7 +108,7 @@
 <!-- =========================
      모달
 ========================= -->
-<?php include __DIR__ . '/partials/base-info_cover_modal_edit.php'; ?>
+<?php include __DIR__ . '/partials/cover_modal.php'; ?>
 
 
 <!-- =========================

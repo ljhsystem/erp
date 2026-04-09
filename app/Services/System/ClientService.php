@@ -3,7 +3,7 @@
 // 설명:
 //  - 거래처(Client) 관리 서비스
 //  - UUID / Code 생성은 Service 책임
-//  - DB 처리: DashboardClientModel
+//  - DB 처리: ClientModel
 //  - 모든 주요 흐름 LoggerFactory 적용
 namespace App\Services\System;
 
@@ -14,6 +14,7 @@ use Core\Helpers\UuidHelper;
 use Core\Helpers\CodeHelper;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\DataHelper;
+use Core\Security\Crypto;
 use Core\LoggerFactory;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -57,6 +58,19 @@ class ClientService
                 'count' => count($rows)
             ]);
     
+            $crypto = new Crypto();
+
+            foreach ($rows as &$row) {
+                if (!empty($row['rrn'])) {
+                    $rrn = $crypto->decryptResidentNumber($row['rrn']);
+                    $row['rrn'] = preg_replace('/\D+/', '', $rrn);
+                } else {
+                    $row['rrn'] = '';
+                }
+            }
+            
+            unset($row);
+            
             return $rows;
     
         } catch (\Throwable $e) {
@@ -86,6 +100,20 @@ class ClientService
                 return null;
             }
 
+            $crypto = new Crypto();
+            $this->logger->info('rrn raw', [
+                'db' => $row['rrn']
+            ]);
+            if (!empty($row['rrn'])) {
+                $rrn = $crypto->decryptResidentNumber($row['rrn']);
+                $row['rrn'] = preg_replace('/\D+/', '', $rrn);
+            } else {
+                $row['rrn'] = '';
+            }
+
+            $this->logger->info('rrn decrypted', [
+                'value' => $rrn ?? null
+            ]);
             return $row;
         } catch (\Throwable $e) {
 
@@ -135,16 +163,28 @@ class ClientService
             'actor'     => $actor
         ]);
 
+        $newBusinessPath = null;
+        $newRrnPath = null; 
+        $newBankPath = null;
+
         try {
 
             $this->pdo->beginTransaction();
 
+            /* 🔥 normalize 전에 삭제 플래그를 먼저 고정 */
+            $deleteBusiness = !empty($data['delete_business_certificate']);
+            $deleteRrn      = !empty($data['delete_rrn_image']); 
+            $deleteBank     = !empty($data['delete_bank_file']);
+
+            
             $data = DataHelper::normalizeClient($data);
-            $id = $data['id'] ?? null;
 
             /* =========================================================
-            * 기존 데이터 조회 (1회만)
+            * 🔥 기존 데이터 먼저 조회 (중요)
             * ========================================================= */
+            $id   = trim((string)($data['id'] ?? ''));
+            $mode = $id === '' ? 'CREATE' : 'UPDATE';
+
             $before = [];
 
             if ($id) {
@@ -156,71 +196,177 @@ class ClientService
             }
 
             /* =========================================================
+            * 🔥 rrn 처리 (여기로 이동)
+            * ========================================================= */
+            $rrnInput = trim((string)($data['rrn'] ?? ''));
+
+            if ($rrnInput === '') {
+
+                $data['rrn'] = $before['rrn'] ?? null;
+
+            } else {
+
+                if (strpos($rrnInput, '*') !== false) {
+                    throw new \Exception('마스킹된 주민번호는 저장할 수 없습니다.');
+                }
+
+                $rrnRaw = preg_replace('/\D+/', '', $rrnInput);
+
+                if ($rrnRaw !== '') {
+
+                    $crypto = new Crypto();
+                    $data['rrn'] = $crypto->encryptResidentNumber($rrnRaw);
+
+                } else {
+                    $data['rrn'] = null;
+                }
+            }
+            
+            /* =========================================================
+            * 🔥 ID / 모드 결정
+            * ========================================================= */
+            $id   = trim((string)($data['id'] ?? ''));
+            $mode = $id === '' ? 'CREATE' : 'UPDATE';
+
+            /* =========================================================
+            * 🔥 기존 데이터 먼저 조회 (중요)
+            * ========================================================= */
+            $before = [];
+
+            if ($id) {
+                $before = $this->model->getById($id) ?? [];
+
+                if (!$before) {
+                    throw new \Exception('존재하지 않는 거래처입니다.');
+                }
+            }
+
+
+            /* =========================================================
             * 파일 처리
             * ========================================================= */
 
             // 🔴 삭제 요청
-            if (($data['delete_business_certificate'] ?? '0') === '1') {
+            if ($deleteBusiness && empty($files['business_certificate']['tmp_name'])) {
                 if (!empty($before['business_certificate'])) {
                     $this->fileService->delete($before['business_certificate']);
                 }
                 $data['business_certificate'] = null;
             }
-
-            if (($data['delete_bank_file'] ?? '0') === '1') {
+            
+            if ($deleteBank && empty($files['bank_file']['tmp_name'])) {
                 if (!empty($before['bank_file'])) {
                     $this->fileService->delete($before['bank_file']);
                 }
                 $data['bank_file'] = null;
             }
 
+            if ($deleteRrn) {
+
+                if (!empty($before['rrn_image'])) {
+                    $this->fileService->delete($before['rrn_image']);
+                }
+            
+                $data['rrn_image'] = null;
+            }
+            
+            // 🔴 파일용량체크
+            if (
+                isset($files['business_certificate']['error']) &&
+                $files['business_certificate']['error'] === UPLOAD_ERR_INI_SIZE
+            )
+            
+
+            if (
+                isset($files['bank_file']['error']) &&
+                $files['bank_file']['error'] === UPLOAD_ERR_INI_SIZE
+            )
+
+
             // 🔴 업로드
             if (!empty($files['business_certificate']['tmp_name'])) {
 
-                if (!empty($before['business_certificate'])) {
-                    $this->fileService->delete($before['business_certificate']);
-                }
-
+                $oldPath = $before['business_certificate'] ?? null;
+            
                 $upload = $this->fileService->uploadBusinessCert(
                     $files['business_certificate']
                 );
-
-                if (!$upload['success']) {
-                    throw new \Exception('사업자등록증 업로드 실패');
+            
+                if (empty($upload['success'])) {
+                    throw new \Exception($upload['message']);
                 }
-
+            
                 $data['business_certificate'] = $upload['db_path'];
+                $newBusinessPath = $upload['db_path'];
+            
+                if (!empty($oldPath)) {
+                    $this->fileService->delete($oldPath);
+                }
+            }
+
+            // 🔥 rrn_image 업로드 처리
+            if (!empty($files['rrn_image']['tmp_name'])) {
+
+                $oldPath = $before['rrn_image'] ?? null;
+            
+                $upload = $this->fileService->uploadPrivateIdDoc(
+                    $files['rrn_image']
+                );
+            
+                if (empty($upload['success'])) {
+                    throw new \Exception($upload['message']);
+                }
+            
+                $data['rrn_image'] = $upload['db_path'];
+                $newRrnPath = $upload['db_path'];   // 🔥 여기서 넣어야 맞다
+            
+                if (!empty($oldPath)) {
+                    $this->fileService->delete($oldPath);
+                }
             }
 
             if (!empty($files['bank_file']['tmp_name'])) {
 
-                if (!empty($before['bank_file'])) {
-                    $this->fileService->delete($before['bank_file']);
-                }
-
+                $oldPath = $before['bank_file'] ?? null;
+            
                 $upload = $this->fileService->uploadBankCopy(
                     $files['bank_file']
                 );
-
-                if (!$upload['success']) {
-                    throw new \Exception('통장사본 업로드 실패');
+            
+                if (empty($upload['success'])) {
+                    throw new \Exception($upload['message']);
                 }
-
+            
                 $data['bank_file'] = $upload['db_path'];
+                $newBankPath = $upload['db_path'];
+            
+                if (!empty($oldPath)) {
+                    $this->fileService->delete($oldPath);
+                }
             }
 
             // 🔴 기존 파일 유지
-            if ($id) {
-
-                if (!array_key_exists('business_certificate', $data)) {
-                    $data['business_certificate'] =
-                        $before['business_certificate'] ?? null;
-                }
-
-                if (!array_key_exists('bank_file', $data)) {
-                    $data['bank_file'] =
-                        $before['bank_file'] ?? null;
-                }
+            if (
+                !array_key_exists('business_certificate', $data)
+                && !$deleteBusiness
+            ) {
+                $data['business_certificate'] =
+                    $before['business_certificate'] ?? null;
+            }
+            if (
+                !array_key_exists('rrn_image', $data)
+                && !$deleteRrn
+            ) {
+                $data['rrn_image'] =
+                    $before['rrn_image'] ?? null;
+            }
+            
+            if (
+                !array_key_exists('bank_file', $data)
+                && !$deleteBank
+            ) {
+                $data['bank_file'] =
+                    $before['bank_file'] ?? null;
             }
 
             /* =========================================================
@@ -228,7 +374,7 @@ class ClientService
             * ========================================================= */
             unset($data['delete_business_certificate']);
             unset($data['delete_bank_file']);
-
+            unset($data['delete_rrn_image']);
             /* =========================================================
             * UPDATE
             * ========================================================= */
@@ -236,9 +382,7 @@ class ClientService
 
                 $data['updated_by'] = $actor;
 
-                $updateData = array_filter($data, function ($v) {
-                    return $v !== null;
-                });
+                $updateData = $data;
 
                 unset($updateData['id']);
 
@@ -294,12 +438,29 @@ class ClientService
 
         } catch (\Throwable $e) {
 
-            $this->pdo->rollBack();
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+        
+            // 🔥 업로드만 되고 DB 반영 실패한 파일 정리
+            if (!empty($newBusinessPath)) {
+                $this->fileService->delete($newBusinessPath);
+            }
 
+            if (!empty($newRrnPath)) {
+                $this->fileService->delete($newRrnPath);
+            }
+
+            if (!empty($newBankPath)) {
+                $this->fileService->delete($newBankPath);
+            }
+        
             $this->logger->error('save() failed', [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'newBusinessPath' => $newBusinessPath,
+                'newBankPath' => $newBankPath
             ]);
-
+        
             return [
                 'success' => false,
                 'message' => $e->getMessage()
@@ -365,14 +526,25 @@ class ClientService
     }
 
     /* =========================================================
-    휴지통 목록
-    ========================================================= */
-
+    * 휴지통 목록
+    * ========================================================= */
     public function getTrashList(): array
     {
-        return $this->model->getDeleted();
-    }
+        $this->logger->info('getTrashList() called');
 
+        try {
+
+            return $this->model->getDeleted();
+
+        } catch (\Throwable $e) {
+
+            $this->logger->error('getTrashList() exception', [
+                'exception' => $e->getMessage()
+            ]);
+
+            return [];
+        }
+    }
 
 
 
@@ -406,6 +578,14 @@ class ClientService
         ];
     }
 
+
+
+
+
+
+    /* =========================================================
+    * 선택 복원
+    * ========================================================= */
     public function restoreBulk(array $ids, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
@@ -453,6 +633,12 @@ class ClientService
             ];
         }
     }
+
+
+
+    /* =========================================================
+    * 전체 복원
+    * ========================================================= */
     public function restoreAll(string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
@@ -496,7 +682,9 @@ class ClientService
 
 
 
-
+    /* =========================================================
+    * 완전삭제
+    * ========================================================= */
     public function purge(string $id, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
@@ -532,7 +720,14 @@ class ClientService
                     'path' => $client['business_certificate']
                 ]);
             }
-    
+            if (!empty($client['rrn_image'])) {
+
+                $this->fileService->delete($client['rrn_image']);
+
+                $this->logger->info('rrn_image deleted', [
+                    'path' => $client['rrn_image']
+                ]);
+            }
             if (!empty($client['bank_file'])) {
     
                 $this->fileService->delete($client['bank_file']);
@@ -573,6 +768,9 @@ class ClientService
         }
     }
 
+    /* =========================================================
+    * 선택 완전삭제
+    * ========================================================= */
     public function purgeBulk(array $ids, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
@@ -589,6 +787,51 @@ class ClientService
     
             foreach ($ids as $id) {
     
+                /* =========================================================
+                 * 1️⃣ 기존 데이터 조회
+                 * ========================================================= */
+                $client = $this->model->getById($id);
+    
+                if (!$client) {
+                    continue;
+                }
+    
+                /* =========================================================
+                 * 2️⃣ 파일 삭제
+                 * ========================================================= */
+                if (!empty($client['business_certificate'])) {
+    
+                    $this->fileService->delete($client['business_certificate']);
+    
+                    $this->logger->info('business_certificate deleted', [
+                        'id'   => $id,
+                        'path' => $client['business_certificate']
+                    ]);
+                }
+
+                if (!empty($client['rrn_image'])) {
+
+                    $this->fileService->delete($client['rrn_image']);
+                
+                    $this->logger->info('rrn_image deleted', [
+                        'id'   => $id,
+                        'path' => $client['rrn_image']
+                    ]);
+                }
+
+                if (!empty($client['bank_file'])) {
+    
+                    $this->fileService->delete($client['bank_file']);
+    
+                    $this->logger->info('bank_file deleted', [
+                        'id'   => $id,
+                        'path' => $client['bank_file']
+                    ]);
+                }
+    
+                /* =========================================================
+                 * 3️⃣ DB 삭제
+                 * ========================================================= */
                 $ok = $this->model->hardDeleteById($id);
     
                 if ($ok) $success++;
@@ -605,41 +848,9 @@ class ClientService
     
             $this->pdo->rollBack();
     
-            return [
-                'success' => false,
-                'message' => $e->getMessage()
-            ];
-        }
-    }
-    public function purgeAll(string $actorType = 'USER'): array
-    {
-        $actor = ActorHelper::resolve($actorType);
-    
-        $this->pdo->beginTransaction();
-    
-        try {
-    
-            $rows = $this->model->getDeleted();
-    
-            $success = 0;
-    
-            foreach ($rows as $row) {
-    
-                $ok = $this->model->hardDeleteById($row['id']);
-    
-                if ($ok) $success++;
-            }
-    
-            $this->pdo->commit();
-    
-            return [
-                'success' => true,
-                'message' => "전체 삭제 완료 ({$success}건)"
-            ];
-    
-        } catch (\Throwable $e) {
-    
-            $this->pdo->rollBack();
+            $this->logger->error('purgeBulk() failed', [
+                'error' => $e->getMessage()
+            ]);
     
             return [
                 'success' => false,
@@ -648,6 +859,83 @@ class ClientService
         }
     }
 
+    /* =========================================================
+    * 전체 완전삭제
+    * ========================================================= */
+    public function purgeAll(string $actorType = 'USER'): array
+    {
+        $actor = ActorHelper::resolve($actorType);
+
+        $this->pdo->beginTransaction();
+
+        try {
+
+            $rows = $this->model->getDeleted();
+
+            $success = 0;
+
+            foreach ($rows as $row) {
+
+                /* =========================================================
+                * 1️⃣ 파일 삭제
+                * ========================================================= */
+                if (!empty($row['business_certificate'])) {
+
+                    $this->fileService->delete($row['business_certificate']);
+
+                    $this->logger->info('business_certificate deleted', [
+                        'id'   => $row['id'],
+                        'path' => $row['business_certificate']
+                    ]);
+                }
+                if (!empty($row['rrn_image'])) {
+
+                    $this->fileService->delete($row['rrn_image']);
+
+                    $this->logger->info('rrn_image deleted', [
+                        'id'   => $row['id'],
+                        'path' => $row['rrn_image']
+                    ]);
+                }
+                if (!empty($row['bank_file'])) {
+
+                    $this->fileService->delete($row['bank_file']);
+
+                    $this->logger->info('bank_file deleted', [
+                        'id'   => $row['id'],
+                        'path' => $row['bank_file']
+                    ]);
+                }
+
+                /* =========================================================
+                * 2️⃣ DB 삭제
+                * ========================================================= */
+                $ok = $this->model->hardDeleteById($row['id']);
+
+                if ($ok) $success++;
+            }
+
+            $this->pdo->commit();
+
+            return [
+                'success' => true,
+                'message' => "전체 삭제 완료 ({$success}건)"
+            ];
+
+        } catch (\Throwable $e) {
+
+            $this->pdo->rollBack();
+
+            $this->logger->error('purgeAll() failed', [
+                'error' => $e->getMessage()
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage()
+            ];
+        }
+    }
 
     /* ============================================================
     * 코드 순서 변경 (RowReorder)
@@ -702,8 +990,9 @@ class ClientService
     }
 
 
-
-    
+    /* ============================================================
+    * 템플릿 다운로드
+    * ============================================================ */    
     public function downloadTemplate(): void
     {
         $spreadsheet = new Spreadsheet();
@@ -772,7 +1061,9 @@ class ClientService
         exit;
     }
 
-
+    /* ============================================================
+    * 엑셀 업로드 (파일 → 전체 처리)
+    * ============================================================ */
     
     public function saveFromExcelFile(string $filePath): array
     {
@@ -883,7 +1174,9 @@ class ClientService
  
 
 
-
+    /* ============================================================
+    * 거래처처 목록 엑셀 다운로드
+    * ============================================================ */
     
     public function downloadExcel(): void
     {

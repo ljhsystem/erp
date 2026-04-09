@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/views/dashboard/settings/base-info/base-info_cover_modal_edit.php'
+// 경로: PROJECT_ROOT . '/app/views/dashboard/settings/base-info/cover_modal.php'
 // 설명: 커버이미지 등록/수정 + 원본 이미지 보기 모달
 ?>
 

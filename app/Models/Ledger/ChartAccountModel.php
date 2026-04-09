@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Models/Ledger/AccountModel.php'
+// 경로: PROJECT_ROOT . '/app/Models/Ledger/ChartAccountModel.php'
 // 설명:
 //  - 회계 계정과목 Model
 //  - ledger_accounts 테이블 처리
@@ -9,7 +9,7 @@ namespace App\Models\Ledger;
 
 use PDO;
 
-class AccountModel
+class ChartAccountModel
 {
     private PDO $db;
 

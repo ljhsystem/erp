@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Controllers/Ledger/AccountController.php'
+// 경로: PROJECT_ROOT . '/app/Controllers/Ledger/ChartAccountController.php'
 // 설명:
 //  - 회계 계정과목 관리 컨트롤러
 
@@ -7,21 +7,21 @@ namespace App\Controllers\Ledger;
 
 use Core\Session;
 use Core\DbPdo;
-use App\Services\Ledger\AccountService;
+use App\Services\Ledger\ChartAccountService;
 use App\Controllers\System\LayoutController;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
-class AccountController
+class ChartAccountController
 {
-    private AccountService $service;
+    private ChartAccountService $service;
     private LayoutController $layout;
 
     public function __construct()
     {   
         Session::requireAuth();
-        $this->service = new AccountService(DbPdo::conn());
+        $this->service = new ChartAccountService(DbPdo::conn());
         $this->layout = new LayoutController(DbPdo::conn());
     }
 
@@ -346,7 +346,7 @@ class AccountController
     // API: 계정 전체 엑셀 다운로드
     // URL: GET /api/ledger/accounts/excel
     // permission: api.ledger.account.export
-    // controller: AccountController@apidownloadAllExcel
+    // controller: ChartAccountController@apidownloadAllExcel
     // ============================================================
 
     public function apidownloadAllExcel(): void

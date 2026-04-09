@@ -1,21 +1,21 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Controllers/Ledger/SubAccountController.php'
+// 경로: PROJECT_ROOT . '/app/Controllers/Ledger/SubChartAccountController.php'
 // 설명:
 //  - 회계 계정과목 관리 보조 컨트롤러
 namespace App\Controllers\Ledger;
 
 use Core\Session;
 use Core\DbPdo;
-use App\Services\Ledger\SubAccountService;
+use App\Services\Ledger\SubChartAccountService;
 
-class SubAccountController
+class SubChartAccountController
 {
-    private SubAccountService $service;
+    private SubChartAccountService $service;
 
     public function __construct()
     {
         Session::requireAuth();
-        $this->service = new SubAccountService(DbPdo::conn());
+        $this->service = new SubChartAccountService(DbPdo::conn());
     }
 
     /* ================================================

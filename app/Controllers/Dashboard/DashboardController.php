@@ -219,6 +219,23 @@ class DashboardController
         ]);
     }
 
+    public function settingsBaseInfoAccounts(): void
+    {
+        $this->renderPage('/app/views/dashboard/settings.php', [
+            'pageTitle' => '계좌',
+            'cat' => 'base-info',
+            'sub' => 'bank-accounts'
+        ]);
+    }
+
+    public function settingsBaseInfoCards(): void
+    {
+        $this->renderPage('/app/views/dashboard/settings.php', [
+            'pageTitle' => '카드',
+            'cat' => 'base-info',
+            'sub' => 'cards'
+        ]);
+    }
 
     public function settingsOrgEmployees(): void
     {
@@ -228,6 +245,8 @@ class DashboardController
             'sub' => 'employees'
         ]);
     }
+
+
 
     public function settingsOrgDepartments(): void
     {

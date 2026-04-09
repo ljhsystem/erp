@@ -165,7 +165,7 @@ class ClientController
                 'registration_date' => $_POST['registration_date'] ?? null,
     
                 'business_number' => $_POST['business_number'] ?? null,
-                'corporation_number' => $_POST['corporation_number'] ?? null,
+                'rrn' => $_POST['rrn'] ?? null,
     
                 'business_type' => $_POST['business_type'] ?? null,
                 'business_category' => $_POST['business_category'] ?? null,
@@ -205,8 +205,9 @@ class ClientController
     
                 /* 🔥 삭제 플래그 (Service로 전달) */
                 'delete_business_certificate' => $_POST['delete_business_certificate'] ?? '0',
-                'delete_bank_file' => $_POST['delete_bank_file'] ?? '0',
-    
+                'delete_rrn_image'            => $_POST['delete_rrn_image'] ?? '0',
+                'delete_bank_file'            => $_POST['delete_bank_file'] ?? '0',
+
                 'is_active' => 1
             ];
     

@@ -1,15 +1,15 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/views/dashboard/settings/base-info/projects.php'
+// 경로: PROJECT_ROOT . '/app/views/dashboard/settings/base-info/cards.php'
 ?>
 
-<div class="project-page" id="project-main" data-flash="<?= htmlspecialchars($flashMsg ?? '', ENT_QUOTES, 'UTF-8') ?>">
+<div class="card-page" id="card-main" data-flash="<?= htmlspecialchars($flashMsg ?? '', ENT_QUOTES, 'UTF-8') ?>">
 
   <!-- =========================
        HEADER
   ========================== -->
   <div class="page-header">
-    <h5 class="mb-1 fw-bold">🏗 프로젝트관리</h5>
-    <span id="projectCount" class="text-primary project-count"></span>
+    <h5 class="mb-1 fw-bold">💳 카드관리</h5>
+    <span id="cardCount" class="text-primary card-count"></span>
   </div>
 
   <div class="content-area">
@@ -19,19 +19,18 @@
        🔥 공통 검색폼
     ========================================================= */
 
-    $searchId = 'project';
+    $searchId = 'card';
 
     $dateOptions = '
-      <option value="start_date">착공일자</option>
-      <option value="completion_date">준공일자</option>
-      <option value="contract_date">계약일자</option>
-      <option value="permit_date">인허가일자</option>
-      <option value="bid_notice_date">입찰공고일</option>
-      <option value="updated_at">수정일자</option>
+      <option value="created_at">등록일자</option>
     ';
 
     $searchFieldOptions = '
-      <option value="">선택</option>
+      <option value="alias">별칭</option>
+      <option value="card_name">카드명</option>
+      <option value="card_company">카드사</option>
+      <option value="card_number">카드번호</option>
+      <option value="card_holder">소유자</option>
     ';
 
     include PROJECT_ROOT . '/app/views/components/ui-search.php';
@@ -42,9 +41,9 @@
        🔥 공통 테이블
     ========================================================= */
 
-    $tableId       = 'project-table';
-    $ajaxUrl       = '/api/settings/base-info/project/list';
-    $columnsType   = 'project';
+    $tableId       = 'card-table';
+    $ajaxUrl       = '/api/settings/base-info/card/list';
+    $columnsType   = 'card';
 
     $enableButtons = true;
     $enableSearch  = true;
@@ -63,22 +62,21 @@
    🔥 공통 엑셀 모달
 ========================================================= */
 
-/* 🔥 프로젝트 전용 URL */
-$templateUrl = '/api/settings/base-info/project/template';
-$downloadUrl = '/api/settings/base-info/project/excel';
-$uploadUrl   = '/api/settings/base-info/project/excel-upload';
+$templateUrl = '/api/settings/base-info/card/template';
+$downloadUrl = '/api/settings/base-info/card/excel';
+$uploadUrl   = '/api/settings/base-info/card/excel-upload';
 
-$modalId        = 'projectExcelUploadModal';
-$formId         = 'project-excel-upload-form';
-$modalTitle     = '프로젝트 엑셀관리';
+$modalId        = 'cardExcelModal';
+$formId         = 'cardExcelForm';
+$modalTitle     = '카드 엑셀관리';
 
-$fileInputId    = 'projectExcelFile';
-$spinnerId      = 'projectExcelUploadSpinner';
+$fileInputId    = 'cardExcelFile';
+$spinnerId      = 'cardExcelSpinner';
 
-$btnTemplateId  = 'btnDownloadProjectTemplate';
-$btnDownloadAll = 'btnDownloadAllProjects';
+$btnTemplateId  = 'cardBtnDownloadTemplate';
+$btnDownloadAll = 'cardBtnDownloadAll';
 
-$uploadBtnId    = 'btnUploadProjectExcel';
+$uploadBtnId    = 'cardBtnUploadExcel';
 
 include PROJECT_ROOT . '/app/views/components/ui-modal-excel.php';
 ?>
@@ -88,26 +86,30 @@ include PROJECT_ROOT . '/app/views/components/ui-modal-excel.php';
 /* =========================================================
    🔥 공통 휴지통 모달
 ========================================================= */
-$modalId      = 'projectTrashModal';
-$type         = 'project';
-$modalTitle   = '프로젝트 휴지통';
+$modalId      = 'cardTrashModal';
+$type         = 'card';
+$modalTitle   = '카드 휴지통';
 
-$tableId      = 'project-trash-table';
-$checkAllId   = 'projectTrashCheckAll';
+$tableId      = 'card-trash-table';
+$checkAllId   = 'cardTrashCheckAll';
 
-$btnRestoreId = 'btnRestoreSelectedProject';
-$btnDeleteId  = 'btnDeleteSelectedProject';
-$btnDeleteAll = 'btnDeleteAllProjects';
+$btnRestoreId = 'cardBtnRestoreSelected';
+$btnDeleteId  = 'cardBtnDeleteSelected';
+$btnDeleteAll = 'cardBtnDeleteAll';
 
 $tableHead = '
   <th>코드</th>
-  <th>프로젝트명</th>
+  <th>별칭</th>
+  <th>카드명</th>
+  <th>카드사</th>
+  <th>카드번호</th>
+  <th>카드이미지</th>
   <th>삭제일</th>
   <th>삭제자</th>
   <th>관리</th>
 ';
 
-$emptyMessage = '삭제된 프로젝트를 선택하세요';
+$emptyMessage = '삭제된 카드를 선택하세요';
 
 include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
 ?>
@@ -115,9 +117,9 @@ include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
 
 <?php
 /* =========================================================
-   🔥 프로젝트 수정 모달 (개별 유지)
+   🔥 카드 수정 모달
 ========================================================= */
-include __DIR__ . '/partials/project_modal.php';
+include __DIR__ . '/partials/card_modal.php';
 ?>
 
 

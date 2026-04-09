@@ -112,7 +112,7 @@ include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
 /* =========================================================
    🔥 거래처 수정 모달 (개별 유지)
 ========================================================= */
-include __DIR__ . '/partials/base-info_client_modal_edit.php';
+include __DIR__ . '/partials/client_modal.php';
 ?>
 
 

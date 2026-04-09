@@ -1,4 +1,4 @@
-<!-- 경로: PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/base-info_project_modal_edit.php' -->
+<!-- 경로: PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/project_modal.php' -->
 
 <div class="modal fade" id="projectModal" tabindex="-1" aria-labelledby="projectModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl">

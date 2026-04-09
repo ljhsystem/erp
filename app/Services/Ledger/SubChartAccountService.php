@@ -1,27 +1,27 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Services/Ledger/SubAccountService.php'
+// 경로: PROJECT_ROOT . '/app/Services/Ledger/SubChartAccountService.php'
 // 설명:
 // 
 namespace App\Services\Ledger;
 
 use PDO;
-use App\Models\Ledger\SubAccountModel;
+use App\Models\Ledger\SubChartAccountModel;
 use Core\Helpers\CodeHelper;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
 
-class SubAccountService
+class SubChartAccountService
 {
     private readonly PDO $pdo;
-    private SubAccountModel $model;
+    private SubChartAccountModel $model;
     private $logger;
 
     public function __construct(PDO $pdo)
     {
         $this->pdo         = $pdo;
-        $this->model = new SubAccountModel($this->pdo);
-        $this->logger = LoggerFactory::getLogger('service-ledger.SubAccountService');
-        $this->logger->info('SubAccountService initialized');
+        $this->model = new SubChartAccountModel($this->pdo);
+        $this->logger = LoggerFactory::getLogger('service-ledger.SubChartAccountService');
+        $this->logger->info('SubChartAccountService initialized');
     }
 
     /* =========================================================

@@ -1,4 +1,4 @@
-  <!-- // 경로: PROJECT_ROOT . '/app/views/dashboard/settings/base-info\partials\base-info_client_modal_edit.php' -->
+  <!-- // 경로: PROJECT_ROOT . '/app/views/dashboard/settings/base-info\partials\client_modal.php' -->
   <!-- 거래처 등록/수정 모달 -->
   <div class="modal fade" id="clientModal" tabindex="-1" aria-labelledby="clientModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
@@ -83,17 +83,38 @@
               <div class="card-header py-1 px-2">사업자 정보</div>
               <div class="card-body py-2">
                 <div class="row g-2">
-                  <div class="col-md-6">
+                  <div class="col-md-4">
                     <label class="form-label">사업자등록번호</label>
                     <div class="input-group">
                       <input type="text" name="business_number" id="modal_business_number" data-format="biz" class="form-control form-control-sm">
                       <button type="button" class="btn btn-outline-primary btn-sm" id="btnCheckBizStatus">상태확인</button>
                     </div>
                   </div>
-                  <div class="col-md-6">
+                  <div class="col-md-4">
                     <label class="form-label">법인/주민등록번호</label>
-                    <input type="text" name="corporation_number" id="modal_corporation_number" data-format="corp" class="form-control form-control-sm">
+                    <div class="input-group">
+                      <input type="text"
+                            name="rrn"
+                            id="modal_rrn"
+                            data-format="corp"
+                            class="form-control form-control-sm">
+                      <button type="button" class="btn btn-outline-secondary btn-sm toggle-rrn">
+                        <i class="bi bi-eye"></i>
+                      </button>
+                    </div>
                   </div>
+                  <div class="col-md-4">
+                        <label class="form-label">거래유형</label>
+                        <select name="client_type"
+                          id="modal_client_type"
+                          class="form-select form-select-sm">
+                          <option value="">선택</option>
+                          <option value="일반">일반</option>
+                          <option value="카드사">카드사</option>
+                          <option value="일용직">일용직</option>
+                          <option value="사업소득">사업소득</option>
+                        </select>
+                      </div>
                 </div>
 
                 <div class="row g-2 mt-2">
@@ -116,19 +137,22 @@
                   </div>
                 </div>
 
+
+
+
                 <div class="row g-2 mt-2">
-                  <div class="col-md-12">
+
+                  <!-- 사업자등록증 -->
+                  <div class="col-md-6">
 
                     <label class="form-label">사업자등록증</label>
 
-                    <!-- 드롭존 -->
-                    <div id="dropZone"
+                    <div id="dropZoneBiz"
                       class="border rounded p-3 text-center"
                       style="background:#f8f9fa; cursor:pointer;">
 
-                      <span id="dropZoneText">
-                        여기로 파일을 끌어다 놓거나 클릭하여 선택하세요.<br>
-                        (PDF, JPG, PNG)
+                      <span id="dropZoneTextBiz">
+                        파일 드롭 또는 클릭<br>(PDF, JPG, PNG)
                       </span>
 
                       <input type="file"
@@ -136,23 +160,58 @@
                         id="modal_business_certificate"
                         accept=".pdf,.jpg,.jpeg,.png"
                         style="display:none;">
+
                       <input type="hidden"
                         name="delete_business_certificate"
                         id="delete_business_certificate"
                         value="0">
 
                       <span id="certStatusIcon" class="ms-2"></span>
-
                     </div>
 
-                    <!-- 파일 리스트 -->
                     <div id="bizCertList" class="file-list mt-2"></div>
 
-                    <small id="bizCertHelp" class="text-muted">
-                      PDF, JPG, PNG 파일만 업로드 가능합니다.
+                    <small class="text-muted">
+                      PDF, JPG, PNG 파일만 업로드
                     </small>
 
                   </div>
+
+                  <!-- 신분증 -->
+                  <div class="col-md-6">
+
+                    <label class="form-label">신분증</label>
+
+                    <div id="dropZoneRrn"
+                      class="border rounded p-3 text-center"
+                      style="background:#f8f9fa; cursor:pointer;">
+
+                      <span id="dropZoneTextRrn">
+                        파일 드롭 또는 클릭<br>(JPG, PNG)
+                      </span>
+
+                      <input type="file"
+                        name="rrn_image"
+                        id="modal_rrn_image"
+                        accept=".jpg,.jpeg,.png"
+                        style="display:none;">
+
+                      <input type="hidden"
+                        name="delete_rrn_image"
+                        id="delete_rrn_image"
+                        value="0">
+
+                      <span id="rrnStatusIcon" class="ms-2"></span>
+                    </div>
+
+                    <div id="rrnImageList" class="file-list mt-2"></div>
+
+                    <small class="text-muted">
+                      JPG, PNG 파일만 업로드
+                    </small>
+
+                  </div>
+
                 </div>
 
 
@@ -291,18 +350,6 @@
                       </div>
 
                       <div class="col-md-4">
-                        <label class="form-label">거래유형</label>
-                        <select name="client_type"
-                          id="modal_client_type"
-                          class="form-select form-select-sm">
-                          <option value="">선택</option>
-                          <option value="매입">매입</option>
-                          <option value="매출">매출</option>
-                          <option value="매입/매출">매입/매출</option>
-                        </select>
-                      </div>
-
-                      <div class="col-md-4">
                         <label class="form-label">과세구분</label>
                         <select name="tax_type"
                           id="modal_tax_type"
@@ -311,6 +358,22 @@
                           <option value="과세">과세</option>
                           <option value="면세">면세</option>
                           <option value="영세">영세</option>
+                        </select>
+                      </div>
+
+                      <div class="col-md-4">
+                        <label class="form-label">결제조건</label>
+                        <select name="payment_term"
+                          id="modal_payment_term"
+                          class="form-select form-select-sm">
+
+                          <option value="">선택</option>
+                          <option value="현금">현금</option>
+                          <option value="월말">월말</option>
+                          <option value="익월말">익월말</option>
+                          <option value="60일">60일</option>
+                          <option value="90일">90일</option>
+
                         </select>
                       </div>
 
@@ -355,24 +418,9 @@
 
                 <!-- 마지막 줄 -->
                 <div class="row g-2 mt-1">
+                  
 
-                  <div class="col-md-3">
-                    <label class="form-label">결제조건</label>
-                    <select name="payment_term"
-                      id="modal_payment_term"
-                      class="form-select form-select-sm">
-
-                      <option value="">선택</option>
-                      <option value="현금">현금</option>
-                      <option value="월말">월말</option>
-                      <option value="익월말">익월말</option>
-                      <option value="60일">60일</option>
-                      <option value="90일">90일</option>
-
-                    </select>
-                  </div>
-
-                  <div class="col-md-9">
+                  <div class="col-md-12">
                     <label class="form-label">취급품목</label>
                     <input type="text"
                       name="item_category"

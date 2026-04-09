@@ -1,12 +1,12 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Models/Ledger/SubAccountModel.php'
+// 경로: PROJECT_ROOT . '/app/Models/Ledger/SubChartAccountModel.php'
 // 설명:
 //
 namespace App\Models\Ledger;
 
 use PDO;
 
-class SubAccountModel
+class SubChartAccountModel
 {
     private PDO $db;
 

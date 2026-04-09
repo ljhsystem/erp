@@ -109,7 +109,7 @@ class TwoFactorController
     // ============================================================
     // JSON 성공
     // ============================================================
-    private function jsonSuccess(string $message, string $redirect = null)
+    private function jsonSuccess(string $message, ?string $redirect = null)
     {
         echo json_encode([
             'success'  => true,
@@ -122,7 +122,7 @@ class TwoFactorController
     // ============================================================
     // JSON 실패
     // ============================================================
-    private function jsonError(string $message, string $redirect = null)
+    private function jsonError(string $message, ?string $redirect = null)
     {
         echo json_encode([
             'success'  => false,

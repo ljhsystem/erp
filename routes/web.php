@@ -310,42 +310,75 @@ $router->get('/dashboard/settings', 'DashboardController@webSettings', [
  * 설정: 기초정보관리>회사정보, 브랜드, 커버이미지, 거래처, 프로젝트
  * ========================================================= */
 
-$router->get('/dashboard/settings/base-info/company', 'DashboardController@settingsBaseInfoCompany', [
-    'key' => 'web.settings.baseinfo.company',
-    'name' => '회사정보',
+ $router->get('/dashboard/settings/base-info/company', 'DashboardController@settingsBaseInfoCompany', [
+    'key'         => 'web.settings.base-info.company',
+    'name'        => '회사정보',
     'description' => '회사 기본정보 설정 화면 접근',
-    'category' => '기초정보'
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
 ]);
 
 $router->get('/dashboard/settings/base-info/brand-logo', 'DashboardController@settingsBaseInfoBrand', [
-    'key' => 'web.settings.baseinfo.brand_logo',
-    'name' => '브랜드',
+    'key'         => 'web.settings.base-info.brand_logo',
+    'name'        => '브랜드',
     'description' => '브랜드 설정 화면 접근',
-    'category' => '기초정보'
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
 ]);
 
 $router->get('/dashboard/settings/base-info/cover', 'DashboardController@settingsBaseInfoCover', [
-    'key' => 'web.settings.baseinfo.cover',
-    'name' => '커버이미지',
+    'key'         => 'web.settings.base-info.cover',
+    'name'        => '커버이미지',
     'description' => '커버이미지 설정 화면 접근',
-    'category' => '기초정보'
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
 ]);
 
 $router->get('/dashboard/settings/base-info/clients', 'DashboardController@settingsBaseInfoClients', [
-    'key' => 'web.settings.baseinfo.clients',
-    'name' => '거래처',
+    'key'         => 'web.settings.base-info.clients',
+    'name'        => '거래처',
     'description' => '거래처 관리 화면 접근',
-    'category' => '기초정보'
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
 ]);
 
 $router->get('/dashboard/settings/base-info/projects', 'DashboardController@settingsBaseInfoProjects', [
-    'key' => 'web.settings.baseinfo.projects',
-    'name' => '프로젝트',
+    'key'         => 'web.settings.base-info.projects',
+    'name'        => '프로젝트',
     'description' => '프로젝트 관리 화면 접근',
-    'category' => '기초정보'
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
 ]);
 
+$router->get('/dashboard/settings/base-info/bank-accounts', 'DashboardController@settingsBaseInfoAccounts', [
+    'key'         => 'web.settings.base-info.accounts',
+    'name'        => '계좌',
+    'description' => '계좌 관리 화면 접근',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
 
+$router->get('/dashboard/settings/base-info/cards', 'DashboardController@settingsBaseInfoCards', [
+    'key'         => 'web.settings.base-info.cards',
+    'name'        => '카드',
+    'description' => '카드 관리 화면 접근',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
 
 
 

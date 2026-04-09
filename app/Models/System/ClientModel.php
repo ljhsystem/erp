@@ -66,7 +66,7 @@ class ClientModel
     
             $allowed = [
                 'code','client_name','company_name','ceo_name',
-                'business_number','business_status','phone','email',
+                'business_number', 'rnn','business_status','phone','email',
                 'registration_date','note','memo','address','address_detail',
                 'client_type','tax_type','client_category',
                 'created_at','updated_at'
@@ -172,8 +172,16 @@ class ClientModel
 
         $stmt->execute(['id' => $id]);
 
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        
+        return $row ?: null;
     }
+
+
+    /* -------------------------------------------------------------
+    * 거래처 검색 자동완성
+    * ------------------------------------------------------------- */
 
     public function searchPicker(string $keyword): array
     {
@@ -200,7 +208,7 @@ class ClientModel
         $sql = "
         INSERT INTO system_clients (
             id, code, client_name, company_name, registration_date,
-            business_number, corporation_number,
+            business_number, rrn, rrn_image,
             business_type, business_category,
             business_status, business_certificate,
             address, address_detail, phone, fax, email,
@@ -218,7 +226,7 @@ class ClientModel
             created_by, updated_by
         ) VALUES (
             :id, :code, :client_name, :company_name, :registration_date,
-            :business_number, :corporation_number,
+            :business_number, :rrn, :rrn_image,
             :business_type, :business_category,
             :business_status, :business_certificate,
             :address, :address_detail, :phone, :fax, :email,
@@ -248,7 +256,8 @@ class ClientModel
             'registration_date' => $data['registration_date'] ?? date('Y-m-d'),
 
             'business_number' => $data['business_number'] ?? null,
-            'corporation_number' => $data['corporation_number'] ?? null,
+            'rrn' => $data['rrn'] ?? null,
+            'rrn_image' => $data['rrn_image'] ?? null,
 
             'business_type' => $data['business_type'] ?? null,
             'business_category' => $data['business_category'] ?? null,
@@ -294,6 +303,9 @@ class ClientModel
         ]);
     }
 
+    /* -------------------------------------------------------------
+     * 거래처 수정 (id 기준)
+     * ------------------------------------------------------------- */
     public function updateById(string $id, array $data): bool
     {
         $sql = "
@@ -303,7 +315,7 @@ class ClientModel
                 registration_date = :registration_date,
     
                 business_number = :business_number,
-                corporation_number = :corporation_number,
+                rrn = :rrn, rrn_image = :rrn_image,
     
                 business_type = :business_type,
                 business_category = :business_category,
@@ -360,7 +372,8 @@ class ClientModel
             'registration_date' => $data['registration_date'] ?? date('Y-m-d'),
 
             'business_number' => $data['business_number'] ?? null,
-            'corporation_number' => $data['corporation_number'] ?? null,
+            'rrn' => $data['rrn'] ?? null,
+            'rrn_image' => $data['rrn_image'] ?? null,
 
             'business_type' => $data['business_type'] ?? null,
             'business_category' => $data['business_category'] ?? null,
@@ -408,6 +421,7 @@ class ClientModel
         $stmt = $this->db->prepare($sql);
         return $stmt->execute($params);
     }
+
     /* -------------------------------------------------------------
     * 거래처 삭제 (id 기준)
     * ------------------------------------------------------------- */
@@ -432,7 +446,9 @@ class ClientModel
     }
 
 
-
+    /* -------------------------------------------------------------
+    * 거래처 휴지통 목록
+    * ------------------------------------------------------------- */
     public function getDeleted(): array
     {
         $stmt = $this->db->prepare("
@@ -480,8 +496,9 @@ class ClientModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-
-
+    /* -------------------------------------------------------------
+    * 거래처 복원 (id 기준)
+    * ------------------------------------------------------------- */
     public function restoreById(string $id, string $actor): bool
     {
         $sql = "
@@ -501,6 +518,9 @@ class ClientModel
         ]);
     }
 
+    /* -------------------------------------------------------------
+    * 거래처 영구삭제
+    * ------------------------------------------------------------- */
     public function hardDeleteById(string $id): bool
     {
         $stmt = $this->db->prepare("
@@ -518,8 +538,8 @@ class ClientModel
 
 
     /* -------------------------------------------------------------
-     * ID 기준 코드 변경
-     * ------------------------------------------------------------- */
+    * ID 기준 code 수정
+    * ------------------------------------------------------------- */
     public function updateCode(string $id, string $newCode): bool
     {
         $sql = "UPDATE system_clients SET code = :newCode WHERE id = :id";

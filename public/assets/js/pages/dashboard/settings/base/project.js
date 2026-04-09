@@ -22,14 +22,21 @@ window.AdminPicker = AdminPicker;
         SAVE: "/api/settings/base-info/project/save",
         DELETE: "/api/settings/base-info/project/delete",
         DETAIL: "/api/settings/base-info/project/detail",
+    
         TRASH: "/api/settings/base-info/project/trash",
         RESTORE: "/api/settings/base-info/project/restore",
         PURGE: "/api/settings/base-info/project/purge",
+        PURGE_ALL: "/api/settings/base-info/project/purge-all",
+    
         REORDER: "/api/settings/base-info/project/reorder",
+    
+        EXCEL_UPLOAD: '/api/settings/base-info/project/excel-upload',
+        EXCEL_TEMPLATE: '/api/settings/base-info/project/template',
+        EXCEL_DOWNLOAD: '/api/settings/base-info/project/download',
+    
         EMPLOYEE_SEARCH: "/api/settings/employee/search",
-        CLIENT_SEARCH: "/api/settings/base-info/client/search"
+        CLIENT_SEARCH: "/api/settings/base-info/client/search-picker"
     };
-
     /* =========================
        프로젝트 컬럼 한글 매핑
     ========================= */
@@ -111,27 +118,35 @@ window.AdminPicker = AdminPicker;
     function initProjectPage($){
         initModal();
         initAdminDatePicker();
-
+    
+        initExcelDataset(); // 🔥 추가 (핵심)
+    
         initDataTable($);
-
         initExternal();
-
+    
         bindRowReorder(projectTable, { api: API.REORDER });
         bindTableEvents($);
-
+    
         bindModalEvents($);
         bindAdminDateInputs();
-
+    
         bindTableLayoutEvents(projectTable, '#project-table');
-
+    
         bindUIEvents();
-
+    
         bindExcelEvents();
         bindTrashEvents();
-
+    
         bindGlobalEvents();
     }
-
+    function initExcelDataset() {
+        const form = document.getElementById('project-excel-upload-form'); 
+        if (!form) return;
+    
+        form.dataset.templateUrl = API.EXCEL_TEMPLATE; 
+        form.dataset.downloadUrl = API.EXCEL_DOWNLOAD; 
+        form.dataset.uploadUrl   = API.EXCEL_UPLOAD; 
+    }
     function initModal(){
         const modalEl = document.getElementById('projectModal');
         if (!modalEl) return;
@@ -247,6 +262,9 @@ window.AdminPicker = AdminPicker;
     function bindTrashEvents(){
         document.addEventListener('trash:detail-render', function(e){
             const { data, modal } = e.detail;
+        
+            if (modal.dataset.type !== 'project') return;
+        
             const detailBox = modal.querySelector('.trash-detail');
             if(!detailBox) return;
 
@@ -290,16 +308,14 @@ window.AdminPicker = AdminPicker;
 
         window.TrashColumns.project = function(row) {
             return `
-                <tr data-row="${encodeURIComponent(JSON.stringify(row))}">
-                    <td>${row.code ?? ''}</td>
-                    <td>${row.project_name ?? ''}</td>
-                    <td>${row.deleted_at ?? ''}</td>
-                    <td>${row.deleted_by_name ?? ''}</td>
-                    <td>
-                        <button class="btn btn-success btn-sm btn-restore" data-id="${row.id}">복원</button>
-                        <button class="btn btn-danger btn-sm btn-purge" data-id="${row.id}">영구삭제</button>
-                    </td>
-                </tr>
+                <td>${row.code ?? ''}</td>
+                <td>${row.project_name ?? ''}</td>
+                <td>${row.deleted_at ?? ''}</td>
+                <td>${row.deleted_by_name ?? ''}</td>
+                <td>
+                    <button class="btn btn-success btn-sm btn-restore" data-id="${row.id}">복원</button>
+                    <button class="btn btn-danger btn-sm btn-purge" data-id="${row.id}">영구삭제</button>
+                </td>
             `;
         };
 
@@ -428,7 +444,7 @@ window.AdminPicker = AdminPicker;
                         trashModalEl.dataset.listUrl      = API.TRASH;
                         trashModalEl.dataset.restoreUrl   = API.RESTORE;
                         trashModalEl.dataset.deleteUrl    = API.PURGE;
-                        trashModalEl.dataset.deleteAllUrl = API.PURGE;
+                        trashModalEl.dataset.deleteAllUrl = API.PURGE_ALL;
                     
                         const modal = new bootstrap.Modal(trashModalEl);
                         modal.show();

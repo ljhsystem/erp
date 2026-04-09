@@ -80,8 +80,8 @@ class DataHelper
                 ? preg_replace('/[^0-9]/', '', $data['business_number'])
                 : null,
     
-            'corporation_number' => isset($data['corporation_number'])
-                ? preg_replace('/[^0-9]/', '', $data['corporation_number'])
+            'rrn' => isset($data['rrn'])
+                ? preg_replace('/[^0-9]/', '', $data['rrn'])
                 : null,
     
             'business_type' => $data['business_type'] ?? null,

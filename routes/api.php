@@ -507,7 +507,7 @@ $router->post('/api/settings/base-info/client/excel-upload', 'ClientController@a
 /* =========================================================
  * 거래처 엑셀 다운로드
  * ========================================================= */
-$router->get('/api/settings/base-info/client/excel', 'ClientController@apiDownload', [
+$router->get('/api/settings/base-info/client/download', 'ClientController@apiDownload', [
     'key'         => 'api.settings.base-info.client.excel',
     'name'        => '거래처 엑셀 다운로드',
     'category'    => '시스템설정',
@@ -524,146 +524,560 @@ $router->get('/api/settings/base-info/client/excel', 'ClientController@apiDownlo
 
 
 
-
-
-/* =========================================
- * 프로젝트 API
- * ========================================= */
-
-// 프로젝트 검색
-$router->get('/api/settings/base-info/project/search', 'ProjectController@apiSearch', [
-    'key'         => 'api.settings.base-info.project.search',
-    'name'        => '프로젝트 검색',
-    'description' => '프로젝트 검색용 목록 조회',
-    'category'    => '프로젝트원장'
-]);
-
-// 프로젝트 목록 조회
+/* =========================================================
+ * 프로젝트 목록 조회
+ * ========================================================= */
 $router->get('/api/settings/base-info/project/list', 'ProjectController@apiList', [
     'key'         => 'api.settings.base-info.project.list',
     'name'        => '프로젝트 목록 조회',
-    'description' => '프로젝트 전체 목록 조회',
-    'category'    => '프로젝트원장'
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
 ]);
 
-// 프로젝트 저장
-$router->post('/api/settings/base-info/project/save', 'ProjectController@apiSave', [
-    'key'         => 'api.settings.base-info.project.save',
-    'name'        => '프로젝트 저장',
-    'description' => '프로젝트 신규 등록 및 수정',
-    'category'    => '프로젝트원장'
-]);
-
-// 프로젝트 삭제
-$router->post('/api/settings/base-info/project/delete', 'ProjectController@apiDelete', [
-    'key'         => 'api.settings.base-info.project.delete',
-    'name'        => '프로젝트 삭제',
-    'description' => '프로젝트 삭제 처리',
-    'category'    => '프로젝트원장'
-]);
-
-// 프로젝트 상세
+/* =========================================================
+ * 프로젝트 상세 조회
+ * ========================================================= */
 $router->get('/api/settings/base-info/project/detail', 'ProjectController@apiDetail', [
     'key'         => 'api.settings.base-info.project.detail',
     'name'        => '프로젝트 상세 조회',
-    'description' => '프로젝트 상세 정보 조회',
-    'category'    => '프로젝트원장'
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
 ]);
 
-// 순서변경
+/* =========================================================
+ * 프로젝트 검색 (Picker)
+ * ========================================================= */
+$router->get('/api/settings/base-info/project/search-picker', 'ProjectController@apiSearchPicker', [
+    'key'         => 'api.settings.base-info.project.search-picker',
+    'name'        => '프로젝트 자동검색',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
+/* =========================================================
+ * 프로젝트 저장
+ * ========================================================= */
+$router->post('/api/settings/base-info/project/save', 'ProjectController@apiSave', [
+    'key'         => 'api.settings.base-info.project.save',
+    'name'        => '프로젝트 저장',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 프로젝트 삭제 (soft)
+ * ========================================================= */
+$router->post('/api/settings/base-info/project/delete', 'ProjectController@apiDelete', [
+    'key'         => 'api.settings.base-info.project.delete',
+    'name'        => '프로젝트 삭제',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 프로젝트 휴지통 목록
+ * ========================================================= */
+$router->get('/api/settings/base-info/project/trash', 'ProjectController@apiTrashList', [
+    'key'         => 'api.settings.base-info.project.trash.list',
+    'name'        => '프로젝트 휴지통 목록',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 프로젝트 복원 (단건)
+ * ========================================================= */
+$router->post('/api/settings/base-info/project/restore', 'ProjectController@apiRestore', [
+    'key'         => 'api.settings.base-info.project.restore',
+    'name'        => '프로젝트 복원',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 프로젝트 복원 (bulk)
+ * ========================================================= */
+$router->post('/api/settings/base-info/project/restore-bulk', 'ProjectController@apiRestoreBulk', [
+    'key'         => 'api.settings.base-info.project.restore-bulk',
+    'name'        => '프로젝트 일괄 복원',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 프로젝트 전체 복원
+ * ========================================================= */
+$router->post('/api/settings/base-info/project/restore-all', 'ProjectController@apiRestoreAll', [
+    'key'         => 'api.settings.base-info.project.restore-all',
+    'name'        => '프로젝트 전체 복원',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 프로젝트 완전삭제 (단건)
+ * ========================================================= */
+$router->post('/api/settings/base-info/project/purge', 'ProjectController@apiPurge', [
+    'key'         => 'api.settings.base-info.project.purge',
+    'name'        => '프로젝트 완전삭제',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 프로젝트 완전삭제 (bulk)
+ * ========================================================= */
+$router->post('/api/settings/base-info/project/purge-bulk', 'ProjectController@apiPurgeBulk', [
+    'key'         => 'api.settings.base-info.project.purge-bulk',
+    'name'        => '프로젝트 일괄 완전삭제',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 프로젝트 전체 완전삭제
+ * ========================================================= */
+$router->post('/api/settings/base-info/project/purge-all', 'ProjectController@apiPurgeAll', [
+    'key'         => 'api.settings.base-info.project.purge-all',
+    'name'        => '프로젝트 전체 완전삭제',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 프로젝트 순서 변경
+ * ========================================================= */
 $router->post('/api/settings/base-info/project/reorder', 'ProjectController@apiReorder', [
     'key'         => 'api.settings.base-info.project.reorder',
     'name'        => '프로젝트 순서 변경',
-    'description' => '프로젝트 정렬 순서 변경',
-    'category'    => '프로젝트원장'
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
 ]);
 
-// 엑셀 다운로드
-$router->get('/api/settings/base-info/project/excel', 'ProjectController@apiDownloadAllExcel', [
-    'key'         => 'api.settings.base-info.project.excel',
-    'name'        => '프로젝트 엑셀 다운로드',
-    'description' => '프로젝트 전체 엑셀 다운로드',
-    'category'    => '프로젝트원장'
-]);
-
-// 엑셀 템플릿
+/* =========================================================
+ * 프로젝트 엑셀 템플릿
+ * ========================================================= */
 $router->get('/api/settings/base-info/project/template', 'ProjectController@apiDownloadTemplate', [
     'key'         => 'api.settings.base-info.project.template',
-    'name'        => '프로젝트 엑셀 템플릿',
-    'description' => '프로젝트 업로드용 템플릿 다운로드',
-    'category'    => '프로젝트원장'
+    'name'        => '프로젝트 엑셀 양식 다운로드',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
 ]);
 
-// 엑셀 업로드
-$router->post('/api/settings/base-info/project/excel-upload', 'ProjectController@apiExcelUpload', [
+/* =========================================================
+ * 프로젝트 엑셀 업로드
+ * ========================================================= */
+$router->post('/api/settings/base-info/project/excel-upload', 'ProjectController@apiSaveFromExcel', [
     'key'         => 'api.settings.base-info.project.excel-upload',
     'name'        => '프로젝트 엑셀 업로드',
-    'description' => '프로젝트 엑셀 데이터 업로드',
-    'category'    => '프로젝트원장'
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 프로젝트 엑셀 다운로드
+ * ========================================================= */
+$router->get('/api/settings/base-info/project/download', 'ProjectController@apiDownload', [
+    'key'         => 'api.settings.base-info.project.excel',
+    'name'        => '프로젝트 엑셀 다운로드',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+
+/* =========================================================
+ * 계좌 목록 조회
+ * ========================================================= */
+$router->get('/api/settings/base-info/bank-account/list', 'BankAccountController@apiList', [
+    'key'         => 'api.settings.base-info.bank-account.list',
+    'name'        => '계좌 목록 조회',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 계좌 상세 조회
+ * ========================================================= */
+$router->get('/api/settings/base-info/bank-account/detail', 'BankAccountController@apiDetail', [
+    'key'         => 'api.settings.base-info.bank-account.detail',
+    'name'        => '계좌 상세 조회',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 계좌 저장
+ * ========================================================= */
+$router->post('/api/settings/base-info/bank-account/save', 'BankAccountController@apiSave', [
+    'key'         => 'api.settings.base-info.bank-account.save',
+    'name'        => '계좌 저장',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 계좌 삭제 (soft)
+ * ========================================================= */
+$router->post('/api/settings/base-info/bank-account/delete', 'BankAccountController@apiDelete', [
+    'key'         => 'api.settings.base-info.bank-account.delete',
+    'name'        => '계좌 삭제',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 계좌 휴지통 목록
+ * ========================================================= */
+$router->get('/api/settings/base-info/bank-account/trash', 'BankAccountController@apiTrashList', [
+    'key'         => 'api.settings.base-info.bank-account.trash.list',
+    'name'        => '계좌 휴지통 목록',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 계좌 복원
+ * ========================================================= */
+$router->post('/api/settings/base-info/bank-account/restore', 'BankAccountController@apiRestore', [
+    'key'         => 'api.settings.base-info.bank-account.restore',
+    'name'        => '계좌 복원',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 계좌 선택 복원
+ * ========================================================= */
+$router->post('/api/settings/base-info/bank-account/restore-bulk', 'BankAccountController@apiRestoreBulk', [
+    'key'         => 'api.settings.base-info.bank-account.restore-bulk',
+    'name'        => '계좌 선택 복원',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 계좌 전체 복원
+ * ========================================================= */
+$router->post('/api/settings/base-info/bank-account/restore-all', 'BankAccountController@apiRestoreAll', [
+    'key'         => 'api.settings.base-info.bank-account.restore-all',
+    'name'        => '계좌 전체 복원',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 계좌 완전삭제
+ * ========================================================= */
+$router->post('/api/settings/base-info/bank-account/purge', 'BankAccountController@apiPurge', [
+    'key'         => 'api.settings.base-info.bank-account.purge',
+    'name'        => '계좌 완전삭제',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 계좌 선택 완전삭제
+ * ========================================================= */
+$router->post('/api/settings/base-info/bank-account/purge-bulk', 'BankAccountController@apiPurgeBulk', [
+    'key'         => 'api.settings.base-info.bank-account.purge-bulk',
+    'name'        => '계좌 선택 완전삭제',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 계좌 전체 완전삭제
+ * ========================================================= */
+$router->post('/api/settings/base-info/bank-account/purge-all', 'BankAccountController@apiPurgeAll', [
+    'key'         => 'api.settings.base-info.bank-account.purge-all',
+    'name'        => '계좌 전체 완전삭제',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 계좌 순서 변경
+ * ========================================================= */
+$router->post('/api/settings/base-info/bank-account/reorder', 'BankAccountController@apiReorder', [
+    'key'         => 'api.settings.base-info.bank-account.reorder',
+    'name'        => '계좌 순서 변경',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 계좌 엑셀 템플릿
+ * ========================================================= */
+$router->get('/api/settings/base-info/bank-account/template', 'BankAccountController@apiDownloadTemplate', [
+    'key'         => 'api.settings.base-info.bank-account.template',
+    'name'        => '계좌 엑셀 양식 다운로드',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
+/* =========================================================
+ * 계좌 엑셀 업로드
+ * ========================================================= */
+$router->post('/api/settings/base-info/bank-account/excel-upload', 'BankAccountController@apiSaveFromExcel', [
+    'key'         => 'api.settings.base-info.bank-account.excel-upload',
+    'name'        => '계좌 엑셀 업로드',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+/* =========================================================
+ * 계좌 엑셀 다운로드
+ * ========================================================= */
+$router->get('/api/settings/base-info/bank-account/excel', 'BankAccountController@apiDownload', [
+    'key'         => 'api.settings.base-info.bank-account.excel',
+    'name'        => '계좌 엑셀 다운로드',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
 ]);
 
 
 
 /* =========================================================
-   프로젝트 휴지통
-========================================================= */
-
-// 휴지통 목록
-$router->get('/api/settings/base-info/project/trash', 'ProjectController@apiTrashList', [
-    'key'         => 'api.settings.base-info.project.trash',
-    'name'        => '프로젝트 휴지통 목록',
-    'description' => '삭제된 프로젝트 목록 조회',
-    'category'    => '프로젝트원장'
+ * 카드 목록 조회
+ * ========================================================= */
+$router->get('/api/settings/base-info/card/list', 'CardController@apiList', [
+    'key'         => 'api.settings.base-info.card.list',
+    'name'        => '카드 목록 조회',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
 ]);
 
-// 복원
-$router->post('/api/settings/base-info/project/restore', 'ProjectController@apiRestore', [
-    'key'         => 'api.settings.base-info.project.restore',
-    'name'        => '프로젝트 복원',
-    'description' => '삭제된 프로젝트 복원',
-    'category'    => '프로젝트원장'
+/* =========================================================
+ * 카드 상세 조회
+ * ========================================================= */
+$router->get('/api/settings/base-info/card/detail', 'CardController@apiDetail', [
+    'key'         => 'api.settings.base-info.card.detail',
+    'name'        => '카드 상세 조회',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
 ]);
 
-// 완전삭제
-$router->post('/api/settings/base-info/project/purge', 'ProjectController@apiPurge', [
-    'key'         => 'api.settings.base-info.project.purge',
-    'name'        => '프로젝트 영구 삭제',
-    'description' => '프로젝트 완전 삭제',
-    'category'    => '프로젝트원장'
+/* =========================================================
+ * 카드 저장
+ * ========================================================= */
+$router->post('/api/settings/base-info/card/save', 'CardController@apiSave', [
+    'key'         => 'api.settings.base-info.card.save',
+    'name'        => '카드 저장',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
 ]);
 
-// 선택 복원
-$router->post('/api/settings/base-info/project/restore-bulk', 'ProjectController@apiRestoreBulk', [
-    'key'         => 'api.settings.base-info.project.restore-bulk',
-    'name'        => '프로젝트 선택 복원',
-    'description' => '선택한 프로젝트 복원',
-    'category'    => '프로젝트원장'
+/* =========================================================
+ * 카드 삭제 (soft)
+ * ========================================================= */
+$router->post('/api/settings/base-info/card/delete', 'CardController@apiDelete', [
+    'key'         => 'api.settings.base-info.card.delete',
+    'name'        => '카드 삭제',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
 ]);
 
-// 선택 삭제
-$router->post('/api/settings/base-info/project/purge-bulk', 'ProjectController@apiPurgeBulk', [
-    'key'         => 'api.settings.base-info.project.purge-bulk',
-    'name'        => '프로젝트 선택 삭제',
-    'description' => '선택한 프로젝트 영구 삭제',
-    'category'    => '프로젝트원장'
+/* =========================================================
+ * 카드 휴지통 목록
+ * ========================================================= */
+$router->get('/api/settings/base-info/card/trash', 'CardController@apiTrashList', [
+    'key'         => 'api.settings.base-info.card.trash.list',
+    'name'        => '카드 휴지통 목록',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
 ]);
 
-// 전체 삭제
-$router->post('/api/settings/base-info/project/purge-all', 'ProjectController@apiPurgeAll', [
-    'key'         => 'api.settings.base-info.project.purge-all',
-    'name'        => '프로젝트 전체 삭제',
-    'description' => '모든 프로젝트 영구 삭제',
-    'category'    => '프로젝트원장'
+/* =========================================================
+ * 카드 복원
+ * ========================================================= */
+$router->post('/api/settings/base-info/card/restore', 'CardController@apiRestore', [
+    'key'         => 'api.settings.base-info.card.restore',
+    'name'        => '카드 복원',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
 ]);
 
+/* =========================================================
+ * 카드 선택 복원
+ * ========================================================= */
+$router->post('/api/settings/base-info/card/restore-bulk', 'CardController@apiRestoreBulk', [
+    'key'         => 'api.settings.base-info.card.restore-bulk',
+    'name'        => '카드 선택 복원',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
 
+/* =========================================================
+ * 카드 전체 복원
+ * ========================================================= */
+$router->post('/api/settings/base-info/card/restore-all', 'CardController@apiRestoreAll', [
+    'key'         => 'api.settings.base-info.card.restore-all',
+    'name'        => '카드 전체 복원',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
 
+/* =========================================================
+ * 카드 완전삭제
+ * ========================================================= */
+$router->post('/api/settings/base-info/card/purge', 'CardController@apiPurge', [
+    'key'         => 'api.settings.base-info.card.purge',
+    'name'        => '카드 완전삭제',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
 
+/* =========================================================
+ * 카드 선택 완전삭제
+ * ========================================================= */
+$router->post('/api/settings/base-info/card/purge-bulk', 'CardController@apiPurgeBulk', [
+    'key'         => 'api.settings.base-info.card.purge-bulk',
+    'name'        => '카드 선택 완전삭제',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
 
+/* =========================================================
+ * 카드 전체 완전삭제
+ * ========================================================= */
+$router->post('/api/settings/base-info/card/purge-all', 'CardController@apiPurgeAll', [
+    'key'         => 'api.settings.base-info.card.purge-all',
+    'name'        => '카드 전체 완전삭제',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
 
+/* =========================================================
+ * 카드 순서 변경
+ * ========================================================= */
+$router->post('/api/settings/base-info/card/reorder', 'CardController@apiReorder', [
+    'key'         => 'api.settings.base-info.card.reorder',
+    'name'        => '카드 순서 변경',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
 
+/* =========================================================
+ * 카드 엑셀 템플릿
+ * ========================================================= */
+$router->get('/api/settings/base-info/card/template', 'CardController@apiDownloadTemplate', [
+    'key'         => 'api.settings.base-info.card.template',
+    'name'        => '카드 엑셀 양식 다운로드',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
 
+/* =========================================================
+ * 카드 엑셀 업로드
+ * ========================================================= */
+$router->post('/api/settings/base-info/card/excel-upload', 'CardController@apiSaveFromExcel', [
+    'key'         => 'api.settings.base-info.card.excel-upload',
+    'name'        => '카드 엑셀 업로드',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
 
+/* =========================================================
+ * 카드 엑셀 다운로드
+ * ========================================================= */
+$router->get('/api/settings/base-info/card/excel', 'CardController@apiDownload', [
+    'key'         => 'api.settings.base-info.card.excel',
+    'name'        => '카드 엑셀 다운로드',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
 
 
 
@@ -1344,35 +1758,37 @@ $router->get('/api/dashboard/profile-summary', 'CalendarController@apiProfileSum
 /* =========================================================
 계정과목 관리
 ========================================================= */
-$router->get('/api/ledger/account/list', 'AccountController@apiList');
-$router->get('/api/ledger/account/tree', 'AccountController@apiTree');
-$router->get('/api/ledger/account/detail', 'AccountController@apiDetail');
-$router->get('/api/ledger/account/template', 'AccountController@apiTemplate');
-$router->get('/api/ledger/account/trash', 'AccountController@apiTrashList');
+$router->get('/api/ledger/account/list', 'ChartAccountController@apiList');
+$router->get('/api/ledger/account/tree', 'ChartAccountController@apiTree');
+$router->get('/api/ledger/account/detail', 'ChartAccountController@apiDetail');
+$router->get('/api/ledger/account/template', 'ChartAccountController@apiTemplate');
+$router->get('/api/ledger/account/trash', 'ChartAccountController@apiTrashList');
 
-$router->post('/api/ledger/account/save', 'AccountController@apiSave');
-$router->post('/api/ledger/account/soft-delete', 'AccountController@apiSoftDelete');
-$router->post('/api/ledger/account/restore', 'AccountController@apiRestore');
-$router->post('/api/ledger/account/hard-delete', 'AccountController@apiHardDelete');
-$router->post('/api/ledger/account/excel-upload', 'AccountController@apiExcelUpload');
-$router->post('/api/ledger/account/reorder', 'AccountController@apiReorder');
+$router->post('/api/ledger/account/save', 'ChartAccountController@apiSave');
+$router->post('/api/ledger/account/soft-delete', 'ChartAccountController@apiSoftDelete');
+$router->post('/api/ledger/account/restore', 'ChartAccountController@apiRestore');
+$router->post('/api/ledger/account/hard-delete', 'ChartAccountController@apiHardDelete');
+$router->post('/api/ledger/account/excel-upload', 'ChartAccountController@apiExcelUpload');
+$router->post('/api/ledger/account/reorder', 'ChartAccountController@apiReorder');
 
-$router->post('/api/ledger/account/restore-bulk', 'AccountController@apiRestoreBulk');
-$router->post('/api/ledger/account/hard-delete-bulk', 'AccountController@apiHardDeleteBulk');
-$router->post('/api/ledger/account/hard-delete-all', 'AccountController@apiHardDeleteAll');
+$router->post('/api/ledger/account/restore-bulk', 'ChartAccountController@apiRestoreBulk');
+$router->post('/api/ledger/account/hard-delete-bulk', 'ChartAccountController@apiHardDeleteBulk');
+$router->post('/api/ledger/account/hard-delete-all', 'ChartAccountController@apiHardDeleteAll');
 
-$router->get('/api/ledger/accounts/excel', 'AccountController@apidownloadAllExcel');
-
-/* =========================================================
-보조계정 관리
-========================================================= */
-$router->get('/api/ledger/sub-account/list', 'SubAccountController@apiList');
-$router->post('/api/ledger/sub-account/save', 'SubAccountController@apiSave');
-$router->post('/api/ledger/sub-account/update', 'SubAccountController@apiUpdate');
-$router->post('/api/ledger/sub-account/delete', 'SubAccountController@apiDelete');
+$router->get('/api/ledger/accounts/excel', 'ChartAccountController@apidownloadAllExcel');
 
 /* =========================================================
 전표 입력용 계정 조회
 ========================================================= */
-$router->get('/api/ledger/account/search', 'AccountController@apiSearch');
-$router->get('/api/ledger/account/posting', 'AccountController@apiPosting');
+$router->get('/api/ledger/account/search', 'ChartAccountController@apiSearch');
+$router->get('/api/ledger/account/posting', 'ChartAccountController@apiPosting');
+
+
+/* =========================================================
+보조계정 관리
+========================================================= */
+$router->get('/api/ledger/sub-account/list', 'SubChartAccountController@apiList');
+$router->post('/api/ledger/sub-account/save', 'SubChartAccountController@apiSave');
+$router->post('/api/ledger/sub-account/update', 'SubChartAccountController@apiUpdate');
+$router->post('/api/ledger/sub-account/delete', 'SubChartAccountController@apiDelete');
+

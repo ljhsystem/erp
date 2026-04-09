@@ -15,7 +15,9 @@ $labels = [
             'brand-logo'  => '브랜드',
             'cover'       => '커버이미지',
             'clients'     => '거래처',
-            'projects'    => '프로젝트'
+            'projects'    => '프로젝트',
+            'bank-accounts'    => '계좌',
+            'cards'    => '카드'
         ]
     ],
     'organization' => [
@@ -71,7 +73,8 @@ $pageStyles .=
     AssetHelper::css('/assets/css/pages/dashboard/settings/cover.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/client.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/project.css') .
-
+    AssetHelper::css('/assets/css/pages/dashboard/settings/bank.account.css') .
+    AssetHelper::css('/assets/css/pages/dashboard/settings/card.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/employee.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/departments.css');
 
@@ -110,6 +113,16 @@ if ($cat === 'base-info' && $sub === 'clients') {
 // 8-1-5) 기초정보관리 - 프로젝트
 if ($cat === 'base-info' && $sub === 'projects') {
     $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/base/project.js');
+}
+
+// 8-1-6) 기초정보관리 - 계좌
+if ($cat === 'base-info' && $sub === 'bank-accounts') {
+    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/base/bank.account.js');
+}
+
+// 8-1-7) 기초정보관리 - 카드
+if ($cat === 'base-info' && $sub === 'cards') {
+    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/base/card.js');
 }
 
 // // 8-2-0) 조직관리 - 공통 

@@ -1,0 +1,110 @@
+/* 📄 /public/assets/css/pages/dashboard/settings/card.css */
+
+/* ==============================
+   PAGE (공통)
+============================== */
+.page{
+    width:100%;
+    margin:0;
+    padding:0;
+    background:transparent;
+}
+
+/* ==============================
+   HEADER
+============================== */
+.page .page-header{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:14px;
+}
+
+.page-count{
+    font-size:1rem;
+    margin-left:35px;
+}
+
+/* ==============================
+   MODAL
+============================== */
+.modal-dialog.modal-lg{
+    max-width:900px;
+    width:95vw;
+}
+
+.modal-body-scroll{
+    max-height:75vh;
+    overflow-y:auto;
+}
+
+/* ==============================
+   CARD (공통 컴포넌트)
+============================== */
+.ui-card{
+    border:1px solid #e1e6ef;
+    border-radius:10px;
+    background:#ffffff;
+    box-shadow:0 3px 8px rgba(0,0,0,.04);
+    overflow:hidden;
+}
+
+.ui-card-header{
+    background:#f3f4f6;
+    font-weight:600;
+    font-size:13px;
+    padding:10px 14px;
+    border-bottom:1px solid #e5e7eb;
+}
+
+.ui-card-body{
+    padding:14px;
+}
+
+/* ==============================
+   FILE UPLOAD (공통)
+============================== */
+.ui-upload-box{
+    border:2px dashed #d0d5dd;
+    padding:15px;
+    text-align:center;
+    cursor:pointer;
+    border-radius:8px;
+    transition:all .2s ease;
+}
+
+.ui-upload-box.drag-over{
+    background:#f5f8ff;
+    border-color:#3b82f6;
+}
+
+/* ==============================
+   FILE LIST
+============================== */
+.ui-file-list{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+}
+
+.ui-file-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    border:1px solid #ddd;
+    border-radius:6px;
+    padding:8px 12px;
+    background:#fff;
+}
+
+/* ==============================
+   MOBILE
+============================== */
+@media (max-width:900px){
+
+    .modal-dialog.modal-lg{
+        max-width:98vw;
+        width:98vw;
+    }
+
+}
