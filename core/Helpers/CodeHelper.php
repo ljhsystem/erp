@@ -225,4 +225,21 @@ class CodeHelper
         return self::generateCode($pdo, 'system_projects');
     }
 
+    /* ============================================================
+    * 13) 계좌 코드 생성 (system_bank_accounts)
+    * ============================================================ */
+    public static function generateBankAccountCode($pdo): int
+    {
+        return self::generateCode($pdo, 'system_bank_accounts');
+    }
+    
+    /* ============================================================
+    * 14) 카드 코드 생성 (system_cards)
+    * ============================================================ */
+    public static function generateCardCode($pdo): int
+    {
+        return self::generateCode($pdo, 'system_cards');
+    }
+
+
 }

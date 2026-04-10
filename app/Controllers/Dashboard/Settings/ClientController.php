@@ -164,8 +164,18 @@ class ClientController
     
                 'registration_date' => $_POST['registration_date'] ?? null,
     
-                'business_number' => $_POST['business_number'] ?? null,
-                'rrn' => $_POST['rrn'] ?? null,
+                'business_number' => (
+                    isset($_POST['business_number']) &&
+                    trim($_POST['business_number']) !== ''
+                )
+                    ? trim($_POST['business_number'])
+                    : null,
+                'rrn' => (
+                    isset($_POST['rrn']) &&
+                    trim($_POST['rrn']) !== ''
+                )
+                    ? trim($_POST['rrn'])
+                    : null,
     
                 'business_type' => $_POST['business_type'] ?? null,
                 'business_category' => $_POST['business_category'] ?? null,

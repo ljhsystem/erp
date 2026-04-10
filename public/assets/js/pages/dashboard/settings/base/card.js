@@ -44,32 +44,40 @@ window.AdminPicker = AdminPicker;
        카드 컬럼 매핑
     ========================= */
     const CARD_COLUMN_MAP = {
-        code:             { label: "코드",       visible: true  },
-        alias:            { label: "별칭",       visible: true  },
-        card_name:        { label: "카드명",     visible: true  },
-        card_company:     { label: "카드사",     visible: true  },
-        card_number:      { label: "카드번호",   visible: true  },
-        card_holder:      { label: "소유자",     visible: true  },
-        billing_day:      { label: "결제일",     visible: false },
-        expiry_date:      { label: "만기일",     visible: true  },
-        status:           { label: "상태",       visible: true  },
-        card_image:       { label: "카드이미지", visible: false },
-        note:             { label: "비고",       visible: true  },
-
-        is_active:        { label: "사용여부",   visible: false },
-
-        created_at:       { label: "생성일시",   visible: false },
-        created_by_name:  { label: "생성자",     visible: false },
-        updated_at:       { label: "수정일시",   visible: false },
-        updated_by_name:  { label: "수정자",     visible: false },
-        deleted_at:       { label: "삭제일시",   visible: false },
-        deleted_by_name:  { label: "삭제자",     visible: false }
+        code             : { label: "코드",       visible: true  },
+    
+        card_name        : { label: "카드명",     visible: true  },
+        client_name      : { label: "카드사",     visible: true  },
+        card_number      : { label: "카드번호",   visible: true  },
+        card_type        : { label: "카드유형",   visible: true  },
+    
+        account_name     : { label: "연결계좌",   visible: true  },
+        account_id       : { label: "계좌ID",     visible: false },
+    
+        expiry_year      : { label: "유효기간(년)", visible: false },
+        expiry_month     : { label: "유효기간(월)", visible: false },
+    
+        currency         : { label: "통화",       visible: true  },
+        limit_amount     : { label: "한도",       visible: true  },
+    
+        card_file        : { label: "카드이미지", visible: false },
+    
+        note             : { label: "비고",       visible: true  },
+        memo             : { label: "메모",       visible: false },
+    
+        is_active        : { label: "사용여부",   visible: false },
+    
+        created_at       : { label: "생성일시",   visible: false },
+        created_by_name  : { label: "생성자",     visible: false },
+        updated_at       : { label: "수정일시",   visible: false },
+        updated_by_name  : { label: "수정자",     visible: false },
+        deleted_at       : { label: "삭제일시",   visible: false },
+        deleted_by_name  : { label: "삭제자",     visible: false }
     };
 
     const DATE_OPTIONS = [
         { value: 'created_at', label: '등록일자' },
-        { value: 'updated_at', label: '수정일자' },
-        { value: 'expiry_date', label: '만기일' }
+        { value: 'updated_at', label: '수정일자' }
     ];
 
     let cardTable = null;
@@ -198,8 +206,14 @@ window.AdminPicker = AdminPicker;
             });
         });
 
+        let selectInitialized = false;
+
         modalEl.addEventListener('shown.bs.modal', () => {
-            bindAdminDateInputs();
+        
+            if (!selectInitialized) {
+                initSelectPickers();
+                selectInitialized = true;
+            }
         });
     }
 
@@ -226,29 +240,23 @@ window.AdminPicker = AdminPicker;
     ============================================================ */
     function bindUIEvents() {
 
-        const btnRemoveCardImage =
-            document.getElementById('btnDeleteCardImage') ||
-            document.getElementById('btnRemoveCardImage');
-
-        if (btnRemoveCardImage) {
-            btnRemoveCardImage.addEventListener('click', function () {
+        const btnRemoveCardFile =
+            document.getElementById('btnDeleteCardFile') ||
+            document.getElementById('btnRemoveCardFile');
+    
+        if (btnRemoveCardFile) {
+            btnRemoveCardFile.addEventListener('click', function () {
                 if (!confirm('카드 이미지를 삭제하시겠습니까?')) return;
-
-                const input =
-                    document.getElementById('modal_card_image') ||
-                    document.getElementById('modal_card_file');
-
-                const del =
-                    document.getElementById('delete_card_image') ||
-                    document.getElementById('delete_card_file');
-
+    
+                const input = getCardFileInputEl();
+                const del = getDeleteCardFileEl();
+                const list = getCardFileListEl();
+                const drop = getCardFileDropEl();
+                const text = getCardFileTextEl();
+    
                 if (input) input.value = '';
                 if (del) del.value = '1';
-
-                const list =
-                    document.getElementById('cardImageList') ||
-                    document.getElementById('cardPreview');
-
+    
                 if (list) {
                     list.dataset.original = '0';
                     list.innerHTML = `
@@ -258,6 +266,16 @@ window.AdminPicker = AdminPicker;
                                 카드 이미지가 삭제됩니다. 저장 시 반영됩니다.
                             </div>
                         </div>
+                    `;
+                }
+    
+                if (drop) drop.dataset.original = '0';
+    
+                if (text) {
+                    text.innerHTML = `
+                        여기로 파일을 끌어다 놓거나 클릭하여 업로드
+                        <br>
+                        (PDF, JPG, PNG)
                     `;
                 }
             });
@@ -338,8 +356,11 @@ window.AdminPicker = AdminPicker;
         window.TrashColumns.card = function(row) {
             return `
                 <td>${row.code ?? ''}</td>
-                <td>${row.alias ?? ''}</td>
                 <td>${row.card_name ?? ''}</td>
+                <td>${row.client_name ?? ''}</td>
+                <td>${row.card_number ?? ''}</td>
+                <td>${row.account_name ?? ''}</td>
+                <td>${row.currency ?? ''}</td>
                 <td>${row.deleted_at ?? ''}</td>
                 <td>${row.deleted_by_name ?? row.deleted_by ?? ''}</td>
                 <td>
@@ -513,14 +534,20 @@ window.AdminPicker = AdminPicker;
                             titleEl.textContent = '카드 신규 등록';
                         }
 
-                        const expiryEl =
-                            document.getElementById('modal_expiry_date') ||
-                            form?.querySelector('[name="expiry_date"]');
+                        AdminPicker.clearSelect2('#cardClientSelect', true);
+                        AdminPicker.clearSelect2('#cardAccountSelect', true);
 
-                        if (expiryEl && !expiryEl.value) {
-                            const d = new Date();
-                            expiryEl.value = d.toISOString().slice(0, 10);
-                        }
+                        const expiryYearEl = form?.querySelector('[name="expiry_year"]');
+                        const expiryMonthEl = form?.querySelector('[name="expiry_month"]');
+                        const currencyEl = form?.querySelector('[name="currency"]');
+                        const isActiveEl = form?.querySelector('[name="is_active"]');
+                        const cardTypeEl = form?.querySelector('[name="card_type"]');
+                        
+                        if (expiryYearEl) expiryYearEl.value = '';
+                        if (expiryMonthEl) expiryMonthEl.value = '';
+                        if (currencyEl && !currencyEl.value) currencyEl.value = 'KRW';
+                        if (isActiveEl) isActiveEl.value = '1';
+                        if (cardTypeEl) cardTypeEl.value = 'corporate';
 
                         resetCardImageUI();
 
@@ -591,15 +618,11 @@ window.AdminPicker = AdminPicker;
 
                 if (idEl) idEl.value = data.id;
 
-                const delImage =
-                    document.getElementById('delete_card_image') ||
-                    document.getElementById('delete_card_file');
-                const imageInput =
-                    document.getElementById('modal_card_image') ||
-                    document.getElementById('modal_card_file');
-
-                if (delImage) delImage.value = '0';
-                if (imageInput) imageInput.value = '';
+                const delFile = getDeleteCardFileEl();
+                const fileInput = getCardFileInputEl();
+                
+                if (delFile) delFile.value = '0';
+                if (fileInput) fileInput.value = '';
 
                 fillModal(data);
 
@@ -702,31 +725,50 @@ window.AdminPicker = AdminPicker;
     ============================================================ */
     function fillModal(data) {
 
-        const form =
-            document.getElementById('cardForm') ||
-            document.getElementById('card-edit-form');
-
+        const form = document.getElementById('cardForm');
+        if (!form) return;
+    
+        /* 기본값 세팅 */
         Object.keys(data).forEach(key => {
-
+    
             if (key === 'id') return;
-            if (key === 'card_image' || key === 'card_file') return;
-
-            const byId = document.getElementById('modal_' + key);
-            const byName = form?.querySelector(`[name="${key}"]`);
-            const el = byId || byName;
-
+            if (key === 'card_file') return;
+    
+            const el = form.querySelector(`[name="${key}"]`);
             if (!el) return;
-
-            let value = data[key] ?? '';
-
-            if (key === 'billing_day') {
-                value = value ? String(value) : '';
+    
+            if (el.type === 'file') {
+                el.value = '';
+                return;
             }
-
+    
+            let value = data[key] ?? '';
+    
+            if (key === 'limit_amount' && value !== '') {
+                value = Number(value);
+            }
+    
             el.value = value;
         });
+    
+        /* 🔥 Select2 값 세팅 (반복문 밖으로 이동) */
+        setSelect2Initial('#cardClientSelect', data.client_id, data.client_name);
+        setSelect2Initial('#cardAccountSelect', data.account_id, data.account_name);
+    
+        renderCardFile(data);
+    }
 
-        renderCardImage(data);
+    function setSelect2Initial(selector, id, text) {
+
+        if (!id) return;
+    
+        const el = document.querySelector(selector);
+        if (!el) return;
+    
+        const option = new Option(text || '', id, true, true);
+        el.append(option);
+    
+        AdminPicker.setSelect2Value(selector, id);
     }
 
     function buildCardColumns() {
@@ -757,21 +799,30 @@ window.AdminPicker = AdminPicker;
                     if (field === 'card_number') {
                         return maskCardNumber(data);
                     }
-
-                    if (field === 'card_image') {
-                        return data ? '등록됨' : '';
+                    
+                    if (field === 'card_file') {
+                        if (!data) return '';
+                        const path = encodeURIComponent(data);
+                        return `
+                            <a href="/api/file/preview?path=${path}" target="_blank">
+                                📄 보기
+                            </a>
+                        `;
                     }
-
-                    if (field === 'status') {
-                        return renderStatusBadge(data);
+                    
+                    if (field === 'card_type') {
+                        if (data === 'corporate') return '법인';
+                        if (data === 'personal') return '개인';
+                        if (data === 'virtual') return '가상';
+                        return data;
                     }
-
+                    
                     if (field === 'is_active') {
                         return String(data) === '1'
                             ? '<span class="badge bg-success">사용</span>'
                             : '<span class="badge bg-secondary">미사용</span>';
                     }
-
+                    
                     return data;
                 }
             });
@@ -790,52 +841,30 @@ window.AdminPicker = AdminPicker;
         return `****-****-****-${last4}`;
     }
 
-    function renderStatusBadge(status) {
-        const s = String(status || '').toLowerCase();
-
-        if (s === 'active' || s === '사용중') {
-            return '<span class="badge bg-success">사용중</span>';
-        }
-        if (s === 'expired' || s === '만기') {
-            return '<span class="badge bg-secondary">만기</span>';
-        }
-        if (s === 'stopped' || s === '정지') {
-            return '<span class="badge bg-danger">정지</span>';
-        }
-        return status || '';
-    }
 
     /* ============================================================
        CARD IMAGE
     ============================================================ */
     function initCardImageUpload() {
 
-        const drop =
-            document.getElementById('cardImageUpload') ||
-            document.getElementById('dropZoneCard');
-
-        const input =
-            document.getElementById('modal_card_image') ||
-            document.getElementById('modal_card_file');
-
-        const text =
-            document.getElementById('cardImageText') ||
-            document.getElementById('dropZoneTextCard');
-
+        const drop = getCardFileDropEl();
+        const input = getCardFileInputEl();
+        const text = getCardFileTextEl();
+    
         if (!drop || !input || !text) return;
-
+    
         if (!drop.dataset.original) {
             drop.dataset.original = "0";
         }
-
+    
         function renderFile(file) {
             const hasOriginal = drop.dataset.original === "1";
             const message = hasOriginal
                 ? "저장 시 기존 카드 이미지가 교체됩니다."
                 : "저장 시 카드 이미지가 등록됩니다.";
-
+    
             const shortName = shortenFileName(file.name, 20);
-
+    
             text.innerHTML = `
                 📄 <strong>카드 이미지</strong>
                 <br>
@@ -844,155 +873,150 @@ window.AdminPicker = AdminPicker;
                 <span class="text-primary">${message}</span>
             `;
         }
-
+    
         drop.addEventListener('click', () => input.click());
-
+    
         input.addEventListener('change', e => {
             const file = e.target.files[0];
             if (!file) return;
             renderFile(file);
         });
-
+    
         drop.addEventListener('dragover', e => {
             e.preventDefault();
         });
-
+    
         drop.addEventListener('drop', e => {
             e.preventDefault();
-
+    
             const file = e.dataTransfer.files[0];
             if (!file) return;
-
+    
             input.files = e.dataTransfer.files;
             renderFile(file);
         });
     }
 
-    function renderCardImage(data) {
+    function renderCardFile(data) {
 
-        const list =
-            document.getElementById('cardImageList') ||
-            document.getElementById('cardPreview');
-
-        const text =
-            document.getElementById('cardImageText') ||
-            document.getElementById('dropZoneTextCard');
-
-        const drop =
-            document.getElementById('cardImageUpload') ||
-            document.getElementById('dropZoneCard');
-
-        if (!list && !text) return;
-
-        const filePath = data.card_image || data.card_file || '';
-
+        const list = getCardFileListEl();
+        const text = getCardFileTextEl();
+        const drop = getCardFileDropEl();
+    
+        if (!text) return;
+    
+        const filePath = data.card_file || '';
+    
         if (list) list.innerHTML = '';
-
+    
         if (filePath) {
-
-            const fileName = filePath.split('/').pop();
+    
             const path = encodeURIComponent(filePath);
-
-            if (drop) drop.dataset.original = '1';
-
-            if (list) {
-                list.innerHTML = `
-                    <div class="file-item">
-                        <span>📄 <strong>카드 이미지</strong> (${fileName})</span>
-                        <div class="file-actions">
-                            <a href="/api/file/preview?path=${path}" target="_blank">미리보기</a>
-                            <span class="file-divider">|</span>
-                            <a href="javascript:void(0)" id="btnDeleteCardImageInline">삭제</a>
-                        </div>
+    
+            if (drop) {
+                drop.dataset.original = "1";
+            }
+    
+            text.innerHTML = `
+                <div class="file-status">
+                    <div class="upload-guide">
+                        여기로 파일을 끌어다 놓거나 클릭하여 업로드
+                        <br>
+                        (PDF, JPG, PNG)
                     </div>
-                `;
-
-                const inlineDelete = document.getElementById('btnDeleteCardImageInline');
-                if (inlineDelete) {
-                    inlineDelete.onclick = function() {
-                        if (!confirm('카드 이미지를 삭제하시겠습니까?')) return;
-
-                        const input =
-                            document.getElementById('modal_card_image') ||
-                            document.getElementById('modal_card_file');
-
-                        const del =
-                            document.getElementById('delete_card_image') ||
-                            document.getElementById('delete_card_file');
-
-                        if (input) input.value = '';
-                        if (del) del.value = '1';
-                        if (drop) drop.dataset.original = '0';
-
-                        list.innerHTML = `
-                            <div class="file-item">
-                                <span>📄 <strong>카드 이미지</strong> (${fileName})</span>
-                                <div class="file-status text-danger">
-                                    카드 이미지가 삭제됩니다. 저장 시 반영됩니다.
-                                </div>
-                            </div>
-                        `;
-                    };
-                }
+                    <div class="file-line">
+                        📄 <strong>카드 이미지 등록됨</strong>
+                    </div>
+                    <div class="file-links">
+                        <a href="javascript:void(0)"
+                           id="btnOpenCardFile"
+                           class="file-link-open disabled">
+                           미리보기
+                        </a>
+                        <span class="file-divider">|</span>
+                        <a href="javascript:void(0)"
+                           id="btnDeleteCardFileInline"
+                           class="file-link-delete disabled">
+                           삭제
+                        </a>
+                    </div>
+                </div>
+            `;
+    
+            const btnOpen = document.getElementById('btnOpenCardFile');
+            const btnDelete = document.getElementById('btnDeleteCardFileInline');
+    
+            if (btnOpen) {
+                btnOpen.classList.remove('disabled');
+                btnOpen.href = "/api/file/preview?path=" + path;
+                btnOpen.target = "_blank";
+    
+                btnOpen.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                });
             }
-
-            if (text) {
-                text.innerHTML = `
-                    카드 이미지 등록됨
-                    <br>
-                    <span class="text-primary">클릭 또는 드롭으로 교체 가능</span>
-                `;
+    
+            if (btnDelete) {
+                btnDelete.classList.remove('disabled');
+    
+                btnDelete.onclick = function (e) {
+    
+                    e.stopPropagation();
+    
+                    if (!confirm('카드 이미지를 삭제하시겠습니까?')) return;
+    
+                    const input = getCardFileInputEl();
+                    const del = getDeleteCardFileEl();
+    
+                    if (input) input.value = '';
+                    if (del) del.value = '1';
+                    if (drop) drop.dataset.original = "0";
+    
+                    text.innerHTML = `
+                        <div class="upload-guide">
+                            여기로 파일을 끌어다 놓거나 클릭하여 업로드
+                            <br>
+                            (PDF, JPG, PNG)
+                        </div>
+                        <div class="file-status text-danger">
+                            ⚠ 카드 이미지가 삭제됩니다. 저장 시 반영됩니다.
+                        </div>
+                    `;
+                };
             }
-
+    
         } else {
-            if (drop) drop.dataset.original = '0';
-
-            if (text) {
-                text.innerHTML = `
-                    여기로 파일을 끌어다 놓거나 클릭하여 업로드
-                    <br>
-                    (JPG, PNG, WEBP)
-                `;
+    
+            if (drop) {
+                drop.dataset.original = "0";
             }
-
-            if (list) {
-                list.innerHTML = '';
-            }
+    
+            text.innerHTML = `
+                여기로 파일을 끌어다 놓거나 클릭하여 업로드
+                <br>
+                (PDF, JPG, PNG)
+            `;
         }
     }
 
     function resetCardImageUI() {
 
-        const input =
-            document.getElementById('modal_card_image') ||
-            document.getElementById('modal_card_file');
-
-        const del =
-            document.getElementById('delete_card_image') ||
-            document.getElementById('delete_card_file');
-
-        const list =
-            document.getElementById('cardImageList') ||
-            document.getElementById('cardPreview');
-
-        const text =
-            document.getElementById('cardImageText') ||
-            document.getElementById('dropZoneTextCard');
-
-        const drop =
-            document.getElementById('cardImageUpload') ||
-            document.getElementById('dropZoneCard');
-
+        const input = getCardFileInputEl();
+        const del = getDeleteCardFileEl();
+        const list = getCardFileListEl();
+        const text = getCardFileTextEl();
+        const drop = getCardFileDropEl();
+    
         if (input) input.value = '';
         if (del) del.value = '0';
         if (list) list.innerHTML = '';
         if (drop) drop.dataset.original = '0';
-
+    
         if (text) {
             text.innerHTML = `
                 여기로 파일을 끌어다 놓거나 클릭하여 업로드
                 <br>
-                (JPG, PNG, WEBP)
+                (PDF, JPG, PNG)
             `;
         }
     }
@@ -1014,6 +1038,90 @@ window.AdminPicker = AdminPicker;
 
         const keep = Math.max(1, max - ext.length - 3);
         return base.substring(0, keep) + '...' + ext;
+    }
+
+    function getCardFileInputEl() {
+        return (
+            document.getElementById('modal_card_file') ||
+            document.querySelector('#cardForm [name="card_file"]')
+        );
+    }
+    
+    function getDeleteCardFileEl() {
+        return (
+            document.getElementById('delete_card_file') ||
+            document.querySelector('#cardForm [name="delete_card_file"]')
+        );
+    }
+    
+    function getCardFileListEl() {
+        return (
+            document.getElementById('cardFileList') ||
+            document.getElementById('cardPreview')
+        );
+    }
+    
+    function getCardFileTextEl() {
+        return (
+            document.getElementById('cardUploadText') ||
+            document.getElementById('cardImageText')
+        );
+    }
+    
+    function getCardFileDropEl() {
+        return (
+            document.getElementById('cardUpload') ||
+            document.getElementById('cardImageUpload')
+        );
+    }
+    function initSelectPickers() {
+
+        /* 카드사 */
+        AdminPicker.select2Ajax('#cardClientSelect', {
+            url: '/api/settings/base-info/client/search-picker',
+            minimumInputLength: 0,
+    
+            dataBuilder(params) {
+                return {
+                    q: params.term || ''
+                };
+            },
+    
+            processResults(data) {
+                
+                const rows = data?.data ?? [];
+    
+                return {
+                    results: rows.map(row => ({
+                        id: row.id,
+                        text: row.client_name
+                    }))
+                };
+            }
+        });
+    
+        /* 결제계좌 */
+        AdminPicker.select2Ajax('#cardAccountSelect', {
+            url: '/api/settings/base-info/bank-account/search-picker',
+            minimumInputLength: 0,
+    
+            dataBuilder(params) {
+                return {
+                    q: params.term || ''
+                };
+            },
+    
+            processResults(data) {     
+                const rows = data?.data ?? [];
+    
+                return {
+                    results: rows.map(row => ({
+                        id: row.id,
+                        text: `${row.account_name} (${row.bank_name})`
+                    }))
+                };
+            }
+        });
     }
 
 })();

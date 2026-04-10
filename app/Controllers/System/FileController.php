@@ -36,6 +36,7 @@ class FileController
             'private://id_doc/',
             'private://certificate/',
             'private://bank_file/',
+            'private://card_file/',
             'public://profile/',
             'public://documents/',
             'public://business_cert/',
@@ -225,6 +226,7 @@ class FileController
         $data = [
             'id'           => $_POST['id'],
             'policy_name'  => $_POST['policy_name'] ?? '',
+            'policy_key'  => $_POST['policy_key'] ?? '',
             'bucket'       => $_POST['bucket'] ?? '',
             'allowed_ext'  => $_POST['allowed_ext'] ?? '',
             'allowed_mime' => $_POST['allowed_mime'] ?? null,

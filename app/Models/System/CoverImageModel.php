@@ -367,20 +367,22 @@ class CoverImageModel
 
 
 
-     public function updateCode(string $id, string $newCode): bool
-     {
-         $sql = "UPDATE system_coverimage_assets SET code = :newCode WHERE id = :id";
-         $stmt = $this->db->prepare($sql);
- 
-         $ok = $stmt->execute(['newCode' => $newCode, 'id' => $id]);
- 
-         if (!$ok) {
+    public function updateCode(string $id, string $newCode): bool
+    {
+        $sql = "UPDATE system_coverimage_assets SET code = :newCode WHERE id = :id";
+        $stmt = $this->db->prepare($sql);
+
+        $ok = $stmt->execute([
+            'newCode' => (int)$newCode,
+            'id' => $id
+        ]);
+
+        if (!$ok) {
             throw new \Exception('쿼리 실행 실패');
         }
-        
-        return true;
-     }
 
+        return true;
+    }
 
 
 }

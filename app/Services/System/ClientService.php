@@ -150,7 +150,10 @@ class ClientService
             return [];
         }
     }
-
+    
+    /* ============================================================
+    * 저장 (생성 + 수정)
+    * ============================================================ */
     public function save(array $data, string $actorType = 'USER', array $files = []): array
     {
         $actor = ActorHelper::resolve($actorType);
@@ -937,6 +940,7 @@ class ClientService
         }
     }
 
+    
     /* ============================================================
     * 코드 순서 변경 (RowReorder)
     * ============================================================ */
@@ -946,15 +950,32 @@ class ClientService
             'changes' => $changes
         ]);
 
-        $this->pdo->beginTransaction();
+        if (empty($changes)) {
+            return true;
+        }
 
         try {
 
-            /* 1️⃣ 임시 코드 이동 (충돌 방지) */
+            if (!$this->pdo->inTransaction()) {
+                $this->pdo->beginTransaction();
+            }
 
+            /* 1️⃣ 입력값 검증 */
             foreach ($changes as $row) {
 
-                $tempCode = $row['newCode'] + 10000;
+                if (
+                    empty($row['id']) ||
+                    !isset($row['newCode'])
+                ) {
+                    throw new \Exception('reorder 데이터 오류');
+                }
+            }
+
+            /* 2️⃣ temp 이동 (충돌 방지) */
+            foreach ($changes as $row) {
+
+                // 👉 넉넉하게 (절대 충돌 안나게)
+                $tempCode = (int)$row['newCode'] + 1000000;
 
                 $this->model->updateCode(
                     $row['id'],
@@ -962,33 +983,37 @@ class ClientService
                 );
             }
 
-            /* 2️⃣ 실제 코드 적용 */
-
+            /* 3️⃣ 실제 코드 적용 */
             foreach ($changes as $row) {
 
                 $this->model->updateCode(
                     $row['id'],
-                    $row['newCode']
+                    (int)$row['newCode']
                 );
             }
 
-            $this->pdo->commit();
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->commit();
+            }
 
             $this->logger->info('reorder() success');
 
             return true;
+
         } catch (\Throwable $e) {
 
-            $this->pdo->rollBack();
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
 
             $this->logger->error('reorder() failed', [
-                'exception' => $e->getMessage()
+                'exception' => $e->getMessage(),
+                'changes' => $changes
             ]);
 
             throw $e;
         }
     }
-
 
     /* ============================================================
     * 템플릿 다운로드

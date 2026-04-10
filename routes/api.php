@@ -717,6 +717,19 @@ $router->get('/api/settings/base-info/project/download', 'ProjectController@apiD
 ]);
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 /* =========================================================
  * 계좌 목록 조회
  * ========================================================= */
@@ -739,6 +752,18 @@ $router->get('/api/settings/base-info/bank-account/detail', 'BankAccountControll
     'auth'        => true,
     'permissions' => ['view'],
     'log'         => true,
+]);
+
+/* =========================================================
+ * 계좌 검색 (Picker)
+ * ========================================================= */
+$router->get('/api/settings/base-info/bank-account/search-picker', 'BankAccountController@apiSearchPicker', [
+    'key'         => 'api.settings.base-info.bank-account.search-picker',
+    'name'        => '계좌 자동검색',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
 ]);
 
 /* =========================================================
@@ -888,7 +913,7 @@ $router->post('/api/settings/base-info/bank-account/excel-upload', 'BankAccountC
 /* =========================================================
  * 계좌 엑셀 다운로드
  * ========================================================= */
-$router->get('/api/settings/base-info/bank-account/excel', 'BankAccountController@apiDownload', [
+$router->get('/api/settings/base-info/bank-account/download', 'BankAccountController@apiDownload', [
     'key'         => 'api.settings.base-info.bank-account.excel',
     'name'        => '계좌 엑셀 다운로드',
     'category'    => '시스템설정',
@@ -896,6 +921,13 @@ $router->get('/api/settings/base-info/bank-account/excel', 'BankAccountControlle
     'permissions' => ['view'],
     'log'         => true,
 ]);
+
+
+
+
+
+
+
 
 
 
@@ -922,6 +954,26 @@ $router->get('/api/settings/base-info/card/detail', 'CardController@apiDetail', 
     'permissions' => ['view'],
     'log'         => true,
 ]);
+
+/* =========================================================
+ * 카드 검색 (Picker)
+ * ========================================================= */
+$router->get('/api/settings/base-info/card/search-picker', 'CardController@apiSearchPicker', [
+    'key'         => 'api.settings.base-info.card.search-picker',
+    'name'        => '카드 자동검색',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
+
+
+
+
+
+
+
 
 /* =========================================================
  * 카드 저장
@@ -1070,7 +1122,7 @@ $router->post('/api/settings/base-info/card/excel-upload', 'CardController@apiSa
 /* =========================================================
  * 카드 엑셀 다운로드
  * ========================================================= */
-$router->get('/api/settings/base-info/card/excel', 'CardController@apiDownload', [
+$router->get('/api/settings/base-info/card/download', 'CardController@apiDownload', [
     'key'         => 'api.settings.base-info.card.excel',
     'name'        => '카드 엑셀 다운로드',
     'category'    => '시스템설정',

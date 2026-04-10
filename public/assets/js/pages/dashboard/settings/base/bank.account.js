@@ -4,6 +4,7 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import { createDataTable, updateTableHeight, forceTableHeightSync, bindTableHighlight } from '/public/assets/js/components/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
+import { onlyNumber, formatAccountNumber } from '/public/assets/js/common/format.js';
 import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
 
@@ -20,6 +21,7 @@ window.AdminPicker = AdminPicker;
     const API = {
         LIST: "/api/settings/base-info/bank-account/list",
         DETAIL: "/api/settings/base-info/bank-account/detail",
+        SEARCH_PICKER: "/api/settings/base-info/bank-account/search-picker",
 
         SAVE: "/api/settings/base-info/bank-account/save",
         DELETE: "/api/settings/base-info/bank-account/delete",
@@ -36,7 +38,7 @@ window.AdminPicker = AdminPicker;
         REORDER: "/api/settings/base-info/bank-account/reorder",
 
         EXCEL_UPLOAD: "/api/settings/base-info/bank-account/excel-upload",
-        EXCEL_DOWNLOAD: "/api/settings/base-info/bank-account/excel",
+        EXCEL_DOWNLOAD: "/api/settings/base-info/bank-account/download",
         EXCEL_TEMPLATE: "/api/settings/base-info/bank-account/template"
     };
 
@@ -45,17 +47,22 @@ window.AdminPicker = AdminPicker;
     ========================= */
     const ACCOUNT_COLUMN_MAP = {
         code             : { label: "코드",     visible: true  },
-        alias            : { label: "별칭",     visible: true  },
+    
         account_name     : { label: "계좌명",   visible: true  },
         bank_name        : { label: "은행명",   visible: true  },
         account_number   : { label: "계좌번호", visible: true  },
         account_holder   : { label: "예금주",   visible: true  },
+    
+        account_type     : { label: "계좌구분", visible: true  },
         currency         : { label: "통화",     visible: false },
-        bank_book_file   : { label: "통장사본", visible: false },
+    
+        bank_file        : { label: "통장사본", visible: false },
+    
         note             : { label: "비고",     visible: true  },
-
+        memo             : { label: "메모",     visible: false },
+    
         is_active        : { label: "사용여부", visible: false },
-
+    
         created_at       : { label: "생성일시", visible: false },
         created_by_name  : { label: "생성자",   visible: false },
         updated_at       : { label: "수정일시", visible: false },
@@ -151,7 +158,16 @@ window.AdminPicker = AdminPicker;
 
             const deleteBtn = document.getElementById('btnDeleteAccount');
             if (deleteBtn) deleteBtn.style.display = 'none';
-
+            
+            // 🔥 추가
+            window.isNewAccount = false;
+            
+            const titleEl = document.querySelector('#accountModal .modal-title');
+            if (titleEl) {
+                titleEl.textContent = '계좌 정보';
+            }
+            // 🔥 끝
+            
             resetBankBookUI();
         });
 
@@ -278,9 +294,17 @@ window.AdminPicker = AdminPicker;
     function onGlobalInput(e) {
         const type = e.target.dataset.format;
         if (!type) return;
-
+    
         if (type === 'currency') {
             e.target.value = String(e.target.value || '').toUpperCase().slice(0, 10);
+            return;
+        }
+    
+        if (type === 'account_number') {
+            const form = e.target.closest('form');
+            const bankName = form?.querySelector('[name="bank_name"]')?.value || '';
+            e.target.value = formatAccountNumber(e.target.value, bankName);
+            return;
         }
     }
 
@@ -308,7 +332,7 @@ window.AdminPicker = AdminPicker;
 
                 let displayValue = value;
 
-                if (key === 'bank_book_file') {
+                if (key === 'bank_file') {
                     displayValue = value ? '등록됨' : '';
                 }
 
@@ -324,10 +348,12 @@ window.AdminPicker = AdminPicker;
         window.TrashColumns.account = function(row) {
             return `
                 <td>${row.code ?? ''}</td>
-                <td>${row.alias ?? ''}</td>
                 <td>${row.account_name ?? ''}</td>
                 <td>${row.bank_name ?? ''}</td>
                 <td>${row.account_number ?? ''}</td>
+                <td>${row.account_holder ?? ''}</td>
+                <td>${row.account_type ?? ''}</td>
+                <td>${row.currency ?? ''}</td>
                 <td>${row.deleted_at ?? ''}</td>
                 <td>${row.deleted_by_name ?? row.deleted_by ?? ''}</td>
                 <td>
@@ -474,6 +500,16 @@ window.AdminPicker = AdminPicker;
                         const form = document.getElementById('accountForm');
                         if (form) form.reset();
 
+
+
+                        // 신규
+                        window.isNewAccount = true;
+
+                        const titleEl = document.querySelector('#accountModal .modal-title');
+                        if (titleEl) {
+                            titleEl.textContent = '계좌 신규 등록';
+                        }
+
                         const idEl = getIdEl();
                         const codeEl = document.getElementById('modal_code');
 
@@ -547,6 +583,15 @@ window.AdminPicker = AdminPicker;
 
                 const data = json.data;
 
+                // 🔥 추가
+                window.isNewAccount = false;
+                
+                const titleEl = document.querySelector('#accountModal .modal-title');
+                if (titleEl) {
+                    titleEl.textContent = '계좌 정보 수정';
+                }
+                // 🔥 끝
+                
                 const deleteBtn = document.getElementById('btnDeleteAccount');
                 if (deleteBtn) deleteBtn.style.display = '';
 
@@ -648,22 +693,33 @@ window.AdminPicker = AdminPicker;
     function fillModal(data) {
 
         Object.keys(data).forEach(key => {
-
+    
             if (key === 'id') return;
-            if (key === 'bank_book_file') return;
-
+            if (key === 'bank_file') return; // 🔥 파일 경로는 file input에 넣지 않음
+    
             const byId =
                 document.getElementById('account_' + key) ||
                 document.getElementById('modal_' + key);
-
+    
             const byName = document.querySelector(`#accountForm [name="${key}"]`);
-
+    
             const el = byId || byName;
             if (!el) return;
-
+    
+            // 🔥 file input은 절대 value 세팅 금지
+            if (el.type === 'file') {
+                el.value = '';
+                return;
+            }
+    
+            if (key === 'account_number') {
+                el.value = formatAccountNumber(data[key] ?? '', data.bank_name ?? '');
+                return;
+            }
+    
             el.value = data[key] ?? '';
         });
-
+    
         renderBankBook(data);
     }
 
@@ -692,8 +748,16 @@ window.AdminPicker = AdminPicker;
                     if (data == null) return "";
                     if (type !== 'display') return data;
 
-                    if (field === 'bank_book_file') {
-                        return data ? '등록됨' : '';
+                    if (field === 'bank_file') {
+                        if (!data) return '';
+                    
+                        const path = encodeURIComponent(data);
+                    
+                        return `
+                            <a href="/api/file/preview?path=${path}" target="_blank">
+                                📄 보기
+                            </a>
+                        `;
                     }
 
                     if (field === 'is_active') {
@@ -770,78 +834,103 @@ window.AdminPicker = AdminPicker;
         const list = getBankBookListEl();
         const text = getBankBookTextEl();
         const drop = getBankBookDropEl();
-
-        if (!list && !text) return;
-
-        const filePath = data.bank_book_file || '';
-
+    
+        if (!text) return;
+    
+        const filePath = data.bank_file || '';
+    
+        // 거래처와 동일하게 list는 쓰지 않음
         if (list) list.innerHTML = '';
-
+    
         if (filePath) {
-
-            const fileName = filePath.split('/').pop();
-            const path = encodeURIComponent(filePath);
-
-            if (drop) drop.dataset.original = '1';
-
-            if (list) {
-                list.innerHTML = `
-                    <div class="file-item">
-                        <span>📄 <strong>통장사본</strong> (${fileName})</span>
-                        <div class="file-actions">
-                            <a href="/api/file/preview?path=${path}" target="_blank">미리보기</a>
-                            <span class="file-divider">|</span>
-                            <a href="javascript:void(0)" id="btnDeleteBankBookInline">삭제</a>
-                        </div>
+    
+            const path = encodeURIComponent(data.bank_file);
+    
+            if (drop) {
+                drop.dataset.original = "1";
+            }
+    
+            // 🔥 거래처 통장사본과 동일한 문구/구조
+            text.innerHTML = `
+                <div class="file-status">
+                    <div class="upload-guide">
+                        여기로 파일을 끌어다 놓거나 클릭하여 업로드
+                        <br>
+                        (PDF, JPG, PNG)
                     </div>
-                `;
-
-                const inlineDelete = document.getElementById('btnDeleteBankBookInline');
-                if (inlineDelete) {
-                    inlineDelete.onclick = function() {
-                        if (!confirm('통장사본을 삭제하시겠습니까?')) return;
-
-                        const input = getBankBookInputEl();
-                        const del = getDeleteBankBookEl();
-
-                        if (input) input.value = '';
-                        if (del) del.value = '1';
-                        if (drop) drop.dataset.original = '0';
-
-                        list.innerHTML = `
-                            <div class="file-item">
-                                <span>📄 <strong>통장사본</strong> (${fileName})</span>
-                                <div class="file-status text-danger">
-                                    통장사본이 삭제됩니다. 저장 시 반영됩니다.
-                                </div>
-                            </div>
-                        `;
-                    };
-                }
+                    <div class="file-line">
+                        📄 <strong>통장사본 등록됨</strong>
+                    </div>
+                    <div class="file-links">
+                        <a href="javascript:void(0)"
+                           id="btnOpenBankCopy"
+                           class="file-link-open disabled">
+                           미리보기
+                        </a>
+                        <span class="file-divider">|</span>
+                        <a href="javascript:void(0)"
+                           id="btnDeleteBankBookInline"
+                           class="file-link-delete disabled">
+                           삭제
+                        </a>
+                    </div>
+                </div>
+            `;
+    
+            const btnOpen = document.getElementById('btnOpenBankCopy');
+            const btnDelete = document.getElementById('btnDeleteBankBookInline');
+    
+            if (btnOpen) {
+                btnOpen.classList.remove('disabled');
+                btnOpen.href = "/api/file/preview?path=" + path;
+                btnOpen.target = "_blank";
+    
+                btnOpen.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                });
             }
+    
+            if (btnDelete) {
+                btnDelete.classList.remove('disabled');
+    
+                btnDelete.onclick = function (e) {
 
-            if (text) {
-                text.innerHTML = `
-                    통장사본 등록됨
-                    <br>
-                    <span class="text-primary">클릭 또는 드롭으로 교체 가능</span>
-                `;
+                    e.stopPropagation();
+                
+                    if (!confirm('통장사본을 삭제하시겠습니까?')) return;
+                
+                    const input = getBankBookInputEl();
+                    const del = getDeleteBankBookEl();
+                
+                    if (input) input.value = '';
+                    if (del) del.value = '1';
+                    if (drop) drop.dataset.original = "0";
+                
+                    // 🔥 핵심
+                    text.innerHTML = `
+                        <div class="upload-guide">
+                            여기로 파일을 끌어다 놓거나 클릭하여 업로드
+                            <br>
+                            (PDF, JPG, PNG)
+                        </div>
+                        <div class="file-status text-danger">
+                            ⚠ 통장사본이 삭제됩니다. 저장 시 반영됩니다.
+                        </div>
+                    `;
+                };
             }
-
+    
         } else {
-            if (drop) drop.dataset.original = '0';
-
-            if (text) {
-                text.innerHTML = `
-                    여기로 파일을 끌어다 놓거나 클릭하여 업로드
-                    <br>
-                    (PDF, JPG, PNG)
-                `;
+    
+            if (drop) {
+                drop.dataset.original = "0";
             }
-
-            if (list) {
-                list.innerHTML = '';
-            }
+    
+            text.innerHTML = `
+                여기로 파일을 끌어다 놓거나 클릭하여 업로드
+                <br>
+                (PDF, JPG, PNG)
+            `;
         }
     }
 
@@ -877,17 +966,17 @@ window.AdminPicker = AdminPicker;
 
     function getBankBookInputEl() {
         return (
-            document.getElementById('modal_bank_book_file') ||
             document.getElementById('modal_bank_file') ||
-            document.querySelector('#accountForm [name="bank_book_file"]')
+            document.getElementById('modal_bank_file') ||
+            document.querySelector('#accountForm [name="bank_file"]')
         );
     }
 
     function getDeleteBankBookEl() {
         return (
-            document.getElementById('delete_bank_book_file') ||
             document.getElementById('delete_bank_file') ||
-            document.querySelector('#accountForm [name="delete_bank_book_file"]')
+            document.getElementById('delete_bank_file') ||
+            document.querySelector('#accountForm [name="delete_bank_file"]')
         );
     }
 

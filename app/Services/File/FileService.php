@@ -124,6 +124,20 @@ class FileService
         );
     }
 
+    /* --------------------------------------------------------
+    * 2-C. 통장사본 업로드
+    * -------------------------------------------------------- */
+    public function uploadCardCopy(array $file): array
+    {
+        return $this->runUpload(
+            $file,
+            'private://card_file',
+            ['jpg', 'jpeg', 'png', 'pdf'],
+            10 * 1024 * 1024,
+            ['image/jpeg', 'image/png', 'application/pdf']
+        );
+    }
+
 
     /* --------------------------------------------------------
      * 3. 일반 문서 업로드

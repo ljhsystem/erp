@@ -78,6 +78,7 @@ function storage_bucket_map(): array
         'private://id_doc'       => STORAGE_UPLOADS . '/id_doc',
         'private://raw'          => STORAGE_UPLOADS . '/raw',
         'private://bank_file'    => STORAGE_UPLOADS . '/bank_file',
+        'private://card_file'    => STORAGE_UPLOADS . '/card_file',
     ];
 }
 

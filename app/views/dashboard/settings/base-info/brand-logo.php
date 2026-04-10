@@ -3,7 +3,7 @@
 ?>
 <div id="brand-settings-wrapper" class="brand-settings">
 
-    <h5 class="fw-bold mb-3">브랜드 관리</h5>
+    <h5 class="fw-bold mb-3">🏷️ 브랜드관리</h5>
 
     <div class="card mb-4">
         <div class="card-header fw-semibold text-primary">로고 설정</div>

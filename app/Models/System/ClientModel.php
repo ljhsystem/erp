@@ -545,18 +545,17 @@ class ClientModel
         $sql = "UPDATE system_clients SET code = :newCode WHERE id = :id";
         $stmt = $this->db->prepare($sql);
 
-        $ok = $stmt->execute(['newCode' => $newCode, 'id' => $id]);
+        $ok = $stmt->execute([
+            'newCode' => (int)$newCode,
+            'id' => $id
+        ]);
 
         if (!$ok) {
             throw new \Exception('쿼리 실행 실패');
         }
-        if ($stmt->rowCount() === 0) {
-            throw new \Exception('업데이트된 행이 없습니다.');
-        }
 
         return true;
     }
-
 
 
 

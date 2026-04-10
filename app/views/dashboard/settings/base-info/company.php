@@ -3,7 +3,7 @@
 ?>
 <div id="company-settings-wrapper" class="company-settings">
 
-    <h5 class="fw-bold mb-3">회사 기본설정</h5>
+    <h5 class="fw-bold mb-3">⚙️ 회사 기본설정</h5>
 
     <!-- =========================
          1. 회사 기본 정보

@@ -686,8 +686,7 @@ class ProjectService
         }
     }
 
-
-
+ 
     /* ============================================================
     * 코드 순서 변경 (RowReorder)
     * ============================================================ */
@@ -701,24 +700,36 @@ class ProjectService
             return true;
         }
 
-        $this->pdo->beginTransaction();
-
         try {
 
-            /* ============================================================
-            * 1️⃣ 임시 코드 이동 (🔥 절대 충돌 안나는 방식)
-            * 👉 음수 사용
-            * ============================================================ */
-            foreach ($changes as $row) {
-
-                $tempCode = -(int)$row['newCode']; // 💥 핵심
-
-                $this->model->updateCode($row['id'], $tempCode);
+            if (!$this->pdo->inTransaction()) {
+                $this->pdo->beginTransaction();
             }
 
-            /* ============================================================
-            * 2️⃣ 실제 코드 적용
-            * ============================================================ */
+            /* 1️⃣ 입력값 검증 */
+            foreach ($changes as $row) {
+
+                if (
+                    empty($row['id']) ||
+                    !isset($row['newCode'])
+                ) {
+                    throw new \Exception('reorder 데이터 오류');
+                }
+            }
+
+            /* 2️⃣ temp 이동 (충돌 방지) */
+            foreach ($changes as $row) {
+
+                // 👉 넉넉하게 (절대 충돌 안나게)
+                $tempCode = (int)$row['newCode'] + 1000000;
+
+                $this->model->updateCode(
+                    $row['id'],
+                    $tempCode
+                );
+            }
+
+            /* 3️⃣ 실제 코드 적용 */
             foreach ($changes as $row) {
 
                 $this->model->updateCode(
@@ -727,11 +738,11 @@ class ProjectService
                 );
             }
 
-            $this->pdo->commit();
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->commit();
+            }
 
-            $this->logger->info('reorder() success', [
-                'count' => count($changes)
-            ]);
+            $this->logger->info('reorder() success');
 
             return true;
 
@@ -742,14 +753,13 @@ class ProjectService
             }
 
             $this->logger->error('reorder() failed', [
-                'changes' => $changes,
-                'error'   => $e->getMessage()
+                'exception' => $e->getMessage(),
+                'changes' => $changes
             ]);
 
             throw $e;
         }
     }
-
     /* ============================================================
     * 템플릿 다운로드
     * ============================================================ */

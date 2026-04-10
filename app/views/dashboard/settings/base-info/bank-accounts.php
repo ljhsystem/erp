@@ -26,7 +26,6 @@
     ';
 
     $searchFieldOptions = '
-      <option value="alias">별칭</option>
       <option value="account_name">계좌명</option>
       <option value="bank_name">은행명</option>
       <option value="account_number">계좌번호</option>
@@ -99,7 +98,6 @@ $btnDeleteAll = 'accountBtnDeleteAll';
 
 $tableHead = '
   <th>코드</th>
-  <th>별칭</th>
   <th>계좌명</th>
   <th>은행명</th>
   <th>계좌번호</th>

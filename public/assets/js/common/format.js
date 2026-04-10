@@ -104,3 +104,55 @@ export function unformatAmount(val){
 
     return String(Math.trunc(num));
 }
+
+/* 계좌번호 */
+export function formatAccountNumber(val, bankName = ''){
+
+    val = onlyNumber(val);
+    bankName = String(bankName ?? '').trim();
+
+    if(!val) return '';
+
+    switch(bankName){
+
+        /* 국민은행: 242-087942-01-023 */
+        case '국민은행':
+            if(val.length === 14){
+                return val.replace(/(\d{3})(\d{6})(\d{2})(\d{3})/, '$1-$2-$3-$4');
+            }
+            break;
+
+        /* 신한은행: 110-123-456789 */
+        case '신한은행':
+            if(val.length === 12){
+                return val.replace(/(\d{3})(\d{3})(\d{6})/, '$1-$2-$3');
+            }
+            break;
+
+        /* 우리은행: 1002-345-678901 */
+        case '우리은행':
+            if(val.length === 13){
+                return val.replace(/(\d{4})(\d{3})(\d{6})/, '$1-$2-$3');
+            }
+            break;
+    }
+
+    /* fallback */
+    if(val.length === 11){
+        return val.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
+    }
+
+    if(val.length === 12){
+        return val.replace(/(\d{3})(\d{3})(\d{6})/, '$1-$2-$3');
+    }
+
+    if(val.length === 13){
+        return val.replace(/(\d{4})(\d{3})(\d{6})/, '$1-$2-$3');
+    }
+
+    if(val.length === 14){
+        return val.replace(/(\d{3})(\d{6})(\d{2})(\d{3})/, '$1-$2-$3-$4');
+    }
+
+    return val;
+}
