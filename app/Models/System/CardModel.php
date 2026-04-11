@@ -4,14 +4,17 @@
 namespace App\Models\System;
 
 use PDO;
+use Core\Database;
 
 class CardModel
 {
+    // PDO 보관
     private PDO $db;
 
+    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
     public function __construct(?PDO $pdo = null)
     {
-        $this->db = $pdo ?: \Core\Database::getInstance()->getConnection();
+        $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
     /* =========================================================
@@ -23,109 +26,157 @@ class CardModel
             SELECT
                 c.*,
                 cl.client_name,
-                b.account_name,
-
-                CASE 
-                    WHEN c.created_by LIKE 'SYSTEM:%' THEN c.created_by
-                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
-                    ELSE c.created_by
-                END AS created_by_name,
-
-                CASE 
-                    WHEN c.updated_by LIKE 'SYSTEM:%' THEN c.updated_by
-                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
-                    ELSE c.updated_by
-                END AS updated_by_name,
-
-                CASE 
-                    WHEN c.deleted_by LIKE 'SYSTEM:%' THEN c.deleted_by
-                    WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
-                    ELSE c.deleted_by
-                END AS deleted_by_name
-
+                b.account_name
             FROM system_cards c
-
             LEFT JOIN system_clients cl ON c.client_id = cl.id
             LEFT JOIN system_bank_accounts b ON c.account_id = b.id
-
-            LEFT JOIN user_employees p1
-                ON c.created_by NOT LIKE 'SYSTEM:%'
-                AND p1.user_id = REPLACE(c.created_by, 'USER:', '')
-
-            LEFT JOIN user_employees p2
-                ON c.updated_by NOT LIKE 'SYSTEM:%'
-                AND p2.user_id = REPLACE(c.updated_by, 'USER:', '')
-
-            LEFT JOIN user_employees p3
-                ON c.deleted_by NOT LIKE 'SYSTEM:%'
-                AND p3.user_id = REPLACE(c.deleted_by, 'USER:', '')
-
             WHERE c.deleted_at IS NULL
         ";
-
+    
         $params = [];
-
+    
         /* =========================================================
-        * 필터 (카드 기준으로 수정)
-        * ========================================================= */
-        if (!empty($filters)) {
-
-            $allowed = [
-                'code','card_name','card_number','card_type',
-                'client_id','account_id','is_active','currency',
-                'created_at','updated_at'
-            ];
-
-            $likeFields = [
-                'card_name','card_number'
-            ];
-
-            $dateFields = ['created_at','updated_at'];
-
-            foreach ($filters as $f) {
-
-                $field = $f['field'] ?? '';
-                $value = $f['value'] ?? '';
-
-                if (!in_array($field, $allowed, true)) continue;
-                if ($value === '' || $value === null) continue;
-
-                // 날짜
-                if (in_array($field, $dateFields, true)) {
-
-                    if (is_array($value) && isset($value['start'], $value['end'])) {
-                        $sql .= " AND c.$field BETWEEN ? AND ?";
-                        $params[] = $value['start'];
-                        $params[] = $value['end'];
-                    } else {
-                        $sql .= " AND c.$field = ?";
-                        $params[] = $value;
-                    }
-
-                    continue;
+         * 🔥 전체 컬럼 맵
+         * ========================================================= */
+        $fieldMap = [
+    
+            // 기본
+            'code'            => ['col'=>'c.code','type'=>'exact'],
+            'card_name'       => ['col'=>'c.card_name','type'=>'like'],
+            'card_number'     => ['col'=>'c.card_number','type'=>'like'],
+            'card_type'       => ['col'=>'c.card_type','type'=>'like'],
+    
+            // 관계
+            'client_id'       => ['col'=>'c.client_id','type'=>'exact'],
+            'account_id'      => ['col'=>'c.account_id','type'=>'exact'],
+            'client_name'     => ['col'=>'cl.client_name','type'=>'like'],
+            'account_name'    => ['col'=>'b.account_name','type'=>'like'],
+    
+            // 유효기간
+            'expiry_year'     => ['col'=>'c.expiry_year','type'=>'exact'],
+            'expiry_month'    => ['col'=>'c.expiry_month','type'=>'exact'],
+    
+            // 금액
+            'limit_amount'    => ['col'=>'c.limit_amount','type'=>'exact'],
+    
+            // 기타
+            'currency'        => ['col'=>'c.currency','type'=>'like'],
+            'card_file'       => ['col'=>'c.card_file','type'=>'like'],
+            'note'            => ['col'=>'c.note','type'=>'like'],
+            'memo'            => ['col'=>'c.memo','type'=>'like'],
+    
+            // 상태
+            'is_active'       => ['col'=>'c.is_active','type'=>'exact'],
+    
+            // 날짜
+            'created_at'      => ['col'=>'c.created_at','type'=>'date'],
+            'updated_at'      => ['col'=>'c.updated_at','type'=>'date'],
+        ];
+    
+        $globalSearch = [];
+    
+        /* =========================================================
+         * 🔥 필터 처리
+         * ========================================================= */
+        foreach ($filters as $f) {
+    
+            $field = $f['field'] ?? '';
+            $value = $f['value'] ?? '';
+    
+            if ($value === '' || $value === null) continue;
+    
+            // 🔥 전체검색
+            if ($field === '') {
+                $globalSearch[] = $value;
+                continue;
+            }
+    
+            if (!isset($fieldMap[$field])) continue;
+    
+            $col  = $fieldMap[$field]['col'];
+            $type = $fieldMap[$field]['type'];
+    
+            // 날짜
+            if ($type === 'date') {
+    
+                if (is_array($value)) {
+                    $sql .= " AND DATE($col) BETWEEN ? AND ?";
+                    $params[] = $value['start'];
+                    $params[] = $value['end'];
+                } else {
+                    $sql .= " AND DATE($col) = ?";
+                    $params[] = $value;
                 }
-
-                // LIKE
-                if (in_array($field, $likeFields, true)) {
-                    $sql .= " AND c.$field LIKE ?";
-                    $params[] = "%{$value}%";
-                    continue;
-                }
-
-                // 일반
-                $sql .= " AND c.$field = ?";
+                continue;
+            }
+    
+            // LIKE
+            if ($type === 'like') {
+                $sql .= " AND $col LIKE ?";
+                $params[] = "%{$value}%";
+                continue;
+            }
+    
+            // EXACT
+            if ($type === 'exact') {
+                $sql .= " AND $col = ?";
                 $params[] = $value;
+                continue;
             }
         }
-
+    
         /* =========================================================
-        * 정렬
-        * ========================================================= */
+         * 🔥 전체검색 (텍스트 컬럼 + 조인)
+         * ========================================================= */
+        if (!empty($globalSearch)) {
+    
+            $searchCols = [
+    
+                'c.card_name',
+                'c.card_number',
+                'c.card_type',
+                'c.currency',
+                'c.note',
+                'c.memo',
+    
+                'cl.client_name',
+                'b.account_name'
+            ];
+    
+            $sql .= " AND (";
+    
+            $first = true;
+    
+            foreach ($globalSearch as $keyword) {
+    
+                if (!$first) $sql .= " OR ";
+    
+                $sql .= "(";
+    
+                $colFirst = true;
+    
+                foreach ($searchCols as $col) {
+    
+                    if (!$colFirst) $sql .= " OR ";
+    
+                    $sql .= "$col LIKE ?";
+                    $params[] = "%{$keyword}%";
+    
+                    $colFirst = false;
+                }
+    
+                $sql .= ")";
+                $first = false;
+            }
+    
+            $sql .= ")";
+        }
+    
         $sql .= " ORDER BY c.code ASC";
-
+    
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
-
+    
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
     /* =========================================================
@@ -184,12 +235,18 @@ class CardModel
 
         return $row ?: null;
     }
-    /* -------------------------------------------------------------
-    * 카드 검색 자동완성
-    * ------------------------------------------------------------- */
-    public function searchPicker(string $keyword): array
+    /* =========================================================
+    * 카드 검색 (Model - RAW 데이터 반환)
+    * ========================================================= */
+    public function searchPicker(string $keyword = '', int $limit = 20): array
     {
-        $stmt = $this->db->prepare("
+        $limit = max(1, min(100, (int)$limit));
+
+        $keyword = trim($keyword);
+        $like = '%' . $keyword . '%';
+        $prefix = $keyword . '%';
+
+        $sql = "
             SELECT 
                 c.id,
                 c.code,
@@ -203,22 +260,31 @@ class CardModel
 
             WHERE c.deleted_at IS NULL
             AND (
-                c.card_name LIKE ?
-                OR c.card_number LIKE ?
-                OR cl.client_name LIKE ?
+                c.card_name LIKE :k1
+                OR c.card_number LIKE :k2
+                OR COALESCE(cl.client_name, '') LIKE :k3
             )
 
-            ORDER BY c.card_name
-            LIMIT 20
-        ");
+            ORDER BY
+                CASE
+                    WHEN c.card_name LIKE :prefix THEN 0
+                    ELSE 1
+                END,
+                c.card_name ASC
 
-        $stmt->execute([
-            "%{$keyword}%",
-            "%{$keyword}%",
-            "%{$keyword}%"
-        ]);
+            LIMIT {$limit}
+        ";
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt = $this->db->prepare($sql);
+
+        $stmt->bindValue(':k1', $like, PDO::PARAM_STR);
+        $stmt->bindValue(':k2', $like, PDO::PARAM_STR);
+        $stmt->bindValue(':k3', $like, PDO::PARAM_STR);
+        $stmt->bindValue(':prefix', $prefix, PDO::PARAM_STR);
+
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
     /* =========================================================
     * 카드 생성

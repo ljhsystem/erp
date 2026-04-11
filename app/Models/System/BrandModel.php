@@ -4,14 +4,17 @@
 namespace App\Models\System;
 
 use PDO;
+use Core\Database;
 
 class BrandModel
 {
+    // PDO 보관
     private PDO $db;
 
-    public function __construct(PDO $db)
+    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
+    public function __construct(?PDO $pdo = null)
     {
-        $this->db = $db;
+        $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
     /* =========================================================
      * 모든 자산 타입 조회
@@ -185,7 +188,7 @@ class BrandModel
     /* =========================================================
      * 자산 삭제 (DB만)
      * ========================================================= */
-    public function deleteById(string $id): bool
+    public function hardDeleteById(string $id): bool
     {
         $stmt = $this->db->prepare("
             DELETE FROM system_brand_assets

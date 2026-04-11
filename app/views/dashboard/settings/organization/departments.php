@@ -25,4 +25,4 @@
 </div>
 
 <!-- 모달 Include -->
-<?php include __DIR__ . '/partials/organization_dept_modal_edit.php'; ?>
+<?php include __DIR__ . '/partials/dept_modal.php'; ?>

@@ -13,7 +13,6 @@ class ClientController
 {
     private ClientService $service;
 
-
     public function __construct()
     {
         Session::requireAuth();

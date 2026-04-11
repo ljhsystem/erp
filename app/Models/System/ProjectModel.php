@@ -3,141 +3,209 @@
 namespace App\Models\System;
 
 use PDO;
+use Core\Database;
 
 class ProjectModel
 {
+    // PDO 보관
     private PDO $db;
 
+    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
     public function __construct(?PDO $pdo = null)
     {
-        $this->db = $pdo ?: \Core\Database::getInstance()->getConnection();
+        $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
-
-    /* -------------------------------------------------------------
-    * 프로젝트 전체 목록
-    * ------------------------------------------------------------- */
     public function getList(array $filters = []): array
     {
         $sql = "
             SELECT
                 p.*,
-
                 c.client_name AS linked_client_name,
-                e.employee_name AS employee_name,
-
-                CASE 
-                    WHEN p.created_by LIKE 'SYSTEM:%' THEN p.created_by
-                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
-                    ELSE p.created_by
-                END AS created_by_name,
-
-                CASE 
-                    WHEN p.updated_by LIKE 'SYSTEM:%' THEN p.updated_by
-                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
-                    ELSE p.updated_by
-                END AS updated_by_name,
-
-                CASE 
-                    WHEN p.deleted_by LIKE 'SYSTEM:%' THEN p.deleted_by
-                    WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
-                    ELSE p.deleted_by
-                END AS deleted_by_name
-
+                e.employee_name AS employee_name
             FROM system_projects p
-
-            LEFT JOIN system_clients c
-                ON p.client_id = c.id
-
-            LEFT JOIN user_employees e
-                ON p.employee_id = e.id
-
-            LEFT JOIN user_employees p1
-                ON p.created_by NOT LIKE 'SYSTEM:%'
-                AND p1.user_id = REPLACE(p.created_by, 'USER:', '')
-
-            LEFT JOIN user_employees p2
-                ON p.updated_by NOT LIKE 'SYSTEM:%'
-                AND p2.user_id = REPLACE(p.updated_by, 'USER:', '')
-
-            LEFT JOIN user_employees p3
-                ON p.deleted_by NOT LIKE 'SYSTEM:%'
-                AND p3.user_id = REPLACE(p.deleted_by, 'USER:', '')
-
+            LEFT JOIN system_clients c ON p.client_id = c.id
+            LEFT JOIN user_employees e ON p.employee_id = e.id
             WHERE p.deleted_at IS NULL
         ";
-
+    
         $params = [];
-
-        /* ============================================================
-        * 🔥 필터 (거래처와 동일 구조)
-        * ============================================================ */
-        if (!empty($filters)) {
-
-            $allowed = [
-                'code','project_name','construction_name',
-                'client_id','employee_id',
-                'start_date','end_date',
-                'initial_contract_amount',
-                'is_active','note',
-                'created_at','updated_at'
-            ];
-
-            $likeFields = [
-                'project_name','construction_name','note'
-            ];
-
-            $dateFields = [
-                'start_date','end_date','created_at','updated_at'
-            ];
-
-            foreach ($filters as $f) {
-
-                $field = $f['field'] ?? '';
-                $value = $f['value'] ?? '';
-
-                if (!in_array($field, $allowed, true)) continue;
-                if ($value === '' || $value === null) continue;
-
-                // 🔥 날짜
-                if (in_array($field, $dateFields, true)) {
-
-                    if (is_array($value) && isset($value['start'], $value['end'])) {
-                        $sql .= " AND p.$field BETWEEN ? AND ?";
-                        $params[] = $value['start'];
-                        $params[] = $value['end'];
-                    } else {
-                        $sql .= " AND p.$field = ?";
-                        $params[] = $value;
-                    }
-
-                    continue;
+    
+        /* =========================================================
+         * 🔥 전체 컬럼 맵 (하나도 빠짐없이)
+         * ========================================================= */
+        $fieldMap = [
+    
+            // 🔥 기본
+            'code'                    => ['col'=>'p.code','type'=>'exact'],
+            'project_name'            => ['col'=>'p.project_name','type'=>'like'],
+            'construction_name'       => ['col'=>'p.construction_name','type'=>'like'],
+    
+            // 🔥 관계
+            'client_id'               => ['col'=>'p.client_id','type'=>'exact'],
+            'employee_id'             => ['col'=>'p.employee_id','type'=>'exact'],
+            'linked_client_name'      => ['col'=>'c.client_name','type'=>'like'],
+           'client_name'              => ['col'=>'p.client_name','type'=>'like'],
+            'employee_name'           => ['col'=>'e.employee_name','type'=>'like'],
+    
+            // 🔥 인물
+            'site_agent'              => ['col'=>'p.site_agent','type'=>'like'],
+            'director'                => ['col'=>'p.director','type'=>'like'],
+            'manager'                 => ['col'=>'p.manager','type'=>'like'],
+    
+            // 🔥 사업
+            'business_type'           => ['col'=>'p.business_type','type'=>'like'],
+            'housing_type'            => ['col'=>'p.housing_type','type'=>'like'],
+    
+            // 🔥 위치
+            'site_region_city'        => ['col'=>'p.site_region_city','type'=>'like'],
+            'site_region_district'    => ['col'=>'p.site_region_district','type'=>'like'],
+            'site_region_address'     => ['col'=>'p.site_region_address','type'=>'like'],
+            'site_region_address_detail'=>['col'=>'p.site_region_address_detail','type'=>'like'],
+    
+            // 🔥 공종
+            'work_type'               => ['col'=>'p.work_type','type'=>'like'],
+            'work_subtype'            => ['col'=>'p.work_subtype','type'=>'like'],
+            'work_detail_type'        => ['col'=>'p.work_detail_type','type'=>'like'],
+            'contract_work_type'      => ['col'=>'p.contract_work_type','type'=>'like'],
+    
+            // 🔥 입찰
+            'bid_type'                => ['col'=>'p.bid_type','type'=>'like'],
+    
+            // 🔥 발주자
+            'client_type'             => ['col'=>'p.client_type','type'=>'like'],
+    
+            // 🔥 기관
+            'permit_agency'           => ['col'=>'p.permit_agency','type'=>'like'],
+    
+            // 🔥 금액
+            'initial_contract_amount' => ['col'=>'p.initial_contract_amount','type'=>'exact'],
+    
+            // 🔥 기타
+            'authorized_company_seal' => ['col'=>'p.authorized_company_seal','type'=>'like'],
+            'note'                    => ['col'=>'p.note','type'=>'like'],
+            'memo'                    => ['col'=>'p.memo','type'=>'like'],
+    
+            // 🔥 상태
+            'is_active'               => ['col'=>'p.is_active','type'=>'exact'],
+    
+            // 🔥 날짜
+            'permit_date'             => ['col'=>'p.permit_date','type'=>'date'],
+            'contract_date'           => ['col'=>'p.contract_date','type'=>'date'],
+            'start_date'              => ['col'=>'p.start_date','type'=>'date'],
+            'completion_date'         => ['col'=>'p.completion_date','type'=>'date'],
+            'bid_notice_date'         => ['col'=>'p.bid_notice_date','type'=>'date'],
+            'created_at'              => ['col'=>'p.created_at','type'=>'date'],
+            'updated_at'              => ['col'=>'p.updated_at','type'=>'date'],
+        ];
+    
+        $globalSearch = [];
+    
+        /* =========================================================
+         * 🔥 필터 처리
+         * ========================================================= */
+        foreach ($filters as $f) {
+    
+            $field = $f['field'] ?? '';
+            $value = $f['value'] ?? '';
+    
+            if ($value === '' || $value === null) continue;
+    
+            // 🔥 전체검색
+            if ($field === '') {
+                $globalSearch[] = $value;
+                continue;
+            }
+    
+            if (!isset($fieldMap[$field])) continue;
+    
+            $col  = $fieldMap[$field]['col'];
+            $type = $fieldMap[$field]['type'];
+    
+            if ($type === 'date') {
+    
+                if (is_array($value)) {
+                    $sql .= " AND DATE($col) BETWEEN ? AND ?";
+                    $params[] = $value['start'];
+                    $params[] = $value['end'];
+                } else {
+                    $sql .= " AND DATE($col) = ?";
+                    $params[] = $value;
                 }
-
-                // 🔥 LIKE
-                if (in_array($field, $likeFields, true)) {
-                    $sql .= " AND p.$field LIKE ?";
-                    $params[] = "%{$value}%";
-                    continue;
-                }
-
-                // 🔥 일반
-                $sql .= " AND p.$field = ?";
+                continue;
+            }
+    
+            if ($type === 'like') {
+                $sql .= " AND $col LIKE ?";
+                $params[] = "%{$value}%";
+                continue;
+            }
+    
+            if ($type === 'exact') {
+                $sql .= " AND $col = ?";
                 $params[] = $value;
+                continue;
             }
         }
-
-        /* ============================================================
-        * 🔥 정렬 통일
-        * ============================================================ */
+    
+        /* =========================================================
+         * 🔥 전체검색 (모든 TEXT 컬럼)
+         * ========================================================= */
+        if (!empty($globalSearch)) {
+    
+            $searchCols = [
+    
+                'p.project_name','p.construction_name',
+                'p.site_agent','p.director','p.manager',
+                'p.business_type','p.housing_type',
+                'p.site_region_city','p.site_region_district',
+                'p.site_region_address','p.site_region_address_detail',
+                'p.work_type','p.work_subtype','p.work_detail_type',
+                'p.contract_work_type','p.bid_type',
+                'p.client_name','p.client_type',
+                'p.permit_agency','p.authorized_company_seal',
+                'p.note','p.memo',
+    
+                'c.client_name',
+                'e.employee_name'
+            ];
+    
+            $sql .= " AND (";
+    
+            $first = true;
+    
+            foreach ($globalSearch as $keyword) {
+    
+                if (!$first) $sql .= " OR ";
+    
+                $sql .= "(";
+    
+                $colFirst = true;
+    
+                foreach ($searchCols as $col) {
+    
+                    if (!$colFirst) $sql .= " OR ";
+    
+                    $sql .= "$col LIKE ?";
+                    $params[] = "%{$keyword}%";
+    
+                    $colFirst = false;
+                }
+    
+                $sql .= ")";
+                $first = false;
+            }
+    
+            $sql .= ")";
+        }
+    
         $sql .= " ORDER BY p.start_date DESC, p.code ASC";
-
+    
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
-
+    
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-
 
     /* -------------------------------------------------------------
     * 프로젝트 단일 조회 (id 기준)
@@ -200,34 +268,53 @@ class ProjectModel
         return $row ?: null;
     }
 
-
-    /* -------------------------------------------------------------
-    * 프로젝트 검색 자동완성
-    * ------------------------------------------------------------- */
-    public function searchPicker(string $keyword): array
+    /* =========================================================
+    * 프로젝트 검색 (Model - RAW 데이터 반환)
+    * ========================================================= */
+    public function searchPicker(string $keyword = '', int $limit = 20): array
     {
-        $stmt = $this->db->prepare("
+        $limit = max(1, min(100, (int)$limit));
+
+        $keyword = trim($keyword);
+        $like = '%' . $keyword . '%';
+        $prefix = $keyword . '%';
+
+        $sql = "
             SELECT
                 id,
                 code,
                 project_name,
                 construction_name
+
             FROM system_projects
+
             WHERE deleted_at IS NULL
             AND (
-                    project_name LIKE ?
-                OR construction_name LIKE ?
+                project_name LIKE :k1
+                OR construction_name LIKE :k2
+                OR CAST(code AS CHAR) LIKE :k3
             )
-            ORDER BY project_name ASC
-            LIMIT 20
-        ");
 
-        $stmt->execute([
-            "%{$keyword}%",
-            "%{$keyword}%"
-        ]);
+            ORDER BY
+                CASE
+                    WHEN project_name LIKE :prefix THEN 0
+                    ELSE 1
+                END,
+                project_name ASC
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+            LIMIT {$limit}
+        ";
+
+        $stmt = $this->db->prepare($sql);
+
+        $stmt->bindValue(':k1', $like, PDO::PARAM_STR);
+        $stmt->bindValue(':k2', $like, PDO::PARAM_STR);
+        $stmt->bindValue(':k3', $like, PDO::PARAM_STR);
+        $stmt->bindValue(':prefix', $prefix, PDO::PARAM_STR);
+
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
 

@@ -90,21 +90,54 @@ class BankAccountService
     }
 
     /* =========================================================
-    * 계좌 자동검색 (입력 자동완성)
+    * 계좌 검색 (Service - Select2 포맷)
     * ========================================================= */
     public function searchPicker(string $keyword): array
     {
-        $this->logger->info('searchBankAccount() called', [
+        $this->logger->info('searchPicker() called', [
             'keyword' => $keyword
         ]);
 
         try {
 
-            return $this->model->searchPicker($keyword);
+            $rows = $this->model->searchPicker($keyword, 20);
+
+            if (empty($rows)) {
+                return [];
+            }
+
+            $results = [];
+
+            foreach ($rows as $row) {
+
+                $text = $row['account_name'] ?? '';
+
+                // 🔥 은행명 추가
+                if (!empty($row['bank_name'])) {
+                    $text = $row['bank_name'] . ' / ' . $text;
+                }
+
+                // 🔥 계좌번호 추가
+                if (!empty($row['account_number'])) {
+                    $text .= ' (' . $row['account_number'] . ')';
+                }
+
+                // 🔥 예금주 추가
+                if (!empty($row['account_holder'])) {
+                    $text .= ' - ' . $row['account_holder'];
+                }
+
+                $results[] = [
+                    'id'   => $row['id'],
+                    'text' => $text
+                ];
+            }
+
+            return $results;
 
         } catch (\Throwable $e) {
 
-            $this->logger->error('searchBankAccount() exception', [
+            $this->logger->error('searchPicker() failed', [
                 'keyword'   => $keyword,
                 'exception' => $e->getMessage()
             ]);

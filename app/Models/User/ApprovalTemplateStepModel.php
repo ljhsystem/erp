@@ -3,14 +3,17 @@
 namespace App\Models\User;
 
 use PDO;
+use Core\Database;
 
 class ApprovalTemplateStepModel
 {
-    private PDO $pdo;
+    // PDO 보관
+    private PDO $db;
 
-    public function __construct(PDO $pdo)
+    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
+    public function __construct(?PDO $pdo = null)
     {
-        $this->pdo = $pdo;
+        $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
     /* ============================================================
@@ -18,7 +21,7 @@ class ApprovalTemplateStepModel
      * ============================================================ */
     public function getById(string $id): ?array
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             SELECT *
             FROM user_approval_template_steps
             WHERE id = ?
@@ -33,7 +36,7 @@ class ApprovalTemplateStepModel
      * ============================================================ */
     public function getSteps(string $templateId): array
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             SELECT 
                 s.*,
                 r.role_name,
@@ -57,7 +60,7 @@ class ApprovalTemplateStepModel
      * ============================================================ */
     public function getNextSequence(string $templateId): int
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             SELECT COALESCE(MAX(sequence), 0) + 1
             FROM user_approval_template_steps
             WHERE template_id = ?
@@ -72,7 +75,7 @@ class ApprovalTemplateStepModel
      * ============================================================ */
     public function create(array $data): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             INSERT INTO user_approval_template_steps
             (id, template_id, sequence, step_name, role_id, approver_id, is_active, created_by, created_at)
             VALUES
@@ -96,7 +99,7 @@ class ApprovalTemplateStepModel
      * ============================================================ */
     public function update(string $id, array $data): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             UPDATE user_approval_template_steps
             SET 
                 template_id = :template_id,
@@ -127,7 +130,7 @@ class ApprovalTemplateStepModel
      * ============================================================ */
     public function delete(string $id): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             DELETE FROM user_approval_template_steps
             WHERE id = ?
         ");
@@ -153,7 +156,7 @@ class ApprovalTemplateStepModel
             $params[] = $excludeId;
         }
 
-        $stmt = $this->pdo->prepare($sql);
+        $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
 
         return $stmt->fetchColumn() > 0;

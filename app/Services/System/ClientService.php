@@ -128,21 +128,50 @@ class ClientService
 
 
 
-    /* ============================================================
-    * 거래처 자동검색 (입력 자동완성)
-    * ============================================================ */
+    /* =========================================================
+    * 거래처 검색 (Service - Select2 포맷 변환)
+    * ========================================================= */
     public function searchPicker(string $keyword): array
     {
-        $this->logger->info('searchClient() called', [
+        $this->logger->info('searchPicker() called', [
             'keyword' => $keyword
         ]);
 
         try {
 
-            return $this->model->searchPicker($keyword);
+            $rows = $this->model->searchPicker($keyword, 20);
+
+            if (empty($rows)) {
+                return [];
+            }
+
+            $results = [];
+
+            foreach ($rows as $row) {
+
+                $text = $row['client_name'] ?? '';
+
+                // 🔥 사업자번호 붙이기
+                if (!empty($row['business_number'])) {
+                    $text .= ' (' . $row['business_number'] . ')';
+                }
+
+                // 🔥 회사명 있으면 추가
+                if (!empty($row['company_name']) && $row['company_name'] !== $row['client_name']) {
+                    $text .= ' / ' . $row['company_name'];
+                }
+
+                $results[] = [
+                    'id'   => $row['id'],
+                    'text' => $text
+                ];
+            }
+
+            return $results;
+
         } catch (\Throwable $e) {
 
-            $this->logger->error('searchClient() exception', [
+            $this->logger->error('searchPicker() failed', [
                 'keyword'   => $keyword,
                 'exception' => $e->getMessage()
             ]);

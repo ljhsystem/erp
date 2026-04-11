@@ -1,17 +1,19 @@
 <?php
 // PROJECT_ROOT/app/Models/System/CompanyModel.php
-
 namespace App\Models\System;
 
 use PDO;
+use Core\Database;
 
 class CompanyModel
 {
+    // PDO 보관
     private PDO $db;
 
-    public function __construct(PDO $db)
+    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
+    public function __construct(?PDO $pdo = null)
     {
-        $this->db = $db;
+        $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
     /* =========================================================

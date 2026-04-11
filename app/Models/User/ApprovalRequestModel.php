@@ -3,14 +3,17 @@
 namespace App\Models\User;
 
 use PDO;
+use Core\Database;
 
 class ApprovalRequestModel
 {
-    private PDO $pdo;
+    // PDO 보관
+    private PDO $db;
 
-    public function __construct(PDO $pdo)
+    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
+    public function __construct(?PDO $pdo = null)
     {
-        $this->pdo = $pdo;
+        $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
     /* ============================================================
@@ -20,7 +23,7 @@ class ApprovalRequestModel
     {
         // ⚠️ UUID는 Service 에서 생성하여 전달됨
 
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             INSERT INTO user_approval_requests
             (
                 id, template_id, document_id, requester_id,
@@ -52,7 +55,7 @@ class ApprovalRequestModel
      * ============================================================ */
     public function getById(string $id): ?array
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             SELECT *
             FROM user_approval_requests
             WHERE id = ?
@@ -68,7 +71,7 @@ class ApprovalRequestModel
      * ============================================================ */
     public function updateStatus(string $id, string $status, ?string $updatedBy = null): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             UPDATE user_approval_requests
             SET 
                 status = :status,
@@ -89,7 +92,7 @@ class ApprovalRequestModel
      * ============================================================ */
     public function updateCurrentStep(string $id, int $step, ?string $updatedBy = null): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             UPDATE user_approval_requests
             SET 
                 current_step = :current_step,
@@ -110,7 +113,7 @@ class ApprovalRequestModel
      * ============================================================ */
     public function delete(string $id): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             DELETE FROM user_approval_requests
             WHERE id = ?
         ");

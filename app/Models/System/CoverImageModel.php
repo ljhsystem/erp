@@ -3,14 +3,17 @@
 namespace App\Models\System;
 
 use PDO;
+use Core\Database;
 
 class CoverImageModel
 {
+    // PDO 보관
     private PDO $db;
 
-    public function __construct()
+    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
+    public function __construct(?PDO $pdo = null)
     {
-        $this->db = \Core\Database::getInstance()->getConnection();
+        $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
 
@@ -20,75 +23,142 @@ class CoverImageModel
      * ============================================================= */
     public function getList(array $filters = []): array
     {
-        $where  = ["c.deleted_at IS NULL"];
+        $sql = "
+            SELECT c.*
+            FROM system_coverimage_assets c
+            WHERE c.deleted_at IS NULL
+        ";
+
         $params = [];
 
-        foreach ($filters as $i => $filter) {
-            $field = $filter['field'] ?? '';
-            $value = $filter['value'] ?? null;
+        /* =========================================================
+        * 🔥 전체 컬럼 맵
+        * ========================================================= */
+        $fieldMap = [
 
-            if ($field === '' || $value === null || $value === '') continue;
+            'code'        => ['col'=>'c.code','type'=>'exact'],
+            'year'        => ['col'=>'c.year','type'=>'exact'],
+
+            'title'       => ['col'=>'c.title','type'=>'like'],
+            'alt'         => ['col'=>'c.alt','type'=>'like'],
+            'description' => ['col'=>'c.description','type'=>'like'],
+            'src'         => ['col'=>'c.src','type'=>'like'],
+
+            'is_active'   => ['col'=>'c.is_active','type'=>'exact'],
+
+            'created_at'  => ['col'=>'c.created_at','type'=>'date'],
+            'updated_at'  => ['col'=>'c.updated_at','type'=>'date'],
+        ];
+
+        $globalSearch = [];
+
+        /* =========================================================
+        * 🔥 필터 처리
+        * ========================================================= */
+        foreach ($filters as $i => $f) {
+
+            $field = $f['field'] ?? '';
+            $value = $f['value'] ?? '';
+
+            if ($value === '' || $value === null) continue;
 
             // 🔥 year_start
             if ($field === 'year_start') {
-                $where[] = "CAST(c.year AS UNSIGNED) >= :year_start_{$i}";
-                $params[":year_start_{$i}"] = (int)$value;
+                $sql .= " AND CAST(c.year AS UNSIGNED) >= ?";
+                $params[] = (int)$value;
                 continue;
             }
 
             // 🔥 year_end
             if ($field === 'year_end') {
-                $where[] = "CAST(c.year AS UNSIGNED) <= :year_end_{$i}";
-                $params[":year_end_{$i}"] = (int)$value;
+                $sql .= " AND CAST(c.year AS UNSIGNED) <= ?";
+                $params[] = (int)$value;
                 continue;
             }
 
-            if (in_array($field, ['code','year','title','alt','description'], true)) {
-                $where[] = "c.{$field} LIKE :keyword_{$i}";
-                $params[":keyword_{$i}"] = '%' . trim((string)$value) . '%';
+            // 🔥 전체검색
+            if ($field === '') {
+                $globalSearch[] = $value;
+                continue;
+            }
+
+            if (!isset($fieldMap[$field])) continue;
+
+            $col  = $fieldMap[$field]['col'];
+            $type = $fieldMap[$field]['type'];
+
+            // 날짜
+            if ($type === 'date') {
+
+                if (is_array($value)) {
+                    $sql .= " AND DATE($col) BETWEEN ? AND ?";
+                    $params[] = $value['start'];
+                    $params[] = $value['end'];
+                } else {
+                    $sql .= " AND DATE($col) = ?";
+                    $params[] = $value;
+                }
+                continue;
+            }
+
+            // LIKE
+            if ($type === 'like') {
+                $sql .= " AND $col LIKE ?";
+                $params[] = "%{$value}%";
+                continue;
+            }
+
+            // EXACT
+            if ($type === 'exact') {
+                $sql .= " AND $col = ?";
+                $params[] = $value;
+                continue;
             }
         }
 
-        $sql = "
-            SELECT
-                c.*,
+        /* =========================================================
+        * 🔥 전체검색 (텍스트 컬럼)
+        * ========================================================= */
+        if (!empty($globalSearch)) {
 
-            CASE 
-                WHEN c.created_by LIKE 'SYSTEM:%' THEN c.created_by
-                WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
-                ELSE c.created_by
-            END AS created_by_name,
+            $searchCols = [
+                'c.year',
+                'c.title',
+                'c.alt',
+                'c.description',
+                'c.src'
+            ];
 
-            CASE 
-                WHEN c.updated_by LIKE 'SYSTEM:%' THEN c.updated_by
-                WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
-                ELSE c.updated_by
-            END AS updated_by_name,
+            $sql .= " AND (";
 
-            CASE 
-                WHEN c.deleted_by LIKE 'SYSTEM:%' THEN c.deleted_by
-                WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
-                ELSE c.deleted_by
-            END AS deleted_by_name
+            $first = true;
 
-            FROM system_coverimage_assets c
+            foreach ($globalSearch as $keyword) {
 
-            LEFT JOIN user_employees p1
-                ON c.created_by NOT LIKE 'SYSTEM:%'
-            AND p1.user_id = REPLACE(c.created_by, 'USER:', '')
+                if (!$first) $sql .= " OR ";
 
-            LEFT JOIN user_employees p2
-                ON c.updated_by NOT LIKE 'SYSTEM:%'
-            AND p2.user_id = REPLACE(c.updated_by, 'USER:', '')
+                $sql .= "(";
 
-            LEFT JOIN user_employees p3
-                ON c.deleted_by NOT LIKE 'SYSTEM:%'
-            AND p3.user_id = REPLACE(c.deleted_by, 'USER:', '')
+                $colFirst = true;
 
-            WHERE " . implode(" AND ", $where) . "
+                foreach ($searchCols as $col) {
 
-            ORDER BY c.code ASC
-        ";
+                    if (!$colFirst) $sql .= " OR ";
+
+                    $sql .= "$col LIKE ?";
+                    $params[] = "%{$keyword}%";
+
+                    $colFirst = false;
+                }
+
+                $sql .= ")";
+                $first = false;
+            }
+
+            $sql .= ")";
+        }
+
+        $sql .= " ORDER BY c.code ASC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);

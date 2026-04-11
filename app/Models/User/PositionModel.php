@@ -3,14 +3,17 @@
 namespace App\Models\User;
 
 use PDO;
+use Core\Database;
 
 class PositionModel
 {
-    private PDO $pdo;
+    // PDO 보관
+    private PDO $db;
 
-    public function __construct(PDO $pdo)
+    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
+    public function __construct(?PDO $pdo = null)
     {
-        $this->pdo = $pdo;
+        $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
     /* ============================================================
@@ -34,7 +37,7 @@ class PositionModel
             ORDER BY level_rank ASC, code ASC
         ";
 
-        return $this->pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+        return $this->db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /* ============================================================
@@ -49,7 +52,7 @@ class PositionModel
             LIMIT 1
         ";
 
-        $stmt = $this->pdo->prepare($sql);
+        $stmt = $this->db->prepare($sql);
         $stmt->execute([$id]);
 
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
@@ -61,14 +64,14 @@ class PositionModel
     public function existsByName(string $name, ?string $excludeId = null): bool
     {
         if ($excludeId) {
-            $stmt = $this->pdo->prepare("
+            $stmt = $this->db->prepare("
                 SELECT COUNT(*)
                 FROM user_positions
                 WHERE position_name = :name AND id <> :id
             ");
             $stmt->execute([':name' => $name, ':id' => $excludeId]);
         } else {
-            $stmt = $this->pdo->prepare("
+            $stmt = $this->db->prepare("
                 SELECT COUNT(*)
                 FROM user_positions
                 WHERE position_name = :name
@@ -91,7 +94,7 @@ class PositionModel
             (:id, :code, :position_name, :level_rank, :description, :is_active, :created_by, NOW())
         ";
 
-        $stmt = $this->pdo->prepare($sql);
+        $stmt = $this->db->prepare($sql);
 
         return $stmt->execute([
             ':id'            => $data['id'],
@@ -125,7 +128,7 @@ class PositionModel
 
         $sql = "UPDATE user_positions SET " . implode(', ', $set) . " WHERE id = :id";
 
-        $stmt = $this->pdo->prepare($sql);
+        $stmt = $this->db->prepare($sql);
         return $stmt->execute($params);
     }
 
@@ -134,7 +137,7 @@ class PositionModel
      * ============================================================ */
     public function delete(string $id): bool
     {
-        $stmt = $this->pdo->prepare("DELETE FROM user_positions WHERE id = ?");
+        $stmt = $this->db->prepare("DELETE FROM user_positions WHERE id = ?");
         return $stmt->execute([$id]);
     }
 }

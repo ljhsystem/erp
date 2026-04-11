@@ -54,12 +54,6 @@ class ProfileController
     }
 
 
-
-
-
-
-
-
     
 
     // ============================================================
@@ -75,11 +69,6 @@ class ProfileController
         ]);
     }
     
-
-
-
-
-
 
 
     // ============================================================
@@ -106,7 +95,7 @@ class ProfileController
                 throw new \Exception('user_id 또는 로그인 정보가 필요합니다.');
             }
 
-            $profile = $this->profileService->getDetail($userId);
+            $profile = $this->profileService->getById($userId);
 
             if (!$profile) {
                 echo json_encode([
@@ -131,20 +120,6 @@ class ProfileController
             ], JSON_UNESCAPED_UNICODE);
         }
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -188,8 +163,11 @@ class ProfileController
             http_response_code(400);
 
             echo json_encode([
-                'success' => false,
-                'message' => $e->getMessage()
+                'success'       => $result['success'],
+                'message'       => $result['message'] ?? '',
+                'error'         => $result['error'] ?? null,
+                'profile_image' => $result['profile_image'] ?? null,
+                'certificate_file' => $result['certificate_file'] ?? null
             ], JSON_UNESCAPED_UNICODE);
         }
     }

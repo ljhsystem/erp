@@ -105,9 +105,9 @@ class ProjectService
 
 
 
-    /* ============================================================
-    * 프로젝트 자동검색 (입력 자동완성)
-    * ============================================================ */
+    /* =========================================================
+    * 프로젝트 검색 (Service - Select2 포맷)
+    * ========================================================= */
     public function searchPicker(string $keyword): array
     {
         $this->logger->info('searchPicker() called', [
@@ -116,11 +116,40 @@ class ProjectService
 
         try {
 
-            return $this->model->searchPicker($keyword);
+            $rows = $this->model->searchPicker($keyword, 20);
+
+            if (empty($rows)) {
+                return [];
+            }
+
+            $results = [];
+
+            foreach ($rows as $row) {
+
+                $text = $row['project_name'] ?? '';
+
+                // 🔥 공사명 추가
+                if (!empty($row['construction_name']) 
+                    && $row['construction_name'] !== $row['project_name']) {
+                    $text .= ' / ' . $row['construction_name'];
+                }
+
+                // 🔥 코드 추가 (선택)
+                if (!empty($row['code'])) {
+                    $text .= ' [' . $row['code'] . ']';
+                }
+
+                $results[] = [
+                    'id'   => $row['id'],
+                    'text' => $text
+                ];
+            }
+
+            return $results;
 
         } catch (\Throwable $e) {
 
-            $this->logger->error('searchPicker() exception', [
+            $this->logger->error('searchPicker() failed', [
                 'keyword'   => $keyword,
                 'exception' => $e->getMessage()
             ]);

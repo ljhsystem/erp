@@ -3,14 +3,17 @@
 namespace App\Models\Auth;
 
 use PDO;
+use Core\Database;
 
 class RolePermissionModel
 {
-    private PDO $pdo;    
+    // PDO 보관
+    private PDO $db;
 
-    public function __construct(PDO $pdo)
+    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
+    public function __construct(?PDO $pdo = null)
     {
-        $this->pdo    = $pdo;        
+        $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
     /* ===============================================================
@@ -19,7 +22,7 @@ class RolePermissionModel
     public function getPermissionsForRole(string $roleId): array
     {
         try {
-            $stmt = $this->pdo->prepare("
+            $stmt = $this->db->prepare("
                 SELECT 
                     arp.id AS mapping_id,
                     arp.code AS mapping_code,
@@ -47,7 +50,7 @@ class RolePermissionModel
     public function getRolesForPermission(string $permissionId): array
     {
         try {
-            $stmt = $this->pdo->prepare("
+            $stmt = $this->db->prepare("
                 SELECT 
                     arp.id AS mapping_id,
                     arp.code AS mapping_code,
@@ -73,7 +76,7 @@ class RolePermissionModel
      * =============================================================== */
     public function exists(string $roleId, string $permissionId): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             SELECT id FROM auth_role_permissions
             WHERE role_id = ? AND permission_id = ?
             LIMIT 1
@@ -89,7 +92,7 @@ class RolePermissionModel
     public function insertMapping(array $data): bool
     {
         try {
-            $stmt = $this->pdo->prepare("
+            $stmt = $this->db->prepare("
                 INSERT INTO auth_role_permissions (
                     id, code, role_id, permission_id,
                     created_at, created_by
@@ -118,7 +121,7 @@ class RolePermissionModel
     public function remove(string $roleId, string $permissionId): bool
     {
         try {
-            $stmt = $this->pdo->prepare("
+            $stmt = $this->db->prepare("
                 DELETE FROM auth_role_permissions
                 WHERE role_id = ? AND permission_id = ?
             ");
@@ -135,7 +138,7 @@ class RolePermissionModel
     public function delete(string $mappingId): bool
     {
         try {
-            $stmt = $this->pdo->prepare("
+            $stmt = $this->db->prepare("
                 DELETE FROM auth_role_permissions
                 WHERE id = ?
             ");
@@ -152,7 +155,7 @@ class RolePermissionModel
     public function clearRole(string $roleId): bool
     {
         try {
-            $stmt = $this->pdo->prepare("
+            $stmt = $this->db->prepare("
                 DELETE FROM auth_role_permissions WHERE role_id = ?
             ");
             return $stmt->execute([$roleId]);
@@ -168,7 +171,7 @@ class RolePermissionModel
     public function clearPermission(string $permissionId): bool
     {
         try {
-            $stmt = $this->pdo->prepare("
+            $stmt = $this->db->prepare("
                 DELETE FROM auth_role_permissions WHERE permission_id = ?
             ");
             return $stmt->execute([$permissionId]);
@@ -183,7 +186,7 @@ class RolePermissionModel
      * =============================================================== */
     public function roleHasPermission(string $roleId, string $permissionKey): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             SELECT COUNT(*)
             FROM auth_role_permissions rp
             JOIN auth_permissions p ON p.id = rp.permission_id

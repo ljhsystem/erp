@@ -25,4 +25,4 @@
 </div>
 
 <!-- 모달 Include -->
-<?php include __DIR__ . '/partials/organization_permissions_modal_edit.php'; ?>
+<?php include __DIR__ . '/partials/permissions_modal.php'; ?>

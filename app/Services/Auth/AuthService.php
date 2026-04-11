@@ -254,12 +254,7 @@ class AuthService
         if ($this->isPasswordExpired($user)) {
 
             // ✅ 로그인 성공 처리 (중요!)
-            $internal = $_SERVER['REMOTE_ADDR'] ?? '';
-            $external = $this->getExternalIp();
-            
-            $ip = $external
-                ? "{$external} ({$internal})"
-                : $internal;
+            $ip = $this->getClientIp();
             
             $this->handleLoginSuccess($userId, $ip);
         

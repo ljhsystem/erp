@@ -5,9 +5,9 @@
 
     console.log("positions.table.js Loaded");
 
-    const API_LIST   = "/api/settings/position/list";
-    const API_SAVE   = "/api/settings/position/save";
-    const API_DELETE = "/api/settings/position/delete";
+    const API_LIST   = "/api/settings/position/organization/list";
+    const API_SAVE   = "/api/settings/position/organization/save";
+    const API_DELETE = "/api/settings/position/organization/delete";
     
 
     window.EmployeePositionsTable = {

@@ -5,11 +5,11 @@
 
     console.log("role_permissions.table.js Loaded");
 
-    const API_ROLE_LIST         = "/api/settings/role/list";
-    const API_PERM_LIST         = "/api/settings/permission/list";
-    const API_ROLE_PERMISSIONS  = "/api/settings/role-permission/list";
-    const API_ASSIGN            = "/api/settings/role-permission/assign";
-    const API_REMOVE            = "/api/settings/role-permission/remove";
+    const API_ROLE_LIST         = "/api/settings/organization/role/list";
+    const API_PERM_LIST         = "/api/settings/organization/permission/list";
+    const API_ROLE_PERMISSIONS  = "/api/settings/organization/role-permission/list";
+    const API_ASSIGN            = "/api/settings/organization/role-permission/assign";
+    const API_REMOVE            = "/api/settings/organization/role-permission/remove";
 
     let selectedRoleId = null;
     let permissionTable = null;

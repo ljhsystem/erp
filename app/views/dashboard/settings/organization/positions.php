@@ -24,4 +24,4 @@
 </div>
 
 <!-- 모달 Include -->
-<?php include __DIR__ . '/partials/organization_positions_modal_edit.php'; ?>
+<?php include __DIR__ . '/partials/positions_modal.php'; ?>

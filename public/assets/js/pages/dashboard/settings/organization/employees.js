@@ -27,14 +27,18 @@ window.AdminPicker = AdminPicker;
        API
     ========================================================= */
     const API = {
-        LIST: '/api/settings/employee/list',
-        SAVE: '/api/settings/employee/save',
-        REORDER: '/api/settings/employee/reorder',
-
-        DEPARTMENT_LIST: '/api/settings/department/list',
-        POSITION_LIST: '/api/settings/position/list',
-        ROLE_LIST: '/api/settings/role/list',
-        UPDATE_STATUS: '/api/settings/employee/update-status'
+        LIST: '/api/settings/organization/employee/list',
+        DETAIL: '/api/settings/organization/employee/detail',
+        SEARCH_PICKER: '/api/settings/organization/employee/search-picker',
+    
+        SAVE: '/api/settings/organization/employee/save',
+        UPDATE_STATUS: '/api/settings/organization/employee/update-status',
+        PURGE: '/api/settings/organization/employee/purge',
+        REORDER: '/api/settings/organization/employee/reorder',
+    
+        DEPARTMENT_LIST: '/api/settings/organization/department/list',
+        POSITION_LIST: '/api/settings/organization/position/list',
+        ROLE_LIST: '/api/settings/organization/role/list'
     };
 
     /* =========================================================
@@ -572,7 +576,7 @@ window.AdminPicker = AdminPicker;
                 fd.append('action', 'delete');
 
                 try {
-                    const res = await fetch(API.SAVE, {
+                    const res = await fetch(API.PURGE, {
                         method: 'POST',
                         body: fd
                     });
@@ -785,7 +789,7 @@ window.AdminPicker = AdminPicker;
         $('#edit_certificate_file_delete').val('0');
         $('#edit_bank_file_delete').val('0');
 
-        $('#edit_employee_id').val(row.user_id || '');
+        $('#edit_employee_id').val(row.id || '');
         $('#edit_employee_code').val(row.code || '');
         $('#edit_employee_username').val(row.username || '');
         $('#edit_employee_name').val(row.employee_name || '');
@@ -858,19 +862,23 @@ window.AdminPicker = AdminPicker;
         $('#cert_box').attr('data-label', row.certificate_file ? '원본 보기' : '업로드');
         $('#bank_box').attr('data-label', row.bank_file ? '원본 보기' : '업로드');
 
-        $('#edit_created_at').text(row.user_created_at || '');
+        $('#edit_created_at').text(row.user_created_at || '-');    
         $('#edit_created_by').text(
             row.user_created_by_name ||
-            row.profile_created_by_name ||
+            row.created_by_name ||
             ''
         );
         $('#edit_approved').text(String(row.approved) === '1' ? '승인' : '미승인');
-        $('#edit_approved_at').text(row.approved_at || '');
-        $('#edit_approved_by').text(row.approved_by_name || row.approved_by || '');
+        $('#edit_approved_at').text(row.approved_at || '-');
+        $('#edit_approved_by').text(
+            row.approved_by_name ||
+            row.approved_by ||
+            '-'
+        );
 
-        $('#edit_last_login').text(row.last_login || '');
+        $('#edit_last_login').text(row.last_login || '-');
 
-        const rawIp = row.last_login_ip || '';
+        const rawIp = row.last_login_ip || '-';
         let external = '';
         let internal = '';
 
@@ -886,16 +894,16 @@ window.AdminPicker = AdminPicker;
             <div style="font-size:12px;color:#888;">${internal}</div>
         `);
 
-        $('#edit_last_login_device').text(row.last_login_device || '');
-        $('#edit_updated_at').text(row.user_updated_at || '');
+        $('#edit_last_login_device').text(row.last_login_device || '-');
+        $('#edit_updated_at').text(row.user_updated_at || '-');
         $('#edit_updated_by').text(
             row.user_updated_by_name ||
-            row.profile_updated_by_name ||
+            row.updated_by_name ||
             ''
         );
 
-        $('#edit_password_updated_at').text(row.password_updated_at || '');
-        $('#edit_password_updated_by').text(row.password_updated_by_name || '');
+        $('#edit_password_updated_at').text(row.password_updated_at || '-');
+        $('#edit_password_updated_by').text(row.password_updated_by_name || '-');
         $('#edit_deleted_at').text(row.deleted_at || '-');
         $('#edit_deleted_by').text(row.deleted_by_name || '');
 
@@ -944,6 +952,7 @@ window.AdminPicker = AdminPicker;
         try {
             const res = await fetch(apiUrl, {
                 method,
+                body: new FormData(),
                 credentials: 'include'
             });
 
@@ -1229,45 +1238,24 @@ window.AdminPicker = AdminPicker;
                 $(this).hide();
             });
 
-        $(document)
+            $(document)
             .off('click.employeeCertDelete')
             .on('click.employeeCertDelete', '#edit_cert_delete_btn', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
-
+        
                 $('#edit_cert_preview_img')
                     .attr('src', '/public/assets/img/placeholder-cert.png')
                     .data('file-path', '');
-
+        
                 const $input = $('#edit_certificate_file');
                 const $newInput = $input.clone().val('');
                 $input.replaceWith($newInput);
-
+        
                 $('#edit_certificate_file_delete').val('1');
                 $('#edit_certificate_name').val('');
                 $('#cert_box').attr('data-label', '업로드');
-
-
-                $('#edit_cert_preview_img')
-                    .attr('src', '/public/assets/img/placeholder-cert.png')
-                    .data('file-path', '');
-                $('#edit_cert_delete_btn').hide();
-                $('#edit_certificate_file_delete').val('0');
-                $('#edit_certificate_name').val('');
-                $('#cert_box').attr('data-label', '업로드');
-                
-                $('#edit_bank_preview')
-                    .attr('src', '/public/assets/img/placeholder-bank.png')
-                    .data('file-path', '');
-                $('#edit_bank_delete_btn').hide();
-                $('#edit_bank_file_delete').val('0');
-                $('#bank_box').attr('data-label', '업로드');
-                
-                $('#edit_bank_name').val('');
-                $('#edit_account_number').val('');
-                $('#edit_account_holder').val('');
-
-
+        
                 $(this).hide();
             });
 
@@ -1317,7 +1305,7 @@ window.AdminPicker = AdminPicker;
                 const file = this.files?.[0];
                 if (!file) return;
 
-                $('#edit_certificate_file_delete').val('0');
+
                 $('#edit_cert_delete_btn').show();
                 $('#cert_box').attr('data-label', '원본 보기');
 
@@ -1363,15 +1351,11 @@ window.AdminPicker = AdminPicker;
                 e.preventDefault();
                 e.stopPropagation();
 
-                $('#edit_bank_preview')
-                    .attr('src', '/public/assets/img/placeholder-bank.png')
-                    .data('file-path', '');
-
+   
                 const $input = $('#edit_bank_file');
                 const $newInput = $input.clone().val('');
                 $input.replaceWith($newInput);
 
-                $('#edit_bank_file_delete').val('1');
                 $('#bank_box').attr('data-label', '업로드');
                 $(this).hide();
             });

@@ -236,13 +236,30 @@ $router->get('/2fa', 'TwoFactorController@webTwoFactor');
 // 비밀번호 만료 → 변경 페이지
 $router->get('/password/change', 'PasswordController@webChangePassword');
 
+
+
+
+
+
+
+
+
 //프로필페이지
 $router->get('/profile', 'ProfileController@webProfile', [
-    'key'         => 'web.profile.view',
+    'key'         => 'web.settings.profile.view',
     'name'        => '내 프로필',
     'description' => '사용자 개인 프로필 페이지',
-    'category'    => '사용자'
+    'category'    => '사용자',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
 ]);
+
+
+
+
+
+
 
 
 
@@ -303,6 +320,12 @@ $router->get('/dashboard/settings', 'DashboardController@webSettings', [
     'description' => '설정 페이지 접근',
     'category' => '설정'
 ]);
+
+
+
+
+
+
 
 
 

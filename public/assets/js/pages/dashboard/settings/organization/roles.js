@@ -5,9 +5,9 @@
 
     console.log("roles.table.js Loaded");
 
-    const API_LIST   = "/api/settings/role/list";
-    const API_SAVE   = "/api/settings/role/save";
-    const API_DELETE = "/api/settings/role/delete";
+    const API_LIST   = "/api/settings/organization/role/list";
+    const API_SAVE   = "/api/settings/organization/role/save";
+    const API_DELETE = "/api/settings/organization/role/delete";
     
 
     window.EmployeeRolesTable = {

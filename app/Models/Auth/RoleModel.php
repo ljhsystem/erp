@@ -3,14 +3,17 @@
 namespace App\Models\Auth;
 
 use PDO;
+use Core\Database;
 
 class RoleModel
 {
-    private PDO $pdo;
-    
-    public function __construct(PDO $pdo)
+    // PDO 보관
+    private PDO $db;
+
+    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
+    public function __construct(?PDO $pdo = null)
     {
-        $this->pdo    = $pdo;        
+        $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
     /* ===============================================================
@@ -19,7 +22,7 @@ class RoleModel
     public function getAll(): array
     {
         try {
-            $stmt = $this->pdo->query("
+            $stmt = $this->db->query("
                 SELECT 
                     id, code, role_key, role_name,
                     description, is_active,
@@ -43,7 +46,7 @@ class RoleModel
         if (!$id) return null;
 
         try {
-            $stmt = $this->pdo->prepare("
+            $stmt = $this->db->prepare("
                 SELECT 
                     id, code, role_key, role_name,
                     description, is_active,
@@ -74,7 +77,7 @@ class RoleModel
                 $params[] = $excludeId;
             }
 
-            $stmt = $this->pdo->prepare($sql);
+            $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
 
             return $stmt->fetchColumn() > 0;
@@ -98,7 +101,7 @@ class RoleModel
                 return ['success' => false, 'message' => 'duplicate'];
             }
 
-            $stmt = $this->pdo->prepare("
+            $stmt = $this->db->prepare("
                 INSERT INTO auth_roles (
                     id, code, role_key, role_name, description,
                     is_active, created_at, created_by
@@ -153,7 +156,7 @@ class RoleModel
             $params[] = $id;
 
             $sql = "UPDATE auth_roles SET " . implode(", ", $fields) . " WHERE id = ?";
-            $stmt = $this->pdo->prepare($sql);
+            $stmt = $this->db->prepare($sql);
 
             return ['success' => $stmt->execute($params)];
 
@@ -170,7 +173,7 @@ class RoleModel
         if (!$id) return false;
 
         try {
-            $stmt = $this->pdo->prepare("DELETE FROM auth_roles WHERE id = ?");
+            $stmt = $this->db->prepare("DELETE FROM auth_roles WHERE id = ?");
             return $stmt->execute([$id]);
 
         } catch (\Throwable $e) {           
@@ -184,7 +187,7 @@ class RoleModel
     public function toggleActive(string $id, int $active): bool
     {
         try {
-            $stmt = $this->pdo->prepare("
+            $stmt = $this->db->prepare("
                 UPDATE auth_roles
                 SET is_active = ?, updated_at = NOW()
                 WHERE id = ?
@@ -205,14 +208,14 @@ class RoleModel
             if (!$value) return null;
 
             // ID 조회
-            $stmt = $this->pdo->prepare("SELECT * FROM auth_roles WHERE id = ?");
+            $stmt = $this->db->prepare("SELECT * FROM auth_roles WHERE id = ?");
             $stmt->execute([$value]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($row) return $row;
 
             // role_key 조회
-            $stmt = $this->pdo->prepare("SELECT * FROM auth_roles WHERE role_key = ?");
+            $stmt = $this->db->prepare("SELECT * FROM auth_roles WHERE role_key = ?");
             $stmt->execute([$value]);
             return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 

@@ -3,14 +3,17 @@
 namespace App\Models\User;
 
 use PDO;
+use Core\Database;
 
 class ApprovalTemplateModel
 {
-    private PDO $pdo;
+    // PDO 보관
+    private PDO $db;
 
-    public function __construct(PDO $pdo)
+    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
+    public function __construct(?PDO $pdo = null)
     {
-        $this->pdo = $pdo;
+        $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
     /* ============================================================
@@ -29,7 +32,7 @@ class ApprovalTemplateModel
      * ============================================================ */
     public function getAll(): array
     {
-        $stmt = $this->pdo->query("
+        $stmt = $this->db->query("
             SELECT *
             FROM user_approval_templates
             ORDER BY created_at DESC
@@ -43,7 +46,7 @@ class ApprovalTemplateModel
      * ============================================================ */
     public function getById(string $id): ?array
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             SELECT *
             FROM user_approval_templates
             WHERE id = ?
@@ -58,7 +61,7 @@ class ApprovalTemplateModel
      * ============================================================ */
     public function templateKeyExists(string $key): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             SELECT COUNT(*) 
             FROM user_approval_templates 
             WHERE template_key = ?
@@ -75,7 +78,7 @@ class ApprovalTemplateModel
         $name = $this->normalize($data['template_name'] ?? '');
         $doc  = $this->normalize($data['document_type'] ?? null);
 
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             INSERT INTO user_approval_templates 
                 (id, template_key, template_name, document_type, description, is_active, created_by)
             VALUES 
@@ -101,7 +104,7 @@ class ApprovalTemplateModel
         $name = $this->normalize($data['template_name'] ?? '');
         $doc  = $this->normalize($data['document_type'] ?? null);
 
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             UPDATE user_approval_templates
             SET
                 template_name = :template_name,
@@ -128,7 +131,7 @@ class ApprovalTemplateModel
      * ============================================================ */
     public function delete(string $id): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             DELETE FROM user_approval_templates 
             WHERE id = ?
         ");
@@ -150,7 +153,7 @@ class ApprovalTemplateModel
                   AND document_type = ?
                   AND id <> ?
             ";
-            $stmt = $this->pdo->prepare($sql);
+            $stmt = $this->db->prepare($sql);
             $stmt->execute([$name, $documentType, $exceptId]);
         } else {
             // 신규 생성 → 모든 row 검사
@@ -159,7 +162,7 @@ class ApprovalTemplateModel
                 WHERE template_name = ?
                   AND document_type = ?
             ";
-            $stmt = $this->pdo->prepare($sql);
+            $stmt = $this->db->prepare($sql);
             $stmt->execute([$name, $documentType]);
         }
     

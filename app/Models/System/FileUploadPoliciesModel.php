@@ -5,14 +5,17 @@
 namespace App\Models\System;
 
 use PDO;
+use Core\Database;
 
 class FileUploadPoliciesModel
 {
-    private PDO $pdo;
+    // PDO 보관
+    private PDO $db;
 
-    public function __construct(PDO $pdo)
+    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
+    public function __construct(?PDO $pdo = null)
     {
-        $this->pdo = $pdo;
+        $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
     /* =========================================================
@@ -26,7 +29,7 @@ class FileUploadPoliciesModel
             ORDER BY id ASC
         ";
 
-        return $this->pdo
+        return $this->db
             ->query($sql)
             ->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
@@ -43,7 +46,7 @@ class FileUploadPoliciesModel
             ORDER BY id ASC
         ";
 
-        return $this->pdo
+        return $this->db
             ->query($sql)
             ->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
@@ -60,7 +63,7 @@ class FileUploadPoliciesModel
             LIMIT 1
         ";
 
-        $stmt = $this->pdo->prepare($sql);
+        $stmt = $this->db->prepare($sql);
         $stmt->execute([
             ':policy_key' => $policyKey
         ]);
@@ -104,7 +107,7 @@ class FileUploadPoliciesModel
             )
         ";
     
-        $stmt = $this->pdo->prepare($sql);
+        $stmt = $this->db->prepare($sql);
     
         return $stmt->execute([
             ':id'           => $data['id'],
@@ -126,7 +129,7 @@ class FileUploadPoliciesModel
     * ========================================================= */
     public function update(string $id, array $data): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             UPDATE system_file_upload_policies
             SET
                 policy_name  = :policy_name,
@@ -160,7 +163,7 @@ class FileUploadPoliciesModel
     * ========================================================= */
     public function setActive(string $id, bool $active, string $userId): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             UPDATE system_file_upload_policies
             SET
                 is_active = :is_active,
@@ -183,7 +186,7 @@ class FileUploadPoliciesModel
     * ========================================================= */
     public function delete(string $id): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             DELETE FROM system_file_upload_policies
             WHERE id = :id
         ");

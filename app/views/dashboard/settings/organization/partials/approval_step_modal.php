@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/views/dashboard/partials/organization_approval_step_modal_edit.php';
+// 경로: PROJECT_ROOT . '/app/views/dashboard/partials/approval_step_modal_edit.php';
 ?>
 
 <div class="modal fade" id="modal-step-edit" tabindex="-1">

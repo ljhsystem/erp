@@ -5,9 +5,9 @@
 
     console.log("permissions.table.js Loaded");
 
-    const API_LIST   = "/api/settings/permission/list";
-    const API_SAVE   = "/api/settings/permission/save";
-    const API_DELETE = "/api/settings/permission/delete";
+    const API_LIST   = "/api/settings/organization/permission/list";
+    const API_SAVE   = "/api/settings/organization/permission/save";
+    const API_DELETE = "/api/settings/organization/permission/delete";
     
 
     window.EmployeePermissionsTable = {

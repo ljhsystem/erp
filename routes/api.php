@@ -34,6 +34,9 @@ $router->post('/api/approve/user', 'ApprovalController@apiApproveUser');
 
 
 
+
+
+
 // 사업자 상태 조회 (외부 연동)
 $router->post('/api/integration/biz-status', 'ExternalIntegrationController@apiBizStatus', [
     'key'         => 'api.integration.biz-status',
@@ -41,6 +44,12 @@ $router->post('/api/integration/biz-status', 'ExternalIntegrationController@apiB
     'description' => '외부 API를 통해 사업자등록 상태 조회',
     'category'    => '외부연동'
 ]);
+
+
+
+
+
+
 
 
 /* =========================================================
@@ -71,6 +80,11 @@ $router->post('/api/settings/base-info/company/save', 'CompanyController@apiSave
 
 
 
+
+
+
+
+
 /* =========================================================
  * 브랜드 자산 목록 조회
  * ========================================================= */
@@ -84,11 +98,10 @@ $router->post('/api/settings/base-info/brand/list', 'BrandController@apiList', [
     'log'         => true,
 ]);
 
-
 /* =========================================================
  * 브랜드 자산 단건 조회
  * ========================================================= */
-$router->post('/api/settings/base-info/brand/get', 'BrandController@apiDetail', [
+$router->post('/api/settings/base-info/brand/detail', 'BrandController@apiDetail', [
     'key'         => 'api.settings.base-info.brand.detail',
     'name'        => '브랜드 자산 단건 조회',
     'description' => '브랜드 자산 단건 조회 (ID 기준)',
@@ -97,7 +110,6 @@ $router->post('/api/settings/base-info/brand/get', 'BrandController@apiDetail', 
     'permissions' => ['view'],
     'log'         => true,
 ]);
-
 
 /* =========================================================
  * 브랜드 자산 검색
@@ -112,11 +124,10 @@ $router->post('/api/settings/base-info/brand/active-type', 'BrandController@apiA
     'log'         => true,
 ]);
 
-
 /* =========================================================
  * 브랜드 자산 저장 (신규 / 수정)
  * ========================================================= */
-$router->post('/api/settings/base-info/brand/upload', 'BrandController@apiSave', [
+$router->post('/api/settings/base-info/brand/save', 'BrandController@apiSave', [
     'key'         => 'api.settings.base-info.brand.save',
     'name'        => '브랜드 자산 저장',
     'description' => '브랜드 자산 신규 등록 또는 수정',
@@ -126,11 +137,10 @@ $router->post('/api/settings/base-info/brand/upload', 'BrandController@apiSave',
     'log'         => true,
 ]);
 
-
 /* =========================================================
  * 브랜드 자산 삭제
  * ========================================================= */
-$router->post('/api/settings/base-info/brand/delete', 'BrandController@apiDelete', [
+$router->post('/api/settings/base-info/brand/purge', 'BrandController@apiPurge', [
     'key'         => 'api.settings.base-info.brand.delete',
     'name'        => '브랜드 자산 삭제',
     'description' => '브랜드 자산 삭제',
@@ -139,7 +149,6 @@ $router->post('/api/settings/base-info/brand/delete', 'BrandController@apiDelete
     'permissions' => ['delete'],
     'log'         => true,
 ]);
-
 
 /* =========================================================
  * 브랜드 자산 상태 변경 (활성/비활성)
@@ -153,6 +162,9 @@ $router->post('/api/settings/base-info/brand/updatestatus', 'BrandController@api
     'permissions' => ['update'],
     'log'         => true,
 ]);
+
+
+
 
 
 
@@ -314,6 +326,7 @@ $router->post('/api/settings/base-info/cover/reorder', 'CoverController@apiReord
     'permissions' => ['save'],
     'log'         => true,
 ]);
+
 
 
 
@@ -970,11 +983,6 @@ $router->get('/api/settings/base-info/card/search-picker', 'CardController@apiSe
 
 
 
-
-
-
-
-
 /* =========================================================
  * 카드 저장
  * ========================================================= */
@@ -1135,67 +1143,147 @@ $router->get('/api/settings/base-info/card/download', 'CardController@apiDownloa
 
 
 
-/* =========================================
- * 사용자 프로필 API (정규화 완료)
- * ========================================= */
 
-// 프로필 조회 (내정보 + 특정 사용자 통합)
-$router->get('/api/user/profile/detail', 'ProfileController@apiDetail', [
-    'key' => 'api.profile.view',
-    'name' => '프로필 조회',
-    'description' => '내 프로필 또는 특정 사용자 프로필 조회',
-    'category' => '프로필'
+
+
+
+
+
+// ============================================================
+// 직원 목록 조회
+// ============================================================
+$router->get('/api/settings/organization/employee/list', 'EmployeeController@apiList', [
+    'key'         => 'api.settings.employee.list',
+    'name'        => '직원 목록 조회',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
 ]);
 
-// 프로필 저장 (생성 + 수정 + 이미지 + 이름 전부 통합)
-$router->post('/api/user/profile/save', 'ProfileController@apiSave', [
-    'key' => 'api.profile.save',
-    'name' => '프로필 저장',
-    'description' => '프로필 생성 및 수정 (이미지 포함)',
-    'category' => '프로필'
+// ============================================================
+// 직원 상세 조회
+// ============================================================
+$router->get('/api/settings/organization/employee/detail', 'EmployeeController@apiDetail', [
+    'key'         => 'api.settings.employee.detail',
+    'name'        => '직원 상세 조회',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
 ]);
 
-// 비밀번호 변경
-$router->post('/api/user/profile/change-password', 'ProfileController@apiChangePassword', [
-    'key' => 'api.profile.change_password',
-    'name' => '비밀번호 변경',
-    'category' => '보안'
+// ============================================================
+// 직원 검색 (Select2)
+// ============================================================
+$router->get('/api/settings/organization/employee/search-picker', 'EmployeeController@apiSearchPicker', [
+    'key'         => 'api.settings.employee.search',
+    'name'        => '직원 검색',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
 ]);
 
-// 2FA 설정
-$router->post('/api/user/profile/update-2fa', 'ProfileController@apiUpdateTwoFactor', [
-    'key' => 'api.profile.update_2fa',
-    'name' => '2단계 인증 설정',
-    'category' => '보안'
-]);
-
-/* =========================================
- * 직원 관리 API
- * ========================================= */
-
-// 직원 검색
-$router->get('/api/settings/employee/search', 'EmployeeController@apiSearch');
-
-
-// 직원 검색(select2)
-$router->get('/api/settings/employee/search-picker', 'EmployeeController@apiSearchPicker');
-
-
-// 직원 목록 (GET + POST 허용)
-$router->get('/api/settings/employee/list', 'EmployeeController@apiList');
-$router->post('/api/settings/employee/list', 'EmployeeController@apiList');
-
+// ============================================================
 // 직원 저장
-$router->post('/api/settings/employee/save', 'EmployeeController@apiSave');
+// ============================================================
+$router->post('/api/settings/organization/employee/save', 'EmployeeController@apiSave', [
+    'key'         => 'api.settings.employee.save',
+    'name'        => '직원 저장',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
 
-// 직원 삭제 (추가 추천)
-$router->post('/api/settings/employee/delete', 'EmployeeController@apiDelete');
+// ============================================================
+// 직원 상태 변경
+// ============================================================
+$router->post('/api/settings/organization/employee/update-status', 'EmployeeController@apiUpdateStatus', [
+    'key'         => 'api.settings.employee.update-status',
+    'name'        => '직원 상태 변경',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
 
-// 상태 변경 (추가 추천)
-$router->post('/api/settings/employee/update-status', 'EmployeeController@apiUpdateStatus');
 
-// 순서 변경
-$router->post('/api/settings/employee/reorder', 'EmployeeController@apiReorder');
+
+// ============================================================
+// 직원 영구삭제
+// ============================================================
+$router->post('/api/settings/organization/employee/purge', 'EmployeeController@apiPurge', [
+    'key'         => 'api.settings.employee.purge',
+    'name'        => '직원 영구삭제',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+// ============================================================
+// 직원 순서 변경
+// ============================================================
+$router->post('/api/settings/organization/employee/reorder', 'EmployeeController@apiReorder', [
+    'key'         => 'api.settings.employee.reorder',
+    'name'        => '직원 순서 변경',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+
+
+
+
+
+
+
+
+
+
+
+/* =========================================
+ * 사용자 프로필 API (표준화 완료)
+ * ========================================= */
+
+// ============================================================
+// 프로필 조회
+// ============================================================
+$router->get('/api/user/profile/detail', 'ProfileController@apiDetail', [
+    'key'         => 'api.user.profile.detail',
+    'name'        => '프로필 조회',
+    'description' => '내 프로필 또는 특정 사용자 프로필 조회',
+    'category'    => '사용자',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
+// ============================================================
+// 프로필 저장
+// ============================================================
+$router->post('/api/user/profile/save', 'ProfileController@apiSave', [
+    'key'         => 'api.user.profile.save',
+    'name'        => '프로필 저장',
+    'description' => '프로필 생성 및 수정 (이미지 포함)',
+    'category'    => '사용자',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1205,13 +1293,12 @@ $router->post('/api/settings/employee/reorder', 'EmployeeController@apiReorder')
    부서
 ========================= */
 
-// 부서 목록 (GET + POST 허용)
-$router->get('/api/settings/department/list', 'DepartmentController@apiList');
-$router->post('/api/settings/department/list', 'DepartmentController@apiList');
+// 목록
+$router->get('/api/settings/organization/department/list', 'DepartmentController@apiList');
+$router->post('/api/settings/organization/department/list', 'DepartmentController@apiList');
 
-// 부서 저장
-$router->post('/api/settings/department/save', 'DepartmentController@apiSave');
-
+// 저장
+$router->post('/api/settings/organization/department/save', 'DepartmentController@apiSave');
 
 
 
@@ -1221,11 +1308,10 @@ $router->post('/api/settings/department/save', 'DepartmentController@apiSave');
 ========================= */
 
 // 직책 목록 (GET + POST 허용)
-$router->get('/api/settings/position/list', 'PositionController@apiList');
-$router->post('/api/settings/position/list', 'PositionController@apiList');
-
+$router->get('/api/settings/organization/position/list', 'PositionController@apiList');
+$router->post('/api/settings/organization/position/list', 'PositionController@apiList'); // 🔥 수정
 // 직책 저장
-$router->post('/api/settings/position/save', 'PositionController@apiSave');
+$router->post('/api/settings/organization/position/save', 'PositionController@apiSave');
 
 
 
@@ -1235,49 +1321,49 @@ $router->post('/api/settings/position/save', 'PositionController@apiSave');
 /* =========================================
  * 역할 / 권한
  * ========================================= */
-$router->post('/api/settings/role/list', 'RoleController@apiList', [
+$router->post('/api/settings/organization/role/list', 'RoleController@apiList', [
     'key' => 'api.settings.role.list',
     'name' => '역할 목록 조회',
     'description' => '역할 리스트 조회',
     'category' => '권한관리'
 ]);
 
-$router->post('/api/settings/role/save', 'RoleController@apiSave', [
+$router->post('/api/settings/organization/role/save', 'RoleController@apiSave', [
     'key' => 'api.settings.role.save',
     'name' => '역할 저장',
     'description' => '역할 정보 저장',
     'category' => '권한관리'
 ]);
 
-$router->post('/api/settings/permission/list', 'PermissionController@apiList', [
+$router->post('/api/settings/organization/permission/list', 'PermissionController@apiList', [
     'key' => 'api.settings.permission.list',
     'name' => '권한 목록 조회',
     'description' => '전체 권한 조회',
     'category' => '권한관리'
 ]);
 
-$router->post('/api/settings/permission/save', 'PermissionController@apiSave', [
+$router->post('/api/settings/organization/permission/save', 'PermissionController@apiSave', [
     'key' => 'api.settings.permission.save',
     'name' => '권한 저장',
     'description' => '권한 정보 저장',
     'category' => '권한관리'
 ]);
 
-$router->post('/api/settings/role-permission/list', 'RolePermissionController@apiList', [
+$router->post('/api/settings/organization/role-permission/list', 'RolePermissionController@apiList', [
     'key' => 'api.settings.rolepermission.list',
     'name' => '역할별 권한 조회',
     'description' => '역할에 부여된 권한 목록 조회',
     'category' => '권한관리'
 ]);
 
-$router->post('/api/settings/role-permission/assign', 'RolePermissionController@apiAssign', [
+$router->post('/api/settings/organization/role-permission/assign', 'RolePermissionController@apiAssign', [
     'key' => 'api.settings.rolepermission.assign',
     'name' => '권한 부여',
     'description' => '역할에 권한 부여',
     'category' => '권한관리'
 ]);
 
-$router->post('/api/settings/role-permission/remove', 'RolePermissionController@apiRemove', [
+$router->post('/api/settings/organization/role-permission/remove', 'RolePermissionController@apiRemove', [
     'key' => 'api.settings.rolepermission.remove',
     'name' => '권한 제거',
     'description' => '역할에서 권한 제거',
@@ -1288,7 +1374,7 @@ $router->post('/api/settings/role-permission/remove', 'RolePermissionController@
 /* =========================================
  * 결재(Approval)
  * ========================================= */
-$router->post('/api/settings/approval/template/list', 'ApprovalTemplateController@apiTemplateList', [
+$router->post('/api/settings/organization/approval/template/list', 'ApprovalTemplateController@apiTemplateList', [
     'key' => 'api.settings.approval.template.list',
     'name' => '결재 템플릿 목록',
     'description' => '결재 템플릿 리스트 조회',
@@ -1299,35 +1385,35 @@ $router->post('/api/settings/approval/template/list', 'ApprovalTemplateControlle
 
 
 
-$router->post('/api/settings/approval/template/save', 'ApprovalTemplateController@apiTemplateSave', [
+$router->post('/api/settings/organization/approval/template/save', 'ApprovalTemplateController@apiTemplateSave', [
     'key' => 'api.settings.approval.template.save',
     'name' => '결재 템플릿 저장',
     'description' => '템플릿 저장',
     'category' => '결재관리'
 ]);
 
-$router->post('/api/settings/approval/template/delete', 'ApprovalTemplateController@apiTemplateDelete', [
+$router->post('/api/settings/organization/approval/template/delete', 'ApprovalTemplateController@apiTemplateDelete', [
     'key' => 'api.settings.approval.template.delete',
     'name' => '결재 템플릿 삭제',
     'description' => '템플릿 삭제',
     'category' => '결재관리'
 ]);
 
-$router->post('/api/settings/approval/step/list', 'ApprovalTemplateController@apiStepList', [
+$router->post('/api/settings/organization/approval/step/list', 'ApprovalTemplateController@apiStepList', [
     'key' => 'api.settings.approval.step.list',
     'name' => '결재 단계 목록',
     'description' => '결재 단계 리스트 조회',
     'category' => '결재관리'
 ]);
 
-$router->post('/api/settings/approval/step/save', 'ApprovalTemplateController@apiStepSave', [
+$router->post('/api/settings/organization/approval/step/save', 'ApprovalTemplateController@apiStepSave', [
     'key' => 'api.settings.approval.step.save',
     'name' => '결재 단계 저장',
     'description' => '결재 단계 저장',
     'category' => '결재관리'
 ]);
 
-$router->post('/api/settings/approval/step/delete', 'ApprovalTemplateController@apiStepDelete', [
+$router->post('/api/settings/organization/approval/step/delete', 'ApprovalTemplateController@apiStepDelete', [
     'key' => 'api.settings.approval.step.delete',
     'name' => '결재 단계 삭제',
     'description' => '결재 단계 삭제',
@@ -1843,4 +1929,25 @@ $router->get('/api/ledger/sub-account/list', 'SubChartAccountController@apiList'
 $router->post('/api/ledger/sub-account/save', 'SubChartAccountController@apiSave');
 $router->post('/api/ledger/sub-account/update', 'SubChartAccountController@apiUpdate');
 $router->post('/api/ledger/sub-account/delete', 'SubChartAccountController@apiDelete');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

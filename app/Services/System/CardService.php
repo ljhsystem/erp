@@ -97,21 +97,49 @@ class CardService
     }
 
     /* =========================================================
-    * 계좌 자동검색 (입력 자동완성)
+    * 카드 검색 (Service - Select2 포맷)
     * ========================================================= */
     public function searchPicker(string $keyword): array
     {
         $this->logger->info('searchPicker() called', [
             'keyword' => $keyword
         ]);
-        
+
         try {
 
-            return $this->model->searchPicker($keyword);
+            $rows = $this->model->searchPicker($keyword, 20);
+
+            if (empty($rows)) {
+                return [];
+            }
+
+            $results = [];
+
+            foreach ($rows as $row) {
+
+                $text = $row['card_name'] ?? '';
+
+                // 🔥 카드번호 추가
+                if (!empty($row['card_number'])) {
+                    $text .= ' (' . $row['card_number'] . ')';
+                }
+
+                // 🔥 거래처명 추가
+                if (!empty($row['client_name'])) {
+                    $text .= ' / ' . $row['client_name'];
+                }
+
+                $results[] = [
+                    'id'   => $row['id'],
+                    'text' => $text
+                ];
+            }
+
+            return $results;
 
         } catch (\Throwable $e) {
 
-            $this->logger->error('searchPicker() exception', [
+            $this->logger->error('searchPicker() failed', [
                 'keyword'   => $keyword,
                 'exception' => $e->getMessage()
             ]);
@@ -119,7 +147,6 @@ class CardService
             return [];
         }
     }
-
 
 
     /* =========================================================

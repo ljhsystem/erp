@@ -3,14 +3,17 @@
 namespace App\Models\User;
 
 use PDO;
+use Core\Database;
 
 class DepartmentModel
 {
-    private PDO $pdo;
+    // PDO 보관
+    private PDO $db;
 
-    public function __construct(PDO $pdo)
+    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
+    public function __construct(?PDO $pdo = null)
     {
-        $this->pdo = $pdo;
+        $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
     /* ============================================================
@@ -37,7 +40,7 @@ class DepartmentModel
             ORDER BY d.code ASC
         ";
 
-        $stmt = $this->pdo->query($sql);
+        $stmt = $this->db->query($sql);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -46,7 +49,7 @@ class DepartmentModel
      * ============================================================ */
     public function getById(string $id): ?array
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             SELECT
                 d.id,
                 d.code,
@@ -81,7 +84,7 @@ class DepartmentModel
             (:id, :code, :dept_name, :manager_id, :description, :is_active, :created_by, NOW())
         ";
 
-        $stmt = $this->pdo->prepare($sql);
+        $stmt = $this->db->prepare($sql);
 
         return $stmt->execute([
             ':id'          => $data['id'],
@@ -112,7 +115,7 @@ class DepartmentModel
 
         $sql = "UPDATE user_departments SET " . implode(', ', $set) . " WHERE id = :id";
 
-        $stmt = $this->pdo->prepare($sql);
+        $stmt = $this->db->prepare($sql);
         return $stmt->execute($params);
     }
 
@@ -121,7 +124,7 @@ class DepartmentModel
      * ============================================================ */
     public function delete(string $id): bool
     {
-        $stmt = $this->pdo->prepare("DELETE FROM user_departments WHERE id = ?");
+        $stmt = $this->db->prepare("DELETE FROM user_departments WHERE id = ?");
         return $stmt->execute([$id]);
     }
 
@@ -130,7 +133,7 @@ class DepartmentModel
      * ============================================================ */
     public function assignManager(string $deptId, ?string $managerId): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             UPDATE user_departments
             SET manager_id = :manager_id,
                 updated_at = NOW()
@@ -149,13 +152,13 @@ class DepartmentModel
     public function existsByName(string $deptName, ?string $excludeId = null): bool
     {
         if ($excludeId) {
-            $stmt = $this->pdo->prepare("
+            $stmt = $this->db->prepare("
                 SELECT COUNT(*) FROM user_departments
                 WHERE dept_name = ? AND id <> ?
             ");
             $stmt->execute([$deptName, $excludeId]);
         } else {
-            $stmt = $this->pdo->prepare("
+            $stmt = $this->db->prepare("
                 SELECT COUNT(*) FROM user_departments
                 WHERE dept_name = ?
             ");

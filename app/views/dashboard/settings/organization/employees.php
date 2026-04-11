@@ -22,11 +22,12 @@
     $searchId = 'employee';
 
     $dateOptions = '
-      <option value="user_created_at">등록일자</option>
-      <option value="last_login">마지막 로그인</option>
-      <option value="real_hire_date">입사일</option>
-      <option value="real_retire_date">퇴사일</option>
-    ';
+    <option value="user_created_at">등록일자</option>
+    <option value="last_login">마지막 로그인</option>
+    <option value="real_hire_date">입사일</option>
+    <option value="real_retire_date">퇴사일</option>
+    <option value="deleted_at">비활성화일</option>
+    '; 
 
     $searchFieldOptions = '
       <option value="">선택</option>
@@ -45,7 +46,7 @@
     ========================================================= */
 
     $tableId       = 'employee-table';
-    $ajaxUrl       = '/api/settings/employee/list';
+    $ajaxUrl       = '/api/settings/organization/employee/list';
     $columnsType   = 'employee';
 
     $enableButtons = true;
@@ -64,8 +65,7 @@
 /* =========================================================
    🔥 직원 모달
 ========================================================= */
-include __DIR__ . '/partials/organization_employee_modal_edit.php';
-include __DIR__ . '/partials/organization_employee_modal_imageview.php';
+include __DIR__ . '/partials/employee_modal.php';
 ?>
 
 

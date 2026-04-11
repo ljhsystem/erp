@@ -3,14 +3,17 @@
 namespace App\Models\Auth;
 
 use PDO;
+use Core\Database;
 
 class PermissionModel
 {
-    private PDO $pdo;    
+    // PDO 보관
+    private PDO $db;
 
-    public function __construct(PDO $pdo)
+    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
+    public function __construct(?PDO $pdo = null)
     {
-        $this->pdo    = $pdo;        
+        $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
     /* ===============================================================
@@ -19,7 +22,7 @@ class PermissionModel
     public function getAll(): array
     {
         try {
-            $stmt = $this->pdo->query("
+            $stmt = $this->db->query("
                 SELECT 
                     id, code, permission_key, permission_name,
                     description, category, is_active,
@@ -43,7 +46,7 @@ class PermissionModel
         if (!$id) return null;
 
         try {
-            $stmt = $this->pdo->prepare("
+            $stmt = $this->db->prepare("
                 SELECT 
                     id, code, permission_key, permission_name,
                     description, category, is_active,
@@ -75,7 +78,7 @@ class PermissionModel
                 $params[] = $excludeId;
             }
 
-            $stmt = $this->pdo->prepare($sql);
+            $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
 
             return $stmt->fetchColumn() > 0;
@@ -91,7 +94,7 @@ class PermissionModel
     public function create(array $data): bool
     {
         try {
-            $stmt = $this->pdo->prepare("
+            $stmt = $this->db->prepare("
                 INSERT INTO auth_permissions (
                     id, code, permission_key, permission_name,
                     description, category, is_active,
@@ -140,7 +143,7 @@ class PermissionModel
             $fields[] = "updated_at = NOW()";
             $params[] = $id;
 
-            $stmt = $this->pdo->prepare(
+            $stmt = $this->db->prepare(
                 "UPDATE auth_permissions SET " . implode(", ", $fields) . " WHERE id = ?"
             );
 
@@ -157,7 +160,7 @@ class PermissionModel
     public function delete(string $id): bool
     {
         try {
-            $stmt = $this->pdo->prepare("DELETE FROM auth_permissions WHERE id = ?");
+            $stmt = $this->db->prepare("DELETE FROM auth_permissions WHERE id = ?");
             return $stmt->execute([$id]);
 
         } catch (\Throwable $e) {            
@@ -171,7 +174,7 @@ class PermissionModel
     public function toggleActive(string $id, int $active): bool
     {
         try {
-            $stmt = $this->pdo->prepare("
+            $stmt = $this->db->prepare("
                 UPDATE auth_permissions
                 SET is_active = ?, updated_at = NOW()
                 WHERE id = ?

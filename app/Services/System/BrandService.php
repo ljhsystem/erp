@@ -27,7 +27,7 @@ class BrandService
 
 
     /* =========================================================
-     * 5. 모든 자산 타입 조회
+     * 모든 자산 타입 조회
      * ========================================================= */
     public function getList(array $filters = []): array
     {
@@ -60,7 +60,7 @@ class BrandService
     }
 
     /* =========================================================
-     * 8. 파일 ID로 활성화된 파일 정보 조회
+     * 파일 ID로 활성화된 파일 정보 조회
      * ========================================================= */
     public function getById(string $fileId): ?array
     {
@@ -169,7 +169,7 @@ class BrandService
     /* =========================================================
      * 특정 파일 삭제
      * ========================================================= */
-    public function delete(string $fileId): array
+    public function purge(string $fileId): array
     {
         $this->logger->debug('[SYSTEM_BRAND_SERVICE] Deleting file with ID: ' . $fileId);
 
@@ -187,7 +187,7 @@ class BrandService
             $this->fileService->delete($file['db_path']);
 
             // 3) DB에서 파일 정보 삭제
-            $this->model->deleteById($fileId);
+            $this->model->hardDeleteById($fileId);
 
             $this->pdo->commit();
 

@@ -23,4 +23,4 @@
 </div>
 
 <!-- 역할 생성/수정 모달 -->
-<?php include __DIR__ . '/partials/organization_roles_modal_edit.php'; ?>
+<?php include __DIR__ . '/partials/roles_modal.php'; ?>

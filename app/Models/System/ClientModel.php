@@ -3,6 +3,7 @@
 namespace App\Models\System;
 
 use PDO;
+use Core\Database;
 
 class ClientModel
 {
@@ -12,7 +13,7 @@ class ClientModel
     // 생성자 – 외부에서 PDO 주입 또는 자동 연결
     public function __construct(?PDO $pdo = null)
     {
-        $this->db = $pdo ?: \Core\Database::getInstance()->getConnection();
+        $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
     /* -------------------------------------------------------------
@@ -21,101 +22,175 @@ class ClientModel
     public function getList(array $filters = []): array
     {
         $sql = "
-            SELECT
-                c.*,
-    
-                CASE 
-                    WHEN c.created_by LIKE 'SYSTEM:%' THEN c.created_by
-                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
-                    ELSE c.created_by
-                END AS created_by_name,
-    
-                CASE 
-                    WHEN c.updated_by LIKE 'SYSTEM:%' THEN c.updated_by
-                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
-                    ELSE c.updated_by
-                END AS updated_by_name,
-    
-                CASE 
-                    WHEN c.deleted_by LIKE 'SYSTEM:%' THEN c.deleted_by
-                    WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
-                    ELSE c.deleted_by
-                END AS deleted_by_name
-    
+            SELECT c.*
             FROM system_clients c
-    
-            LEFT JOIN user_employees p1
-                ON c.created_by NOT LIKE 'SYSTEM:%'
-                AND p1.user_id = REPLACE(c.created_by, 'USER:', '')
-    
-            LEFT JOIN user_employees p2
-                ON c.updated_by NOT LIKE 'SYSTEM:%'
-                AND p2.user_id = REPLACE(c.updated_by, 'USER:', '')
-    
-            LEFT JOIN user_employees p3
-                ON c.deleted_by NOT LIKE 'SYSTEM:%'
-                AND p3.user_id = REPLACE(c.deleted_by, 'USER:', '')
-    
             WHERE c.deleted_at IS NULL
         ";
     
         $params = [];
     
-        // 🔥 기존 search 로직 흡수
-        if (!empty($filters)) {
+        /* =========================================================
+         * 🔥 전체 컬럼 맵 (전부 포함)
+         * ========================================================= */
+        $fieldMap = [
     
-            $allowed = [
-                'code','client_name','company_name','ceo_name',
-                'business_number', 'rnn','business_status','phone','email',
-                'registration_date','note','memo','address','address_detail',
-                'client_type','tax_type','client_category',
-                'created_at','updated_at'
-            ];
+            // 기본
+            'code'              => ['col'=>'c.code','type'=>'exact'],
+            'client_name'       => ['col'=>'c.client_name','type'=>'like'],
+            'company_name'      => ['col'=>'c.company_name','type'=>'like'],
     
-            $likeFields = [
-                'client_name','company_name','ceo_name',
-                'business_status','email','note','address','address_detail'
-            ];
+            // 사업자
+            'business_number'   => ['col'=>'c.business_number','type'=>'like'],
+            'rrn'               => ['col'=>'c.rrn','type'=>'like'],
+            'business_type'     => ['col'=>'c.business_type','type'=>'like'],
+            'business_category' => ['col'=>'c.business_category','type'=>'like'],
+            'business_status'   => ['col'=>'c.business_status','type'=>'like'],
     
-            $dateFields = ['registration_date','created_at','updated_at'];
+            // 인물
+            'ceo_name'          => ['col'=>'c.ceo_name','type'=>'like'],
+            'ceo_phone'         => ['col'=>'c.ceo_phone','type'=>'like'],
+            'manager_name'      => ['col'=>'c.manager_name','type'=>'like'],
+            'manager_phone'     => ['col'=>'c.manager_phone','type'=>'like'],
     
-            foreach ($filters as $f) {
+            // 연락처
+            'phone'             => ['col'=>'c.phone','type'=>'like'],
+            'fax'               => ['col'=>'c.fax','type'=>'like'],
+            'email'             => ['col'=>'c.email','type'=>'like'],
+            'homepage'          => ['col'=>'c.homepage','type'=>'like'],
     
-                $field = $f['field'] ?? '';
-                $value = $f['value'] ?? '';
+            // 주소
+            'address'           => ['col'=>'c.address','type'=>'like'],
+            'address_detail'    => ['col'=>'c.address_detail','type'=>'like'],
     
-                if (!in_array($field, $allowed, true)) continue;
-                if ($value === '' || $value === null) continue;
+            // 분류
+            'client_type'       => ['col'=>'c.client_type','type'=>'like'],
+            'client_category'   => ['col'=>'c.client_category','type'=>'like'],
+            'trade_category'    => ['col'=>'c.trade_category','type'=>'like'],
+            'tax_type'          => ['col'=>'c.tax_type','type'=>'like'],
+            'payment_term'      => ['col'=>'c.payment_term','type'=>'like'],
+            'item_category'     => ['col'=>'c.item_category','type'=>'like'],
     
-                // 🔥 날짜
-                if (in_array($field, $dateFields, true)) {
+            // 계좌
+            'bank_name'         => ['col'=>'c.bank_name','type'=>'like'],
+            'account_number'    => ['col'=>'c.account_number','type'=>'like'],
+            'account_holder'    => ['col'=>'c.account_holder','type'=>'like'],
     
-                    if (is_array($value) && isset($value['start'], $value['end'])) {
-                        $sql .= " AND c.$field BETWEEN ? AND ?";
-                        $params[] = $value['start'];
-                        $params[] = $value['end'];
-                    } else {
-                        $sql .= " AND c.$field = ?";
-                        $params[] = $value;
-                    }
+            // 파일
+            'bank_file'         => ['col'=>'c.bank_file','type'=>'like'],
+            'business_certificate' => ['col'=>'c.business_certificate','type'=>'like'],
     
-                    continue;
+            // 기타
+            'note'              => ['col'=>'c.note','type'=>'like'],
+            'memo'              => ['col'=>'c.memo','type'=>'like'],
+    
+            // 상태
+            'is_active'         => ['col'=>'c.is_active','type'=>'exact'],
+    
+            // 날짜
+            'registration_date' => ['col'=>'c.registration_date','type'=>'date'],
+            'created_at'        => ['col'=>'c.created_at','type'=>'date'],
+            'updated_at'        => ['col'=>'c.updated_at','type'=>'date'],
+        ];
+    
+        $globalSearch = [];
+    
+        /* =========================================================
+         * 🔥 필터 처리
+         * ========================================================= */
+        foreach ($filters as $f) {
+    
+            $field = $f['field'] ?? '';
+            $value = $f['value'] ?? '';
+    
+            if ($value === '' || $value === null) continue;
+    
+            // 🔥 전체검색
+            if ($field === '') {
+                $globalSearch[] = $value;
+                continue;
+            }
+    
+            if (!isset($fieldMap[$field])) continue;
+    
+            $col  = $fieldMap[$field]['col'];
+            $type = $fieldMap[$field]['type'];
+    
+            // 날짜
+            if ($type === 'date') {
+    
+                if (is_array($value)) {
+                    $sql .= " AND DATE($col) BETWEEN ? AND ?";
+                    $params[] = $value['start'];
+                    $params[] = $value['end'];
+                } else {
+                    $sql .= " AND DATE($col) = ?";
+                    $params[] = $value;
                 }
+                continue;
+            }
     
-                // 🔥 LIKE
-                if (in_array($field, $likeFields, true)) {
-                    $sql .= " AND c.$field LIKE ?";
-                    $params[] = "%{$value}%";
-                    continue;
-                }
+            // LIKE
+            if ($type === 'like') {
+                $sql .= " AND $col LIKE ?";
+                $params[] = "%{$value}%";
+                continue;
+            }
     
-                // 🔥 일반
-                $sql .= " AND c.$field = ?";
+            // EXACT
+            if ($type === 'exact') {
+                $sql .= " AND $col = ?";
                 $params[] = $value;
+                continue;
             }
         }
     
-        // 🔥 정렬 통일
+        /* =========================================================
+         * 🔥 전체검색 (모든 텍스트 컬럼)
+         * ========================================================= */
+        if (!empty($globalSearch)) {
+    
+            $searchCols = [
+    
+                'c.client_name','c.company_name',
+                'c.business_number','c.rrn',
+                'c.ceo_name','c.manager_name',
+                'c.phone','c.email',
+                'c.address','c.address_detail',
+                'c.business_type','c.business_category',
+                'c.bank_name','c.account_number',
+                'c.account_holder',
+                'c.note','c.memo'
+            ];
+    
+            $sql .= " AND (";
+    
+            $first = true;
+    
+            foreach ($globalSearch as $keyword) {
+    
+                if (!$first) $sql .= " OR ";
+    
+                $sql .= "(";
+    
+                $colFirst = true;
+    
+                foreach ($searchCols as $col) {
+    
+                    if (!$colFirst) $sql .= " OR ";
+    
+                    $sql .= "$col LIKE ?";
+                    $params[] = "%{$keyword}%";
+    
+                    $colFirst = false;
+                }
+    
+                $sql .= ")";
+                $first = false;
+            }
+    
+            $sql .= ")";
+        }
+    
         $sql .= " ORDER BY c.registration_date DESC, c.code ASC";
     
         $stmt = $this->db->prepare($sql);
@@ -179,25 +254,62 @@ class ClientModel
     }
 
 
-    /* -------------------------------------------------------------
-    * 거래처 검색 자동완성
-    * ------------------------------------------------------------- */
+/* =========================================================
+ * 거래처 검색 (Model - RAW 데이터만 반환)
+ * ========================================================= */
+public function searchPicker(string $keyword = '', int $limit = 20): array
+{
+    $limit = max(1, min(100, (int)$limit));
 
-    public function searchPicker(string $keyword): array
-    {
-        $stmt = $this->db->prepare("
-            SELECT id, code, client_name, business_number
-            FROM system_clients
-            WHERE deleted_at IS NULL
-            AND client_name LIKE ?
-            ORDER BY client_name
-            LIMIT 20
-        ");
+    $keyword = trim($keyword);
+    $like = '%' . $keyword . '%';
+    $prefix = $keyword . '%';
 
-        $stmt->execute(["%{$keyword}%"]);
+    $sql = "
+        SELECT
+            c.id,
+            c.code,
+            c.client_name,
+            c.business_number,
+            c.company_name,
+            c.ceo_name,
+            c.phone,
+            c.email
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
+        FROM system_clients c
+
+        WHERE c.deleted_at IS NULL
+        AND (
+            c.client_name LIKE :k1
+            OR c.company_name LIKE :k2
+            OR c.business_number LIKE :k3
+            OR c.ceo_name LIKE :k4
+            OR c.phone LIKE :k5
+        )
+
+        ORDER BY
+            CASE
+                WHEN c.client_name LIKE :prefix THEN 0
+                ELSE 1
+            END,
+            c.client_name ASC
+
+        LIMIT {$limit}
+    ";
+
+    $stmt = $this->db->prepare($sql);
+
+    $stmt->bindValue(':k1', $like, PDO::PARAM_STR);
+    $stmt->bindValue(':k2', $like, PDO::PARAM_STR);
+    $stmt->bindValue(':k3', $like, PDO::PARAM_STR);
+    $stmt->bindValue(':k4', $like, PDO::PARAM_STR);
+    $stmt->bindValue(':k5', $like, PDO::PARAM_STR);
+    $stmt->bindValue(':prefix', $prefix, PDO::PARAM_STR);
+
+    $stmt->execute();
+
+    return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
 
 
     /* -------------------------------------------------------------

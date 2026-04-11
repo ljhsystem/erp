@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/views/dashboard/partials/organization_permissions_modal_edit.php';
+// 경로: PROJECT_ROOT . '/app/views/dashboard/partials/permissions_modal_edit.php';
 ?>
 <div class="modal fade" id="permissionEditModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">

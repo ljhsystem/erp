@@ -3,22 +3,24 @@
 namespace App\Models\Auth;
 
 use PDO;
+use Core\Database;
 
 class UserModel
 {
-    private PDO $pdo;
+    // PDO 보관
+    private PDO $db;
 
-    public function __construct(PDO $pdo)
+    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
+    public function __construct(?PDO $pdo = null)
     {
-        $this->pdo = $pdo;
+        $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
-
     // ---------------------------------------------------------------
     // PDO 반환
     // ---------------------------------------------------------------
     public function getPDO(): PDO
     {
-        return $this->pdo;
+        return $this->db;
     }
 
     // ---------------------------------------------------------------
@@ -26,7 +28,7 @@ class UserModel
     // ---------------------------------------------------------------
     public function existsByUsername(string $username): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             SELECT COUNT(*) FROM auth_users WHERE username = ?
         ");
         $stmt->execute([$username]);
@@ -58,7 +60,7 @@ class UserModel
             )
         ";
 
-        $stmt = $this->pdo->prepare($sql);
+        $stmt = $this->db->prepare($sql);
 
         return $stmt->execute([
             ':id'                => $data['id'],
@@ -81,7 +83,7 @@ class UserModel
     // ---------------------------------------------------------------
     public function setCreatedBySelf(string $userId): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             UPDATE auth_users
                SET created_by = :created_by
              WHERE id = :id
@@ -130,7 +132,7 @@ class UserModel
 
     private function fetchOne(string $sql, array $params): ?array
     {
-        $stmt = $this->pdo->prepare($sql);
+        $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
 
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
@@ -141,7 +143,7 @@ class UserModel
     // ---------------------------------------------------------------
     public function updatePassword(string $userId, string $hash, ?string $updatedBy = null): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             UPDATE auth_users
                SET password = ?, 
                    password_updated_at = NOW(), 
@@ -157,7 +159,7 @@ class UserModel
     // ---------------------------------------------------------------
     public function increaseFailCount(string $userId): void
     {
-        $this->pdo->prepare("
+        $this->db->prepare("
             UPDATE auth_users
                SET login_fail_count = login_fail_count + 1
              WHERE id = ?
@@ -166,7 +168,7 @@ class UserModel
 
     public function getFailCount(string $userId): int
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             SELECT COALESCE(login_fail_count, 0)
               FROM auth_users
              WHERE id = ?
@@ -181,7 +183,7 @@ class UserModel
     // ---------------------------------------------------------------
     public function lockAccount(string $userId, int $minutes): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             UPDATE auth_users
                SET account_locked_until = DATE_ADD(NOW(), INTERVAL ? MINUTE)
              WHERE id = ?
@@ -192,7 +194,7 @@ class UserModel
 
     public function unlockAccount(string $userId): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             UPDATE auth_users
                SET account_locked_until = NULL,
                    login_fail_count = 0
@@ -207,7 +209,7 @@ class UserModel
     // ---------------------------------------------------------------
     public function updateLastLogin(string $userId, string $ip, ?string $device = null): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             UPDATE auth_users
                SET last_login       = NOW(),
                    login_fail_count = 0,
@@ -224,7 +226,7 @@ class UserModel
     // ---------------------------------------------------------------
     public function approve(string $userId, string $approvedBy): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             UPDATE auth_users
                SET approved    = 1,
                    approved_at = NOW(),
@@ -240,7 +242,7 @@ class UserModel
     // ---------------------------------------------------------------
     public function setActive(string $userId, int $active, ?string $updatedBy = null): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             UPDATE auth_users
                SET is_active = ?, 
                    updated_at = NOW(),
@@ -256,7 +258,7 @@ class UserModel
     // ---------------------------------------------------------------
     public function softDelete(string $userId, ?string $deletedBy = null): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             UPDATE auth_users
                SET deleted_at = NOW(),
                    deleted_by = ?
@@ -268,7 +270,7 @@ class UserModel
 
     public function restore(string $userId): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             UPDATE auth_users
                SET deleted_at = NULL,
                    deleted_by = NULL
@@ -283,7 +285,7 @@ class UserModel
     // ---------------------------------------------------------------
     public function updateNotifySettings(string $userId, int $emailNotify, int $smsNotify): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             UPDATE auth_users
                SET email_notify = ?, 
                    sms_notify    = ?, 
@@ -299,7 +301,7 @@ class UserModel
     // ---------------------------------------------------------------
     public function update2FA(string $userId, int $enabled): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             UPDATE auth_users
                SET two_factor_enabled = ?, 
                    updated_at          = NOW()
@@ -366,7 +368,7 @@ class UserModel
              WHERE id = :id
         ";
 
-        $stmt = $this->pdo->prepare($sql);
+        $stmt = $this->db->prepare($sql);
         return $stmt->execute($params);
     }
 
@@ -375,7 +377,7 @@ class UserModel
     // ---------------------------------------------------------------
     public function isSamePassword(string $userId, string $newPassword): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             SELECT password 
             FROM auth_users 
             WHERE id = ?
@@ -395,7 +397,7 @@ class UserModel
     // ---------------------------------------------------------------
     public function approveUserFull(string $userId, string $approvedBy): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             UPDATE auth_users
             SET approved    = 1,
                 approved_by = :admin,
@@ -415,7 +417,7 @@ class UserModel
     // ---------------------------------------------------------------
     public function getUsername(string $userId): ?string
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             SELECT username
             FROM auth_users
             WHERE id = ?
@@ -430,14 +432,19 @@ class UserModel
     } 
     
 
-    public function hardDeleteByUserId(string $userId): bool
+    /* =========================================================
+    * 사용자 삭제 (auth_users.id 기준)
+    * ========================================================= */
+    public function hardDeleteById(string $id): bool
     {
-        $sql = "DELETE FROM auth_users WHERE id = ?";
-        $stmt = $this->pdo->prepare($sql);
-    
-        return $stmt->execute([$userId]);
-    }
+        $sql = "DELETE FROM auth_users WHERE id = :id";
 
+        $stmt = $this->db->prepare($sql);
+
+        return $stmt->execute([
+            'id' => $id
+        ]);
+    }
     
 }
 

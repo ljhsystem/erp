@@ -8,7 +8,7 @@
     console.log('[base-brand.js] loaded');
     
     const API_GET    = "/api/settings/base-info/brand/active-type";
-    const API_UPLOAD = "/api/settings/base-info/brand/upload";
+    const API_UPLOAD = "/api/settings/base-info/brand/save";
 
     const $wrapper = $("#brand-settings-wrapper");
 
@@ -84,7 +84,7 @@
             // 🔥 미리보기 이미지 설정
             $img.attr("src", res.data.url).show();
         }, "json").fail(function () {
-            console.error("❌ API 호출 실패: /api/settings/base-info/brand/get");
+            console.error("❌ API 호출 실패: /api/settings/base-info/brand/detail");
         });
     }
 
@@ -254,7 +254,7 @@
         console.log(`🗑 삭제 요청: ${fileId}`); // 🔥 디버깅 로그 추가
         if (!confirm("이 파일을 삭제하시겠습니까?")) return;
 
-        $.post("/api/settings/base-info/brand/delete", { file_id: fileId }, function (res) {
+        $.post("/api/settings/base-info/brand/purge", { file_id: fileId }, function (res) {
             console.log("🗑 삭제 API 응답:", res); // 🔥 디버깅 로그 추가
             if (res.success) {
                 alert("파일이 삭제되었습니다.");
@@ -263,7 +263,7 @@
                 alert(res.message || "파일 삭제에 실패했습니다.");
             }
         }, "json").fail(function () {
-            console.error("❌ API 호출 실패: /api/settings/base-info/brand/delete");
+            console.error("❌ API 호출 실패: /api/settings/base-info/brand/purge");
         });
     };
 

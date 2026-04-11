@@ -4,14 +4,17 @@
 namespace App\Models\System;
 
 use PDO;
+use Core\Database;
 
 class BankAccountModel
 {
+    // PDO 보관
     private PDO $db;
 
+    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
     public function __construct(?PDO $pdo = null)
     {
-        $this->db = $pdo ?: \Core\Database::getInstance()->getConnection();
+        $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
     /* =========================================================
@@ -21,106 +24,145 @@ class BankAccountModel
     {
         $sql = "
             SELECT
-                a.*,
-
-                CASE 
-                    WHEN a.created_by LIKE 'SYSTEM:%' THEN a.created_by
-                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
-                    ELSE a.created_by
-                END AS created_by_name,
-
-                CASE 
-                    WHEN a.updated_by LIKE 'SYSTEM:%' THEN a.updated_by
-                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
-                    ELSE a.updated_by
-                END AS updated_by_name,
-
-                CASE 
-                    WHEN a.deleted_by LIKE 'SYSTEM:%' THEN a.deleted_by
-                    WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
-                    ELSE a.deleted_by
-                END AS deleted_by_name
-
+                a.*
             FROM system_bank_accounts a
-
-            LEFT JOIN user_employees p1
-                ON a.created_by NOT LIKE 'SYSTEM:%'
-                AND p1.user_id = REPLACE(a.created_by, 'USER:', '')
-
-            LEFT JOIN user_employees p2
-                ON a.updated_by NOT LIKE 'SYSTEM:%'
-                AND p2.user_id = REPLACE(a.updated_by, 'USER:', '')
-
-            LEFT JOIN user_employees p3
-                ON a.deleted_by NOT LIKE 'SYSTEM:%'
-                AND p3.user_id = REPLACE(a.deleted_by, 'USER:', '')
-
             WHERE a.deleted_at IS NULL
         ";
-
+    
         $params = [];
-
+    
         /* =========================================================
-        * 필터 (거래처 구조 동일 적용)
-        * ========================================================= */
-        if (!empty($filters)) {
-
-            $allowed = [
-                'code','bank_name','account_number','account_holder',
-                'account_type','is_active','note',
-                'created_at','updated_at'
-            ];
-
-            $likeFields = [
-                'bank_name','account_number','account_holder','note'
-            ];
-
-            $dateFields = ['created_at','updated_at'];
-
-            foreach ($filters as $f) {
-
-                $field = $f['field'] ?? '';
-                $value = $f['value'] ?? '';
-
-                if (!in_array($field, $allowed, true)) continue;
-                if ($value === '' || $value === null) continue;
-
-                // 날짜
-                if (in_array($field, $dateFields, true)) {
-
-                    if (is_array($value) && isset($value['start'], $value['end'])) {
-                        $sql .= " AND a.$field BETWEEN ? AND ?";
-                        $params[] = $value['start'];
-                        $params[] = $value['end'];
-                    } else {
-                        $sql .= " AND a.$field = ?";
-                        $params[] = $value;
-                    }
-
-                    continue;
+         * 🔥 전체 컬럼 맵 (빠짐없이)
+         * ========================================================= */
+        $fieldMap = [
+    
+            // 기본
+            'code'            => ['col'=>'a.code','type'=>'exact'],
+            'account_name'    => ['col'=>'a.account_name','type'=>'like'],
+            'bank_name'       => ['col'=>'a.bank_name','type'=>'like'],
+            'account_number'  => ['col'=>'a.account_number','type'=>'like'],
+            'account_holder'  => ['col'=>'a.account_holder','type'=>'like'],
+            'account_type'    => ['col'=>'a.account_type','type'=>'like'],
+            'currency'        => ['col'=>'a.currency','type'=>'like'],
+    
+            // 파일
+            'bank_file'       => ['col'=>'a.bank_file','type'=>'like'],
+    
+            // 메모
+            'note'            => ['col'=>'a.note','type'=>'like'],
+            'memo'            => ['col'=>'a.memo','type'=>'like'],
+    
+            // 상태
+            'is_active'       => ['col'=>'a.is_active','type'=>'exact'],
+    
+            // 날짜
+            'created_at'      => ['col'=>'a.created_at','type'=>'date'],
+            'updated_at'      => ['col'=>'a.updated_at','type'=>'date'],
+        ];
+    
+        $globalSearch = [];
+    
+        /* =========================================================
+         * 🔥 필터 처리
+         * ========================================================= */
+        foreach ($filters as $f) {
+    
+            $field = $f['field'] ?? '';
+            $value = $f['value'] ?? '';
+    
+            if ($value === '' || $value === null) continue;
+    
+            // 🔥 전체검색
+            if ($field === '') {
+                $globalSearch[] = $value;
+                continue;
+            }
+    
+            if (!isset($fieldMap[$field])) continue;
+    
+            $col  = $fieldMap[$field]['col'];
+            $type = $fieldMap[$field]['type'];
+    
+            // 날짜
+            if ($type === 'date') {
+    
+                if (is_array($value)) {
+                    $sql .= " AND DATE($col) BETWEEN ? AND ?";
+                    $params[] = $value['start'];
+                    $params[] = $value['end'];
+                } else {
+                    $sql .= " AND DATE($col) = ?";
+                    $params[] = $value;
                 }
-
-                // LIKE
-                if (in_array($field, $likeFields, true)) {
-                    $sql .= " AND a.$field LIKE ?";
-                    $params[] = "%{$value}%";
-                    continue;
-                }
-
-                // 일반
-                $sql .= " AND a.$field = ?";
+                continue;
+            }
+    
+            // LIKE
+            if ($type === 'like') {
+                $sql .= " AND $col LIKE ?";
+                $params[] = "%{$value}%";
+                continue;
+            }
+    
+            // EXACT
+            if ($type === 'exact') {
+                $sql .= " AND $col = ?";
                 $params[] = $value;
+                continue;
             }
         }
-
+    
         /* =========================================================
-        * 정렬
-        * ========================================================= */
+         * 🔥 전체검색 (모든 텍스트 컬럼)
+         * ========================================================= */
+        if (!empty($globalSearch)) {
+    
+            $searchCols = [
+    
+                'a.account_name',
+                'a.bank_name',
+                'a.account_number',
+                'a.account_holder',
+                'a.account_type',
+                'a.currency',
+                'a.note',
+                'a.memo'
+            ];
+    
+            $sql .= " AND (";
+    
+            $first = true;
+    
+            foreach ($globalSearch as $keyword) {
+    
+                if (!$first) $sql .= " OR ";
+    
+                $sql .= "(";
+    
+                $colFirst = true;
+    
+                foreach ($searchCols as $col) {
+    
+                    if (!$colFirst) $sql .= " OR ";
+    
+                    $sql .= "$col LIKE ?";
+                    $params[] = "%{$keyword}%";
+    
+                    $colFirst = false;
+                }
+    
+                $sql .= ")";
+                $first = false;
+            }
+    
+            $sql .= ")";
+        }
+    
         $sql .= " ORDER BY a.code ASC";
-
+    
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
-
+    
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -176,39 +218,57 @@ class BankAccountModel
         return $row ?: null;
     }
 
-    /* -------------------------------------------------------------
-    * 계좌 검색 자동완성
-    * ------------------------------------------------------------- */
-    public function searchPicker(string $keyword): array
+    /* =========================================================
+    * 계좌 검색 (Model - RAW 데이터 반환)
+    * ========================================================= */
+    public function searchPicker(string $keyword = '', int $limit = 20): array
     {
-        $stmt = $this->db->prepare("
+        $limit = max(1, min(100, (int)$limit));
+
+        $keyword = trim($keyword);
+        $like = '%' . $keyword . '%';
+        $prefix = $keyword . '%';
+
+        $sql = "
             SELECT 
-                id, 
-                code, 
+                id,
+                code,
                 account_name,
-                bank_name, 
-                account_number, 
+                bank_name,
+                account_number,
                 account_holder
+
             FROM system_bank_accounts
+
             WHERE deleted_at IS NULL
             AND (
-                bank_name LIKE ?
-                OR account_number LIKE ?
-                OR account_holder LIKE ?
-                OR account_name LIKE ? 
+                bank_name LIKE :k1
+                OR account_number LIKE :k2
+                OR account_holder LIKE :k3
+                OR account_name LIKE :k4
             )
-            ORDER BY bank_name
-            LIMIT 20
-        ");
-    
-        $stmt->execute([
-            "%{$keyword}%",
-            "%{$keyword}%",
-            "%{$keyword}%",
-            "%{$keyword}%"
-        ]);
-    
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            ORDER BY
+                CASE
+                    WHEN account_name LIKE :prefix THEN 0
+                    ELSE 1
+                END,
+                account_name ASC
+
+            LIMIT {$limit}
+        ";
+
+        $stmt = $this->db->prepare($sql);
+
+        $stmt->bindValue(':k1', $like, PDO::PARAM_STR);
+        $stmt->bindValue(':k2', $like, PDO::PARAM_STR);
+        $stmt->bindValue(':k3', $like, PDO::PARAM_STR);
+        $stmt->bindValue(':k4', $like, PDO::PARAM_STR);
+        $stmt->bindValue(':prefix', $prefix, PDO::PARAM_STR);
+
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
     /* =========================================================

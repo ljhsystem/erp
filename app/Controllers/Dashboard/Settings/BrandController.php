@@ -122,7 +122,7 @@ class BrandController //기능묶음 단위
     API: 브랜드 자산 삭제
   
     ============================================================ */
-    public function apiDelete()
+    public function apiPurge()
     {
         header('Content-Type: application/json; charset=utf-8');
 
@@ -132,7 +132,7 @@ class BrandController //기능묶음 단위
             return;
         }
 
-        $result = $this->service->delete($fileId);
+        $result = $this->service->purge($fileId);
 
         // 🔥 디버깅 로그 추가
         error_log("🗑 apiBrandDelete 응답: " . json_encode($result));

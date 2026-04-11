@@ -3,15 +3,19 @@
 namespace App\Models\Dashboard;
 
 use PDO;
+use Core\Database;
 
 class CalendarVisibilityModel
-{
-    private PDO $db;
+{  
     private string $table = 'dashboard_calendar_visibility';
+    
+    // PDO 보관
+    private PDO $db;
 
-    public function __construct(PDO $pdo)
+    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
+    public function __construct(?PDO $pdo = null)
     {
-        $this->db = $pdo;
+        $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
     public function upsert(array $data): void

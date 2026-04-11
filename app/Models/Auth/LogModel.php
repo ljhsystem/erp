@@ -3,14 +3,17 @@
 namespace App\Models\Auth;
 
 use PDO;
+use Core\Database;
 
 class LogModel
 {
-    private PDO $pdo;
+    // PDO 보관
+    private PDO $db;
 
-    public function __construct(PDO $pdo)
+    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
+    public function __construct(?PDO $pdo = null)
     {
-        $this->pdo = $pdo;
+        $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
     // ---------------------------------------------------------------
@@ -52,7 +55,7 @@ class LogModel
                 )
             ";
 
-            $stmt = $this->pdo->prepare($sql);
+            $stmt = $this->db->prepare($sql);
 
             return $stmt->execute([
                 ':id'            => $data['id'],                      // ⭐ 서비스에서 전달된 UUID 사용
@@ -80,7 +83,7 @@ class LogModel
     // ---------------------------------------------------------------
     public function getUserLogs(string $userId, int $limit = 50): array
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             SELECT *
               FROM auth_logs
              WHERE user_id = :uid
@@ -99,7 +102,7 @@ class LogModel
     // ---------------------------------------------------------------
     public function getRecentAuthLogs(int $limit = 50): array
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             SELECT *
               FROM auth_logs
              WHERE log_type = 'auth'
@@ -117,7 +120,7 @@ class LogModel
     // ---------------------------------------------------------------
     public function getLogsByAction(string $actionType, int $limit = 50): array
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             SELECT *
               FROM auth_logs
              WHERE action_type = :act
@@ -136,7 +139,7 @@ class LogModel
     // ---------------------------------------------------------------
     public function getApprovalLogs(int $limit = 50): array
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             SELECT *
               FROM auth_logs
              WHERE action_type = 'approve'
@@ -154,7 +157,7 @@ class LogModel
     // ---------------------------------------------------------------
     public function getUserApprovalLogs(string $userId, int $limit = 50): array
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             SELECT *
               FROM auth_logs
              WHERE action_type = 'approve'

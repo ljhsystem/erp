@@ -20,7 +20,7 @@ $pageScripts = $pageScripts ?? '';
 $pageStyles = AssetHelper::css('/assets/css/pages/auth/profile.css');
 $pageScripts =
     AssetHelper::js('/assets/js/common/address.js') .
-    AssetHelper::js('/assets/js/pages/auth/profile.js');
+    AssetHelper::module('/assets/js/pages/auth/profile.js');
 ?>
 <main class="container py-4" style="max-width:720px;">
   <div class="profile-card bg-white shadow-sm rounded-4 p-4">

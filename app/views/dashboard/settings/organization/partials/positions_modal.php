@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/views/dashboard/partials/organization_position_modal_edit.php';
+// 경로: PROJECT_ROOT . '/app/views/dashboard/partials/position_modal_edit.php';
 ?>
 <div class="modal fade" id="positionEditModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">

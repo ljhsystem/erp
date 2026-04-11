@@ -3,14 +3,17 @@
 namespace App\Models\User;
 
 use PDO;
+use Core\Database;
 
 class ApprovalRequestStepModel
 {
-    private PDO $pdo;
+    // PDO 보관
+    private PDO $db;
 
-    public function __construct(PDO $pdo)
+    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
+    public function __construct(?PDO $pdo = null)
     {
-        $this->pdo = $pdo;
+        $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
     /* ============================================================
@@ -18,7 +21,7 @@ class ApprovalRequestStepModel
      * ============================================================ */
     public function getSteps(string $requestId): array
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             SELECT *
             FROM user_approval_request_steps
             WHERE request_id = ?
@@ -34,7 +37,7 @@ class ApprovalRequestStepModel
      * ============================================================ */
     public function getById(string $id): ?array
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             SELECT *
             FROM user_approval_request_steps
             WHERE id = ?
@@ -50,7 +53,7 @@ class ApprovalRequestStepModel
      * ============================================================ */
     public function create(array $data): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             INSERT INTO user_approval_request_steps (
                 id, request_id, sequence,
                 approver_id, role_id,
@@ -73,7 +76,7 @@ class ApprovalRequestStepModel
      * ============================================================ */
     public function updateStatus(string $id, string $status, ?string $comment, ?string $updatedBy): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             UPDATE user_approval_request_steps
             SET 
                 status      = :status,
@@ -98,7 +101,7 @@ class ApprovalRequestStepModel
      * ============================================================ */
     public function delete(string $id): bool
     {
-        $stmt = $this->pdo->prepare("
+        $stmt = $this->db->prepare("
             DELETE FROM user_approval_request_steps
             WHERE id = ?
         ");
