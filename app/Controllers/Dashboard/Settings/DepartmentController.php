@@ -25,7 +25,7 @@ class DepartmentController
     // ============================================================
     public function webIndex()
     {
-        include PROJECT_ROOT . '/app/views/dashboard/settings/employee/departments.php';
+        include PROJECT_ROOT . '/app/views/dashboard/settings/organization/departments.php';
     }
 
     // ============================================================
@@ -38,12 +38,34 @@ class DepartmentController
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $rows = $this->service->getAll();
+        try {
+            $filters = [];
 
-        echo json_encode([
-            'success' => true,
-            'data'    => $rows
-        ], JSON_UNESCAPED_UNICODE);
+            $rawFilters = $_GET['filters'] ?? $_POST['filters'] ?? '';
+
+            if ($rawFilters !== '') {
+                $decoded = json_decode($rawFilters, true);
+
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $filters = $decoded;
+                }
+            }
+
+            $rows = $this->service->getAll($filters);
+
+            echo json_encode([
+                'success' => true,
+                'data'    => $rows
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            echo json_encode([
+                'success' => false,
+                'message' => '부서 목록 조회 실패',
+                'error'   => $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE);
+        }
+
+        exit;
     }
 
     // ============================================================
@@ -173,5 +195,20 @@ class DepartmentController
             'success' => (bool)$ok,
             'message' => '부서 삭제 완료'
         ];
+    }
+    public function apiReorder()
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+
+        $changes = json_decode(file_get_contents('php://input'), true)['changes'] ?? [];
+
+        if (!$changes) {
+            echo json_encode(['success' => false, 'message' => '변경 데이터 없음']);
+            return;
+        }
+
+        $this->service->reorder($changes);
+
+        echo json_encode(['success' => true]);
     }
 }

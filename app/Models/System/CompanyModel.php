@@ -32,6 +32,12 @@ class CompanyModel
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
+    public function countAll(): int
+    {
+        $stmt = $this->db->query("SELECT COUNT(*) FROM system_company");
+        return (int) $stmt->fetchColumn();
+    }
+
     /* =========================================================
      * 회사 정보 신규 생성
      * ========================================================= */

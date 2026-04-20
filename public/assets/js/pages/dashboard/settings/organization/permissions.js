@@ -1,143 +1,487 @@
-// 경로: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/organization/permissions.table.js'
+import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
+import {
+    createDataTable,
+    updateTableHeight,
+    forceTableHeightSync,
+    bindTableHighlight
+} from '/public/assets/js/components/data-table.js';
+import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
+import { SearchForm } from '/public/assets/js/components/search-form.js';
 
-(function () {
-    "use strict";
+window.AdminPicker = AdminPicker;
 
-    console.log("permissions.table.js Loaded");
+(() => {
+    'use strict';
 
-    const API_LIST   = "/api/settings/organization/permission/list";
-    const API_SAVE   = "/api/settings/organization/permission/save";
-    const API_DELETE = "/api/settings/organization/permission/delete";
-    
+    console.log('[permissions.js] loaded');
 
-    window.EmployeePermissionsTable = {
-        instance: null,
-
-        init() {
-            const $wrapper = $("#permissions-table-wrapper");
-            const $table   = $("#permissions-table");
-
-            if (!$table.length) return;
-
-            /* ----------------------------------
-               1) 초기 깜빡임 제거
-               ---------------------------------- */
-            $wrapper.hide();
-            $table.hide();
-
-            /* ----------------------------------
-               2) DataTable 초기화
-               ---------------------------------- */
-            this.instance = $table.DataTable({
-                ajax: {
-                    url: API_LIST,
-                    type: "POST",
-                    dataSrc(json) {
-                        if (!json || json.success === false) {
-                            console.error("❌ 권한 목록 로딩 실패:", json);
-                            return [];
-                        }
-                        return json.data ?? [];
-                    }
-                },
-
-                processing: true,
-                deferRender: true,
-                responsive: true,
-                autoWidth: false,
-
-                columns: [
-                    { data: "code" },              // 권한 코드
-                    { data: "permission_key" },    // 권한 Key
-                    { data: "permission_name" },   // 권한명
-                    { data: "description" },       // 설명
-                    { data: "category" },          // 카테고리
-                    {
-                        data: "is_active",
-                        render(data) {
-                            return data == 1
-                                ? `<span class="badge bg-success">활성</span>`
-                                : `<span class="badge bg-secondary">비활성</span>`;
-                        },
-                        className: "text-center"
-                    }
-                ],
-
-                dom: '<"top-bar"<"dt-search"f><"dt-buttons"B><"dt-length"l>>rt<"bottom"ip><"clear">',
-
-                buttons: [
-                    { extend: "colvis", text: "열 표시", className: "btn btn-secondary btn-sm" },
-                    "copy",
-                    "excel",
-                    {
-                        extend: "print",
-                        text: "인쇄",
-                        exportOptions: { stripHtml: false }
-                    },
-                    {
-                        text: "새 권한 추가",
-                        className: "btn btn-warning btn-sm ms-2",
-                        action() {
-                            $(document).trigger("permissions:create-open");
-                        }
-                    }
-                ],
-
-                order: [[0, "asc"]],
-                pageLength: 10,
-                lengthMenu: [5, 10, 20, 50, 100],
-
-                language: {
-                    lengthMenu: "페이지당 _MENU_ 개씩 보기",
-                    zeroRecords: "데이터가 없습니다.",
-                    info: "_PAGE_ 페이지 / 총 _PAGES_ 페이지",
-                    infoEmpty: "데이터 없음",
-                    infoFiltered: "(총 _MAX_개 중 필터링됨)",
-                    search: "검색:",
-                    paginate: {
-                        first: "처음",
-                        last: "끝",
-                        next: "다음",
-                        previous: "이전"
-                    }
-                }
-            });
-
-            /* ----------------------------------
-               3) 초기화 완료 후 표시
-               ---------------------------------- */
-            this.instance.on("init.dt", function () {
-                $table.show();
-                $wrapper.show();
-            });
-
-            this.bindEvents();
-        },
-
-        /* ----------------------------------
-           4) 더블클릭 → 수정 모달 열기
-           ---------------------------------- */
-        bindEvents() {
-            const dt = this.instance;
-
-            $("#permissions-table tbody").on("dblclick", "tr", function () {
-                const row = dt.row(this).data();
-                if (row) {
-                    $(document).trigger("permissions:edit-open", [row]);
-                }
-            });
-        },
-
-        /* ----------------------------------
-           5) 테이블 Reload
-           ---------------------------------- */
-        reload() {
-            this.instance?.ajax.reload(null, false);
-        }
+    const API = {
+        LIST: '/api/settings/organization/permission/list',
+        SAVE: '/api/settings/organization/permission/save',
+        REORDER: '/api/settings/organization/permission/reorder'
     };
 
-    $(function () {
-        window.EmployeePermissionsTable?.init();
+    const PERMISSION_COLUMN_MAP = {
+        code:            { label: '코드', visible: true },
+        category:        { label: '카테고리', visible: true },
+        permission_name: { label: '퍼미션명', visible: true },
+        permission_key:  { label: '퍼미션키', visible: true },
+        is_active:       { label: '상태', visible: true, noVis: true },
+        description:     { label: '설명', visible: false },
+        created_at:      { label: '등록일자', visible: false },
+        updated_at:      { label: '수정일자', visible: false }
+    };
+
+    const DATE_OPTIONS = [
+        { value: 'created_at', label: '등록일자' },
+        { value: 'updated_at', label: '수정일자' }
+    ];
+
+    let permissionTable = null;
+    let permissionModal = null;
+    let todayPicker = null;
+    let globalBound = false;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        if (!window.jQuery) {
+            console.error('[permissions.js] jQuery not loaded');
+            return;
+        }
+
+        initPermissionPage(window.jQuery);
     });
 
+    function initPermissionPage($) {
+        initModal();
+        initAdminDatePicker();
+        bindAdminDateInputs();
+        initDataTable($);
+        bindRowReorder(permissionTable, { api: API.REORDER });
+        bindTableEvents($);
+        bindModalEvents($);
+        bindTableLayoutEvents(permissionTable, '#permission-table');
+        bindGlobalEvents();
+    }
+
+    function initModal() {
+        const modalEl = document.getElementById('permissionEditModal');
+        if (!modalEl) return;
+
+        permissionModal = new bootstrap.Modal(modalEl, { focus: false });
+
+        modalEl.addEventListener('shown.bs.modal', () => {
+            document.getElementById('permission_edit_name')?.focus();
+        });
+
+        modalEl.addEventListener('hidden.bs.modal', () => {
+            resetPermissionForm();
+        });
+    }
+
+    function initAdminDatePicker() {
+        if (todayPicker) return todayPicker;
+
+        const container = document.getElementById('today-picker');
+        if (!container) return null;
+
+        todayPicker = AdminPicker.create({
+            type: 'today',
+            container
+        });
+
+        todayPicker.subscribe((_, date) => {
+            const input = todayPicker.__target;
+            if (!input || !date) return;
+
+            input.value = formatDate(date);
+            normalizeStartEnd(input.name === 'dateStart' ? 'start' : 'end');
+            todayPicker.close();
+        });
+
+        return todayPicker;
+    }
+
+    function bindAdminDateInputs() {
+        document.querySelectorAll('.admin-date').forEach(input => {
+            if (input.__permissionDateBound) return;
+            input.__permissionDateBound = true;
+
+            input.addEventListener('click', e => {
+                e.preventDefault();
+                e.stopPropagation();
+                openDatePicker(input);
+            });
+        });
+
+        document.querySelectorAll('.date-icon').forEach(icon => {
+            if (icon.__permissionDateBound) return;
+            icon.__permissionDateBound = true;
+
+            icon.addEventListener('click', e => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const wrap = icon.closest('.date-input, .date-input-wrap');
+                const input = wrap ? wrap.querySelector('input') : null;
+                if (input) openDatePicker(input);
+            });
+        });
+    }
+
+    function openDatePicker(input) {
+        const picker = initAdminDatePicker();
+        if (!picker) return;
+
+        picker.__target = input;
+
+        if (typeof picker.clearDate === 'function') {
+            picker.clearDate();
+        }
+
+        const value = input.value;
+        if (value) {
+            const date = new Date(value);
+            if (!Number.isNaN(date.getTime())) {
+                picker.setDate(date);
+            }
+        }
+
+        picker.open({ anchor: input });
+    }
+
+    function initDataTable($) {
+        const columns = buildPermissionColumns();
+
+        permissionTable = createDataTable({
+            tableSelector: '#permission-table',
+            api: API.LIST,
+            columns,
+            defaultOrder: [[1, 'asc']],
+            pageLength: 10,
+            buttons: [
+                {
+                    text: '새 권한',
+                    className: 'btn btn-primary btn-sm',
+                    action: function () {
+                        openCreateModal();
+                    }
+                }
+            ]
+        });
+
+        window.PermissionTable = permissionTable;
+        window.EmployeePermissionsTable = {
+            instance: permissionTable,
+            reload: () => permissionTable?.ajax.reload(null, false)
+        };
+
+        if (permissionTable) {
+            SearchForm({
+                table: permissionTable,
+                apiList: API.LIST,
+                tableId: 'permission',
+                defaultSearchField: 'permission_name',
+                dateOptions: DATE_OPTIONS
+            });
+
+            updateTableHeight(permissionTable, '#permission-table');
+            bindTableHighlight('#permission-table', permissionTable);
+
+            permissionTable.on('draw', updatePermissionCountFromTable);
+            updatePermissionCountFromTable();
+        }
+    }
+
+    function buildPermissionColumns() {
+        const columns = [];
+
+        columns.push({
+            title: '<i class="bi bi-arrows-move"></i>',
+            width: '40px',
+            className: 'reorder-handle no-colvis text-center',
+            orderable: false,
+            searchable: false,
+            render: () => '<i class="bi bi-list"></i>'
+        });
+
+        Object.entries(PERMISSION_COLUMN_MAP).forEach(([field, config]) => {
+            columns.push({
+                data: field,
+                title: config.label,
+                visible: config.visible ?? true,
+                className: config.noVis ? 'noVis text-center' : '',
+                defaultContent: '',
+                render: function (data, type) {
+                    if (data == null) return '';
+                    if (type !== 'display') return data;
+
+                    if (field === 'is_active') {
+                        return String(data) === '1'
+                            ? '<span class="badge bg-success">활성</span>'
+                            : '<span class="badge bg-secondary">비활성</span>';
+                    }
+
+                    return escapeHtml(data);
+                }
+            });
+        });
+
+        return columns;
+    }
+
+    function bindTableEvents($) {
+        $('#permission-table tbody')
+            .off('dblclick.permissionEdit', 'tr')
+            .on('dblclick.permissionEdit', 'tr', function () {
+                const data = permissionTable.row(this).data();
+                if (data) openEditModal(data);
+            });
+
+        $('#permission-table tbody')
+            .off('click.permissionCellSearch', 'td')
+            .on('click.permissionCellSearch', 'td', function () {
+                const cell = permissionTable.cell(this);
+                const idx = cell.index();
+                if (!idx) return;
+
+                const field = permissionTable.column(idx.column).dataSrc();
+                if (!field || field === 'is_active') return;
+
+                const value = cell.data();
+                const $first = $('#permissionSearchConditions .search-condition').first();
+                $first.find('select').val(field);
+                $first.find('input').val(stripHtml(String(value ?? '')).trim());
+            });
+    }
+
+    function bindModalEvents($) {
+        $(document)
+            .off('submit.permissionForm', '#permission-edit-form')
+            .on('submit.permissionForm', '#permission-edit-form', async function (e) {
+                e.preventDefault();
+                await savePermission();
+            });
+
+        $(document)
+            .off('click.permissionDelete', '#permission_edit_delete_btn')
+            .on('click.permissionDelete', '#permission_edit_delete_btn', async function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const id = $('#permission_edit_id').val();
+                if (!id) return;
+                if (!confirm('권한을 영구삭제하시겠습니까?')) return;
+
+                await deletePermission(id);
+            });
+    }
+
+    function openCreateModal() {
+        resetPermissionForm();
+        setPermissionModalMode('create');
+        permissionModal?.show();
+    }
+
+    function openEditModal(row) {
+        resetPermissionForm();
+        setPermissionModalMode('edit');
+
+        $('#permission_edit_id').val(row.id || '');
+        $('#permission_edit_name').val(row.permission_name || '');
+        $('#permission_edit_category').val(row.category || '');
+        $('#permission_edit_key').val(row.permission_key || '');
+        $('#permission_edit_description').val(row.description || '');
+        $('#permission_edit_is_active').prop('checked', String(row.is_active) === '1');
+
+        permissionModal?.show();
+    }
+
+    function setPermissionModalMode(mode) {
+        const isCreate = mode === 'create';
+        $('#permissionEditModal .modal-title').text(isCreate ? '권한 등록' : '권한 수정');
+        $('#permission_edit_delete_btn')
+            .text('영구삭제')
+            .toggle(!isCreate);
+    }
+
+    function resetPermissionForm() {
+        const form = document.getElementById('permission-edit-form');
+        form?.reset();
+
+        $('#permission_edit_id').val('');
+        $('#permission_edit_is_active').prop('checked', true);
+        setPermissionModalMode('create');
+    }
+
+    async function savePermission() {
+        const id = $('#permission_edit_id').val();
+        const permissionName = String($('#permission_edit_name').val() || '').trim();
+        const permissionKey = String($('#permission_edit_key').val() || '').trim();
+
+        if (!permissionName || !permissionKey) {
+            notify('warning', '퍼미션명과 퍼미션키를 입력하세요.');
+            return;
+        }
+
+        const fd = new FormData(document.getElementById('permission-edit-form'));
+        fd.set('action', id ? 'update' : 'create');
+        fd.set('is_active', $('#permission_edit_is_active').is(':checked') ? '1' : '0');
+
+        try {
+            const res = await fetch(API.SAVE, {
+                method: 'POST',
+                body: fd,
+                credentials: 'include'
+            });
+            const json = await res.json();
+
+            if (!json?.success) {
+                notify('error', resolveSaveMessage(json?.message));
+                return;
+            }
+
+            notify('success', '저장되었습니다.');
+            permissionModal?.hide();
+            reloadPermissionTable();
+        } catch (err) {
+            console.error('[permissions.js] save failed:', err);
+            notify('error', '저장 중 오류가 발생했습니다.');
+        }
+    }
+
+    async function deletePermission(id) {
+        const fd = new FormData();
+        fd.append('action', 'delete');
+        fd.append('id', id);
+
+        try {
+            const res = await fetch(API.SAVE, {
+                method: 'POST',
+                body: fd,
+                credentials: 'include'
+            });
+            const json = await res.json();
+
+            if (!json?.success) {
+                notify('error', json?.message || '삭제 실패');
+                return;
+            }
+
+            notify('success', '삭제되었습니다.');
+            permissionModal?.hide();
+            reloadPermissionTable();
+        } catch (err) {
+            console.error('[permissions.js] delete failed:', err);
+            notify('error', '삭제 중 오류가 발생했습니다.');
+        }
+    }
+
+    function resolveSaveMessage(message) {
+        if (message === 'duplicate_key') return '이미 등록된 퍼미션키입니다.';
+        if (message === 'duplicate') return '이미 등록된 퍼미션키입니다.';
+        return message || '저장 실패';
+    }
+
+    function reloadPermissionTable() {
+        permissionTable?.ajax.reload(() => {
+            updatePermissionCountFromTable();
+            forceTableHeightSync(permissionTable, '#permission-table');
+        }, false);
+    }
+
+    function updatePermissionCountFromTable() {
+        if (!permissionTable?.page) return;
+
+        const info = permissionTable.page.info();
+        const el = document.getElementById('permissionCount');
+        if (el) {
+            el.textContent = `총 ${info?.recordsDisplay ?? 0}건`;
+        }
+    }
+
+    function bindTableLayoutEvents(table, tableSelector) {
+        if (!table) return;
+
+        window.addEventListener('resize', () => {
+            updateTableHeight(table, tableSelector);
+        });
+
+        document.addEventListener('sidebar:toggled', () => {
+            updateTableHeight(table, tableSelector);
+
+            setTimeout(() => {
+                forceTableHeightSync(table, tableSelector);
+            }, 340);
+        });
+    }
+
+    function bindGlobalEvents() {
+        if (globalBound) return;
+        globalBound = true;
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key !== 'Escape') return;
+
+            if (todayPicker && typeof todayPicker.close === 'function') {
+                const pickerEl = document.getElementById('today-picker');
+                if (pickerEl && !pickerEl.classList.contains('is-hidden')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    todayPicker.close();
+                }
+            }
+        });
+    }
+
+    function formatDate(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    function normalizeStartEnd(type) {
+        const start = document.querySelector('#permissionSearchConditionsForm input[name="dateStart"]');
+        const end = document.querySelector('#permissionSearchConditionsForm input[name="dateEnd"]');
+
+        if (!start || !end) return;
+        if (!start.value || !end.value) return;
+
+        if (type === 'start' && start.value > end.value) {
+            end.value = start.value;
+        }
+
+        if (type === 'end' && end.value < start.value) {
+            start.value = end.value;
+        }
+    }
+
+    function notify(type, message) {
+        if (window.AppCore?.notify) {
+            window.AppCore.notify(type, message);
+            return;
+        }
+
+        if (type === 'error' || type === 'warning') {
+            alert(message);
+            return;
+        }
+
+        console.log(message);
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function stripHtml(value) {
+        const div = document.createElement('div');
+        div.innerHTML = value;
+        return div.textContent || '';
+    }
 })();

@@ -1,6 +1,6 @@
 <?php
-// 경로: PROJECT_ROOT/app/Controllers/Dashboard/Settings/SystemController.php
-// 대시보드>설정>시스템설정>사이트정보, 세션관리, 보안정책, 외부연동(API), 외부서비스연동, 파일저장소, 데이터백업, 시스템로그 API 컨트롤러
+// 寃쎈줈: PROJECT_ROOT/app/Controllers/Dashboard/Settings/SystemController.php
+// ??쒕낫???ㅼ젙>?쒖뒪?쒖꽕???ъ씠?몄젙蹂? ?몄뀡愿由? 蹂댁븞?뺤콉, ?몃??곕룞(API), ?몃??쒕퉬?ㅼ뿰?? ?뚯씪??μ냼, ?곗씠?곕갚?? ?쒖뒪?쒕줈洹?API 而⑦듃濡ㅻ윭
 namespace App\Controllers\Dashboard\Settings;
 
 use Core\Session;
@@ -21,8 +21,29 @@ class SystemController
         $this->backupService = new DatabaseBackupService(DbPdo::conn());
     }
 
+    private function respondJson(array $payload, int $status = 200): void
+    {
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
+        http_response_code($status);
+        header('Content-Type: application/json; charset=utf-8');
+
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        if ($json === false) {
+            http_response_code(500);
+            $json = json_encode([
+                'success' => false,
+                'message' => 'JSON 응답 생성에 실패했습니다.'
+            ], JSON_UNESCAPED_UNICODE);
+        }
+
+        echo $json;
+    }
+
     // ============================================================
-    // WEB: 사이트 정보 설정 화면
+    // WEB: ?ъ씠???뺣낫 ?ㅼ젙 ?붾㈃
     // URL: GET /dashboard/settings/system/site
     // permission: web.settings.system.site
     // controller: SystemController@webSite
@@ -33,7 +54,7 @@ class SystemController
     }
 
     // ============================================================
-    // API: 사이트 설정 조회
+    // API: ?ъ씠???ㅼ젙 議고쉶
     // URL: GET /api/settings/system/site/get
     // permission: settings.system.site.view
     // controller: SystemController@apiSiteGet
@@ -44,11 +65,18 @@ class SystemController
         try {
             $rows = $this->systemsettingService->getByCategory('SITE');
 
-            // JS에서 쓰기 좋게 key => value 형태로 변환
+            // JS?먯꽌 ?곌린 醫뗪쾶 key => value ?뺥깭濡?蹂??
             $data = [];
             foreach ($rows as $key => $row) {
                 $data[$key] = $row['config_value'];
             }
+
+            $apiSecret = (string)($data['api_secret'] ?? '');
+            $data['has_api_secret'] = $apiSecret !== '';
+            $data['api_secret_masked'] = $apiSecret !== ''
+                ? str_repeat('*', max(12, min(strlen($apiSecret), 24)))
+                : '';
+            unset($data['api_secret']);
 
             echo json_encode([
                 'success' => true,
@@ -64,7 +92,7 @@ class SystemController
     }
 
     // ============================================================
-    // API: 사이트 설정 저장
+    // API: ?ъ씠???ㅼ젙 ???
     // URL: POST /api/settings/system/site/save
     // permission: settings.system.site.edit
     // controller: SystemController@apiSiteSave
@@ -75,7 +103,7 @@ class SystemController
         try {
             $raw = file_get_contents('php://input');
             if (!$raw) {
-                throw new \Exception('php://input 비어있음');
+                throw new \Exception('php://input 鍮꾩뼱?덉쓬');
             }
 
             $input = json_decode($raw, true);
@@ -84,14 +112,34 @@ class SystemController
             }
 
             if (!is_array($input)) {
-                throw new \Exception('입력 데이터가 배열이 아님');
+                throw new \Exception('?낅젰 ?곗씠?곌? 諛곗뿴???꾨떂');
             }
+            if (!array_key_exists('font_family', $input) && array_key_exists('site_font_family', $input)) {
+                $input['font_family'] = $input['site_font_family'];
+            }
+
+            if (!array_key_exists('site_font_family', $input) && array_key_exists('font_family', $input)) {
+                $input['site_font_family'] = $input['font_family'];
+            }
+
+            if (!array_key_exists('security_inactive_2fa_days', $input) && array_key_exists('security_inactive_warn_days', $input)) {
+                $input['security_inactive_2fa_days'] = $input['security_inactive_warn_days'];
+            }
+
+            if (!array_key_exists('security_inactive_warn_days', $input) && array_key_exists('security_inactive_2fa_days', $input)) {
+                $input['security_inactive_warn_days'] = $input['security_inactive_2fa_days'];
+            }
+
+            if (!array_key_exists('security_login_time_mode', $input) || !in_array($input['security_login_time_mode'], ['2fa', 'block'], true)) {
+                $input['security_login_time_mode'] = '2fa';
+            }
+
             $userId = $_SESSION['user']['id'] ?? null;
 
             $result = $this->systemsettingService->saveBatch(
                 $input,
                 'SITE',
-                $userId,   // ✅ 반드시 전달
+                $userId,   // ??諛섎뱶???꾨떖
                 [
                     'site_description'        => '사이트 소개 문구',
                     'site_slogan'             => '메인 문구',
@@ -112,8 +160,8 @@ class SystemController
                     'theme_mode'              => '테마 모드',
                     'site_title'              => '사이트 제목',
                     'icon_scale'              => '아이콘 크기',
-                    'font_scale'              => '글꼴 크기',
-                    'row_focus'               => '행 포커스',
+                    'font_scale'              => '글자 크기',
+                    'row_focus'               => '행 강조',
                     'ui_skin'                 => 'UI 스킨',
                     'footer_text'             => '푸터 문구'
                 ]
@@ -136,7 +184,7 @@ class SystemController
     }
 
     // ============================================================
-    // WEB: 세션 설정 화면
+    // WEB: ?몄뀡 ?ㅼ젙 ?붾㈃
     // URL: GET /dashboard/settings/system/session
     // permission: web.settings.system.session
     // controller: SystemController@webSession
@@ -147,7 +195,7 @@ class SystemController
     }
 
     // ============================================================
-    // API: 세션 설정 조회
+    // API: ?몄뀡 ?ㅼ젙 議고쉶
     // URL: GET /api/settings/system/session/get
     // permission: api.settings.system.session.view
     // controller: SystemController@apiSessionGet
@@ -159,7 +207,7 @@ class SystemController
         try {
             $rows = $this->systemsettingService->getByCategory('SESSION');
 
-            // JS에서 쓰기 좋은 key => value 구조로 변환
+            // JS?먯꽌 ?곌린 醫뗭? key => value 援ъ“濡?蹂??
             $data = [];
             foreach ($rows as $row) {
                 $data[$row['config_key']] = $row['config_value'];
@@ -179,7 +227,7 @@ class SystemController
     }
 
     // ============================================================
-    // API: 세션 설정 저장
+    // API: ?몄뀡 ?ㅼ젙 ???
     // URL: POST /api/settings/system/session/save
     // permission: api.settings.system.session.edit
     // controller: SystemController@apiSessionSave
@@ -191,7 +239,7 @@ class SystemController
         try {
             $raw = file_get_contents('php://input');
             if (!$raw) {
-                throw new \Exception('php://input 비어있음');
+                throw new \Exception('php://input 鍮꾩뼱?덉쓬');
             }
 
             $input = json_decode($raw, true);
@@ -200,13 +248,13 @@ class SystemController
             }
 
             if (!is_array($input)) {
-                throw new \Exception('입력 데이터가 배열이 아님');
+                throw new \Exception('?낅젰 ?곗씠?곌? 諛곗뿴???꾨떂');
             }
             $userId = $_SESSION['user']['id'] ?? null;
             $result = $this->systemsettingService->saveBatch(
                 $input,
                 'SESSION',
-                $userId,   // ✅
+                $userId,   // ??
                 [
                     'session_timeout' => '세션 유지 시간(분)',
                     'session_alert'   => '세션 만료 알림 시간(분)',
@@ -232,7 +280,7 @@ class SystemController
 
 
     // ============================================================
-    // WEB: 보안 정책 화면
+    // WEB: 蹂댁븞 ?뺤콉 ?붾㈃
     // URL: GET /dashboard/settings/system/security
     // permission: web.settings.system.security
     // controller: SystemController@webSecurity
@@ -243,7 +291,7 @@ class SystemController
     }
 
     // ============================================================
-    // API: 보안 정책 조회
+    // API: 蹂댁븞 ?뺤콉 議고쉶
     // URL: GET /api/settings/system/security/get
     // permission: api.settings.system.security.view
     // controller: SystemController@apiSecurityGet
@@ -275,7 +323,7 @@ class SystemController
     }
 
     // ============================================================
-    // API: 보안 정책 저장
+    // API: 蹂댁븞 ?뺤콉 ???
     // URL: POST /api/settings/system/security/save
     // permission: api.settings.system.security.edit
     // controller: SystemController@apiSecuritySave
@@ -287,7 +335,7 @@ class SystemController
         try {
             $raw = file_get_contents('php://input');
             if (!$raw) {
-                throw new \Exception('php://input 비어있음');
+                throw new \Exception('php://input 鍮꾩뼱?덉쓬');
             }
 
             $input = json_decode($raw, true);
@@ -296,7 +344,7 @@ class SystemController
             }
 
             if (!is_array($input)) {
-                throw new \Exception('입력 데이터가 배열이 아님');
+                throw new \Exception('?낅젰 ?곗씠?곌? 諛곗뿴???꾨떂');
             }
 
             $userId = $_SESSION['user']['id'] ?? null;
@@ -308,41 +356,41 @@ class SystemController
                 [
 
                     /* =====================================================
-                    * 🔐 비밀번호 정책
+                    * ?뵍 鍮꾨?踰덊샇 ?뺤콉
                     * ===================================================== */
-                    'security_password_policy_enabled' => '비밀번호 정책 사용 여부',
-                    'security_password_min'            => '비밀번호 최소 길이',
-                    'security_password_expire'         => '비밀번호 만료 일수',
-                    'security_pw_upper'                => '비밀번호 대문자 필수',
-                    'security_pw_number'               => '비밀번호 숫자 필수',
-                    'security_pw_special'              => '비밀번호 특수문자 필수',
+                    'security_password_policy_enabled' => '鍮꾨?踰덊샇 ?뺤콉 ?ъ슜 ?щ?',
+                    'security_password_min'            => '鍮꾨?踰덊샇 理쒖냼 湲몄씠',
+                    'security_password_expire'         => '鍮꾨?踰덊샇 留뚮즺 ?쇱닔',
+                    'security_pw_upper'                => '鍮꾨?踰덊샇 ?臾몄옄 ?꾩닔',
+                    'security_pw_number'               => '鍮꾨?踰덊샇 ?レ옄 ?꾩닔',
+                    'security_pw_special'              => '鍮꾨?踰덊샇 ?뱀닔臾몄옄 ?꾩닔',
 
                     /* =====================================================
-                    * 🚫 로그인 실패 정책
+                    * ?슟 濡쒓렇???ㅽ뙣 ?뺤콉
                     * ===================================================== */
-                    'security_login_fail_policy_enabled' => '로그인 실패 정책 사용 여부',
-                    'security_login_fail_max'            => '로그인 실패 허용 횟수',
-                    'security_login_lock_minutes'        => '로그인 잠금 시간(분)',
+                    'security_login_fail_policy_enabled' => '濡쒓렇???ㅽ뙣 ?뺤콉 ?ъ슜 ?щ?',
+                    'security_login_fail_max'            => '濡쒓렇???ㅽ뙣 ?덉슜 ?잛닔',
+                    'security_login_lock_minutes'        => '濡쒓렇???좉툑 ?쒓컙(遺?',
 
                     /* =====================================================
-                    * 🔐 접근 보안 강화 (인증 중심)
+                    * ?뵍 ?묎렐 蹂댁븞 媛뺥솕 (?몄쬆 以묒떖)
                     * ===================================================== */
-                    'security_access_policy_enabled' => '접근 보안 정책 사용 여부',
+                    'security_access_policy_enabled' => '?묎렐 蹂댁븞 ?뺤콉 ?ъ슜 ?щ?',
 
-                    // 전 직원 강제 보안
-                    'security_force_2fa'              => '전 직원 2차 인증 강제',
+                    // ??吏곸썝 媛뺤젣 蹂댁븞
+                    'security_force_2fa'              => '??吏곸썝 2李??몄쬆 媛뺤젣',
 
-                    // 행위 기반 보안
-                    'security_new_device_2fa'         => '신규 기기 로그인 시 추가 인증',
-                    'security_login_time_restrict'    => '로그인 시간 제한 사용 여부',
+                    // ?됱쐞 湲곕컲 蹂댁븞
+                    'security_new_device_2fa'         => '?좉퇋 湲곌린 濡쒓렇????異붽? ?몄쬆',
+                    'security_login_time_restrict'    => '濡쒓렇???쒓컙 ?쒗븳 ?ъ슜 ?щ?',
 
-                    // ⏰ 로그인 허용 시간대 (🔥 이게 빠져 있었음)
-                    'security_login_time_start'       => '로그인 허용 시작 시간',
-                    'security_login_time_end'         => '로그인 허용 종료 시간',
+                    // ??濡쒓렇???덉슜 ?쒓컙? (?뵦 ?닿쾶 鍮좎졇 ?덉뿀??
+                    'security_login_time_start'       => '濡쒓렇???덉슜 ?쒖옉 ?쒓컙',
+                    'security_login_time_end'         => '濡쒓렇???덉슜 醫낅즺 ?쒓컙',
 
-                    // 장기 미사용 보호
-                    'security_inactive_warn_days'     => '미접속 경고 후 추가 인증 일수',
-                    'security_inactive_lock_days'     => '미접속 계정 잠금 일수',
+                    // ?κ린 誘몄궗??蹂댄샇
+                    'security_inactive_warn_days'     => '誘몄젒??寃쎄퀬 ??異붽? ?몄쬆 ?쇱닔',
+                    'security_inactive_lock_days'     => '誘몄젒??怨꾩젙 ?좉툑 ?쇱닔',
                 ]
             );
 
@@ -365,7 +413,7 @@ class SystemController
 
 
     // ============================================================
-    // WEB: API 설정 화면
+    // WEB: API ?ㅼ젙 ?붾㈃
     // URL: GET /dashboard/settings/system/api
     // permission: web.settings.system.api
     // controller: SystemController@webApi
@@ -376,7 +424,7 @@ class SystemController
     }
 
     // ============================================================
-    // API: 외부 API 설정 조회
+    // API: ?몃? API ?ㅼ젙 議고쉶
     // URL: GET /api/settings/system/api/get
     // permission: api.settings.system.api.view
     // controller: SystemController@apiApiGet
@@ -388,7 +436,7 @@ class SystemController
         try {
             $rows = $this->systemsettingService->getByCategory('API');
 
-            // JS에서 쓰기 좋은 key => value 구조
+            // JS?먯꽌 ?곌린 醫뗭? key => value 援ъ“
             $data = [];
             foreach ($rows as $key => $row) {
                 $data[$key] = $row['config_value'];
@@ -408,7 +456,7 @@ class SystemController
     }
 
     // ============================================================
-    // API: 외부 API 설정 저장
+    // API: ?몃? API ?ㅼ젙 ???
     // URL: POST /api/settings/system/api/save
     // permission: api.settings.system.api.edit
     // controller: SystemController@apiApiSave
@@ -420,7 +468,7 @@ class SystemController
         try {
             $raw = file_get_contents('php://input');
             if (!$raw) {
-                throw new \Exception('php://input 비어있음');
+                throw new \Exception('php://input 鍮꾩뼱?덉쓬');
             }
 
             $input = json_decode($raw, true);
@@ -429,27 +477,38 @@ class SystemController
             }
 
             if (!is_array($input)) {
-                throw new \Exception('입력 데이터가 배열이 아님');
+                throw new \Exception('?낅젰 ?곗씠?곌? 諛곗뿴???꾨떂');
             }
 
             $userId = $_SESSION['user']['id'] ?? null;
+            $current = $this->systemsettingService->getByCategory('API');
+            $currentKey = (string)($current['api_key']['config_value'] ?? '');
+            $currentSecret = (string)($current['api_secret']['config_value'] ?? '');
+            $regenerateKey = !empty($input['regenerate_api_key']);
+            $regenerateSecret = !empty($input['regenerate_api_secret']);
 
             /* =====================================================
-            * 🔐 API Key / Secret 자동 생성 (핵심)
+            * ?뵍 API Key / Secret ?먮룞 ?앹꽦 (?듭떖)
             * ===================================================== */
 
-            // API Key가 없으면 자동 생성
-            if (empty($input['api_key'])) {
+            // API Key媛 ?놁쑝硫??먮룞 ?앹꽦
+            if ($regenerateKey) {
                 $input['api_key'] = bin2hex(random_bytes(16)); // 32 chars
+            } elseif (empty($input['api_key'])) {
+                $input['api_key'] = $currentKey;
             }
 
-            // API Secret이 없으면 자동 생성
-            if (empty($input['api_secret'])) {
+            // API Secret???놁쑝硫??먮룞 ?앹꽦
+            if ($regenerateSecret) {
                 $input['api_secret'] = bin2hex(random_bytes(32)); // 64 chars
+            } elseif (empty($input['api_secret'])) {
+                $input['api_secret'] = $currentSecret;
             }
+
+            unset($input['regenerate_api_key'], $input['regenerate_api_secret']);
 
             /* =====================================================
-            * 저장
+            * ???
             * ===================================================== */
             $result = $this->systemsettingService->saveBatch(
                 $input,
@@ -457,22 +516,22 @@ class SystemController
                 $userId,
                 [
                     /* =================================================
-                    * 🔑 API 기본 설정
+                    * ?뵎 API 湲곕낯 ?ㅼ젙
                     * ================================================= */
-                    'api_enabled'        => '외부 API 사용 여부',
+                    'api_enabled'        => '?몃? API ?ъ슜 ?щ?',
                     'api_key'            => 'API Key',
                     'api_secret'         => 'API Secret',
 
                     /* =================================================
-                    * ⏱️ 토큰 · 요청 제한
+                    * ?깍툘 ?좏겙 쨌 ?붿껌 ?쒗븳
                     * ================================================= */
-                    'api_token_ttl'      => 'Access Token 만료 시간(초)',
-                    'api_ratelimit'      => 'API 요청 제한(분당)',
+                    'api_token_ttl'      => 'Access Token 留뚮즺 ?쒓컙(珥?',
+                    'api_ratelimit'      => 'API ?붿껌 ?쒗븳(遺꾨떦)',
 
                     /* =================================================
-                    * 🌐 접근 제어 / 연동 정보
+                    * ?뙋 ?묎렐 ?쒖뼱 / ?곕룞 ?뺣낫
                     * ================================================= */
-                    'api_ip_whitelist'   => '외부 API 호출 허용 IP 화이트리스트',
+                    'api_ip_whitelist'   => '?몃? API ?몄텧 ?덉슜 IP ?붿씠?몃━?ㅽ듃',
                     'api_callback_url'   => 'API Callback URL',
                 ]
             );
@@ -481,7 +540,7 @@ class SystemController
                 'success' => true,
                 'result'  => $result,
                 'data'    => [
-                    // 프론트에서 필요하면 바로 쓸 수 있게 반환 (선택)
+                    // ?꾨줎?몄뿉???꾩슂?섎㈃ 諛붾줈 ?????덇쾶 諛섑솚 (?좏깮)
                     'api_key'    => $input['api_key'],
                     'api_secret' => $input['api_secret'],
                 ]
@@ -497,7 +556,7 @@ class SystemController
     }
 
     /* ============================================================
-     * WEB: 외부 서비스 연동 설정 화면
+     * WEB: ?몃? ?쒕퉬???곕룞 ?ㅼ젙 ?붾㈃
      * URL: GET /dashboard/settings/system/external-services
      * permission: web.settings.system.external
      * ============================================================ */
@@ -507,7 +566,7 @@ class SystemController
     }
 
     /* ============================================================
-     * API: 외부 서비스 연동 설정 조회
+     * API: ?몃? ?쒕퉬???곕룞 ?ㅼ젙 議고쉶
      * URL: GET /api/settings/system/external-services/get
      * permission: api.settings.system.external.view
      * ============================================================ */
@@ -537,7 +596,7 @@ class SystemController
     }
 
     /* ============================================================
-     * API: 외부 서비스 연동 설정 저장
+     * API: ?몃? ?쒕퉬???곕룞 ?ㅼ젙 ???
      * URL: POST /api/settings/system/external-services/save
      * permission: api.settings.system.external.edit
      * ============================================================ */
@@ -548,7 +607,7 @@ class SystemController
         try {
             $raw = file_get_contents('php://input');
             if (!$raw) {
-                throw new \Exception('php://input 비어있음');
+                throw new \Exception('php://input 鍮꾩뼱?덉쓬');
             }
 
             $input = json_decode($raw, true);
@@ -557,13 +616,13 @@ class SystemController
             }
 
             if (!is_array($input)) {
-                throw new \Exception('입력 데이터가 배열이 아님');
+                throw new \Exception('?낅젰 ?곗씠?곌? 諛곗뿴???꾨떂');
             }
 
             $userId = $_SESSION['user']['id'] ?? null;
 
             /* =====================================================
-             * 저장 (외부 서비스 연동)
+             * ???(?몃? ?쒕퉬???곕룞)
              * ===================================================== */
             $result = $this->systemsettingService->saveBatch(
                 $input,
@@ -571,12 +630,12 @@ class SystemController
                 $userId,
                 [
                     /* =================================================
-                     * 📅 Synology Calendar
+                     * ?뱟 Synology Calendar
                      * ================================================= */
-                    'synology_enabled'        => 'Synology Calendar 사용 여부',
-                    'synology_host'           => 'Synology 서버 주소',
-                    'synology_caldav_path'    => 'CalDAV 경로',
-                    'synology_ssl_verify'     => 'SSL 인증서 검증 여부',
+                    'synology_enabled'        => 'Synology Calendar ?ъ슜 ?щ?',
+                    'synology_host'           => 'Synology ?쒕쾭 二쇱냼',
+                    'synology_caldav_path'    => 'CalDAV 寃쎈줈',
+                    'synology_ssl_verify'     => 'SSL ?몄쬆??寃利??щ?',
                 ]
             );
 
@@ -604,7 +663,7 @@ class SystemController
 
 
     // ============================================================
-    // WEB: 스토리지 정책 화면
+    // WEB: ?ㅽ넗由ъ? ?뺤콉 ?붾㈃
     // URL: GET /dashboard/settings/system/storage
     // permission: web.settings.system.storage
     // controller: SystemController@webStorage
@@ -615,7 +674,7 @@ class SystemController
     }
 
     // ============================================================
-    // WEB: DB 백업 화면
+    // WEB: DB 諛깆뾽 ?붾㈃
     // URL: GET /dashboard/settings/system/database
     // permission: web.settings.system.database
     // controller: SystemController@webDatabase
@@ -626,74 +685,70 @@ class SystemController
     }
 
     // ============================================================
-    // API: DB 백업 실행
+    // API: DB 諛깆뾽 ?ㅽ뻾
     // URL: POST /api/settings/system/database/run
     // permission: api.settings.system.database.run
     // controller: SystemController@apiBackupRun
     // ============================================================
     public function apiBackupRun()
     {
-        header('Content-Type: application/json; charset=UTF-8');
-
         try {
             $result = $this->backupService->backupDatabase();
-            http_response_code($result['success'] ? 200 : 500);
-
-            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+            $this->respondJson([
+                'success' => (bool)($result['success'] ?? false),
+                'message' => $result['message'] ?? '',
+                'filename' => $result['filename'] ?? null,
+                'time' => $result['time'] ?? null,
+                'size' => $result['size'] ?? null,
+            ], !empty($result['success']) ? 200 : 500);
         } catch (\Throwable $e) {
-            http_response_code(500);
-            echo json_encode([
+            $this->respondJson([
                 'success' => false,
                 'message' => $e->getMessage()
-            ], JSON_UNESCAPED_UNICODE);
+            ], 500);
         }
     }
     // ============================================================
-    // API: DB 백업 설정 조회
+    // API: DB 諛깆뾽 ?ㅼ젙 議고쉶
     // URL: GET /api/settings/system/database/get
     // permission: api.settings.system.database.view
     // controller: SystemController@apiDatabaseGet
     // ============================================================
     public function apiDatabaseGet()
     {
-        header('Content-Type: application/json; charset=utf-8');
-
         try {
             $rows = $this->systemsettingService->getByCategory('BACKUP');
 
-            // JS에서 쓰기 좋은 key => value 구조로 변환
+            // JS?먯꽌 ?곌린 醫뗭? key => value 援ъ“濡?蹂??
             $data = [];
             foreach ($rows as $row) {
                 $data[$row['config_key']] = $row['config_value'];
             }
 
-            echo json_encode([
+            $this->respondJson([
                 'success' => true,
                 'data'    => $data
-            ], JSON_UNESCAPED_UNICODE);
+            ]);
         } catch (\Throwable $e) {
-            http_response_code(500);
-            echo json_encode([
+            $this->respondJson([
                 'success' => false,
                 'message' => $e->getMessage()
-            ], JSON_UNESCAPED_UNICODE);
+            ], 500);
         }
     }
     // ============================================================
-    // API: DB 백업 설정 저장
+    // API: DB 諛깆뾽 ?ㅼ젙 ???
     // URL: POST /api/settings/system/database/save
     // permission: api.settings.system.database.edit
     // controller: SystemController@apiDatabaseSave
     // ============================================================
     public function apiDatabaseSave()
     {
-        header('Content-Type: application/json; charset=utf-8');
-
         try {
-            // 1️⃣ JSON 입력 수신
+            // 1截뤴깵 JSON ?낅젰 ?섏떊
             $raw = file_get_contents('php://input');
             if (!$raw) {
-                throw new \Exception('php://input 비어있음');
+                throw new \Exception('php://input 鍮꾩뼱?덉쓬');
             }
 
             $input = json_decode($raw, true);
@@ -702,87 +757,80 @@ class SystemController
             }
 
             if (!is_array($input)) {
-                throw new \Exception('입력 데이터가 배열이 아님');
+                throw new \Exception('?낅젰 ?곗씠?곌? 諛곗뿴???꾨떂');
             }
 
-            // 2️⃣ 사용자 ID
+            // 2截뤴깵 ?ъ슜??ID
             $userId = $_SESSION['user']['id'] ?? null;
 
-            // 3️⃣ 설정 저장 (BACKUP 카테고리)
+            // 3截뤴깵 ?ㅼ젙 ???(BACKUP 移댄뀒怨좊━)
             $result = $this->systemsettingService->saveBatch(
                 $input,
                 'BACKUP',
                 $userId,
                 [
-                    'backup_auto_enabled'                 => '자동 백업 사용 여부',
-                    'backup_schedule'                     => '백업 실행 주기 (daily/weekly/monthly)',
-                    'backup_retention_days'               => '백업 보관 기간(일)',
-                    'backup_cleanup_enabled'              => '오래된 백업 자동 정리',
-                    'backup_restore_secondary_enabled'    => 'Secondary DB 자동 복원 사용 여부',
-                    'backup_time'                         => '백업 실행 시간(HH:MM)',
+                    'backup_auto_enabled'                 => '?먮룞 諛깆뾽 ?ъ슜 ?щ?',
+                    'backup_schedule'                     => '諛깆뾽 ?ㅽ뻾 二쇨린 (daily/weekly/monthly)',
+                    'backup_retention_days'               => '諛깆뾽 蹂닿? 湲곌컙(??',
+                    'backup_cleanup_enabled'              => '?ㅻ옒??諛깆뾽 ?먮룞 ?뺣━',
+                    'backup_restore_secondary_enabled'    => 'Secondary DB ?먮룞 蹂듭썝 ?ъ슜 ?щ?',
+                    'backup_time'                         => '諛깆뾽 ?ㅽ뻾 ?쒓컙(HH:MM)',
                 ]
             );
 
-            echo json_encode([
+            $this->respondJson([
                 'success' => true,
                 'result'  => $result
-            ], JSON_UNESCAPED_UNICODE);
+            ]);
         } catch (\Throwable $e) {
-            http_response_code(500);
-            echo json_encode([
+            $this->respondJson([
                 'success' => false,
                 'error'   => get_class($e),
                 'message' => $e->getMessage()
-            ], JSON_UNESCAPED_UNICODE);
+            ], 500);
         }
     }
     // ============================================================
-    // API: DB 백업 상태 정보 조회 (경로/최신백업)
+    // API: DB 諛깆뾽 ?곹깭 ?뺣낫 議고쉶 (寃쎈줈/理쒖떊諛깆뾽)
     // URL: GET /api/settings/system/database/info
     // permission: api.settings.system.database.view
     // controller: SystemController@apiBackupInfo
     // ============================================================
     public function apiBackupInfo()
     {
-        header('Content-Type: application/json; charset=utf-8');
-
         try {
-            $dir = $this->backupService->getBackupDirectory();
             $latest = $this->backupService->getLatestBackupFile();
 
-            echo json_encode([
+            $this->respondJson([
                 'success' => true,
                 'data' => [
-                    'backup_directory' => $dir,
-                    'latest_backup'    => $latest, // null or {file,time,path}
+                    'backup_directory_masked' => $this->backupService->getBackupDirectoryMasked(),
+                    'latest_backup'    => $latest,
                 ]
-            ], JSON_UNESCAPED_UNICODE);
+            ]);
         } catch (\Throwable $e) {
-            http_response_code(500);
-            echo json_encode([
+            $this->respondJson([
                 'success' => false,
                 'error'   => get_class($e),
                 'message' => $e->getMessage()
-            ], JSON_UNESCAPED_UNICODE);
+            ], 500);
         }
     }
     // ============================================================
-    // API: DB 백업 로그 조회
+    // API: DB 諛깆뾽 濡쒓렇 議고쉶
     // URL: GET /api/settings/system/database/log
     // permission: api.settings.system.database.view
     // controller: SystemController@apiBackupLog
     // ============================================================
     public function apiBackupLog()
     {
-        header('Content-Type: application/json; charset=utf-8');
-
         try {
             $dir = $this->backupService->getBackupDirectory();
             $logFile = rtrim($dir, '/') . '/backup_log.txt';
 
-            $text = '로그 파일이 없습니다.';
+            $text = '濡쒓렇 ?뚯씪???놁뒿?덈떎.';
             if (is_file($logFile)) {
-                // 너무 커지는 것 대비: 마지막 20000바이트만 읽기(원하면 조절)
+                // ?덈Т 而ㅼ???寃??鍮? 留덉?留?20000諛붿씠?몃쭔 ?쎄린(?먰븯硫?議곗젅)
                 $fp = fopen($logFile, 'rb');
                 if ($fp) {
                     $size = filesize($logFile);
@@ -793,116 +841,111 @@ class SystemController
                 }
             }
 
-            echo json_encode([
+            $this->respondJson([
                 'success' => true,
                 'data' => [
-                    'log' => $text
+                    'log' => mb_convert_encoding((string)$text, 'UTF-8', 'UTF-8,CP949,EUC-KR,ISO-8859-1')
                 ]
-            ], JSON_UNESCAPED_UNICODE);
+            ]);
         } catch (\Throwable $e) {
-            http_response_code(500);
-            echo json_encode([
+            $this->respondJson([
                 'success' => false,
                 'error'   => get_class($e),
                 'message' => $e->getMessage()
-            ], JSON_UNESCAPED_UNICODE);
+            ], 500);
         }
     }
 
     // ============================================================
-    // API: DB 이중화(Replication) 상태 조회
+    // API: DB ?댁쨷??Replication) ?곹깭 議고쉶
     // URL: GET /api/settings/system/database/replication-status
     // permission: api.settings.system.database.view
     // controller: SystemController@apiDatabaseReplicationStatus
     // ============================================================
     public function apiDatabaseReplicationStatus()
     {
-        header('Content-Type: application/json; charset=utf-8');
-
         try {
             $service = new DatabaseReplicationStatusService(DbPdo::conn());
             $status  = $service->check();
 
-            // 🔥 JS에서 바로 쓰도록 data 래핑 제거
-            echo json_encode([
+            // ?뵦 JS?먯꽌 諛붾줈 ?곕룄濡?data ?섑븨 ?쒓굅
+            $this->respondJson([
                 'success'     => true,
                 'primary'     => $status['primary'] ?? null,
                 'secondary'   => $status['secondary'] ?? null,
                 'checked_at'  => $status['checked_at'] ?? null,
-            ], JSON_UNESCAPED_UNICODE);
+            ]);
         } catch (\Throwable $e) {
-            http_response_code(500);
-            echo json_encode([
+            $this->respondJson([
                 'success' => false,
                 'error'   => get_class($e),
                 'message' => $e->getMessage()
-            ], JSON_UNESCAPED_UNICODE);
+            ], 500);
         }
     }
 
     // ============================================================
-    // API: Secondary DB 수동/자동 복원
+    // API: Secondary DB ?섎룞/?먮룞 蹂듭썝
     // URL: POST /api/settings/system/database/restore-secondary
     // permission: api.settings.system.database.restore
     // controller: SystemController@apiRestoreSecondary
     // ============================================================
     public function apiRestoreSecondary()
     {
-        header('Content-Type: application/json; charset=utf-8');
-
-        // 🔑 1. 세션 락 즉시 해제 (매우 중요)
-        session_write_close();
-
         try {
-            // 🔑 2. 즉시 성공 응답 반환
-            echo json_encode([
-                'success' => true,
-                'message' => 'Secondary DB 복원 요청이 접수되었습니다.'
-            ], JSON_UNESCAPED_UNICODE);
+            @session_write_close();
+            ignore_user_abort(true);
+            @set_time_limit(0);
 
-            // 🔑 3. 클라이언트와 연결 종료
+            $this->respondJson([
+                'success' => true,
+                'state' => 'running',
+                'message' => 'Secondary DB 복원 요청을 접수했습니다. 아래 복원 상태에서 진행 여부를 확인하세요.'
+            ], 202);
+
             if (function_exists('fastcgi_finish_request')) {
-                fastcgi_finish_request();
+                @fastcgi_finish_request();
+            } else {
+                @flush();
             }
 
-            // 🔥 4. 백그라운드에서 실제 복원 실행
-            $this->backupService->restoreLatestBackupToSecondary();
+            $this->backupService->restoreLatestBackupToSecondary('manual');
         } catch (\Throwable $e) {
-            // ⚠️ 여기까지 오면 거의 없음 (응답은 이미 끝남)
-            error_log('[RESTORE_SECONDARY_ERROR] ' . $e->getMessage());
+            $this->respondJson([
+                'success' => false,
+                'state' => 'failed',
+                'message' => $e->getMessage()
+            ], 500);
         }
     }
 
 
     // ============================================================
-    // API: Secondary DB 최신 복원 상태 조회
+    // API: Secondary DB 理쒖떊 蹂듭썝 ?곹깭 議고쉶
     // URL: GET /api/settings/system/database/secondary-restore-info
     // permission: api.settings.system.database.view
     // controller: SystemController@apiSecondaryRestoreInfo
     // ============================================================
     public function apiSecondaryRestoreInfo()
     {
-        header('Content-Type: application/json; charset=utf-8');
-
         try {
             $info = $this->backupService->getLatestSecondaryRestore();
 
-            echo json_encode([
+            $this->respondJson([
                 'success' => true,
                 'data' => $info, // null or {time, file}
-            ], JSON_UNESCAPED_UNICODE);
+            ]);
         } catch (\Throwable $e) {
-            http_response_code(500);
-            echo json_encode([
+            $this->respondJson([
                 'success' => false,
                 'message' => $e->getMessage()
-            ], JSON_UNESCAPED_UNICODE);
+            ], 500);
         }
     }
 
 
     // ============================================================
-    // WEB: 시스템 로그 화면
+    // WEB: ?쒖뒪??濡쒓렇 ?붾㈃
     // URL: GET /dashboard/settings/system/logs
     // permission: web.settings.system.logs
     // controller: SystemController@webLogs
@@ -913,7 +956,7 @@ class SystemController
     }
 
     // ============================================================
-    // API: 로그 내용 조회
+    // API: 濡쒓렇 ?댁슜 議고쉶
     // URL: POST /api/settings/system/logs/view
     // permission: api.settings.system.logs.view
     // controller: SystemController@apiLogView
@@ -935,7 +978,7 @@ class SystemController
                 throw new \Exception('Log file not found');
             }
 
-            // 🔥 대용량 대비: 마지막 50KB만 읽기
+            // ?뵦 ??⑸웾 ?鍮? 留덉?留?50KB留??쎄린
             $maxBytes = 50 * 1024;
             $size = filesize($path);
 
@@ -970,7 +1013,7 @@ class SystemController
 
 
     // ============================================================
-    // API: 로그 파일 삭제
+    // API: 濡쒓렇 ?뚯씪 ??젣
     // URL: POST /api/settings/system/logs/delete
     // permission: api.settings.system.logs.delete
     // controller: SystemController@apiLogDelete
@@ -1007,7 +1050,7 @@ class SystemController
     }
 
     // ============================================================
-    // API: 전체 로그 삭제
+    // API: ?꾩껜 濡쒓렇 ??젣
     // URL: POST /api/settings/system/logs/delete-all
     // permission: api.settings.system.logs.delete_all
     // controller: SystemController@apiLogDeleteAll
@@ -1041,7 +1084,7 @@ class SystemController
     }
 
     // ============================================================
-    // WEB: 로그 파일 다운로드
+    // WEB: 濡쒓렇 ?뚯씪 ?ㅼ슫濡쒕뱶
     // URL: GET /dashboard/settings/system/logs/download?file=xxx.log
     // permission: web.settings.system.logs.download
     // controller: SystemController@webLogDownload
@@ -1068,3 +1111,4 @@ class SystemController
         exit;
     }
 }
+

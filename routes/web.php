@@ -443,7 +443,10 @@ $router->get('/dashboard/settings/organization/permissions', 'DashboardControlle
     'key' => 'web.settings.organization.permissions',
     'name' => '권한',
     'description' => '권한 관리 화면 접근',
-    'category' => '조직관리'
+    'category' => '조직관리',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => true
 ]);
 
 $router->get('/dashboard/settings/organization/role_permissions', 'DashboardController@settingsOrgRolePermissions', [
@@ -457,7 +460,10 @@ $router->get('/dashboard/settings/organization/approval', 'DashboardController@s
     'key' => 'web.settings.organization.approval',
     'name' => '결재템플릿',
     'description' => '결재 템플릿 관리 화면 접근',
-    'category' => '조직관리'
+    'category' => '조직관리',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => true
 ]);
 
 
@@ -517,6 +523,13 @@ $router->get('/dashboard/settings/system/logs', 'DashboardController@settingsSys
     'key' => 'web.settings.system.logs',
     'name' => '로그관리',
     'description' => '시스템 로그 관리 화면 접근',
+    'category' => '시스템설정'
+]);
+
+$router->get('/dashboard/settings/system/logs/download', 'SystemController@webLogDownload', [
+    'key' => 'web.settings.system.logs.download',
+    'name' => '로그 다운로드',
+    'description' => '선택한 시스템 로그 파일 다운로드',
     'category' => '시스템설정'
 ]);
 

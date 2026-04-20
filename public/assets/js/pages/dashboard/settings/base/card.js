@@ -564,6 +564,14 @@ window.AdminPicker = AdminPicker;
         if (cardTable) {
             console.log('✅ Card DataTable 생성 완료');
 
+            cardTable.on('init.dt', () => {
+                updateCardCount(cardTable.page.info()?.recordsDisplay ?? 0);
+            });
+
+            cardTable.on('draw.dt', () => {
+                updateCardCount(cardTable.page.info()?.recordsDisplay ?? 0);
+            });
+
             SearchForm({
                 table: cardTable,
                 apiList: API.LIST,
@@ -577,6 +585,12 @@ window.AdminPicker = AdminPicker;
         }
 
         bindRowReorder(cardTable, { api: API.REORDER });
+    }
+
+    function updateCardCount(count) {
+        const el = document.getElementById('cardCount');
+        if (!el) return;
+        el.textContent = `총 ${count ?? 0}건`;
     }
 
     /* ============================================================
@@ -667,6 +681,44 @@ window.AdminPicker = AdminPicker;
 
             const form = this;
             const formData = new FormData(form);
+            const cardName = String(formData.get('card_name') || '').trim();
+            const cardNumber = String(formData.get('card_number') || '').trim();
+            const currency = String(formData.get('currency') || '').trim().toUpperCase();
+            const expiryYear = String(formData.get('expiry_year') || '').trim();
+            const expiryMonth = String(formData.get('expiry_month') || '').trim();
+            const limitAmount = String(formData.get('limit_amount') || '').trim();
+
+            if (!cardName) {
+                AppCore?.notify?.('warning', '카드명은 필수입니다.');
+                return;
+            }
+
+            if (currency && !/^[A-Z]{3}$/.test(currency)) {
+                AppCore?.notify?.('warning', '통화 코드는 3자리 영문으로 입력해주세요.');
+                return;
+            }
+
+            if (cardNumber && !/^[0-9-]+$/.test(cardNumber)) {
+                AppCore?.notify?.('warning', '카드번호는 숫자와 하이픈만 입력할 수 있습니다.');
+                return;
+            }
+
+            if (expiryYear && !/^\d{4}$/.test(expiryYear)) {
+                AppCore?.notify?.('warning', '유효기간(년)은 4자리 숫자로 입력해주세요.');
+                return;
+            }
+
+            if (expiryMonth && !/^(0?[1-9]|1[0-2])$/.test(expiryMonth)) {
+                AppCore?.notify?.('warning', '유효기간(월)은 1부터 12 사이로 입력해주세요.');
+                return;
+            }
+
+            if (limitAmount && Number(limitAmount) < 0) {
+                AppCore?.notify?.('warning', '한도금액은 0 이상이어야 합니다.');
+                return;
+            }
+
+            formData.set('currency', currency || 'KRW');
 
             const btn = form.querySelector('button[type="submit"]');
             if (btn) btn.disabled = true;
@@ -714,8 +766,11 @@ window.AdminPicker = AdminPicker;
                         cardTable.ajax.reload(null, false);
                         cardModal.hide();
                     } else {
-                        alert(res.message || '삭제 실패');
+                        AppCore?.notify?.('error', res.message || '삭제 실패');
                     }
+                })
+                .fail(() => {
+                    AppCore?.notify?.('error', '서버 오류');
                 });
         });
     }
@@ -858,6 +913,21 @@ window.AdminPicker = AdminPicker;
         }
     
         function renderFile(file) {
+            const ext = (file.name.split('.').pop() || '').toLowerCase();
+            const allowed = ['pdf', 'jpg', 'jpeg', 'png'];
+
+            if (!allowed.includes(ext)) {
+                AppCore?.notify?.('warning', '카드 이미지는 PDF, JPG, PNG 파일만 업로드할 수 있습니다.');
+                input.value = '';
+                return false;
+            }
+
+            if (file.size > 10 * 1024 * 1024) {
+                AppCore?.notify?.('warning', '카드 이미지 파일은 10MB 이하만 업로드할 수 있습니다.');
+                input.value = '';
+                return false;
+            }
+
             const hasOriginal = drop.dataset.original === "1";
             const message = hasOriginal
                 ? "저장 시 기존 카드 이미지가 교체됩니다."
@@ -872,6 +942,8 @@ window.AdminPicker = AdminPicker;
                 <br>
                 <span class="text-primary">${message}</span>
             `;
+
+            return true;
         }
     
         drop.addEventListener('click', () => input.click());
@@ -879,7 +951,9 @@ window.AdminPicker = AdminPicker;
         input.addEventListener('change', e => {
             const file = e.target.files[0];
             if (!file) return;
-            renderFile(file);
+            if (!renderFile(file)) {
+                input.value = '';
+            }
         });
     
         drop.addEventListener('dragover', e => {
@@ -891,9 +965,11 @@ window.AdminPicker = AdminPicker;
     
             const file = e.dataTransfer.files[0];
             if (!file) return;
-    
+
             input.files = e.dataTransfer.files;
-            renderFile(file);
+            if (!renderFile(file)) {
+                input.value = '';
+            }
         });
     }
 

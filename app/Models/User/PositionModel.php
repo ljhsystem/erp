@@ -19,7 +19,7 @@ class PositionModel
     /* ============================================================
      * 1) 전체 직책 목록 조회
      * ============================================================ */
-    public function getAll(): array
+    public function getAll(array $filters = []): array
     {
         $sql = "
             SELECT
@@ -34,10 +34,123 @@ class PositionModel
                 updated_at,
                 updated_by
             FROM user_positions
-            ORDER BY level_rank ASC, code ASC
+            WHERE 1=1
         ";
 
-        return $this->db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+        $params = [];
+
+        if (!empty($filters)) {
+            $fieldMap = [
+                'id'            => ['expr' => 'id', 'type' => 'exact'],
+                'code'          => ['expr' => 'code', 'type' => 'like'],
+                'position_name' => ['expr' => 'position_name', 'type' => 'like'],
+                'level_rank'    => ['expr' => 'level_rank', 'type' => 'exact'],
+                'description'   => ['expr' => 'description', 'type' => 'like'],
+                'is_active'     => ['expr' => 'is_active', 'type' => 'exact'],
+                'created_at'    => ['expr' => 'created_at', 'type' => 'datetime'],
+                'updated_at'    => ['expr' => 'updated_at', 'type' => 'datetime'],
+            ];
+
+            $globalSearchValues = [];
+
+            foreach ($filters as $f) {
+                $field = $f['field'] ?? '';
+                $value = $f['value'] ?? '';
+
+                if ($value === '' || $value === null) {
+                    continue;
+                }
+
+                if ($field === '') {
+                    $globalSearchValues[] = $value;
+                    continue;
+                }
+
+                if (!isset($fieldMap[$field])) {
+                    continue;
+                }
+
+                $expr = $fieldMap[$field]['expr'];
+                $type = $fieldMap[$field]['type'];
+
+                if ($type === 'datetime') {
+                    if (is_array($value) && isset($value['start'], $value['end'])) {
+                        $start = trim((string)($value['start'] ?? ''));
+                        $end   = trim((string)($value['end'] ?? ''));
+
+                        if ($start !== '' && $end !== '') {
+                            $sql .= " AND {$expr} BETWEEN ? AND ?";
+                            $params[] = preg_match('/^\d{4}-\d{2}-\d{2}$/', $start)
+                                ? $start . ' 00:00:00'
+                                : $start;
+                            $params[] = preg_match('/^\d{4}-\d{2}-\d{2}$/', $end)
+                                ? $end . ' 23:59:59'
+                                : $end;
+                        }
+                    } else {
+                        $stringValue = trim((string)$value);
+
+                        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $stringValue)) {
+                            $sql .= " AND {$expr} BETWEEN ? AND ?";
+                            $params[] = $stringValue . ' 00:00:00';
+                            $params[] = $stringValue . ' 23:59:59';
+                        } else {
+                            $sql .= " AND {$expr} = ?";
+                            $params[] = $stringValue;
+                        }
+                    }
+
+                    continue;
+                }
+
+                if ($type === 'exact') {
+                    $sql .= " AND {$expr} = ?";
+                    $params[] = $value;
+                    continue;
+                }
+
+                $keywords = array_filter(array_map('trim', explode(',', (string)$value)));
+
+                if (!$keywords) {
+                    continue;
+                }
+
+                $parts = [];
+                foreach ($keywords as $keyword) {
+                    $parts[] = "{$expr} LIKE ?";
+                    $params[] = '%' . $keyword . '%';
+                }
+
+                $sql .= " AND (" . implode(' OR ', $parts) . ")";
+            }
+
+            foreach ($globalSearchValues as $value) {
+                $keywords = array_filter(array_map('trim', explode(',', (string)$value)));
+
+                if (!$keywords) {
+                    continue;
+                }
+
+                $orParts = [];
+                foreach ($keywords as $keyword) {
+                    foreach (['code', 'position_name', 'description'] as $expr) {
+                        $orParts[] = "{$expr} LIKE ?";
+                        $params[] = '%' . $keyword . '%';
+                    }
+                }
+
+                if ($orParts) {
+                    $sql .= " AND (" . implode(' OR ', $orParts) . ")";
+                }
+            }
+        }
+
+        $sql .= " ORDER BY code ASC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /* ============================================================
@@ -139,5 +252,16 @@ class PositionModel
     {
         $stmt = $this->db->prepare("DELETE FROM user_positions WHERE id = ?");
         return $stmt->execute([$id]);
+    }
+
+    public function updateCode(string $id, int $code): bool
+    {
+        $stmt = $this->db->prepare("
+            UPDATE user_positions
+            SET code = ?, updated_at = NOW()
+            WHERE id = ?
+        ");
+
+        return $stmt->execute([$code, $id]);
     }
 }

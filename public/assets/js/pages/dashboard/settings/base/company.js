@@ -1,214 +1,247 @@
-/**
- * 회사 기본정보 설정 JS
- * 경로: /public/assets/js/pages/dashboard/settings/base/company.js
- */
 import {
     formatBizNumber,
     formatCorpNumber,
     formatPhone
 } from '/public/assets/js/common/format.js';
 
-(function () {
-    "use strict";
+(() => {
+    'use strict';
 
-    console.log('[base-company.js] loaded');
+    const API_COMPANY_GET = '/api/settings/base-info/company/detail';
+    const API_COMPANY_SAVE = '/api/settings/base-info/company/save';
 
-    /* =========================================================
-     * API ENDPOINTS
-     * ========================================================= */
-    const API_COMPANY_GET  = "/api/settings/base-info/company/detail";
-    const API_COMPANY_SAVE = "/api/settings/base-info/company/save";
+    const wrapper = $('#company-settings-wrapper');
+    const saveButton = $('#btn-save-all');
 
-    const $wrapper = $("#company-settings-wrapper");
-
-    /* =========================================================
-     * 초기 로딩
-     * ========================================================= */
-    $(document).ready(function () {
+    $(document).ready(() => {
         loadCompanyInfo();
         bindEvents();
 
-        // 공용 주소검색 바인딩
-        if (window.KakaoAddress && typeof window.KakaoAddress.bind === "function") {
+        if (window.KakaoAddress && typeof window.KakaoAddress.bind === 'function') {
             window.KakaoAddress.bind();
         }
     });
 
-    /* =========================================================
-     * 이벤트 바인딩
-     * ========================================================= */
     function bindEvents() {
+        saveButton.on('click', saveCompanyInfo);
 
-        $("#btn-save-all").on("click", function () {
-            saveCompanyInfo();
-        });
-    
-        /* 🔥 자동 포맷 추가 */
-        $wrapper.on("input", "[name='biz_number']", function () {
+        wrapper.on('input', "[name='biz_number']", function () {
             this.value = formatBizNumber(this.value);
         });
-    
-        $wrapper.on("input", "[name='corp_number']", function () {
+
+        wrapper.on('input', "[name='corp_number']", function () {
             this.value = formatCorpNumber(this.value);
         });
-    
-        $wrapper.on("input", "[name='tel']", function () {
+
+        wrapper.on('input', "[name='tel'], [name='fax']", function () {
             this.value = formatPhone(this.value);
         });
-    
-        $wrapper.on("input", "[name='fax']", function () {
-            this.value = formatPhone(this.value);
-        });
-    
     }
 
-    /* =========================================================
-     * 회사 정보 조회
-     * ========================================================= */
+    function notify(type, message) {
+        if (window.AppCore?.notify) {
+            window.AppCore.notify(type, message);
+            return;
+        }
+
+        console[type === 'error' ? 'error' : 'log'](message);
+    }
+
     function loadCompanyInfo() {
         $.ajax({
             url: API_COMPANY_GET,
-            type: "GET",
-            dataType: "json",
-            success: function (res) {
-
-                // 정상 응답이 아닌 경우
+            type: 'GET',
+            dataType: 'json',
+            success(res) {
                 if (!res || res.success !== true) {
-                    console.warn("회사 정보 조회 실패", res);
+                    notify('error', res?.message || '회사정보를 불러오지 못했습니다.');
                     return;
                 }
 
-                // 아직 회사 정보가 없는 경우 (최초 상태)
                 if (!res.data) {
-                    console.info("회사 기본정보가 아직 등록되지 않았습니다.");
                     clearForm();
                     return;
                 }
 
                 fillForm(res.data);
             },
-            error: function (xhr) {
-                console.error(
-                    "회사 정보 조회 AJAX 오류",
-                    xhr.status,
-                    xhr.responseText
-                );
+            error(xhr) {
+                console.error('[company] load failed', xhr.status, xhr.responseText);
+                notify('error', '회사정보를 불러오지 못했습니다.');
             }
         });
     }
 
-    /* =========================================================
-     * 폼 채우기
-     * ========================================================= */
     function fillForm(data) {
-        $wrapper.find("[name='company_name_ko']").val(data.company_name_ko || "");
-        $wrapper.find("[name='company_name_en']").val(data.company_name_en || "");
-        $wrapper.find("[name='ceo_name']").val(data.ceo_name || "");
-
-        $wrapper.find("[name='biz_number']").val(formatBizNumber(data.biz_number || ""));
-    
-        $wrapper.find("[name='corp_number']").val(formatCorpNumber(data.corp_number || ""));
-
-        // ❗ 날짜 정규화 (0000-00-00 방지)
-        $wrapper.find("[name='found_date']").val(normalizeDate(data.found_date));
-
-        $wrapper.find("[name='biz_type']").val(data.biz_type || "");
-        $wrapper.find("[name='biz_item']").val(data.biz_item || "");
-
-        $wrapper.find("[name='addr_main']").val(data.addr_main || "");
-        $wrapper.find("[name='addr_detail']").val(data.addr_detail || "");
-
-        $wrapper.find("[name='tel']").val(formatPhone(data.tel || ""));
-        $wrapper.find("[name='fax']").val(formatPhone(data.fax || ""));
-        $wrapper.find("[name='tax_email']").val(data.tax_email || "");
-        $wrapper.find("[name='sub_email']").val(data.sub_email || "");
-        $wrapper.find("[name='company_website']").val(data.company_website || "");
-        $wrapper.find("[name='sns_instagram']").val(data.sns_instagram || "");
-        
-        $wrapper.find("[name='company_about']").val(data.company_about || "");
-        $wrapper.find("[name='company_history']").val(data.company_history || "");
+        setValue('company_name_ko', data.company_name_ko);
+        setValue('company_name_en', data.company_name_en);
+        setValue('ceo_name', data.ceo_name);
+        setValue('biz_number', formatBizNumber(data.biz_number || ''));
+        setValue('corp_number', formatCorpNumber(data.corp_number || ''));
+        setValue('found_date', normalizeDate(data.found_date));
+        setValue('biz_type', data.biz_type);
+        setValue('biz_item', data.biz_item);
+        setValue('addr_main', data.addr_main);
+        setValue('addr_detail', data.addr_detail);
+        setValue('tel', formatPhone(data.tel || ''));
+        setValue('fax', formatPhone(data.fax || ''));
+        setValue('tax_email', data.tax_email);
+        setValue('sub_email', data.sub_email);
+        setValue('company_website', data.company_website);
+        setValue('sns_instagram', data.sns_instagram);
+        setValue('company_about', data.company_about);
+        setValue('company_history', data.company_history);
     }
 
-    /* =========================================================
-     * 회사 정보 저장
-     * ========================================================= */
     function saveCompanyInfo() {
         const data = collectFormData();
-
-        // 필수값 체크
-        if (!data.company_name_ko.trim()) {
-            alert("회사명(한글)은 필수입니다.");
+        const validationError = validateFormData(data);
+        if (validationError) {
+            notify('warning', validationError);
             return;
         }
 
+        saveButton.prop('disabled', true);
+
         $.ajax({
             url: API_COMPANY_SAVE,
-            type: "POST",
-            dataType: "json",
-            data: data,
-            success: function (res) {
-                if (res && res.success) {
-                    alert("회사 기본정보가 저장되었습니다.");
+            type: 'POST',
+            dataType: 'json',
+            contentType: 'application/json; charset=utf-8',
+            data: JSON.stringify(data),
+            success(res) {
+                if (res?.success) {
+                    notify('success', res.message || '회사정보를 저장했습니다.');
                     loadCompanyInfo();
-                } else {
-                    alert(res.message || "저장 중 오류가 발생했습니다.");
+                    return;
                 }
+
+                notify('error', res?.message || '회사정보 저장에 실패했습니다.');
             },
-            error: function (xhr) {
-                console.error(
-                    "회사 정보 저장 AJAX 오류",
-                    xhr.status,
-                    xhr.responseText
-                );
-                alert("서버 통신 중 오류가 발생했습니다.");
+            error(xhr) {
+                console.error('[company] save failed', xhr.status, xhr.responseText);
+
+                let message = '서버 통신 중 오류가 발생했습니다.';
+                try {
+                    const json = JSON.parse(xhr.responseText || '{}');
+                    message = json?.message || message;
+                } catch (_) {
+                    // ignore parse error
+                }
+
+                notify('error', message);
+            },
+            complete() {
+                saveButton.prop('disabled', false);
             }
         });
     }
 
-    /* =========================================================
-     * 폼 데이터 수집
-     * ========================================================= */
     function collectFormData() {
         return {
-            company_name_ko : $wrapper.find("[name='company_name_ko']").val(),
-            company_name_en : $wrapper.find("[name='company_name_en']").val(),
-            ceo_name        : $wrapper.find("[name='ceo_name']").val(),
-
-            biz_number      : $wrapper.find("[name='biz_number']").val(),
-            corp_number     : $wrapper.find("[name='corp_number']").val(),
-            found_date      : $wrapper.find("[name='found_date']").val() || null,
-
-            biz_type        : $wrapper.find("[name='biz_type']").val(),
-            biz_item        : $wrapper.find("[name='biz_item']").val(),
-
-            addr_main       : $wrapper.find("[name='addr_main']").val(),
-            addr_detail     : $wrapper.find("[name='addr_detail']").val(),
-
-            tel             : $wrapper.find("[name='tel']").val(),
-            fax             : $wrapper.find("[name='fax']").val(),
-            tax_email       : $wrapper.find("[name='tax_email']").val(),
-            sub_email       : $wrapper.find("[name='sub_email']").val(),
-            company_website : $wrapper.find("[name='company_website']").val(),
-            sns_instagram   : $wrapper.find("[name='sns_instagram']").val(),
-
-            company_about   : $wrapper.find("[name='company_about']").val(),
-            company_history : $wrapper.find("[name='company_history']").val()
+            company_name_ko: getValue('company_name_ko'),
+            company_name_en: getValue('company_name_en'),
+            ceo_name: getValue('ceo_name'),
+            biz_number: getValue('biz_number'),
+            corp_number: getValue('corp_number'),
+            found_date: getValue('found_date') || null,
+            biz_type: getValue('biz_type'),
+            biz_item: getValue('biz_item'),
+            addr_main: getValue('addr_main'),
+            addr_detail: getValue('addr_detail'),
+            tel: getValue('tel'),
+            fax: getValue('fax'),
+            tax_email: getValue('tax_email'),
+            sub_email: getValue('sub_email'),
+            company_website: getValue('company_website'),
+            sns_instagram: getValue('sns_instagram'),
+            company_about: getValue('company_about'),
+            company_history: getValue('company_history')
         };
     }
 
-    /* =========================================================
-     * 유틸
-     * ========================================================= */
+    function validateFormData(data) {
+        if (!data.company_name_ko.trim()) {
+            return '회사명(국문)은 필수입니다.';
+        }
 
-    // 날짜 정규화 (HTML5 date input 안전)
+        const bizNumber = digitsOnly(data.biz_number);
+        if (bizNumber && bizNumber.length !== 10) {
+            return '사업자등록번호는 숫자 10자리여야 합니다.';
+        }
+
+        const corpNumber = digitsOnly(data.corp_number);
+        if (corpNumber && corpNumber.length !== 13) {
+            return '법인등록번호는 숫자 13자리여야 합니다.';
+        }
+
+        const tel = digitsOnly(data.tel);
+        if (tel && (tel.length < 9 || tel.length > 11)) {
+            return '전화번호 형식이 올바르지 않습니다.';
+        }
+
+        const fax = digitsOnly(data.fax);
+        if (fax && (fax.length < 9 || fax.length > 11)) {
+            return '팩스번호 형식이 올바르지 않습니다.';
+        }
+
+        if (data.tax_email && !isValidEmail(data.tax_email)) {
+            return '세금계산서 이메일 형식이 올바르지 않습니다.';
+        }
+
+        if (data.sub_email && !isValidEmail(data.sub_email)) {
+            return '서브 이메일 형식이 올바르지 않습니다.';
+        }
+
+        if (data.company_website && !isValidUrl(data.company_website)) {
+            return '홈페이지 주소 형식이 올바르지 않습니다.';
+        }
+
+        if (data.sns_instagram && !isValidInstagram(data.sns_instagram)) {
+            return '인스타그램은 URL 또는 계정명 형식으로 입력해주세요.';
+        }
+
+        return '';
+    }
+
+    function setValue(name, value) {
+        wrapper.find(`[name='${name}']`).val(value || '');
+    }
+
+    function getValue(name) {
+        return String(wrapper.find(`[name='${name}']`).val() || '').trim();
+    }
+
     function normalizeDate(value) {
-        if (!value || value === "0000-00-00") return "";
+        if (!value || value === '0000-00-00') {
+            return '';
+        }
+
         return value;
     }
 
-    // 최초 상태용 폼 초기화
     function clearForm() {
-        $wrapper.find("input, textarea").val("");
+        wrapper.find('input, textarea').val('');
     }
 
+    function digitsOnly(value) {
+        return String(value || '').replace(/[^0-9]/g, '');
+    }
+
+    function isValidEmail(value) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || ''));
+    }
+
+    function isValidUrl(value) {
+        try {
+            const url = new URL(value);
+            return ['http:', 'https:'].includes(url.protocol);
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function isValidInstagram(value) {
+        return isValidUrl(value) || /^@?[A-Za-z0-9._]{2,30}$/.test(String(value || ''));
+    }
 })();

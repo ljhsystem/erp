@@ -1,170 +1,151 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Controllers/Dashboard/Settings/BrandController.php'
-// 대시보드>설정>기초정보관리>브랜드 API 컨트롤러
-namespace App\Controllers\Dashboard\Settings; //네임스페이스
 
-use Core\Session;
-use Core\DbPdo; //네임스페이스 경로를 짧게 쓰기 위한 별칭 정의
+namespace App\Controllers\Dashboard\Settings;
+
 use App\Services\System\BrandService;
+use Core\DbPdo;
+use Core\Session;
 
-class BrandController //기능묶음 단위
+class BrandController
 {
     private BrandService $service;
 
-    public function __construct() //생성자
+    public function __construct()
     {
         Session::requireAuth();
-        $this->service = new BrandService(DbPdo::conn()); //의존성주입
+        $this->service = new BrandService(DbPdo::conn());
     }
 
-    /* ============================================================
-    API: 브랜드 자산 목록 조회
-    ============================================================ */
     public function apiList()
     {
         header('Content-Type: application/json; charset=utf-8');
-    
+
         $filters = [];
-    
         if (!empty($_POST['asset_type'])) {
-            $filters['asset_type'] = $_POST['asset_type'];
+            $filters['asset_type'] = (string) $_POST['asset_type'];
         }
-    
+
         if (isset($_POST['is_active'])) {
-            $filters['is_active'] = (int)$_POST['is_active'];
+            $filters['is_active'] = (int) $_POST['is_active'];
         }
-    
-        $data = $this->service->getList($filters);
-    
-        error_log("🔍 apiBrandList 응답: " . json_encode($data));
-    
+
         echo json_encode([
             'success' => true,
-            'data'    => $data
+            'data' => $this->service->getList($filters),
         ], JSON_UNESCAPED_UNICODE);
     }
+
     public function apiDetail()
     {
         header('Content-Type: application/json; charset=utf-8');
-    
-        $id = $_POST['id'] ?? '';
-    
-        if (!$id) {
+
+        $id = trim((string) ($_POST['id'] ?? ''));
+        if ($id === '') {
+            http_response_code(400);
             echo json_encode([
                 'success' => false,
-                'message' => 'ID 누락'
-            ]);
+                'message' => '파일 ID가 필요합니다.',
+            ], JSON_UNESCAPED_UNICODE);
             return;
         }
-    
-        $data = $this->service->getById($id);
-    
+
         echo json_encode([
             'success' => true,
-            'data'    => $data
+            'data' => $this->service->getById($id),
         ], JSON_UNESCAPED_UNICODE);
     }
+
     public function apiActiveType(): void
     {
         header('Content-Type: application/json; charset=utf-8');
-    
-        $assetType = $_POST['asset_type'] ?? '';
-    
-        if (!$assetType) {
+
+        $assetType = trim((string) ($_POST['asset_type'] ?? ''));
+        if ($assetType === '') {
+            http_response_code(400);
             echo json_encode([
                 'success' => false,
-                'message' => 'asset_type 누락'
-            ]);
+                'message' => 'asset_type 값이 필요합니다.',
+            ], JSON_UNESCAPED_UNICODE);
             return;
         }
-    
-        $data = $this->service->getActive($assetType);
-    
+
         echo json_encode([
             'success' => true,
-            'data'    => $data
+            'data' => $this->service->getActive($assetType),
         ], JSON_UNESCAPED_UNICODE);
     }
-    /* ============================================================
-   API: 브랜드 자산 업로드
-   ============================================================ */
+
     public function apiSave()
     {
         header('Content-Type: application/json; charset=utf-8');
 
         $userId = $_SESSION['user']['id'] ?? null;
         if (!$userId) {
-            echo json_encode(['success' => false, 'message' => '인증 오류']);
+            http_response_code(401);
+            echo json_encode([
+                'success' => false,
+                'message' => '인증 정보가 없습니다.',
+            ], JSON_UNESCAPED_UNICODE);
             return;
         }
 
-        $assetType = $_POST['asset_type'] ?? '';
-        $file      = $_FILES['file'] ?? null;
+        $assetType = trim((string) ($_POST['asset_type'] ?? ''));
+        $file = $_FILES['file'] ?? null;
 
-        if (!$assetType || !$file) {
+        if ($assetType === '' || !$file) {
+            http_response_code(400);
             echo json_encode([
                 'success' => false,
-                'message' => '필수 값 누락'
-            ]);
+                'message' => '자산 구분과 업로드 파일이 필요합니다.',
+            ], JSON_UNESCAPED_UNICODE);
             return;
         }
 
         $result = $this->service->save($assetType, $file);
-
-        // 🔥 디버깅 로그 추가
-        error_log("📤 apiBrandUpload 응답: " . json_encode($result));
-
+        http_response_code(!empty($result['success']) ? 200 : 400);
         echo json_encode($result, JSON_UNESCAPED_UNICODE);
     }
 
-
-    /* ============================================================
-    API: 브랜드 자산 삭제
-  
-    ============================================================ */
     public function apiPurge()
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $fileId = $_POST['file_id'] ?? '';
-        if (!$fileId) {
-            echo json_encode(['success' => false, 'message' => '파일 ID가 누락되었습니다.']);
+        $fileId = trim((string) ($_POST['file_id'] ?? ''));
+        if ($fileId === '') {
+            http_response_code(400);
+            echo json_encode([
+                'success' => false,
+                'message' => '파일 ID가 필요합니다.',
+            ], JSON_UNESCAPED_UNICODE);
             return;
         }
 
         $result = $this->service->purge($fileId);
-
-        // 🔥 디버깅 로그 추가
-        error_log("🗑 apiBrandDelete 응답: " . json_encode($result));
-
-        echo json_encode($result);
-    }
-
-    /* ============================================================
-    API: 브랜드 자산 활성화
-    ============================================================ */
-    public function apiUpdateStatus()
-    {
-        header('Content-Type: application/json; charset=utf-8');
-    
-        $id     = $_POST['id'] ?? '';
-        $status = isset($_POST['status']) ? (int)$_POST['status'] : null;
-    
-        if (!$id || $status === null) {
-            echo json_encode([
-                'success' => false,
-                'message' => '필수값 누락'
-            ]);
-            return;
-        }
-    
-        if ($status === 1) {
-            $result = $this->service->activate($id);
-        } else {
-            $result = $this->service->deactivate($id);
-        }
-    
+        http_response_code(!empty($result['success']) ? 200 : 400);
         echo json_encode($result, JSON_UNESCAPED_UNICODE);
     }
 
+    public function apiUpdateStatus()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+
+        $id = trim((string) ($_POST['id'] ?? ''));
+        $status = isset($_POST['status']) ? (int) $_POST['status'] : null;
+
+        if ($id === '' || $status === null) {
+            http_response_code(400);
+            echo json_encode([
+                'success' => false,
+                'message' => '필수값이 누락되었습니다.',
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $result = $status === 1
+            ? $this->service->activate($id)
+            : $this->service->deactivate($id);
+
+        http_response_code(!empty($result['success']) ? 200 : 400);
+        echo json_encode($result, JSON_UNESCAPED_UNICODE);
+    }
 }

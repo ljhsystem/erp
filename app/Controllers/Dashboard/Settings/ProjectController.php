@@ -220,6 +220,54 @@ class ProjectController
                 exit;
             }
 
+            if ($payload['contract_date'] && !preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $payload['contract_date'])) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => '계약일자는 YYYY-MM-DD 형식이어야 합니다.'
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            if ($payload['start_date'] && !preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $payload['start_date'])) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => '착공일자는 YYYY-MM-DD 형식이어야 합니다.'
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            if ($payload['completion_date'] && !preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $payload['completion_date'])) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => '준공일자는 YYYY-MM-DD 형식이어야 합니다.'
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            if (
+                $payload['start_date'] &&
+                $payload['completion_date'] &&
+                $payload['start_date'] > $payload['completion_date']
+            ) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => '준공일자는 착공일자보다 빠를 수 없습니다.'
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            if (
+                $payload['initial_contract_amount'] !== null &&
+                $payload['initial_contract_amount'] !== '' &&
+                !is_numeric($payload['initial_contract_amount'])
+            ) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => '최초 계약금액은 숫자만 입력할 수 있습니다.'
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
             /* =========================================================
             저장 (🔥 파일 포함 Service로 위임)
             ========================================================= */

@@ -9,7 +9,7 @@
     ========================== -->
     <div class="page-header">
         <h5 class="mb-1 fw-bold">🖼️ 커버이미지관리</h5>
-        <span id="coverCount" class="text-primary"></span>
+        <span id="coverCount" class="text-primary cover-count page-count"></span>
     </div>
 
     <div class="content-area">
@@ -34,8 +34,9 @@
         ];
 
         $dateInputClass = 'form-control form-control-sm year-input';
-        $dateStartPlaceholder = '시작년도';
-        $dateEndPlaceholder   = '종료년도';
+        $dateInputAttrs = 'autocomplete="off" inputmode="none" readonly';
+        $dateStartPlaceholder = '시작년월';
+        $dateEndPlaceholder   = '종료년월';
 
         $searchFieldOptions = '
             <option value="year">년도</option>
@@ -119,5 +120,6 @@
   <div id="base-picker" class="picker is-hidden"></div>
   <div id="datetime-picker" class="picker is-hidden"></div>
   <div id="today-picker" class="picker is-hidden"></div>
+  <div id="year-month-picker" class="picker is-hidden"></div>
   <div id="time-list-picker" class="picker is-hidden"></div>
 </div>

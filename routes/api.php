@@ -1294,11 +1294,41 @@ $router->post('/api/user/profile/save', 'ProfileController@apiSave', [
 ========================= */
 
 // 목록
-$router->get('/api/settings/organization/department/list', 'DepartmentController@apiList');
-$router->post('/api/settings/organization/department/list', 'DepartmentController@apiList');
+$router->get('/api/settings/organization/department/list', 'DepartmentController@apiList', [
+    'key'         => 'api.settings.department.list',
+    'name'        => '부서 목록 조회',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+$router->post('/api/settings/organization/department/list', 'DepartmentController@apiList', [
+    'key'         => 'api.settings.department.list.post',
+    'name'        => '부서 목록 조회',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
 
 // 저장
-$router->post('/api/settings/organization/department/save', 'DepartmentController@apiSave');
+$router->post('/api/settings/organization/department/save', 'DepartmentController@apiSave', [
+    'key'         => 'api.settings.department.save',
+    'name'        => '부서 저장',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/settings/organization/department/reorder', 'DepartmentController@apiReorder', [
+    'key'         => 'api.settings.department.reorder',
+    'name'        => '부서 순서 변경',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
 
 
 
@@ -1308,10 +1338,40 @@ $router->post('/api/settings/organization/department/save', 'DepartmentControlle
 ========================= */
 
 // 직책 목록 (GET + POST 허용)
-$router->get('/api/settings/organization/position/list', 'PositionController@apiList');
-$router->post('/api/settings/organization/position/list', 'PositionController@apiList'); // 🔥 수정
+$router->get('/api/settings/organization/position/list', 'PositionController@apiList', [
+    'key'         => 'api.settings.position.list',
+    'name'        => '직책 목록 조회',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+$router->post('/api/settings/organization/position/list', 'PositionController@apiList', [
+    'key'         => 'api.settings.position.list.post',
+    'name'        => '직책 목록 조회',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]); // 🔥 수정
 // 직책 저장
-$router->post('/api/settings/organization/position/save', 'PositionController@apiSave');
+$router->post('/api/settings/organization/position/save', 'PositionController@apiSave', [
+    'key'         => 'api.settings.position.save',
+    'name'        => '직책 저장',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/settings/organization/position/reorder', 'PositionController@apiReorder', [
+    'key'         => 'api.settings.position.reorder',
+    'name'        => '직책 순서 변경',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
 
 
 
@@ -1321,6 +1381,16 @@ $router->post('/api/settings/organization/position/save', 'PositionController@ap
 /* =========================================
  * 역할 / 권한
  * ========================================= */
+$router->get('/api/settings/organization/role/list', 'RoleController@apiList', [
+    'key' => 'api.settings.role.list.get',
+    'name' => '역할 목록 조회',
+    'description' => '역할 리스트 조회',
+    'category' => '권한관리',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
+]);
+
 $router->post('/api/settings/organization/role/list', 'RoleController@apiList', [
     'key' => 'api.settings.role.list',
     'name' => '역할 목록 조회',
@@ -1335,18 +1405,54 @@ $router->post('/api/settings/organization/role/save', 'RoleController@apiSave', 
     'category' => '권한관리'
 ]);
 
+$router->post('/api/settings/organization/role/reorder', 'RoleController@apiReorder', [
+    'key' => 'api.settings.role.reorder',
+    'name' => '역할 순서 변경',
+    'description' => '역할 코드 순서 변경',
+    'category' => '권한관리',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true
+]);
+
+$router->get('/api/settings/organization/permission/list', 'PermissionController@apiList', [
+    'key' => 'api.settings.permission.list.get',
+    'name' => '권한 목록 조회',
+    'description' => '전체 권한 조회',
+    'category' => '권한관리',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false
+]);
+
 $router->post('/api/settings/organization/permission/list', 'PermissionController@apiList', [
     'key' => 'api.settings.permission.list',
     'name' => '권한 목록 조회',
     'description' => '전체 권한 조회',
-    'category' => '권한관리'
+    'category' => '권한관리',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false
 ]);
 
 $router->post('/api/settings/organization/permission/save', 'PermissionController@apiSave', [
     'key' => 'api.settings.permission.save',
     'name' => '권한 저장',
     'description' => '권한 정보 저장',
-    'category' => '권한관리'
+    'category' => '권한관리',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true
+]);
+
+$router->post('/api/settings/organization/permission/reorder', 'PermissionController@apiReorder', [
+    'key' => 'api.settings.permission.reorder',
+    'name' => '권한 순서 변경',
+    'description' => '권한 코드 순서 변경',
+    'category' => '권한관리',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true
 ]);
 
 $router->post('/api/settings/organization/role-permission/list', 'RolePermissionController@apiList', [
@@ -1378,7 +1484,10 @@ $router->post('/api/settings/organization/approval/template/list', 'ApprovalTemp
     'key' => 'api.settings.approval.template.list',
     'name' => '결재 템플릿 목록',
     'description' => '결재 템플릿 리스트 조회',
-    'category' => '결재관리'
+    'category' => '결재관리',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false
 ]);
 
 
@@ -1389,35 +1498,50 @@ $router->post('/api/settings/organization/approval/template/save', 'ApprovalTemp
     'key' => 'api.settings.approval.template.save',
     'name' => '결재 템플릿 저장',
     'description' => '템플릿 저장',
-    'category' => '결재관리'
+    'category' => '결재관리',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true
 ]);
 
 $router->post('/api/settings/organization/approval/template/delete', 'ApprovalTemplateController@apiTemplateDelete', [
     'key' => 'api.settings.approval.template.delete',
     'name' => '결재 템플릿 삭제',
     'description' => '템플릿 삭제',
-    'category' => '결재관리'
+    'category' => '결재관리',
+    'auth' => true,
+    'permissions' => ['delete'],
+    'log' => true
 ]);
 
 $router->post('/api/settings/organization/approval/step/list', 'ApprovalTemplateController@apiStepList', [
     'key' => 'api.settings.approval.step.list',
     'name' => '결재 단계 목록',
     'description' => '결재 단계 리스트 조회',
-    'category' => '결재관리'
+    'category' => '결재관리',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false
 ]);
 
 $router->post('/api/settings/organization/approval/step/save', 'ApprovalTemplateController@apiStepSave', [
     'key' => 'api.settings.approval.step.save',
     'name' => '결재 단계 저장',
     'description' => '결재 단계 저장',
-    'category' => '결재관리'
+    'category' => '결재관리',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true
 ]);
 
 $router->post('/api/settings/organization/approval/step/delete', 'ApprovalTemplateController@apiStepDelete', [
     'key' => 'api.settings.approval.step.delete',
     'name' => '결재 단계 삭제',
     'description' => '결재 단계 삭제',
-    'category' => '결재관리'
+    'category' => '결재관리',
+    'auth' => true,
+    'permissions' => ['delete'],
+    'log' => true
 ]);
 
 

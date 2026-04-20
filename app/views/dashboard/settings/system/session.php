@@ -1,18 +1,13 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/views/dashboard/settings/system/session.php'
-// 설명: 시스템설정 → 세션관리 (settings.php 내부에서 include되는 본문만 출력)
+// Path: PROJECT_ROOT . '/app/views/dashboard/settings/system/session.php'
 ?>
 
 <div class="session-wrapper col-12 mx-auto">
-
-
     <h4 class="fw-bold mb-4 text-dark">
-        <i class="bi bi-clock-history me-2"></i>세션 유지 시간 설정
+        <i class="bi bi-clock-history me-2"></i>세션 유효 시간 설정
     </h4>
 
     <form id="session-setting-form">
-
-        <!-- 세션 유지 시간 -->
         <div class="row g-3 align-items-center mb-3">
             <div class="col-auto">
                 <label class="form-label fw-semibold mb-0" for="session_timeout">
@@ -28,7 +23,8 @@
                             data-step="-1">-</button>
 
                     <input type="number"
-                           min="1" max="1440"
+                           min="1"
+                           max="1440"
                            name="session_timeout"
                            id="session_timeout"
                            class="form-control text-center"
@@ -42,15 +38,14 @@
             </div>
 
             <div class="col-auto">
-                <small class="form-text">1~1440분 설정 가능</small>
+                <small class="form-text text-muted">1~1440분 사이에서 설정할 수 있습니다.</small>
             </div>
         </div>
 
-        <!-- 팝업 알림 시간 -->
         <div class="row g-3 align-items-center mb-3">
             <div class="col-auto">
                 <label class="form-label fw-semibold mb-0" for="session_alert">
-                    팝업 알림 시간(분)
+                    만료 전 알림 시간(분)
                 </label>
             </div>
 
@@ -63,6 +58,7 @@
 
                     <input type="number"
                            min="1"
+                           max="1440"
                            name="session_alert"
                            id="session_alert"
                            class="form-control text-center"
@@ -76,28 +72,25 @@
             </div>
 
             <div class="col-auto">
-                <small class="form-text">만료 전 알림 표시</small>
+                <small class="form-text text-muted">세션 만료 전에 미리 알림을 표시합니다.</small>
             </div>
         </div>
 
-        <!-- 알림 사운드 -->
         <div class="mb-3">
-            <label class="form-label fw-semibold">팝업 알림 음향</label>
+            <label class="form-label fw-semibold" for="session_sound">만료 알림 사운드</label>
             <div class="input-group">
-                <select name="session_sound"
-                        id="session_sound"
-                        class="form-select"
-                        onchange="updateSoundPreview()">
+                <select name="session_sound" id="session_sound" class="form-select">
                     <option value="default.mp3">기본음</option>
                     <option value="alert1.mp3">알림음 1</option>
                     <option value="alert2.mp3">알림음 2</option>
                     <option value="alert3.mp3">알림음 3</option>
                 </select>
-                <button type="button"
-                        class="btn btn-outline-secondary"
-                        onclick="playSoundPreview()">미리듣기</button>
+                <button type="button" class="btn btn-outline-secondary" id="session-sound-preview-btn">미리듣기</button>
             </div>
-            <audio id="sound-preview"></audio>
+            <small class="form-text text-muted d-block mt-2" id="session-sound-help">
+                선택한 사운드를 재생해서 바로 확인할 수 있습니다.
+            </small>
+            <audio id="sound-preview" preload="auto"></audio>
         </div>
 
         <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">
@@ -105,4 +98,3 @@
         </button>
     </form>
 </div>
-

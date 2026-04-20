@@ -190,6 +190,9 @@ class CoverImageModel
                 deleted_by
             FROM system_coverimage_assets
             WHERE deleted_at IS NULL
+              AND is_active = 1
+              AND src IS NOT NULL
+              AND src <> ''
             ORDER BY code ASC
         ";
 

@@ -1,55 +1,64 @@
-// 경로: PROJECT_ROOT/public/assets/js/pages/dashboard/settings/organization/role_permissions.table.js
-
 (function () {
     "use strict";
 
-    console.log("role_permissions.table.js Loaded");
+    console.log("[role_permissions.js] loaded");
 
-    const API_ROLE_LIST         = "/api/settings/organization/role/list";
-    const API_PERM_LIST         = "/api/settings/organization/permission/list";
-    const API_ROLE_PERMISSIONS  = "/api/settings/organization/role-permission/list";
-    const API_ASSIGN            = "/api/settings/organization/role-permission/assign";
-    const API_REMOVE            = "/api/settings/organization/role-permission/remove";
+    const API_ROLE_LIST = "/api/settings/organization/role/list";
+    const API_PERM_LIST = "/api/settings/organization/permission/list";
+    const API_ROLE_PERMISSIONS = "/api/settings/organization/role-permission/list";
+    const API_ASSIGN = "/api/settings/organization/role-permission/assign";
+    const API_REMOVE = "/api/settings/organization/role-permission/remove";
 
     let selectedRoleId = null;
     let permissionTable = null;
-
-    // 변경된 항목들 (대기열)
     let pendingChanges = {};
 
-    window.RolePermissionTable = {
+    function notify(type, message) {
+        if (window.AppCore?.notify) {
+            window.AppCore.notify(type, message);
+            return;
+        }
 
-        /* ------------------------------------------------------
-           0) 스피너 표시 함수
-        ------------------------------------------------------ */
+        if (type === "error" || type === "warning") {
+            alert(message);
+            return;
+        }
+
+        console.log(message);
+    }
+
+    function setRoleCount(count) {
+        $("#roleListCount").text(`총 ${count}건`);
+    }
+
+    function buildRoleStatusBadge(value) {
+        return String(value) === "1"
+            ? '<span class="badge bg-success">활성</span>'
+            : '<span class="badge bg-secondary">비활성</span>';
+    }
+
+    window.RolePermissionTable = {
         showSpinner() {
             const loading = document.getElementById("global-loading-overlay");
             if (loading) loading.style.display = "flex";
-
-            // 화면 전체 클릭 차단
             document.body.style.pointerEvents = "none";
         },
 
         hideSpinner() {
             const loading = document.getElementById("global-loading-overlay");
             if (loading) loading.style.display = "none";
-
             document.body.style.pointerEvents = "auto";
         },
 
-        /* ------------------------------------------------------
-           초기화
-        ------------------------------------------------------ */
         init() {
             this.loadRoleList();
             this.bindSearchEvent();
             this.bindCheckAll();
             this.bindSaveButton();
+            this.bindLayoutEvents();
+            this.adjustLayout();
         },
 
-        /* ------------------------------------------------------
-           검색
-        ------------------------------------------------------ */
         bindSearchEvent() {
             $("#permission-search").on("keyup", () => {
                 if (!permissionTable) return;
@@ -59,24 +68,19 @@
 
                 const rows = permissionTable.rows({ filter: "applied" }).data().toArray();
                 const fullRows = permissionTable.rows().data().toArray();
+                const stats = keyword.trim() === ""
+                    ? this.calculateCounts(fullRows)
+                    : this.calculateCounts(rows);
 
-                let countInfo;
+                const label = keyword.trim() === "" ? "총" : "검색결과";
+                $("#permission-count").text(
+                    `${label} ${stats.total}개 (api = ${stats.apiCount}, web = ${stats.webCount})`
+                );
 
-                if (keyword.trim() === "") {
-                    const full = this.calculateCounts(fullRows);
-                    countInfo = `총 ${full.total}개 (api = ${full.apiCount}, web = ${full.webCount})`;
-                } else {
-                    const filtered = this.calculateCounts(rows);
-                    countInfo = `검색결과 ${filtered.total}개 (api = ${filtered.apiCount}, web = ${filtered.webCount})`;
-                }
-
-                $("#permission-count").text(countInfo);
+                this.syncCheckAll();
             });
         },
 
-        /* ------------------------------------------------------
-           전체 선택 체크박스
-        ------------------------------------------------------ */
         bindCheckAll() {
             $("#permission-check-all").on("change", function () {
                 if (!permissionTable) return;
@@ -90,31 +94,23 @@
             });
         },
 
-        /* ------------------------------------------------------
-           저장 버튼
-        ------------------------------------------------------ */
         bindSaveButton() {
             $("#permission-save-btn").on("click", () => {
-
                 if (!selectedRoleId) {
-                    alert("역할이 선택되지 않았습니다.");
+                    notify("warning", "역할을 먼저 선택해 주세요.");
                     return;
                 }
 
                 const changes = Object.entries(pendingChanges);
-
                 if (changes.length === 0) {
-                    alert("변경된 권한이 없습니다.");
+                    notify("warning", "변경된 권한이 없습니다.");
                     return;
                 }
 
-                // 스피너 ON
                 this.showSpinner();
 
-                // API 호출 작업 생성
                 const tasks = changes.map(([permId, isChecked]) => {
                     const url = isChecked ? API_ASSIGN : API_REMOVE;
-
                     return $.post(url, {
                         role_id: selectedRoleId,
                         permission_id: permId
@@ -124,80 +120,103 @@
                 Promise.all(tasks)
                     .then(() => {
                         pendingChanges = {};
-
                         $("#permission-save-btn")
                             .removeClass("btn-primary")
                             .addClass("btn-secondary");
-
-                        //alert("저장되었습니다.");
+                        this.syncCheckAll();
+                        notify("success", "권한이 저장되었습니다.");
                     })
                     .catch(() => {
-                        alert("일부 저장 실패");
+                        notify("error", "권한 저장에 실패했습니다.");
                     })
                     .finally(() => {
-                        // 스피너 OFF
                         this.hideSpinner();
                     });
             });
         },
 
-        /* ------------------------------------------------------
-           역할 목록 로딩
-        ------------------------------------------------------ */
+        bindLayoutEvents() {
+            window.addEventListener("resize", () => this.adjustLayout());
+            document.addEventListener("sidebar:toggled", () => {
+                setTimeout(() => this.adjustLayout(), 340);
+            });
+        },
+
+        adjustLayout() {
+            const page = document.getElementById("rolePermissionPage");
+            if (!page) return;
+
+            const roleCard = document.getElementById("roleListCard");
+            const permissionCard = document.getElementById("permissionListCard");
+            const footer = document.querySelector("footer");
+
+            if (!roleCard || !permissionCard) return;
+
+            const top = page.getBoundingClientRect().top;
+            const footerHeight = footer ? footer.getBoundingClientRect().height : 56;
+            const gap = 76;
+            const available = Math.max(300, window.innerHeight - top - footerHeight - gap);
+
+            roleCard.style.height = `${available}px`;
+            permissionCard.style.height = `${available}px`;
+
+            if (permissionTable) {
+                setTimeout(() => {
+                    permissionTable.columns.adjust().draw(false);
+                    if (permissionTable.fixedHeader) {
+                        permissionTable.fixedHeader.adjust();
+                    }
+                }, 50);
+            }
+        },
+
         loadRoleList() {
             $.post(API_ROLE_LIST, {}, (res) => {
                 if (!res || res.success === false) return;
 
+                const rows = Array.isArray(res.data) ? res.data : [];
                 const tbody = $("#role-list-table tbody");
                 tbody.empty();
 
-                res.data.forEach(r => {
+                rows.forEach((role) => {
                     tbody.append(`
-                        <tr class="rp-role-row" data-id="${r.id}" data-name="${r.role_name}">
-                            <td>${r.code}</td>
-                            <td>${r.role_name}</td>
+                        <tr class="rp-role-row" data-id="${role.id}" data-name="${role.role_name}">
+                            <td>${role.code ?? ""}</td>
+                            <td>${role.role_name ?? ""}</td>
+                            <td class="text-center">${buildRoleStatusBadge(role.is_active)}</td>
                         </tr>
                     `);
                 });
 
+                setRoleCount(rows.length);
                 this.bindRoleClick();
             });
         },
 
-        /* ------------------------------------------------------
-           역할 선택 → 권한 목록 로드
-        ------------------------------------------------------ */
         bindRoleClick() {
-
             $("#role-list-table").off("click", ".rp-role-row");
 
             $("#role-list-table").on("click", ".rp-role-row", function () {
-
-                $("#role-list-table tr").removeClass("table-primary");
-                $(this).addClass("table-primary");
+                $("#role-list-table tr").removeClass("table-active");
+                $(this).addClass("table-active");
 
                 selectedRoleId = $(this).data("id");
                 $("#rp-selected-role-name").text(`[${$(this).data("name")}]`);
 
                 pendingChanges = {};
-
                 $("#permission-save-btn")
                     .removeClass("btn-primary")
                     .addClass("btn-secondary");
 
                 $("#permission-header").show();
-
-                RolePermissionTable.reloadPermissionTable();
+                window.RolePermissionTable.reloadPermissionTable();
             });
         },
 
-        /* ------------------------------------------------------
-           카운트 계산
-        ------------------------------------------------------ */
         calculateCounts(list) {
             const total = list.length;
-            const apiCount = list.filter(x =>
-                String(x.permission_key).toLowerCase().startsWith("api.")
+            const apiCount = list.filter((item) =>
+                String(item.permission_key).toLowerCase().startsWith("api.")
             ).length;
 
             return {
@@ -207,42 +226,37 @@
             };
         },
 
-        /* ------------------------------------------------------
-           테이블 로딩
-        ------------------------------------------------------ */
         reloadPermissionTable() {
-
             if (!selectedRoleId) return;
 
             $.when(
                 $.post(API_PERM_LIST, {}),
                 $.post(API_ROLE_PERMISSIONS, { role_id: selectedRoleId })
             ).done((permRes, assignedRes) => {
+                const permissionsRes = permRes[0];
+                const assignedPermissionsRes = assignedRes[0];
 
-                permRes = permRes[0];
-                assignedRes = assignedRes[0];
+                if (!permissionsRes.success || !assignedPermissionsRes.success) return;
 
-                if (!permRes.success || !assignedRes.success) return;
-
-                const assigned = assignedRes.data.map(a => String(a.permission_id));
-
-                const merged = permRes.data.map(p => ({
-                    ...p,
-                    assigned: assigned.includes(String(p.id))
+                const assigned = assignedPermissionsRes.data.map((item) => String(item.permission_id));
+                const merged = permissionsRes.data.map((permission) => ({
+                    ...permission,
+                    assigned: assigned.includes(String(permission.id))
                 }));
 
-                const $count = $("#permission-count");
                 const stats = this.calculateCounts(merged);
-                $count.text(`총 ${stats.total}개 (api = ${stats.apiCount}, web = ${stats.webCount})`);
+                $("#permission-count").text(
+                    `총 ${stats.total}개 (api = ${stats.apiCount}, web = ${stats.webCount})`
+                );
 
-                /* 기존 테이블이면 갱신 */
                 if (permissionTable) {
                     permissionTable.clear();
                     permissionTable.rows.add(merged).draw();
-                    return this.bindToggleEvents();
+                    this.bindToggleEvents();
+                    this.syncCheckAll();
+                    return;
                 }
 
-                /* 최초 테이블 생성 */
                 permissionTable = $("#role-permissions-table").DataTable({
                     paging: false,
                     searching: true,
@@ -250,13 +264,15 @@
                     ordering: false,
                     dom: "t",
                     rowGroup: { dataSrc: "category" },
-
+                    scrollY: 500,
+                    scrollCollapse: true,
                     columns: [
-                        { data: "permission_key" },
-                        { data: "permission_name" },
                         { data: "category" },
+                        { data: "permission_name" },
+                        { data: "permission_key" },
                         {
                             data: "id",
+                            className: "text-center",
                             render: function (id, type, row) {
                                 return `
                                     <input type="checkbox"
@@ -271,14 +287,18 @@
 
                 permissionTable.rows.add(merged).draw();
                 this.bindToggleEvents();
+                this.syncCheckAll();
+
+                setTimeout(() => {
+                    permissionTable.columns.adjust().draw(false);
+                    if (permissionTable.fixedHeader) {
+                        permissionTable.fixedHeader.adjust();
+                    }
+                }, 50);
             });
         },
 
-        /* ------------------------------------------------------
-           개별 체크는 pendingChanges 에만 기록 (DB 즉시 저장 X)
-        ------------------------------------------------------ */
         bindToggleEvents() {
-
             $("#role-permissions-table").off("pending-change", ".rp-toggle");
             $("#role-permissions-table").off("change", ".rp-toggle");
 
@@ -291,15 +311,36 @@
                 $("#permission-save-btn")
                     .removeClass("btn-secondary")
                     .addClass("btn-primary");
+
+                window.RolePermissionTable.syncCheckAll();
             };
 
             $("#role-permissions-table").on("pending-change", ".rp-toggle", updatePending);
             $("#role-permissions-table").on("change", ".rp-toggle", updatePending);
+        },
+
+        syncCheckAll() {
+            if (!permissionTable) return;
+
+            const rows = permissionTable.rows({ filter: "applied" }).nodes();
+            const total = $(rows).find(".rp-toggle").length;
+            const checked = $(rows).find(".rp-toggle:checked").length;
+            const $all = $("#permission-check-all");
+
+            if (checked === 0) {
+                $all.prop("checked", false);
+                $all.prop("indeterminate", false);
+            } else if (checked === total) {
+                $all.prop("checked", true);
+                $all.prop("indeterminate", false);
+            } else {
+                $all.prop("checked", false);
+                $all.prop("indeterminate", true);
+            }
         }
     };
 
     $(function () {
-        RolePermissionTable.init();
+        window.RolePermissionTable.init();
     });
-
 })();

@@ -1,28 +1,55 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/views/dashboard/settings/employee/permissions.php'
-// 설명: 권한 상세 리스트
+// Path: PROJECT_ROOT . '/app/views/dashboard/settings/organization/permissions.php'
 ?>
 
-<h5 class="fw-bold mb-3">권한 상세 리스트</h5>
+<div class="permission-page" id="permission-main">
 
-<!-- 테이블 wrapper (초기 비표시 → JS에서 show) -->
-<div id="permissions-table-wrapper" style="display:none;">
-    <div class="table-responsive">
-        <table id="permissions-table" class="table table-bordered table-hover align-middle erp-table">
-            <thead>
-                <tr>
-                    <th>코드</th>
-                    <th>Permission Key</th>
-                    <th>Permission Name</th>
-                    <th>설명</th>
-                    <th>카테고리</th>
-                    <th>활성</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-    </div>
+  <div class="page-header">
+    <h5 class="mb-1 fw-bold">권한관리</h5>
+    <span id="permissionCount" class="text-primary"></span>
+  </div>
+
+  <div class="content-area">
+
+    <?php
+    $searchId = 'permission';
+
+    $dateOptions = '
+      <option value="created_at">등록일자</option>
+      <option value="updated_at">수정일자</option>
+    ';
+
+    $searchFieldOptions = '
+      <option value="">선택</option>
+      <option value="permission_name">퍼미션명</option>
+      <option value="category">카테고리</option>
+      <option value="permission_key">퍼미션키</option>
+      <option value="code">코드</option>
+      <option value="description">설명</option>
+      <option value="is_active">상태</option>
+    ';
+
+    include PROJECT_ROOT . '/app/views/components/ui-search.php';
+    ?>
+
+    <?php
+    $tableId       = 'permission-table';
+    $ajaxUrl       = '/api/settings/organization/permission/list';
+    $columnsType   = 'permission';
+
+    $enableButtons = true;
+    $enableSearch  = true;
+    $enablePaging  = true;
+    $enableReorder = false;
+
+    include PROJECT_ROOT . '/app/views/components/ui-table.php';
+    ?>
+
+  </div>
 </div>
 
-<!-- 모달 Include -->
 <?php include __DIR__ . '/partials/permissions_modal.php'; ?>
+
+<div class="picker-root">
+  <div id="today-picker" class="picker is-hidden"></div>
+</div>

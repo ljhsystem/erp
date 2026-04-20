@@ -25,7 +25,7 @@ class PositionController
     // ============================================================
     public function webIndex()
     {
-        include PROJECT_ROOT . '/app/views/dashboard/settings/employee/positions.php';
+        include PROJECT_ROOT . '/app/views/dashboard/settings/organization/positions.php';
     }
 
     // ============================================================
@@ -38,10 +38,31 @@ class PositionController
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        echo json_encode([
-            'success' => true,
-            'data'    => $this->service->getAll()
-        ], JSON_UNESCAPED_UNICODE);
+        try {
+            $filters = [];
+            $rawFilters = $_GET['filters'] ?? $_POST['filters'] ?? '';
+
+            if ($rawFilters !== '') {
+                $decoded = json_decode($rawFilters, true);
+
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $filters = $decoded;
+                }
+            }
+
+            echo json_encode([
+                'success' => true,
+                'data'    => $this->service->getAll($filters)
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            echo json_encode([
+                'success' => false,
+                'message' => '직책 목록 조회 실패',
+                'error'   => $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE);
+        }
+
+        exit;
     }
 
     // ============================================================
@@ -80,6 +101,7 @@ class PositionController
         }
 
         echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        exit;
     }
 
     // ============================================================
@@ -129,5 +151,20 @@ class PositionController
         }
 
         return $this->service->delete($id);
+    }
+    public function apiReorder()
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+
+        $changes = json_decode(file_get_contents('php://input'), true)['changes'] ?? [];
+
+        if (!$changes) {
+            echo json_encode(['success' => false, 'message' => '변경 데이터 없음']);
+            return;
+        }
+
+        $this->service->reorder($changes);
+
+        echo json_encode(['success' => true]);
     }
 }

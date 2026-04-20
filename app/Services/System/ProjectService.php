@@ -162,17 +162,18 @@ class ProjectService
     /* ============================================================
      * 저장 (신규 + 수정 통합)
      * ============================================================ */
-    public function save(array $data, string $actorType = 'USER'): array
+    public function save(array $data, string $actorType = 'USER', array $files = []): array
     {
         $actor = ActorHelper::resolve($actorType);
 
-        $this->logger->info('save() called', [
-            'mode'      => !empty($data['id']) ? 'UPDATE' : 'INSERT',
-            'id'        => $data['id'] ?? null,
-            'code'      => $data['code'] ?? null,
-            'actorType' => $actorType,
-            'actor'     => $actor
-        ]);
+            $this->logger->info('save() called', [
+                'mode'      => !empty($data['id']) ? 'UPDATE' : 'INSERT',
+                'id'        => $data['id'] ?? null,
+                'code'      => $data['code'] ?? null,
+                'actorType' => $actorType,
+                'actor'     => $actor,
+                'file_keys' => array_keys($files)
+            ]);
 
         try {
 

@@ -29,6 +29,22 @@
     margin-bottom:14px;
 }
 
+.cover-page .page-header h5,
+.cover-main .page-header h5{
+    margin-bottom:0;
+}
+
+.cover-count,
+.cover-page .page-count,
+.cover-main .page-count{
+    display:inline-flex;
+    align-items:center;
+    margin-left:2px;
+    font-size:1rem;
+    font-weight:500;
+    line-height:1;
+}
+
 
 .date-range{
     display:flex;

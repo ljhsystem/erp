@@ -1,28 +1,54 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/views/dashboard/settings/employee/departments.php'
-// 설명: 직원관리 → 부서 관리
+// 경로: PROJECT_ROOT . '/app/views/dashboard/settings/organization/departments.php'
 ?>
-<h5 class="fw-bold mb-3">부서 관리</h5>
 
-<div id="dept-table-wrapper" style="display:none;">
-    <div class="table-responsive">
-    <table id="dept-table" class="table table-bordered table-hover align-middle erp-table">
-           
-            <thead>
-                <tr>
-                    <th style="width:30px;"></th>
-                    <th>코드</th>
-                    <th>부서명</th>
-                    <th>부서장</th>
-                    <th>설명</th>
-                    <th>활성</th>
-                </tr>
-            </thead>
+<div class="department-page" id="department-main">
 
-            <tbody></tbody>
-        </table>
-    </div>
+  <div class="page-header">
+    <h5 class="mb-1 fw-bold">부서관리</h5>
+    <span id="departmentCount" class="text-primary"></span>
+  </div>
+
+  <div class="content-area">
+
+    <?php
+    $searchId = 'department';
+
+    $dateOptions = '
+      <option value="created_at">등록일자</option>
+      <option value="updated_at">수정일자</option>
+    ';
+
+    $searchFieldOptions = '
+      <option value="">선택</option>
+      <option value="dept_name">부서명</option>
+      <option value="code">코드</option>
+      <option value="manager_name">부서장</option>
+      <option value="description">설명</option>
+      <option value="is_active">상태</option>
+    ';
+
+    include PROJECT_ROOT . '/app/views/components/ui-search.php';
+    ?>
+
+    <?php
+    $tableId       = 'department-table';
+    $ajaxUrl       = '/api/settings/organization/department/list';
+    $columnsType   = 'department';
+
+    $enableButtons = true;
+    $enableSearch  = true;
+    $enablePaging  = true;
+    $enableReorder = false;
+
+    include PROJECT_ROOT . '/app/views/components/ui-table.php';
+    ?>
+
+  </div>
 </div>
 
-<!-- 모달 Include -->
 <?php include __DIR__ . '/partials/dept_modal.php'; ?>
+
+<div class="picker-root">
+  <div id="today-picker" class="picker is-hidden"></div>
+</div>

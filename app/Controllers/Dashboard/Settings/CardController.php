@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Controllers/Dashboard/Settings/CardController.php'
+// 寃쎈줈: PROJECT_ROOT . '/app/Controllers/Dashboard/Settings/CardController.php'
 
 namespace App\Controllers\Dashboard\Settings;
 
@@ -18,7 +18,7 @@ class CardController
     }
 
     /* ============================================================
-     API: 카드 목록
+     API: 移대뱶 紐⑸줉
      ============================================================ */
     public function apiList(): void
     {
@@ -46,7 +46,7 @@ class CardController
 
             echo json_encode([
                 'success' => false,
-                'message' => '카드 목록 조회 실패',
+                'message' => '移대뱶 紐⑸줉 議고쉶 ?ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -55,7 +55,7 @@ class CardController
     }
 
     /* ============================================================
-     API: 계좌 상세
+     API: 怨꾩쥖 ?곸꽭
      ============================================================ */
     public function apiDetail(): void
     {
@@ -66,7 +66,7 @@ class CardController
         if (!$id) {
             echo json_encode([
                 'success' => false,
-                'message' => '카드 ID 누락'
+                'message' => '移대뱶 ID ?꾨씫'
             ]);
             exit;
         }
@@ -84,7 +84,7 @@ class CardController
 
             echo json_encode([
                 'success' => false,
-                'message' => '계좌 조회 실패',
+                'message' => '怨꾩쥖 議고쉶 ?ㅽ뙣',
                 'error' => $e->getMessage()
             ]);
         }
@@ -113,7 +113,7 @@ class CardController
 
 
     /* ============================================================
-    * API: 카드 저장
+    * API: 移대뱶 ???
     * ============================================================ */
     public function apiSave(): void
     {
@@ -122,7 +122,7 @@ class CardController
         try {
 
             /* =========================================================
-            * 🔥 카드 payload (스키마 기준)
+            * ?뵦 移대뱶 payload (?ㅽ궎留?湲곗?)
             * ========================================================= */
             $payload = [
                 'id' => $_POST['id'] ?? null,
@@ -150,17 +150,17 @@ class CardController
                     ? (int)$_POST['is_active']
                     : 1,
 
-                /* 🔥 파일 */
+                /* ?뵦 ?뚯씪 */
                 'delete_card_file' => $_POST['delete_card_file'] ?? '0',
             ];
 
             /* =========================================================
-            * 🔥 필수값 검증
+            * ?뵦 ?꾩닔媛?寃利?
             * ========================================================= */
             if ($payload['card_name'] === '') {
                 echo json_encode([
                     'success' => false,
-                    'message' => '카드명은 필수입니다.'
+                    'message' => '移대뱶紐낆? ?꾩닔?낅땲??'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -168,13 +168,53 @@ class CardController
             if ($payload['card_type'] === '') {
                 echo json_encode([
                     'success' => false,
-                    'message' => '카드유형은 필수입니다.'
+                    'message' => '移대뱶?좏삎? ?꾩닔?낅땲??'
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            if ($payload['currency'] !== '' && !preg_match('/^[A-Z]{3}$/', strtoupper($payload['currency']))) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => '통화 코드는 3자리 영문으로 입력해주세요.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
 
+            if ($payload['card_number'] !== '' && !preg_match('/^[0-9-]+$/', $payload['card_number'])) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => '카드번호는 숫자와 하이픈만 입력할 수 있습니다.'
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            if ($payload['expiry_year'] !== '' && !preg_match('/^\d{4}$/', $payload['expiry_year'])) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => '유효기간(년)은 4자리 숫자로 입력해주세요.'
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            if ($payload['expiry_month'] !== '' && !preg_match('/^(0?[1-9]|1[0-2])$/', $payload['expiry_month'])) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => '유효기간(월)은 1부터 12 사이로 입력해주세요.'
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            if ($payload['limit_amount'] < 0) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => '한도금액은 0 이상이어야 합니다.'
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+
             /* =========================================================
-            * 🔥 저장
+            * ?뵦 ???
             * ========================================================= */
             $result = $this->service->save($payload, 'USER', $_FILES);
 
@@ -184,7 +224,7 @@ class CardController
 
             echo json_encode([
                 'success' => false,
-                'message' => '카드 저장 실패',
+                'message' => '移대뱶 ????ㅽ뙣',
                 'error' => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -193,7 +233,7 @@ class CardController
     }
 
     /* ============================================================
-     API: 삭제
+     API: ??젣
      ============================================================ */
     public function apiDelete(): void
     {
@@ -204,7 +244,7 @@ class CardController
         if (!$id) {
             echo json_encode([
                 'success' => false,
-                'message' => 'ID 누락'
+                'message' => 'ID ?꾨씫'
             ]);
             exit;
         }
@@ -216,7 +256,7 @@ class CardController
     }
 
     /* ============================================================
-     API: 휴지통
+     API: ?댁???
      ============================================================ */
     public function apiTrashList(): void
     {
@@ -240,7 +280,7 @@ class CardController
         if (!$id) {
             echo json_encode([
                 'success' => false,
-                'message' => '카드 아이디 누락'
+                'message' => '移대뱶 ?꾩씠???꾨씫'
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -255,7 +295,7 @@ class CardController
     
             echo json_encode([
                 'success' => false,
-                'message' => '카드 복원 실패',
+                'message' => '移대뱶 蹂듭썝 ?ㅽ뙣',
                 'error' => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -275,7 +315,7 @@ class CardController
             if (empty($ids) || !is_array($ids)) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '복원할 카드 아이디가 없습니다.'
+                    'message' => '蹂듭썝??移대뱶 ?꾩씠?붽? ?놁뒿?덈떎.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -288,7 +328,7 @@ class CardController
     
             echo json_encode([
                 'success' => false,
-                'message' => '선택 복원 실패',
+                'message' => '?좏깮 蹂듭썝 ?ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -310,7 +350,7 @@ class CardController
     
             echo json_encode([
                 'success' => false,
-                'message' => '전체 복원 실패',
+                'message' => '?꾩껜 蹂듭썝 ?ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -327,7 +367,7 @@ class CardController
         if (!$id) {
             echo json_encode([
                 'success' => false,
-                'message' => '계좌 아이디 누락'
+                'message' => '怨꾩쥖 ?꾩씠???꾨씫'
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -342,7 +382,7 @@ class CardController
     
             echo json_encode([
                 'success' => false,
-                'message' => '완전삭제 실패',
+                'message' => '?꾩쟾??젣 ?ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -362,7 +402,7 @@ class CardController
             if (empty($ids) || !is_array($ids)) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '삭제할 카드 아이디가 없습니다.'
+                    'message' => '??젣??移대뱶 ?꾩씠?붽? ?놁뒿?덈떎.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -375,7 +415,7 @@ class CardController
     
             echo json_encode([
                 'success' => false,
-                'message' => '선택 완전삭제 실패',
+                'message' => '?좏깮 ?꾩쟾??젣 ?ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -396,7 +436,7 @@ class CardController
 
         echo json_encode([
             'success' => false,
-            'message' => '전체 완전삭제 실패',
+            'message' => '?꾩껜 ?꾩쟾??젣 ?ㅽ뙣',
             'error'   => $e->getMessage()
         ], JSON_UNESCAPED_UNICODE);
     }
@@ -406,7 +446,7 @@ class CardController
 
 
     /* ============================================================
-     API: 정렬
+     API: ?뺣젹
      ============================================================ */
      public function apiReorder(): void
      {
@@ -421,7 +461,7 @@ class CardController
              if (empty($changes) || !is_array($changes)) {
                  echo json_encode([
                      'success' => false,
-                     'message' => '변경 데이터 없음'
+                     'message' => '蹂寃??곗씠???놁쓬'
                  ], JSON_UNESCAPED_UNICODE);
                  exit;
              }
@@ -430,14 +470,14 @@ class CardController
      
              echo json_encode([
                  'success' => true,
-                 'message' => '정렬 저장 완료'
+                 'message' => '?뺣젹 ????꾨즺'
              ], JSON_UNESCAPED_UNICODE);
      
          } catch (\Throwable $e) {
      
              echo json_encode([
                  'success' => false,
-                 'message' => '정렬 저장 실패',
+                 'message' => '?뺣젹 ????ㅽ뙣',
                  'error'   => $e->getMessage()
              ], JSON_UNESCAPED_UNICODE);
          }
@@ -450,7 +490,7 @@ class CardController
     {
         try {
 
-            // 🔥 출력 버퍼 초기화 (중요)
+            // ?뵦 異쒕젰 踰꾪띁 珥덇린??(以묒슂)
             if (ob_get_length()) {
                 ob_end_clean();
             }
@@ -463,7 +503,7 @@ class CardController
 
             header('Content-Type: text/plain; charset=UTF-8');
 
-            echo '엑셀 템플릿 다운로드 실패: ' . $e->getMessage();
+            echo '?묒? ?쒗뵆由??ㅼ슫濡쒕뱶 ?ㅽ뙣: ' . $e->getMessage();
         }
 
         exit;
@@ -478,7 +518,7 @@ class CardController
             if (!isset($_FILES['excel']) || !is_uploaded_file($_FILES['excel']['tmp_name'])) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '파일이 업로드되지 않았습니다.'
+                    'message' => '?뚯씪???낅줈?쒕릺吏 ?딆븯?듬땲??'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -488,14 +528,14 @@ class CardController
             $fileSize = $_FILES['excel']['size'];
     
             /* =========================================================
-             * 파일 검증
+             * ?뚯씪 寃利?
              * ========================================================= */
             $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
     
             if (!in_array($ext, ['xlsx', 'xls'])) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '엑셀 파일만 업로드 가능합니다.'
+                    'message' => '?묒? ?뚯씪留??낅줈??媛?ν빀?덈떎.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -503,13 +543,13 @@ class CardController
             if ($fileSize > 10 * 1024 * 1024) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '파일 용량 초과 (최대 10MB)'
+                    'message' => '?뚯씪 ?⑸웾 珥덇낵 (理쒕? 10MB)'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
     
             /* =========================================================
-             * 서비스 호출 (🔥 중요: SYSTEM ACTOR)
+             * ?쒕퉬???몄텧 (?뵦 以묒슂: SYSTEM ACTOR)
              * ========================================================= */
             $actor = 'SYSTEM:EXCEL_UPLOAD';
     
@@ -521,7 +561,7 @@ class CardController
     
             echo json_encode([
                 'success' => false,
-                'message' => '엑셀 업로드 실패',
+                'message' => '?묒? ?낅줈???ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -535,7 +575,7 @@ class CardController
         try {
     
             /* =========================================================
-             * 🔥 출력 버퍼 제거 (엑셀 깨짐 방지)
+             * ?뵦 異쒕젰 踰꾪띁 ?쒓굅 (?묒? 源⑥쭚 諛⑹?)
              * ========================================================= */
             if (ob_get_length()) {
                 ob_end_clean();
@@ -549,7 +589,7 @@ class CardController
     
             header('Content-Type: text/plain; charset=UTF-8');
     
-            echo '엑셀 다운로드 실패: ' . $e->getMessage();
+            echo '?묒? ?ㅼ슫濡쒕뱶 ?ㅽ뙣: ' . $e->getMessage();
         }
     
         exit;

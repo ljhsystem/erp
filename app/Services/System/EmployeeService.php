@@ -1,10 +1,10 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Services/System/EmployeeService.php'
-// 설명:
-//  - 직원(Employee) 관리 서비스
-//  - UUID / Code 생성은 Service 책임
-//  - DB 처리: UserPrlfileModel
-//  - 모든 주요 흐름 LoggerFactory 적용
+// 寃쎈줈: PROJECT_ROOT . '/app/Services/System/EmployeeService.php'
+// ?ㅻ챸:
+//  - 吏곸썝(Employee) 愿由??쒕퉬??
+//  - UUID / Code ?앹꽦? Service 梨낆엫
+//  - DB 泥섎━: UserPrlfileModel
+//  - 紐⑤뱺 二쇱슂 ?먮쫫 LoggerFactory ?곸슜
 namespace App\Services\System;
 
 use PDO;
@@ -37,7 +37,7 @@ class EmployeeService
     }
 
    /* =========================================================
-    * 직원 목록
+    * 吏곸썝 紐⑸줉
     * ========================================================= */
     public function getList(array $filters = []): array
     {
@@ -54,7 +54,7 @@ class EmployeeService
             ]);
 
             /* =========================================================
-            * 🔥 주민번호 복호화 (Service 책임)
+            * ?뵦 二쇰?踰덊샇 蹂듯샇??(Service 梨낆엫)
             * ========================================================= */
             if (!empty($rows)) {
 
@@ -66,7 +66,7 @@ class EmployeeService
 
                         $rrn = $crypto->decryptResidentNumber($row['rrn']);
 
-                        // 🔥 숫자만 남김
+                        // ?뵦 ?レ옄留??④?
                         $row['rrn'] = preg_replace('/\D+/', '', $rrn);
 
                     } else {
@@ -93,7 +93,7 @@ class EmployeeService
     }
 
     /* =========================================================
-    * 직원 단건 조회 (user_employees.id 기준)
+    * 吏곸썝 ?④굔 議고쉶 (user_employees.id 湲곗?)
     * ========================================================= */
     public function getById(string $id): ?array
     {
@@ -101,7 +101,7 @@ class EmployeeService
 
         try {
 
-            // 🔥 반드시 employees 모델 사용
+            // ?뵦 諛섎뱶??employees 紐⑤뜽 ?ъ슜
             $row = $this->model->getById($id);
 
             if (!$row) {
@@ -110,7 +110,7 @@ class EmployeeService
             }
 
             /* =========================================================
-            * 🔥 주민번호 복호화 (Service 책임)
+            * ?뵦 二쇰?踰덊샇 蹂듯샇??(Service 梨낆엫)
             * ========================================================= */
             if (!empty($row['rrn'])) {
 
@@ -118,7 +118,7 @@ class EmployeeService
 
                 $rrn = $crypto->decryptResidentNumber($row['rrn']);
 
-                // 숫자만 남김
+                // ?レ옄留??④?
                 $row['rrn'] = preg_replace('/\D+/', '', $rrn);
 
                 $this->logger->info('rrn decrypted', [
@@ -146,7 +146,7 @@ class EmployeeService
 
 
     /* =========================================================
-    * 직원 검색 (Select2)
+    * 吏곸썝 寃??(Select2)
     * ========================================================= */
     public function searchPicker(string $q = '', int $limit = 20): array
     {
@@ -164,7 +164,7 @@ class EmployeeService
             }
 
             /* =========================================================
-            * 🔥 Select2 포맷 변환
+            * ?뵦 Select2 ?щ㎎ 蹂??
             * ========================================================= */
             $results = [];
 
@@ -172,13 +172,13 @@ class EmployeeService
 
                 $text = $row['employee_name'] ?? '';
 
-                // 🔥 부서명 있으면 같이 표시
+                // ?뵦 遺?쒕챸 ?덉쑝硫?媛숈씠 ?쒖떆
                 if (!empty($row['department_name'])) {
                     $text .= ' (' . $row['department_name'] . ')';
                 }
 
                 $results[] = [
-                    'id'   => $row['id'],   // 🔥 user_employees.id
+                    'id'   => $row['id'],   // ?뵦 user_employees.id
                     'text' => $text
                 ];
             }
@@ -197,8 +197,8 @@ class EmployeeService
         }
     }
     /* =========================================================
-    * 직원 저장 (신규/수정) - 파일처리 전체수정본
-    * 기준: user_employees.id
+    * 吏곸썝 ???(?좉퇋/?섏젙) - ?뚯씪泥섎━ ?꾩껜?섏젙蹂?
+    * 湲곗?: user_employees.id
     * ========================================================= */
     public function save(array $data, string $actorType = 'USER', array $files = []): array
     {
@@ -219,26 +219,26 @@ class EmployeeService
         try {
 
             /* =========================================================
-            * 필수값
+            * ?꾩닔媛?
             * ========================================================= */
             $username     = trim((string)($data['username'] ?? ''));
             $password     = (string)($data['password'] ?? '');
             $employeeName = trim((string)($data['employee_name'] ?? ''));
 
             if ($isCreate && $username === '') {
-                return ['success' => false, 'message' => '아이디는 필수입니다.'];
+                return ['success' => false, 'message' => '?꾩씠?붾뒗 ?꾩닔?낅땲??'];
             }
 
             if ($employeeName === '') {
-                return ['success' => false, 'message' => '직원명은 필수입니다.'];
+                return ['success' => false, 'message' => '吏곸썝紐낆? ?꾩닔?낅땲??'];
             }
 
             if ($isCreate && $password === '') {
-                return ['success' => false, 'message' => '비밀번호는 필수입니다.'];
+                return ['success' => false, 'message' => '鍮꾨?踰덊샇???꾩닔?낅땲??'];
             }
 
             /* =========================================================
-            * 수정시 기존 데이터 조회
+            * ?섏젙??湲곗〈 ?곗씠??議고쉶
             * ========================================================= */
             $current = null;
             $userId  = null;
@@ -247,28 +247,28 @@ class EmployeeService
                 $current = $this->model->getById($employeeId);
 
                 if (!$current) {
-                    throw new \Exception('직원 정보 없음');
+                    throw new \Exception('吏곸썝 ?뺣낫 ?놁쓬');
                 }
 
                 if (empty($current['user_id'])) {
-                    throw new \Exception('사용자 정보 없음');
+                    throw new \Exception('?ъ슜???뺣낫 ?놁쓬');
                 }
 
                 $userId = $current['user_id'];
 
                 $currentUser = $this->users->getById($userId);
                 if (!$currentUser) {
-                    throw new \Exception('사용자 정보 없음');
+                    throw new \Exception('?ъ슜???뺣낫 ?놁쓬');
                 }
 
-                // username 변경시 DB unique에 맡김
+                // username 蹂寃쎌떆 DB unique??留↔?
                 if ($username !== '' && $currentUser['username'] !== $username) {
                     // no-op
                 }
             }
 
             /* =========================================================
-            * AUTH 데이터
+            * AUTH ?곗씠??
             * ========================================================= */
             $authData = [];
 
@@ -305,7 +305,7 @@ class EmployeeService
             $authData['updated_by'] = $actor;
 
             /* =========================================================
-            * EMPLOYEE 데이터
+            * EMPLOYEE ?곗씠??
             * ========================================================= */
             $employeeData = [];
 
@@ -328,12 +328,12 @@ class EmployeeService
             $employeeData['updated_by'] = $actor;
 
             /* =========================================================
-            * 주민번호 암호화
+            * 二쇰?踰덊샇 ?뷀샇??
             * ========================================================= */
             $rrnInput = trim((string)($data['rrn'] ?? ''));
 
             if (strpos($rrnInput, '*') !== false) {
-                return ['success' => false, 'message' => '마스킹된 주민번호는 저장할 수 없습니다.'];
+                return ['success' => false, 'message' => '留덉뒪?밸맂 二쇰?踰덊샇????ν븷 ???놁뒿?덈떎.'];
             }
 
             $rrnRaw = preg_replace('/\D+/', '', $rrnInput);
@@ -348,7 +348,7 @@ class EmployeeService
             }
 
             /* =========================================================
-            * 파일 삭제 플래그
+            * ?뚯씪 ??젣 ?뚮옒洹?
             * ========================================================= */
             $deleteProfile      = ((string)($data['profile_image_delete'] ?? '0') === '1');
             $deleteRrnImage     = ((string)($data['rrn_image_delete'] ?? '0') === '1');
@@ -356,7 +356,7 @@ class EmployeeService
             $deleteBankFile     = ((string)($data['bank_file_delete'] ?? '0') === '1');
 
             /* =========================================================
-            * 기본값: 수정시는 기존 파일 유지
+            * 湲곕낯媛? ?섏젙?쒕뒗 湲곗〈 ?뚯씪 ?좎?
             * ========================================================= */
             if ($isCreate) {
 
@@ -367,7 +367,7 @@ class EmployeeService
             
             } else {
             
-                // 🔥 삭제 플래그 반영해서 기본값 세팅
+                // ?뵦 ??젣 ?뚮옒洹?諛섏쁺?댁꽌 湲곕낯媛??명똿
                 $employeeData['profile_image']    = $deleteProfile ? null : ($current['profile_image'] ?? null);
                 $employeeData['rrn_image']        = $deleteRrnImage ? null : ($current['rrn_image'] ?? null);
                 $employeeData['certificate_file'] = $deleteCertificate ? null : ($current['certificate_file'] ?? null);
@@ -375,7 +375,7 @@ class EmployeeService
             }
 
             /* =========================================================
-            * 삭제 플래그 반영
+            * ??젣 ?뚮옒洹?諛섏쁺
             * ========================================================= */
             if ($deleteProfile) {
                 if (!$isCreate && !empty($current['profile_image'])) {
@@ -401,18 +401,18 @@ class EmployeeService
 
             if ($deleteBankFile && !$isCreate && !empty($current['bank_file'])) {
 
-                // 🔥 DB 값 먼저 NULL 처리
+                // ?뵦 DB 媛?癒쇱? NULL 泥섎━
                 $employeeData['bank_file'] = null;
             
-                // 🔥 삭제 대상 등록
+                // ?뵦 ??젣 ????깅줉
                 $deleteAfterCommit[] = $current['bank_file'];
             }
 
             /* =========================================================
-            * 파일 업로드 처리 (FileService 기준 최종본)
+            * ?뚯씪 ?낅줈??泥섎━ (FileService 湲곗? 理쒖쥌蹂?
             * ========================================================= */
 
-            // 1) 프로필 사진
+            // 1) ?꾨줈???ъ쭊
             $file = $files['profile_image'] ?? null;
 
             if ($file && $file['error'] === UPLOAD_ERR_OK) {
@@ -420,7 +420,7 @@ class EmployeeService
                 $upload = $this->fileService->uploadProfile($file);
 
                 if (empty($upload['success'])) {
-                    return ['success' => false, 'message' => $upload['message'] ?? '프로필 이미지 업로드 실패'];
+                    return ['success' => false, 'message' => $upload['message'] ?? '?꾨줈???대?吏 ?낅줈???ㅽ뙣'];
                 }
 
                 $employeeData['profile_image'] = $upload['db_path'];
@@ -432,7 +432,7 @@ class EmployeeService
             }
 
 
-            // 2) 신분증 이미지 (🔥 uploadPrivateIdDoc 사용)
+            // 2) ?좊텇利??대?吏 (?뵦 uploadPrivateIdDoc ?ъ슜)
             $file = $files['rrn_image'] ?? null;
 
             if ($file && $file['error'] === UPLOAD_ERR_OK) {
@@ -440,7 +440,7 @@ class EmployeeService
                 $upload = $this->fileService->uploadPrivateIdDoc($file);
 
                 if (empty($upload['success'])) {
-                    return ['success' => false, 'message' => $upload['message'] ?? '신분증 업로드 실패'];
+                    return ['success' => false, 'message' => $upload['message'] ?? '?좊텇利??낅줈???ㅽ뙣'];
                 }
 
                 $employeeData['rrn_image'] = $upload['db_path'];
@@ -452,7 +452,7 @@ class EmployeeService
             }
 
 
-            // 3) 자격증 파일 (🔥 uploadCertificate 사용)
+            // 3) ?먭꺽利??뚯씪 (?뵦 uploadCertificate ?ъ슜)
             $file = $files['certificate_file'] ?? null;
 
             if ($file && $file['error'] === UPLOAD_ERR_OK) {
@@ -460,7 +460,7 @@ class EmployeeService
                 $upload = $this->fileService->uploadCertificate($file);
 
                 if (empty($upload['success'])) {
-                    return ['success' => false, 'message' => $upload['message'] ?? '자격증 파일 업로드 실패'];
+                    return ['success' => false, 'message' => $upload['message'] ?? '?먭꺽利??뚯씪 ?낅줈???ㅽ뙣'];
                 }
 
                 $employeeData['certificate_file'] = $upload['db_path'];
@@ -472,7 +472,7 @@ class EmployeeService
             }
 
 
-            // 4) 통장사본 (🔥 uploadBankCopy 유지)
+            // 4) ?듭옣?щ낯 (?뵦 uploadBankCopy ?좎?)
             $file = $files['bank_file'] ?? null;
 
             if ($file && $file['error'] === UPLOAD_ERR_OK) {
@@ -480,7 +480,7 @@ class EmployeeService
                 $upload = $this->fileService->uploadBankCopy($file);
 
                 if (empty($upload['success'])) {
-                    return ['success' => false, 'message' => $upload['message'] ?? '통장사본 업로드 실패'];
+                    return ['success' => false, 'message' => $upload['message'] ?? '?듭옣?щ낯 ?낅줈???ㅽ뙣'];
                 }
 
                 $employeeData['bank_file'] = $upload['db_path'];
@@ -491,7 +491,7 @@ class EmployeeService
                 }
             }
             /* =========================================================
-            * 저장 시작
+            * ????쒖옉
             * ========================================================= */
             $this->pdo->beginTransaction();
 
@@ -503,7 +503,7 @@ class EmployeeService
                     $authData['created_by'] = $actor;
 
                     if (!$this->users->createUser($authData)) {
-                        throw new \Exception('사용자 생성 실패');
+                        throw new \Exception('?ъ슜???앹꽦 ?ㅽ뙣');
                     }
 
                     $newEmployeeId = UuidHelper::generate();
@@ -514,7 +514,7 @@ class EmployeeService
                     $employeeData['created_by'] = $actor;
 
                     if (!$this->model->create($employeeData)) {
-                        throw new \Exception('직원 생성 실패');
+                        throw new \Exception('吏곸썝 ?앹꽦 ?ㅽ뙣');
                     }
 
                     $this->pdo->commit();
@@ -527,18 +527,18 @@ class EmployeeService
                         'success' => true,
                         'id'      => $newEmployeeId,
                         'code'    => $employeeData['code'],
-                        'message' => '저장 완료'
+                        'message' => '????꾨즺'
                     ];
                 }
 
                 if (!empty($authData)) {
                     if (!$this->users->updateUserDirect($userId, $authData)) {
-                        throw new \Exception('사용자 수정 실패');
+                        throw new \Exception('?ъ슜???섏젙 ?ㅽ뙣');
                     }
                 }
 
                 if (!$this->model->updateById($employeeId, $employeeData)) {
-                    throw new \Exception('직원 수정 실패');
+                    throw new \Exception('吏곸썝 ?섏젙 ?ㅽ뙣');
                 }
 
                 $this->pdo->commit();
@@ -550,7 +550,7 @@ class EmployeeService
                 return [
                     'success' => true,
                     'id'      => $employeeId,
-                    'message' => '저장 완료'
+                    'message' => '????꾨즺'
                 ];
 
             } catch (\Throwable $e) {
@@ -578,8 +578,8 @@ class EmployeeService
     
 
     /* =========================================================
-    * 직원 상태 변경 (활성/비활성)
-    * 기준: user_employees.id → auth_users 업데이트
+    * 吏곸썝 ?곹깭 蹂寃?(?쒖꽦/鍮꾪솢??
+    * 湲곗?: user_employees.id ??auth_users ?낅뜲?댄듃
     * ========================================================= */
     public function updateStatus(string $employeeId, bool $isActive): array
     {
@@ -590,26 +590,26 @@ class EmployeeService
             if ($employeeId === '') {
                 return [
                     'success' => false,
-                    'message' => '직원 아이디 누락'
+                    'message' => '吏곸썝 ?꾩씠???꾨씫'
                 ];
             }
 
             /* =========================================================
-            * 🔥 user_id 조회 (getById 단일화)
+            * ?뵦 user_id 議고쉶 (getById ?⑥씪??
             * ========================================================= */
             $employee = $this->model->getById($employeeId);
 
             if (!$employee || empty($employee['user_id'])) {
                 return [
                     'success' => false,
-                    'message' => '사용자 정보 없음'
+                    'message' => '?ъ슜???뺣낫 ?놁쓬'
                 ];
             }
 
             $userId = $employee['user_id'];
 
             /* =========================================================
-            * 🔥 auth_users 상태 업데이트
+            * ?뵦 auth_users ?곹깭 ?낅뜲?댄듃
             * ========================================================= */
             $data = [
                 'is_active'  => $isActive ? 1 : 0,
@@ -622,28 +622,28 @@ class EmployeeService
             $ok = $this->users->updateUserDirect($userId, $data);
 
             if ($ok === false) {
-                throw new \Exception('상태 업데이트 실패');
+                throw new \Exception('?곹깭 ?낅뜲?댄듃 ?ㅽ뙣');
             }
 
             return [
                 'success' => true,
                 'message' => $isActive
-                    ? '계정이 활성화되었습니다.'
-                    : '계정이 비활성화되었습니다.'
+                    ? '怨꾩젙???쒖꽦?붾릺?덉뒿?덈떎.'
+                    : '怨꾩젙??鍮꾪솢?깊솕?섏뿀?듬땲??'
             ];
 
         } catch (\Throwable $e) {
 
             return [
                 'success' => false,
-                'message' => '상태 변경 실패',
+                'message' => '?곹깭 蹂寃??ㅽ뙣',
                 'error'   => $e->getMessage()
             ];
         }
     }
 
     /* =========================================================
-    * 직원 완전삭제 (최종 안정화 버전)
+    * 吏곸썝 ?꾩쟾??젣 (理쒖쥌 ?덉젙??踰꾩쟾)
     * ========================================================= */
     public function purge(string $employeeId, string $actorType = 'USER'): array
     {
@@ -657,35 +657,35 @@ class EmployeeService
         if ($employeeId === '') {
             return [
                 'success' => false,
-                'message' => '직원 아이디 누락'
+                'message' => '吏곸썝 ?꾩씠???꾨씫'
             ];
         }
 
         try {
 
             /* =========================
-            * 1️⃣ 직원 조회 (단 1번)
+            * 1截뤴깵 吏곸썝 議고쉶 (??1踰?
             * ========================= */
             $employee = $this->model->getById($employeeId);
 
             if (!$employee) {
                 return [
                     'success' => false,
-                    'message' => '존재하지 않는 직원입니다.'
+                    'message' => '議댁옱?섏? ?딅뒗 吏곸썝?낅땲??'
                 ];
             }
 
             if (empty($employee['user_id'])) {
                 return [
                     'success' => false,
-                    'message' => '사용자 정보 없음'
+                    'message' => '?ъ슜???뺣낫 ?놁쓬'
                 ];
             }
 
             $userId = $employee['user_id'];
 
             /* =========================
-            * 2️⃣ 삭제할 파일 목록 확보
+            * 2截뤴깵 ??젣???뚯씪 紐⑸줉 ?뺣낫
             * ========================= */
             $deleteAfterCommit = [];
 
@@ -696,18 +696,22 @@ class EmployeeService
             }
 
             /* =========================
-            * 3️⃣ DB 삭제 (핵심)
+            * 3截뤴깵 DB ??젣 (?듭떖)
             * ========================= */
             $this->pdo->beginTransaction();
 
             try {
+                $employeeDeleted = $this->model->hardDeleteById($employeeId);
+
+                if (!$employeeDeleted) {
+                    throw new \Exception('직원 삭제 실패');
+                }
 
                 $ok = $this->users->hardDeleteById($userId);
 
                 if (!$ok) {
-                    throw new \Exception('사용자 삭제 실패');
+                    throw new \Exception('?ъ슜????젣 ?ㅽ뙣');
                 }
-
                 $this->pdo->commit();
 
             } catch (\Throwable $e) {
@@ -717,7 +721,7 @@ class EmployeeService
             }
 
             /* =========================
-            * 4️⃣ 파일 삭제 (commit 이후)
+            * 4截뤴깵 ?뚯씪 ??젣 (commit ?댄썑)
             * ========================= */
             foreach (array_unique($deleteAfterCommit) as $path) {
 
@@ -741,13 +745,13 @@ class EmployeeService
 
             return [
                 'success' => false,
-                'message' => '직원 삭제 실패'
+                'message' => '吏곸썝 ??젣 ?ㅽ뙣'
             ];
         }
     }
     
     /* ============================================================
-    * 코드 순서 변경 (RowReorder)
+    * 肄붾뱶 ?쒖꽌 蹂寃?(RowReorder)
     * ============================================================ */
     public function reorder(array $changes): bool
     {
@@ -765,21 +769,21 @@ class EmployeeService
                 $this->pdo->beginTransaction();
             }
 
-            /* 1️⃣ 입력값 검증 */
+            /* 1截뤴깵 ?낅젰媛?寃利?*/
             foreach ($changes as $row) {
 
                 if (
                     empty($row['id']) ||
                     !isset($row['newCode'])
                 ) {
-                    throw new \Exception('reorder 데이터 오류');
+                    throw new \Exception('reorder ?곗씠???ㅻ쪟');
                 }
             }
 
-            /* 2️⃣ temp 이동 (충돌 방지) */
+            /* 2截뤴깵 temp ?대룞 (異⑸룎 諛⑹?) */
             foreach ($changes as $row) {
 
-                // 👉 넉넉하게 (절대 충돌 안나게)
+                // ?몛 ?됰꼮?섍쾶 (?덈? 異⑸룎 ?덈굹寃?
                 $tempCode = (int)$row['newCode'] + 1000000;
 
                 $this->model->updateCode(
@@ -788,7 +792,7 @@ class EmployeeService
                 );
             }
 
-            /* 3️⃣ 실제 코드 적용 */
+            /* 3截뤴깵 ?ㅼ젣 肄붾뱶 ?곸슜 */
             foreach ($changes as $row) {
 
                 $this->model->updateCode(

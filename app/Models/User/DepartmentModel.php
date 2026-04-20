@@ -19,7 +19,7 @@ class DepartmentModel
     /* ============================================================
      * 1) 전체 부서 조회
      * ============================================================ */
-    public function getAll(): array
+    public function getAll(array $filters = []): array
     {
         $sql = "
             SELECT 
@@ -37,10 +37,123 @@ class DepartmentModel
             FROM user_departments d
             LEFT JOIN auth_users au ON au.id = d.manager_id
             LEFT JOIN user_employees p ON p.user_id = au.id
-            ORDER BY d.code ASC
+            WHERE 1=1
         ";
 
-        $stmt = $this->db->query($sql);
+        $params = [];
+
+        if (!empty($filters)) {
+            $fieldMap = [
+                'id'           => ['expr' => 'd.id', 'type' => 'exact'],
+                'code'         => ['expr' => 'd.code', 'type' => 'like'],
+                'dept_name'    => ['expr' => 'd.dept_name', 'type' => 'like'],
+                'manager_id'   => ['expr' => 'd.manager_id', 'type' => 'exact'],
+                'manager_name' => ['expr' => 'p.employee_name', 'type' => 'like'],
+                'description'  => ['expr' => 'd.description', 'type' => 'like'],
+                'is_active'    => ['expr' => 'd.is_active', 'type' => 'exact'],
+                'created_at'   => ['expr' => 'd.created_at', 'type' => 'datetime'],
+                'updated_at'   => ['expr' => 'd.updated_at', 'type' => 'datetime'],
+            ];
+
+            $globalSearchValues = [];
+
+            foreach ($filters as $f) {
+                $field = $f['field'] ?? '';
+                $value = $f['value'] ?? '';
+
+                if ($value === '' || $value === null) {
+                    continue;
+                }
+
+                if ($field === '') {
+                    $globalSearchValues[] = $value;
+                    continue;
+                }
+
+                if (!isset($fieldMap[$field])) {
+                    continue;
+                }
+
+                $expr = $fieldMap[$field]['expr'];
+                $type = $fieldMap[$field]['type'];
+
+                if ($type === 'datetime') {
+                    if (is_array($value) && isset($value['start'], $value['end'])) {
+                        $start = trim((string)($value['start'] ?? ''));
+                        $end   = trim((string)($value['end'] ?? ''));
+
+                        if ($start !== '' && $end !== '') {
+                            $sql .= " AND {$expr} BETWEEN ? AND ?";
+                            $params[] = preg_match('/^\d{4}-\d{2}-\d{2}$/', $start)
+                                ? $start . ' 00:00:00'
+                                : $start;
+                            $params[] = preg_match('/^\d{4}-\d{2}-\d{2}$/', $end)
+                                ? $end . ' 23:59:59'
+                                : $end;
+                        }
+                    } else {
+                        $stringValue = trim((string)$value);
+
+                        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $stringValue)) {
+                            $sql .= " AND {$expr} BETWEEN ? AND ?";
+                            $params[] = $stringValue . ' 00:00:00';
+                            $params[] = $stringValue . ' 23:59:59';
+                        } else {
+                            $sql .= " AND {$expr} = ?";
+                            $params[] = $stringValue;
+                        }
+                    }
+
+                    continue;
+                }
+
+                if ($type === 'exact') {
+                    $sql .= " AND {$expr} = ?";
+                    $params[] = $value;
+                    continue;
+                }
+
+                $keywords = array_filter(array_map('trim', explode(',', (string)$value)));
+
+                if (!$keywords) {
+                    continue;
+                }
+
+                $parts = [];
+                foreach ($keywords as $keyword) {
+                    $parts[] = "{$expr} LIKE ?";
+                    $params[] = '%' . $keyword . '%';
+                }
+
+                $sql .= " AND (" . implode(' OR ', $parts) . ")";
+            }
+
+            foreach ($globalSearchValues as $value) {
+                $keywords = array_filter(array_map('trim', explode(',', (string)$value)));
+
+                if (!$keywords) {
+                    continue;
+                }
+
+                $orParts = [];
+                foreach ($keywords as $keyword) {
+                    foreach (['d.code', 'd.dept_name', 'p.employee_name', 'd.description'] as $expr) {
+                        $orParts[] = "{$expr} LIKE ?";
+                        $params[] = '%' . $keyword . '%';
+                    }
+                }
+
+                if ($orParts) {
+                    $sql .= " AND (" . implode(' OR ', $orParts) . ")";
+                }
+            }
+        }
+
+        $sql .= " ORDER BY d.code ASC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -166,5 +279,16 @@ class DepartmentModel
         }
 
         return $stmt->fetchColumn() > 0;
+    }
+
+    public function updateCode(string $id, int $code): bool
+    {
+        $stmt = $this->db->prepare("
+            UPDATE user_departments
+            SET code = ?, updated_at = NOW()
+            WHERE id = ?
+        ");
+
+        return $stmt->execute([$code, $id]);
     }
 }

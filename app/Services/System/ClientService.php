@@ -305,14 +305,36 @@ class ClientService
             // 🔴 파일용량체크
             if (
                 isset($files['business_certificate']['error']) &&
-                $files['business_certificate']['error'] === UPLOAD_ERR_INI_SIZE
-            )
-            
+                $files['business_certificate']['error'] !== UPLOAD_ERR_NO_FILE &&
+                $files['business_certificate']['error'] !== UPLOAD_ERR_OK
+            ) {
+                throw new \Exception($this->resolveUploadErrorMessage(
+                    $files['business_certificate']['error'],
+                    '사업자등록증'
+                ));
+            }
+
+            if (
+                isset($files['rrn_image']['error']) &&
+                $files['rrn_image']['error'] !== UPLOAD_ERR_NO_FILE &&
+                $files['rrn_image']['error'] !== UPLOAD_ERR_OK
+            ) {
+                throw new \Exception($this->resolveUploadErrorMessage(
+                    $files['rrn_image']['error'],
+                    '신분증'
+                ));
+            }
 
             if (
                 isset($files['bank_file']['error']) &&
-                $files['bank_file']['error'] === UPLOAD_ERR_INI_SIZE
-            )
+                $files['bank_file']['error'] !== UPLOAD_ERR_NO_FILE &&
+                $files['bank_file']['error'] !== UPLOAD_ERR_OK
+            ) {
+                throw new \Exception($this->resolveUploadErrorMessage(
+                    $files['bank_file']['error'],
+                    '통장사본'
+                ));
+            }
 
 
             // 🔴 업로드
@@ -1296,4 +1318,15 @@ class ClientService
 
 
 
+    private function resolveUploadErrorMessage(int $errorCode, string $label): string
+    {
+        return match ($errorCode) {
+            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => "{$label} 파일 용량이 업로드 제한을 초과했습니다.",
+            UPLOAD_ERR_PARTIAL => "{$label} 파일 업로드가 중간에 실패했습니다. 다시 시도해주세요.",
+            UPLOAD_ERR_NO_TMP_DIR => "{$label} 업로드용 임시 폴더를 찾지 못했습니다.",
+            UPLOAD_ERR_CANT_WRITE => "{$label} 파일을 서버에 저장하지 못했습니다.",
+            UPLOAD_ERR_EXTENSION => "{$label} 파일 업로드가 서버 확장 모듈에 의해 중단되었습니다.",
+            default => "{$label} 파일 업로드 중 오류가 발생했습니다.",
+        };
+    }
 }

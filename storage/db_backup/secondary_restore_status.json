@@ -1,0 +1,15 @@
+{
+  "success": false,
+  "state": "failed",
+  "message": "Secondary DB 복원에 실패했습니다. mysql CLI 실행 환경을 확인해주세요.",
+  "error": "'mysql'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는 배치 파일이 아닙니다.",
+  "file": "sukhyang_2026-04-20_201117.sql",
+  "started_at": "2026-04-20 20:45:01",
+  "finished_at": "2026-04-20 20:45:01",
+  "updated_at": "2026-04-20 20:45:01",
+  "stage": "import-backup",
+  "rollback_attempted": true,
+  "rollback_success": false,
+  "rollback_message": "롤백도 mysql CLI를 찾지 못해 실패했습니다.",
+  "warning": "현재 서버에서는 mysql 명령을 찾지 못하고 있습니다. MySQL 클라이언트 경로 또는 PATH 설정이 필요합니다."
+}

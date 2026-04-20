@@ -1,11 +1,11 @@
 /**
- * 커버이미지 설정 JS
- * 경로: /public/assets/js/pages/dashboard/settings/base/cover.js
+ * ??影?れ쉠??????꿔꺂??? ???繹먮냱??JS
+ * ?嚥▲굧???뚪뜮? /public/assets/js/pages/dashboard/settings/base/cover.js
  *
- * 목표:
- * - 기존 기능 100% 유지
- * - client.js / project.js 스타일로 구조 재정리
- * - 공용 search/table 구조와도 호환
+ * ?꿔꺂??袁ㅻ븶?猷뱀떻?
+ * - ???뚯???????뚯????100% ???
+ * - client.js / project.js ???????Β??????源??????域뱄퐢??
+ * - ????댁벖??search/table ????源??????癲ル슢?뤸뤃??
  */
 
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
@@ -28,124 +28,130 @@ window.AdminPicker = AdminPicker;
     console.log('[base-cover.js] loaded');
 
     /* =========================================================
-    * API 정의 (🔥 라우터 100% 일치)
+    * API ?癲ル슢캉???┛?(?????濚밸Ŧ?뤺짆??100% ??濚밸Ŧ遊얕맱?
     * ========================================================= */
     const API = {
 
-        /* 목록 */
+        /* ?꿔꺂??袁ㅻ븶筌믠뫀萸?*/
         LIST: "/api/settings/base-info/cover/list",
 
-        /* 오픈목록 */
+        /* ?????꾨Щ?꿔꺂??袁ㅻ븶筌믠뫀萸?*/
         PUBLIC_LIST: "/api/settings/base-info/cover/public",
 
-        /* 단건 */
+        /* ??壤굿??뺥떑 */
         DETAIL: "/api/settings/base-info/cover/detail",
 
-        /* 저장 */
+        /* ????*/
         SAVE: "/api/settings/base-info/cover/save",
 
-        /* 삭제 (소프트) */
+        /* ????(????ㅻ쿋??? */
         DELETE: "/api/settings/base-info/cover/delete",
 
-        /* 휴지통 */
+        /* ?????*/
         TRASH: "/api/settings/base-info/cover/trash",
 
-        /* 복원 */
+        /* ??⑤슢?뽫뵓??*/
         RESTORE: "/api/settings/base-info/cover/restore",
         RESTORE_BULK: "/api/settings/base-info/cover/restore-bulk",
         RESTORE_ALL: "/api/settings/base-info/cover/restore-all",
 
-        /* 영구삭제 */
+        /* ?????????*/
         PURGE: "/api/settings/base-info/cover/purge",
         PURGE_BULK: "/api/settings/base-info/cover/purge-bulk",
         PURGE_ALL: "/api/settings/base-info/cover/purge-all",
 
-        /* 순서 */
+        /* ??嶺?筌?*/
         REORDER: "/api/settings/base-info/cover/reorder"
     };
 
     /* =========================================================
-       컬럼맵
+       ??嚥▲꺂??嶸←빊?
     ========================================================= */
     const COVER_COLUMN_MAP = {
-        code:        { label: "코드", visible: true },
-        url:         { label: "이미지(View)", visible: true },
-        year:        { label: "해당년도(Year)", visible: true },
-        title:       { label: "타이틀(Title)", visible: true },
-        alt:         { label: "이미지문구(Alt)", visible: true },
-        description: { label: "설명(Description)", visible: true }
+        code:        { label: "\uCF54\uB4DC", visible: true },
+        url:         { label: "\uC774\uBBF8\uC9C0(View)", visible: true },
+        year:        { label: "\uD574\uB2F9\uB144\uB3C4(Year)", visible: true },
+        title:       { label: "\uD0C0\uC774\uD2C0(Title)", visible: true },
+        alt:         { label: "\uC774\uBBF8\uC9C0\uBB38\uAD6C(Alt)", visible: true },
+        description: { label: "\uC124\uBA85(Description)", visible: true }
     };
 
     const DATE_OPTIONS = [
-        { value: 'year', label: '년도' }
+        { value: 'year', label: '\uB144\uB3C4' }
     ];
 
     let coverTable = null;
     let coverModal = null;
     let coverTrashModal = null;
     let coverTrashTable = null;
-    let todayPicker = null;
+    let yearMonthPicker = null;
     let selectedTrashDetailId = null;
     let globalBound = false;
+    let yearMonthOpenTimer = null;
+    let DOM = null;
 
     /* =========================================================
-       DOM 호환 셀렉터
-       - 구형 cover.php / 공용 ui-search, ui-table 둘 다 대응
+       DOM ?癲ル슢?뤸뤃??????耀붾굝梨??
+       - ???????cover.php / ????댁벖??ui-search, ui-table ????????
     ========================================================= */
-    const DOM = {
-        table: pickSelector(['#cover-table', '#cover-image-table']),
-        modal: pickSelector(['#coverModal', '#coverImageModal']),
-        form: pickSelector(['#cover-form', '#cover-image-form']),
+    function resolveDOM() {
+    return {
+            table: pickSelector(['#cover-table', '#cover-image-table']),
+            modal: pickSelector(['#coverModal', '#coverImageModal']),
+            form: pickSelector(['#cover-form', '#cover-image-form']),
 
-        searchForm: pickSelector(['#coverSearchConditionsForm', '#searchConditionsForm']),
-        toggleSearch: pickSelector(['#coverToggleSearchForm', '#toggleSearchForm']),
-        searchContainer: pickSelector(['#coverSearchFormContainer', '#searchFormContainer']),
-        searchBody: pickSelector(['#coverSearchFormBody', '#searchFormBody']),
-        searchConditions: pickSelector(['#coverSearchConditions', '#searchConditions']),
-        addCondition: pickSelector(['#coverAddSearchCondition', '#addSearchCondition']),
-        resetButton: pickSelector(['#coverResetButton', '#resetButton']),
-        searchButton: pickSelector(['#coverSearchButton', '#searchButton']),
-        dateType: pickSelector(['#coverDateType', '#dateType']),
+            searchForm: pickSelector(['#coverSearchConditionsForm', '#searchConditionsForm']),
+            toggleSearch: pickSelector(['#coverToggleSearchForm', '#toggleSearchForm']),
+            searchContainer: pickSelector(['#coverSearchFormContainer', '#searchFormContainer']),
+            searchBody: pickSelector(['#coverSearchFormBody', '#searchFormBody']),
+            searchConditions: pickSelector(['#coverSearchConditions', '#searchConditions']),
+            addCondition: pickSelector(['#coverAddSearchCondition', '#addSearchCondition']),
+            resetButton: pickSelector(['#coverResetButton', '#resetButton']),
+            searchButton: pickSelector(['#coverSearchButton', '#searchButton']),
+            dateType: pickSelector(['#coverDateType', '#dateType']),
 
-        tooltipTrigger: pickSelector(['#coverTooltipTrigger', '#tooltipTrigger']),
-        tooltipContainer: pickSelector(['#coverTooltipContainer', '#tooltipContainer']),
-        periodTooltipTrigger: pickSelector(['#coverPeriodTooltipTrigger', '#periodTooltipTrigger']),
-        periodTooltipContainer: pickSelector(['#coverPeriodTooltipContainer', '#periodTooltipContainer']),
+            tooltipTrigger: pickSelector(['#coverTooltipTrigger', '#tooltipTrigger']),
+            tooltipContainer: pickSelector(['#coverTooltipContainer', '#tooltipContainer']),
+            periodTooltipTrigger: pickSelector(['#coverPeriodTooltipTrigger', '#periodTooltipTrigger']),
+            periodTooltipContainer: pickSelector(['#coverPeriodTooltipContainer', '#periodTooltipContainer']),
 
-        trashModal: '#coverTrashModal',
-        trashTable: '#cover-trash-table',
-        trashCheckAll: '#coverTrashCheckAll',
-        trashDetail: '#cover-trash-detail',
+            trashModal: '#coverTrashModal',
+            trashTable: '#cover-trash-table',
+            trashCheckAll: '#coverTrashCheckAll',
+            trashDetail: '#cover-trash-detail',
 
-        originalImageModal: '#originalImageModal',
-        originalImageView: '#original-image-view',
+            originalImageModal: '#originalImageModal',
+            originalImageView: '#original-image-view',
 
-        modalId: '#modal_cover_id',
-        modalYear: '#modal_year',
-        modalTitle: '#modal_title',
-        modalAlt: '#modal_alt',
-        modalDescription: '#modal_description',
-        modalImageFile: '#modal_cover_image',
-        modalImagePreview: '#modal-image-preview',
-        modalDeleteBtn: '#modal_delete_btn',
-        modalSaveBtn: '#modal_save_btn',
-        modalLabel: '#coverImageModalLabel'
-    };
+            modalId: '#modal_cover_id',
+            modalYear: '#modal_year',
+            modalTitle: '#modal_title',
+            modalAlt: '#modal_alt',
+            modalDescription: '#modal_description',
+            modalImageFile: '#modal_cover_image',
+            modalImagePreview: '#modal-image-preview',
+            modalDeleteBtn: '#modal_delete_btn',
+            modalSaveBtn: '#modal_save_btn',
+            modalLabel: '#coverImageModalLabel'
+        };
+    }
 
 
 
     /* =========================================================
        DOM READY
     ========================================================= */
-    document.addEventListener('DOMContentLoaded', () => {
-        if (!window.jQuery) {
-            console.error('jQuery not loaded');
-            return;
-        }
+    function bootCoverPage() {
+        if (!window.jQuery) return;
 
-        const $ = window.jQuery;
-        initCoverPage($);
-    });
+        initCoverPage(window.jQuery);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bootCoverPage);
+    } else {
+        bootCoverPage();
+    }
 
     window.TrashColumns = window.TrashColumns || {};
 
@@ -153,27 +159,35 @@ window.AdminPicker = AdminPicker;
        PAGE INIT
     ========================================================= */
     function initCoverPage($) {
-        initModal();
-        initAdminDatePicker();
+        console.log('[cover] initCoverPage start');
+
+        DOM = resolveDOM();
+        console.log('[cover] resolved DOM', DOM);
+
         initDataTable($);
+        initModal();
+        bindYearMonthInputs();
+
         initTrashColumns();
-    
-        bindRowReorder(coverTable, { api: API.REORDER });  // 행 드래그 정렬
+
+        bindRowReorder(coverTable, { api: API.REORDER });  // ????嶺뚮Ĳ?됪뤃???癲ル슢??節??
         bindTableEvents($);
         bindModalEvents($);
         bindSearchCollapseEvents();
 
         bindTableLayoutEvents(coverTable, DOM.table);
-    
+
         bindTooltipEvents();
         bindTrashEvents();
         bindExcelEvents();
-    
+
         populateCoverYearOptions();
+
+        console.log('[cover] initCoverPage done');
     }
 
     /* =========================================================
-       공통 유틸
+       ????댁봺??????ｋ??
     ========================================================= */
     function pickSelector(list) {
         for (const selector of list) {
@@ -190,6 +204,15 @@ window.AdminPicker = AdminPicker;
 
     function qsa(selector) {
         return Array.from(document.querySelectorAll(selector));
+    }
+
+    function notifyMessage(type, message) {
+        if (window.AppCore?.notify) {
+            AppCore.notify(type, message);
+            return;
+        }
+
+        window.alert(message);
     }
 
     function getSearchFieldSelector() {
@@ -211,7 +234,7 @@ window.AdminPicker = AdminPicker;
     }
 
     /* =========================================================
-       모달
+       ?꿔꺂??袁ㅻ븶???
     ========================================================= */
     function initModal() {
         const modalEl = qs(DOM.modal);
@@ -265,33 +288,248 @@ window.AdminPicker = AdminPicker;
     }
 
     /* =========================================================
-       년도 picker
+       ????썹땟?嶺?picker
     ========================================================= */
-    function initAdminDatePicker() {
-        if (todayPicker) return todayPicker;
+    function initYearMonthPicker() {
+        console.log('[cover] initYearMonthPicker called');
 
-        const container = document.getElementById('today-picker');
+        if (yearMonthPicker) return yearMonthPicker;
+
+        const container = ensureYearMonthPickerContainer();
+        console.log('[cover] year-month container', container);
         if (!container) return null;
 
-        todayPicker = AdminPicker.create({
-            type: 'today',
-            container
+        yearMonthPicker = AdminPicker.create({
+            type: 'year-month',
+            container,
+            options: {
+                yearMin: new Date().getFullYear() - 50,
+                yearMax: new Date().getFullYear() + 5
+            }
         });
 
-        todayPicker.subscribe((_, date) => {
-            const input = todayPicker.__target;
-            if (!input || !date) return;
+        yearMonthPicker.subscribe(() => {
+            const input = yearMonthPicker.__target;
+            if (!input) return;
 
-            input.value = String(date.getFullYear());
+            const selected = yearMonthPicker.getState?.().date;
+            console.log('[cover] yearMonthPicker subscribe state.date', selected);
+
+            if (!(selected instanceof Date) || Number.isNaN(selected.getTime())) return;
+
+            input.value = formatYearMonth(selected);
 
             normalizeStartEnd(
                 input.name === 'dateStart' ? 'start' : 'end'
             );
 
-            todayPicker.close();
+            yearMonthPicker.close();
         });
 
-        return todayPicker;
+        return yearMonthPicker;
+    }
+
+    function ensureYearMonthPickerContainer() {
+        let container = document.getElementById('year-month-picker');
+        if (container) {
+            console.log('[cover] found #year-month-picker');
+            return container;
+        }
+
+        let root = document.querySelector('.picker-root');
+        if (!root) {
+            root = document.createElement('div');
+            root.className = 'picker-root';
+            document.body.appendChild(root);
+        }
+
+        container = document.createElement('div');
+        container.id = 'year-month-picker';
+        container.className = 'picker is-hidden';
+        root.appendChild(container);
+
+        console.log('[cover] created #year-month-picker');
+
+        return container;
+    }
+
+    function bindYearMonthInputs() {
+        console.log('[cover] bindYearMonthInputs called', { globalBound });
+
+        if (globalBound) return;
+        globalBound = true;
+
+        document
+            .querySelectorAll('input.year-input, input[name="dateStart"], input[name="dateEnd"]')
+            .forEach(input => {
+                console.log('[cover] prepare year-month input', input);
+                input.setAttribute('autocomplete', 'off');
+                input.setAttribute('inputmode', 'none');
+                input.readOnly = true;
+            });
+
+        document.addEventListener('pointerdown', function (e) {
+            console.log('[cover] pointerdown captured', e.target);
+
+            const input = e.target.closest(
+                'input.year-input, input[name="dateStart"], input[name="dateEnd"]'
+            );
+
+            if (input) {
+                e.preventDefault();
+                e.stopPropagation();
+                scheduleOpenYearMonthPicker(input);
+                return;
+            }
+
+            const icon = e.target.closest('.date-icon');
+            if (icon) {
+                const wrap = icon.closest('.date-input');
+                const targetInput = wrap?.querySelector('input');
+
+                if (targetInput) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    scheduleOpenYearMonthPicker(targetInput);
+                }
+            }
+        }, true);
+
+        document.addEventListener('click', function (e) {
+            console.log('[cover] click captured', e.target);
+
+            const input = e.target.closest(
+                'input.year-input, input[name="dateStart"], input[name="dateEnd"]'
+            );
+
+            if (input) {
+                e.preventDefault();
+                e.stopPropagation();
+                scheduleOpenYearMonthPicker(input);
+                return;
+            }
+
+            const icon = e.target.closest('.date-icon');
+            if (icon) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const wrap = icon.closest('.date-input');
+                const targetInput = wrap?.querySelector('input');
+
+                if (targetInput) {
+                    scheduleOpenYearMonthPicker(targetInput);
+                }
+            }
+        }, true);
+
+        document.addEventListener('focusin', function (e) {
+            const input = e.target.closest(
+                'input.year-input, input[name="dateStart"], input[name="dateEnd"]'
+            );
+
+            if (input) {
+                scheduleOpenYearMonthPicker(input);
+            }
+        });
+    }
+
+    // function scheduleOpenYearMonthPicker(input) {
+    //     console.log('[cover] scheduleOpenYearMonthPicker START', input);
+
+    //     if (yearMonthOpenTimer) {
+    //         clearTimeout(yearMonthOpenTimer);
+    //     }
+
+    //     yearMonthOpenTimer = setTimeout(() => {
+    //         console.log('[cover] scheduleOpenYearMonthPicker FIRE');
+    //         yearMonthOpenTimer = null;
+    //         openYearMonthPicker(input);
+    //     }, 0);
+    // }
+
+    function scheduleOpenYearMonthPicker(input) {
+        console.log('[cover] direct open');
+        openYearMonthPicker(input);
+    }
+
+    function openYearMonthPicker(input) {
+        try {
+            console.log('[cover] openYearMonthPicker', input);
+
+            if (!input) return;
+
+            input.setAttribute('autocomplete', 'off');
+            input.setAttribute('inputmode', 'none');
+            input.readOnly = true;
+
+            const picker = initYearMonthPicker();
+            console.log('[cover] picker instance', picker);
+            if (!picker) return;
+
+            picker.__target = input;
+
+            const parsed = parseYearMonth(input.value);
+            if (parsed) {
+                if (typeof picker.setYearMonth === 'function') {
+                    picker.setYearMonth(parsed);
+                } else {
+                    picker.setView(parsed.getFullYear(), parsed.getMonth());
+                }
+            } else if (typeof picker.clearDate === 'function') {
+                picker.clearDate();
+            }
+
+            picker.open({ anchor: input });
+            console.log('[cover] picker.open called');
+        } catch (err) {
+            console.error('[cover] year-month picker open failed:', err);
+        }
+    }
+
+    function parseYearMonth(value) {
+        const raw = String(value || '').trim();
+
+        const ym = raw.match(/^(\d{4})-(\d{1,2})(?:-\d{1,2})?$/);
+        if (ym) {
+            const year = parseInt(ym[1], 10);
+            const month = parseInt(ym[2], 10) - 1;
+            if (month >= 0 && month <= 11) {
+                return new Date(year, month, 1);
+            }
+        }
+
+        const y = raw.match(/^(\d{4})$/);
+        if (y) {
+            return new Date(parseInt(y[1], 10), 0, 1);
+        }
+
+        return null;
+    }
+
+    function formatYearMonth(date) {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    }
+
+    function normalizeStartEnd(type) {
+        const start = getDateStartInput();
+        const end = getDateEndInput();
+
+        if (!start || !end) return;
+        if (!start.value || !end.value) return;
+
+        const startDate = parseYearMonth(start.value);
+        const endDate = parseYearMonth(end.value);
+
+        if (!startDate || !endDate) return;
+
+        if (type === 'start' && startDate > endDate) {
+            end.value = start.value;
+        }
+
+        if (type === 'end' && endDate < startDate) {
+            start.value = end.value;
+        }
     }
 
 
@@ -316,7 +554,7 @@ window.AdminPicker = AdminPicker;
                         const trashModalEl = document.getElementById('coverTrashModal');
                         if (!trashModalEl) return;
                 
-                        /* 🔥 핵심: JS에서 API 세팅 (통일 규칙) */
+                        /* ???????? JS?????API ?癲ル슢?뤸뤃??(??????????? */
                         trashModalEl.dataset.listUrl      = API.TRASH;
                         trashModalEl.dataset.restoreUrl   = API.RESTORE;
                         
@@ -353,7 +591,11 @@ window.AdminPicker = AdminPicker;
                 const filters = window.__lastFilters || [];
                 d.filters = filters;
             },
-            dataSrc: json => json?.data ?? []
+            dataSrc: json => {
+                const rows = json?.data ?? [];
+                updateCoverCount(Array.isArray(rows) ? rows.length : 0);
+                return rows;
+            }
         });
 
         window.coverTable = coverTable;
@@ -372,8 +614,19 @@ window.AdminPicker = AdminPicker;
 
             coverTable.on('init.dt', function () {
                 syncSearchFieldOptionsFromTable();
+                updateCoverCount(coverTable.page.info()?.recordsDisplay ?? 0);
+            });
+
+            coverTable.on('draw.dt', function () {
+                updateCoverCount(coverTable.page.info()?.recordsDisplay ?? 0);
             });
         }
+    }
+
+    function updateCoverCount(count) {
+        const el = document.getElementById('coverCount');
+        if (!el) return;
+        el.textContent = `총 ${count ?? 0}건`;
     }
 
     function buildCoverColumns() {
@@ -401,7 +654,7 @@ window.AdminPicker = AdminPicker;
                     if (field === 'url' && type === 'display') {
                         return data
                             ? `<img src="${escapeHtmlAttr(data)}" class="table-img-preview" style="width:80px;cursor:pointer;">`
-                            : `<span class="text-muted">이미지 없음</span>`;
+                            : `<span class="text-muted">?????꿔꺂??? ????ㅼ굡??/span>`;
                     }
 
                     return data;
@@ -413,7 +666,7 @@ window.AdminPicker = AdminPicker;
     }
 
     /* =========================================================
-       테이블 이벤트
+       ?????????嚥??
     ========================================================= */
     function bindTableEvents($) {
         let clickTimer = null;
@@ -514,7 +767,7 @@ window.AdminPicker = AdminPicker;
     }
 
     /* =========================================================
-       모달 이벤트
+       ?꿔꺂??袁ㅻ븶??????嚥??
     ========================================================= */
     function bindModalEvents($) {
         $(document).off('change', DOM.modalImageFile);
@@ -538,9 +791,43 @@ window.AdminPicker = AdminPicker;
             const fileInput = qs(DOM.modalImageFile);
             const hasFile = !!(fileInput && fileInput.files && fileInput.files.length > 0);
             const coverId = $(DOM.modalId).val();
+            const year = String($(DOM.modalYear).val() || '').trim();
+            const title = String($(DOM.modalTitle).val() || '').trim();
+            const alt = String($(DOM.modalAlt).val() || '').trim();
+            const description = String($(DOM.modalDescription).val() || '').trim();
 
             if (!hasFile && !coverId) {
-                alert('이미지 파일을 선택하세요.');
+                notifyMessage('warning', '????癲ル슣?? ?????????ャ뀕????⑥궢猷?嶺뚮ㅎ???');
+                return;
+            }
+
+            if (!/^\\d{4}$/.test(year)) {
+                notifyMessage('warning', '??????ш끽維筌??4????????ㅻ쿋筌앷엥??????곸죷???⑥궢猷?嶺뚮ㅎ???');
+                return;
+            }
+
+            if (!title) {
+                notifyMessage('warning', '??筌먯룄肄??????곸죷???⑥궢猷?嶺뚮ㅎ???');
+                return;
+            }
+
+            if (!alt) {
+                notifyMessage('warning', '????癲ル슣?? ???뚮듋??Alt)??????곸죷???⑥궢猷?嶺뚮ㅎ???');
+                return;
+            }
+
+            if (title.length > 120) {
+                notifyMessage('warning', '??筌먯룄肄?? 120????熬곣뫀???????곸죷???⑥궢猷?嶺뚮ㅎ???');
+                return;
+            }
+
+            if (alt.length > 180) {
+                notifyMessage('warning', '????癲ル슣?? ???뚮듋??Alt)??180????熬곣뫀???????곸죷???⑥궢猷?嶺뚮ㅎ???');
+                return;
+            }
+
+            if (description.length > 500) {
+                notifyMessage('warning', '????용럡?? 500????熬곣뫀???????곸죷???⑥궢猷?嶺뚮ㅎ???');
                 return;
             }
 
@@ -557,15 +844,13 @@ window.AdminPicker = AdminPicker;
                     if (res && res.success) {
                         resetCoverAfterAction();
 
-                        if (window.AppCore?.notify) {
-                            AppCore.notify('success', '저장 완료');
-                        }
+                        notifyMessage('success', '????꾨즺');
                     } else {
-                        alert('저장 실패: ' + (res?.message || '알 수 없는 오류'));
+                        notifyMessage('error', res?.message || '??μ뿉 ?ㅽ뙣?덉뒿?덈떎.');
                     }
                 },
-                error: function (xhr) {
-                    alert('저장 요청 실패: ' + xhr.status);
+                error: function () {
+                    notifyMessage('error', '????붿껌???ㅽ뙣?덉뒿?덈떎.');
                 }
             });
         });
@@ -575,11 +860,11 @@ window.AdminPicker = AdminPicker;
             const coverId = $(DOM.modalId).val();
 
             if (!coverId) {
-                alert('삭제할 항목이 없습니다.');
+                notifyMessage('warning', '??젣????ぉ???놁뒿?덈떎.');
                 return;
             }
 
-            if (!confirm('정말 삭제하시겠습니까?')) return;
+            if (!confirm('?뺣쭚 ??젣?섏떆寃좎뒿?덇퉴?')) return;
 
             $.post(
                 API.DELETE,
@@ -588,11 +873,9 @@ window.AdminPicker = AdminPicker;
                     if (res && res.success) {
                         resetCoverAfterAction();
 
-                        if (window.AppCore?.notify) {
-                            AppCore.notify('success', '삭제 완료');
-                        }
+                        notifyMessage('success', '??젣 ?꾨즺');
                     } else {
-                        alert(res?.message || '삭제 실패');
+                        notifyMessage('error', res?.message || '??젣???ㅽ뙣?덉뒿?덈떎.');
                     }
                 },
                 'json'
@@ -601,7 +884,7 @@ window.AdminPicker = AdminPicker;
     }
 
     /* =========================================================
-       검색폼
+       ?嚥▲굧??????勇?
     ========================================================= */
     function bindSearchCollapseEvents() {
         const container = qs(DOM.searchContainer);
@@ -615,7 +898,7 @@ window.AdminPicker = AdminPicker;
             container.classList.toggle('collapsed');
 
             const hidden = body.classList.contains('hidden');
-            btn.textContent = hidden ? '열기' : '접기';
+            btn.textContent = hidden ? '\uC5F4\uAE30' : '\uC811\uAE30';
 
             if (coverTable) {
                 coverTable.page.len(hidden ? 100 : 10).draw(false);
@@ -685,7 +968,7 @@ window.AdminPicker = AdminPicker;
 
 
     /* =========================================================
-       레이아웃
+       ???繹먮굟瑗????썹땟??
     ========================================================= */
     function bindTableLayoutEvents(table, tableSelector) {
         if (!table) return;
@@ -732,7 +1015,7 @@ window.AdminPicker = AdminPicker;
     }
 
     /* =========================================================
-       툴팁
+       ???ш끽維곫틦?
     ========================================================= */
     function bindTooltipEvents() {
         setupTooltip(DOM.tooltipTrigger, DOM.tooltipContainer);
@@ -777,7 +1060,7 @@ window.AdminPicker = AdminPicker;
     }
 
     /* =========================================================
-       휴지통
+       ?????
     ========================================================= */
     function bindTrashEvents() {
 
@@ -797,17 +1080,17 @@ window.AdminPicker = AdminPicker;
         
         //     if (!table.contains(row)) return;
         
-        //     console.log('🔥 강제 열기 테스트');
+        //     console.log('?????醫딆┫???????源낇꺙 ??????);
         
-        //     /* 🔥 무조건 열기 */
+        //     /* ??????類ㅺ퉻??嚥???????源낇꺙 */
         //     layout.classList.add('open');
         //     detail.style.display = 'block';
         
-        //     /* 🔥 내용 하드코딩 */
+        //     /* ???????ㅼ굡獒????β뼯爰???ш끽維???*/
         //     detail.innerHTML = `
         //         <div style="padding:20px;">
-        //             <h4>테스트 성공</h4>
-        //             <p>사이드바 열림 확인</p>
+        //             <h4>???????嚥싲갭횧?蹂좎쒜?/h4>
+        //             <p>?????嶺뚮Ĳ?????????癲ル슢캉????/p>
         //         </div>
         //     `;
         
@@ -827,26 +1110,26 @@ window.AdminPicker = AdminPicker;
             detailBox.innerHTML = `
                 <div class="cover-trash-detail-card">
                     <div class="cover-trash-detail-head">
-                        <h6 class="cover-trash-detail-title">휴지통 상세정보</h6>
-                        <button type="button" class="cover-trash-detail-close" id="btnCloseCoverTrashDetail">×</button>
+                        <h6 class="cover-trash-detail-title">?????????노듋??癲ル슢???ъ쒜?/h6>
+                        <button type="button" class="cover-trash-detail-close" id="btnCloseCoverTrashDetail">??/button>
                     </div>
     
                     <div class="cover-trash-preview">
                         ${
                             data?.url
                                 ? `<img src="${escapeHtmlAttr(data.url)}" alt="cover preview">`
-                                : `<div class="cover-trash-empty-preview">이미지 없음</div>`
+                                : `<div class="cover-trash-empty-preview">?????꿔꺂??? ????ㅼ굡??/div>`
                         }
                     </div>
     
                     <div class="cover-trash-detail-grid">
-                        <div class="label">코드</div><div class="value">${escapeHtml(data?.code ?? '')}</div>
-                        <div class="label">년도</div><div class="value">${escapeHtml(data?.year ?? '')}</div>
-                        <div class="label">제목</div><div class="value">${escapeHtml(data?.title ?? '')}</div>
+                        <div class="label">??ш끽維???/div><div class="value">${escapeHtml(data?.code ?? '')}</div>
+                        <div class="label">????썹땟?嶺?/div><div class="value">${escapeHtml(data?.year ?? '')}</div>
+                        <div class="label">??嶺뚮Ŋ猷꾥굜?/div><div class="value">${escapeHtml(data?.title ?? '')}</div>
                         <div class="label">Alt</div><div class="value">${escapeHtml(data?.alt ?? '')}</div>
-                        <div class="label">설명</div><div class="value">${escapeHtml(data?.description ?? '')}</div>
-                        <div class="label">삭제일시</div><div class="value">${escapeHtml(data?.deleted_at ?? '')}</div>
-                        <div class="label">삭제자</div><div class="value">${escapeHtml(data?.deleted_by_name || data?.deleted_by || '')}</div>
+                        <div class="label">?????⑸윞</div><div class="value">${escapeHtml(data?.description ?? '')}</div>
+                        <div class="label">?????濚밸Ŧ援앾쭛?/div><div class="value">${escapeHtml(data?.deleted_at ?? '')}</div>
+                        <div class="label">?????/div><div class="value">${escapeHtml(data?.deleted_by_name || data?.deleted_by || '')}</div>
                     </div>
                 </div>
             `;
@@ -913,7 +1196,7 @@ window.AdminPicker = AdminPicker;
                     ${
                         row.url
                             ? `<img src="${escapeHtmlAttr(row.url)}" style="width:60px;height:60px;object-fit:cover;">`
-                            : '<span class="text-muted">없음</span>'
+                            : '<span class="text-muted">????ㅼ굡??/span>'
                     }
                 </td>
                 <td>${row.year ?? ''}</td>
@@ -921,8 +1204,8 @@ window.AdminPicker = AdminPicker;
                 <td>${row.deleted_at ?? ''}</td>
                 <td>${row.deleted_by_name ?? ''}</td>
                 <td>
-                    <button class="btn btn-success btn-sm btn-restore" data-id="${row.id}">복원</button>
-                    <button class="btn btn-danger btn-sm btn-purge" data-id="${row.id}">영구삭제</button>
+                    <button class="btn btn-success btn-sm btn-restore" data-id="${row.id}">??⑤슢?뽫뵓??/button>
+                    <button class="btn btn-danger btn-sm btn-purge" data-id="${row.id}">?????????/button>
                 </td>
             `;
         };
@@ -933,7 +1216,7 @@ window.AdminPicker = AdminPicker;
 
     
     /* =========================================================
-       기타
+       ???뚯???
     ========================================================= */
     function bindExcelEvents() {
         document.addEventListener('excel:uploaded', () => {
@@ -954,7 +1237,7 @@ window.AdminPicker = AdminPicker;
                 try {
                     coverTable.columns.adjust().draw(false);
                 } catch (e) {
-                    console.warn('[cover] columns.adjust 경고', e);
+                    console.warn('[cover] columns.adjust warning', e);
                 }
             }, 80);
         }, resetPaging);
@@ -1004,13 +1287,13 @@ window.AdminPicker = AdminPicker;
         const $title = window.jQuery(DOM.modalLabel);
 
         if (mode === 'edit') {
-            $title.text('커버사진 수정');
-            window.jQuery(DOM.modalSaveBtn).text('수정');
+            $title.text('\uCEE4\uBC84\uC0AC\uC9C4 \uC218\uC815');
+            window.jQuery(DOM.modalSaveBtn).text('\uC218\uC815');
             window.jQuery(DOM.modalDeleteBtn).show();
             window.jQuery(DOM.modalImageFile).prop('required', false);
         } else {
-            $title.text('새 커버사진 등록');
-            window.jQuery(DOM.modalSaveBtn).text('등록');
+            $title.text('\uC0C8 \uCEE4\uBC84\uC0AC\uC9C4 \uB4F1\uB85D');
+            window.jQuery(DOM.modalSaveBtn).text('\uB4F1\uB85D');
             window.jQuery(DOM.modalDeleteBtn).hide();
             window.jQuery(DOM.modalImageFile).prop('required', true);
             window.jQuery(DOM.modalImagePreview).attr('src', '').hide();
@@ -1041,7 +1324,7 @@ window.AdminPicker = AdminPicker;
         }
 
         $select.empty();
-        $select.append('<option value="">선택하세요</option>');
+        $select.append('<option value="">????ｋ???嶺뚮슣堉???/option>');
 
         for (let year = endYear; year >= startYear; year--) {
             const selected = String(year) === normalizedYear ? 'selected' : '';

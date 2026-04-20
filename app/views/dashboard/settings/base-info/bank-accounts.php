@@ -9,7 +9,7 @@
   ========================== -->
   <div class="page-header">
     <h5 class="mb-1 fw-bold">🏦 계좌관리</h5>
-    <span id="accountCount" class="text-primary account-count"></span>
+    <span id="accountCount" class="text-primary account-count page-count"></span>
   </div>
 
   <div class="content-area">

@@ -33,7 +33,7 @@ $section = explode('/', $uri)[0];
                 echo '📢 공지/회의';
                 break;
             default:
-                echo '🏠 대시보드';
+                echo '🏠 메인';
                 break;
         }
         ?>

@@ -130,7 +130,32 @@ class BrandModel
         $stmt->execute([
             ':asset_type' => $assetType
         ]);
-    
+
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function getLatestByType(string $assetType, ?string $excludeId = null): ?array
+    {
+        $sql = "
+            SELECT *
+            FROM system_brand_assets
+            WHERE asset_type = :asset_type
+        ";
+
+        $params = [
+            ':asset_type' => $assetType,
+        ];
+
+        if ($excludeId) {
+            $sql .= " AND id <> :exclude_id";
+            $params[':exclude_id'] = $excludeId;
+        }
+
+        $sql .= " ORDER BY created_at DESC LIMIT 1";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 

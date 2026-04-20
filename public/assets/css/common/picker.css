@@ -274,9 +274,64 @@
 }
 
 /* =========================================================
+   Year / Month Picker
+========================================================= */
+.picker-yearmonth{
+  min-width: 252px;
+}
+
+.picker-yearmonth-header .picker-ym{
+  flex: 1;
+}
+
+.picker-yearmonth-header .picker-year{
+  width: 100%;
+}
+
+.picker-yearmonth-grid{
+  display:grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+.picker-month-cell{
+  width: 100%;
+  height: 42px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--p-text);
+  cursor:pointer;
+  font-size: 13px;
+  font-weight: 900;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition: background .12s ease, box-shadow .12s ease, transform .08s ease, border-color .12s ease;
+}
+
+.picker-month-cell:hover{
+  background: var(--p-primary-soft);
+  border-color: rgba(59,130,246,.10);
+}
+
+.picker-month-cell.is-today{
+  box-shadow: inset 0 0 0 1.5px rgba(15,23,42,.22);
+}
+
+.picker-month-cell.is-selected{
+  background: var(--p-primary);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(59,130,246,.25);
+}
+
+/* =========================================================
    Focus Ring
 ========================================================= */
 .picker-day:focus-visible,
+.picker-month-cell:focus-visible,
 .picker-nav-btn:focus-visible,
 .picker-ym select:focus-visible,
 .picker-btn:focus-visible,

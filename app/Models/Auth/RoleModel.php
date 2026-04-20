@@ -19,18 +19,132 @@ class RoleModel
     /* ===============================================================
      * 1) 역할 전체 조회
      * =============================================================== */
-    public function getAll(): array
+    public function getAll(array $filters = []): array
     {
         try {
-            $stmt = $this->db->query("
+            $sql = "
                 SELECT 
                     id, code, role_key, role_name,
                     description, is_active,
                     created_at, created_by,
                     updated_at, updated_by
                 FROM auth_roles
-                ORDER BY code ASC
-            ");
+                WHERE 1=1
+            ";
+
+            $params = [];
+
+            if (!empty($filters)) {
+                $fieldMap = [
+                    'id'          => ['expr' => 'id', 'type' => 'exact'],
+                    'code'        => ['expr' => 'code', 'type' => 'like'],
+                    'role_key'    => ['expr' => 'role_key', 'type' => 'like'],
+                    'role_name'   => ['expr' => 'role_name', 'type' => 'like'],
+                    'description' => ['expr' => 'description', 'type' => 'like'],
+                    'is_active'   => ['expr' => 'is_active', 'type' => 'exact'],
+                    'created_at'  => ['expr' => 'created_at', 'type' => 'datetime'],
+                    'updated_at'  => ['expr' => 'updated_at', 'type' => 'datetime'],
+                ];
+
+                $globalSearchValues = [];
+
+                foreach ($filters as $f) {
+                    $field = $f['field'] ?? '';
+                    $value = $f['value'] ?? '';
+
+                    if ($value === '' || $value === null) {
+                        continue;
+                    }
+
+                    if ($field === '') {
+                        $globalSearchValues[] = $value;
+                        continue;
+                    }
+
+                    if (!isset($fieldMap[$field])) {
+                        continue;
+                    }
+
+                    $expr = $fieldMap[$field]['expr'];
+                    $type = $fieldMap[$field]['type'];
+
+                    if ($type === 'datetime') {
+                        if (is_array($value) && isset($value['start'], $value['end'])) {
+                            $start = trim((string)($value['start'] ?? ''));
+                            $end   = trim((string)($value['end'] ?? ''));
+
+                            if ($start !== '' && $end !== '') {
+                                $sql .= " AND {$expr} BETWEEN ? AND ?";
+                                $params[] = preg_match('/^\d{4}-\d{2}-\d{2}$/', $start)
+                                    ? $start . ' 00:00:00'
+                                    : $start;
+                                $params[] = preg_match('/^\d{4}-\d{2}-\d{2}$/', $end)
+                                    ? $end . ' 23:59:59'
+                                    : $end;
+                            }
+                        } else {
+                            $stringValue = trim((string)$value);
+
+                            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $stringValue)) {
+                                $sql .= " AND {$expr} BETWEEN ? AND ?";
+                                $params[] = $stringValue . ' 00:00:00';
+                                $params[] = $stringValue . ' 23:59:59';
+                            } else {
+                                $sql .= " AND {$expr} = ?";
+                                $params[] = $stringValue;
+                            }
+                        }
+
+                        continue;
+                    }
+
+                    if ($type === 'exact') {
+                        $sql .= " AND {$expr} = ?";
+                        $params[] = $value;
+                        continue;
+                    }
+
+                    $keywords = array_filter(array_map('trim', explode(',', (string)$value)));
+
+                    if (!$keywords) {
+                        continue;
+                    }
+
+                    $parts = [];
+                    foreach ($keywords as $keyword) {
+                        $parts[] = "{$expr} LIKE ?";
+                        $params[] = '%' . $keyword . '%';
+                    }
+
+                    $sql .= " AND (" . implode(' OR ', $parts) . ")";
+                }
+
+                foreach ($globalSearchValues as $value) {
+                    $keywords = array_filter(array_map('trim', explode(',', (string)$value)));
+
+                    if (!$keywords) {
+                        continue;
+                    }
+
+                    $orParts = [];
+                    foreach ($keywords as $keyword) {
+                        foreach (['code', 'role_key', 'role_name', 'description'] as $expr) {
+                            $orParts[] = "{$expr} LIKE ?";
+                            $params[] = '%' . $keyword . '%';
+                        }
+                    }
+
+                    if ($orParts) {
+                        $sql .= " AND (" . implode(' OR ', $orParts) . ")";
+                    }
+                }
+            }
+
+            $sql .= " ORDER BY code ASC";
+
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+
             return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         } catch (\Throwable $e) {            
@@ -221,6 +335,21 @@ class RoleModel
 
         } catch (\Throwable $e) {            
             return null;
+        }
+    }
+
+    public function updateCode(string $id, int $code): bool
+    {
+        try {
+            $stmt = $this->db->prepare("
+                UPDATE auth_roles
+                SET code = ?, updated_at = NOW()
+                WHERE id = ?
+            ");
+
+            return $stmt->execute([$code, $id]);
+        } catch (\Throwable $e) {
+            return false;
         }
     }
 }

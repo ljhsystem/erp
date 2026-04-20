@@ -20,9 +20,18 @@
     margin-bottom:14px;
 }
 
-.project-count{
+.project-page .page-header h5{
+    margin-bottom:0;
+}
+
+.project-count,
+.project-page .page-count{
+    display:inline-flex;
+    align-items:center;
     font-size:1rem;
-    margin-left:35px;
+    margin-left:2px;
+    font-weight:500;
+    line-height:1;
 }
 
 /* ==============================

@@ -1,127 +1,73 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/views/dashboard/settings/employee/role_permissions.php'
+// Path: PROJECT_ROOT . '/app/views/dashboard/settings/organization/role_permissions.php'
 ?>
 
-<style>
-/* 테이블 헤더 고정 */
-table thead {
-    position: sticky;
-    top: 0;
-    background-color: #fff;
-    z-index: 100;
-}
+<div class="role-permission-page" id="rolePermissionPage">
+    <h5 class="fw-bold mb-3">역할별 권한 설정</h5>
 
-.table-container {
-    max-height: 400px;
-    overflow-y: auto;
-}
-
-/* 검색 + 카운트 + 전체선택 한 줄 정렬 */
-#permission-header {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 12px;
-}
-
-#permission-count {
-    white-space: nowrap; /* 줄바꿈 방지 */
-    font-size: 13px;
-    font-weight: bold;
-}
-#permission-save-btn {
-    padding: 4px 12px !important;   /* 여유 있는 좌우 여백 */
-    font-size: 12px !important;     /* 작은 글씨 */
-    border-radius: 4px !important;
-    height: auto !important;        /* 강제 높이 제거 */
-    line-height: normal !important; /* 글씨가 눌리는 문제 해결 */
-    white-space: nowrap !important; /* 글씨 줄바꿈 방지 */
-}
-
-</style>
-
-
-
-<h5 class="fw-bold mb-3">역할별 권한 설정</h5>
-
-<div class="row">
-    <!-- 왼쪽: 역할 리스트 -->
-    <div class="col-md-4">
-        <div class="card shadow-sm">
-            <div class="card-header fw-bold">역할 목록</div>
-            <div class="card-body p-0">
-                <table id="role-list-table" class="table table-bordered table-hover m-0">
-                    <thead>
-                        <tr>
-                            <th>코드</th>
-                            <th>역할명</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- 오른쪽: 권한 목록 -->
-    <div class="col-md-8">
-        <div class="card shadow-sm">
-
-
-
-        <div class="card-header fw-bold d-flex align-items-center justify-content-between">
-            <div>
-                권한 목록
-                <span id="rp-selected-role-name" class="text-primary ms-2"></span>
-            </div>
-
-            <div id="permission-header" style="display: none;">          
-                <!-- 검색창 -->
-                <input type="text" id="permission-search" class="form-control form-control-sm"
-                    placeholder="검색...">
-
-                <!-- 개수 표시 -->
-                <span id="permission-count" class="text-muted small"></span>
-
-                <!-- 전체 선택 -->
-                <div class="form-check ms-2">
-                    <input class="form-check-input" type="checkbox" id="permission-check-all">
-                    <label class="form-check-label small" for="permission-check-all"></label>
+    <div class="rp-row">
+        <div class="rp-col-left">
+            <div class="card shadow-sm rp-card" id="roleListCard">
+                <div class="card-header fw-bold d-flex align-items-center justify-content-between">
+                    <div>
+                        역할 목록
+                        <span id="roleListCount" class="text-primary ms-2"></span>
+                    </div>
                 </div>
-
-                <!-- 저장 버튼 -->
-                <button id="permission-save-btn" class="btn btn-sm btn-primary ms-2">
-                    저장
-                </button>
-
-            </div>
-
-            
-        </div>
-
-
-
-
-            </div>
-
-            <div class="card-body p-0">
-                <div class="table-container">
-                    <table id="role-permissions-table" class="table table-bordered table-hover m-0">
-                        <thead>
-                            <tr>
-                                <th>권한 Key</th>
-                                <th>권한명</th>
-                                <th>카테고리</th>
-                                <th>부여</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
+                <div class="card-body rp-card-body">
+                    <div class="rp-table-wrap" id="roleListWrap">
+                        <table id="role-list-table" class="table table-bordered table-hover m-0">
+                            <thead>
+                                <tr>
+                                    <th style="width:72px">코드</th>
+                                    <th>역할명</th>
+                                    <th style="width:96px">상태</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
+        </div>
 
+        <div class="rp-col-right">
+            <div class="card shadow-sm rp-card" id="permissionListCard">
+                <div class="card-header fw-bold d-flex align-items-center justify-content-between">
+                    <div>
+                        권한 목록
+                        <span id="rp-selected-role-name" class="text-primary ms-2"></span>
+                    </div>
+
+                    <div id="permission-header" style="display: none;">
+                        <input type="text" id="permission-search" class="form-control form-control-sm" placeholder="검색..">
+                        <span id="permission-count" class="text-muted small"></span>
+
+                        <div class="form-check ms-2">
+                            <input class="form-check-input" type="checkbox" id="permission-check-all">
+                            <label class="form-check-label small" for="permission-check-all"></label>
+                        </div>
+
+                        <button id="permission-save-btn" class="btn btn-sm btn-secondary ms-2">저장</button>
+                    </div>
+                </div>
+
+                <div class="card-body rp-card-body">
+                    <div class="rp-table-wrap" id="permissionListWrap">
+                        <table id="role-permissions-table" class="table table-bordered table-hover m-0">
+                            <thead>
+                                <tr>
+                                    <th>카테고리</th>
+                                    <th>권한명</th>
+                                    <th>권한키</th>
+                                    <th style="width:88px">부여</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
-
-

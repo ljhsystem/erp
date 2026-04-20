@@ -199,7 +199,7 @@ class ProjectModel
             $sql .= ")";
         }
     
-        $sql .= " ORDER BY p.start_date DESC, p.code ASC";
+        $sql .= " ORDER BY p.code ASC";
     
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);

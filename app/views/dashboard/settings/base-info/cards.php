@@ -7,7 +7,7 @@
   <!-- HEADER -->
   <div class="page-header">
     <h5 class="mb-1 fw-bold">💳 카드관리</h5>
-    <span id="cardCount" class="text-primary card-count"></span>
+    <span id="cardCount" class="text-primary card-count page-count"></span>
   </div>
 
   <div class="content-area">

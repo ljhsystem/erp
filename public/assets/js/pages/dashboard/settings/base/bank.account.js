@@ -543,6 +543,14 @@ window.AdminPicker = AdminPicker;
         if (accountTable) {
             console.log('✅ Account DataTable 생성 완료');
 
+            accountTable.on('init.dt', () => {
+                updateAccountCount(accountTable.page.info()?.recordsDisplay ?? 0);
+            });
+
+            accountTable.on('draw.dt', () => {
+                updateAccountCount(accountTable.page.info()?.recordsDisplay ?? 0);
+            });
+
             SearchForm({
                 table: accountTable,
                 apiList: API.LIST,
@@ -556,6 +564,12 @@ window.AdminPicker = AdminPicker;
         }
 
         bindRowReorder(accountTable, { api: API.REORDER });
+    }
+
+    function updateAccountCount(count) {
+        const el = document.getElementById('accountCount');
+        if (!el) return;
+        el.textContent = `총 ${count ?? 0}건`;
     }
 
     /* ============================================================
@@ -639,6 +653,38 @@ window.AdminPicker = AdminPicker;
 
             const form = this;
             const formData = new FormData(form);
+            const accountName = String(formData.get('account_name') || '').trim();
+            const accountNumber = String(formData.get('account_number') || '').trim();
+            const currency = String(formData.get('currency') || '').trim().toUpperCase();
+            const bankName = String(formData.get('bank_name') || '').trim();
+            const accountHolder = String(formData.get('account_holder') || '').trim();
+
+            if (!accountName) {
+                AppCore?.notify?.('warning', '계좌명은 필수입니다.');
+                return;
+            }
+
+            if (currency && !/^[A-Z]{3}$/.test(currency)) {
+                AppCore?.notify?.('warning', '통화 코드는 3자리 영문으로 입력해주세요.');
+                return;
+            }
+
+            if (accountNumber && !/^[0-9-]+$/.test(accountNumber)) {
+                AppCore?.notify?.('warning', '계좌번호는 숫자와 하이픈만 입력할 수 있습니다.');
+                return;
+            }
+
+            if (bankName.length > 100) {
+                AppCore?.notify?.('warning', '은행명은 100자 이하로 입력해주세요.');
+                return;
+            }
+
+            if (accountHolder.length > 100) {
+                AppCore?.notify?.('warning', '예금주는 100자 이하로 입력해주세요.');
+                return;
+            }
+
+            formData.set('currency', currency || 'KRW');
 
             const btn = form.querySelector('button[type="submit"]');
             if (btn) btn.disabled = true;
@@ -681,8 +727,11 @@ window.AdminPicker = AdminPicker;
                         accountTable.ajax.reload(null, false);
                         accountModal.hide();
                     } else {
-                        alert(res.message || '삭제 실패');
+                        AppCore?.notify?.('error', res.message || '삭제 실패');
                     }
+                })
+                .fail(() => {
+                    AppCore?.notify?.('error', '서버 오류');
                 });
         });
     }
@@ -790,6 +839,21 @@ window.AdminPicker = AdminPicker;
         }
 
         function renderFile(file) {
+            const ext = (file.name.split('.').pop() || '').toLowerCase();
+            const allowed = ['pdf', 'jpg', 'jpeg', 'png'];
+
+            if (!allowed.includes(ext)) {
+                AppCore?.notify?.('warning', '통장사본은 PDF, JPG, PNG 파일만 업로드할 수 있습니다.');
+                input.value = '';
+                return false;
+            }
+
+            if (file.size > 10 * 1024 * 1024) {
+                AppCore?.notify?.('warning', '통장사본 파일은 10MB 이하만 업로드할 수 있습니다.');
+                input.value = '';
+                return false;
+            }
+
             const hasOriginal = drop.dataset.original === "1";
             const message = hasOriginal
                 ? "저장 시 기존 통장사본이 교체됩니다."
@@ -804,6 +868,8 @@ window.AdminPicker = AdminPicker;
                 <br>
                 <span class="text-primary">${message}</span>
             `;
+
+            return true;
         }
 
         drop.addEventListener('click', () => input.click());
@@ -811,7 +877,9 @@ window.AdminPicker = AdminPicker;
         input.addEventListener('change', e => {
             const file = e.target.files[0];
             if (!file) return;
-            renderFile(file);
+            if (!renderFile(file)) {
+                input.value = '';
+            }
         });
 
         drop.addEventListener('dragover', e => {
@@ -825,7 +893,9 @@ window.AdminPicker = AdminPicker;
             if (!file) return;
 
             input.files = e.dataTransfer.files;
-            renderFile(file);
+            if (!renderFile(file)) {
+                input.value = '';
+            }
         });
     }
 

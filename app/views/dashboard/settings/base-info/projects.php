@@ -9,7 +9,7 @@
   ========================== -->
   <div class="page-header">
     <h5 class="mb-1 fw-bold">🏗 프로젝트관리</h5>
-    <span id="projectCount" class="text-primary project-count"></span>
+    <span id="projectCount" class="text-primary project-count page-count"></span>
   </div>
 
   <div class="content-area">

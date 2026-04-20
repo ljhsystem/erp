@@ -382,10 +382,12 @@ export function SearchForm(config){
 
             console.log('🔥 cover setPeriod 실행:', type);
 
-            const year = new Date().getFullYear();
+            const now = new Date();
+            const year = now.getFullYear();
+            const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
 
-            let start = year;
-            let end   = year;
+            let start = `${year}-01`;
+            let end   = `${year}-${currentMonth}`;
 
             switch(type){
 
@@ -393,20 +395,20 @@ export function SearchForm(config){
                     break;
 
                 case 'lastYear':
-                    start = year - 1;
-                    end   = year - 1;
+                    start = `${year - 1}-01`;
+                    end   = `${year - 1}-12`;
                     break;
 
                 case '3years':
-                    start = year - 2;
+                    start = `${year - 2}-01`;
                     break;
 
                 case '5years':
-                    start = year - 4;
+                    start = `${year - 4}-01`;
                     break;
 
                 case '10years':
-                    start = year - 9;
+                    start = `${year - 9}-01`;
                     break;
 
                 default:

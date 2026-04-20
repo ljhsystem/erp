@@ -40,6 +40,7 @@ $periodButtons = $periodButtons ?? [
 $dateInputClass = $dateInputClass ?? 'form-control form-control-sm admin-date';
 $dateStartPlaceholder = $dateStartPlaceholder ?? '시작일';
 $dateEndPlaceholder   = $dateEndPlaceholder ?? '종료일';
+$dateInputAttrs = $dateInputAttrs ?? '';
 
 $showPeriodTooltip = $showPeriodTooltip ?? true;
 $showSearchTooltip = $showSearchTooltip ?? true;
@@ -161,6 +162,7 @@ $showSearchTooltip = $showSearchTooltip ?? true;
                         <input type="text"
                                name="dateStart"
                                class="<?= htmlspecialchars($dateInputClass, ENT_QUOTES, 'UTF-8') ?>"
+                               <?= $dateInputAttrs ?>
                                placeholder="<?= htmlspecialchars($dateStartPlaceholder, ENT_QUOTES, 'UTF-8') ?>">
                         <span class="date-icon">📅</span>
                     </div>
@@ -171,6 +173,7 @@ $showSearchTooltip = $showSearchTooltip ?? true;
                         <input type="text"
                                name="dateEnd"
                                class="<?= htmlspecialchars($dateInputClass, ENT_QUOTES, 'UTF-8') ?>"
+                               <?= $dateInputAttrs ?>
                                placeholder="<?= htmlspecialchars($dateEndPlaceholder, ENT_QUOTES, 'UTF-8') ?>">
                         <span class="date-icon">📅</span>
                     </div>

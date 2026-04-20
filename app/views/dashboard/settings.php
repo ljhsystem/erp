@@ -76,7 +76,12 @@ $pageStyles .=
     AssetHelper::css('/assets/css/pages/dashboard/settings/bank.account.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/card.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/employee.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/departments.css');
+    AssetHelper::css('/assets/css/pages/dashboard/settings/departments.css') .
+    AssetHelper::css('/assets/css/pages/dashboard/settings/positions.css') .
+    AssetHelper::css('/assets/css/pages/dashboard/settings/roles.css') .
+    AssetHelper::css('/assets/css/pages/dashboard/settings/permissions.css') .
+    AssetHelper::css('/assets/css/pages/dashboard/settings/role_permissions.css') .
+    AssetHelper::css('/assets/css/pages/dashboard/settings/approval.css');
 
 // 6) 공통 JS
 $pageScripts .= '';
@@ -102,7 +107,11 @@ if ($cat === 'base-info' && $sub === 'brand-logo') {
 
 // 8-1-3) 기초정보관리 - 커버이미지
 if ($cat === 'base-info' && $sub === 'cover') {
-    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/base/cover.js');
+    $coverJsVersion = file_exists(PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/base/cover.js')
+        ? filemtime(PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/base/cover.js')
+        : time();
+
+    $pageScripts .= '<script type="module" src="/public/assets/js/pages/dashboard/settings/base/cover.js?v=' . $coverJsVersion . '&ym=1"></script>';
 }
 
 // 8-1-4) 기초정보관리 - 거래처
@@ -142,22 +151,22 @@ if ($cat === 'organization' && $sub === 'employees') {
 
 // 8-2-2) 조직관리 - 부서
 if ($cat === 'organization' && $sub === 'departments') {
-    $pageScripts .= AssetHelper::js('/assets/js/pages/dashboard/settings/organization/departments.js');
+    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/organization/departments.js');
 }
 
 // 8-2-3) 조직관리 - 직책
 if ($cat === 'organization' && $sub === 'positions') {
-   $pageScripts .= AssetHelper::js('/assets/js/pages/dashboard/settings/organization/positions.js');
+   $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/organization/positions.js');
 }
 
 // 8-2-4) 조직관리 - 역할
 if ($cat === 'organization' && $sub === 'roles') {
-    $pageScripts .= AssetHelper::js('/assets/js/pages/dashboard/settings/organization/roles.js');
+    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/organization/roles.js');
 }
 
 // 8-2-5) 조직관리 - 권한
 if ($cat === 'organization' && $sub === 'permissions') {
-    $pageScripts .= AssetHelper::js('/assets/js/pages/dashboard/settings/organization/permissions.js');
+    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/organization/permissions.js');
 }
 
 // 8-2-6) 조직관리 - 권한부여
@@ -167,7 +176,9 @@ if ($cat === 'organization' && $sub === 'role_permissions') {
 
 // 8-2-7) 조직관리 - 결재
 if ($cat === 'organization' && $sub === 'approval') {
-    $pageScripts .= AssetHelper::js('/assets/js/pages/dashboard/settings/organization/approval.templates.js');
+    $pageScripts .=
+        AssetHelper::js('https://code.jquery.com/ui/1.13.2/jquery-ui.min.js') .
+        AssetHelper::js('/assets/js/pages/dashboard/settings/organization/approval.templates.js');
 }
 
 // 8-3-1) 시스템설정 - 사이트정보

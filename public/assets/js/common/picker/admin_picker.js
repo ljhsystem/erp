@@ -3,6 +3,7 @@ import { createDatePicker } from './picker.base.js';
 import { createMiniPicker } from './picker.mini.js';
 import { createDateTimePicker } from './picker.datetime.js';
 import { createTodayPicker } from './picker.today.js';
+import { createYearMonthPicker } from './picker.yearmonth.js';
 import { createTimeListPicker } from './picker.time.list.js';
 import { bindOutsideClick } from './ui.util.js';
 import { createAccountPicker } from './picker.account.js';
@@ -58,7 +59,14 @@ function withPopup(picker, container) {
     });
 
     unbind?.();
-    unbind = bindOutsideClick(container, picker.close);
+    window.setTimeout(() => {
+      unbind?.();
+      unbind = bindOutsideClick(
+        container,
+        picker.close,
+        [anchor]
+      );
+    }, 0);
 
     /* =========================
       🔥 핵심 추가 (ESC 등록)
@@ -94,7 +102,10 @@ function withPopup(picker, container) {
  * Picker Factory
  * ===================================================== */
 function create({ type, container, options = {} }) {
+  console.log('[AdminPicker] create', { type, container, options });
+
   if (container.__pickerInstance) {
+    console.log('[AdminPicker] reuse existing instance', { type });
     return container.__pickerInstance;
   }
 
@@ -103,6 +114,12 @@ function create({ type, container, options = {} }) {
   switch (type) {
     case 'today':
       picker = createTodayPicker({ container });
+      break;
+
+    case 'year-month':
+    case 'yearmonth':
+    case 'month':
+      picker = createYearMonthPicker({ container, ...options });
       break;
 
     case 'datetime':

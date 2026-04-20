@@ -125,7 +125,53 @@ class CoverImageService
     
         try {
             $coverId = trim((string)($data['id'] ?? ''));
+            $year = trim((string)($data['year'] ?? ''));
+            $title = trim((string)($data['title'] ?? ''));
+            $alt = trim((string)($data['alt'] ?? ''));
+            $description = trim((string)($data['description'] ?? ''));
             $newSrc  = null;
+
+            if (!preg_match('/^\d{4}$/', $year)) {
+                return [
+                    'success' => false,
+                    'message' => '해당년도는 4자리 연도로 입력해주세요.'
+                ];
+            }
+
+            if ($title === '') {
+                return [
+                    'success' => false,
+                    'message' => '제목을 입력해주세요.'
+                ];
+            }
+
+            if ($alt === '') {
+                return [
+                    'success' => false,
+                    'message' => '이미지 문구(Alt)를 입력해주세요.'
+                ];
+            }
+
+            if (mb_strlen($title) > 120) {
+                return [
+                    'success' => false,
+                    'message' => '제목은 120자 이하로 입력해주세요.'
+                ];
+            }
+
+            if (mb_strlen($alt) > 180) {
+                return [
+                    'success' => false,
+                    'message' => '이미지 문구(Alt)는 180자 이하로 입력해주세요.'
+                ];
+            }
+
+            if ($description !== '' && mb_strlen($description) > 500) {
+                return [
+                    'success' => false,
+                    'message' => '설명은 500자 이하로 입력해주세요.'
+                ];
+            }
     
             /* =========================
                1. 파일 업로드
@@ -174,10 +220,10 @@ class CoverImageService
                 }
     
                 $updateData = [
-                    'year'        => $data['year'] ?? null,
-                    'title'       => $data['title'] ?? null,
-                    'alt'         => $data['alt'] ?? null,
-                    'description' => $data['description'] ?? null,
+                    'year'        => $year,
+                    'title'       => $title,
+                    'alt'         => $alt,
+                    'description' => $description,
                     'src'         => $newSrc ?: ($before['src'] ?? null),
                     'updated_by'  => $actor,
                 ];
@@ -209,10 +255,10 @@ class CoverImageService
             $insertData = [
                 'id'          => $newId,
                 'code'        => $newCode,
-                'year'        => $data['year'] ?? null,
-                'title'       => $data['title'] ?? null,
-                'alt'         => $data['alt'] ?? null,
-                'description' => $data['description'] ?? null,
+                'year'        => $year,
+                'title'       => $title,
+                'alt'         => $alt,
+                'description' => $description,
                 'src'         => $newSrc, // 🔥 null 아님 (위에서 필수 체크함)
                 'created_by'  => $actor,
                 'updated_by'  => $actor,

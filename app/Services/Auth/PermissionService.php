@@ -31,9 +31,14 @@ class PermissionService
     /* ---------------------------------------------------------------
      * 권한 전체 조회
      * --------------------------------------------------------------- */
-    public function getAll(): array
+    public function getAll(array $filters = []): array
     {
-        return $this->permModel->getAll();
+        return $this->permModel->getAll($filters);
+    }
+
+    public function getList(array $filters = []): array
+    {
+        return $this->getAll($filters);
     }
 
     /* ---------------------------------------------------------------
@@ -154,5 +159,44 @@ class PermissionService
             $this->userCache[$userId] = $this->userModel->getById($userId);
         }
         return $this->userCache[$userId];
+    }
+
+    public function reorder(array $changes): bool
+    {
+        if (empty($changes)) {
+            return true;
+        }
+
+        try {
+            if (!$this->pdo->inTransaction()) {
+                $this->pdo->beginTransaction();
+            }
+
+            foreach ($changes as $row) {
+                if (empty($row['id']) || !isset($row['newCode'])) {
+                    throw new \Exception('reorder 데이터 오류');
+                }
+            }
+
+            foreach ($changes as $row) {
+                $this->permModel->updateCode($row['id'], (int)$row['newCode'] + 1000000);
+            }
+
+            foreach ($changes as $row) {
+                $this->permModel->updateCode($row['id'], (int)$row['newCode']);
+            }
+
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->commit();
+            }
+
+            return true;
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $e;
+        }
     }
 }

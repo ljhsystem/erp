@@ -1,63 +1,49 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/views/dashboard/partials/position_modal_edit.php';
+// 경로: PROJECT_ROOT . '/app/views/dashboard/settings/organization/partials/positions_modal.php'
 ?>
-<div class="modal fade" id="positionEditModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
-    <form id="pos-edit-form">
-      <div class="modal-content">
 
+<div class="modal fade" id="positionEditModal" tabindex="-1" aria-labelledby="positionEditModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <form id="position-edit-form" autocomplete="off">
+      <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">직책 수정</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          <h5 class="modal-title" id="positionEditModalLabel">직책 등록</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
         </div>
 
         <div class="modal-body">
+          <input type="hidden" name="id" id="position_edit_id">
 
-          <input type="hidden" name="id" id="pos_edit_id">
-
-          <!-- 직책 선택 -->
           <div class="mb-3">
-            <label class="form-label">직책</label>
-            <select id="pos_edit_select" class="form-select" required>
-                <option value="">선택하세요</option>
-                <option value="대표" data-rank="1">대표</option>
-                <option value="전무" data-rank="2">전무</option>
-                <option value="상무" data-rank="3">상무</option>
-                <option value="이사" data-rank="4">이사</option>
-                <option value="부장" data-rank="5">부장</option>
-                <option value="과장" data-rank="6">과장</option>
-                <option value="대리" data-rank="7">대리</option>
-                <option value="사원" data-rank="8">사원</option>
-                <option value="인턴" data-rank="9">인턴</option>
-            </select>
+            <label class="form-label" for="position_edit_name">직책명</label>
+            <input type="text" name="position_name" id="position_edit_name" class="form-control form-control-sm" required>
           </div>
 
-          <!-- 등급 -->
           <div class="mb-3">
-            <label class="form-label">등급</label>
-            <input type="number" id="pos_edit_rank" class="form-control" required>
+            <label class="form-label" for="position_edit_rank">레벨</label>
+            <input type="number" name="level_rank" id="position_edit_rank" class="form-control form-control-sm" min="0" step="1" value="0" required>
           </div>
 
-          <!-- 장문 설명 -->
           <div class="mb-3">
-            <label class="form-label">설명</label>
-            <textarea id="pos_edit_desc" class="form-control" rows="3" placeholder="직책 설명을 입력하세요"></textarea>
+            <label class="form-label" for="position_edit_description">설명</label>
+            <textarea name="description"
+                      id="position_edit_description"
+                      class="form-control form-control-sm"
+                      rows="3"
+                      placeholder="직책 설명을 입력하세요."></textarea>
           </div>
 
-          <!-- 활성 여부 -->
           <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" id="pos_edit_is_active" name="is_active">
-            <label class="form-check-label" for="pos_edit_is_active">활성</label>
+            <input class="form-check-input" type="checkbox" id="position_edit_is_active" name="is_active" checked>
+            <label class="form-check-label" for="position_edit_is_active">활성</label>
           </div>
-
         </div>
 
         <div class="modal-footer">
-          <button type="submit" class="btn btn-primary">저장</button>
-          <button type="button" id="pos_edit_delete_btn" class="btn btn-danger me-auto">삭제</button>
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+          <button type="submit" id="position_edit_save_btn" class="btn btn-primary btn-sm">&#51200;&#51109;</button>
+          <button type="button" id="position_edit_delete_btn" class="btn btn-danger btn-sm">&#50689;&#44396;&#49325;&#51228;</button>
+          <button type="button" id="position_edit_close_btn" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">&#45803;&#44592;</button>
         </div>
-
       </div>
     </form>
   </div>

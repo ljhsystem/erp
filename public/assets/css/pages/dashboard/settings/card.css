@@ -3,7 +3,7 @@
 /* ==============================
    PAGE (공통)
 ============================== */
-.page{
+.card-page{
     width:100%;
     margin:0;
     padding:0;
@@ -13,16 +13,25 @@
 /* ==============================
    HEADER
 ============================== */
-.page .page-header{
+.card-page .page-header{
     display:flex;
     align-items:center;
     gap:8px;
     margin-bottom:14px;
 }
 
-.page-count{
+.card-page .page-header h5{
+    margin-bottom:0;
+}
+
+.card-count,
+.card-page .page-count{
+    display:inline-flex;
+    align-items:center;
     font-size:1rem;
-    margin-left:35px;
+    margin-left:2px;
+    font-weight:500;
+    line-height:1;
 }
 
 /* ==============================

@@ -487,6 +487,15 @@ window.AdminPicker = AdminPicker;
 
         if (projectTable) {
             console.log('✅ DataTable 생성 완료');               
+
+            projectTable.on('init.dt', () => {
+                updateProjectCount(projectTable.page.info()?.recordsDisplay ?? 0);
+            });
+
+            projectTable.on('draw.dt', () => {
+                updateProjectCount(projectTable.page.info()?.recordsDisplay ?? 0);
+            });
+
             SearchForm({
                 table: projectTable,
                 apiList: API.LIST,
@@ -498,6 +507,12 @@ window.AdminPicker = AdminPicker;
             updateTableHeight(projectTable, '#project-table');
             bindTableHighlight('#project-table', projectTable);
         }
+    }
+
+    function updateProjectCount(count) {
+        const el = document.getElementById('projectCount');
+        if (!el) return;
+        el.textContent = `총 ${count ?? 0}건`;
     }
 
     function bindTableEvents($) {
@@ -567,10 +582,53 @@ window.AdminPicker = AdminPicker;
             e.preventDefault();
 
             const formData = new FormData(this);
+            const submitButton = this.querySelector('button[type="submit"]');
 
             const amountInput = document.getElementById('modal_initial_contract_amount');
             if(amountInput){
                 formData.set('initial_contract_amount', unformatAmount(amountInput.value));
+            }
+
+            const projectName = String(formData.get('project_name') || '').trim();
+            const contractDate = String(formData.get('contract_date') || '').trim();
+            const startDate = String(formData.get('start_date') || '').trim();
+            const completionDate = String(formData.get('completion_date') || '').trim();
+            const amount = String(formData.get('initial_contract_amount') || '').trim();
+
+            if (!projectName) {
+                AppCore.notify('warning', '프로젝트명은 필수입니다.');
+                return;
+            }
+
+            const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+
+            if (contractDate && !datePattern.test(contractDate)) {
+                AppCore.notify('warning', '계약일자는 YYYY-MM-DD 형식이어야 합니다.');
+                return;
+            }
+
+            if (startDate && !datePattern.test(startDate)) {
+                AppCore.notify('warning', '착공일자는 YYYY-MM-DD 형식이어야 합니다.');
+                return;
+            }
+
+            if (completionDate && !datePattern.test(completionDate)) {
+                AppCore.notify('warning', '준공일자는 YYYY-MM-DD 형식이어야 합니다.');
+                return;
+            }
+
+            if (startDate && completionDate && startDate > completionDate) {
+                AppCore.notify('warning', '준공일자는 착공일자보다 빠를 수 없습니다.');
+                return;
+            }
+
+            if (amount && !/^-?\d+$/.test(amount)) {
+                AppCore.notify('warning', '최초 계약금액은 숫자만 입력할 수 있습니다.');
+                return;
+            }
+
+            if (submitButton) {
+                submitButton.disabled = true;
             }
 
             $.ajax({
@@ -592,6 +650,11 @@ window.AdminPicker = AdminPicker;
             .fail(err => {
                 console.error(err);
                 AppCore.notify('error', '서버 오류');
+            })
+            .always(() => {
+                if (submitButton) {
+                    submitButton.disabled = false;
+                }
             });
         });
 
@@ -606,7 +669,7 @@ window.AdminPicker = AdminPicker;
                         projectTable.ajax.reload(null, false);
                         projectModal.hide();
                     } else {
-                        alert(res.message || '삭제 실패');
+                        AppCore.notify('error', res.message || '삭제 실패');
                     }
                 });
         });

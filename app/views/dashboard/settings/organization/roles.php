@@ -1,26 +1,54 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/views/dashboard/settings/employee/roles.php'
-// 설명: 역할(Role) 관리 페이지
+// 경로: PROJECT_ROOT . '/app/views/dashboard/settings/organization/roles.php'
 ?>
-<h5 class="fw-bold mb-3">역할(Role) 관리</h5>
 
-<!-- 테이블 wrapper (초기 비표시 → JS에서 show 처리) -->
-<div id="roles-table-wrapper" style="display:none;">
-    <div class="table-responsive">
-        <table id="roles-table" class="table table-bordered table-hover align-middle erp-table">
-            <thead>
-                <tr>
-                    <th>코드</th>
-                    <th>Role Key</th>
-                    <th>Role Name</th>
-                    <th>설명</th>
-                    <th>활성</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-    </div>
+<div class="role-page" id="role-main">
+
+  <div class="page-header">
+    <h5 class="mb-1 fw-bold">역할관리</h5>
+    <span id="roleCount" class="text-primary"></span>
+  </div>
+
+  <div class="content-area">
+
+    <?php
+    $searchId = 'role';
+
+    $dateOptions = '
+      <option value="created_at">등록일자</option>
+      <option value="updated_at">수정일자</option>
+    ';
+
+    $searchFieldOptions = '
+      <option value="">선택</option>
+      <option value="role_key">Role Key</option>
+      <option value="role_name">Role Name</option>
+      <option value="code">코드</option>
+      <option value="description">설명</option>
+      <option value="is_active">상태</option>
+    ';
+
+    include PROJECT_ROOT . '/app/views/components/ui-search.php';
+    ?>
+
+    <?php
+    $tableId       = 'role-table';
+    $ajaxUrl       = '/api/settings/organization/role/list';
+    $columnsType   = 'role';
+
+    $enableButtons = true;
+    $enableSearch  = true;
+    $enablePaging  = true;
+    $enableReorder = false;
+
+    include PROJECT_ROOT . '/app/views/components/ui-table.php';
+    ?>
+
+  </div>
 </div>
 
-<!-- 역할 생성/수정 모달 -->
 <?php include __DIR__ . '/partials/roles_modal.php'; ?>
+
+<div class="picker-root">
+  <div id="today-picker" class="picker is-hidden"></div>
+</div>

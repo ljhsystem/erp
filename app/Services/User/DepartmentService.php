@@ -24,9 +24,14 @@ class DepartmentService
     /* ============================================================
      * 1) 전체 조회
      * ============================================================ */
-    public function getAll(): array
+    public function getAll(array $filters = []): array
     {
-        return $this->model->getAll();
+        return $this->model->getAll($filters);
+    }
+
+    public function getList(array $filters = []): array
+    {
+        return $this->getAll($filters);
     }
 
     /* ============================================================
@@ -100,5 +105,44 @@ class DepartmentService
     {
         if (empty($deptId)) return false;
         return $this->model->assignManager($deptId, $managerUserId);
+    }
+
+    public function reorder(array $changes): bool
+    {
+        if (empty($changes)) {
+            return true;
+        }
+
+        try {
+            if (!$this->pdo->inTransaction()) {
+                $this->pdo->beginTransaction();
+            }
+
+            foreach ($changes as $row) {
+                if (empty($row['id']) || !isset($row['newCode'])) {
+                    throw new \Exception('reorder 데이터 오류');
+                }
+            }
+
+            foreach ($changes as $row) {
+                $this->model->updateCode($row['id'], (int)$row['newCode'] + 1000000);
+            }
+
+            foreach ($changes as $row) {
+                $this->model->updateCode($row['id'], (int)$row['newCode']);
+            }
+
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->commit();
+            }
+
+            return true;
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $e;
+        }
     }
 }

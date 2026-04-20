@@ -383,8 +383,12 @@ function initClientPage($){
                 if (icon) icon.innerHTML = '';
                 
                 document.getElementById('delete_business_certificate').value = '1';
-                document.getElementById('dropZoneText').innerHTML =
-                    "여기로 파일을 끌어다 놓거나 클릭하여 선택하세요.<br>(PDF, JPG, PNG)";
+
+                const dropZoneTextBiz = document.getElementById('dropZoneTextBiz');
+                if (dropZoneTextBiz) {
+                    dropZoneTextBiz.innerHTML =
+                        "여기로 파일을 끌어다 놓거나 클릭하여 선택하세요.<br>(PDF, JPG, PNG)";
+                }
             });
         }
     }
@@ -700,7 +704,7 @@ function initClientPage($){
                         const bizHelp = document.getElementById('bizCertHelp');
                         const bizInput = document.getElementById('modal_business_certificate');
                         const bizDelete = document.getElementById('delete_business_certificate');
-                        const dropText = document.getElementById('dropZoneText');
+                        const dropText = document.getElementById('dropZoneTextBiz');
                         const certIcon = document.getElementById('certStatusIcon');
     
                         if (bizList) {
@@ -763,7 +767,7 @@ function initClientPage($){
     
         if (clientTable) {
             console.log('✅ DataTable 생성 완료');               
-            
+             
             SearchForm({
                 table: clientTable,
                 apiList: API.LIST,
@@ -773,7 +777,21 @@ function initClientPage($){
             });    
             updateTableHeight(clientTable, '#client-table');
             bindTableHighlight('#client-table', clientTable);
+
+            clientTable.on('init.dt', function () {
+                updateClientCount(clientTable.page.info()?.recordsDisplay ?? 0);
+            });
+
+            clientTable.on('draw.dt', function () {
+                updateClientCount(clientTable.page.info()?.recordsDisplay ?? 0);
+            });
         }
+    }
+
+    function updateClientCount(count) {
+        const el = document.getElementById('clientCount');
+        if (!el) return;
+        el.textContent = `총 ${count ?? 0}건`;
     }
 
 
@@ -1263,6 +1281,21 @@ function initClientPage($){
         });
     
         function renderFile(file){
+            const allowedExt = ['pdf', 'jpg', 'jpeg', 'png'];
+            const fileExt = String(file.name || '').split('.').pop()?.toLowerCase() || '';
+
+            if (!allowedExt.includes(fileExt)) {
+                AppCore.notify('warning', '사업자등록증은 PDF, JPG, PNG 파일만 업로드할 수 있습니다.');
+                input.value = '';
+                return;
+            }
+
+            if (Number(file.size || 0) > 10 * 1024 * 1024) {
+                AppCore.notify('warning', '사업자등록증 파일은 10MB 이하만 업로드할 수 있습니다.');
+                input.value = '';
+                return;
+            }
+
             const hasOriginal = drop.dataset.original === "1";        
             let message = "";        
             if(hasOriginal){

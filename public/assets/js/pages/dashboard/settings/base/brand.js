@@ -1,67 +1,115 @@
-/**
- * 브랜드 관리 JS
- * 경로: /public/assets/js/pages/dashboard/settings/base/brand.js
- */
-(function () {
-    "use strict";
+(() => {
+    'use strict';
 
-    console.log('[base-brand.js] loaded');
-    
-    const API_GET    = "/api/settings/base-info/brand/active-type";
-    const API_UPLOAD = "/api/settings/base-info/brand/save";
+    const API = {
+        ACTIVE: '/api/settings/base-info/brand/active-type',
+        SAVE: '/api/settings/base-info/brand/save',
+        LIST: '/api/settings/base-info/brand/list',
+        ACTIVATE: '/api/settings/base-info/brand/updatestatus',
+        PURGE: '/api/settings/base-info/brand/purge'
+    };
 
-    const $wrapper = $("#brand-settings-wrapper");
+    const wrapper = $('#brand-settings-wrapper');
 
     const ASSETS = {
         main_logo: {
             input: "[name='main_logo']",
-            preview: "#preview_main_logo",
-            emptyText: "등록된 메인 로고가 없습니다."
+            preview: '#preview_main_logo',
+            emptyText: '등록된 메인 로고가 없습니다.'
         },
         print_logo: {
             input: "[name='print_logo']",
-            preview: "#preview_print_logo",
-            emptyText: "등록된 인쇄용 로고가 없습니다."
+            preview: '#preview_print_logo',
+            emptyText: '등록된 인쇄용 로고가 없습니다.'
         },
         favicon: {
             input: "[name='favicon']",
-            preview: "#preview_favicon",
-            emptyText: "등록된 파비콘이 없습니다."
+            preview: '#preview_favicon',
+            emptyText: '등록된 파비콘이 없습니다.'
         }
     };
 
-    /** ⭐ 선택된 파일만 임시 저장 */
     const selectedFiles = {
         main_logo: null,
         print_logo: null,
         favicon: null
     };
 
-    $(document).ready(function () {
+    $(document).ready(() => {
         loadAll();
+        loadExistingFiles();
         bindEvents();
-        loadExistingFiles(); // 기존 파일 목록 로드
     });
 
     function bindEvents() {
+        Object.entries(ASSETS).forEach(([type, config]) => {
+            wrapper.on('change', config.input, function () {
+                const file = this.files?.[0];
+                if (!file) {
+                    selectedFiles[type] = null;
+                    return;
+                }
 
-        // 파일 선택 → 미리보기만
-        Object.keys(ASSETS).forEach(type => {
-            const cfg = ASSETS[type];
+                const validationError = validateFile(type, file);
+                if (validationError) {
+                    notify('warning', validationError);
+                    this.value = '';
+                    selectedFiles[type] = null;
+                    return;
+                }
 
-            $wrapper.on("change", cfg.input, function () {
-                const file = this.files[0];
-                if (!file) return;
-
-                previewFile(file, cfg.preview);
                 selectedFiles[type] = file;
+                previewFile(file, config.preview);
             });
         });
 
-        // 저장 버튼
-        $wrapper.on("click", "#btn-save-brand", function () {
-            saveAll();
+        wrapper.on('click', '#btn-save-brand', saveAll);
+
+        wrapper.on('click', '.btn-activate-brand', async function () {
+            const fileId = $(this).data('id');
+            if (!fileId) return;
+
+            const confirmed = window.confirm('이 파일을 기본 브랜드 파일로 적용할까요?');
+            if (!confirmed) return;
+
+            try {
+                const json = await postJson(API.ACTIVATE, { id: fileId, status: 1 });
+                notify('success', json.message || '기본 브랜드 파일로 적용했습니다.');
+                await refreshAll();
+            } catch (error) {
+                notify('error', error.message || '기본 파일 적용에 실패했습니다.');
+            }
         });
+
+        wrapper.on('click', '.btn-delete-brand', async function () {
+            const fileId = $(this).data('id');
+            if (!fileId) return;
+
+            const confirmed = window.confirm('이 브랜드 파일을 삭제할까요?');
+            if (!confirmed) return;
+
+            try {
+                const json = await postJson(API.PURGE, { file_id: fileId });
+                notify('success', json.message || '브랜드 파일을 삭제했습니다.');
+                await refreshAll();
+            } catch (error) {
+                notify('error', error.message || '브랜드 파일 삭제에 실패했습니다.');
+            }
+        });
+    }
+
+    function notify(type, message) {
+        if (window.AppCore?.notify) {
+            window.AppCore.notify(type, message);
+            return;
+        }
+
+        console[type === 'error' ? 'error' : 'log'](message);
+    }
+
+    async function refreshAll() {
+        loadAll();
+        loadExistingFiles();
     }
 
     function loadAll() {
@@ -69,202 +117,213 @@
     }
 
     function loadAsset(type) {
-        const cfg = ASSETS[type];
-        const $img = $(cfg.preview);
+        const config = ASSETS[type];
+        const image = $(config.preview);
 
-        $.post(API_GET, { asset_type: type }, function (res) {
-            console.log("🔍 API 응답:", res); // 🔥 디버깅 로그 추가
-            removeEmptyMessage($img);
+        $.post(API.ACTIVE, { asset_type: type }, (response) => {
+            removeEmptyMessage(image);
 
-            if (!res.success || !res.data || !res.data.url) {
-                showEmptyMessage($img, cfg.emptyText);
+            if (!response?.success || !response?.data?.url) {
+                image.hide().attr('src', '');
+                showEmptyMessage(image, config.emptyText);
                 return;
             }
 
-            // 🔥 미리보기 이미지 설정
-            $img.attr("src", res.data.url).show();
-        }, "json").fail(function () {
-            console.error("❌ API 호출 실패: /api/settings/base-info/brand/detail");
+            image.attr('src', response.data.url).show();
+        }, 'json').fail(() => {
+            image.hide().attr('src', '');
+            showEmptyMessage(image, '자산 정보를 불러오지 못했습니다.');
         });
     }
 
     function previewFile(file, selector) {
         const reader = new FileReader();
-        reader.onload = e => {
-            const $img = $(selector);
-            removeEmptyMessage($img);
-            $img.attr("src", e.target.result).show();
+        reader.onload = (event) => {
+            const image = $(selector);
+            removeEmptyMessage(image);
+            image.attr('src', event.target.result).show();
         };
         reader.readAsDataURL(file);
     }
 
     function saveAll() {
-        let hasChange = false;
-
-        Object.keys(selectedFiles).forEach(type => {
-            if (selectedFiles[type]) {
-                hasChange = true;
-                uploadFile(type, selectedFiles[type]);
-            }
-        });
-
-        if (!hasChange) {
-            alert("변경된 파일이 없습니다.");
+        const changedTypes = Object.keys(selectedFiles).filter((type) => selectedFiles[type]);
+        if (changedTypes.length === 0) {
+            notify('warning', '변경한 파일이 없습니다.');
+            return;
         }
-    }
 
-    function uploadFile(type, file) {
-        const formData = new FormData();
-        formData.append("asset_type", type);
-        formData.append("file", file);
+        $('#btn-save-brand').prop('disabled', true);
 
-        $.ajax({
-            url: API_UPLOAD,
-            type: "POST",
-            data: formData,
-            processData: false,
-            contentType: false,
-            dataType: "json",
-            success(res) {
-                console.log("📤 파일 업로드 응답:", res); // 🔥 디버깅 로그 추가
-                if (!res.success) {
-                    alert(res.message || "업로드 실패");
+        const uploads = changedTypes.map((type) => uploadFile(type, selectedFiles[type]));
+
+        Promise.all(uploads)
+            .then(async (results) => {
+                const failed = results.find((item) => !item.success);
+                if (failed) {
+                    notify('error', failed.message || '브랜드 파일 저장 중 오류가 발생했습니다.');
                     return;
                 }
 
-                selectedFiles[type] = null;
-                loadAsset(type); // 🔥 업로드된 파일 미리보기 갱신
-                loadExistingFiles(); // 🔥 기존 파일 목록 갱신
-            },
-            error() {
-                alert("서버 통신 중 오류가 발생했습니다.");
-            }
+                changedTypes.forEach((type) => {
+                    selectedFiles[type] = null;
+                    wrapper.find(ASSETS[type].input).val('');
+                });
+
+                notify('success', '브랜드 파일을 저장했습니다.');
+                await refreshAll();
+            })
+            .finally(() => {
+                $('#btn-save-brand').prop('disabled', false);
+            });
+    }
+
+    function uploadFile(type, file) {
+        return new Promise((resolve) => {
+            const formData = new FormData();
+            formData.append('asset_type', type);
+            formData.append('file', file);
+
+            $.ajax({
+                url: API.SAVE,
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                dataType: 'json',
+                success(response) {
+                    resolve(response || { success: false, message: '업로드 응답이 비어 있습니다.' });
+                },
+                error(xhr) {
+                    let message = '서버 통신 중 오류가 발생했습니다.';
+                    try {
+                        const json = JSON.parse(xhr.responseText || '{}');
+                        message = json?.message || message;
+                    } catch (_) {
+                        // ignore
+                    }
+
+                    resolve({ success: false, message });
+                }
+            });
         });
-    }
-
-    function showEmptyMessage($img, text) {
-        $img.hide();
-        if ($img.next(".brand-empty-text").length === 0) {
-            $("<div>")
-                .addClass("brand-empty-text text-muted mt-1")
-                .text(text)
-                .insertAfter($img);
-        }
-    }
-
-    function removeEmptyMessage($img) {
-        $img.next(".brand-empty-text").remove();
     }
 
     function loadExistingFiles() {
-        console.log("🔄 기존 파일 목록 로드 시작"); // 🔥 디버깅 로그 추가
+        $.post(API.LIST, {}, (response) => {
+            const tbody = $('#existing-files');
+            tbody.empty();
 
-        $.post("/api/settings/base-info/brand/list", {}, function (res) {
-            console.log("🔍 기존 파일 목록 API 응답:", res); // 🔥 디버깅 로그 추가
-            const $tbody = $("#existing-files");
-            $tbody.empty();
-
-            if (!res.success || !res.data || res.data.length === 0) {
-                $tbody.append('<tr><td colspan="7" class="text-center">등록된 파일이 없습니다.</td></tr>');
+            if (!response?.success || !Array.isArray(response.data) || response.data.length === 0) {
+                tbody.append('<tr><td colspan="7" class="text-center text-muted">등록된 파일이 없습니다.</td></tr>');
                 return;
             }
 
-            res.data.forEach(file => {
-                const previewUrl = file.url || '/public/assets/img/default-placeholder.png'; // 🔥 파일 URL 또는 기본 이미지
+            response.data.forEach((file) => {
+                const previewUrl = escapeHtml(file.url || '/public/assets/img/default-placeholder.png');
+                const fileName = escapeHtml(file.file_name || '-');
+                const typeLabel = escapeHtml(file.asset_type_label || file.asset_type || '-');
+                const createdAt = escapeHtml(file.created_at || '-');
+                const createdBy = escapeHtml(file.created_by || '-');
+                const activeBadge = Number(file.is_active) === 1
+                    ? '<span class="badge bg-success">활성</span>'
+                    : '<span class="badge bg-secondary">비활성</span>';
+                const activateButton = Number(file.is_active) === 1
+                    ? ''
+                    : `<button type="button" class="btn btn-sm btn-primary btn-activate-brand" data-id="${escapeAttribute(file.id)}">기본 적용</button>`;
+
                 const row = `
-                <tr>
-                    <td>
-                        <img src="${previewUrl}" height="40" style="max-width:60px;">
-                    </td>
-                    <td>${file.asset_type}</td>
-                    <td>
-                        <a href="${previewUrl}" target="_blank">${file.file_name}</a>
-                    </td>
-                    <td>${file.created_at}</td>
-                    <td>${file.created_by_name ?? file.created_by}</td>
-
-                    <!-- 상태 -->
-                    <td>
-                        ${Number(file.is_active) === 1 
-                            ? '<span class="badge bg-success">활성</span>' 
-                            : '<span class="badge bg-secondary">비활성</span>'}
-                    </td>
-
-                    <!-- 액션 -->
-                    <td>
-                        ${
-                            !file.is_active
-                            ? `
-                            <button 
-                                class="btn btn-sm btn-primary"
-                                onclick="activateFile('${file.id}')">
-                                활성화
-                            </button>
-                            `
-                            : ''
-                        }
-
-                        <button 
-                            class="btn btn-sm btn-danger"
-                            onclick="deleteFile('${file.id}')">
-                            삭제
-                        </button>
-                    </td>
-                </tr>
+                    <tr>
+                        <td><img src="${previewUrl}" alt="${typeLabel}" height="40" style="max-width: 80px;"></td>
+                        <td>${typeLabel}</td>
+                        <td><a href="${previewUrl}" target="_blank" rel="noopener noreferrer">${fileName}</a></td>
+                        <td>${createdAt}</td>
+                        <td>${createdBy}</td>
+                        <td>${activeBadge}</td>
+                        <td>
+                            <div class="d-flex flex-wrap gap-1">
+                                ${activateButton}
+                                <button type="button" class="btn btn-sm btn-danger btn-delete-brand" data-id="${escapeAttribute(file.id)}">삭제</button>
+                            </div>
+                        </td>
+                    </tr>
                 `;
-                $tbody.append(row);
+
+                tbody.append(row);
             });
-        }, "json").fail(function () {
-            console.error("❌ API 호출 실패: /api/settings/base-info/brand/list");
+        }, 'json').fail(() => {
+            $('#existing-files').html('<tr><td colspan="7" class="text-center text-danger">파일 목록을 불러오지 못했습니다.</td></tr>');
         });
     }
 
-    window.activateFile = function (fileId) {
-
-        console.log(`🔄 활성화 요청: ${fileId}`);
-    
-        if (!confirm("이 파일을 활성화하시겠습니까?")) return;
-    
-        $.post("/api/settings/base-info/brand/updatestatus", {
-            id: fileId,
-            status: 1
-        }, function (res) {
-    
-            console.log("🔄 활성화 API 응답:", res);
-    
-            if (res.success) {
-    
-                loadAll();           // 🔥 미리보기 전체 갱신
-                loadExistingFiles(); // 🔥 목록 갱신
-    
-            } else {
-                alert(res.message || "파일 활성화 실패");
-            }
-    
-        }, "json").fail(function (xhr) {
-    
-            console.error("❌ API 호출 실패: /api/settings/base-info/brand/updatestatus");
-            console.error("❌ 상태 코드:", xhr.status);
-            console.error("❌ 응답 메시지:", xhr.responseText);
-    
+    async function postJson(url, payload) {
+        const response = await fetch(url, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+            },
+            body: new URLSearchParams(payload).toString()
         });
-    };
 
-    window.deleteFile = function (fileId) {
-        console.log(`🗑 삭제 요청: ${fileId}`); // 🔥 디버깅 로그 추가
-        if (!confirm("이 파일을 삭제하시겠습니까?")) return;
+        const text = await response.text();
+        let json = {};
 
-        $.post("/api/settings/base-info/brand/purge", { file_id: fileId }, function (res) {
-            console.log("🗑 삭제 API 응답:", res); // 🔥 디버깅 로그 추가
-            if (res.success) {
-                alert("파일이 삭제되었습니다.");
-                loadExistingFiles();
-            } else {
-                alert(res.message || "파일 삭제에 실패했습니다.");
-            }
-        }, "json").fail(function () {
-            console.error("❌ API 호출 실패: /api/settings/base-info/brand/purge");
-        });
-    };
+        try {
+            json = text ? JSON.parse(text) : {};
+        } catch (_) {
+            throw new Error('서버 응답을 해석하지 못했습니다.');
+        }
 
+        if (!response.ok || !json?.success) {
+            throw new Error(json?.message || '요청 처리 중 오류가 발생했습니다.');
+        }
+
+        return json;
+    }
+
+    function validateFile(type, file) {
+        const maxSize = 5 * 1024 * 1024;
+        const allowedTypes = type === 'favicon'
+            ? ['image/png', 'image/x-icon', 'image/vnd.microsoft.icon', 'image/svg+xml']
+            : ['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp'];
+
+        if (!allowedTypes.includes(file.type)) {
+            return type === 'favicon'
+                ? '파비콘은 PNG, ICO, SVG 파일만 업로드할 수 있습니다.'
+                : '로고는 PNG, JPG, SVG, WEBP 파일만 업로드할 수 있습니다.';
+        }
+
+        if (file.size <= 0 || file.size > maxSize) {
+            return '이미지 크기는 5MB 이하만 업로드할 수 있습니다.';
+        }
+
+        return '';
+    }
+
+    function showEmptyMessage(image, text) {
+        if (image.next('.brand-empty-text').length === 0) {
+            $('<div>')
+                .addClass('brand-empty-text text-muted mt-1')
+                .text(text)
+                .insertAfter(image);
+        }
+    }
+
+    function removeEmptyMessage(image) {
+        image.next('.brand-empty-text').remove();
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function escapeAttribute(value) {
+        return escapeHtml(value).replace(/`/g, '&#96;');
+    }
 })();

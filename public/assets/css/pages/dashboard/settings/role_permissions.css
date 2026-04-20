@@ -1,0 +1,161 @@
+/* /public/assets/css/pages/dashboard/settings/role_permissions.css */
+
+.role-permission-page {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.role-permission-page .rp-row {
+    display: flex;
+    gap: 24px;
+    min-height: 0;
+}
+
+.role-permission-page .rp-col-left {
+    flex: 0 0 36%;
+    min-width: 340px;
+    min-height: 0;
+}
+
+.role-permission-page .rp-col-right {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+}
+
+.role-permission-page .rp-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.role-permission-page .rp-card-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+.role-permission-page .rp-table-wrap {
+    position: relative;
+    height: 100%;
+    min-height: 0;
+    overflow: auto;
+    background: #fff;
+}
+
+.role-permission-page #permissionListWrap {
+    overflow: hidden;
+}
+
+.role-permission-page #role-list-table,
+.role-permission-page #role-permissions-table {
+    width: 100%;
+    margin-bottom: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.role-permission-page #role-list-table thead th,
+.role-permission-page #role-permissions-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 25;
+    background: #fff;
+    box-shadow: inset 0 -1px 0 #dee2e6;
+    background-clip: padding-box;
+}
+
+.role-permission-page .dtrg-group td {
+    position: sticky;
+    top: 40px;
+    z-index: 12;
+    background: #f8f9fa;
+    font-weight: 700;
+}
+
+.role-permission-page #permissionListWrap .dataTables_wrapper,
+.role-permission-page #permissionListWrap .dataTables_scroll {
+    height: 100%;
+}
+
+.role-permission-page #permissionListWrap .dataTables_scrollBody {
+    height: calc(100% - 41px) !important;
+    max-height: calc(100% - 41px) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+
+.role-permission-page #permissionListWrap .dataTables_scrollHead {
+    overflow: hidden !important;
+}
+
+.role-permission-page #permissionListWrap .dataTables_scrollHead table,
+.role-permission-page #permissionListWrap .dataTables_scrollBody table {
+    margin: 0 !important;
+}
+
+.role-permission-page #permission-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.role-permission-page #permission-search {
+    width: 210px;
+}
+
+.role-permission-page #permission-count {
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.role-permission-page #permission-save-btn {
+    min-width: 56px;
+    border-radius: 6px;
+}
+
+.role-permission-page #role-list-table td,
+.role-permission-page #role-list-table th,
+.role-permission-page #role-permissions-table td,
+.role-permission-page #role-permissions-table th {
+    vertical-align: middle;
+}
+
+.role-permission-page #role-list-table tbody tr:last-child > td,
+.role-permission-page #role-permissions-table tbody tr:last-child > td {
+    border-bottom: 1px solid #dee2e6;
+}
+
+.role-permission-page #role-list-table tbody tr.table-active > * {
+    background-color: #dbeafe !important;
+}
+
+@media (max-width: 991.98px) {
+    .role-permission-page .rp-row {
+        flex-direction: column;
+    }
+
+    .role-permission-page .rp-col-left {
+        min-width: 0;
+        flex-basis: auto;
+    }
+
+    .role-permission-page .dtrg-group td {
+        top: 0;
+    }
+
+    .role-permission-page #permission-header {
+        flex-wrap: wrap;
+    }
+
+    .role-permission-page #permission-search {
+        width: 160px;
+    }
+}
