@@ -1,125 +1,430 @@
-﻿/* 📄 /public/assets/css/pages/layout/navbar.css
-   - layout.css 변수만 참조하도록 정리
-   - 중복 초기화(body, :root) 제거
-   - 모바일 토글/스크롤/액션 영역 정돈
-*/
+/* /public/assets/css/pages/layout/navbar.css */
 
-/* 고정 상단 바 */
 .top-nav {
-	position: fixed;
-	top: 0;
-	left: 0;
-	right: 0;
-	width: 100%;
-	background-color: var(--color-primary, #0d6efd) !important;
-	color: #fff;
-	height: var(--header-height, 60px);
-	box-shadow: 0 1px 0 rgba(0,0,0,.06), 0 6px 16px rgba(0,0,0,.06);
-	z-index: 4000 !important; /* ↑ breadcrumb 보다 확실히 높게 */
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 4000;
+  height: var(--header-height, 60px);
+  background:
+    linear-gradient(135deg, var(--navbar-bg-start, var(--color-primary-hover)), var(--navbar-bg-end, var(--color-primary))),
+    var(--color-primary, #0d6efd);
+  color: #fff;
+  box-shadow: 0 14px 36px rgba(10, 33, 61, 0.18);
 }
 
-/* 컨테이너 정렬/간격 */
-.top-nav .container-fluid {
-  height: var(--header-height, 60px);
+.top-nav-shell {
+  height: 100%;
   display: flex;
   align-items: center;
-  gap: .5rem;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: nowrap;
 }
 
-/* 브랜드 */
-.navbar-brand {
-  font-weight: 700;
-  font-size: 1.05rem;
-  color: #fff !important;
-  letter-spacing: .2px;
-  white-space: nowrap;
+.top-nav-primary {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1 1 auto;
 }
 
-/* 모바일 토글 */
-.navbar-toggler {
-  border-color: rgba(255,255,255,.35);
-}
-.navbar-toggler:focus { box-shadow: 0 0 0 .15rem rgba(255,255,255,.25); }
-
-/* 1차 메뉴 (좌측) */
-.top-menu { scrollbar-width: thin; }
-.top-menu::-webkit-scrollbar { height: 6px; }
-.top-menu::-webkit-scrollbar-thumb { background: rgba(255,255,255,.25); border-radius: 3px; }
-
-.top-nav .nav-link {
-  color: #fff !important;
-  font-weight: 600;
-  padding: .25rem .75rem;
-  border-radius: .375rem;
-  white-space: nowrap;
-  transition: background-color .15s ease, color .15s ease;
-}
-.top-nav .nav-link:hover,
-.top-nav .nav-link:focus {
-  background-color: rgba(255,255,255,.12);
+.top-nav-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
   color: #fff !important;
   text-decoration: none;
-}
-.top-nav .nav-link.active {
-  background-color: rgba(255,255,255,.22);
-  color: #fff !important;
-}
-
-/* 우측 액션 */
-.navbar-actions { color: #fff; white-space: nowrap; }
-.navbar-actions .btn {
-  font-size: .8rem;
-  padding: .25rem .55rem;
-  line-height: 1.2;
-  border-color: rgba(255,255,255,.6) !important;
-}
-#current-time { font-weight: 700; color: var(--color-accent, #f57607); }
-.user-name    { color: #e9eefb; }
-#session-timer { color: #e9eefb; }
-
-/* 고정 헤더 높이만큼 상단 여백 확보 */
-.fixed-top-space { height: var(--header-height, 60px); }
-
-/* 반응형 */
-@media (max-width: 991.98px) {
-  .top-nav .container-fluid { gap: .25rem; }
-
-  /* 토글로 메뉴가 접히므로 링크 패딩 약간 확대 */
-  .top-nav .nav-link { padding: .4rem .6rem; }
-
-  .navbar-actions { font-size: .9rem; }
-  .navbar-actions .btn { padding: .2rem .5rem; }
-}
-
-/* 모션 최소화 */
-@media (prefers-reduced-motion: reduce) {
-  .top-nav .nav-link { transition: none; }
-}
-
-/* 브랜드 */
-.navbar-brand {
   font-weight: 700;
-  font-size: 1.05rem;
-  color: #fff !important;
-  letter-spacing: .2px;
+  letter-spacing: 0.02em;
   white-space: nowrap;
 }
-/* 네브바 메인 로고 */
-.navbar-logo {
-  height: 22px;        /* ✅ 기본 PC 사이즈 */
-  max-height: 22px;
-  width: auto;
-  object-fit: contain;
-  display: block;
+
+.top-nav-brand-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-@media (max-width: 991.98px) {
-  .top-nav .container-fluid { gap: .25rem; }
-  .navbar-logo {
-    height: 18px;      /* 📱 모바일에서는 더 작게 */
-    max-height: 18px;
+
+.navbar-logo {
+  width: auto;
+  height: 22px;
+  max-height: 22px;
+  display: block;
+  object-fit: contain;
+}
+
+.desktop-navbar {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.desktop-navbar-menu {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.desktop-navbar-menu::-webkit-scrollbar {
+  height: 6px;
+}
+
+.desktop-navbar-menu::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+}
+
+.desktop-navbar-item {
+  flex: 0 0 auto;
+}
+
+.top-nav .nav-link,
+.mobile-nav-link,
+.mobile-user-link,
+.desktop-user-link {
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.top-nav .nav-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  color: #eef6ff !important;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+
+.top-nav .nav-link:hover,
+.top-nav .nav-link:focus-visible {
+  background: var(--navbar-surface-soft, rgba(255, 255, 255, 0.12));
+  color: #fff !important;
+}
+
+.top-nav .nav-link.active {
+  background: var(--navbar-active-bg, rgba(255, 255, 255, 0.2));
+  color: #fff !important;
+}
+
+.desktop-navbar-meta {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.desktop-navbar-status {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-width: 0;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--navbar-surface-soft, rgba(255,255,255,.12)) 78%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.desktop-user-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #fff;
+}
+
+.desktop-user-link:hover,
+.desktop-user-link:focus-visible {
+  color: #fff;
+}
+
+#current-time,
+#session-timer {
+  font-weight: 700;
+  color: #fff;
+}
+
+.desktop-navbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+}
+
+.desktop-navbar-actions .btn {
+  min-height: 36px;
+  padding: 0.35rem 0.7rem;
+  border-color: rgba(255, 255, 255, 0.45) !important;
+  white-space: nowrap;
+}
+
+.mobile-nav-toggle,
+.mobile-nav-close {
+  border: 0;
+  background: transparent;
+  color: #fff;
+}
+
+.mobile-nav-toggle {
+  display: none;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 12px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 5px;
+  background: var(--navbar-surface-soft, rgba(255, 255, 255, 0.1));
+}
+
+.mobile-nav-toggle span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.mobile-nav-toggle:hover,
+.mobile-nav-toggle:focus-visible,
+.mobile-nav-close:hover,
+.mobile-nav-close:focus-visible {
+  background: color-mix(in srgb, var(--navbar-surface-soft, rgba(255,255,255,.12)) 130%, transparent);
+}
+
+.mobile-nav-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 4090;
+  background: rgba(3, 10, 24, 0.46);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.mobile-nav-overlay.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mobile-navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 260px;
+  max-width: calc(100vw - 32px);
+  height: 100%;
+  z-index: 4100;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  color: #162231;
+  box-shadow: 18px 0 40px rgba(8, 24, 44, 0.22);
+  transform: translateX(-100%);
+  transition: transform 0.24s ease;
+}
+
+.mobile-navbar.is-open {
+  transform: translateX(0);
+}
+
+.mobile-navbar-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1rem 0.75rem;
+  border-bottom: 1px solid rgba(22, 34, 49, 0.08);
+}
+
+.mobile-navbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.mobile-navbar-brand strong,
+.mobile-navbar-brand p {
+  margin: 0;
+}
+
+.mobile-navbar-brand p {
+  color: #5f6e7d;
+  font-size: 0.9rem;
+}
+
+.mobile-nav-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: #162231;
+}
+
+.mobile-navbar-status {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.9rem 1rem 0;
+}
+
+.mobile-status-chip {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 14px;
+  background: #eef5fb;
+  color: #20415d;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.mobile-navbar-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.mobile-navbar-menu {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.mobile-nav-link,
+.mobile-user-link {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.8rem 0.9rem;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: #162231;
+  font-weight: 600;
+  text-align: left;
+}
+
+.mobile-nav-link:hover,
+.mobile-nav-link:focus-visible,
+.mobile-user-link:hover,
+.mobile-user-link:focus-visible {
+  background: #eef5fb;
+  color: #10263f;
+}
+
+.mobile-nav-link.active {
+  background: linear-gradient(135deg, var(--navbar-drawer-active-bg, #dceeff), color-mix(in srgb, var(--navbar-drawer-active-bg, #dceeff) 65%, white));
+  color: var(--navbar-drawer-active-text, #0e4f80);
+}
+
+.mobile-navbar-user {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1rem;
+  border-top: 1px solid rgba(22, 34, 49, 0.08);
+}
+
+.mobile-user-link i {
+  width: 20px;
+  margin-right: 0.65rem;
+}
+
+.mobile-logout-link {
+  color: #b42318;
+}
+
+.fixed-top-space {
+  height: var(--header-height, 60px);
+}
+
+body.mobile-nav-open {
+  overflow: hidden;
+}
+
+@media (max-width: 1024px) {
+  .desktop-navbar-status {
+    gap: 0.6rem;
+    padding-inline: 0.7rem;
   }
 
-  .navbar-brand {
-    font-size: .95rem;
+  .desktop-navbar-actions .btn {
+    padding-inline: 0.55rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .top-nav {
+    height: 64px;
+  }
+
+  .top-nav-shell {
+    gap: 0.75rem;
+  }
+
+  .mobile-nav-toggle {
+    display: inline-flex;
+  }
+
+  .desktop-navbar,
+  .desktop-navbar-meta {
+    display: none;
+  }
+
+  .top-nav-brand {
+    gap: 0.6rem;
+    min-width: 0;
+  }
+
+  .top-nav-brand-text {
+    font-size: 0.98rem;
+  }
+
+  .navbar-logo {
+    height: 20px;
+    max-height: 20px;
+  }
+
+  .fixed-top-space {
+    height: 64px;
+  }
+}
+
+@media (max-width: 480px) {
+  .top-nav-shell {
+    padding-inline: 0.25rem;
+  }
+
+  .top-nav-brand-text {
+    max-width: 150px;
+  }
+
+  .mobile-navbar {
+    max-width: calc(100vw - 20px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .top-nav .nav-link,
+  .mobile-nav-overlay,
+  .mobile-navbar {
+    transition: none;
   }
 }

@@ -1,6 +1,7 @@
 ﻿// 경로: PROJECT_ROOT . '/assets/js/pages/ledger/account.js'
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
-window.AdminPicker = AdminPicker;   // 🔥 추가
+import '/public/assets/js/components/excel-manager.js';
+window.AdminPicker = AdminPicker;
 (() => {
 
     'use strict';
@@ -17,6 +18,7 @@ window.AdminPicker = AdminPicker;   // 🔥 추가
     let currentAccountId = null;
     let clickTimer = null;
     let subAccountAbort = null;
+    let currentSubPolicies = [];
 
     window.setPeriod = setPeriod;
 
@@ -67,6 +69,9 @@ const ACCOUNT_COLUMN_MAP = {
         modalEl.addEventListener('hidden.bs.modal', () => {
             const form = document.getElementById('account-edit-form');
             form.reset();
+            currentSubPolicies = [];
+            renderSubPolicyRows();
+            updateAllowSubAccountDisplay();
         });
 
         const container = document.getElementById('searchFormContainer');
@@ -423,6 +428,47 @@ const ACCOUNT_COLUMN_MAP = {
                 return;
             }
 
+            /* =======================
+            전체복원
+            ======================= */
+            const restoreAllBtn = target.closest('#btnRestoreAll_account');
+
+            if(restoreAllBtn){
+
+                e.preventDefault();
+                e.stopPropagation();
+
+                if(!confirm('휴지통의 모든 계정을 복원하시겠습니까?')) return;
+
+                try{
+
+                    const res = await fetch('/api/ledger/account/restore-all',{
+                        method:'POST'
+                    });
+
+                    const json = await res.json();
+
+                    if(json.success){
+
+                        AppCore.notify('success','전체 복원 완료');
+
+                        closeTrashDetail();
+
+                        await loadaccountTrash();
+                        accountTable.ajax.reload(null,false);
+
+                    }else{
+                        AppCore.notify('error','전체 복원 실패');
+                    }
+
+                }catch(err){
+                    console.error(err);
+                    AppCore.notify('error','전체 복원 처리 중 오류');
+                }
+
+                return;
+            }
+
         });
 
 
@@ -477,14 +523,20 @@ const ACCOUNT_COLUMN_MAP = {
 
     document.addEventListener('click', async function(e){
 
-        const layout = document.querySelector('.account-trash-layout');
-        const detail = document.getElementById('account-trash-detail');
-        const right  = document.querySelector('.trash-right');
+        const modal = e.target.closest('#accountTrashModal');
+        if(!modal) return;
+
+        const layout = modal.querySelector('.trash-layout');
+        const detail = modal.querySelector('#account-trash-detail');
+        const right  = modal.querySelector('.trash-right');
+
+        if(!layout || !detail || !right){
+            return;
+        }
     
-        // /* 🔥 버튼 클릭이면 row 처리 막기 */
-        // if(e.target.closest('.btn-restore, .btn-purge, .trash-check')){
-        //     return;
-        // }
+        if(e.target.closest('.btn-restore, .btn-purge, .trash-check, .trash-check-all')){
+            return;
+        }
 
         const row = e.target.closest('#account-trash-table tbody tr');
         const sidebar = e.target.closest('.trash-right');
@@ -507,7 +559,7 @@ const ACCOUNT_COLUMN_MAP = {
     
                 renderaccountTrashDetail(data);
     
-                layout.classList.add('detail-open');
+                layout.classList.add('open');
                 right.classList.add('open');
                 detail.style.display = 'block';
     
@@ -666,11 +718,12 @@ const ACCOUNT_COLUMN_MAP = {
 
     function closeTrashDetail(){
 
-        const layout = document.querySelector('.account-trash-layout');
-        const detail = document.getElementById('account-trash-detail');
-        const right  = document.querySelector('.trash-right');
+        const modal = document.getElementById('accountTrashModal');
+        const layout = modal?.querySelector('.trash-layout');
+        const detail = modal?.querySelector('#account-trash-detail');
+        const right  = modal?.querySelector('.trash-right');
     
-        if(layout) layout.classList.remove('detail-open');
+        if(layout) layout.classList.remove('open', 'detail-open');
         if(right)  right.classList.remove('open');
         if(detail) detail.style.display = 'none';
     
@@ -1054,7 +1107,11 @@ const ACCOUNT_COLUMN_MAP = {
                 type: "GET",
                 cache: false,
                 dataSrc: json => {
-                    console.log(json);   // 🔥 이거 찍어
+                    console.log('[ledger-account] apiList response', json);
+                    console.log('[ledger-account] controller data count', Array.isArray(json?.data) ? json.data.length : 0);
+                    if(json?.success === false){
+                        console.error('[ledger-account] apiList failed', json?.message);
+                    }
                     return json?.data ?? [];
                 }
                 
@@ -1076,6 +1133,11 @@ const ACCOUNT_COLUMN_MAP = {
 
             responsive: true,
             autoWidth: true,
+
+            language: {
+                emptyTable: '계정목록 없음',
+                zeroRecords: '검색 결과가 없습니다'
+            },
     
             dom: '<"dt-top d-flex justify-content-end align-items-center gap-2"fBl>rt<"dt-bottom d-flex justify-content-between align-items-center"ip>',
     
@@ -1086,6 +1148,18 @@ const ACCOUNT_COLUMN_MAP = {
             pageLength: 10,
     
             lengthMenu: [5, 10, 20, 50, 100],
+
+            infoCallback: function(settings, start, end, max, total){
+                const displayLength = Number(settings._iDisplayLength || 10);
+                const currentPage = total > 0
+                    ? Math.floor(Number(settings._iDisplayStart || 0) / displayLength) + 1
+                    : 0;
+                const totalPages = total > 0
+                    ? Math.ceil(total / displayLength)
+                    : 0;
+
+                return `${currentPage} / ${totalPages} 페이지 (총 ${max}건 / 검색 ${total}건)`;
+            },
     
             buttons: [
     
@@ -1195,6 +1269,9 @@ const ACCOUNT_COLUMN_MAP = {
                     action: () => {
 
                         $('#account-edit-form')[0].reset();
+                        currentSubPolicies = [];
+                        renderSubPolicyRows();
+                        updateAllowSubAccountDisplay();
                     
                         $('#modal_account_id').val('');
                         $('#modal_code').val('');
@@ -1338,7 +1415,7 @@ const ACCOUNT_COLUMN_MAP = {
 
         
     
-        $('#account-table tbody').on('dblclick', 'tr', function () {
+        $('#account-table tbody').on('dblclick', 'tr', async function () {
 
             /* 🔥 click 취소 */
             clearTimeout(clickTimer);
@@ -1350,14 +1427,28 @@ const ACCOUNT_COLUMN_MAP = {
         
             document.getElementById('accountModalLabel').textContent = '계정 정보 수정';
         
-            $('#btnDeleteaccount').show();
+            $('#btnDeleteAccount').show();
         
             accountModal.show();
-        
-            setTimeout(() => {
-                $('#modal_account_id').val(data.id ?? '');
-                fillModal(data);
-            }, 0);
+
+            try{
+
+                const res = await fetch('/api/ledger/account/detail?code=' + encodeURIComponent(data.account_code));
+                const json = await res.json();
+
+                if(!json.success || !json.data){
+                    AppCore.notify('error', '계정 상세 조회 실패');
+                    return;
+                }
+
+                $('#modal_account_id').val(json.data.id ?? '');
+                fillModal(json.data);
+
+            }catch(err){
+
+                console.error(err);
+                AppCore.notify('error', '계정 상세 조회 오류');
+            }
         });
     
             
@@ -1714,12 +1805,70 @@ const ACCOUNT_COLUMN_MAP = {
     ============================================================ */
     
     function bindModalEvents($) {    
+
+        $(document).on('click', '#btnAddSubPolicy', function () {
+
+            currentSubPolicies.push({
+                sub_account_type: 'partner',
+                is_required: 0,
+                is_multiple: 0,
+                custom_group_code: ''
+            });
+
+            renderSubPolicyRows();
+            updateAllowSubAccountDisplay();
+        });
+
+        $(document).on('click', '.btn-remove-policy', function () {
+
+            const index = Number($(this).data('index'));
+
+            currentSubPolicies.splice(index, 1);
+
+            renderSubPolicyRows();
+            updateAllowSubAccountDisplay();
+        });
+
+        $(document).on('change', '.policy-type-select', function () {
+
+            const index = Number($(this).data('index'));
+            const value = $(this).val();
+
+            currentSubPolicies[index].sub_account_type = value;
+
+            if (value !== 'custom') {
+                currentSubPolicies[index].custom_group_code = '';
+            }
+
+            renderSubPolicyRows();
+            updateAllowSubAccountDisplay();
+        });
+
+        $(document).on('change', '.policy-required-check', function () {
+
+            const index = Number($(this).data('index'));
+            currentSubPolicies[index].is_required = this.checked ? 1 : 0;
+        });
+
+        $(document).on('change', '.policy-multiple-check', function () {
+
+            const index = Number($(this).data('index'));
+            currentSubPolicies[index].is_multiple = this.checked ? 1 : 0;
+        });
+
+        $(document).on('input', '.policy-custom-group-input', function () {
+
+            const index = Number($(this).data('index'));
+            currentSubPolicies[index].custom_group_code = $(this).val().trim();
+        });
  
         $('#account-edit-form').on('submit', function (e) {
     
             e.preventDefault();
     
             const formData = new FormData(this);
+            formData.set('sub_policies', JSON.stringify(serializeSubPolicies()));
+            formData.set('allow_sub_account', currentSubPolicies.length > 0 ? '1' : ($('#modal_allow_sub_account').val() || '0'));
     
             $.ajax({
     
@@ -1825,75 +1974,21 @@ const ACCOUNT_COLUMN_MAP = {
         /* 양식 다운로드 */
         $('#btnDownloadAccountTemplate').on('click', function () {
 
-            window.location.href = '/api/ledger/accounts/template';
+            window.location.href = '/api/settings/base-info/account/template';
 
         });
 
         /* 전체 계정 다운로드 */
         $('#btnDownloadAllAccounts').on('click', function () {
 
-            window.location.href = '/api/ledger/accounts/excel';
+            window.location.href = '/api/settings/base-info/account/excel';
 
         });
-    
-        /* 엑셀 업로드 */
-        $('#account-excel-upload-form').on('submit', function (e) {
 
-            e.preventDefault();
-        
-            const fileInput = document.getElementById('excelUpload');
-        
-            if (!fileInput.files.length) {
-                AppCore.notify('error','파일을 선택하세요');
-                return;
+        document.addEventListener('excel:uploaded', function () {
+            if (accountTable) {
+                accountTable.ajax.reload(null, false);
             }
-        
-            const formData = new FormData();
-        
-            // 🔥 핵심: name 강제 맞추기
-            formData.append('file', fileInput.files[0]);
-        
-            $('#excelUploadSpinner').show();
-        
-            $.ajax({
-                url: '/api/ledger/account/excel-upload',
-                method: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false
-            })
-            .done(function (res) {
-        
-                $('#excelUploadSpinner').hide();
-        
-                if (res.success) {
-        
-                    excelModal.hide();
-        
-                    AppCore.notify(
-                        'success',
-                        res.message || '엑셀 업로드 완료'
-                    );
-        
-                    accountTable.ajax.reload(null,false);
-        
-                } else {
-        
-                    AppCore.notify(
-                        'error',
-                        res.message || '업로드 실패'
-                    );
-                }
-        
-            })
-            .fail(function () {
-        
-                $('#excelUploadSpinner').hide();
-        
-                AppCore.notify('error','업로드 실패');
-        
-            });
-        
         });
     
     }
@@ -2112,6 +2207,15 @@ const ACCOUNT_COLUMN_MAP = {
     
     function fillModal(data){
 
+        currentSubPolicies = Array.isArray(data.sub_policies)
+            ? data.sub_policies.map(policy => ({
+                sub_account_type: policy.sub_account_type ?? 'partner',
+                is_required: Number(policy.is_required ?? 0),
+                is_multiple: Number(policy.is_multiple ?? 0),
+                custom_group_code: policy.custom_group_code ?? ''
+            }))
+            : [];
+
         Object.keys(data).forEach(key => {
     
             if(key === 'id'){
@@ -2126,7 +2230,98 @@ const ACCOUNT_COLUMN_MAP = {
             }
     
         });
+
+        $('#modal_allow_sub_account').val(
+            String(data.allow_sub_account_computed ?? data.allow_sub_account ?? 0)
+        );
+
+        renderSubPolicyRows();
+        updateAllowSubAccountDisplay();
     
+    }
+
+    function serializeSubPolicies() {
+
+        return currentSubPolicies
+            .map(policy => ({
+                sub_account_type: String(policy.sub_account_type || '').trim(),
+                is_required: Number(policy.is_required) ? 1 : 0,
+                is_multiple: Number(policy.is_multiple) ? 1 : 0,
+                custom_group_code: String(policy.custom_group_code || '').trim()
+            }))
+            .filter(policy => policy.sub_account_type !== '');
+    }
+
+    function renderSubPolicyRows() {
+
+        const tbody = document.getElementById('sub-policy-tbody');
+
+        if(!tbody) return;
+
+        if(!currentSubPolicies.length){
+
+            tbody.innerHTML = `
+                <tr class="sub-policy-empty">
+                    <td colspan="5" class="text-center text-muted">등록된 보조정책이 없습니다.</td>
+                </tr>
+            `;
+
+            return;
+        }
+
+        tbody.innerHTML = currentSubPolicies.map((policy, index) => {
+
+            const isCustom = policy.sub_account_type === 'custom';
+
+            return `
+                <tr>
+                    <td>
+                        <select class="form-select form-select-sm policy-type-select" data-index="${index}">
+                            <option value="partner" ${policy.sub_account_type === 'partner' ? 'selected' : ''}>partner</option>
+                            <option value="project" ${policy.sub_account_type === 'project' ? 'selected' : ''}>project</option>
+                            <option value="custom" ${policy.sub_account_type === 'custom' ? 'selected' : ''}>custom</option>
+                        </select>
+                    </td>
+                    <td class="text-center">
+                        <input type="checkbox" class="form-check-input policy-required-check" data-index="${index}" ${Number(policy.is_required) ? 'checked' : ''}>
+                    </td>
+                    <td class="text-center">
+                        <input type="checkbox" class="form-check-input policy-multiple-check" data-index="${index}" ${Number(policy.is_multiple) ? 'checked' : ''}>
+                    </td>
+                    <td>
+                        <input type="text"
+                               class="form-control form-control-sm policy-custom-group-input"
+                               data-index="${index}"
+                               value="${escapeHtml(policy.custom_group_code || '')}"
+                               placeholder="custom 타입에서만 사용"
+                               ${isCustom ? '' : 'disabled'}>
+                    </td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-sm btn-outline-danger btn-remove-policy" data-index="${index}">삭제</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function updateAllowSubAccountDisplay() {
+
+        const hasPolicy = currentSubPolicies.length > 0;
+        const value = hasPolicy ? '1' : ($('#modal_allow_sub_account').val() || '0');
+        const label = hasPolicy ? '정책 사용' : (value === '1' ? '사용' : '미사용');
+
+        $('#modal_allow_sub_account').val(value);
+        $('#modal_allow_sub_account_label').val(label);
+    }
+
+    function escapeHtml(value) {
+
+        return String(value)
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#39;');
     }
        
 
@@ -2229,27 +2424,12 @@ const ACCOUNT_COLUMN_MAP = {
 
     function getTableColumns(){
 
-        const fields = [];
-    
-        const cols = accountTable.settings()[0].aoColumns;
-    
-        cols.forEach((col, index) => {
-    
-            /* reorder 핸들 제외 */
-            if(col.data === null) return;
-    
-            const label = $(col.nTh).text().trim();
-    
-            if(!label) return;
-    
-            fields.push({
-                value: col.data,
-                label: label
-            });
-    
-        });
-    
-        return fields;
+        return Object.entries(ACCOUNT_COLUMN_MAP)
+            .filter(([, config]) => String(config.label || '').trim() !== '')
+            .map(([field, config]) => ({
+                value: field,
+                label: config.label
+            }));
     
     }
 
@@ -2456,7 +2636,7 @@ const ACCOUNT_COLUMN_MAP = {
                     <td>
                         <input type="checkbox"
                                class="trash-check"
-                               value="${row.code}">
+                               value="${row.id}">
                     </td>
     
                     <td>${row.account_code ?? ''}</td>
@@ -2523,6 +2703,8 @@ const ACCOUNT_COLUMN_MAP = {
             );
     
             const json = await res.json();
+            console.log('[ledger-account] sub-account response', json);
+            console.log('[ledger-account] sub-account data count', Array.isArray(json?.data) ? json.data.length : 0);
     
             const tbody = document.querySelector('#subaccount-table tbody');
     

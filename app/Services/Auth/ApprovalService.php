@@ -5,6 +5,7 @@ namespace App\Services\Auth;
 use PDO;
 use App\Models\Auth\UserModel;
 use App\Models\Auth\LogModel;
+use App\Services\Mail\MailToken;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\ConfigHelper;
 use Core\LoggerFactory;
@@ -56,6 +57,24 @@ class ApprovalService
      * --------------------------------------------------------- */
     public function verifyApprovalToken(string $token): ?array
     {
+        $secret = ConfigHelper::secret();
+
+        $mailTokenData = MailToken::verify($token, $secret);
+        if (is_array($mailTokenData)) {
+            if (!empty($mailTokenData['user_id'])) {
+                return $mailTokenData;
+            }
+
+            $userCode = trim((string)($mailTokenData['user_code'] ?? ''));
+            if ($userCode !== '') {
+                $user = $this->authUsers->getByCode($userCode);
+                if ($user && !empty($user['id'])) {
+                    $mailTokenData['user_id'] = (string)$user['id'];
+                    return $mailTokenData;
+                }
+            }
+        }
+
         $decoded = json_decode(base64_decode($token), true);
 
         if (!is_array($decoded) || empty($decoded['data']) || empty($decoded['sig'])) {
@@ -63,7 +82,6 @@ class ApprovalService
         }
 
         $data   = $decoded['data'];
-        $secret = ConfigHelper::secret();
         $raw    = json_encode($data, JSON_UNESCAPED_UNICODE);
         $sig    = hash_hmac('sha256', $raw, $secret);
 
@@ -82,7 +100,7 @@ class ApprovalService
     /* ---------------------------------------------------------
      * 3. 승인 처리
      * --------------------------------------------------------- */
-    public function approveUser(string $userId, string $approvedBy = null): bool
+    public function approveUser(string $userId, ?string $approvedBy = null): bool
     {
         try {
             $ok = $this->authUsers->approveUserFull($userId, $approvedBy);

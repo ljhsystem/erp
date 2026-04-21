@@ -1,82 +1,161 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/views/layout/navbar.php'
+$displayName = $displayName ?? 'Guest';
+$currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$navItems = [
+    ['/dashboard', '메인'],
+    ['/sukhyang', '문서관리'],
+    ['/approval', '전자결재'],
+    ['/ledger', '회계관리'],
+    ['/institution', '대외기관업무'],
+    ['/site', '현장관리'],
+    ['/notice', '공지/회의'],
+    ['/sitemap', '사이트맵'],
+];
+
+$isActiveNav = static function (string $href) use ($currentPath): bool {
+    if ($href === '/') {
+        return $currentPath === '/';
+    }
+
+    return $currentPath === $href || str_starts_with($currentPath, $href . '/');
+};
 ?>
-<nav class="navbar navbar-expand-lg navbar-dark bg-primary top-nav fixed-top">
-    <div class="container-fluid">
+<nav class="top-nav fixed-top" aria-label="주요 네비게이션">
+    <div class="container-fluid top-nav-shell">
+        <div class="top-nav-primary">
+            <button
+                type="button"
+                class="mobile-nav-toggle"
+                id="mobile-nav-toggle"
+                aria-label="메뉴 열기"
+                aria-controls="mobile-nav-drawer"
+                aria-expanded="false"
+            >
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
 
-        <a class="navbar-brand d-flex align-items-center me-4" href="/dashboard">
-            <?php if (!empty($mainLogoUrl)): ?>
-                <img src="<?= htmlspecialchars($mainLogoUrl) ?>" alt="SUKHYANG Logo" class="navbar-logo me-2">
-                <span class="fw-bold text-white">SUKHYANG ERP</span>
-            <?php else: ?>
-                <span class="fw-bold text-white">SUKHYANG ERP</span>
-            <?php endif; ?>
-        </a>
+            <a class="navbar-brand top-nav-brand" href="/dashboard">
+                <?php if (!empty($mainLogoUrl)): ?>
+                    <img src="<?= htmlspecialchars((string)$mainLogoUrl, ENT_QUOTES, 'UTF-8') ?>" alt="SUKHYANG Logo" class="navbar-logo">
+                <?php endif; ?>
+                <span class="top-nav-brand-text">SUKHYANG ERP</span>
+            </a>
 
-
-        <div class="collapse navbar-collapse me-auto">
-            <ul class="navbar-nav flex-row">
-                <li class="nav-item me-3"><a class="nav-link" href="/sukhyang">문서관리</a></li>
-                <li class="nav-item me-3"><a class="nav-link" href="/approval">전자결재</a></li>
-                <li class="nav-item me-3"><a class="nav-link" href="/ledger">회계관리</a></li>
-                <li class="nav-item me-3"><a class="nav-link" href="/institution">대외기관업무</a></li>
-                <li class="nav-item me-3"><a class="nav-link" href="/site">현장관리</a></li>
-                <li class="nav-item me-3"><a class="nav-link" href="/notice">공지/회의</a></li>
-                <li class="nav-item me-3"><a class="nav-link" href="/sitemap">사이트맵</a></li>
-            </ul>
+            <div class="desktop-navbar" aria-label="데스크톱 메뉴">
+                <ul class="desktop-navbar-menu">
+                    <?php foreach ($navItems as [$href, $label]): ?>
+                        <li class="desktop-navbar-item">
+                            <a
+                                class="nav-link<?= $isActiveNav($href) ? ' active' : '' ?>"
+                                href="<?= htmlspecialchars($href, ENT_QUOTES, 'UTF-8') ?>"
+                            >
+                                <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
+                            </a>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
         </div>
-        <div class="d-flex align-items-center">
 
-            <!-- 상태 패널: 시계 아이콘 + 짧은 시간 표시, hover 시 전체 시간은 Bootstrap tooltip으로 표시 -->
-            <div class="d-flex align-items-center text-white px-3 py-1 me-3" role="group" a-label="상태 패널">
-                <i class="bi bi-clock me-2 text-white" aria-hidden="true"></i>
-                <!-- 클릭 시 미니달력 열기: role/button, tabindex, aria-controls 추가 -->
-                <span id="current-time"
+        <div class="desktop-navbar-meta">
+            <div class="desktop-navbar-status" role="group" aria-label="상태 정보">
+                <i class="bi bi-clock" aria-hidden="true"></i>
+                <span
+                    id="current-time"
                     data-format="tooltip"
                     data-bs-toggle="tooltip"
-                    class="me-3 fs-6 text-white"
                     role="button"
                     tabindex="0"
                     aria-haspopup="dialog"
                     aria-controls="mini-calendar"
-                    style="white-space:nowrap; cursor:pointer;">--:--</span>
+                >--:--</span>
 
-                <a href="#" class="d-flex align-items-center text-white text-decoration-none me-3" role="button" aria-label="내 정보">
-                    <i class="bi bi-person-workspace fs-5 me-2" role="img" aria-label="사용자 아이콘"></i>
-                    <?php
-                    // 안전한 표시: employee_name이 비어있으면 username 또는 기존 name으로 폴백
-                    $sessUser = $_SESSION['user'] ?? [];
-                    $emp = trim((string)($sessUser['employee_name'] ?? ''));
-                    $uname = trim((string)($sessUser['username'] ?? ''));
-                    $fallback = trim((string)($employee_name ?? $name ?? ''));
-                    if ($emp !== '') {
-                        $displayName = $emp;
-                    } elseif ($uname !== '') {
-                        $displayName = $uname;
-                    } elseif ($fallback !== '') {
-                        $displayName = $fallback;
-                    } else {
-                        $displayName = 'Guest';
-                    }
-                    ?>
-                    <span class="fs-6"><?php echo htmlspecialchars($displayName); ?> 님</span>
+                <a href="/profile" class="desktop-user-link">
+                    <i class="bi bi-person-workspace" aria-hidden="true"></i>
+                    <span class="user-name"><?= htmlspecialchars((string)$displayName, ENT_QUOTES, 'UTF-8') ?></span>
                 </a>
 
-                <span id="session-timer" class="fs-6" data-expire-time="<?= htmlspecialchars($expireTime ?? 0) ?>" data-session-timeout="<?= htmlspecialchars($sessionTimeout ?? 0) ?>">00:00</span>
+                <span
+                    id="session-timer"
+                    data-expire-time="<?= htmlspecialchars((string)($expireTime ?? 0), ENT_QUOTES, 'UTF-8') ?>"
+                    data-session-timeout="<?= htmlspecialchars((string)($sessionTimeout ?? 0), ENT_QUOTES, 'UTF-8') ?>"
+                >00:00</span>
             </div>
 
-
-
-
-            <!-- 미니 달력 컨테이너: layout.js가 위치/내용을 제어 -->
-            <div id="mini-calendar" class="mini-calendar d-none" aria-hidden="true"></div>
-
-            <audio id="session-alert-sound" src="/public/assets/sounds/<?= htmlspecialchars($sessionSound) ?>" preload="auto"></audio>
-            <button class="btn btn-outline-light btn-sm me-2" onclick="extendSession()">연장</button>
-            <a href="/profile" class="btn btn-outline-light btn-sm me-2">내정보</a>
-            <a href="/logout" class="btn btn-outline-light btn-sm" onclick="logoutWithPopupClose()">로그아웃</a>
+            <div class="desktop-navbar-actions">
+                <button type="button" class="btn btn-outline-light btn-sm" onclick="extendSession()">연장</button>
+                <a href="/profile" class="btn btn-outline-light btn-sm">내정보</a>
+                <a href="/logout" class="btn btn-outline-light btn-sm" onclick="logoutWithPopupClose()">로그아웃</a>
+            </div>
         </div>
     </div>
 </nav>
+
+<div id="mini-calendar" class="mini-calendar d-none" aria-hidden="true"></div>
+<audio id="session-alert-sound" src="/public/assets/sounds/<?= htmlspecialchars((string)$sessionSound, ENT_QUOTES, 'UTF-8') ?>" preload="auto"></audio>
+
+<div class="mobile-nav-overlay" id="mobile-nav-overlay" hidden></div>
+
+<aside class="mobile-navbar" id="mobile-nav-drawer" aria-label="모바일 메뉴" aria-hidden="true">
+    <div class="mobile-navbar-head">
+        <div class="mobile-navbar-brand">
+            <?php if (!empty($mainLogoUrl)): ?>
+                <img src="<?= htmlspecialchars((string)$mainLogoUrl, ENT_QUOTES, 'UTF-8') ?>" alt="SUKHYANG Logo" class="navbar-logo">
+            <?php endif; ?>
+            <div>
+                <strong>SUKHYANG ERP</strong>
+                <p><?= htmlspecialchars((string)$displayName, ENT_QUOTES, 'UTF-8') ?></p>
+            </div>
+        </div>
+
+        <button type="button" class="mobile-nav-close" id="mobile-nav-close" aria-label="메뉴 닫기">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+        </button>
+    </div>
+
+    <div class="mobile-navbar-status">
+        <div class="mobile-status-chip">
+            <i class="bi bi-clock" aria-hidden="true"></i>
+            <span id="mobile-current-time">--:--</span>
+        </div>
+        <div class="mobile-status-chip">
+            <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+            <span id="mobile-session-timer">00:00</span>
+        </div>
+    </div>
+
+    <div class="mobile-navbar-body">
+        <ul class="mobile-navbar-menu">
+            <?php foreach ($navItems as [$href, $label]): ?>
+                <li>
+                    <a
+                        class="mobile-nav-link<?= $isActiveNav($href) ? ' active' : '' ?>"
+                        href="<?= htmlspecialchars($href, ENT_QUOTES, 'UTF-8') ?>"
+                        data-mobile-nav-link="true"
+                    >
+                        <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
+                    </a>
+                </li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+
+    <div class="mobile-navbar-user">
+        <a href="/profile" class="mobile-user-link" data-mobile-nav-link="true">
+            <i class="bi bi-person-circle" aria-hidden="true"></i>
+            <span>내정보</span>
+        </a>
+        <button type="button" class="mobile-user-link" onclick="extendSession()">
+            <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+            <span>세션 연장</span>
+        </button>
+        <a href="/logout" class="mobile-user-link mobile-logout-link" data-mobile-nav-link="true" onclick="logoutWithPopupClose()">
+            <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+            <span>로그아웃</span>
+        </a>
+    </div>
+</aside>
 
 <div class="fixed-top-space"></div>

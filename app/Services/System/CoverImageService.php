@@ -250,7 +250,7 @@ class CoverImageService
                4. INSERT
             ========================= */
             $newId   = UuidHelper::generate();
-            $newCode = CodeHelper::generateHomeAboutCoverImageCode($this->pdo);
+            $newCode = CodeHelper::next('system_coverimage_assets');
     
             $insertData = [
                 'id'          => $newId,

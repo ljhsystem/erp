@@ -1,10 +1,9 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Controllers/Ledger/JournalController.php'
+// 寃쎈줈: PROJECT_ROOT . '/app/Controllers/Ledger/JournalController.php'
 
 namespace App\Controllers\Ledger;
 
 
-use Core\Session;
 use Core\DbPdo;
 use App\Controllers\System\LayoutController;
 
@@ -15,32 +14,31 @@ class JournalController
 
     public function __construct()
     {
-        Session::requireAuth();
         $this->layout = new LayoutController(DbPdo::conn());
     }
 
     /* ============================================================
-     * 공통: 페이지 렌더링
+     * 怨듯넻: ?섏씠吏 ?뚮뜑留?
      * ============================================================ */
     private function renderPage(string $viewPath, array $params = []): void
     {
-        // 1️⃣ 컨트롤러 → 뷰 변수 전달
+        // 1截뤴깵 而⑦듃濡ㅻ윭 ??酉?蹂???꾨떖
         if (!empty($params)) {
             extract($params, EXTR_SKIP);
         }
 
-        // 2️⃣ View 렌더링
+        // 2截뤴깵 View ?뚮뜑留?
         ob_start();
         require PROJECT_ROOT . $viewPath;
         $content = ob_get_clean();
 
-        // 3️⃣ View에서 세팅한 값 우선
+        // 3截뤴깵 View?먯꽌 ?명똿??媛??곗꽑
         $pageTitle     = $pageTitle     ?? '';
         $pageStyles    = $pageStyles    ?? '';
         $pageScripts   = $pageScripts   ?? '';
         $layoutOptions = $layoutOptions ?? [];
 
-        // 4️⃣ 레이아웃 렌더
+        // 4截뤴깵 ?덉씠?꾩썐 ?뚮뜑
         $this->layout->render([
             'pageTitle'     => $pageTitle,
             'content'       => $content,
@@ -51,16 +49,17 @@ class JournalController
     }
 
     // ============================================================
-    // WEB: 일반전표 입력 화면
+    // WEB: ?쇰컲?꾪몴 ?낅젰 ?붾㈃
     // URL: GET /ledger/journal
     // permission: web.ledger.journal.view
     // controller: JournalController@webIndex
     // ============================================================
     public function webIndex(): void
     {
-        $this->renderPage('/app/views/ledger/journal/journal.php', [
+        $this->renderPage('/app/views/ledger/journal/index.php', [
             'pageTitle' => '일반전표입력'
         ]);
     }
 
 }
+

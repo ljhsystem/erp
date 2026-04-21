@@ -35,7 +35,18 @@ class ConfigHelper
             self::$config = json_decode($json, true) ?? [];
         }
 
-        return self::$config[$key] ?? $default;
+        $segments = explode('.', $key);
+        $value = self::$config;
+
+        foreach ($segments as $segment) {
+            if (!is_array($value) || !array_key_exists($segment, $value)) {
+                return $default;
+            }
+
+            $value = $value[$segment];
+        }
+
+        return $value;
     }
 
     /**

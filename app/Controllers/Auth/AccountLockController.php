@@ -1,125 +1,91 @@
 <?php
-// 경로: PROJECT_ROOT/app/Controllers/Auth/AccountLockController.php
+
 namespace App\Controllers\Auth;
 
-use Core\DbPdo;
 use App\Services\Auth\AccountLockService;
+use Core\DbPdo;
+use PDO;
 
 class AccountLockController
 {
     private AccountLockService $lockService;
 
-    public function __construct()
+    public function __construct(?PDO $pdo = null)
     {
-        $this->lockService = new AccountLockService(DbPdo::conn());
+        $this->lockService = new AccountLockService($pdo ?? DbPdo::conn());
     }
 
-    // ============================================================
-    // API: 계정 잠금 상태 조회
-    // URL: GET /auth/account/lock/status
-    // permission: api.auth.lock.status
-    // controller: AccountLockController@apiStatus
-    // ============================================================
     public function apiStatus()
-    {     
-        header('Content-Type: application/json; charset=utf-8');
-
-        $userId = $_GET['user_id'] ?? '';
+    {
+        $userId = trim((string)($_GET['user_id'] ?? ''));
 
         if ($userId === '') {
-            echo json_encode([
-                'success' => false,
-                'message' => 'user_id가 필요합니다.'
-            ]);
-            exit;
+            $this->json(['success' => false, 'message' => 'user_id가 필요합니다.'], 400);
         }
 
         try {
-            $failCount = $this->lockService->getFailCount($userId);
-
-            echo json_encode([
-                'success'    => true,
-                'user_id'    => $userId,
-                'fail_count' => $failCount
+            $this->json([
+                'success' => true,
+                'user_id' => $userId,
+                'fail_count' => $this->lockService->getFailCount($userId),
             ]);
         } catch (\Throwable $e) {
-            echo json_encode([
-                'success' => false,
-                'message' => '상태 조회 실패'
-            ]);
+            $this->json(['success' => false, 'message' => '상태 조회에 실패했습니다.'], 500);
         }
     }
 
-    // ============================================================
-    // API: 계정 잠금 설정
-    // URL: POST /auth/account/lock/set
-    // permission: auth.lock.set
-    // controller: AccountLockController@apiLock
-    // ============================================================
     public function apiLock()
     {
-        header('Content-Type: application/json; charset=utf-8');
-
-        $userId  = $_POST['user_id'] ?? '';
-        $minutes = intval($_POST['minutes'] ?? 30); // 기본 30분
+        $data = $this->getRequestData();
+        $userId = trim((string)($data['user_id'] ?? ''));
+        $minutes = (int)($data['minutes'] ?? 30);
 
         if ($userId === '') {
-            echo json_encode([
-                'success' => false,
-                'message' => 'user_id가 필요합니다.'
-            ]);
-            exit;
+            $this->json(['success' => false, 'message' => 'user_id가 필요합니다.'], 400);
         }
 
         try {
             $ok = $this->lockService->lockAccount($userId, $minutes);
-
-            echo json_encode([
+            $this->json([
                 'success' => $ok,
-                'message' => $ok ? '계정이 잠겼습니다.' : '계정 잠금 실패'
-            ]);
-
+                'message' => $ok ? '계정을 잠갔습니다.' : '계정 잠금에 실패했습니다.',
+            ], $ok ? 200 : 500);
         } catch (\Throwable $e) {
-            echo json_encode([
-                'success' => false,
-                'message' => '처리 중 오류'
-            ]);
+            $this->json(['success' => false, 'message' => '처리 중 오류가 발생했습니다.'], 500);
         }
     }
 
-    // ============================================================
-    // API: 계정 잠금 해제
-    // URL: POST /auth/account/lock/unlock
-    // permission: auth.lock.unlock
-    // controller: AccountLockController@apiUnlock
-    // ============================================================
     public function apiUnlock()
     {
-        header('Content-Type: application/json; charset=utf-8');
-
-        $userId = $_POST['user_id'] ?? '';
+        $data = $this->getRequestData();
+        $userId = trim((string)($data['user_id'] ?? ''));
 
         if ($userId === '') {
-            echo json_encode([
-                'success' => false,
-                'message' => 'user_id가 필요합니다.'
-            ]);
-            exit;
+            $this->json(['success' => false, 'message' => 'user_id가 필요합니다.'], 400);
         }
 
         try {
             $ok = $this->lockService->unlockAccount($userId);
-
-            echo json_encode([
+            $this->json([
                 'success' => $ok,
-                'message' => $ok ? '계정이 정상적으로 해제되었습니다.' : '계정 해제 실패'
-            ]);
-
+                'message' => $ok ? '계정 잠금을 해제했습니다.' : '계정 잠금 해제에 실패했습니다.',
+            ], $ok ? 200 : 500);
         } catch (\Throwable $e) {
-            echo json_encode([
-                'success' => false,
-                'message' => '처리 중 오류'
-            ]);
+            $this->json(['success' => false, 'message' => '처리 중 오류가 발생했습니다.'], 500);
         }
+    }
+
+    private function getRequestData(): array
+    {
+        $data = json_decode(file_get_contents('php://input'), true);
+        return is_array($data) ? $data : $_POST;
+    }
+
+    private function json(array $payload, int $status = 200): void
+    {
+        http_response_code($status);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+        exit;
     }
 }

@@ -13,13 +13,7 @@ $pageScripts = $pageScripts ?? '';
 $pageStyles = AssetHelper::css('/assets/css/pages/dashboard/report.css');
 $pageScripts = '';
 // 브레드크럼프 (레이아웃 내부에서 자동 포함되지 않으므로 본문에 포함)
-$breadcrumb = [
-    '홈' => '/dashboard',
-    '통합보고서' => '/dashboard/report'
-  ];
 ?>
-<?php include_once __DIR__ . '/../layout/breadcrumb.php'; ?>
-
 <!-- ✅ 메인 콘텐츠 -->
 <main class="report-main">
 

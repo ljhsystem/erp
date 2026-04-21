@@ -27,6 +27,8 @@ class LogService
     {
         // ⭐ UUID 생성은 서비스 책임
         $data['id'] = UuidHelper::generate();
+        $data['ip_address'] = $data['ip_address'] ?? ($_SERVER['REMOTE_ADDR'] ?? null);
+        $data['user_agent'] = $data['user_agent'] ?? ($_SERVER['HTTP_USER_AGENT'] ?? null);
 
         // IP, UserAgent 자동 설정이 Model에서 처리됨
 

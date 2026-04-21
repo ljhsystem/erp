@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Core\Helpers\AssetHelper;
+use Core\Helpers\ConfigHelper;
 
 ob_start();
 header('Content-Type: text/html; charset=UTF-8');
@@ -146,7 +147,7 @@ try {
 
 
                 <!-- action을 컨트롤러 승인 엔드포인트로 변경: /approve_user -->
-                <form method="post" action="<?= 'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/approve_user' ?>" class="mt-4">
+                <form method="post" action="<?= rtrim((string)ConfigHelper::get('App.BaseUrl', ''), '/') . '/approve_user' ?>" class="mt-4">
                     <input type="hidden" name="code" value="<?= htmlspecialchars((string)$user['code'], ENT_QUOTES, 'UTF-8') ?>">
                     <!-- 클라이언트에서 승인자 이메일을 보내지 않음 (서버에서 토큰으로 결정) -->
                     <input type="hidden" name="approve_token" value="<?= htmlspecialchars($_GET['approve_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">

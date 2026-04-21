@@ -2,6 +2,10 @@
   
   "IsDevelopment": false,
 
+  "App": {
+    "BaseUrl": "http://localhost:8000"
+  },
+
   "Security": {
     "RRNKey": "sukhyang-super-secret-key-2026-32byte"
   },

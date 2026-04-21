@@ -3,7 +3,6 @@
 // 대시보드>설정>조직관리>직책 API 컨트롤러
 namespace App\Controllers\Dashboard\Settings;
 
-use Core\Session;
 use Core\DbPdo;
 use App\Services\User\PositionService;
 
@@ -13,7 +12,6 @@ class PositionController
 
     public function __construct()
     {
-        Session::requireAuth();
         $this->service = new PositionService(DbPdo::conn());
     }
 
@@ -114,7 +112,6 @@ class PositionController
             'level_rank'    => (int)($_POST['level_rank'] ?? 0),
             'description'   => $_POST['description'] ?? null,
             'is_active'     => (int)($_POST['is_active'] ?? 1),
-            'created_by'    => $_SESSION['user']['id'] ?? null
         ];
 
         // Service에서 success, message 통일 반환
@@ -135,7 +132,6 @@ class PositionController
             'level_rank'    => (int)($_POST['level_rank'] ?? 0),
             'description'   => $_POST['description'] ?? null,
             'is_active'     => (int)($_POST['is_active'] ?? 1),
-            'updated_by'    => $_SESSION['user']['id'] ?? null
         ];
 
         return $this->service->update($id, $data);

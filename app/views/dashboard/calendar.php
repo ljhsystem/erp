@@ -57,13 +57,11 @@ $pageScripts =
 
 
 // 브레드크럼프
-// $breadcrumb = [
 //     '홈' => '/dashboard',
 //     '일정/캘린더' => '/dashboard/calendar'
 // ];
 ?>
 
-<?php //include_once __DIR__ . '/../layout/breadcrumb.php'; ?>
 
 
 

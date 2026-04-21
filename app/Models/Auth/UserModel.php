@@ -64,7 +64,7 @@ class UserModel
 
         return $stmt->execute([
             ':id'                => $data['id'],
-            ':code'              => $data['code'],
+            ':code'              => $data['code'] ?? null,
             ':username'          => $data['username'],
             ':password'          => $data['password'],
             ':email'             => $data['email'] ?? null,
@@ -128,6 +128,22 @@ class UserModel
         ";
 
         return $this->fetchOne($sql, [$username]);
+    }
+
+    public function getByCode(string $code): ?array
+    {
+        $sql = "
+            SELECT 
+                u.*, 
+                r.role_key,
+                r.role_name
+            FROM auth_users u
+            LEFT JOIN auth_roles r ON r.id = u.role_id
+            WHERE u.code = ?
+            LIMIT 1
+        ";
+
+        return $this->fetchOne($sql, [$code]);
     }
 
     private function fetchOne(string $sql, array $params): ?array

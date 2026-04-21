@@ -4,6 +4,7 @@ namespace App\Services\System;
 
 use PDO;
 use App\Models\System\SettingConfigModel;
+use Core\Helpers\ActorHelper;
 use Core\LoggerFactory;
 
 class SettingService
@@ -113,6 +114,7 @@ class SettingService
         ?string $userId = null,
         ?string $description = null
     ): bool {
+        $userId = $userId ?? ActorHelper::user();
 
         $this->logger->debug('[SAVE_SINGLE] START', compact(
             'key', 'value', 'category', 'userId', 'description'
@@ -151,9 +153,15 @@ class SettingService
     public function saveBatch(
         array $input,
         string $category,
-        ?string $userId = null,
+        string|array|null $userId = null,
         array $descriptions = []
     ): array {
+        if (is_array($userId) && $descriptions === []) {
+            $descriptions = $userId;
+            $userId = null;
+        }
+
+        $userId = $userId ?? ActorHelper::user();
     
         $this->logger->debug('[SAVE_BATCH] START', [
             'category' => $category,

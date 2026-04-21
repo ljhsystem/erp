@@ -62,6 +62,18 @@ class ProfileService
         return array_merge($user, $employee ?? []);
     }
 
+    public function getCurrentProfile(): ?array
+    {
+        $actor = ActorHelper::parse(ActorHelper::user());
+        $userId = $actor['id'] ?? null;
+
+        if (!$userId) {
+            throw new \Exception('로그인 정보가 필요합니다.');
+        }
+
+        return $this->getById($userId);
+    }
+
    /* ============================================================
     * 내 프로필 저장 (수정 ONLY)
     * ============================================================ */
@@ -292,6 +304,20 @@ class ProfileService
                 'error'   => $e->getMessage()
             ];
         }
+    }
+
+    public function saveCurrent(array $data, array $files = []): array
+    {
+        $actor = ActorHelper::parse(ActorHelper::user());
+        $userId = $actor['id'] ?? null;
+
+        if (!$userId) {
+            throw new \Exception('로그인이 필요합니다.');
+        }
+
+        $data['id'] = $userId;
+
+        return $this->save($data, $files);
     }
  
 

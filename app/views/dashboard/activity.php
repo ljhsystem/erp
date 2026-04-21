@@ -13,13 +13,7 @@ $pageScripts = $pageScripts ?? '';
 $pageStyles = AssetHelper::css('/assets/css/pages/dashboard/activity.css');
 $pageScripts = '';
 // 브레드크럼프 (본문에 포함)
-$breadcrumb = [
-    '홈' => '/dashboard',
-    '최근활동' => '/dashboard/activity'
-  ];
 ?>
-<?php include_once __DIR__ . '/../layout/breadcrumb.php'; ?>
-
 <!-- ✅ 메인 콘텐츠 -->
 <main class="activity-main">
 

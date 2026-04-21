@@ -3,7 +3,6 @@
 // 대시보드>설정>조직관리>결재템플릿 API 컨트롤러
 namespace App\Controllers\Dashboard\Settings;
 
-use Core\Session;
 use Core\DbPdo;
 use App\Services\Approval\TemplateService;
 use App\Services\Approval\TemplateStepService;
@@ -17,7 +16,6 @@ class ApprovalTemplateController
 
     public function __construct()
     {
-        Session::requireAuth();
         $this->templateService = new TemplateService(DbPdo::conn());
         $this->stepService     = new TemplateStepService(DbPdo::conn());
         $this->roleService     = new RoleService(DbPdo::conn());
@@ -87,7 +85,6 @@ class ApprovalTemplateController
                 'document_type' => $documentType,
                 'description'   => $description,
                 'is_active'     => $isActive,
-                'updated_by'    => $_SESSION['user']['id'] ?? null
             ]);
 
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
@@ -100,7 +97,6 @@ class ApprovalTemplateController
             'document_type' => $documentType,
             'description'   => $description,
             'is_active'     => $isActive,
-            'created_by'    => $_SESSION['user']['id'] ?? null
         ]);
 
         echo json_encode($result, JSON_UNESCAPED_UNICODE);
@@ -199,7 +195,6 @@ class ApprovalTemplateController
                             'approver_id' => $existing['approver_id'],
                             'is_active'   => $existing['is_active'],
                             'sequence'    => $row['sequence'] + 1000,
-                            'updated_by'  => $_SESSION['user']['id'] ?? null               
                         ];
                         $this->stepService->update($row['id'], $updateData);
                     }
@@ -217,7 +212,6 @@ class ApprovalTemplateController
                             'approver_id' => $existing['approver_id'],
                             'is_active'   => $existing['is_active'],
                             'sequence'    => $row['sequence'],
-                            'updated_by'  => $_SESSION['user']['id'] ?? null
                         ];
                         $this->stepService->update($row['id'], $updateData);
                     }
@@ -290,7 +284,6 @@ class ApprovalTemplateController
                 'role_id'     => $roleId,
                 'approver_id' => $approverId ?: null,
                 'is_active'   => $isActive,
-                'updated_by'  => $_SESSION['user']['id'] ?? null
             ]);
 
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
@@ -311,7 +304,6 @@ class ApprovalTemplateController
             'role_id'     => $roleId,
             'approver_id' => $approverId ?: null,
             'is_active'   => $isActive,
-            'created_by'  => $_SESSION['user']['id'] ?? null
         ]);
 
         echo json_encode($result, JSON_UNESCAPED_UNICODE);

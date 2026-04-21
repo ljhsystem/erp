@@ -7,7 +7,6 @@ if (!headers_sent()) {
   header('Pragma: no-cache');
   header('Expires: 0');
 }
-$userId = $_SESSION['user']['id'] ?? '';
 $layoutOptions = [
   'header'  => true,
   'navbar'  => true,

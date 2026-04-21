@@ -1,10 +1,6 @@
 ﻿<?php
 // 📄 경로: /app/views/notice/index.php
 use Core\Helpers\AssetHelper;
-if (!isset($_SESSION['username'])) {
-    header("Location: /login/login.php");
-    exit;
-}
 
 include(__DIR__ . '/../layout/header.php');
 include(__DIR__ . '/../layout/sidebar.php');

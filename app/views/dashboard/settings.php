@@ -222,15 +222,7 @@ if ($cat === 'system' && $sub === 'logs') {
 }
 
 // 9) Breadcrumb
-$breadcrumb = [
-    '홈'   => '/dashboard',
-    '설정' => '/dashboard/settings/base-info/company',
-    $labels[$cat]['label'] => "/dashboard/settings/{$cat}/{$sub}",
-];
-
 ?>
-<?php include_once __DIR__ . '/../layout/breadcrumb.php'; ?>
-
 <main class="settings-main container-fluid">
     <div class="settings-page-header">
         <h5 class="settings-title">⚙️ 설정</h5>

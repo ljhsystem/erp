@@ -230,7 +230,7 @@ class BankAccountService
             }
 
             $newId = UuidHelper::generate();
-            $newCode = CodeHelper::generateBankAccountCode($this->pdo);
+            $newCode = CodeHelper::next('system_bank_accounts');
 
             $insertData = array_merge($data, [
                 'id' => $newId,

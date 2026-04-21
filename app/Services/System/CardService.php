@@ -233,7 +233,7 @@ class CardService
             }
 
             $newId = UuidHelper::generate();
-            $newCode = CodeHelper::generateCardCode($this->pdo);
+            $newCode = CodeHelper::next('system_cards');
 
             $insertData = array_merge($data, [
                 'id' => $newId,

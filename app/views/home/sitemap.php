@@ -6,7 +6,6 @@ if (!headers_sent()) {
   header('Pragma: no-cache');
   header('Expires: 0');
 }
-$userId = $_SESSION['user']['id'] ?? '';
 $layoutOptions = [
     'header'  => true,
     'navbar'  => true,
@@ -81,7 +80,7 @@ $sitemap = [
             ['업무용승용차', '/ledger/masters/vehicles.php'],
         ],
         '전표입력' => [
-            ['일반전표입력', '/ledger/journal.php'],
+            ['일반전표입력', '/ledger/journal'],
             ['세금계산서입력', '/ledger/vat_invoice.php'],
             ['카드입력', '/ledger/card.php'],
             ['경비입력', '/ledger/expenses.php'],

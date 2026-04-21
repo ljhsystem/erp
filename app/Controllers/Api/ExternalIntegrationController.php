@@ -2,7 +2,6 @@
 // 경로: PROJECT_ROOT . '/app/Controllers/Api/ExternalIntegrationController.php'
 namespace App\Controllers\Api;
 
-use Core\Session;
 use App\Services\Integration\ExternalIntegrationService;
 
 
@@ -17,7 +16,6 @@ class ExternalIntegrationController
 
     public function apiBizStatus()
     {
-        Session::requireAuth();
         header('Content-Type: application/json; charset=utf-8');
 
         $input = json_decode(file_get_contents("php://input"), true);

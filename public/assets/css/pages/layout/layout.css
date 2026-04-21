@@ -18,6 +18,12 @@
   --color-primary: #0d6efd;
   --color-primary-hover: #0b5ed7;
   --color-primary-soft: rgba(13,110,253,.12);
+  --navbar-bg-start: #0d6efd;
+  --navbar-bg-end: #0b5ed7;
+  --navbar-surface-soft: rgba(255,255,255,.12);
+  --navbar-active-bg: rgba(255,255,255,.2);
+  --navbar-drawer-active-bg: #dceeff;
+  --navbar-drawer-active-text: #0e4f80;
 
   --color-bg: #f6f8fb;
   --color-surface: #ffffff;
@@ -67,24 +73,48 @@ body.skin-default {
   --color-primary: #0d6efd;
   --color-primary-hover: #0b5ed7;
   --color-primary-soft: rgba(13,110,253,.12);
+  --navbar-bg-start: #0f4cbd;
+  --navbar-bg-end: #0d6efd;
+  --navbar-surface-soft: rgba(255,255,255,.12);
+  --navbar-active-bg: rgba(255,255,255,.2);
+  --navbar-drawer-active-bg: #dceeff;
+  --navbar-drawer-active-text: #0e4f80;
 }
 
 body.skin-green {
   --color-primary: #198754;
   --color-primary-hover: #157347;
   --color-primary-soft: rgba(25,135,84,.15);
+  --navbar-bg-start: #146c43;
+  --navbar-bg-end: #198754;
+  --navbar-surface-soft: rgba(255,255,255,.1);
+  --navbar-active-bg: rgba(255,255,255,.18);
+  --navbar-drawer-active-bg: #d9f3e4;
+  --navbar-drawer-active-text: #146c43;
 }
 
 body.skin-gray {
   --color-primary: #6c757d;
   --color-primary-hover: #5c636a;
   --color-primary-soft: rgba(108,117,125,.15);
+  --navbar-bg-start: #4f5962;
+  --navbar-bg-end: #6c757d;
+  --navbar-surface-soft: rgba(255,255,255,.1);
+  --navbar-active-bg: rgba(255,255,255,.16);
+  --navbar-drawer-active-bg: #edf0f2;
+  --navbar-drawer-active-text: #44505a;
 }
 
 body.skin-dark {
   --color-primary: #212529;
   --color-primary-hover: #1c1f23;
   --color-primary-soft: rgba(33,37,41,.2);
+  --navbar-bg-start: #111315;
+  --navbar-bg-end: #2b3035;
+  --navbar-surface-soft: rgba(255,255,255,.08);
+  --navbar-active-bg: rgba(255,255,255,.14);
+  --navbar-drawer-active-bg: #e5e7eb;
+  --navbar-drawer-active-text: #111827;
 }
 
 /* =========================================================
@@ -469,6 +499,87 @@ body.no-sidebar .main-content > .container {
   z-index: 9990 !important;
 }
 
+/* ==============================
+   BREADCRUMB
+============================== */
+.breadcrumb-row {
+  display: flex;
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 0 4px;
+}
+
+.breadcrumb-row-left {
+  justify-content: flex-start;
+}
+
+.breadcrumb-row-center {
+  justify-content: center;
+}
+
+.breadcrumb-row-right {
+  justify-content: flex-end;
+}
+
+.breadcrumb-nav {
+  max-width: 100%;
+}
+
+.breadcrumb-list {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 14px;
+  list-style: none;
+  border-radius: 999px;
+  background: rgba(255,255,255,.92);
+  border: 1px solid rgba(0,0,0,.06);
+  box-shadow: 0 6px 18px rgba(0,0,0,.06), inset 0 1px 0 rgba(255,255,255,.6);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.breadcrumb-list-compact {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.breadcrumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #6b7280;
+  min-width: 0;
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+  content: "›";
+  color: #a1a1aa;
+  margin: 0 2px;
+}
+
+.breadcrumb-item a {
+  color: #374151;
+  text-decoration: none;
+  padding: 3px 6px;
+  border-radius: 6px;
+  transition: background .15s ease, color .15s ease, transform .15s ease;
+}
+
+.breadcrumb-item a:hover {
+  background: #eef2f7;
+  color: #111827;
+  transform: translateY(-1px);
+}
+
+.breadcrumb-item .current {
+  font-weight: 700;
+  color: #111827;
+  padding: 3px 6px;
+}
+
 
 /* =========================================================
    16. 반응형
@@ -478,5 +589,16 @@ body.no-sidebar .main-content > .container {
 
   .main-content {
     margin-left: var(--content-padding);
+  }
+
+  .breadcrumb-row {
+    justify-content: flex-start;
+    margin-bottom: 12px;
+    padding: 0;
+  }
+
+  .breadcrumb-list {
+    width: 100%;
+    border-radius: 14px;
   }
 }

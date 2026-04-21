@@ -357,9 +357,6 @@ public function searchPicker(string $keyword = '', int $limit = 20): array
         )";
 
         $stmt = $this->db->prepare($sql);
-        if (empty($data['created_by'])) {
-            throw new \Exception('created_by 없음');
-        }
         return $stmt->execute([
             'id' => $data['id'],
             'code' => $data['code'] ?? null,
@@ -472,10 +469,6 @@ public function searchPicker(string $keyword = '', int $limit = 20): array
     
             WHERE id = :id
         ";
-
-        if (empty($data['updated_by'])) {
-            throw new \Exception('updated_by 없음');
-        }
 
         $params = [
             'id' => $id,
@@ -657,16 +650,10 @@ public function searchPicker(string $keyword = '', int $limit = 20): array
         $sql = "UPDATE system_clients SET code = :newCode WHERE id = :id";
         $stmt = $this->db->prepare($sql);
 
-        $ok = $stmt->execute([
+        return $stmt->execute([
             'newCode' => (int)$newCode,
             'id' => $id
         ]);
-
-        if (!$ok) {
-            throw new \Exception('쿼리 실행 실패');
-        }
-
-        return true;
     }
 
 

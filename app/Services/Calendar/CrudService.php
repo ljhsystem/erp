@@ -17,6 +17,7 @@ use App\Services\User\ExternalAccountService;
 use App\Services\Calendar\IcsService;
 use App\Services\Calendar\SyncService;
 use App\Services\Calendar\Time;
+use Core\Helpers\ActorHelper;
 use Core\LoggerFactory;
 
 
@@ -3351,7 +3352,8 @@ class CrudService
 
     private function resolveSyncIdentity(): array
     {
-        $userId = $_SESSION['user']['id'] ?? null;
+        $actor = ActorHelper::parse(ActorHelper::user());
+        $userId = $actor['id'] ?? null;
     
         if (!$userId) {
             throw new \RuntimeException('Invalid session');

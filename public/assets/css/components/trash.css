@@ -36,6 +36,12 @@
   padding: 8px 10px;
   border-bottom: 1px solid #eee;
   background: #fafafa;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.trash-toolbar > .btn:nth-child(3){
+  margin-left: auto;
 }
 
 /* =========================
@@ -174,6 +180,10 @@
 @media (max-width: 768px){
   .trash{
     flex-direction: column;
+  }
+
+  .trash-toolbar > .btn:nth-child(3){
+    margin-left: 0;
   }
 
   .trash-right{

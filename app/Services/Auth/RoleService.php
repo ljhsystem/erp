@@ -4,6 +4,7 @@ namespace App\Services\Auth;
 
 use PDO;
 use App\Models\Auth\RoleModel;
+use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\CodeHelper;
 use Core\LoggerFactory;
@@ -55,8 +56,8 @@ class RoleService
 
         // ⭐ Service가 생성해야 하는 값들
         $data['id']         = UuidHelper::generate();
-        $data['code']       = CodeHelper::generateRoleCode($this->pdo);
-        $data['created_by'] = $_SESSION['user']['id'] ?? null;
+        $data['code']       = CodeHelper::next('auth_roles');
+        $data['created_by'] = ActorHelper::user();
 
         $res = $this->model->create($data);
 
@@ -86,7 +87,7 @@ class RoleService
             ];
         }
 
-        $data['updated_by'] = $_SESSION['user']['id'] ?? null;
+        $data['updated_by'] = ActorHelper::user();
 
         $res = $this->model->update($id, $data);
 

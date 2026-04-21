@@ -6,7 +6,6 @@ namespace App\Services\Ledger;
 
 use PDO;
 use App\Models\Ledger\SubChartAccountModel;
-use Core\Helpers\CodeHelper;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
 
@@ -54,10 +53,7 @@ class SubChartAccountService
             $data['id'] = UuidHelper::generate();
     
             /* 코드 생성 */
-            $data['sub_code'] = CodeHelper::generateSubAccountCode(
-                $this->pdo,
-                $data['account_id']
-            );
+            $data['sub_code'] = $this->model->getNextSubCode($data['account_id']);
     
             if (!$this->model->create($data)) {
 

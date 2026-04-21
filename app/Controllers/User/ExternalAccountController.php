@@ -2,7 +2,6 @@
 // 경로: PROJECT_ROOT . '/app/Controllers/User/ExternalAccountController.php'
 namespace App\Controllers\User;
 
-use Core\Session;
 use Core\DbPdo;
 use App\Services\User\ExternalAccountService;
 
@@ -12,7 +11,6 @@ class ExternalAccountController
 
     public function __construct()
     {
-        Session::requireAuth();
         $this->service = new ExternalAccountService(DbPdo::conn());
     }
 

@@ -323,14 +323,6 @@ class ProjectModel
     * ------------------------------------------------------------- */
     public function create(array $data): bool
     {
-        if (empty($data['id'])) {
-            throw new \Exception('id 없음');
-        }
-
-        if (empty($data['created_by'])) {
-            throw new \Exception('created_by 없음');
-        }
-
         $sql = "
             INSERT INTO system_projects (
                 id,
@@ -471,10 +463,6 @@ class ProjectModel
     * ------------------------------------------------------------- */
     public function updateById(string $id, array $data): bool
     {
-        if (empty($data['updated_by'])) {
-            throw new \Exception('updated_by 없음');
-        }
-
         $sql = "
             UPDATE system_projects SET
                 project_name = :project_name,
@@ -717,16 +705,10 @@ class ProjectModel
         $sql = "UPDATE system_projects SET code = :newCode WHERE id = :id";
         $stmt = $this->db->prepare($sql);
 
-        $ok = $stmt->execute([
+        return $stmt->execute([
             'newCode' => (int)$newCode,
             'id' => $id
         ]);
-
-        if (!$ok) {
-            throw new \Exception('쿼리 실행 실패');
-        }
-
-        return true;
     }
 
 

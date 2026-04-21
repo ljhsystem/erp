@@ -1,11 +1,6 @@
 ﻿<?php
 // 📄 /app/views/institution/index.php
 use Core\Helpers\AssetHelper;
-// 기관업무 대시보드
-if (!isset($_SESSION['username'])) {
-    header("Location: /login/login.php");
-    exit;
-}
 
 include(__DIR__ . '/../layout/header.php');
 include(__DIR__ . '/../layout/sidebar.php');

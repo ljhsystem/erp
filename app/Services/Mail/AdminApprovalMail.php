@@ -3,6 +3,7 @@
 declare(strict_types=1);
 namespace App\Services\Mail;
 
+use Core\Helpers\ConfigHelper;
 use Core\LoggerFactory;
 
 class AdminApprovalMail
@@ -60,7 +61,10 @@ class AdminApprovalMail
     // 기존 build() 로직을 재사용 (내부 필드 사용)
     public function build(): array
     {
-        $host = $_SERVER['HTTP_HOST'] ?? 'sukhyang.synology.me';
+        $baseUrl = rtrim((string)ConfigHelper::get('App.BaseUrl', ''), '/');
+        if ($baseUrl === '') {
+            throw new \RuntimeException('App.BaseUrl is not configured');
+        }
 
         // 시크릿 로드 (APP_SECRET → AppSecret → InternalApiSecret)
         $secret = $this->loadAppSecret();
@@ -109,8 +113,8 @@ class AdminApprovalMail
         }
 
         $approveUrl = sprintf(
-            'https://%s/approve_request?code=%s%s',
-            $host,
+            '%s/approve_request?code=%s%s',
+            $baseUrl,
             urlencode($this->userCode),
             $token ? '&approve_token=' . urlencode($token) : ''
         );

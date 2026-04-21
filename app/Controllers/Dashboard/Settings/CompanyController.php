@@ -4,7 +4,6 @@ namespace App\Controllers\Dashboard\Settings;
 
 use App\Services\System\CompanyService;
 use Core\DbPdo;
-use Core\Session;
 
 class CompanyController
 {
@@ -12,7 +11,6 @@ class CompanyController
 
     public function __construct()
     {
-        Session::requireAuth();
         $this->service = new CompanyService(DbPdo::conn());
     }
 
@@ -31,12 +29,6 @@ class CompanyController
         header('Content-Type: application/json; charset=utf-8');
 
         try {
-            $userId = $_SESSION['user']['id'] ?? null;
-            if (!$userId) {
-                http_response_code(401);
-                throw new \Exception('인증 정보가 없습니다.');
-            }
-
             $rawInput = file_get_contents('php://input');
             $decoded = $rawInput ? json_decode($rawInput, true) : null;
             $input = is_array($decoded) ? $decoded : $_POST;
@@ -94,7 +86,7 @@ class CompanyController
                 throw new \Exception('인스타그램은 URL 또는 계정명 형식으로 입력해주세요.');
             }
 
-            $result = $this->service->save($data, $userId);
+            $result = $this->service->save($data);
             http_response_code(!empty($result['success']) ? 200 : 400);
 
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
@@ -125,7 +117,7 @@ class CompanyController
 
         $date = \DateTime::createFromFormat('Y-m-d', $value);
         if (!$date || $date->format('Y-m-d') !== $value) {
-            throw new \Exception('설립일 형식이 올바르지 않습니다.');
+            throw new \Exception('날짜 형식이 올바르지 않습니다.');
         }
 
         return $value;

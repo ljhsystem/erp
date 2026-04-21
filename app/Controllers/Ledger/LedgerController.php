@@ -1,9 +1,8 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Controllers/Ledger/LedgerController.php'
+// 寃쎈줈: PROJECT_ROOT . '/app/Controllers/Ledger/LedgerController.php'
 
 namespace App\Controllers\Ledger;
 
-use Core\Session;
 use Core\DbPdo;
 use App\Controllers\System\LayoutController;
 
@@ -13,12 +12,11 @@ class LedgerController
 
     public function __construct()
     {
-        Session::requireAuth();
         $this->layout = new LayoutController(DbPdo::conn());
     }
 
     /* ============================================================
-     * 공통 렌더
+     * 怨듯넻 ?뚮뜑
      * ============================================================ */
 
     private function renderPage(string $viewPath, array $params = []): void
@@ -41,7 +39,7 @@ class LedgerController
     }
 
    /* ============================================================
-    * WEB: 장부 대시보드
+    * WEB: ?λ? ??쒕낫??
     * URL: GET /ledger
     * permission: web.ledger.index.view
     * controller: LedgerController@webIndex
@@ -49,7 +47,7 @@ class LedgerController
     public function webIndex(): void
     {
         $this->renderPage('/app/views/ledger/index.php', [
-            'pageTitle' => '거래원장 대시보드'
+            'pageTitle' => '회계관리'
         ]);
     }
 
@@ -58,7 +56,7 @@ class LedgerController
 
 
     /* ============================================================
-    * WEB: 계정과목 관리 화면
+    * WEB: 怨꾩젙怨쇰ぉ 愿由??붾㈃
     * URL: GET /ledger/accounts
     * permission: web.ledger.account.view
     * controller: LedgerController@webAccount
@@ -72,11 +70,23 @@ class LedgerController
 
 
     /* ============================================================
-    * WEB: 전표 관리 화면
+    * WEB: ?꾪몴 愿由??붾㈃
     * URL: GET /ledger/vouchers
     * permission: web.ledger.voucher.view
     * controller: LedgerController@webVoucher
     * ============================================================ */
+    /* ============================================================
+    * WEB: ?쇰컲 ?꾪몴 ?낅젰 ?붾㈃
+    * URL: GET /ledger/journal
+    * permission: web.ledger.journal.view
+    * controller: LedgerController@webJournal
+    * ============================================================ */
+    public function webJournal(): void
+    {
+        $this->renderPage('/app/views/ledger/journal/index.php', [
+            'pageTitle' => '?쇰컲?꾪몴?낅젰'
+        ]);
+    }
     public function webVoucher(): void
     {
         $this->renderPage('/app/views/ledger/voucher/index.php', [
@@ -85,3 +95,4 @@ class LedgerController
     }
 
 }
+

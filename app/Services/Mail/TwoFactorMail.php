@@ -70,7 +70,7 @@ class TwoFactorMail
     {
         $to = $this->user['email'] ?? '';
 
-        $code = $this->user['two_factor_code'] ?? ($_SESSION['pending_2fa']['code'] ?? '');
+        $code = $this->user['two_factor_code'] ?? '';
 
         if ($code === '') {
             $this->log("2FA 코드 없음: user=" . json_encode($this->user));

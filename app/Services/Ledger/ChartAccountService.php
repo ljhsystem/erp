@@ -1,446 +1,655 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Services/Ledger/ChartAccountService.php'
-// 설명:
-//  - 회계 계정과목 서비스
-//  - 계정 생성 / 수정 / 삭제 / 조회
-//  - 비즈니스 로직 담당
+
 namespace App\Services\Ledger;
 
-use PDO;
 use App\Models\Ledger\ChartAccountModel;
-use App\Models\Ledger\SubChartAccountModel;
+use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
+use PDO;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class ChartAccountService
 {
-    private readonly PDO $pdo;
     private ChartAccountModel $model;
-    private SubChartAccountModel $subModel;
+    private SubAccountPolicyService $policyService;
+    private CustomSubAccountService $customSubAccountService;
     private $logger;
 
-    public function __construct(PDO $pdo)
+    public function __construct(private readonly PDO $pdo)
     {
-        $this->pdo         = $pdo;
-        $this->model  = new ChartAccountModel($this->pdo);
-        $this->subModel = new SubChartAccountModel($this->pdo);
+        $this->model = new ChartAccountModel($pdo);
+        $this->policyService = new SubAccountPolicyService($pdo);
+        $this->customSubAccountService = new CustomSubAccountService($pdo);
         $this->logger = LoggerFactory::getLogger('service-ledger.ChartAccountService');
         $this->logger->info('ChartAccountService initialized');
     }
 
-    /* =========================================================
-     * 전체 계정 조회
-     * ========================================================= */
-
     public function getAll(): array
     {
         try {
-
-            $rows = $this->model->getAll();
-
-            return $rows;
-
+            return $this->model->getAll();
         } catch (\Throwable $e) {
-
             $this->logger->error('getAll failed', [
-                'exception' => $e->getMessage()
+                'exception' => $e->getMessage(),
             ]);
 
             return [];
         }
     }
-
-    /* =========================================================
-     * 계정 트리 조회
-     * ========================================================= */
 
     public function getTree(): array
     {
         try {
-
-            $rows = $this->model->getTree();
-
-            return $rows;
-
+            return $this->model->getTree();
         } catch (\Throwable $e) {
-
             $this->logger->error('getTree failed', [
-                'exception' => $e->getMessage()
+                'exception' => $e->getMessage(),
             ]);
 
             return [];
         }
     }
 
-    /* =========================================================
-     * 단건 조회
-     * ========================================================= */
-
     public function getById(string $id): ?array
     {
         try {
-
             return $this->model->getById($id);
-
         } catch (\Throwable $e) {
-
             $this->logger->error('getById failed', [
                 'id' => $id,
-                'exception' => $e->getMessage()
+                'exception' => $e->getMessage(),
             ]);
 
             return null;
         }
     }
-
-    /* =========================================================
-     * 계정코드 조회
-     * ========================================================= */
 
     public function getByAccountCode(string $accountCode): ?array
     {
         try {
-
             return $this->model->getByAccountCode($accountCode);
-
         } catch (\Throwable $e) {
-
             $this->logger->error('getByAccountCode failed', [
                 'account_code' => $accountCode,
-                'exception' => $e->getMessage()
+                'exception' => $e->getMessage(),
             ]);
 
             return null;
         }
     }
 
-    /* =========================================================
-     * 계정 생성
-     * ========================================================= */
+    public function create(array $data): array
+    {
+        try {
+            $actor = ActorHelper::user();
 
-     public function create(array $data): array
-     {
-         try {
-     
-             // 🔥 계정코드 중복 체크
-             $exists = $this->model->getByAccountCode($data['account_code']);
-     
-             if ($exists) {
-                 return [
-                     'success' => false,
-                     'message' => '이미 존재하는 계정코드입니다.'
-                 ];
-             }
-     
-             // 🔥 부모 계정 존재 체크
-             if (!empty($data['parent_id'])) {
-                 $parent = $this->model->getById($data['parent_id']);
-     
-                 if (!$parent) {
-                     return [
-                         'success' => false,
-                         'message' => '상위 계정이 존재하지 않습니다.'
-                     ];
-                 }
-             }
-     
-             $data['id'] = UuidHelper::generate();
-     
-             if (!$this->model->create($data)) {
-                 return [
-                     'success' => false,
-                     'message' => '계정 생성 실패'
-                 ];
-             }
-     
-             return [
-                 'success' => true,
-                 'id' => $data['id']
-             ];
-     
-         } catch (\Throwable $e) {
-     
-             $this->logger->error('create failed', [
-                 'data' => $data,
-                 'exception' => $e->getMessage()
-             ]);
-     
-             return [
-                 'success' => false,
-                 'message' => '계정 저장 중 오류가 발생했습니다.'
-             ];
-         }
-     }
+            if ($this->model->getByAccountCode($data['account_code'])) {
+                return [
+                    'success' => false,
+                    'message' => '이미 존재하는 계정코드입니다.',
+                ];
+            }
 
-    /* =========================================================
-     * 계정 수정
-     * ========================================================= */
+            if (!empty($data['parent_id']) && !$this->model->getById($data['parent_id'])) {
+                return [
+                    'success' => false,
+                    'message' => '상위 계정을 찾을 수 없습니다.',
+                ];
+            }
 
-     public function update(string $id, array $data): array
-     {
-         try {
-     
-             // 🔥 기존 데이터 조회 (핵심)
-             $existing = $this->model->getById($id);
-     
-             if (!$existing) {
-                 return [
-                     'success' => false,
-                     'message' => '계정을 찾을 수 없습니다.'
-                 ];
-             }
-     
-            // 🔥 기존 데이터 + 입력 데이터 병합
+            $this->pdo->beginTransaction();
+
+            $data['id'] = UuidHelper::generate();
+            $data['level'] = $this->resolveLevel($data['parent_id'] ?? null);
+            $data['allow_sub_account'] = 0;
+            $data['created_by'] = $actor;
+            $data['updated_by'] = $actor;
+
+            if (!$this->model->create($data)) {
+                $this->pdo->rollBack();
+
+                return [
+                    'success' => false,
+                    'message' => '계정 생성에 실패했습니다.',
+                ];
+            }
+
+            if (array_key_exists('sub_policies', $data)) {
+                $policyResult = $this->policyService->replacePolicies(
+                    $data['id'],
+                    $data['sub_policies'] ?? [],
+                    $data['updated_by'] ?? $data['created_by'] ?? null
+                );
+
+                if (!$policyResult['success']) {
+                    $this->pdo->rollBack();
+                    return $policyResult;
+                }
+            }
+
+            $this->syncLegacyAllowSubAccountFlag($data['id']);
+            $this->pdo->commit();
+
+            return [
+                'success' => true,
+                'id' => $data['id'],
+            ];
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            $this->logger->error('create failed', [
+                'data' => $data,
+                'exception' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => '계정 생성 중 오류가 발생했습니다. ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    public function update(string $id, array $data): array
+    {
+        try {
+            $data['updated_by'] = ActorHelper::user();
+            $existing = $this->model->getById($id);
+            if (!$existing) {
+                return [
+                    'success' => false,
+                    'message' => '怨꾩젙??李얠쓣 ???놁뒿?덈떎.',
+                ];
+            }
+
             $data = array_merge($existing, $data);
 
-            // 🔥 updated_by 강제 보정 (핵심)
-            if (empty($data['updated_by'])) {
-                throw new \Exception('updated_by 값이 없습니다.');
+            $exists = $this->model->getByAccountCode($data['account_code']);
+            if ($exists && $exists['id'] !== $id) {
+                return [
+                    'success' => false,
+                    'message' => '?대? 議댁옱?섎뒗 怨꾩젙肄붾뱶?낅땲??',
+                ];
             }
-     
-             // 🔥 이후부터 기존 로직 그대로 사용 가능
-     
-             $exists = $this->model->getByAccountCode($data['account_code']);
-     
-             if ($exists && $exists['id'] !== $id) {
-                 return [
-                     'success' => false,
-                     'message' => '이미 존재하는 계정코드입니다.'
-                 ];
-             }
-     
-             if (!empty($data['parent_id']) && $data['parent_id'] === $id) {
-                 return [
-                     'success' => false,
-                     'message' => '자기 자신을 상위 계정으로 설정할 수 없습니다.'
-                 ];
-             }
-     
-             if (!empty($data['parent_id'])) {
-                 $parent = $this->model->getById($data['parent_id']);
-     
-                 if (!$parent) {
-                     return [
-                         'success' => false,
-                         'message' => '상위 계정이 존재하지 않습니다.'
-                     ];
-                 }
-             }
-     
-             if (!$this->model->update($id, $data)) {
-                 return [
-                     'success' => false,
-                     'message' => '계정 수정 실패'
-                 ];
-             }
-     
-             return [
-                 'success' => true
-             ];
-     
-         } catch (\Throwable $e) {
-     
-             $this->logger->error('update failed', [
-                 'id' => $id,
-                 'data' => $data,
-                 'exception' => $e->getMessage()
-             ]);
-     
-             return [
-                 'success' => false,
-                 'message' => '계정 수정 중 오류가 발생했습니다.'
-             ];
-         }
-     }
 
-    /* =========================================================
-     * 계정 삭제
-     * ========================================================= */
-    public function softDelete(string $id, string $actor): array
+            if (!empty($data['parent_id']) && $data['parent_id'] === $id) {
+                return [
+                    'success' => false,
+                    'message' => '?먭린 ?먯떊???곸쐞 怨꾩젙?쇰줈 吏?뺥븷 ???놁뒿?덈떎.',
+                ];
+            }
+
+            if (!empty($data['parent_id']) && !$this->model->getById($data['parent_id'])) {
+                return [
+                    'success' => false,
+                    'message' => '?곸쐞 怨꾩젙??李얠쓣 ???놁뒿?덈떎.',
+                ];
+            }
+
+            $this->pdo->beginTransaction();
+
+            $data['level'] = $this->resolveLevel($data['parent_id'] ?? null);
+
+            if (!$this->model->update($id, $data)) {
+                $this->pdo->rollBack();
+
+                return [
+                    'success' => false,
+                    'message' => '怨꾩젙 ?섏젙???ㅽ뙣?덉뒿?덈떎.',
+                ];
+            }
+
+            if (array_key_exists('sub_policies', $data)) {
+                $policyResult = $this->policyService->replacePolicies(
+                    $id,
+                    $data['sub_policies'] ?? [],
+                    $data['updated_by'] ?? null
+                );
+
+                if (!$policyResult['success']) {
+                    $this->pdo->rollBack();
+                    return $policyResult;
+                }
+            }
+
+            $this->syncLegacyAllowSubAccountFlag($id);
+            $this->pdo->commit();
+
+            return ['success' => true];
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            $this->logger->error('update failed', [
+                'id' => $id,
+                'data' => $data,
+                'exception' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => '怨꾩젙 ?섏젙 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.',
+            ];
+        }
+    }
+
+    public function softDelete(string $id): array
     {
+        $actor = ActorHelper::user();
         if ($this->model->hasChildren($id)) {
             return [
                 'success' => false,
-                'message' => '하위 계정이 존재하여 삭제할 수 없습니다.'
+                'message' => '?섏쐞 怨꾩젙??議댁옱?섏뿬 ??젣?????놁뒿?덈떎.',
             ];
         }
-    
-        $ok = $this->model->softDelete($id, $actor);
-    
-        return ['success' => $ok];
-    }
-    public function restore(string $id, string $actor): array
-    {
-        return [
-            'success' => $this->model->restore($id, $actor)
-        ];
+
+        return ['success' => $this->model->softDelete($id, $actor)];
     }
 
+    public function restore(string $id): array
+    {
+        $actor = ActorHelper::user();
+        return ['success' => $this->model->restore($id, $actor)];
+    }
 
     public function getTrashList(): array
     {
         return $this->model->getTrashList();
     }
-    
-    public function hardDelete(string $id, string $actor): array
+
+    public function hardDelete(string $id): array
     {
+        $actor = ActorHelper::user();
         if ($this->model->hasChildren($id)) {
             return [
                 'success' => false,
-                'message' => '하위 계정 존재 → 완전삭제 불가'
+                'message' => '?섏쐞 怨꾩젙??議댁옱?섏뿬 ?꾩쟾 ??젣?????놁뒿?덈떎.',
             ];
         }
-    
-        return [
-            'success' => $this->model->hardDelete($id, $actor)
-        ];
-    }
 
-    /* =========================================================
-    * 하위 계정 존재 여부
-    * ========================================================= */
+        return ['success' => $this->model->hardDelete($id, $actor)];
+    }
 
     public function hasChildren(string $id): bool
     {
         return $this->model->hasChildren($id);
     }
 
-    /* =========================================================
-    * 트리 구조 변환 (핵심)
-    * ========================================================= */
     public function getTreeStructured(): array
     {
         $rows = $this->model->getTree();
-    
         $map = [];
         $tree = [];
-    
-        // 1. 맵 구성
+
         foreach ($rows as &$row) {
             $row['children'] = [];
             $map[$row['id']] = &$row;
         }
-    
-        // 2. 트리 구성
+
         foreach ($rows as &$row) {
-    
             if (!empty($row['parent_id']) && isset($map[$row['parent_id']])) {
                 $map[$row['parent_id']]['children'][] = &$row;
             } else {
                 $tree[] = &$row;
             }
         }
-    
+
         return $tree;
     }
 
-
-    public function findByCode(string $code)
+    public function findByCode(string $code): ?array
     {
         return $this->model->findByCode($code);
     }
 
-
     public function createSubAccount(array $data): array
     {
+        return $this->customSubAccountService->create($data);
+    }
+
+    public function saveFromExcelFile(string $filePath): array
+    {
         try {
+            $spreadsheet = IOFactory::load($filePath);
+            $sheet = $spreadsheet->getActiveSheet();
+            $rows = $sheet->toArray(null, false, false, false);
 
-            $accountId = $data['account_id'] ?? null;
-            $subName   = trim((string)($data['sub_name'] ?? ''));
-            if (empty($data['created_by'])) {
-                throw new \Exception('created_by 값 없음');
-            }
-            
-            $createdBy = $data['created_by'];
-
-            if (!$accountId || $subName === '') {
+            if (empty($rows) || count($rows) < 2) {
                 return [
                     'success' => false,
-                    'message' => '보조계정 생성값 부족'
+                    'message' => '업로드할 데이터가 없습니다.',
                 ];
             }
 
-            // 🔥 중복 체크 → Model
-            $exists = $this->subModel->findByAccountAndName($accountId, $subName);
+            $headerAliases = [
+                '계정명' => 'account_name',
+                'account_name' => 'account_name',
+                '계정코드' => 'account_code',
+                'account_code' => 'account_code',
+                '상위계정' => 'parent_code',
+                '상위계정코드' => 'parent_code',
+                'parent_code' => 'parent_code',
+                '사용여부' => 'is_active',
+                'is_active' => 'is_active',
+                '비고' => 'note',
+                'note' => 'note',
+                '구분' => 'account_group',
+                '계정구분' => 'account_group',
+                'account_group' => 'account_group',
+                '보조계정' => 'sub_name',
+                'sub_name' => 'sub_name',
+            ];
 
-            if ($exists) {
+            $excelHeaders = array_map(
+                static fn ($value) => trim((string) $value),
+                $rows[0]
+            );
+
+            $columnMap = [];
+            foreach ($excelHeaders as $index => $headerName) {
+                if (isset($headerAliases[$headerName])) {
+                    $columnMap[$headerAliases[$headerName]] = $index;
+                }
+            }
+
+            if (!isset($columnMap['account_name']) || !isset($columnMap['account_code'])) {
                 return [
-                    'success' => true,
-                    'message' => '이미 존재',
-                    'id' => $exists['id']
+                    'success' => false,
+                    'message' => '엑셀 양식이 올바르지 않습니다. [계정명, 계정코드] 컬럼이 필요합니다.',
                 ];
             }
 
-            // 🔥 코드 생성 → Model
-            $subCode = $this->subModel->getNextSubCode($accountId);
+            array_shift($rows);
 
-            $id = UuidHelper::generate();
+            $createdCount = 0;
+            $updatedCount = 0;
+            $errors = [];
 
-            // 🔥 insert → Model
-            $ok = $this->subModel->create([
-                'id'         => $id,
-                'account_id' => $accountId,
-                'sub_code'   => $subCode,
-                'sub_name'   => $subName,
-                'created_by' => $createdBy,
-                'updated_by' => $createdBy
+            foreach ($rows as $rowIndex => $row) {
+                if (count(array_filter($row, static fn ($value) => trim((string) $value) !== '')) === 0) {
+                    continue;
+                }
+
+                $accountCode = trim((string) ($row[$columnMap['account_code']] ?? ''));
+                $accountName = trim((string) ($row[$columnMap['account_name']] ?? ''));
+                $parentCode = trim((string) ($row[$columnMap['parent_code']] ?? ''));
+                $rawIsActive = trim((string) ($row[$columnMap['is_active']] ?? ''));
+                $note = trim((string) ($row[$columnMap['note']] ?? ''));
+                $accountGroup = trim((string) ($row[$columnMap['account_group']] ?? ''));
+                $subName = trim((string) ($row[$columnMap['sub_name']] ?? ''));
+
+                if ($accountCode === '' || $accountName === '') {
+                    $errors[] = ($rowIndex + 2) . '행: 계정코드 또는 계정명이 비어 있습니다.';
+                    continue;
+                }
+
+                $existing = $this->findByCode($accountCode);
+                $parent = null;
+                $parentId = null;
+
+                if ($parentCode !== '') {
+                    $parent = $this->findByCode($parentCode);
+                    if (!$parent) {
+                        $errors[] = ($rowIndex + 2) . "행: 상위계정 [{$parentCode}]를 찾을 수 없습니다.";
+                        continue;
+                    }
+
+                    $parentId = $parent['id'] ?? null;
+                }
+
+                if ($accountGroup === '') {
+                    if ($existing && !empty($existing['account_group'])) {
+                        $accountGroup = (string) $existing['account_group'];
+                    } elseif ($parent && !empty($parent['account_group'])) {
+                        $accountGroup = (string) $parent['account_group'];
+                    }
+                }
+
+                if ($accountGroup === '') {
+                    $errors[] = ($rowIndex + 2) . "행: 신규 계정 [{$accountCode}]의 구분 값을 확인해주세요.";
+                    continue;
+                }
+
+                $isActive = $this->normalizeExcelBoolean($rawIsActive, (int) ($existing['is_active'] ?? 1));
+                $normalBalance = in_array($accountGroup, ['자산', '비용'], true) ? 'debit' : 'credit';
+
+                $payload = [
+                    'account_code' => $accountCode,
+                    'account_name' => $accountName,
+                    'parent_id' => $parentId,
+                    'account_group' => $accountGroup,
+                    'normal_balance' => $normalBalance,
+                    'is_posting' => 1,
+                    'is_active' => $isActive,
+                    'note' => $note,
+                ];
+
+                if ($existing) {
+                    $result = $this->update($existing['id'], $payload);
+                    if (!$result['success']) {
+                        $errors[] = ($rowIndex + 2) . "행: {$accountCode} 수정 실패 - " . ($result['message'] ?? '원인을 확인할 수 없습니다.');
+                        continue;
+                    }
+
+                    $updatedCount++;
+                    $accountId = $existing['id'];
+                } else {
+                    $result = $this->create($payload);
+                    if (!$result['success']) {
+                        $errors[] = ($rowIndex + 2) . "행: {$accountCode} 생성 실패 - " . ($result['message'] ?? '원인을 확인할 수 없습니다.');
+                        continue;
+                    }
+
+                    $createdCount++;
+                    $accountId = $result['id'] ?? null;
+                }
+
+                if ($subName !== '' && $accountId) {
+                    $subResult = $this->createSubAccount([
+                        'account_id' => $accountId,
+                        'sub_name' => $subName,
+                    ]);
+
+                    if (!($subResult['success'] ?? false)) {
+                        $errors[] = ($rowIndex + 2) . "행: {$accountCode} 보조계정 생성 실패 - " . ($subResult['message'] ?? '원인을 확인할 수 없습니다.');
+                    }
+                }
+            }
+
+            $processedCount = $createdCount + $updatedCount;
+            $errorCount = count($errors);
+
+            if ($processedCount === 0 && $errorCount > 0) {
+                return [
+                    'success' => false,
+                    'message' => '엑셀 업로드에 실패했습니다. ' . $errors[0],
+                    'created_count' => $createdCount,
+                    'updated_count' => $updatedCount,
+                    'errors' => $errors,
+                ];
+            }
+
+            $message = "엑셀 업로드 완료 (생성 {$createdCount}건, 수정 {$updatedCount}건";
+            if ($errorCount > 0) {
+                $message .= ", 실패 {$errorCount}건";
+            }
+            $message .= ')';
+
+            return [
+                'success' => true,
+                'message' => $message,
+                'created_count' => $createdCount,
+                'updated_count' => $updatedCount,
+                'errors' => $errors,
+            ];
+        } catch (\Throwable $e) {
+            $this->logger->error('saveFromExcelFile failed', [
+                'file' => $filePath,
+                'exception' => $e->getMessage(),
             ]);
 
             return [
-                'success' => $ok,
-                'id' => $id
-            ];
-
-        } catch (\Throwable $e) {
-
-            return [
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => '엑셀 업로드 중 오류가 발생했습니다. ' . $e->getMessage(),
+                'error' => $e->getMessage(),
             ];
         }
     }
     public function getList(array $filters = []): array
     {
-        return $this->model->getList($filters);
+        $modelFilters = [];
+        $statusFilters = [];
+
+        foreach ($filters as $filter) {
+            $field = $filter['field'] ?? '';
+            if ($field === 'sub_account_status') {
+                $statusFilters[] = $filter;
+                continue;
+            }
+
+            $modelFilters[] = $filter;
+        }
+
+        $rows = $this->model->getList($modelFilters);
+
+        foreach ($rows as &$row) {
+            $accountId = (string) ($row['id'] ?? '');
+            $allowSubAccount = (int) ($row['allow_sub_account'] ?? 0);
+            $hasSubAccounts = $accountId !== '' && $this->customSubAccountService->countByAccountId($accountId) > 0;
+
+            $row['sub_account_status'] = $hasSubAccounts
+                ? '사용중'
+                : ($allowSubAccount === 1 ? '가능' : '미사용');
+        }
+        unset($row);
+
+        if (!empty($statusFilters)) {
+            $rows = array_values(array_filter($rows, static function (array $row) use ($statusFilters): bool {
+                $status = (string) ($row['sub_account_status'] ?? '');
+
+                foreach ($statusFilters as $filter) {
+                    $value = trim((string) ($filter['value'] ?? ''));
+                    if ($value === '') {
+                        continue;
+                    }
+
+                    if (mb_stripos($status, $value, 0, 'UTF-8') === false) {
+                        return false;
+                    }
+                }
+
+                return true;
+            }));
+        }
+
+        $this->logger->info('getList returned', [
+            'count' => count($rows),
+        ]);
+
+        return $rows;
     }
-    // 순서변경
+
     public function reorder(array $changes): void
     {
         foreach ($changes as $row) {
             $this->model->updateOrder(
                 $row['id'],
-                (int)$row['newCode']
+                (int) $row['newCode']
             );
         }
     }
 
     public function getDetailByAccountCode(string $accountCode): ?array
     {
-        return $this->model->getDetailByAccountCode($accountCode);
+        $row = $this->model->getDetailByAccountCode($accountCode);
+
+        if (!$row) {
+            return null;
+        }
+
+        $row['sub_policies'] = $this->policyService->getByAccountId($row['id']);
+        $row['allow_sub_account_computed'] = (
+            count($row['sub_policies']) > 0
+            || $this->customSubAccountService->countByAccountId($row['id']) > 0
+        ) ? 1 : 0;
+
+        return $row;
     }
 
     public function restoreBulk(array $ids): void
     {
-        if(empty($ids)) return;
+        if (empty($ids)) {
+            return;
+        }
 
         $in = implode(',', array_fill(0, count($ids), '?'));
 
-        $sql = "
+        $stmt = $this->pdo->prepare("
             UPDATE ledger_accounts
             SET deleted_at = NULL,
                 deleted_by = NULL
             WHERE id IN ($in)
-        ";
+        ");
 
-        $stmt = $this->pdo->prepare($sql);
         $stmt->execute($ids);
+    }
+
+    public function restoreAll(): void
+    {
+        $this->pdo->exec("
+            UPDATE ledger_accounts
+            SET deleted_at = NULL,
+                deleted_by = NULL
+            WHERE deleted_at IS NOT NULL
+        ");
     }
 
     public function hardDeleteAll(): void
     {
-        $sql = "DELETE FROM ledger_accounts WHERE deleted_at IS NOT NULL";
-        $this->pdo->exec($sql);
+        $this->pdo->exec("DELETE FROM ledger_accounts WHERE deleted_at IS NOT NULL");
     }
 
+    private function resolveLevel(?string $parentId): int
+    {
+        if (!$parentId) {
+            return 1;
+        }
 
+        $parent = $this->model->getById($parentId);
+
+        return $parent ? ((int) $parent['level'] + 1) : 1;
+    }
+
+    private function syncLegacyAllowSubAccountFlag(string $accountId): void
+    {
+        $hasPolicies = $this->policyService->countByAccountId($accountId) > 0;
+        $hasCustom = $this->customSubAccountService->countByAccountId($accountId) > 0;
+
+        $this->model->updateAllowSubAccount(
+            $accountId,
+            ($hasPolicies || $hasCustom) ? 1 : 0
+        );
+    }
+
+    private function normalizeExcelBoolean(string $value, int $default): int
+    {
+        if ($value === '') {
+            return $default;
+        }
+
+        $normalized = mb_strtolower(trim($value), 'UTF-8');
+
+        if (in_array($normalized, ['1', 'y', 'yes', 'true', '사용', '사용함'], true)) {
+            return 1;
+        }
+
+        if (in_array($normalized, ['0', 'n', 'no', 'false', '미사용', '사용안함'], true)) {
+            return 0;
+        }
+
+        return $default;
+    }
 }

@@ -3,7 +3,6 @@
 // 대시보드>설정>조직관리>부서 API 컨트롤러
 namespace App\Controllers\Dashboard\Settings;
 
-use Core\Session;
 use Core\DbPdo;
 use App\Services\User\DepartmentService;
 
@@ -13,7 +12,6 @@ class DepartmentController
 
     public function __construct()
     {
-        Session::requireAuth();
         $this->service = new DepartmentService(DbPdo::conn());
     }
 
@@ -129,7 +127,6 @@ class DepartmentController
             'manager_id' => $managerId ?: null,
             'description' => $description,
             'is_active'  => $isActive,
-            'created_by' => $_SESSION['user']['id'] ?? null
         ];
 
         $ok = $this->service->create($payload);
@@ -164,7 +161,6 @@ class DepartmentController
             'manager_id'  => $managerId,
             'description' => trim($_POST['description'] ?? ''),
             'is_active'   => (int)($_POST['is_active'] ?? 1),
-            'updated_by'  => $_SESSION['user']['id'] ?? null
         ];
 
         $ok = $this->service->update($id, $payload);

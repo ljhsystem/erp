@@ -3,7 +3,6 @@
 // 대시보드>설정>조직관리>역할 API 컨트롤러
 namespace App\Controllers\Dashboard\Settings;
 
-use Core\Session;
 use Core\DbPdo;
 use App\Services\Auth\RoleService;
 
@@ -13,7 +12,6 @@ class RoleController
 
     public function __construct()
     {
-        Session::requireAuth();
         $this->service = new RoleService(DbPdo::conn());
     }
 
@@ -131,7 +129,6 @@ class RoleController
             'role_name'   => $roleName,
             'description' => $desc,
             'is_active'   => $active,
-            'created_by'  => $_SESSION['user']['id'] ?? null
         ];
 
         $result = $this->service->create($payload);
@@ -160,7 +157,6 @@ class RoleController
             'role_name'   => trim($_POST['role_name'] ?? ''),
             'description' => trim($_POST['description'] ?? '') ?: null,
             'is_active'   => (int)($_POST['is_active'] ?? 1),
-            'updated_by'  => $_SESSION['user']['id'] ?? null
         ];
 
         $result = $this->service->update($id, $payload);

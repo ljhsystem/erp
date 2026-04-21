@@ -469,7 +469,7 @@ class ClientService
             * INSERT
             * ========================================================= */
             $newId   = UuidHelper::generate();
-            $newCode = CodeHelper::generateClientCode($this->pdo);
+            $newCode = CodeHelper::next('system_clients');
 
             $insertData = array_merge($data, [
                 'id'         => $newId,

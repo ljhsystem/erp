@@ -3,7 +3,6 @@
 // 대시보드>메인 WEB 컨트롤러
 namespace App\Controllers\Dashboard;
 
-use Core\Session;
 use Core\DbPdo;
 use App\Controllers\System\LayoutController;
 // use App\Services\Calendar\QueryService;
@@ -17,7 +16,6 @@ class DashboardController
 
     public function __construct()
     {
-        Session::requireAuth();
         $this->layout = new LayoutController(DbPdo::conn());
         // $this->queryService = new QueryService(DbPdo::conn());
         // $this->calendarSync = new SyncService(DbPdo::conn());
@@ -31,7 +29,6 @@ class DashboardController
      * ============================================================ */
     private function renderPage(string $viewPath, array $params = []): void
     {
-        Session::requireAuth();
 
         // 1️⃣ 기본 파라미터만 extract
         if (!empty($params)) {

@@ -3,6 +3,8 @@
 
 namespace Core\Helpers;
 
+use App\Services\Auth\AuthSessionService;
+
 class ActorHelper
 {
     /**
@@ -10,9 +12,7 @@ class ActorHelper
      */
     public static function user(): string
     {
-        $user = $_SESSION['user'] ?? [];
-
-        $userId = $user['id'] ?? null;
+        $userId = (new AuthSessionService())->getCurrentUserId();
 
         if (!$userId) {
             throw new \Exception('로그인 사용자 없음');

@@ -3,7 +3,6 @@
 
 namespace App\Controllers\Dashboard\Settings;
 
-use Core\Session;
 use Core\DbPdo;
 use App\Services\System\CardService;
 
@@ -13,7 +12,6 @@ class CardController
 
     public function __construct()
     {
-        Session::requireAuth();
         $this->service = new CardService(DbPdo::conn());
     }
 

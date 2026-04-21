@@ -4,6 +4,7 @@ namespace App\Services\Approval;
 
 use PDO;
 use App\Models\User\ApprovalTemplateStepModel;
+use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
 
@@ -85,6 +86,7 @@ class TemplateStepService
 
             // 🔥 기본값
             $data['is_active'] = $data['is_active'] ?? 1;
+            $data['created_by'] = ActorHelper::user();
 
             $ok = $this->model->create($data);
 
@@ -109,6 +111,7 @@ class TemplateStepService
     public function update(string $id, array $data): array
     {
         try {
+            $data['updated_by'] = ActorHelper::user();
             $existing = $this->getById($id);
             if (!$existing) {
                 return ['success' => false, 'message' => 'not_found'];

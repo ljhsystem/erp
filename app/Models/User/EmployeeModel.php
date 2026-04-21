@@ -595,6 +595,54 @@ class EmployeeModel
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
+    public function getByUsername(string $username): ?array
+    {
+        $sql = "
+            SELECT
+                p.*,
+                u.username,
+                u.email,
+                u.role_id,
+                u.is_active,
+                u.approved
+            FROM user_employees p
+            INNER JOIN auth_users u
+                ON p.user_id = u.id
+            WHERE u.username = :username
+            LIMIT 1
+        ";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute(['username' => $username]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
+    public function getByEmail(string $email): ?array
+    {
+        $sql = "
+            SELECT
+                p.*,
+                u.username,
+                u.email,
+                u.role_id,
+                u.is_active,
+                u.approved
+            FROM user_employees p
+            INNER JOIN auth_users u
+                ON p.user_id = u.id
+            WHERE u.email = :email
+            LIMIT 1
+        ";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute(['email' => $email]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
 
     
     /* =========================================================
@@ -701,17 +749,10 @@ class EmployeeModel
 
         $stmt = $this->db->prepare($sql);
 
-        /* =========================================================
-        * 필수값 검증
-        * ========================================================= */
-        if (empty($data['created_by'])) {
-            throw new \Exception('created_by 없음');
-        }
-
         return $stmt->execute([
 
             'id'               => $data['id'],
-            'code'             => $data['code'],
+            'code'             => $data['code'] ?? null,
             'user_id'          => $data['user_id'],
             'employee_name'    => $data['employee_name'],
 
@@ -754,10 +795,6 @@ class EmployeeModel
     * ========================================================= */
     public function updateById(string $id, array $data): bool
     {
-        if (empty($data['updated_by'])) {
-            throw new \Exception('updated_by 없음');
-        }
-
         $sql = "
             UPDATE user_employees SET
                 employee_name = :employee_name,
@@ -889,16 +926,10 @@ class EmployeeModel
 
         $stmt = $this->db->prepare($sql);
 
-        $ok = $stmt->execute([
+        return $stmt->execute([
             'newCode' => (int)$newCode,
             'id'      => $id
         ]);
-
-        if (!$ok) {
-            throw new \Exception('쿼리 실행 실패');
-        }
-
-        return true;
     }
 
 }

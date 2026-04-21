@@ -3,7 +3,6 @@
 
 namespace App\Controllers\Dashboard\Settings;
 
-use Core\Session;
 use Core\DbPdo;
 use App\Services\System\BankAccountService;
 
@@ -13,7 +12,6 @@ class BankAccountController
 
     public function __construct()
     {
-        Session::requireAuth();
         $this->service = new BankAccountService(DbPdo::conn());
     }
 

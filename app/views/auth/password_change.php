@@ -6,8 +6,8 @@ header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 header('Expires: 0');
 
-$message = $_SESSION['password_message'] ?? '';
-unset($_SESSION['password_message']);
+$message = $message ?? '';
+$isForceChange = $isForceChange ?? false;
 ?>
 
 <!DOCTYPE html>
@@ -143,11 +143,13 @@ unset($_SESSION['password_message']);
                 </form>
 
                 <!-- ✔ form 밖 -->
-                <div class="d-grid gap-2 mt-2">
-                    <button type="button" id="btnLater" class="btn btn-outline-secondary py-2">
-                        다음에 변경하기
-                    </button>
-                </div>
+                <?php if ($isForceChange): ?>
+                    <div class="d-grid gap-2 mt-2">
+                        <button type="button" id="btnLater" class="btn btn-outline-secondary py-2">
+                            다음에 변경하기
+                        </button>
+                    </div>
+                <?php endif; ?>
 
 
 
@@ -155,89 +157,11 @@ unset($_SESSION['password_message']);
         </div>
     </div>
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-
-            const form = document.getElementById('passwordChangeForm');
-            const btnLater = document.getElementById('btnLater');
-
-            if (!form) return;
-
-            // 🔥 현재 비밀번호 input 존재 여부로 강제 변경 판단
-            const currentEl = document.getElementById('current_password');
-            const isForceChange = !currentEl; // 없으면 강제 변경
-
-
-            form.addEventListener('submit', async (e) => {
-                e.preventDefault();
-
-                const currentEl = document.getElementById('current_password');
-                const isForceChange = !currentEl; // ⭐ 핵심
-
-                const currentPassword = currentEl ? currentEl.value.trim() : '';
-                const newPassword = document.getElementById('new_password').value.trim();
-                const confirmPassword = document.getElementById('confirm_password').value.trim();
-
-                // ✅ 필수값 검사
-                if (!newPassword || !confirmPassword || (!isForceChange && !currentPassword)) {
-                    return alert('모든 항목을 입력해 주세요.');
-                }
-
-                if (newPassword !== confirmPassword) {
-                    return alert('새 비밀번호가 일치하지 않습니다.');
-                }
-
-                const payload = {
-                    new_password: newPassword,
-                    confirm_password: confirmPassword
-                };
-
-                if (!isForceChange) {
-                    payload.current_password = currentPassword;
-                }
-
-                const res = await fetch('/api/auth/password/change', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    credentials: 'include',
-                    body: JSON.stringify(payload)
-                });
-
-                const data = await res.json();
-
-                if (!res.ok || !data.success) {
-                    alert(data.message || '비밀번호 변경에 실패했습니다.');
-                    return;
-                }
-
-                alert('비밀번호가 성공적으로 변경되었습니다.');
-                window.location.href = data.redirect || '/dashboard';
-            });
-
-
-            // ⏳ 나중에 변경
-            if (btnLater) {
-                btnLater.addEventListener('click', async () => {
-                    const res = await fetch('/api/auth/password/change-later', {
-                        method: 'POST',
-                        credentials: 'include'
-                    });
-
-                    const data = await res.json();
-
-                    if (!data.success) {
-                        alert(data.message || '처리 실패');
-                        return;
-                    }
-
-                    window.location.href = data.redirect || '/dashboard';
-                });
-            }
-
-        });
+        window.AUTH_PASSWORD_CHANGE = {
+            isForceChange: <?= $isForceChange ? 'true' : 'false' ?>
+        };
     </script>
+    <?= AssetHelper::js('/assets/js/pages/auth/password_change.js') ?>
 
 
 </body>

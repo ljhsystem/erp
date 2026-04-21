@@ -1,4 +1,3 @@
-// 경로: PROJECT_ROOT . '/public/assets/js/common/picker/admin_picker.js'
 import { createDatePicker } from './picker.base.js';
 import { createMiniPicker } from './picker.mini.js';
 import { createDateTimePicker } from './picker.datetime.js';
@@ -9,103 +8,137 @@ import { bindOutsideClick } from './ui.util.js';
 import { createAccountPicker } from './picker.account.js';
 import { PickerSelect2 } from './picker.select2.js';
 
+let activePopupPicker = null;
+
 function withPopup(picker, container) {
-  let unbind = null;
+  let unbindOutside = null;
+  let removeEscListener = null;
 
   picker.open = ({ anchor, offset = 8 } = {}) => {
     if (!anchor) return;
 
+    if (activePopupPicker && activePopupPicker !== picker) {
+      activePopupPicker.close();
+    }
+
+    container.classList.add('picker');
     container.classList.remove('is-hidden');
     container.style.position = 'fixed';
-    container.style.zIndex = 9999;
+    container.style.zIndex = '10020';
     container.style.opacity = '0';
     container.style.pointerEvents = 'none';
+    container.style.background = '#ffffff';
+    container.style.border = '1px solid rgba(15, 23, 42, 0.12)';
+    container.style.borderRadius = '12px';
+    container.style.boxShadow = '0 18px 48px rgba(15, 23, 42, 0.18)';
+    container.style.overflow = 'visible';
 
-    const r = anchor.getBoundingClientRect();
+    const anchorRect = anchor.getBoundingClientRect();
 
     container.style.setProperty(
       '--picker-anchor-width',
-      `${Math.round(r.width)}px`
+      `${Math.round(anchorRect.width)}px`
     );
 
     requestAnimationFrame(() => {
-      const p = container.getBoundingClientRect();
+      const popupRect = container.getBoundingClientRect();
       const vw = window.innerWidth;
       const vh = window.innerHeight;
 
-      let left = r.left;
-      let top  = r.bottom + offset;
+      let left = anchorRect.left;
+      let top = anchorRect.bottom + offset;
 
-      if (top + p.height > vh - 8) {
-        top = r.top - p.height - offset;
+      if (top + popupRect.height > vh - 8) {
+        top = anchorRect.top - popupRect.height - offset;
       }
 
       if (top < 8) {
-        top = Math.min(r.bottom + offset, vh - p.height - 8);
+        top = Math.min(anchorRect.bottom + offset, vh - popupRect.height - 8);
       }
 
-      if (left + p.width > vw - 8) {
-        left = vw - p.width - 8;
+      if (left + popupRect.width > vw - 8) {
+        left = vw - popupRect.width - 8;
       }
+
       if (left < 8) {
         left = 8;
       }
 
       container.style.left = `${Math.round(left)}px`;
-      container.style.top  = `${Math.round(top)}px`;
-
+      container.style.top = `${Math.round(top)}px`;
       container.style.opacity = '1';
       container.style.pointerEvents = '';
     });
 
-    unbind?.();
+    const panel = container.querySelector('.admin-picker__panel');
+    if (panel) {
+      panel.style.background = '#ffffff';
+      panel.style.opacity = '1';
+      panel.style.border = '1px solid rgba(15, 23, 42, 0.08)';
+      panel.style.borderRadius = '12px';
+      panel.style.boxShadow = '0 18px 48px rgba(15, 23, 42, 0.12)';
+      panel.style.position = 'relative';
+      panel.style.zIndex = '10021';
+      panel.style.overflow = 'visible';
+    }
+
+    unbindOutside?.();
     window.setTimeout(() => {
-      unbind?.();
-      unbind = bindOutsideClick(
-        container,
-        picker.close,
-        [anchor]
-      );
+      unbindOutside?.();
+      unbindOutside = bindOutsideClick(container, () => picker.close(), [anchor]);
     }, 0);
 
-    /* =========================
-      🔥 핵심 추가 (ESC 등록)
-    ========================= */
-    const closeHandler = () => picker.close();
+    removeEscListener?.();
+    const escHandler = (event) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      picker.close();
+    };
 
-    picker._escHandler = closeHandler;
-
-    if(window.ESCStack){
-      window.ESCStack.push(closeHandler);
-    }    
+    document.addEventListener('keydown', escHandler, true);
+    removeEscListener = () => document.removeEventListener('keydown', escHandler, true);
+    activePopupPicker = picker;
   };
 
   picker.close = () => {
     container.classList.add('is-hidden');
     container.style.opacity = '';
     container.style.pointerEvents = '';
-    unbind?.();
-    unbind = null;
-    /* =========================
-      🔥 핵심 추가 (ESC 제거)
-    ========================= */
-    if(picker._escHandler && window.ESCStack){
-      window.ESCStack.remove(picker._escHandler);
-      picker._escHandler = null;
+    container.style.background = '';
+    container.style.border = '';
+    container.style.borderRadius = '';
+    container.style.boxShadow = '';
+    container.style.overflow = '';
+
+    const panel = container.querySelector('.admin-picker__panel');
+    if (panel) {
+      panel.style.background = '';
+      panel.style.opacity = '';
+      panel.style.border = '';
+      panel.style.borderRadius = '';
+      panel.style.boxShadow = '';
+      panel.style.position = '';
+      panel.style.zIndex = '';
+      panel.style.overflow = '';
+    }
+
+    unbindOutside?.();
+    unbindOutside = null;
+
+    removeEscListener?.();
+    removeEscListener = null;
+
+    if (activePopupPicker === picker) {
+      activePopupPicker = null;
     }
   };
 
   return picker;
 }
 
-/* =====================================================
- * Picker Factory
- * ===================================================== */
 function create({ type, container, options = {} }) {
-  console.log('[AdminPicker] create', { type, container, options });
-
   if (container.__pickerInstance) {
-    console.log('[AdminPicker] reuse existing instance', { type });
     return container.__pickerInstance;
   }
 
@@ -148,9 +181,6 @@ function create({ type, container, options = {} }) {
   return picker;
 }
 
-/* =====================================================
- * Select2 Wrapper
- * ===================================================== */
 function select2(target, options = {}) {
   return PickerSelect2.create(target, options);
 }
@@ -178,13 +208,12 @@ function reloadSelect2(target, items = [], valueKey = 'id', textKey = 'text', se
 const AdminPicker = {
   create,
   bindOutsideClick,
-
   select2,
   select2Ajax,
   destroySelect2,
   setSelect2Value,
   clearSelect2,
-  reloadSelect2
+  reloadSelect2,
 };
 
 window.AdminPicker = AdminPicker;

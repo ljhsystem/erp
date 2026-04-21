@@ -4,6 +4,7 @@ namespace App\Services\Approval;
 
 use PDO;
 use App\Models\User\ApprovalTemplateModel;
+use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
 
@@ -73,6 +74,7 @@ class TemplateService
         // Normalize
         $data['template_name'] = $this->normalize($data['template_name']);
         $data['document_type'] = $this->normalize($data['document_type']);
+        $data['updated_by'] = ActorHelper::user();
 
         $this->logger->info('[Template Create] 입력', $data);
 
@@ -93,6 +95,7 @@ class TemplateService
         // 생성
         $id  = UuidHelper::generate();
         $key = $this->generateTemplateKey($data['template_name']);
+        $data['created_by'] = ActorHelper::user();
 
         $this->logger->info('[Template Create] 생성 진행', [
             'id'  => $id,

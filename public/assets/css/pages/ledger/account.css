@@ -686,47 +686,30 @@ html, body{
    휴지통
 ========================= */
 
-.account-trash-layout{
-    position:relative;
+#accountTrashModal .trash-layout{
     height:420px;
-    overflow:hidden;
 }
 
 /* 좌측 리스트 */
-.trash-left{
+#accountTrashModal .trash-left{
     height:100%;
     overflow-y:auto;
-    transition:width .25s ease;
-    width:100%;
 }
 
 /* 상세 열렸을 때 좌측 축소 */
-.account-trash-layout.detail-open .trash-left{
-    width:calc(100% - 420px);
+#accountTrashModal .trash-layout.open .trash-right{
+    flex:0 0 420px;
 }
 
 /* 오른쪽 상세 */
-.trash-right{
-    position:absolute;
-    top:0;
-    right:0;
-
-    width:420px;
-    height:100%;
-
+#accountTrashModal .trash-right{
     background:#fafafa;
     border-left:1px solid #ddd;
-
-    display:flex;
-    flex-direction:column;
-
-    transform:translateX(100%);
-    transition:transform .25s ease;
 }
 
 /* 열림 */
-.trash-right.open{
-    transform:translateX(0);
+#accountTrashModal .trash-layout:not(.open) .trash-right{
+    border-left:none;
 }
 
 
@@ -734,7 +717,7 @@ html, body{
 
 
 /* 상세 */
-#account-trash-detail{
+#accountTrashModal #account-trash-detail{
     flex:1;
     overflow-y:auto;
     padding:20px;
@@ -742,26 +725,26 @@ html, body{
 }
 
 /* 툴바 */
-.trash-toolbar{
+#accountTrashModal .trash-toolbar{
     margin-bottom:10px;
 }
 
-#account-trash-detail table{
+#accountTrashModal #account-trash-detail table{
     width:100%;
 }
 
-#account-trash-detail th{
+#accountTrashModal #account-trash-detail th{
     width:140px;
     color:#555;
     font-weight:600;
 }
 
-#account-trash-detail td{
+#accountTrashModal #account-trash-detail td{
     color:#222;
     word-break:break-word;
 }
 
-#account-trash-detail tr{
+#accountTrashModal #account-trash-detail tr{
     border-bottom:1px solid #eee;
 }
 

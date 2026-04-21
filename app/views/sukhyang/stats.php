@@ -1,11 +1,6 @@
 ﻿<?php
 // 📄 경로: /app/views/sukhyang/stats.php
 use Core\Helpers\AssetHelper;
-if (!isset($_SESSION['username'])) {
-    header("Location: /login/login.php");
-    exit;
-}
-$username = $_SESSION['username'];
 
 include(__DIR__ . '/../layout/header.php');
 include(__DIR__ . '/../layout/sidebar.php');

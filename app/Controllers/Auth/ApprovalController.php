@@ -1,9 +1,9 @@
 <?php
-// 경로: PROJECT_ROOT/app/Controllers/Auth/ApprovalController.php
+
 namespace App\Controllers\Auth;
 
-use Core\DbPdo;
 use App\Services\Auth\ApprovalService;
+use Core\DbPdo;
 
 class ApprovalController
 {
@@ -14,59 +14,43 @@ class ApprovalController
         $this->approvalService = new ApprovalService(DbPdo::conn());
     }
 
-    // ============================================================
-    // WEB: 승인 요청 화면 표시
-    // URL: GET /approve_request
-    // permission: 없음 (메일을 통해 접근 가능)
-    // controller: ApprovalController@webApproveRequest
-    // ============================================================
     public function webApproveRequest()
     {
         include PROJECT_ROOT . '/app/views/auth/approve_request.php';
         exit;
     }
 
-    // ============================================================
-    // WEB: 승인 결과 화면 표시
-    // URL: GET /approve_result
-    // permission: 없음 (메일을 통해 접근 가능)
-    // controller: ApprovalController@webApproveResult
-    // ============================================================
     public function webApproveResult()
     {
+        [$message, $isSuccess, $approvedBy] = $this->resolveApprovalResult();
+
         include PROJECT_ROOT . '/app/views/auth/approve_result.php';
         exit;
     }
 
-    // ============================================================
-    // API: 승인 처리
-    // URL: POST /approve_user
-    // permission: api.auth.approval.submit
-    // controller: ApprovalController@apiApproveUser
-    // ============================================================
     public function apiApproveUser()
     {
-        $code         = $_REQUEST['code'] ?? '';
-        $approveToken = $_REQUEST['approve_token'] ?? '';
-
-        // TODO: 승인 검증 로직 작성
-        // ex) 토큰 검증 → 유저 승인 update → 결과 페이지 렌더링
-
-        // 🔐 토큰 검증
-        $data = $this->approvalService->verifyApprovalToken($approveToken);
-
-        if (!$data || empty($data['user_id'])) {
-            include PROJECT_ROOT . '/app/views/auth/approve_result.php';
-            exit;
-        }
-
-        // ✅ 승인 처리
-        $this->approvalService->approveUser(
-            $data['user_id'],
-            $data['admin'] ?? null
-        );
+        [$message, $isSuccess, $approvedBy] = $this->resolveApprovalResult();
 
         include PROJECT_ROOT . '/app/views/auth/approve_result.php';
         exit;
+    }
+
+    private function resolveApprovalResult(): array
+    {
+        $approveToken = trim((string)($_REQUEST['approve_token'] ?? ''));
+        $tokenData = $approveToken !== '' ? $this->approvalService->verifyApprovalToken($approveToken) : null;
+
+        if (!$tokenData || empty($tokenData['user_id'])) {
+            return ['유효한 승인 요청이 아닙니다.', false, null];
+        }
+
+        $approvedBy = $tokenData['admin'] ?? null;
+        $isSuccess = $this->approvalService->approveUser($tokenData['user_id'], $approvedBy);
+        $message = $isSuccess
+            ? '회원 승인 처리가 완료되었습니다.'
+            : '이미 승인되었거나 존재하지 않는 사용자입니다.';
+
+        return [$message, $isSuccess, $approvedBy];
     }
 }

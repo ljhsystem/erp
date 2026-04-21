@@ -1,34 +1,26 @@
-// 경로: PROJECT_ROOT . '/public/assets/js/common/picker/ui.base.js '
-// 📅 공통 달력 UI 렌더러 (기본 / 미니 / 시간추가 달력 공용)
-
 export function renderCalendar({ picker, container, options = {} }) {
   const currentYear = new Date().getFullYear();
 
   const opt = {
     weekStart: 0,
     showFooter: true,
+    hideClear: false,
     yearMin: currentYear - 100,
     yearMax: currentYear + 20,
-    ...options
+    ...options,
   };
 
-  /* =========================================================
-   * View Resolver (단일 진실)
-   * ========================================================= */
   function getView() {
-    const s = picker.getState();
+    const state = picker.getState();
 
-    if (
-      typeof s.viewYear === 'number' &&
-      typeof s.viewMonth === 'number'
-    ) {
-      return { y: s.viewYear, m: s.viewMonth };
+    if (typeof state.viewYear === 'number' && typeof state.viewMonth === 'number') {
+      return { y: state.viewYear, m: state.viewMonth };
     }
 
-    if (s.date instanceof Date) {
+    if (state.date instanceof Date) {
       return {
-        y: s.date.getFullYear(),
-        m: s.date.getMonth()
+        y: state.date.getFullYear(),
+        m: state.date.getMonth(),
       };
     }
 
@@ -36,48 +28,40 @@ export function renderCalendar({ picker, container, options = {} }) {
     return { y: now.getFullYear(), m: now.getMonth() };
   }
 
-  const weekdayLabels =
-    opt.weekStart === 1
-      ? ['월','화','수','목','금','토','일']
-      : ['일','월','화','수','목','금','토'];
+  const weekdayLabels = opt.weekStart === 1
+    ? ['월', '화', '수', '목', '금', '토', '일']
+    : ['일', '월', '화', '수', '목', '금', '토'];
 
-  function fmtYmd(d) {
-    return (
-      d.getFullYear() + '-' +
-      String(d.getMonth() + 1).padStart(2, '0') + '-' +
-      String(d.getDate()).padStart(2, '0')
-    );
+  function fmtYmd(date) {
+    return [
+      date.getFullYear(),
+      String(date.getMonth() + 1).padStart(2, '0'),
+      String(date.getDate()).padStart(2, '0'),
+    ].join('-');
   }
 
-  /* =========================================================
-   * Month Matrix
-   * ========================================================= */
   function getMonthMatrix(y, m) {
     const first = new Date(y, m, 1);
-    const offset =
-      opt.weekStart === 1
-        ? (first.getDay() === 0 ? 6 : first.getDay() - 1)
-        : first.getDay();
+    const offset = opt.weekStart === 1
+      ? (first.getDay() === 0 ? 6 : first.getDay() - 1)
+      : first.getDay();
 
     const start = new Date(y, m, 1 - offset);
     const cells = [];
 
-    for (let i = 0; i < 42; i++) {
-      const d = new Date(start);
-      d.setDate(start.getDate() + i);
-      cells.push({ date: d, outside: d.getMonth() !== m });
+    for (let i = 0; i < 42; i += 1) {
+      const date = new Date(start);
+      date.setDate(start.getDate() + i);
+      cells.push({ date, outside: date.getMonth() !== m });
     }
 
     const weeks = [];
-    for (let i = 0; i < 42; i += 7) {
+    for (let i = 0; i < cells.length; i += 7) {
       weeks.push(cells.slice(i, i + 7));
     }
     return weeks;
   }
 
-  /* =========================================================
-   * Header
-   * ========================================================= */
   function buildHeader() {
     const { y, m } = getView();
 
@@ -89,14 +73,16 @@ export function renderCalendar({ picker, container, options = {} }) {
 
     const yearSel = document.createElement('select');
     yearSel.className = 'picker-year';
-    for (let i = opt.yearMin; i <= opt.yearMax; i++) {
+    yearSel.setAttribute('aria-label', '연도 선택');
+    for (let i = opt.yearMin; i <= opt.yearMax; i += 1) {
       yearSel.add(new Option(String(i), String(i)));
     }
     yearSel.value = String(y);
 
     const monthSel = document.createElement('select');
     monthSel.className = 'picker-month';
-    for (let i = 0; i < 12; i++) {
+    monthSel.setAttribute('aria-label', '월 선택');
+    for (let i = 0; i < 12; i += 1) {
       monthSel.add(new Option(`${i + 1}월`, String(i)));
     }
     monthSel.value = String(m);
@@ -107,15 +93,16 @@ export function renderCalendar({ picker, container, options = {} }) {
     nav.className = 'picker-nav';
 
     const prev = document.createElement('button');
-     prev.type = 'button';
-     prev.className = 'picker-nav-btn';
+    prev.type = 'button';
+    prev.className = 'picker-nav-btn';
+    prev.setAttribute('aria-label', '이전 달');
     prev.textContent = '‹';
-    
+
     const next = document.createElement('button');
-     next.type = 'button';
-     next.className = 'picker-nav-btn';
+    next.type = 'button';
+    next.className = 'picker-nav-btn';
+    next.setAttribute('aria-label', '다음 달');
     next.textContent = '›';
-    
 
     prev.onclick = () => {
       if (m === 0) picker.setView(y - 1, 11);
@@ -127,53 +114,67 @@ export function renderCalendar({ picker, container, options = {} }) {
       else picker.setView(y, m + 1);
     };
 
-    yearSel.onchange = () =>
-      picker.setView(parseInt(yearSel.value, 10), m);
-
-    monthSel.onchange = () =>
-      picker.setView(y, parseInt(monthSel.value, 10));
+    yearSel.onchange = () => picker.setView(parseInt(yearSel.value, 10), m);
+    monthSel.onchange = () => picker.setView(y, parseInt(monthSel.value, 10));
 
     nav.append(prev, next);
     header.append(ym, nav);
     return header;
   }
 
-  /* =========================================================
-   * Grid
-   * ========================================================= */
+  function buildWeekHeader() {
+    const week = document.createElement('div');
+    week.className = 'picker-weekdays';
+
+    weekdayLabels.forEach((label) => {
+      const item = document.createElement('div');
+      item.className = 'picker-weekday';
+      item.textContent = label;
+      week.appendChild(item);
+    });
+
+    return week;
+  }
+
   function buildGrid() {
     const { y, m } = getView();
     const weeks = getMonthMatrix(y, m);
     const selected = picker.getState().date;
-    const today = new Date(); today.setHours(0,0,0,0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     const grid = document.createElement('div');
     grid.className = 'picker-cal-grid';
 
-    weeks.forEach(week => {
+    weeks.forEach((week) => {
       week.forEach(({ date, outside }) => {
         const btn = document.createElement('button');
+        btn.type = 'button';
         btn.className = 'picker-day';
-        btn.textContent = date.getDate();
+        btn.textContent = String(date.getDate());
 
         if (outside) btn.classList.add('is-outside');
 
-        const d0 = new Date(date); d0.setHours(0,0,0,0);
-        if (fmtYmd(d0) === fmtYmd(today)) btn.classList.add('is-today');
+        const normalized = new Date(date);
+        normalized.setHours(0, 0, 0, 0);
 
-        if (
-          selected &&
-          fmtYmd(selected) === fmtYmd(d0)
-        ) {
+        if (fmtYmd(normalized) === fmtYmd(today)) {
+          btn.classList.add('is-today');
+        }
+
+        if (selected && fmtYmd(selected) === fmtYmd(normalized)) {
           btn.classList.add('is-selected');
         }
 
-        btn.onclick = () =>
+        btn.onclick = (event) => {
+          event.preventDefault();
+          event.stopPropagation();
           picker.setDate(new Date(
             date.getFullYear(),
             date.getMonth(),
             date.getDate()
           ));
+        };
 
         grid.appendChild(btn);
       });
@@ -182,45 +183,41 @@ export function renderCalendar({ picker, container, options = {} }) {
     return grid;
   }
 
-  /* =========================================================
-   * Footer
-   * ========================================================= */
   function buildFooter() {
     if (!opt.showFooter) return null;
-  
+
     const footer = document.createElement('div');
     footer.className = 'picker-cal-footer';
-  
+
     const todayBtn = document.createElement('button');
     todayBtn.type = 'button';
     todayBtn.className = 'picker-btn';
     todayBtn.textContent = '오늘';
-    todayBtn.onclick = () => {
-      const t = new Date();
-      picker.setView(t.getFullYear(), t.getMonth());
-      picker.setDate(t);
+    todayBtn.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const today = new Date();
+      picker.setView(today.getFullYear(), today.getMonth());
+      picker.setDate(today);
     };
-  
     footer.appendChild(todayBtn);
-  
-    // ✅ 지우기 버튼은 옵션에 따라
+
     if (!opt.hideClear) {
       const clearBtn = document.createElement('button');
       clearBtn.type = 'button';
       clearBtn.className = 'picker-btn';
       clearBtn.textContent = '지우기';
-      clearBtn.onclick = () => picker.clearDate();
+      clearBtn.onclick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        picker.clearDate();
+      };
       footer.appendChild(clearBtn);
     }
-  
+
     return footer;
   }
-  
-  
 
-  /* =========================================================
-   * Render
-   * ========================================================= */
   let raf = 0;
 
   function render() {
@@ -228,12 +225,14 @@ export function renderCalendar({ picker, container, options = {} }) {
 
     const wrap = document.createElement('div');
     wrap.className = 'picker-inner';
-    wrap.onclick = e => e.stopPropagation();
+    wrap.onclick = (event) => event.stopPropagation();
 
-    wrap.append(buildHeader(), buildGrid());
+    wrap.append(buildHeader(), buildWeekHeader(), buildGrid());
 
-    const footer = buildFooter(); // ✅ 1번만 생성
-    if (footer) wrap.appendChild(footer);
+    const footer = buildFooter();
+    if (footer) {
+      wrap.appendChild(footer);
+    }
 
     container.appendChild(wrap);
   }
@@ -248,5 +247,4 @@ export function renderCalendar({ picker, container, options = {} }) {
 
   picker.subscribe(scheduleRender);
   render();
-
 }

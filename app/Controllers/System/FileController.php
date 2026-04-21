@@ -1,11 +1,19 @@
 <?php
 namespace App\Controllers\System;
 
+use App\Services\Auth\AuthSessionService;
 use App\Services\File\FileService;
 use Core\DbPdo;
 
 class FileController
 {
+    private AuthSessionService $authSession;
+
+    public function __construct()
+    {
+        $this->authSession = new AuthSessionService();
+    }
+
     private function json(array $payload, int $status = 200): void
     {
         http_response_code($status);
@@ -15,12 +23,13 @@ class FileController
 
     private function hasSessionUser(): bool
     {
-        return !empty($_SESSION['user']) && !empty($_SESSION['user']['id']);
+        return $this->authSession->isAuthenticated();
     }
 
     private function isAdminUser(): bool
     {
-        $roles = $_SESSION['user']['roles'] ?? [];
+        $user = $this->authSession->getCurrentUser() ?? [];
+        $roles = $user['roles'] ?? [];
         if (!is_array($roles)) {
             return false;
         }
@@ -157,7 +166,6 @@ class FileController
 
         $service = new FileService(DbPdo::conn());
         $data = $_POST;
-        $data['created_by'] = $_SESSION['user']['id'];
 
         $this->json(['success' => $service->savePolicy($data)]);
     }
@@ -185,7 +193,6 @@ class FileController
             'max_size_mb'  => (int)($_POST['max_size_mb'] ?? 0),
             'is_active'    => (int)($_POST['is_active'] ?? 0),
             'description'  => $_POST['description'] ?? null,
-            'updated_by'   => $_SESSION['user']['id'],
         ];
 
         $this->json(['success' => $service->updatePolicy($data)]);
@@ -222,8 +229,7 @@ class FileController
         $service = new FileService(DbPdo::conn());
         $success = $service->setPolicyActive(
             (string)$_POST['id'],
-            (int)$_POST['is_active'],
-            (string)$_SESSION['user']['id']
+            (int)$_POST['is_active']
         );
 
         $this->json(['success' => $success]);

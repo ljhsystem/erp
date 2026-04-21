@@ -3,7 +3,6 @@
 // 대시보드>설정>조직관리>권한 API 컨트롤러
 namespace App\Controllers\Dashboard\Settings;
 
-use Core\Session;
 use Core\DbPdo;
 use App\Services\Auth\PermissionService;
 
@@ -13,7 +12,6 @@ class PermissionController
 
     public function __construct()
     {
-        Session::requireAuth();
         $this->service = new PermissionService(DbPdo::conn());
     }
 
@@ -115,7 +113,6 @@ class PermissionController
             'description'     => trim($_POST['description'] ?? '') ?: null,
             'category'        => trim($_POST['category'] ?? '') ?: null,
             'is_active'       => (int)($_POST['is_active'] ?? 1),
-            'created_by'      => $_SESSION['user']['id'] ?? null
         ];
 
         if (!$data['permission_key'] || !$data['permission_name']) {
@@ -151,7 +148,6 @@ class PermissionController
             'description'     => trim($_POST['description'] ?? '') ?: null,
             'category'        => trim($_POST['category'] ?? '') ?: null,
             'is_active'       => (int)($_POST['is_active'] ?? 1),
-            'updated_by'      => $_SESSION['user']['id'] ?? null
         ];
 
         $result = $this->service->update($id, $data);

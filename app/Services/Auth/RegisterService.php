@@ -1,13 +1,14 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Services/Auth/RegisterService.php'
+
 namespace App\Services\Auth;
 
 use PDO;
 use App\Models\Auth\UserModel;
 use App\Models\User\EmployeeModel;
 use App\Models\Auth\LogModel;
-use App\Services\Auth\AuthService;
+use App\Services\File\FileService;
 use App\Services\Mail\MailService;
+use App\Services\System\SettingService;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\CodeHelper;
 use Core\LoggerFactory;
@@ -15,247 +16,139 @@ use Core\LoggerFactory;
 class RegisterService
 {
     private readonly PDO $pdo;
-    private $usersModel;
-    private $employeeModel;
-    private $userService;
-    private $mailService;
-    private $authLogs;
+    private UserModel $usersModel;
+    private EmployeeModel $employeeModel;
+    private LogModel $authLogs;
+    private MailService $mailService;
+    private FileService $fileService;
+    private SettingService $settingService;
     private $logger;
 
     public function __construct(PDO $pdo)
     {
-        $this->pdo          = $pdo;
-        $this->usersModel     = new UserModel($pdo);
-        $this->employeeModel  = new EmployeeModel($pdo);
-        $this->authLogs      = new LogModel($pdo); // ✅ DB 로그용
-        $this->userService   = new AuthService($pdo);
-        $this->mailService   = new MailService();
-        $this->logger        = LoggerFactory::getLogger('service-auth.RegisterService');
+        $this->pdo = $pdo;
+        $this->usersModel = new UserModel($pdo);
+        $this->employeeModel = new EmployeeModel($pdo);
+        $this->authLogs = new LogModel($pdo);
+        $this->mailService = new MailService();
+        $this->fileService = new FileService($pdo);
+        $this->settingService = new SettingService($pdo);
+        $this->logger = LoggerFactory::getLogger('service-auth.RegisterService');
     }
 
-    /* ============================================================
-     * 1) 회원가입 처리 (+ 프로필 생성 + 코드생성 + 관리자 승인요청 메일 발송)
-     * ============================================================ */
-    public function register(array $data): array
+    public function register(array $data, array $files = []): array
     {
-        $username = trim($data['username'] ?? '');
-        $password = trim($data['password'] ?? '');
-        $email    = trim($data['email'] ?? '');
-        $name     = trim($data['employee_name'] ?? '');
-        $img      = $data['profile_image'] ?? '';
+        $username = trim((string)($data['username'] ?? ''));
+        $password = trim((string)($data['password'] ?? ''));
+        $confirm = trim((string)($data['confirm_password'] ?? ''));
+        $email = trim((string)($data['email'] ?? ''));
+        $name = trim((string)($data['employee_name'] ?? ''));
 
-        /* ------------------------------------------------------------
-         * 1️⃣ UUID + CODE 생성 (🔥 핵심)
-         * ------------------------------------------------------------ */
-        $userId        = UuidHelper::generate();                    // 🔥 auth_users.id
-        $userCode      = CodeHelper::generateUserCode($this->pdo);  // 🔥 auth_users.code
-        $employeeCode  = CodeHelper::generateEmployeeCode($this->pdo); // 🔥 user_employees.code
-
-        // 3. 회원가입 시도 로그
-        $this->logger->info('register 시도', [
-            'username'       => $username,
-            'employee_name'  => $name,
-            'email'          => $email
-        ]);
-
-        /* ------------------------------------------------------------
-         * 2️⃣ 기본 검증
-         * ------------------------------------------------------------ */
-        // ✅ 직원 이름( employee_name ) 필수 검증 추가
-        if ($name === '') {
-            $this->logger->warning('register 실패 - 직원 이름 누락', [
-                'username' => $username
-            ]);
-            $this->authLogs->write([
-                'id'            => UuidHelper::generate(), // ✅ 추가 (에러 해결)
-                'log_type'      => 'auth',
-                'action_type'   => 'register',
-                'action_detail' => '회원가입요청:직원이름누락',
-                'username'      => $username,
-                'success'       => 0,
-                'ref_table'     => 'auth_users',
-                'ref_id'        => null,
-                'user_id'       => null,
-                'created_by'    => null,
-            ]);
-            return ['success' => false, 'message' => '직원 이름을 입력해 주세요.'];
+        if ($username === '' || $password === '' || $confirm === '' || $email === '' || $name === '') {
+            return ['success' => false, 'message' => '모든 필드를 입력해 주세요.'];
         }
 
-        // ✅ 아이디 중복 체크 추가
-        if ($this->usersModel->existsByUsername($username)) {
-            $this->logger->warning('register 실패 - 아이디 중복', [
-                'username' => $username
-            ]);
-            // DB 로그: 회원가입 실패 (아이디 중복)
-            $this->authLogs->write([
-                'id'            => UuidHelper::generate(),
-                'log_type'      => 'auth',
-                'action_type'   => 'register',
-                'action_detail' => '회원가입요청:아이디중복',
-                'username'      => $username,
-                'success'       => 0,
-                'ref_table'     => 'auth_users',
-                'ref_id'        => null,
-                'user_id'       => null,
-                'created_by'    => null,
-            ]);
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return ['success' => false, 'message' => '이메일 형식이 올바르지 않습니다.'];
+        }
+
+        if ($password !== $confirm) {
+            return ['success' => false, 'message' => '비밀번호가 일치하지 않습니다.'];
+        }
+
+        $policyCheck = $this->validatePasswordPolicy($password);
+        if (!$policyCheck['success']) {
+            return $policyCheck;
+        }
+
+        $user = $this->employeeModel->getByUsername($username);
+        if ($user !== null) {
+            $this->writeLog('회원가입실패:아이디중복', $username, 0);
             return ['success' => false, 'message' => '이미 사용 중인 아이디입니다.'];
         }
 
-        // ✅ 직원 이름 중복 체크 추가
-        if ($this->employeeModel->existsByUsername($name)) {
-            $this->logger->warning('register 실패 - 직원 이름 중복', [
-                'username'       => $username,
-                'employee_name'  => $name
-            ]);
-
-            $this->authLogs->write([
-                'id'            => UuidHelper::generate(),
-                'log_type'      => 'auth',
-                'action_type'   => 'register',
-                'action_detail' => '회원가입요청:직원이름중복',
-                'username'      => $username,
-                'success'       => 0,
-                'ref_table'     => 'auth_users',
-                'ref_id'        => null,
-                'user_id'       => null,
-                'created_by'    => null,
-            ]);
-
-            return ['success' => false, 'message' => '이미 사용 중인 이름입니다.'];
+        $emailUser = $this->employeeModel->getByEmail($email);
+        if ($emailUser !== null) {
+            $this->writeLog('회원가입실패:이메일중복', $username, 0);
+            return ['success' => false, 'message' => '이미 사용 중인 이메일입니다.'];
         }
 
-        $hash = password_hash($password, PASSWORD_BCRYPT);
+        $profileImage = $this->handleProfileUpload($files);
+        if (!$profileImage['success']) {
+            return $profileImage;
+        }
 
-        /* ------------------------------------------------------------
-         * 3️⃣ 트랜잭션 시작
-         * ------------------------------------------------------------ */
+        $userId = UuidHelper::generate();
+        $userCode = CodeHelper::next('auth_users');
+        $employeeCode = CodeHelper::next('user_employees');
+        $passwordHash = password_hash($password, PASSWORD_BCRYPT);
 
         try {
-            // 4. 트랜잭션 시작
             $this->pdo->beginTransaction();
 
-            // 4-1) auth_users 생성
             $okUser = $this->usersModel->createUser([
                 'id'         => $userId,
                 'code'       => $userCode,
                 'username'   => $username,
-                'password'   => $hash,
+                'password'   => $passwordHash,
                 'email'      => $email,
                 'role_id'    => $this->getDefaultRoleId(),
                 'approved'   => 0,
                 'is_active'  => 1,
-                'created_by' => null
-            ]);            
+                'created_by' => null,
+            ]);
 
             if (!$okUser) {
-                $this->logger->error('register 실패 - createUser 실패', [
-                    'username' => $username
-                ]);
-                $this->pdo->rollBack();
-                // DB 로그: 회원가입 실패 (DB 오류)
-                $this->authLogs->write([
-                    'id'            => UuidHelper::generate(),
-                    'log_type'     => 'auth',
-                    'action_type'  => 'register',
-                    'action_detail' => '회원가입요청:DB오류',
-                    'username'     => $username,
-                    'success'      => 0,
-                ]);
-                return ['success' => false, 'message' => 'DB 오류로 회원가입 실패'];
+                throw new \RuntimeException('auth_users insert failed');
             }
 
-            // 4-2) 방금 생성된 유저 조회 (id 확보용)
-            $user = $this->usersModel->getByUsername($username);
-            if (!$user || empty($user['id'])) {
-                $this->logger->error('register 실패 - 생성된 사용자 조회 실패', [
-                    'username' => $username
-                ]);
-                $this->pdo->rollBack();
-                $this->authLogs->write([
-                    'id'            => UuidHelper::generate(),
-                    'log_type'     => 'auth',
-                    'action_type'  => 'register',
-                    'action_detail' => '회원가입요청:생성후조회실패',
-                    'username'     => $username,
-                    'success'      => 0,
-                ]);
-                return ['success' => false, 'message' => '회원 정보 조회에 실패했습니다.'];
-            }
-
-            $userId = $user['id'];
-
-            // ✅ 방금 생성한 사용자를 자기 자신이 생성한 것으로 기록
             $this->usersModel->setCreatedBySelf($userId);
 
-            // 4-3) user_employees 생성
             $okProfile = $this->employeeModel->create([
-                'id'              => UuidHelper::generate(),  
-                'code'            => $employeeCode,
-                'user_id'         => $userId,
-                'employee_name'   => $name,
-                'phone'           => null,
-                'address'         => null,
-                'address_detail'  => null,
-                'department_id'   => null,
-                'position_id'     => null,
-                'doc_hire_date'   => null,
-                'real_hire_date'  => null,
-                'doc_retire_date' => null,
+                'id'               => UuidHelper::generate(),
+                'code'             => $employeeCode,
+                'user_id'          => $userId,
+                'employee_name'    => $name,
+                'phone'            => null,
+                'address'          => null,
+                'address_detail'   => null,
+                'department_id'    => null,
+                'position_id'      => null,
+                'doc_hire_date'    => null,
+                'real_hire_date'   => null,
+                'doc_retire_date'  => null,
                 'real_retire_date' => null,
-                'rrn'             => null,
-                'rrn_image'       => null,
-                'emergency_phone' => null,
-                'client_id'       => null,
-                'profile_image'   => $img ?: null,
+                'rrn'              => null,
+                'rrn_image'        => null,
+                'emergency_phone'  => null,
+                'client_id'        => null,
+                'profile_image'    => $profileImage['db_path'],
                 'certificate_name' => null,
                 'certificate_file' => null,
-                'note'            => null,
-                'memo'            => null,
-                // ✅ 프로필 생성자도 본인 id 로 기록
-                'created_by'      => $userId,
+                'note'             => null,
+                'memo'             => null,
+                'created_by'       => $userId,
             ]);
 
             if (!$okProfile) {
-                $this->logger->error('register 실패 - createProfile 실패', [
-                    'username' => $username,
-                    'user_id'  => $userId
-                ]);
-                $this->pdo->rollBack();
-                $this->authLogs->write([
-                    'id'            => UuidHelper::generate(),
-                    'log_type'     => 'auth',
-                    'action_type'  => 'register',
-                    'action_detail' => '회원가입요청:프로필생성실패',
-                    'user_id'      => $userId,
-                    'username'     => $username,
-                    'success'      => 0,
-                ]);
-                return ['success' => false, 'message' => '프로필 생성 중 오류가 발생했습니다.'];
+                throw new \RuntimeException('user_employees insert failed');
             }
 
-            // 4-4) commit
             $this->pdo->commit();
         } catch (\Throwable $e) {
-            $this->logger->error('register 예외 - 트랜잭션 롤백', [
-                'username' => $username,
-                'error'    => $e->getMessage()
-            ]);
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
-            $this->authLogs->write([
-                'id'            => UuidHelper::generate(),
-                'log_type'     => 'auth',
-                'action_type'  => 'register',
-                'action_detail' => '회원가입요청:예외',
-                'username'     => $username,
-                'success'      => 0,
+
+            $this->logger->error('register failed', [
+                'username' => $username,
+                'error'    => $e->getMessage(),
             ]);
-            return ['success' => false, 'message' => '회원가입 처리 중 예외가 발생했습니다.'];
+            $this->writeLog('회원가입실패:예외', $username, 0);
+
+            return ['success' => false, 'message' => '회원가입 처리 중 오류가 발생했습니다.'];
         }
 
-        // ✅ 회원가입 성공 로그: created_by 에도 본인 userId 기록
         $this->authLogs->write([
             'id'            => UuidHelper::generate(),
             'log_type'      => 'auth',
@@ -266,63 +159,92 @@ class RegisterService
             'success'       => 1,
             'ref_table'     => 'auth_users',
             'ref_id'        => $userId,
-            'created_by'    => $userId,    // 🔹 여기 추가
+            'created_by'    => $userId,
         ]);
 
-        // 5. 회원가입 + 프로필 + 코드 생성 성공 로그
-        $this->logger->info('register 성공 (auth_users + user_employees + codes)', [
-            'username'      => $username,
-            'user_code'     => $userCode,
-            'employee_code' => $employeeCode
-        ]);
-
-        // 6. 여기서 관리자 승인 요청 메일 발송 처리
-        // ✅ 메일에도 실제 userCode(code 컬럼) 를 넘김
-        $this->sendAdminApprovalMailFromService($username, $name, $email, $userCode);
+        $this->sendAdminApprovalMail($username, $name, $email, $userCode);
 
         return [
             'success'   => true,
-            // ✅ 컨트롤러로도 username 이 아니라 실제 code 를 넘김
+            'message'   => '회원가입이 완료되었습니다. 관리자 승인 후 로그인 가능합니다.',
             'user_code' => $userCode,
         ];
     }
 
-    // 6. 서비스 내부에서 관리자 승인요청 메일 발송
-    private function sendAdminApprovalMailFromService(
-        string $username,
-        string $employeeName,
-        string $userEmail,
-        string $userCode
-    ): void {
+    private function validatePasswordPolicy(string $password): array
+    {
         try {
-            // MailService + AdminApprovalMail 에서 사용할 데이터 구성
-            $data = [
+            $rows = $this->settingService->getByCategory('SECURITY');
+        } catch (\Throwable $e) {
+            return ['success' => false, 'message' => '비밀번호 정책 확인 중 오류가 발생했습니다.'];
+        }
+
+        $policy = [];
+        foreach ($rows as $row) {
+            $policy[$row['config_key']] = $row['config_value'];
+        }
+
+        if (($policy['security_password_policy_enabled'] ?? '0') !== '1') {
+            return ['success' => true];
+        }
+
+        $min = (int)($policy['security_password_min'] ?? 0);
+        if ($min > 0 && mb_strlen($password) < $min) {
+            return ['success' => false, 'message' => "비밀번호는 최소 {$min}자 이상이어야 합니다."];
+        }
+
+        if (($policy['security_pw_upper'] ?? '0') === '1' && !preg_match('/[A-Z]/', $password)) {
+            return ['success' => false, 'message' => '비밀번호에 대문자를 최소 1자 이상 포함해 주세요.'];
+        }
+
+        if (($policy['security_pw_number'] ?? '0') === '1' && !preg_match('/\d/', $password)) {
+            return ['success' => false, 'message' => '비밀번호에 숫자를 최소 1자 이상 포함해 주세요.'];
+        }
+
+        if (($policy['security_pw_special'] ?? '0') === '1' && !preg_match('/[^a-zA-Z0-9]/', $password)) {
+            return ['success' => false, 'message' => '비밀번호에 특수문자를 최소 1자 이상 포함해 주세요.'];
+        }
+
+        return ['success' => true];
+    }
+
+    private function handleProfileUpload(array $files): array
+    {
+        $file = $files['profile_image'] ?? null;
+        if (!is_array($file) || ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+            return ['success' => true, 'db_path' => ''];
+        }
+
+        if (($file['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
+            return ['success' => false, 'message' => '프로필 이미지 업로드에 실패했습니다.'];
+        }
+
+        $upload = $this->fileService->uploadProfile($file);
+        if (empty($upload['success'])) {
+            return ['success' => false, 'message' => $upload['message'] ?? '프로필 이미지 업로드에 실패했습니다.'];
+        }
+
+        return ['success' => true, 'db_path' => $upload['db_path'] ?? ''];
+    }
+
+    private function sendAdminApprovalMail(string $username, string $employeeName, string $userEmail, string $userCode): void
+    {
+        try {
+            $this->mailService->sendAdminApprovalMail([
                 'username'      => $username,
                 'employee_name' => $employeeName,
                 'email'         => $userEmail,
-                // ✅ 여기에도 실제 code 값
                 'user_code'     => $userCode,
                 'host'          => $_SERVER['HTTP_HOST'] ?? 'localhost',
-            ];
-
-            $this->mailService->sendAdminApprovalMail($data);
-
-            $this->logger->info('관리자 승인요청 메일 발송 성공', [
-                'username'  => $username,
-                'user_code' => $userCode,
             ]);
         } catch (\Throwable $e) {
-            // 메일 발송 실패는 회원가입 실패로 처리하지 않고, 로그만 남김
-            $this->logger->error('RegisterService 메일 발송 실패', [
+            $this->logger->error('admin approval mail failed', [
                 'username' => $username,
-                'error'    => $e->getMessage()
+                'error'    => $e->getMessage(),
             ]);
         }
     }
-    
-    /* ============================================================
-     * 공통 로그 기록
-     * ============================================================ */
+
     private function writeLog(string $detail, string $username, int $success): void
     {
         $this->authLogs->write([
@@ -341,5 +263,4 @@ class RegisterService
         $stmt->execute();
         return $stmt->fetchColumn() ?: null;
     }
-
 }

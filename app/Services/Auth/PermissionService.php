@@ -6,6 +6,7 @@ use PDO;
 use App\Models\Auth\UserModel;
 use App\Models\Auth\PermissionModel;
 use App\Models\Auth\RolePermissionModel;
+use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\CodeHelper;
 use Core\LoggerFactory;
@@ -59,11 +60,11 @@ class PermissionService
         $data['id'] = UuidHelper::generate();
 
         // ⭐ 권한 코드 생성
-        $data['code'] = CodeHelper::generatePermissionCode($this->pdo);
+        $data['code'] = CodeHelper::next('auth_permissions');
+        $data['created_by'] = ActorHelper::user();
+        $data['updated_by'] = ActorHelper::user();
 
         // 생성자 정보
-        $data['created_by'] = $data['created_by'] ?? ($_SESSION['user']['id'] ?? null);
-
         $ok = $this->permModel->create($data);
 
         return ['success' => $ok, 'id' => $data['id'], 'code' => $data['code']];
@@ -83,7 +84,7 @@ class PermissionService
             }
         }
 
-        $data['updated_by'] = $data['updated_by'] ?? ($_SESSION['user']['id'] ?? null);
+        $data['updated_by'] = ActorHelper::user();
 
         return ['success' => $this->permModel->update($id, $data)];
     }

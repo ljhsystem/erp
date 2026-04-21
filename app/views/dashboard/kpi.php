@@ -14,13 +14,7 @@ $pageStyles = AssetHelper::css('/assets/css/pages/dashboard/kpi.css');
 $pageScripts = AssetHelper::js('https://cdn.jsdelivr.net/npm/chart.js');
 $pageScripts = AssetHelper::js('/assets/js/pages/dashboard/kpi.js');
 // 브레드크럼프 (본문에 포함)
-$breadcrumb = [
-    '홈' => '/dashboard',
-    '실적현황' => '/dashboard/kpi'
-  ];
 ?>
-<?php include_once __DIR__ . '/../layout/breadcrumb.php'; ?>
-
 <!-- ✅ 메인 콘텐츠 -->
 <main class="kpi-main">
 

@@ -6,6 +6,7 @@ use Core\Router;
 use Core\Session;
 use Core\Database;
 use Core\PermissionRegistry;
+use App\Services\System\SessionConfigService;
 
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -99,7 +100,8 @@ $router = new Router();
 /* ============================================================
  * 7) Session 시작
  * ============================================================ */
-Session::start();
+$sessionConfigService = new SessionConfigService(Database::getInstance()->getConnection());
+Session::start($sessionConfigService->getTimeoutMinutes());
 error_log("🌐 세션 시작됨: " . session_id());
 
 /* ============================================================

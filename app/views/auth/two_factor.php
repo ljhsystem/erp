@@ -1,50 +1,9 @@
 ﻿<?php
 // 경로: PROJECT_ROOT . '/app/views/auth/two_factor.php';
 use Core\Helpers\AssetHelper;
-
-//require_once $_SERVER['DOCUMENT_ROOT'] . '/core/Bootstrap.php';
-//require_once PROJECT_ROOT . '/core/Session.php';
-
-// ------------------------------------------------------------
-// 2FA 세션 검증
-// ------------------------------------------------------------
-$pending = $_SESSION['pending_2fa'] ?? null;
-
-if (
-  !$pending ||
-  empty($pending['user']) ||
-  empty($pending['user']['id'])
-) {
-  header('Location: /login');
-  exit;
-}
-
-$user    = $pending['user'];
-$email   = $user['email'] ?? null;
-$reasons = $pending['reasons'] ?? [];
-
-// 메시지 (컨트롤러에서 전달)
-$message = $_SESSION['two_factor_message'] ?? '';
-unset($_SESSION['two_factor_message']);
-
-// ------------------------------------------------------------
-// 2FA 사유 한글 매핑
-// ------------------------------------------------------------
-$reasonLabels = [
-  'force_2fa'      => '보안 정책에 따라 전 직원 2단계 인증이 필요합니다.',
-  'user_2fa'       => '계정에 2단계 인증이 활성화되어 있습니다.',
-  'new_device_2fa' => '새로운 기기에서 로그인 시도가 감지되었습니다.',
-  'time_window'    => '허용되지 않은 시간대의 로그인 시도입니다.',
-  'inactive_guard' => '장기간 미사용 계정 보호를 위해 추가 인증이 필요합니다.',
-];
-
-// 활성화된 사유만 추출
-$activeReasons = [];
-foreach ($reasons as $key => $enabled) {
-  if (!empty($enabled) && isset($reasonLabels[$key])) {
-    $activeReasons[] = $reasonLabels[$key];
-  }
-}
+$message = $message ?? '';
+$email = $email ?? null;
+$activeReasons = $activeReasons ?? [];
 ?>
 <!doctype html>
 <html lang="ko">
@@ -137,71 +96,7 @@ foreach ($reasons as $key => $enabled) {
     </div>
   </div>
 
-  <script>
-    (function() {
-      const codeInput = document.getElementById('code');
-      const autoNote = document.getElementById('autoNote');
-
-      // URL code 자동 입력
-      try {
-        // eslint-disable-next-line
-        const qs = new URLSearchParams(location.search);
-        const code = qs.get('code');
-        if (code && /^[0-9]{4,8}$/.test(code)) {
-          codeInput.value = code;
-          autoNote.style.display = 'block';
-        }
-      } catch (e) {}
-
-      document.getElementById('twoFactorForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-
-        const code = codeInput.value.trim();
-        if (!code) {
-          alert('인증 코드를 입력하세요.');
-          return;
-        }
-
-        try {
-          const res = await fetch('/api/2fa/verify', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'X-Requested-With': 'XMLHttpRequest'
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({
-              code
-            })
-          });
-
-          const text = await res.text();
-          let json = null;
-          try {
-            json = JSON.parse(text);
-          } catch (e) {}
-
-          if (!res.ok || !json) {
-            alert('서버 오류가 발생했습니다.');
-            return;
-          }
-
-          if (!json.success) {
-            alert(json.message || '인증 실패');
-            if (json.redirect) location.href = json.redirect;
-            return;
-          }
-
-          location.href = json.redirect || '/dashboard';
-
-        } catch (err) {
-          console.error(err);
-          alert('서버 통신 오류가 발생했습니다.');
-        }
-      });
-    })();
-  </script>
+  <?= AssetHelper::js('/assets/js/pages/auth/two_factor.js') ?>
 
 </body>
 

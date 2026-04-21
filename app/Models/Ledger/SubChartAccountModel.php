@@ -1,71 +1,61 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Models/Ledger/SubChartAccountModel.php'
-// 설명:
-//
+
 namespace App\Models\Ledger;
 
-use PDO;
 use Core\Database;
+use PDO;
 
 class SubChartAccountModel
 {
-    // PDO 보관
     private PDO $db;
 
-    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
-    /* =========================================================
-     * 계정별 보조계정 조회
-     * ========================================================= */
-    public function getByAccountId(string $accountId): array
+    public function getByAccountId(string $accountId, ?string $subType = null): array
     {
         $sql = "
-        SELECT *
-        FROM ledger_sub_accounts
-        WHERE account_id = :account_id
-        ORDER BY CAST(sub_code AS UNSIGNED)
+            SELECT *
+            FROM ledger_sub_accounts
+            WHERE account_id = :account_id
         ";
-    
+
+        $params = [
+            ':account_id' => $accountId,
+        ];
+
+        $sql .= " ORDER BY CAST(sub_code AS UNSIGNED)";
+
         $stmt = $this->db->prepare($sql);
-    
-        $stmt->execute([
-            ':account_id' => $accountId
-        ]);
-    
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    /* =========================================================
-     * 보조계정 생성
-     * ========================================================= */
     public function create(array $data): bool
     {
-        $sql = "
-        INSERT INTO ledger_sub_accounts (
-            id,
-            account_id,
-            sub_code,
-            sub_name,
-            note,
-            memo,
-            created_by
-        )
-        VALUES (
-            :id,
-            :account_id,
-            :sub_code,
-            :sub_name,
-            :note,
-            :memo,
-            :created_by
-        )
-        ";
-
-        $stmt = $this->db->prepare($sql);
+        $stmt = $this->db->prepare("
+            INSERT INTO ledger_sub_accounts (
+                id,
+                account_id,
+                sub_code,
+                sub_name,
+                note,
+                memo,
+                created_by,
+                updated_by
+            ) VALUES (
+                :id,
+                :account_id,
+                :sub_code,
+                :sub_name,
+                :note,
+                :memo,
+                :created_by,
+                :updated_by
+            )
+        ");
 
         return $stmt->execute([
             ':id' => $data['id'],
@@ -74,89 +64,116 @@ class SubChartAccountModel
             ':sub_name' => $data['sub_name'],
             ':note' => $data['note'] ?? null,
             ':memo' => $data['memo'] ?? null,
-            ':created_by' => $data['created_by'] ?? null
+            ':created_by' => $data['created_by'] ?? null,
+            ':updated_by' => $data['updated_by'] ?? $data['created_by'] ?? null,
         ]);
     }
 
     public function update(string $id, array $data): bool
     {
-        $sql = "
-        UPDATE ledger_sub_accounts
-        SET
-            sub_name = :sub_name,
-            note = :note,
-            memo = :memo   -- 🔥 추가
-        WHERE id = :id
-        ";
-
-        $stmt = $this->db->prepare($sql);
+        $stmt = $this->db->prepare("
+            UPDATE ledger_sub_accounts
+            SET
+                sub_name = :sub_name,
+                note = :note,
+                memo = :memo,
+                updated_by = :updated_by
+            WHERE id = :id
+        ");
 
         return $stmt->execute([
             ':id' => $id,
-            ':sub_name' => $data['sub_name'],
-            ':note' => $data['note'],
-            ':memo' => $data['memo']   // 🔥 추가
+            ':sub_name' => $data['sub_name'] ?? '',
+            ':note' => $data['note'] ?? null,
+            ':memo' => $data['memo'] ?? null,
+            ':updated_by' => $data['updated_by'] ?? null,
         ]);
     }
 
-    /* =========================================================
-     * 보조계정 삭제 (Soft Delete)
-     * ========================================================= */
     public function delete(string $id): bool
     {
-        $sql = "
-        DELETE FROM ledger_sub_accounts
-        WHERE id = :id
-        ";
-    
-        $stmt = $this->db->prepare($sql);
-    
+        $stmt = $this->db->prepare("
+            DELETE FROM ledger_sub_accounts
+            WHERE id = :id
+        ");
+
         return $stmt->execute([
-            ':id' => $id
+            ':id' => $id,
         ]);
     }
 
-    /* =========================================================
-        * 중복 체크
-        * ========================================================= */
-        public function findByAccountAndName(string $accountId, string $subName): ?array
-        {
-            $stmt = $this->db->prepare("
-                SELECT id
-                FROM ledger_sub_accounts
-                WHERE account_id = :account_id
-                AND sub_name = :sub_name
-                LIMIT 1
-            ");
+    public function findByAccountAndName(string $accountId, string $subName, ?string $subType = null): ?array
+    {
+        $sql = "
+            SELECT id
+            FROM ledger_sub_accounts
+            WHERE account_id = :account_id
+              AND sub_name = :sub_name
+        ";
 
-            $stmt->execute([
-                ':account_id' => $accountId,
-                ':sub_name'   => $subName
-            ]);
+        $params = [
+            ':account_id' => $accountId,
+            ':sub_name' => $subName,
+        ];
 
-            return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-        }
+        $sql .= " LIMIT 1";
 
-        /* =========================================================
-        * 다음 sub_code 조회
-        * ========================================================= */
-        public function getNextSubCode(string $accountId): string
-        {
-            $stmt = $this->db->prepare("
-                SELECT COALESCE(MAX(CAST(sub_code AS UNSIGNED)), 0) AS max_code
-                FROM ledger_sub_accounts
-                WHERE account_id = :account_id
-            ");
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
 
-            $stmt->execute([
-                ':account_id' => $accountId
-            ]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
 
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    public function getNextSubCode(string $accountId): string
+    {
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(MAX(CAST(sub_code AS UNSIGNED)), 0) AS max_code
+            FROM ledger_sub_accounts
+            WHERE account_id = :account_id
+        ");
 
-            return (string)(((int)$row['max_code']) + 1);
-        }
+        $stmt->execute([
+            ':account_id' => $accountId,
+        ]);
 
-        
-    
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return (string) (((int) ($row['max_code'] ?? 0)) + 1);
+    }
+
+    public function countByAccountId(string $accountId, ?string $subType = null): int
+    {
+        $sql = "
+            SELECT COUNT(*)
+            FROM ledger_sub_accounts
+            WHERE account_id = :account_id
+        ";
+
+        $params = [
+            ':account_id' => $accountId,
+        ];
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function getAccountIdById(string $id): ?string
+    {
+        $stmt = $this->db->prepare("
+            SELECT account_id
+            FROM ledger_sub_accounts
+            WHERE id = :id
+            LIMIT 1
+        ");
+
+        $stmt->execute([
+            ':id' => $id,
+        ]);
+
+        $value = $stmt->fetchColumn();
+
+        return $value !== false ? (string) $value : null;
+    }
 }

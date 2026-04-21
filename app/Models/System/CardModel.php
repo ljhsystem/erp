@@ -386,10 +386,6 @@ class CardModel
             WHERE id = :id
         ";
 
-        if (empty($data['updated_by'])) {
-            throw new \Exception('updated_by 없음');
-        }
-
         $params = [
             'id' => $id,
 
@@ -561,16 +557,10 @@ class CardModel
         $sql = "UPDATE system_cards SET code = :newCode WHERE id = :id";
         $stmt = $this->db->prepare($sql);
 
-        $ok = $stmt->execute([
+        return $stmt->execute([
             'newCode' => (int)$newCode,
             'id' => $id
         ]);
-
-        if (!$ok) {
-            throw new \Exception('쿼리 실행 실패');
-        }
-
-        return true;
     }
 
 

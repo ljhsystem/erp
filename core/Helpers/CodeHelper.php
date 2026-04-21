@@ -1,245 +1,79 @@
 <?php
-// 경로: PROJECT_ROOT . '/core/Helpers/CodeHelper.php'
+
 namespace Core\Helpers;
+
+use Core\Database;
+use PDO;
+use Throwable;
 
 class CodeHelper
 {
-    /* ============================================================
-     * 1) 공용 코드 생성 함수 (모든 테이블에 공통 적용 가능)
-     * ------------------------------------------------------------
-     * 기능: 해당 테이블의 code 컬럼에서 MAX 값을 읽고 +1 반환
-     * 주의: code 컬럼이 integer 타입일 때 사용 가능
-     * ============================================================ */
-    private static function generateCode($pdo, string $table): int
+    public static function next(string $table): int
     {
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $table)) {
+            throw new \InvalidArgumentException("Invalid table name: {$table}");
+        }
+
+        $pdo = Database::getInstance()->getConnection();
+
         try {
-            $stmt = $pdo->query("
-                SELECT code
-                FROM {$table}
-                ORDER BY code ASC
-            ");
-    
-            $codes = $stmt->fetchAll(\PDO::FETCH_COLUMN);
-    
-            $next = 1;
-    
-            foreach ($codes as $code) {
-                $code = (int)$code;
-    
-                if ($code < $next) {
-                    continue;
-                }
-    
-                if ($code > $next) {
-                    return $next;
-                }
-    
-                $next++;
-            }
-    
-            return $next;
-    
-        } catch (\Throwable $e) {
-            error_log("[CodeHelper] generateCode error ({$table}): " . $e->getMessage());
+            $stmt = $pdo->query("SELECT COALESCE(MAX(code), 0) + 1 FROM {$table}");
+            $next = (int) $stmt->fetchColumn();
+
+            return $next > 0 ? $next : 1;
+        } catch (Throwable $e) {
+            error_log("[CodeHelper] next error ({$table}): " . $e->getMessage());
             throw $e;
         }
     }
 
-    /* ============================================================
-     * 2) 사용자 코드 생성 (auth_users)
-     * ============================================================ */
-    public static function generateUserCode($pdo): int
-    {
-        return self::generateCode($pdo, 'auth_users');
-    }
-
-    /* ============================================================
-     * 3) 직원 프로필 코드 생성 (user_employees)
-     * ============================================================ */
-    public static function generateEmployeeCode($pdo): int
-    {
-        return self::generateCode($pdo, 'user_employees');
-    }
-
-    /* ============================================================
-     * 4) 클라이언트 코드 생성 (clients)
-     * ============================================================ */
-    public static function generateClientCode($pdo): int
-    {
-        return self::generateCode($pdo, 'system_clients');
-    }
-
-    /* ============================================================
-     * 5) 역할 코드 생성 (auth_roles)
-     * ============================================================ */
-    public static function generateRoleCode($pdo): int
-    {
-        return self::generateCode($pdo, 'auth_roles');
-    }
-
-    /* ============================================================
-     * 6) 직책 코드 생성 (user_positions)
-     * ============================================================ */
-    public static function generatePositionCode($pdo): int
-    {
-        return self::generateCode($pdo, 'user_positions');
-    }
-
-    /* ============================================================
-     * 7) 부서 코드 생성 (user_departments)
-     * ============================================================ */
-    public static function generateDepartmentCode($pdo): int
-    {
-        return self::generateCode($pdo, 'user_departments');
-    }
-
-    /* ============================================================
-     * 8) 권한 코드 생성 (auth_permissions)
-     * ============================================================ */
-    public static function generatePermissionCode($pdo): int
-    {
-        return self::generateCode($pdo, 'auth_permissions');
-    }
-
-    /* ============================================================
-     * 9) 역할-권한 매핑 코드 생성 (auth_role_permissions)
-     * ------------------------------------------------------------
-     * RP-00001 형태로 생성됨 (문자 + 숫자 조합)
-     * ============================================================ */
-    public static function generateRolePermissionCode($pdo): string
-    {
-        try {
-            $prefix = "RP";
-            $stmt = $pdo->query("SELECT COUNT(*) FROM auth_role_permissions");
-            $count = (int)$stmt->fetchColumn() + 1;
-            return sprintf("%s-%05d", $prefix, $count);
-
-        } catch (\Throwable $e) {
-            error_log("[CodeHelper] generateRolePermissionCode error: " . $e->getMessage());
-            return "RP-00001";
-        }
-    }
-
-    /* ============================================================
-    * 10) 커버 이미지 코드 생성 (system_coverimage_assets)
-    * ============================================================ */
-    public static function generateHomeAboutCoverImageCode($pdo): int
-    {
-        return self::generateCode($pdo, 'system_coverimage_assets');
-    }
-
-    public static function normalizeCoverImageCodes($pdo): void
+    public static function normalizeCoverImageCodes(PDO $pdo): void
     {
         $pdo->beginTransaction();
-    
+
         try {
-    
-            // 1️⃣ 전체 조회 (삭제 포함)
             $stmt = $pdo->query("
                 SELECT id, deleted_at, code
                 FROM system_coverimage_assets
             ");
-    
-            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-    
-            // 2️⃣ 임시 이동 (충돌 방지)
+
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
             $pdo->exec("
                 UPDATE system_coverimage_assets
                 SET code = code + 100000
             ");
-    
-            // 3️⃣ 정렬 (🔥 핵심: 활성 먼저, 휴지통 뒤)
-            usort($rows, function ($a, $b) {
-    
+
+            usort($rows, function (array $a, array $b): int {
                 $aDeleted = empty($a['deleted_at']) ? 0 : 1;
                 $bDeleted = empty($b['deleted_at']) ? 0 : 1;
-    
+
                 if ($aDeleted !== $bDeleted) {
                     return $aDeleted <=> $bDeleted;
                 }
-    
-                return (int)$a['code'] <=> (int)$b['code'];
+
+                return (int) $a['code'] <=> (int) $b['code'];
             });
-    
-            // 4️⃣ 재부여
+
             $seq = 1;
-    
+
             foreach ($rows as $row) {
-    
                 $stmt = $pdo->prepare("
                     UPDATE system_coverimage_assets
                     SET code = :code
                     WHERE id = :id
                 ");
-    
+
                 $stmt->execute([
                     ':code' => $seq++,
-                    ':id'   => $row['id']
+                    ':id' => $row['id'],
                 ]);
             }
-    
+
             $pdo->commit();
-    
-        } catch (\Throwable $e) {
-    
+        } catch (Throwable $e) {
             $pdo->rollBack();
             throw $e;
         }
     }
-    
-    /* ============================================================
-    * 11) 보조계정 코드 생성 (ledger_sub_accounts)
-    * account_id 기준으로 sub_code 증가
-    * ============================================================ */
-    public static function generateSubAccountCode($pdo, string $accountId): int
-    {
-        try {
-    
-            $sql = "
-                SELECT COALESCE(MAX(CAST(sub_code AS UNSIGNED)),0) + 1
-                FROM ledger_sub_accounts
-                WHERE account_id = :account_id
-            ";
-    
-            $stmt = $pdo->prepare($sql);
-    
-            $stmt->execute([
-                ':account_id' => $accountId
-            ]);
-    
-            return (int)$stmt->fetchColumn();
-    
-        } catch (\Throwable $e) {
-    
-            error_log("[CodeHelper] generateSubAccountCode error: " . $e->getMessage());
-    
-            return 1;
-        }
-    }
-
-    /* ============================================================
-    * 12) 프로젝트 코드 생성 (system_projects)
-    * ============================================================ */
-    public static function generateProjectCode($pdo): int
-    {
-        return self::generateCode($pdo, 'system_projects');
-    }
-
-    /* ============================================================
-    * 13) 계좌 코드 생성 (system_bank_accounts)
-    * ============================================================ */
-    public static function generateBankAccountCode($pdo): int
-    {
-        return self::generateCode($pdo, 'system_bank_accounts');
-    }
-    
-    /* ============================================================
-    * 14) 카드 코드 생성 (system_cards)
-    * ============================================================ */
-    public static function generateCardCode($pdo): int
-    {
-        return self::generateCode($pdo, 'system_cards');
-    }
-
-
 }

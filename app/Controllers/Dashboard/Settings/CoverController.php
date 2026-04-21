@@ -3,7 +3,6 @@
 // 대시보드>설정>기초정보관리>커버이미지 API 컨트롤러
 namespace App\Controllers\Dashboard\Settings;
 
-use Core\Session;
 use Core\DbPdo;
 use App\Services\System\CoverImageService;
 
@@ -13,7 +12,6 @@ class CoverController
 
     public function __construct()
     {
-        Session::requireAuth();
         $this->service = new CoverImageService(DbPdo::conn());
     }
 
@@ -79,8 +77,6 @@ class CoverController
             'alt'         => $_POST['alt'] ?? '',
             'description' => $_POST['description'] ?? '',
             'file'        => $_FILES['cover_image'] ?? null,
-            'created_by'  => $_SESSION['user']['id'] ?? null,
-            'updated_by'  => $_SESSION['user']['id'] ?? null,
         ];
 
         echo json_encode($this->service->save($payload), JSON_UNESCAPED_UNICODE);

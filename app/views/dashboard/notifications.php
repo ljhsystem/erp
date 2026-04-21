@@ -13,12 +13,7 @@ $pageScripts = $pageScripts ?? '';
 $pageStyles = AssetHelper::css('/assets/css/pages/dashboard/notifications.css');
 $pageScripts = '';
 // 브레드크럼프 (본문에 포함)
-$breadcrumb = [
-    '홈' => '/dashboard',
-    '공지사항' => '/dashboard/notifications'
-  ];
 ?>
-<?php include_once __DIR__ . '/../layout/breadcrumb.php'; ?>
 <!-- ✅ 메인 콘텐츠 -->
 <main class="notifications-main">
 

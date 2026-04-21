@@ -3,7 +3,6 @@
 // 대시보드>설정>기초정보관리>거래처 API 컨트롤러
 namespace App\Controllers\Dashboard\Settings;
 
-use Core\Session;
 use Core\DbPdo;
 use App\Services\System\ClientService;
 
@@ -15,7 +14,6 @@ class ClientController
 
     public function __construct()
     {
-        Session::requireAuth();
         $this->service = new ClientService(DbPdo::conn());
 
     }

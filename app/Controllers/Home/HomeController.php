@@ -2,17 +2,21 @@
 // 경로: PROJECT_ROOT . '/app/Controllers/Home/HomeController.php';
 namespace App\Controllers\Home;
 
+use App\Services\Auth\AuthSessionService;
 use Core\DbPdo;
 use App\Controllers\System\LayoutController;
+use PDO;
 
 
 class HomeController
 {
     private LayoutController $layout;
+    private AuthSessionService $authSessionService;
 
-    public function __construct()
+    public function __construct(?PDO $pdo = null)
     {
-        $this->layout = new LayoutController(DbPdo::conn()); 
+        $this->layout = new LayoutController($pdo ?? DbPdo::conn()); 
+        $this->authSessionService = new AuthSessionService();
     }
 
     private function renderPage(string $viewPath, array $params = []): void
@@ -54,7 +58,7 @@ class HomeController
     // ============================================================
     public function webRoot()
     {
-        if (!empty($_SESSION['user']['id'])) {
+        if ($this->authSessionService->isAuthenticated()) {
             header("Location: /dashboard");
             exit;
         }

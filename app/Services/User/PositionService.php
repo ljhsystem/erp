@@ -4,6 +4,7 @@ namespace App\Services\User;
 
 use PDO;
 use App\Models\User\PositionModel;
+use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\CodeHelper;
 use Core\LoggerFactory;
@@ -60,9 +61,9 @@ class PositionService
 
         // UUID + Code 생성
         $data['id'] = UuidHelper::generate();
-        $data['code'] = CodeHelper::generatePositionCode($this->pdo);
+        $data['code'] = CodeHelper::next('user_positions');
 
-        $data['created_by'] = $_SESSION['user']['id'] ?? null;
+        $data['created_by'] = ActorHelper::user();
 
         $ok = $this->model->create($data);
 
@@ -92,7 +93,7 @@ class PositionService
             return ['success' => false, 'message' => 'duplicate'];
         }
 
-        $data['updated_by'] = $_SESSION['user']['id'] ?? null;
+        $data['updated_by'] = ActorHelper::user();
 
         $ok = $this->model->update($id, $data);
 

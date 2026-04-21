@@ -9,6 +9,7 @@ use function Core\storage_upload;
 use function Core\storage_delete;
 use function Core\storage_resolve_abs;
 use function Core\storage_to_url;
+use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
 
@@ -419,11 +420,13 @@ class FileService
         // 수정
         if (!empty($data['id'])) {
             // UUID 그대로 사용 (string)
+            $data['updated_by'] = ActorHelper::user();
             return $this->policyModel->update($data['id'], $data);
         }
 
         // 신규 생성 → Service 책임으로 UUID 생성
         $data['id'] = UuidHelper::generate();
+        $data['created_by'] = ActorHelper::user();
 
         return $this->policyModel->create($data);
     }
@@ -439,6 +442,7 @@ class FileService
         }
 
         // UUID 그대로 전달
+        $data['updated_by'] = ActorHelper::user();
         return $this->policyModel->update($data['id'], $data);
     }
 
@@ -455,8 +459,8 @@ class FileService
     /* ============================================================
     * 정책 활성/비활성 전용 (Model 메서드 그대로 사용)
     * ============================================================ */
-    public function setPolicyActive(string $id, int $isActive, string $userId): bool
+    public function setPolicyActive(string $id, int $isActive): bool
     {
-        return $this->policyModel->setActive($id, (bool)$isActive, $userId);
+        return $this->policyModel->setActive($id, (bool)$isActive, ActorHelper::user());
     }
 }

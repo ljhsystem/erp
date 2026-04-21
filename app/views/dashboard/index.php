@@ -15,12 +15,7 @@ $pageStyles = AssetHelper::css('/assets/css/pages/dashboard/index.css');
 $pageScripts  = AssetHelper::js('https://cdn.jsdelivr.net/npm/chart.js');
 $pageScripts .= AssetHelper::js('/assets/js/pages/dashboard/index.js');
 // 브레드크럼프 (레이아웃 내부에서 자동 포함되지 않으므로 본문에 포함)
-$breadcrumb = [
-    '홈' => '/dashboard',  
-  ];
 ?>
-<?php include_once __DIR__ . '/../layout/breadcrumb.php'; ?>
-
 <!-- ✅ 메인 콘텐츠 -->
 <main class="dashboard-main"> 
 

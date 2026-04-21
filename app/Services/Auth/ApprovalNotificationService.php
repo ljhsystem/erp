@@ -27,8 +27,13 @@ class ApprovalNotificationService
             'user'  => $user['id'] ?? null,
         ]);
 
-        $url = 'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost')
-             . '/public/api/auth/approve_user.php?'
+        $baseUrl = rtrim((string)ConfigHelper::get('App.BaseUrl', ''), '/');
+        if ($baseUrl === '') {
+            throw new \RuntimeException('App.BaseUrl is not configured');
+        }
+
+        $url = $baseUrl
+             . '/approve_request?'
              . 'code=' . urlencode($user['code'])
              . '&approve_token=' . urlencode($token);
 
@@ -46,9 +51,7 @@ class ApprovalNotificationService
         $secret = ConfigHelper::secret();
 
         try {
-            $ch = curl_init(
-                'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/public/api/smtp/mailer_api.php'
-            );
+            $ch = curl_init($baseUrl . '/public/api/smtp/mailer_api.php');
 
             curl_setopt_array($ch, [
                 CURLOPT_POST           => true,
@@ -80,4 +83,5 @@ class ApprovalNotificationService
             ]);
         }
     }
+
 }

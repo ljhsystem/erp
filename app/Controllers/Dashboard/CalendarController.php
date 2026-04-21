@@ -4,8 +4,8 @@
 declare(strict_types=1);
 namespace App\Controllers\Dashboard;
 
-use Core\Session;
 use Core\DbPdo;
+use App\Services\Auth\AuthSessionService;
 use App\Services\User\ProfileService;
 use App\Services\User\ExternalAccountService;
 use App\Services\System\SettingService;
@@ -20,13 +20,19 @@ class CalendarController
 {
     private QueryService $query;
     private SyncService $sync;
+    private AuthSessionService $authSession;
     
     public function __construct()
     {
-        Session::requireAuth();
         $this->query = new QueryService(DbPdo::conn());
         $this->sync = new SyncService(DbPdo::conn());
+        $this->authSession = new AuthSessionService();
     }    
+
+    private function currentUserId(): ?string
+    {
+        return $this->authSession->getCurrentUserId();
+    }
 
     private function hasSynology(): bool
     {
@@ -35,7 +41,7 @@ class CalendarController
 
     private function filterByPersonalPolicy(array $rows): array
     {
-        $userId      = $_SESSION['user']['id'] ?? null;
+        $userId      = $this->currentUserId();
         $hasSynology = $this->hasSynology();
     
         return array_values(array_filter($rows, function ($row) use ($userId, $hasSynology) {
@@ -71,7 +77,7 @@ class CalendarController
     
         $isPersonal = (int)($cal['is_personal'] ?? 0);
         $ownerId    = $cal['owner_user_id'] ?? null;
-        $userId     = $_SESSION['user']['id'] ?? null;
+        $userId     = $this->currentUserId();
     
         if ($isPersonal === 1) {
     
@@ -118,7 +124,7 @@ class CalendarController
 
      protected function guardApi(): void
      {
-         if (empty($_SESSION['user']) || empty($_SESSION['user']['id'])) {
+         if (!$this->authSession->isAuthenticated()) {
              $this->json(['success' => false, 'message' => 'Forbidden'], 403);
              exit; // ✅ 명시적 종료
          }
@@ -145,7 +151,7 @@ class CalendarController
     {
         $this->guardApi();
     
-        $userId = $_SESSION['user']['id'] ?? null;
+        $userId = $this->currentUserId();
     
         $synologyLoginId = $this->getSynologyLoginId();
     
@@ -190,7 +196,7 @@ class CalendarController
             ob_clean();
         }
     
-        $actor = $_SESSION['user']['id'] ?? null;
+        $actor = $this->currentUserId();
     
         if (!$actor) {
             $this->json([
@@ -261,7 +267,7 @@ class CalendarController
         $this->guardApi(); 
 
         $synologyLoginId = $this->getSynologyLoginId();
-        $userId = $_SESSION['user']['id'] ?? null;
+        $userId = $this->currentUserId();
 
         try {
 
@@ -334,7 +340,7 @@ class CalendarController
     {
         $this->guardApi();
 
-        $userId = $_SESSION['user']['id'] ?? null;
+        $userId = $this->currentUserId();
 
         $synologyLoginId = $this->getSynologyLoginId();
 
@@ -383,11 +389,11 @@ class CalendarController
     {
         $this->guardApi();
 
-        $userId = $_SESSION['user']['id'] ?? null;
+        $userId = $this->currentUserId();
 
         try {
 
-            $userId = $_SESSION['user']['id'];
+            $userId = $this->currentUserId();
 
             // 1️⃣ Synology 연결 여부 한 번만 확인
             $hasSynology = $this->hasSynology();
@@ -449,7 +455,7 @@ class CalendarController
 
             if ($uid && $this->hasSynology()) {
                 $synologyLoginId = $this->getSynologyLoginId();
-                $actorUserId     = $_SESSION['user']['id'] ?? null;
+                $actorUserId     = $this->currentUserId();
                 
                 if ($uid && $synologyLoginId) {
                 
@@ -526,7 +532,7 @@ class CalendarController
                 }
             
                 $synologyLoginId = $this->getSynologyLoginId();
-                $actorUserId     = $_SESSION['user']['id'] ?? null;
+                $actorUserId     = $this->currentUserId();
                 
                 if ($uid && $synologyLoginId) {
                 
@@ -706,7 +712,7 @@ class CalendarController
             // 4️⃣ 단건 즉시 동기화 (Synology 연결된 경우만 의미 있음)
             if ($uid && $hasSynology) {
                 $synologyLoginId = $this->getSynologyLoginId();
-                $actorUserId     = $_SESSION['user']['id'] ?? null;
+                $actorUserId     = $this->currentUserId();
                 
                 if ($uid && $synologyLoginId) {
                 
@@ -796,7 +802,7 @@ class CalendarController
                     $collectionHref = $this->query->getTaskCollectionHref($uid);
                 }
                 $synologyLoginId = $this->getSynologyLoginId();
-                $actorUserId     = $_SESSION['user']['id'] ?? null;
+                $actorUserId     = $this->currentUserId();
                 
                 if ($uid && $synologyLoginId) {
                 
@@ -1117,7 +1123,7 @@ class CalendarController
             // 3️⃣ Synology 연결된 경우에만 동기화
             if ($this->hasSynology()) {
                 $synologyLoginId = $this->getSynologyLoginId();
-                $actorUserId     = $_SESSION['user']['id'] ?? null;
+                $actorUserId     = $this->currentUserId();
                 
                 if ($synologyLoginId) {
                 
@@ -1208,7 +1214,7 @@ class CalendarController
                 $calendarId,
                 $synologyLoginId,                  // ✅ 추가
                 $color,
-                $_SESSION['user']['id'] ?? null
+                $this->currentUserId()
             );
     
             $this->json([
@@ -1659,7 +1665,7 @@ class CalendarController
 
         try {
 
-            $userId = $_SESSION['user']['id'] ?? null;
+            $userId = $this->currentUserId();
 
             if (!$userId) {
                 $this->json([

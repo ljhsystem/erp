@@ -106,7 +106,7 @@ class PermissionRegistry
             // 신규 등록
             try {
                 $uuid = UuidHelper::generate();
-                $code = CodeHelper::generatePermissionCode($pdo);
+                $code = CodeHelper::next('auth_permissions');
 
                 self::$logger->info("DB INSERT 시도", [
                     'uuid' => $uuid,

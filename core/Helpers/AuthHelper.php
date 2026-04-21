@@ -3,8 +3,7 @@
 
 namespace Core\Helpers;
 
-use Core\Database;
-use App\Services\Auth\PermissionService;
+use App\Services\Auth\AuthSessionService;
 
 class AuthHelper
 {
@@ -13,7 +12,7 @@ class AuthHelper
      */
     public static function userId(): ?string
     {
-        return $_SESSION['user']['id'] ?? null;
+        return (new AuthSessionService())->getCurrentUserId();
     }
 
     /**
@@ -21,23 +20,6 @@ class AuthHelper
      */
     public static function check(): bool
     {
-        return isset($_SESSION['user']['id']);
-    }
-
-    /**
-     * 권한 체크
-     */
-    public static function hasPermission(string $key): bool
-    {
-        $userId = self::userId();
-
-        if (!$userId) {
-            return false;
-        }
-
-        $pdo = Database::getInstance()->getConnection();
-        $service = new PermissionService($pdo);
-
-        return $service->hasPermission($userId, $key);
+        return (new AuthSessionService())->isAuthenticated();
     }
 }

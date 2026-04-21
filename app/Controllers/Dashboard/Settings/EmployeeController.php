@@ -2,7 +2,6 @@
 // 寃쎈줈: PROJECT_ROOT . '/app/Controllers/Dashboard/Settings/EmployeeController.php'
 namespace App\Controllers\Dashboard\Settings;
 
-use Core\Session;
 use Core\DbPdo;
 use App\Services\System\EmployeeService;
 use App\Services\Auth\AuthService;
@@ -14,7 +13,6 @@ class EmployeeController
 
     public function __construct()
     {
-        Session::requireAuth();
         $this->service = new EmployeeService(DbPdo::conn());    
 
         $this->authService = new AuthService(DbPdo::conn());  

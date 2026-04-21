@@ -1,7 +1,5 @@
-﻿<?php
-//경로: PROJECT_ROOT . '/app/views/auth/waiting_approval.php'
-$message = $_SESSION['register_message'] ?? '관리자 승인 대기 중입니다.';
-// 메시지 인코딩을 UTF-8로 강제 변환 (EUC-KR 등에서 넘어올 경우)
+<?php
+$message = $message ?? '관리자 승인 대기 중입니다.';
 if (!mb_check_encoding($message, 'UTF-8')) {
     $message = mb_convert_encoding($message, 'UTF-8', 'auto');
 }
@@ -97,7 +95,7 @@ if (!mb_check_encoding($message, 'UTF-8')) {
         <div class="waiting-icon">🕰️</div>
         <div class="waiting-title">승인 대기 중입니다</div>
         <div class="waiting-message">
-            <?= htmlspecialchars($message) ?><br>
+            <?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?><br>
         </div>
         <div class="info-text">
             관리자의 승인이 완료되면 로그인하실 수 있습니다.<br>

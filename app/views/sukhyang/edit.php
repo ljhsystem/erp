@@ -1,11 +1,6 @@
 ﻿<?php
 // 📄 경로: /app/views/sukhyang/edit.php
 use Core\Helpers\AssetHelper;
-if (!isset($_SESSION['username'])) {
-    header("Location: /login/login.php");
-    exit;
-}
-$username = $_SESSION['username'];
 
 // 임시 샘플 데이터 (DB 연동 시 GET['id'] 등을 통해 조회)
 $doc = [

@@ -4,6 +4,7 @@ namespace App\Services\Auth;
 
 use PDO;
 use App\Models\Auth\RolePermissionModel;
+use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\CodeHelper;
 use Core\LoggerFactory;
@@ -40,7 +41,7 @@ class RolePermissionService
     /* ---------------------------------------------------------------
      * 3. 역할에 권한 부여 (UUID/Code 생성 Service 책임)
      * --------------------------------------------------------------- */
-    public function assign(string $roleId, string $permissionId, ?string $createdBy = null): bool
+    public function assign(string $roleId, string $permissionId): bool
     {
         // 중복 체크
         if ($this->model->exists($roleId, $permissionId)) {
@@ -50,10 +51,10 @@ class RolePermissionService
         // 새 UUID + 코드 생성
         $data = [
             'id'            => UuidHelper::generate(),
-            'code'          => CodeHelper::generateRolePermissionCode($this->pdo),
+            'code'          => sprintf('RP-%05d', CodeHelper::next('auth_role_permissions')),
             'role_id'       => $roleId,
             'permission_id' => $permissionId,
-            'created_by'    => $createdBy ?? ($_SESSION['user']['id'] ?? null)
+            'created_by'    => ActorHelper::user()
         ];
 
         return $this->model->insertMapping($data);

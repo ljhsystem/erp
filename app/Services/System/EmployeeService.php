@@ -509,7 +509,7 @@ class EmployeeService
                     $newEmployeeId = UuidHelper::generate();
 
                     $employeeData['id'] = $newEmployeeId;
-                    $employeeData['code'] = CodeHelper::generateEmployeeCode($this->pdo);
+                    $employeeData['code'] = CodeHelper::next('user_employees');
                     $employeeData['user_id'] = $newUserId;
                     $employeeData['created_by'] = $actor;
 

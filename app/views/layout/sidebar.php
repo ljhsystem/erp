@@ -85,7 +85,6 @@ $section = explode('/', $uri)[0];
                     <li><a href="/ledger/accounts" class="nav-link">📑 계정과목</a></li>
                     <li><a href="/ledger/description" class="nav-link">📝 적요</a></li>
                     <li><a href="/ledger/voucher-types" class="nav-link">📄 전표유형</a></li>
-                    <li><a href="/ledger/payment-methods" class="nav-link">💳 결제수단</a></li>
                 </ul>
             </li>
 

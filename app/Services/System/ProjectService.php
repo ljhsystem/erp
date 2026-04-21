@@ -233,7 +233,7 @@ class ProjectService
             * INSERT
             * ========================================================= */
             $newId   = UuidHelper::generate();
-            $newCode = CodeHelper::generateProjectCode($this->pdo);
+            $newCode = CodeHelper::next('system_projects');
 
             $insertData = array_merge($data, [
                 'id'         => $newId,

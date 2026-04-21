@@ -4,6 +4,7 @@ namespace App\Services\User;
 
 use PDO;
 use App\Models\User\DepartmentModel;
+use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\CodeHelper;
 use Core\LoggerFactory;
@@ -59,10 +60,10 @@ class DepartmentService
         $data['id'] = UuidHelper::generate();
 
         // 코드 생성
-        $data['code'] = CodeHelper::generateDepartmentCode($this->pdo);
+        $data['code'] = CodeHelper::next('user_departments');
 
         // created_by 설정
-        $data['created_by'] = $data['created_by'] ?? ($_SESSION['user']['id'] ?? null);
+        $data['created_by'] = ActorHelper::user();
 
         return $this->model->create($data);
     }
@@ -84,7 +85,7 @@ class DepartmentService
             }
         }
 
-        $data['updated_by'] = $_SESSION['user']['id'] ?? null;
+        $data['updated_by'] = ActorHelper::user();
 
         return $this->model->update($id, $data);
     }

@@ -1,89 +1,49 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Controllers/Auth/LoginController.php'
+
 namespace App\Controllers\Auth;
 
+use App\Services\Auth\AuthService;
+use App\Services\Auth\AuthSessionService;
 use Core\DbPdo;
-use App\Services\Auth\AuthService; 
-use App\Services\Auth\TwoFactorService; 
-use App\Services\Mail\MailService;
+use PDO;
 
 class LoginController
 {
     private AuthService $authService;
-    
-    public function __construct()
-    {
-        $this->authService = new AuthService(DbPdo::conn());
-    }
-    
+    private AuthSessionService $authSessionService;
 
-    // ============================================================
-    // WEB: 로그인 페이지 렌더링
-    // URL: GET /login
-    // permission: 없음
-    // controller: LoginController@webLoginPage
-    // ============================================================
+    public function __construct(?PDO $pdo = null)
+    {
+        $connection = $pdo ?? DbPdo::conn();
+        $this->authService = new AuthService($connection);
+        $this->authSessionService = new AuthSessionService();
+    }
+
     public function webLoginPage()
     {
-        // 이미 로그인된 경우 → 대시보드
-        if (!empty($_SESSION['user']['id'])) {
-            header('Location: /dashboard');
-            exit;
-        }
+        $message = $this->authSessionService->pullFlash('login_message');
+        $usernameValue = '';
 
         include PROJECT_ROOT . '/app/views/auth/login.php';
     }
 
-    // ============================================================
-    // API: 로그인 처리
-    // URL: POST /login
-    // permission: auth.login
-    // controller: LoginController@apiLogin
-    // ============================================================
     public function apiLogin()
     {
         $data = json_decode(file_get_contents('php://input'), true);
-        if (!is_array($data)) $data = $_POST;
-        
-        $twoFactor = new TwoFactorService();
-        $mailer    = new MailService();
-        $result = $this->authService->login($data, $twoFactor, $mailer);
+        if (!is_array($data)) {
+            $data = $_POST;
+        }
 
-        // ✅ 항상 JSON + 200 응답
-        http_response_code(200);
+        $result = $this->authService->login($data);
+
         header('Content-Type: application/json; charset=utf-8');
-        echo json_encode($result);
+        echo json_encode($result, JSON_UNESCAPED_UNICODE);
         exit;
     }
 
-    // ============================================================
-    // API: 로그아웃 처리
-    // URL: GET /logout
-    // permission: auth.logout
-    // controller: LoginController@apiLogout
-    // ============================================================
     public function apiLogout()
     {
-
-        $currentUser = $_SESSION['user'] ?? [];
-        $userId      = $currentUser['id']       ?? null;
-        $username    = $currentUser['username'] ?? null;
-
-        try {
-            $this->authService->logout($userId, $username);
-        } catch (\Throwable $e) {
-            // DB 로그 실패는 무시
-        }
-
-        // 세션 정리
-        $_SESSION = [];
-        session_unset();
-        session_destroy();
-
-        $sessName = session_name();
-        if (!empty($sessName)) {
-            setcookie($sessName, '', time() - 3600, '/');
-        }
+        $this->authService->logoutCurrentSession();
 
         header('Location: /login');
         exit;

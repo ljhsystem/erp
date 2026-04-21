@@ -4,7 +4,6 @@ namespace App\Controllers\Dashboard\Settings;
 
 use App\Services\System\BrandService;
 use Core\DbPdo;
-use Core\Session;
 
 class BrandController
 {
@@ -12,7 +11,6 @@ class BrandController
 
     public function __construct()
     {
-        Session::requireAuth();
         $this->service = new BrandService(DbPdo::conn());
     }
 
@@ -78,16 +76,6 @@ class BrandController
     public function apiSave()
     {
         header('Content-Type: application/json; charset=utf-8');
-
-        $userId = $_SESSION['user']['id'] ?? null;
-        if (!$userId) {
-            http_response_code(401);
-            echo json_encode([
-                'success' => false,
-                'message' => '인증 정보가 없습니다.',
-            ], JSON_UNESCAPED_UNICODE);
-            return;
-        }
 
         $assetType = trim((string) ($_POST['asset_type'] ?? ''));
         $file = $_FILES['file'] ?? null;

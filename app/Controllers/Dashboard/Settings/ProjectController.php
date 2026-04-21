@@ -3,7 +3,6 @@
 // 대시보드>설정>기초정보관리>프로젝트 API 컨트롤러
 namespace App\Controllers\Dashboard\Settings;
 
-use Core\Session;
 use Core\DbPdo;
 use App\Services\System\ProjectService;
 
@@ -14,7 +13,6 @@ class ProjectController
 
     public function __construct()
     {
-        Session::requireAuth();
         $this->service = new ProjectService(DbPdo::conn());
     }
     // ============================================================

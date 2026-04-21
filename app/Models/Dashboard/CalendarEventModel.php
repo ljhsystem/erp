@@ -395,15 +395,6 @@ class CalendarEventModel
         string $color,
         ?string $actor = null
     ): void {
-    
-        // 🔥 normalize
-        $color = strtolower(trim($color));
-    
-        // 🔥 6자리 HEX만 허용
-        if (!preg_match('/^#[0-9a-f]{6}$/', $color)) {
-            throw new \InvalidArgumentException('Invalid color format');
-        }
-    
         $sql = "
             UPDATE {$this->table}
             SET admin_event_color = :color,

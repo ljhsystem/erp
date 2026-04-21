@@ -172,11 +172,11 @@ $router->get('/autologout/expired', 'SessionController@webExpired');
  * → ★ 퍼미션 체크 제외해야 함 ★
  * ========================================================= */
 // 홈
-$router->get('/', 'HomeController@webRoot');
+$router->get('/', 'HomeController@webRoot', ['auth' => false]);
 // 홈 인덱스
-$router->get('/home', 'HomeController@webIndex');
+$router->get('/home', 'HomeController@webIndex', ['auth' => false]);
 // 회사 소개
-$router->get('/about', 'AboutController@webAbout');
+$router->get('/about', 'AboutController@webAbout', ['auth' => false]);
 // 관리자 회사 소개 (이건 내부이므로 제외 X)
 $router->get('/admin/about', 'AboutController@webAdminAbout', [
     'key' => 'web.admin.about.view',
@@ -185,13 +185,13 @@ $router->get('/admin/about', 'AboutController@webAdminAbout', [
     'category' => '관리자'
 ]);
 // 기업 비전
-$router->get('/vision', 'HomeController@webVision');
+$router->get('/vision', 'HomeController@webVision', ['auth' => false]);
 // 문의하기
-$router->get('/contact', 'HomeController@webContact');
+$router->get('/contact', 'HomeController@webContact', ['auth' => false]);
 // 개인정보 처리방침
-$router->get('/privacy', 'HomeController@webPrivacy');
+$router->get('/privacy', 'HomeController@webPrivacy', ['auth' => false]);
 // 사이트맵
-$router->get('/sitemap', 'HomeController@webSitemap');
+$router->get('/sitemap', 'HomeController@webSitemap', ['auth' => false]);
 
 
 
@@ -199,13 +199,13 @@ $router->get('/sitemap', 'HomeController@webSitemap');
  * 승인(Approval) 관련 WEB 페이지 (★ 퍼미션 체크 제외)
  * ========================================================= */
 // 승인 요청 페이지
-$router->get('/approve_request', 'ApprovalController@webApproveRequest');
+$router->get('/approve_request', 'ApprovalController@webApproveRequest', ['auth' => false]);
 // 승인 결과 페이지
-$router->get('/approve_result', 'ApprovalController@webApproveResult');
+$router->get('/approve_result', 'ApprovalController@webApproveResult', ['auth' => false]);
 /* =========================================================
  * 승인(Approval) 처리 (POST) — 퍼미션 체크 제외
  * ========================================================= */
-$router->post('/approve_user', 'ApprovalController@apiApproveUser');
+$router->post('/approve_user', 'ApprovalController@apiApproveUser', ['auth' => false]);
 
 
 
@@ -214,27 +214,27 @@ $router->post('/approve_user', 'ApprovalController@apiApproveUser');
  * 로그인 필요 없이 접근해야 하는 공개 페이지들
  * ========================================================= */
 /* 로그인 페이지 */
-$router->get('/login', 'LoginController@webLoginPage');
+$router->get('/login', 'LoginController@webLoginPage', ['guest_only' => true]);
 /* 로그아웃웃 페이지 */
-$router->get('/logout', 'LoginController@apiLogout');
+$router->get('/logout', 'LoginController@apiLogout', ['auth' => true]);
 /* 아이디 찾기 페이지 */
-$router->get('/find-id', 'PasswordController@webFindId');
+$router->get('/find-id', 'PasswordController@webFindId', ['auth' => false]);
 /* 아이디 찾기 결과 페이지 */
-$router->get('/find-id/result', 'PasswordController@webFindIdResult');
+$router->get('/find-id/result', 'PasswordController@webFindIdResult', ['auth' => false]);
 /* 비밀번호 찾기 페이지 */
-$router->get('/find-password', 'PasswordController@webFindPassword');
+$router->get('/find-password', 'PasswordController@webFindPassword', ['auth' => false]);
 /* 비밀번호 찾기 결과 페이지 */
-$router->get('/find-password/result', 'PasswordController@webFindPasswordResult');
+$router->get('/find-password/result', 'PasswordController@webFindPasswordResult', ['auth' => false]);
 /* 회원가입 페이지 */
-$router->get('/register', 'RegisterController@webRegisterPage');
+$router->get('/register', 'RegisterController@webRegisterPage', ['guest_only' => true]);
 /* 회원가입 성공 안내 페이지 */
-$router->get('/register_success', 'RegisterController@webRegisterSuccess');
+$router->get('/register_success', 'RegisterController@webRegisterSuccess', ['auth' => false]);
 /* 회원가입 승인 대기 안내 페이지 */
-$router->get('/waiting_approval', 'RegisterController@webWaitingApproval');
+$router->get('/waiting_approval', 'RegisterController@webWaitingApproval', ['auth' => false]);
 /* 2차 인증(OTP) 입력 페이지 */
-$router->get('/2fa', 'TwoFactorController@webTwoFactor');
+$router->get('/2fa', 'TwoFactorController@webTwoFactor', ['allow_statuses' => ['2FA_PENDING']]);
 // 비밀번호 만료 → 변경 페이지
-$router->get('/password/change', 'PasswordController@webChangePassword');
+$router->get('/password/change', 'PasswordController@webChangePassword', ['allow_statuses' => ['NORMAL', 'PASSWORD_EXPIRED']]);
 
 
 
@@ -246,12 +246,10 @@ $router->get('/password/change', 'PasswordController@webChangePassword');
 
 //프로필페이지
 $router->get('/profile', 'ProfileController@webProfile', [
-    'key'         => 'web.settings.profile.view',
     'name'        => '내 프로필',
     'description' => '사용자 개인 프로필 페이지',
     'category'    => '사용자',
     'auth'        => true,
-    'permissions' => ['view'],
     'log'         => true,
 ]);
 
@@ -267,41 +265,46 @@ $router->get('/profile', 'ProfileController@webProfile', [
  * Dashboard
  * ========================================================= */
 /* 로그인후 대시보드 페이지 */
-$router->get('/dashboard', 'DashboardController@webDashboard');
+$router->get('/dashboard', 'DashboardController@webDashboard', [
+    'name' => '대시보드',
+    'description' => '대시보드 메인 화면 접근',
+    'category' => '대시보드',
+    'auth' => true,
+]);
 
 
 $router->get('/dashboard/report', 'DashboardController@webReport', [
     'key' => 'web.dashboard.report',
-    'name' => '보고서',
-    'description' => '통합 보고서 화면 접근',
+    'name' => '통합보고서',
+    'description' => '대시보드 통합보고서 화면 접근',
     'category' => '대시보드'
 ]);
 
 $router->get('/dashboard/calendar', 'DashboardController@webCalendar', [
     'key' => 'web.dashboard.calendar',
     'name' => '캘린더',
-    'description' => '캘린더 접근',
+    'description' => '대시보드 캘린더 화면 접근',
     'category' => '대시보드'
 ]);
 
 $router->get('/dashboard/activity', 'DashboardController@webActivity', [
     'key' => 'web.dashboard.activity',
-    'name' => '최근 활동',
-    'description' => '활동 로그 조회',
+    'name' => '최근활동',
+    'description' => '대시보드 최근활동 화면 접근',
     'category' => '대시보드'
 ]);
 
 $router->get('/dashboard/notifications', 'DashboardController@webNotifications', [
     'key' => 'web.dashboard.notifications',
-    'name' => '알림 목록',
-    'description' => '알림 화면 접근',
+    'name' => '공지사항',
+    'description' => '대시보드 공지사항 화면 접근',
     'category' => '대시보드'
 ]);
 
 $router->get('/dashboard/kpi', 'DashboardController@webKpi', [
     'key' => 'web.dashboard.kpi',
-    'name' => 'KPI',
-    'description' => 'KPI 화면 접근',
+    'name' => '실적현황',
+    'description' => '대시보드 실적현황 화면 접근',
     'category' => '대시보드'
 ]);
 
@@ -316,8 +319,8 @@ $router->get('/dashboard/kpi', 'DashboardController@webKpi', [
 
 $router->get('/dashboard/settings', 'DashboardController@webSettings', [
     'key' => 'web.dashboard.settings',
-    'name' => '설정 메인',
-    'description' => '설정 페이지 접근',
+    'name' => '설정',
+    'description' => '시스템 설정 메인 화면 접근',
     'category' => '설정'
 ]);
 
@@ -445,7 +448,6 @@ $router->get('/dashboard/settings/organization/permissions', 'DashboardControlle
     'description' => '권한 관리 화면 접근',
     'category' => '조직관리',
     'auth' => true,
-    'permissions' => ['view'],
     'log' => true
 ]);
 
@@ -462,7 +464,6 @@ $router->get('/dashboard/settings/organization/approval', 'DashboardController@s
     'description' => '결재 템플릿 관리 화면 접근',
     'category' => '조직관리',
     'auth' => true,
-    'permissions' => ['view'],
     'log' => true
 ]);
 
@@ -560,10 +561,9 @@ $router->get('/dashboard/settings/system/logs/download', 'SystemController@webLo
  * 거래원장 (Ledger) WEB 페이지
  * ========================================================= */
  $router->get('/ledger', 'LedgerController@webIndex', [
-    'key'         => 'web.ledger.index.view',
-    'name'        => '거래원장 대시보드',
-    'description' => '거래원장 메인 대시보드',
-    'category'    => '거래원장'
+    'name' => '회계관리대시보드',
+    'description' => '회계관리 메인 대시보드 화면 접근',
+    'category' => '회계관리'
 ]);
 
 
@@ -572,10 +572,9 @@ $router->get('/dashboard/settings/system/logs/download', 'SystemController@webLo
  * 계정과목 관리
  * ========================================================= */
 $router->get('/ledger/accounts', 'LedgerController@webAccount', [
-    'key'         => 'web.ledger.account.view',
-    'name'        => '계정과목 관리',
-    'description' => '계정과목 관리 페이지',
-    'category'    => '거래원장'
+    'name' => '계정과목',
+    'description' => '회계관리 계정과목 화면 접근',
+    'category' => '회계관리'
 ]);
 
 
@@ -583,10 +582,9 @@ $router->get('/ledger/accounts', 'LedgerController@webAccount', [
  * 전표 입력
  * ========================================================= */
 $router->get('/ledger/journal', 'LedgerController@webJournal', [
-    'key'         => 'web.ledger.journal.view',
-    'name'        => '일반전표입력',
-    'description' => '일반전표 입력 화면 접근',
-    'category'    => '거래원장'
+    'name' => '일반전표',
+    'description' => '회계관리 일반전표 화면 접근',
+    'category' => '회계관리'
 ]);
 
 
