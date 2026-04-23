@@ -51,7 +51,7 @@
                             <thead>
                                 <tr>
                                     <th class="approval-reorder-col text-center" style="width:44px"><i class="bi bi-arrows-move"></i></th>
-                                    <th style="width:72px">코드</th>
+                                    <th style="width:72px">순번</th>
                                     <th>단계명</th>
                                     <th>결재 역할</th>
                                     <th>지정 결재자</th>

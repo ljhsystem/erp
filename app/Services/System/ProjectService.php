@@ -1,11 +1,11 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Services/System/ProjectService.php'
-// 설명:
-//  - 프로젝트(Project) 관리 서비스
-//  - UUID 생성은 Service 책임
-//  - code는 코드헬퍼사용
-//  - DB 처리: DashboardProjectModel
-//  - 모든 주요 흐름 LoggerFactory 적용
+// 野껋럥以? PROJECT_ROOT . '/app/Services/System/ProjectService.php'
+// ??살구:
+//  - ?袁⑥쨮??븍뱜(Project) ?온????뺥돩??
+//  - UUID ??밴쉐?? Service 筌?굞??
+//  - sort_no???꾨뗀諭???????
+//  - DB 筌ｌ꼶?? DashboardProjectModel
+//  - 筌뤴뫀諭?雅뚯눘???癒?カ LoggerFactory ?怨몄뒠
 namespace App\Services\System;
 
 use PDO;
@@ -13,9 +13,9 @@ use App\Models\System\ProjectModel;
 use App\Models\System\ClientModel;
 use App\Models\User\EmployeeModel;
 use Core\Helpers\UuidHelper;
-use Core\Helpers\CodeHelper;
 use Core\Helpers\ActorHelper;
 use Core\LoggerFactory;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -40,7 +40,7 @@ class ProjectService
     }
 
     /* ============================================================
-     * 전체 목록 조회
+     * ?袁⑷퍥 筌뤴뫖以?鈺곌퀬??
      * ============================================================ */
     public function getList(array $filters = []): array
     {
@@ -71,7 +71,7 @@ class ProjectService
 
 
     /* ============================================================
-    * 단건 조회 (id 기준)
+    * ??ｊ탷 鈺곌퀬??(id 疫꿸퀣?)
     * ============================================================ */
     public function getById(string $id): ?array
     {
@@ -106,7 +106,7 @@ class ProjectService
 
 
     /* =========================================================
-    * 프로젝트 검색 (Service - Select2 포맷)
+    * ?袁⑥쨮??븍뱜 野꺜??(Service - Select2 ????
     * ========================================================= */
     public function searchPicker(string $keyword): array
     {
@@ -128,15 +128,15 @@ class ProjectService
 
                 $text = $row['project_name'] ?? '';
 
-                // 🔥 공사명 추가
-                if (!empty($row['construction_name']) 
+                // ?逾??⑤벊沅쀯쭗??곕떽?
+                if (!empty($row['construction_name'])
                     && $row['construction_name'] !== $row['project_name']) {
                     $text .= ' / ' . $row['construction_name'];
                 }
 
-                // 🔥 코드 추가 (선택)
-                if (!empty($row['code'])) {
-                    $text .= ' [' . $row['code'] . ']';
+                // ?逾??꾨뗀諭??곕떽? (?醫뤾문)
+                if (!empty($row['sort_no'])) {
+                    $text .= ' [' . $row['sort_no'] . ']';
                 }
 
                 $results[] = [
@@ -160,16 +160,19 @@ class ProjectService
 
 
     /* ============================================================
-     * 저장 (신규 + 수정 통합)
+     * ????(?醫됲뇣 + ??륁젟 ????)
      * ============================================================ */
     public function save(array $data, string $actorType = 'USER', array $files = []): array
     {
         $actor = ActorHelper::resolve($actorType);
 
+        $data['client_id'] = $this->normalizeNullableId($data['client_id'] ?? null);
+        $data['employee_id'] = $this->normalizeNullableId($data['employee_id'] ?? null);
+
             $this->logger->info('save() called', [
                 'mode'      => !empty($data['id']) ? 'UPDATE' : 'INSERT',
                 'id'        => $data['id'] ?? null,
-                'code'      => $data['code'] ?? null,
+                'sort_no'      => $data['sort_no'] ?? null,
                 'actorType' => $actorType,
                 'actor'     => $actor,
                 'file_keys' => array_keys($files)
@@ -177,12 +180,26 @@ class ProjectService
 
         try {
 
+            if ($data['client_id'] !== null && !$this->clientModel->getById($data['client_id'])) {
+                return [
+                    'success' => false,
+                    'message' => '?醫뤾문??椰꾧퀡?믭㎗?? 筌≪뼚??????곷뮸??덈뼄. ??쇰뻻 ?醫뤾문??곻폒?紐꾩뒄.'
+                ];
+            }
+
+            if ($data['employee_id'] !== null && !$this->employeeModel->getById($data['employee_id'])) {
+                return [
+                    'success' => false,
+                    'message' => '?醫뤾문??????쭪怨몄뜚??筌≪뼚??????곷뮸??덈뼄. ??쇰뻻 ?醫뤾문??곻폒?紐꾩뒄.'
+                ];
+            }
+
             $this->pdo->beginTransaction();
 
             $id = trim((string)($data['id'] ?? ''));
 
             /* =========================================================
-            * 기존 데이터 조회 (UPDATE 시 필수)
+            * 疫꿸퀣???怨쀬뵠??鈺곌퀬??(UPDATE ???袁⑸땾)
             * ========================================================= */
             $before = [];
 
@@ -190,7 +207,7 @@ class ProjectService
                 $before = $this->model->getById($id);
 
                 if (!$before) {
-                    throw new \Exception('존재하지 않는 프로젝트입니다.');
+                    throw new \Exception('鈺곕똻???? ??낅뮉 ?袁⑥쨮??븍뱜??낅빍??');
                 }
             }
 
@@ -211,13 +228,13 @@ class ProjectService
                     return [
                         'success' => true,
                         'id'      => $id,
-                        'code'    => $before['code'] ?? null,
-                        'message' => '변경사항 없음'
+                        'sort_no'    => $before['sort_no'] ?? null,
+                        'message' => '癰궰野껋럩沅????곸벉'
                     ];
                 }
 
                 if (!$this->model->updateById($id, $updateData)) {
-                    throw new \Exception('프로젝트 수정 실패');
+                    throw new \Exception('?袁⑥쨮??븍뱜 ??륁젟 ??쎈솭');
                 }
 
                 $this->pdo->commit();
@@ -225,7 +242,7 @@ class ProjectService
                 return [
                     'success' => true,
                     'id'      => $id,
-                    'code'    => $before['code'] ?? null
+                    'sort_no'    => $before['sort_no'] ?? null
                 ];
             }
 
@@ -233,17 +250,17 @@ class ProjectService
             * INSERT
             * ========================================================= */
             $newId   = UuidHelper::generate();
-            $newCode = CodeHelper::next('system_projects');
+            $newSortNo = null;
 
             $insertData = array_merge($data, [
                 'id'         => $newId,
-                'code'       => $newCode,
+                'sort_no'       => $newSortNo,
                 'created_by' => $actor,
                 'updated_by' => $actor
             ]);
 
             if (!$this->model->create($insertData)) {
-                throw new \Exception('프로젝트 등록 실패');
+                throw new \Exception('?袁⑥쨮??븍뱜 ?源낆쨯 ??쎈솭');
             }
 
             $this->pdo->commit();
@@ -251,7 +268,7 @@ class ProjectService
             return [
                 'success' => true,
                 'id'      => $newId,
-                'code'    => $newCode
+                'sort_no'    => $newSortNo
             ];
 
         } catch (\Throwable $e) {
@@ -271,9 +288,23 @@ class ProjectService
         }
     }
 
-   
+    private function normalizeNullableId(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $normalized = trim((string) $value);
+        if ($normalized === '' || strtolower($normalized) === 'null' || strtolower($normalized) === 'undefined') {
+            return null;
+        }
+
+        return $normalized;
+    }
+
+
     /* ============================================================
-    * 삭제
+    * ????
     * ============================================================ */
     public function delete(string $id, string $actorType = 'USER'): array
     {
@@ -297,7 +328,7 @@ class ProjectService
 
                 return [
                     'success' => false,
-                    'message' => '존재하지 않는 프로젝트입니다.'
+                    'message' => '鈺곕똻???? ??낅뮉 ?袁⑥쨮??븍뱜??낅빍??'
                 ];
             }
 
@@ -310,7 +341,7 @@ class ProjectService
 
                 return [
                     'success' => false,
-                    'message' => '프로젝트 삭제 실패'
+                    'message' => '?袁⑥쨮??븍뱜 ??????쎈솭'
                 ];
             }
 
@@ -338,7 +369,7 @@ class ProjectService
 
 
     /* =========================================================
-    * 휴지통 목록
+    * ?????筌뤴뫖以?
     * ========================================================= */
     public function getTrashList(): array
     {
@@ -358,7 +389,7 @@ class ProjectService
         }
     }
     /* =========================================================
-    * 복원
+    * 癰귣벊??
     * ========================================================= */
     public function restore(string $id, string $actorType = 'USER'): array
     {
@@ -382,7 +413,7 @@ class ProjectService
 
                 return [
                     'success' => false,
-                    'message' => '존재하지 않는 프로젝트입니다.'
+                    'message' => '鈺곕똻???? ??낅뮉 ?袁⑥쨮??븍뱜??낅빍??'
                 ];
             }
 
@@ -395,7 +426,7 @@ class ProjectService
 
                 return [
                     'success' => false,
-                    'message' => '프로젝트 복원 실패'
+                    'message' => '?袁⑥쨮??븍뱜 癰귣벊????쎈솭'
                 ];
             }
 
@@ -424,7 +455,7 @@ class ProjectService
 
 
     /* =========================================================
-    * 선택 복원
+    * ?醫뤾문 癰귣벊??
     * ========================================================= */
     public function restoreBulk(array $ids, string $actorType = 'USER'): array
     {
@@ -442,7 +473,7 @@ class ProjectService
 
             return [
                 'success' => false,
-                'message' => '복원할 프로젝트가 없습니다.'
+                'message' => '癰귣벊????袁⑥쨮??븍뱜揶쎛 ??곷뮸??덈뼄.'
             ];
         }
 
@@ -451,15 +482,15 @@ class ProjectService
             $success = 0;
 
             foreach ($ids as $id) {
-            
+
                 if ($this->model->restoreById($id, $actor)) {
                     $success++;
                 }
             }
-            
+
             return [
                 'success' => true,
-                'message' => "선택 복원 완료 ({$success}건)"
+                'message' => "?醫뤾문 癰귣벊???袁⑥┷ ({$success}椰?"
             ];
 
         } catch (\Throwable $e) {
@@ -479,7 +510,7 @@ class ProjectService
 
 
     /* =========================================================
-    * 전체 복원
+    * ?袁⑷퍥 癰귣벊??
     * ========================================================= */
     public function restoreAll(string $actorType = 'USER'): array
     {
@@ -505,7 +536,7 @@ class ProjectService
 
             return [
                 'success' => true,
-                'message' => "전체 복원 완료 ({$success}건)"
+                'message' => "?袁⑷퍥 癰귣벊???袁⑥┷ ({$success}椰?"
             ];
 
         } catch (\Throwable $e) {
@@ -524,7 +555,7 @@ class ProjectService
 
 
     /* =========================================================
-    * 완전삭제
+    * ?袁⑹읈????
     * ========================================================= */
     public function purge(string $id, string $actorType = 'USER'): array
     {
@@ -545,10 +576,10 @@ class ProjectService
             if (!$project) {
 
                 $this->pdo->rollBack();
-            
+
                 return [
                     'success' => false,
-                    'message' => '존재하지 않는 프로젝트입니다.'
+                    'message' => '鈺곕똻???? ??낅뮉 ?袁⑥쨮??븍뱜??낅빍??'
                 ];
             }
 
@@ -556,7 +587,7 @@ class ProjectService
 
             if (!$ok) {
 
-                throw new \Exception('프로젝트 영구삭제 실패');
+                throw new \Exception('?袁⑥쨮??븍뱜 ?怨대럡??????쎈솭');
             }
 
             $this->pdo->commit();
@@ -589,7 +620,7 @@ class ProjectService
     }
 
     /* =========================================================
-    * 선택 완전삭제
+    * ?醫뤾문 ?袁⑹읈????
     * ========================================================= */
     public function purgeBulk(array $ids, string $actorType = 'USER'): array
     {
@@ -607,7 +638,7 @@ class ProjectService
 
             return [
                 'success' => false,
-                'message' => '삭제할 프로젝트가 없습니다.'
+                'message' => '??????袁⑥쨮??븍뱜揶쎛 ??곷뮸??덈뼄.'
             ];
         }
 
@@ -618,17 +649,17 @@ class ProjectService
             $success = 0;
 
             foreach ($ids as $id) {
-            
+
                 if ($this->model->hardDeleteById($id)) {
                     $success++;
                 }
             }
-            
+
             $this->pdo->commit();
-            
+
             return [
                 'success' => true,
-                'message' => "선택 삭제 완료 ({$success}건)"
+                'message' => "?醫뤾문 ?????袁⑥┷ ({$success}椰?"
             ];
 
         } catch (\Throwable $e) {
@@ -651,7 +682,7 @@ class ProjectService
     }
 
     /* =========================================================
-    * 전체 완전삭제
+    * ?袁⑷퍥 ?袁⑹읈????
     * ========================================================= */
     public function purgeAll(string $actorType = 'USER'): array
     {
@@ -666,7 +697,7 @@ class ProjectService
 
             $this->pdo->beginTransaction();
 
-            // 🔥 삭제 대상 개수 먼저 확보
+            // ?逾?????????揶쏆뮇???믪눘? ?類ｋ궖
             $rows = $this->model->getDeleted();
             $count = count($rows);
 
@@ -676,26 +707,26 @@ class ProjectService
 
                 return [
                     'success' => false,
-                    'message' => '삭제할 프로젝트가 없습니다.'
+                    'message' => '??????袁⑥쨮??븍뱜揶쎛 ??곷뮸??덈뼄.'
                 ];
             }
 
             $rows = $this->model->getDeleted();
 
             $success = 0;
-            
+
             foreach ($rows as $row) {
-            
+
                 if ($this->model->hardDeleteById($row['id'])) {
                     $success++;
                 }
             }
-            
+
             $this->pdo->commit();
-            
+
             return [
                 'success' => true,
-                'message' => "전체 삭제 완료 ({$success}건)"
+                'message' => "?袁⑷퍥 ?????袁⑥┷ ({$success}椰?"
             ];
 
         } catch (\Throwable $e) {
@@ -716,9 +747,9 @@ class ProjectService
         }
     }
 
- 
+
     /* ============================================================
-    * 코드 순서 변경 (RowReorder)
+    * ?꾨뗀諭???뽮퐣 癰궰野?(RowReorder)
     * ============================================================ */
     public function reorder(array $changes): bool
     {
@@ -736,35 +767,35 @@ class ProjectService
                 $this->pdo->beginTransaction();
             }
 
-            /* 1️⃣ 입력값 검증 */
+            /* 1?るㅄ源???낆젾揶?野꺜筌?*/
             foreach ($changes as $row) {
 
                 if (
                     empty($row['id']) ||
-                    !isset($row['newCode'])
+                    !isset($row['newSortNo'])
                 ) {
-                    throw new \Exception('reorder 데이터 오류');
+                    throw new \Exception('reorder ?怨쀬뵠????살첒');
                 }
             }
 
-            /* 2️⃣ temp 이동 (충돌 방지) */
+            /* 2?るㅄ源?temp ??猷?(?겸뫖猷?獄쎻뫗?) */
             foreach ($changes as $row) {
 
-                // 👉 넉넉하게 (절대 충돌 안나게)
-                $tempCode = (int)$row['newCode'] + 1000000;
+                // ?紐???곌석??띿쓺 (??? ?겸뫖猷???덇돌野?
+                $tempSortNo = (int)$row['newSortNo'] + 1000000;
 
-                $this->model->updateCode(
+                $this->model->updateSortNo(
                     $row['id'],
-                    $tempCode
+                    $tempSortNo
                 );
             }
 
-            /* 3️⃣ 실제 코드 적용 */
+            /* 3?るㅄ源???쇱젫 ?꾨뗀諭??怨몄뒠 */
             foreach ($changes as $row) {
 
-                $this->model->updateCode(
+                $this->model->updateSortNo(
                     $row['id'],
-                    (int)$row['newCode']
+                    (int)$row['newSortNo']
                 );
             }
 
@@ -791,325 +822,237 @@ class ProjectService
         }
     }
     /* ============================================================
-    * 템플릿 다운로드
+    * ??쀫탣????쇱뒲嚥≪뮆諭?
     * ============================================================ */
     public function downloadTemplate(): void
     {
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('프로젝트양식');
-
-        /* ============================================================
-        * 헤더
-        * ============================================================ */
-        $headers = [
-            '프로젝트명',
-            '공사명',
-            '발주처',
-            '시공사',
-            '공사시작일',
-            '공사종료일',
-            '계약금액',
-            '진행상태',
-            '비고'
-        ];
-
+        $sheet->setTitle('프로젝트 업로드');
+        $headers = ['프로젝트명', '거래처명', '담당직원', '공사명', '계약일자', '착공일자', '준공일자', '계약금액', '비고'];
         $sheet->fromArray($headers, null, 'A1');
-
-        /* ============================================================
-        * 시드 데이터
-        * ============================================================ */
-        $rows = [
-            ['청주 커뮤니티센터', '산성유원지 숲속 커뮤니티센터 건립공사', '청주시청', '석향', '2026-01-01', '2026-12-31', '1500000000', '진행중', '공공 프로젝트'],
-            ['세레니티 골프리조트', '골프장 클럽하우스 건설공사', '다옴홀딩스', '석향', '2026-02-01', '2027-03-31', '3200000000', '진행중', '민간 프로젝트'],
-            ['한빛 주상복합', '한빛 주상복합 신축공사', '한빛개발', '경동하우징', '2026-03-01', '2027-06-30', '2100000000', '진행중', '주거시설'],
-            ['세림 산업단지', '세림 산업단지 조성공사', '세림건설', '석향', '2025-10-01', '2026-08-31', '1800000000', '진행중', '토목 포함'],
-            ['청우 물류센터', '대형 물류센터 건설', '청우종합건설', '석향', '2025-05-01', '2026-04-30', '2700000000', '완료', '물류시설'],
-            ['미래 디자인센터', '디자인 연구센터 건립', '미래디자인', '석향', '2026-04-01', '2026-11-30', '900000000', '진행중', '연구시설'],
-            ['대한석재 공장', '석재 가공 공장 신축', '대한석재', '석향', '2026-01-15', '2026-09-30', '1200000000', '진행중', '공장'],
-            ['우림 산업 플랜트', '플랜트 건설공사', '우림산업', '석향', '2025-12-01', '2026-10-31', '2500000000', '진행중', '플랜트'],
-            ['동해 물류허브', '물류 허브 구축', '동해물류', '석향', '2026-02-15', '2027-01-31', '3000000000', '진행중', '물류'],
-            ['세영 무역센터', '무역센터 신축', '세영무역', '석향', '2026-03-10', '2026-12-20', '1700000000', '진행중', '상업시설'],
-        ];
-
-        $sheet->fromArray($rows, null, 'A2');
-
-        /* ============================================================
-        * 자동 컬럼폭
-        * ============================================================ */
-        foreach (range('A', 'I') as $col) {
-            $sheet->getColumnDimension($col)->setAutoSize(true);
-        }
-
-        /* ============================================================
-        * 다운로드
-        * ============================================================ */
-        $filename = 'project_template.xlsx';
-
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header("Content-Disposition: attachment; filename=\"{$filename}\"");
-        header('Cache-Control: max-age=0');
-
+        $sheet->fromArray([['샘플 프로젝트', '샘플 거래처', '홍길동', '샘플 공사', date('Y-m-d'), date('Y-m-d'), date('Y-m-d', strtotime('+1 year')), '1500000000', '']], null, 'A2');
+        foreach (range('A', 'I') as $col) { $sheet->getColumnDimension($col)->setAutoSize(true); }
         $writer = new Xlsx($spreadsheet);
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment; filename="project_template.xlsx"');
+        header('Cache-Control: max-age=0');
         $writer->save('php://output');
-
         $spreadsheet->disconnectWorksheets();
-        unset($spreadsheet);
-
         exit;
     }
-    /* ============================================================
-    * 엑셀 업로드 (파일 → 전체 처리)
-    * ============================================================ */
+
     public function saveFromExcelFile(string $filePath): array
     {
-        $actorType = 'SYSTEM'; // 🔥 거래처와 동일
-
-        try {
-
-            $spreadsheet = IOFactory::load($filePath);
-            $sheet = $spreadsheet->getActiveSheet();
-            $rows = $sheet->toArray(null, false, false, false);
-
-            if (empty($rows) || count($rows) < 2) {
-                return [
-                    'success' => false,
-                    'message' => '업로드할 데이터가 없습니다.'
-                ];
-            }
-
-            /* ============================================================
-            * 1. 헤더 매핑
-            * ============================================================ */
-            $headerMap = [
-                '프로젝트명'   => 'project_name',
-                '공사명'       => 'construction_name',
-                '발주처'       => 'client_name',
-                '시공사'       => 'contractor_name',
-                '공사시작일'   => 'start_date',
-                '공사종료일'   => 'end_date',
-                '계약금액'     => 'initial_contract_amount',
-                '진행상태'     => 'is_active',
-                '비고'         => 'note',
+        $spreadsheet = IOFactory::load($filePath);
+        $rows = $spreadsheet->getActiveSheet()->toArray(null, false, false, false);
+        if (empty($rows) || count($rows) < 2) { return ['success' => false, 'message' => '업로드할 데이터가 없습니다.']; }
+        $header = array_map(fn($v) => trim((string)$v), array_shift($rows));
+        $map = array_flip($header);
+        $count = 0;
+        foreach ($rows as $row) {
+            if (count(array_filter($row, fn($v) => trim((string)$v) !== '')) === 0) { continue; }
+            $payload = [
+                'project_name' => trim((string)($row[$map['프로젝트명'] ?? -1] ?? '')),
+                'client_name' => trim((string)($row[$map['거래처명'] ?? -1] ?? '')),
+                'contractor_name' => trim((string)($row[$map['담당직원'] ?? -1] ?? '')),
+                'construction_name' => trim((string)($row[$map['공사명'] ?? -1] ?? '')),
+                'contract_date' => trim((string)($row[$map['계약일자'] ?? -1] ?? '')) ?: null,
+                'start_date' => trim((string)($row[$map['착공일자'] ?? -1] ?? '')) ?: null,
+                'end_date' => trim((string)($row[$map['준공일자'] ?? -1] ?? '')) ?: null,
+                'initial_contract_amount' => (float)($row[$map['계약금액'] ?? -1] ?? 0),
+                'note' => trim((string)($row[$map['비고'] ?? -1] ?? '')),
+                'is_active' => 1,
             ];
-
-            $excelHeaders = array_map(fn($v) => trim((string)$v), $rows[0]);
-
-            $columnMap = [];
-
-            foreach ($excelHeaders as $index => $headerName) {
-                if (isset($headerMap[$headerName])) {
-                    $columnMap[$headerMap[$headerName]] = $index;
-                }
-            }
-
-            if (!isset($columnMap['project_name'])) {
-                return [
-                    'success' => false,
-                    'message' => '엑셀 양식 오류: [프로젝트명] 필요'
-                ];
-            }
-
-            /* ============================================================
-            * 2. 데이터 처리
-            * ============================================================ */
-            array_shift($rows);
-
-            $count = 0;
-
-            foreach ($rows as $row) {
-
-                if (count(array_filter($row, fn($v) => trim((string)$v) !== '')) === 0) {
-                    continue;
-                }
-
-                /* ======================
-                * 날짜 처리
-                * ====================== */
-                $startDate = null;
-                $endDate   = null;
-
-                if (isset($columnMap['start_date'])) {
-                    $v = $row[$columnMap['start_date']] ?? null;
-                    $startDate = is_numeric($v)
-                        ? Date::excelToDateTimeObject($v)->format('Y-m-d')
-                        : trim((string)$v);
-                }
-
-                if (isset($columnMap['end_date'])) {
-                    $v = $row[$columnMap['end_date']] ?? null;
-                    $endDate = is_numeric($v)
-                        ? Date::excelToDateTimeObject($v)->format('Y-m-d')
-                        : trim((string)$v);
-                }
-
-                /* ======================
-                * 상태 처리
-                * ====================== */
-                $statusText = isset($columnMap['is_active'])
-                    ? trim((string)($row[$columnMap['is_active']] ?? ''))
-                    : '';
-
-                $isActive = match ($statusText) {
-                    '완료' => 0,
-                    '진행중' => 1,
-                    default => 1
-                };
-
-                /* ======================
-                * payload 구성
-                * ====================== */
-                $payload = [
-                    'project_name' => trim((string)($row[$columnMap['project_name']] ?? '')),
-
-                    'construction_name' => isset($columnMap['construction_name'])
-                        ? trim((string)($row[$columnMap['construction_name']] ?? ''))
-                        : '',
-
-                    'client_name' => isset($columnMap['client_name'])
-                        ? trim((string)($row[$columnMap['client_name']] ?? ''))
-                        : '',
-
-                    'contractor_name' => isset($columnMap['contractor_name'])
-                        ? trim((string)($row[$columnMap['contractor_name']] ?? ''))
-                        : '',
-
-                    'start_date' => $startDate,
-                    'end_date'   => $endDate,
-
-                    'initial_contract_amount' => isset($columnMap['initial_contract_amount'])
-                        ? (float)($row[$columnMap['initial_contract_amount']] ?? 0)
-                        : 0,
-
-                    'is_active' => $isActive,
-
-                    'note' => isset($columnMap['note'])
-                        ? trim((string)($row[$columnMap['note']] ?? ''))
-                        : '',
-                ];
-
-                if ($payload['project_name'] === '') {
-                    continue;
-                }
-
-                /* ======================
-                * 저장 (🔥 핵심 변경)
-                * ====================== */
-                $result = $this->save($payload, $actorType);
-
-                if ($result['success']) {
-                    $count++;
-                } else {
-                    $this->logger->warning('Excel row save failed', [
-                        'payload' => $payload,
-                        'error'   => $result['message'] ?? null
-                    ]);
-                }
-            }
-
-            return [
-                'success' => true,
-                'message' => "{$count}건 업로드 완료"
-            ];
-
-        } catch (\Throwable $e) {
-
-            $this->logger->error('Excel upload failed', [
-                'file' => $filePath,
-                'error' => $e->getMessage()
-            ]);
-
-            return [
-                'success' => false,
-                'message' => '엑셀 처리 중 오류 발생'
-            ];
+            if ($payload['project_name'] === '') { continue; }
+            $result = $this->save($payload, 'SYSTEM');
+            if (!empty($result['success'])) { $count++; }
         }
+        return ['success' => true, 'message' => "{$count}건 업로드되었습니다."];
     }
-    /* ============================================================
-    * 프로젝트 목록 엑셀 다운로드
-    * ============================================================ */
+
     public function downloadExcel(): void
     {
-        // 1️⃣ 데이터 조회
         $projects = $this->model->getList();
-
-        // 2️⃣ 엑셀 객체 생성
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('프로젝트목록');
+        $sheet->setTitle('프로젝트 목록');
+        $sheet->fromArray(['순번', '프로젝트명', '공사명', '거래처명', '담당직원', '착공일자', '준공일자', '계약금액', '사용여부', '비고'], null, 'A1');
+        $rowNo = 2;
+        foreach ($projects as $project) {
+            $sheet->fromArray([[$project['sort_no'] ?? '', $project['project_name'] ?? '', $project['construction_name'] ?? '', $project['client_name'] ?? '', $project['contractor_name'] ?? '', $project['start_date'] ?? '', $project['end_date'] ?? '', $project['initial_contract_amount'] ?? '', !empty($project['is_active']) ? '사용' : '미사용', $project['note'] ?? '']], null, 'A' . $rowNo);
+            $rowNo++;
+        }
+        foreach (range('A', 'J') as $col) { $sheet->getColumnDimension($col)->setAutoSize(true); }
+        $writer = new Xlsx($spreadsheet);
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment; filename="project_list.xlsx"');
+        header('Cache-Control: max-age=0');
+        $writer->save('php://output');
+        $spreadsheet->disconnectWorksheets();
+        exit;
+    }
 
-        /* ============================================================
-        * 3️⃣ 헤더
-        * ============================================================ */
-        $headers = [
-            'A1' => '코드',
-            'B1' => '프로젝트명',
-            'C1' => '공사명',
-            'D1' => '발주처',
-            'E1' => '시공사',
-            'F1' => '공사시작일',
-            'G1' => '공사종료일',
-            'H1' => '계약금액',
-            'I1' => '상태',
-            'J1' => '비고',
+    public function downloadMigrationTemplate(): void { $this->downloadTemplate(); }
+    public function saveFromMigrationExcelFile(string $filePath): array { return $this->saveFromExcelFile($filePath); }
+    public function downloadMigrationExcel(): void { $this->downloadExcel(); }
+    private function getProjectMigrationHeaders(): array
+    {
+        return ['프로젝트명', '사용여부', '거래처명', '담당직원', '공사명', '계약일자', '착공일자', '준공일자', '계약금액', '비고'];
+    }
+
+    private function getProjectMigrationHeaderMap(): array
+    {
+        return [
+            '프로젝트명' => 'project_name',
+            '사용여부' => 'is_active',
+            '거래처명' => 'client_name',
+            '담당직원' => 'contractor_name',
+            '공사명' => 'construction_name',
+            '계약일자' => 'contract_date',
+            '착공일자' => 'start_date',
+            '준공일자' => 'end_date',
+            '계약금액' => 'initial_contract_amount',
+            '비고' => 'note',
+            'projectname' => 'project_name',
+            'isactive' => 'is_active',
+            'clientname' => 'client_name',
+            'contractorname' => 'contractor_name',
+            'constructionname' => 'construction_name',
+            'contractdate' => 'contract_date',
+            'startdate' => 'start_date',
+            'enddate' => 'end_date',
+            'initialcontractamount' => 'initial_contract_amount',
+            'note' => 'note',
+        ];
+    }
+    private function normalizeProjectExcelDate(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_numeric($value)) {
+            return Date::excelToDateTimeObject($value)->format('Y-m-d');
+        }
+
+        $value = trim((string)$value);
+        if ($value === '') {
+            return null;
+        }
+
+        $timestamp = strtotime($value);
+        return $timestamp === false ? $value : date('Y-m-d', $timestamp);
+    }
+
+    private function parseProjectExcelActiveValue(mixed $value): int
+    {
+        $normalized = mb_strtolower(trim((string)$value), 'UTF-8');
+        return in_array($normalized, ['1', 'true', 'yes', 'use', 'active', 'y', '사용'], true) ? 1 : 0;
+    }
+
+    private function normalizeNullableProjectFields(array $data): array
+    {
+        $nullableFields = [
+            'client_id',
+            'employee_id',
+            'site_agent',
+            'contract_type',
+            'director',
+            'manager',
+            'business_type',
+            'housing_type',
+            'construction_name',
+            'site_region_city',
+            'site_region_district',
+            'site_region_address',
+            'site_region_address_detail',
+            'work_type',
+            'work_subtype',
+            'work_detail_type',
+            'contract_work_type',
+            'bid_type',
+            'client_name',
+            'client_type',
+            'permit_agency',
+            'permit_date',
+            'contract_date',
+            'start_date',
+            'completion_date',
+            'bid_notice_date',
+            'initial_contract_amount',
+            'authorized_company_seal',
+            'note',
+            'memo',
         ];
 
-        foreach ($headers as $cell => $label) {
-            $sheet->setCellValue($cell, $label);
+        foreach ($nullableFields as $field) {
+            if (!array_key_exists($field, $data) || $data[$field] === null) {
+                continue;
+            }
+
+            if ($field === 'initial_contract_amount') {
+                $normalized = trim(str_replace(',', '', (string)$data[$field]));
+                $data[$field] = $normalized === '' ? null : $normalized;
+                continue;
+            }
+
+            $value = trim((string)$data[$field]);
+            $data[$field] = $value === '' ? null : $value;
         }
 
-        /* ============================================================
-        * 4️⃣ 데이터
-        * ============================================================ */
-        $row = 2;
+        return $data;
+    }
 
-        foreach ($projects as $project) {
+    private function resolveClientIdByName(string $clientName): ?string
+    {
+        $clientName = trim($clientName);
 
-            $status = ($project['is_active'] ?? 0) == 1 ? '진행중' : '완료';
-
-            $sheet->setCellValue('A' . $row, $project['code'] ?? '');
-            $sheet->setCellValue('B' . $row, $project['project_name'] ?? '');
-            $sheet->setCellValue('C' . $row, $project['construction_name'] ?? '');
-            $sheet->setCellValue('D' . $row, $project['client_name'] ?? '');
-            $sheet->setCellValue('E' . $row, $project['contractor_name'] ?? '');
-            $sheet->setCellValue('F' . $row, $project['start_date'] ?? '');
-            $sheet->setCellValue('G' . $row, $project['end_date'] ?? '');
-            $sheet->setCellValue('H' . $row, $project['initial_contract_amount'] ?? '');
-            $sheet->setCellValue('I' . $row, $status);
-            $sheet->setCellValue('J' . $row, $project['note'] ?? '');
-
-            $row++;
+        if ($clientName === '') {
+            return null;
         }
 
-        /* ============================================================
-        * 5️⃣ 자동 컬럼폭
-        * ============================================================ */
-        foreach (range('A', 'J') as $col) {
-            $sheet->getColumnDimension($col)->setAutoSize(true);
+        $stmt = $this->pdo->prepare("
+            SELECT id
+            FROM system_clients
+            WHERE client_name = :client_name
+              AND deleted_at IS NULL
+            LIMIT 1
+        ");
+
+        $stmt->execute([
+            'client_name' => $clientName,
+        ]);
+
+        $id = $stmt->fetchColumn();
+
+        return $id !== false ? (string)$id : null;
+    }
+
+    private function resolveEmployeeIdByName(string $employeeName): ?string
+    {
+        $employeeName = trim($employeeName);
+
+        if ($employeeName === '') {
+            return null;
         }
 
-        /* ============================================================
-        * 6️⃣ 파일명
-        * ============================================================ */
-        $filename = '프로젝트목록_' . date('Ymd_His') . '.xlsx';
+        $stmt = $this->pdo->prepare("
+            SELECT p.id
+            FROM user_employees p
+            LEFT JOIN auth_users u ON p.user_id = u.id
+            WHERE p.employee_name = :employee_name
+              AND COALESCE(u.is_active, 1) = 1
+            LIMIT 1
+        ");
 
-        /* ============================================================
-        * 7️⃣ 헤더
-        * ============================================================ */
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header("Content-Disposition: attachment; filename=\"{$filename}\"");
-        header('Cache-Control: max-age=0');
+        $stmt->execute([
+            'employee_name' => $employeeName,
+        ]);
 
-        /* ============================================================
-        * 8️⃣ 출력
-        * ============================================================ */
-        $writer = new Xlsx($spreadsheet);
-        $writer->save('php://output');
+        $id = $stmt->fetchColumn();
 
-        $spreadsheet->disconnectWorksheets();
-        unset($spreadsheet);
-
-        exit;
+        return $id !== false ? (string)$id : null;
     }
 
 

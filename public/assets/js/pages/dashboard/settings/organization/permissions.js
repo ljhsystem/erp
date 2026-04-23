@@ -22,7 +22,7 @@ window.AdminPicker = AdminPicker;
     };
 
     const PERMISSION_COLUMN_MAP = {
-        code:            { label: '코드', visible: true },
+        sort_no:            { label: '순번', visible: true },
         category:        { label: '카테고리', visible: true },
         permission_name: { label: '퍼미션명', visible: true },
         permission_key:  { label: '퍼미션키', visible: true },

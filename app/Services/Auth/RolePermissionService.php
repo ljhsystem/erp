@@ -6,7 +6,7 @@ use PDO;
 use App\Models\Auth\RolePermissionModel;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
-use Core\Helpers\CodeHelper;
+use Core\Helpers\SequenceHelper;
 use Core\LoggerFactory;
 
 class RolePermissionService
@@ -39,7 +39,7 @@ class RolePermissionService
     }
 
     /* ---------------------------------------------------------------
-     * 3. 역할에 권한 부여 (UUID/Code 생성 Service 책임)
+     * 3. 역할에 권한 부여
      * --------------------------------------------------------------- */
     public function assign(string $roleId, string $permissionId): bool
     {
@@ -48,10 +48,10 @@ class RolePermissionService
             return true; // 이미 있으므로 성공 처리
         }
 
-        // 새 UUID + 코드 생성
+        // auth_role_permissions.code는 업무 식별자라 유지합니다.
         $data = [
             'id'            => UuidHelper::generate(),
-            'code'          => sprintf('RP-%05d', CodeHelper::next('auth_role_permissions')),
+            'code'          => sprintf('RP-%05d', SequenceHelper::next('auth_role_permissions')),
             'role_id'       => $roleId,
             'permission_id' => $permissionId,
             'created_by'    => ActorHelper::user()
@@ -85,7 +85,7 @@ class RolePermissionService
     }
 
     /* ---------------------------------------------------------------
-     * 7. 역할이 특정 permission_key 를 가지고 있는지 여부
+     * 7. 역할이 특정 permission_key를 가지고 있는지 여부
      * --------------------------------------------------------------- */
     public function roleHasPermission(string $roleId, string $permissionKey): bool
     {

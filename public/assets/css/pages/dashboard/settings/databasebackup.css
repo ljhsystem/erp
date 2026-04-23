@@ -1,0 +1,39 @@
+.backup-top-row {
+  align-items: stretch;
+}
+
+.backup-top-row > [class*="col-"] {
+  display: flex;
+}
+
+.backup-top-card {
+  width: 100%;
+}
+
+.backup-manual-body,
+.backup-auto-body {
+  min-height: 0 !important;
+}
+
+.backup-file-list-wrap {
+  min-height: 0;
+  flex: 0 0 auto;
+}
+
+.backup-file-list-box {
+  min-height: 0;
+  height: 380px;
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+@media (max-width: 991.98px) {
+  .backup-top-row > [class*="col-"] {
+    display: block;
+  }
+
+  .backup-file-list-box {
+    height: 220px;
+    max-height: 220px;
+  }
+}

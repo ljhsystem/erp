@@ -23,7 +23,7 @@
       <option value="">선택</option>
       <option value="role_key">Role Key</option>
       <option value="role_name">Role Name</option>
-      <option value="code">코드</option>
+      <option value="sort_no">순번</option>
       <option value="description">설명</option>
       <option value="is_active">상태</option>
     ';

@@ -1,5 +1,5 @@
 <?php
-// ??????轅붽틓????몃마?????????????? PROJECT_ROOT . '/app/Services/System/BankAccountService.php'
+// ??????耀붾굝??????筌뤾퍓彛?????????????? PROJECT_ROOT . '/app/Services/System/BankAccountService.php'
 
 namespace App\Services\System;
 
@@ -7,7 +7,6 @@ use PDO;
 use App\Models\System\BankAccountModel;
 use App\Services\File\FileService;
 use Core\Helpers\UuidHelper;
-use Core\Helpers\CodeHelper;
 use Core\Helpers\ActorHelper;
 use Core\LoggerFactory;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -31,7 +30,7 @@ class BankAccountService
         $this->logger->info('BankAccountService initialized');
     }
     /* ============================================================
-    * ???????????꾩룆梨띰쭕?뚢뵾??????????????嶺뚮죭?댁젘????????癲??????????????癲????????熬곣뫖利당춯??쎾퐲????????耀붾굝????????????????꿔꺂???????????????????????
+    * ???????????熬곣뫖利당춯??쎾퐲???????????????????꿔꺂?㏘틠??怨몄젦???????????????????????????????????썹땟戮녹??諭?????⑸㎦???????????븐뼐?????????????????饔낅떽????????????????????????
     * ============================================================ */
     public function getList(array $filters = []): array
     {
@@ -61,7 +60,7 @@ class BankAccountService
     }
 
     /* ============================================================
-    * ??????????????됰Ŧ????????????????雍??????????????(id ???????)
+    * ???????????????嫄???????????????????????????????(id ???????)
     * ============================================================ */
     public function getById(string $id): ?array
     {
@@ -90,7 +89,7 @@ class BankAccountService
     }
 
     /* =========================================================
-    * ????????????????????轅붽틓????몃마?????????(Service - Select2 ????
+    * ????????????????????耀붾굝??????筌뤾퍓彛?????????(Service - Select2 ????
     * ========================================================= */
     public function searchPicker(string $keyword): array
     {
@@ -112,17 +111,17 @@ class BankAccountService
 
                 $text = $row['account_name'] ?? '';
 
-                // ??????????????????????????????怨뺤꽢???
+                // ????????????????????????????????ㅻ깹????
                 if (!empty($row['bank_name'])) {
                     $text = $row['bank_name'] . ' / ' . $text;
                 }
 
-                // ?????????????????????????????????????????釉먮폁?????????????????????怨뺤꽢???
+                // ???????????????????????????????????????????거????????????????????????ㅻ깹????
                 if (!empty($row['account_number'])) {
                     $text .= ' (' . $row['account_number'] . ')';
                 }
 
-                // ??????????????????????????怨뺤꽢???
+                // ????????????????????????????ㅻ깹????
                 if (!empty($row['account_holder'])) {
                     $text .= ' - ' . $row['account_holder'];
                 }
@@ -147,7 +146,7 @@ class BankAccountService
     }
 
     /* =========================================================
-    * ????(???????????썹땟戮녹??諭?????⑸㎦???????????+ ????????????산뭐?????????
+    * ????(????????????諛몃마嶺뚮?????????????硫λ젒???????????+ ?????????????怨뺤떪?????????
     * ========================================================= */
     public function save(array $data, string $actorType = 'USER', array $files = []): array
     {
@@ -211,7 +210,7 @@ class BankAccountService
                 return [
                     'success' => true,
                     'id' => $id,
-                    'code' => $before['code'] ?? null,
+                    'sort_no' => $before['sort_no'] ?? null,
                     'message' => 'Update completed.'
                 ];
             }
@@ -230,11 +229,11 @@ class BankAccountService
             }
 
             $newId = UuidHelper::generate();
-            $newCode = CodeHelper::next('system_bank_accounts');
+            $newSortNo = null;
 
             $insertData = array_merge($data, [
                 'id' => $newId,
-                'code' => $newCode,
+                'sort_no' => $newSortNo,
                 'created_by' => $actor,
                 'updated_by' => $actor
             ]);
@@ -248,7 +247,7 @@ class BankAccountService
             return [
                 'success' => true,
                 'id' => $newId,
-                'code' => $newCode,
+                'sort_no' => $newSortNo,
                 'message' => 'Create completed.'
             ];
         }
@@ -292,10 +291,10 @@ class BankAccountService
         };
     }
     /* =========================================================
-    * ????????????????????????怨뺤떪????遺얘턁????????
+    * ??????????????????????????ㅻ깹???????釉먮폁?????????
     * ========================================================= */
     /* =========================================================
-    * ????節떷?????ㅼ뒧?戮ル탶??
+    * ????壤굿??Β???????곕츥?嶺뚮?爰???
     * ========================================================= */
     public function restoreBulk(array $ids, string $actorType = 'USER'): array
     {
@@ -342,7 +341,7 @@ class BankAccountService
     }
 
     /* =========================================================
-    * ?????밸븶?????ㅼ뒧?戮ル탶??
+    * ?????獄쏅챶留???????곕츥?嶺뚮?爰???
     * ========================================================= */
     public function restoreAll(string $actorType = 'USER'): array
     {
@@ -387,7 +386,7 @@ class BankAccountService
     * ?????????
     * ========================================================= */
     /* =========================================================
-    * ??⑤??????
+    * ?????????
     * ========================================================= */
     public function purge(string $id, string $actorType = 'USER'): array
     {
@@ -438,7 +437,7 @@ class BankAccountService
         }
     }
     /* =========================================================
-    * ?醫뤾문 ?怨대럡????
+    * ???ャ뀕???????????
     * ========================================================= */
     public function purgeBulk(array $ids, string $actorType = 'USER'): array
     {
@@ -494,7 +493,7 @@ class BankAccountService
     }
 
     /* =========================================================
-    * ?袁⑷퍥 ?怨대럡????
+    * ??ш끽維???????????
     * ========================================================= */
     public function purgeAll(string $actorType = 'USER'): array
     {
@@ -540,7 +539,7 @@ class BankAccountService
         }
     }
     /* ============================================================
-    * 肄붾뱶 ?쒖꽌 蹂寃?(RowReorder)
+    * ?袁⑤?獄???戮?맋 ?곌떠???(RowReorder)
     * ============================================================ */
     public function reorder(array $changes): bool
     {
@@ -558,18 +557,18 @@ class BankAccountService
             }
 
             foreach ($changes as $row) {
-                if (empty($row['id']) || !isset($row['newCode'])) {
+                if (empty($row['id']) || !isset($row['newSortNo'])) {
                     throw new \Exception('Invalid reorder payload.');
                 }
             }
 
             foreach ($changes as $row) {
-                $tempCode = (int)$row['newCode'] + 1000000;
-                $this->model->updateCode($row['id'], $tempCode);
+                $tempSortNo = (int)$row['newSortNo'] + 1000000;
+                $this->model->updateSortNo($row['id'], $tempSortNo);
             }
 
             foreach ($changes as $row) {
-                $this->model->updateCode($row['id'], (int)$row['newCode']);
+                $this->model->updateSortNo($row['id'], (int)$row['newSortNo']);
             }
 
             if ($this->pdo->inTransaction()) {
@@ -599,184 +598,72 @@ class BankAccountService
     {
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('BankAccounts');
-
-        $headers = [
-            'Account Name',
-            'Bank Name',
-            'Account Number',
-            'Account Holder',
-            'Account Type',
-            'Currency',
-            'Is Active',
-            'Note',
-            'Memo'
-        ];
-
+        $sheet->setTitle('계좌 업로드');
+        $headers = ['계좌명', '은행명', '계좌번호', '예금주', '계좌유형', '통화', '상태', '비고', '메모'];
         $sheet->fromArray($headers, null, 'A1');
-        $sheet->fromArray([
-            ['Main Operating', 'Kookmin', '123-456-789012', 'Sukhyang Corp', 'Checking', 'KRW', '1', 'Sample note', ''],
-            ['Payroll', 'Shinhan', '110-123-456789', 'Sukhyang Corp', 'Checking', 'KRW', '1', 'Payroll account', '']
-        ], null, 'A2');
-
-        foreach (range('A', 'I') as $col) {
-            $sheet->getColumnDimension($col)->setAutoSize(true);
-        }
-
+        $sheet->fromArray([['운영계좌', '기업은행', '123-456-789012', '수향', '보통예금', 'KRW', '사용', '', '']], null, 'A2');
+        foreach (range('A', 'I') as $col) { $sheet->getColumnDimension($col)->setAutoSize(true); }
+        $writer = new Xlsx($spreadsheet);
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         header('Content-Disposition: attachment; filename="bank_account_template.xlsx"');
         header('Cache-Control: max-age=0');
-
-        $writer = new Xlsx($spreadsheet);
         $writer->save('php://output');
-
         $spreadsheet->disconnectWorksheets();
-        unset($spreadsheet);
         exit;
     }
 
-    /* =========================================================
-    * Save from Excel upload
-    * ========================================================= */
     public function saveFromExcelFile(string $filePath): array
     {
         $spreadsheet = IOFactory::load($filePath);
-        $sheet = $spreadsheet->getActiveSheet();
-        $rows = $sheet->toArray(null, false, false, false);
-
-        if (empty($rows) || count($rows) < 2) {
-            return [
-                'success' => false,
-                'message' => 'No rows found in the uploaded Excel file.'
-            ];
-        }
-
-        $normalize = static function ($value): string {
-            $value = strtolower(trim((string)$value));
-            $value = preg_replace('/\s+/', '', $value);
-            return $value;
-        };
-
-        $headerMap = [
-            'accountname' => 'account_name',
-            'bankname' => 'bank_name',
-            'accountnumber' => 'account_number',
-            'accountholder' => 'account_holder',
-            'accounttype' => 'account_type',
-            'currency' => 'currency',
-            'isactive' => 'is_active',
-            'note' => 'note',
-            'memo' => 'memo'
-        ];
-
-        $headers = array_map($normalize, $rows[0]);
-        $columnMap = [];
-
-        foreach ($headers as $index => $header) {
-            if (isset($headerMap[$header])) {
-                $columnMap[$headerMap[$header]] = $index;
-            }
-        }
-
-        if (!isset($columnMap['account_name'])) {
-            return [
-                'success' => false,
-                'message' => 'The Account Name column is required.'
-            ];
-        }
-
-        array_shift($rows);
+        $rows = $spreadsheet->getActiveSheet()->toArray(null, false, false, false);
+        if (empty($rows) || count($rows) < 2) { return ['success' => false, 'message' => '업로드할 데이터가 없습니다.']; }
+        $header = array_map(fn($v) => trim((string)$v), array_shift($rows));
+        $map = array_flip($header);
         $count = 0;
-
         foreach ($rows as $row) {
-            if (count(array_filter($row, static fn($v) => trim((string)$v) !== '')) === 0) {
-                continue;
-            }
-
+            if (count(array_filter($row, fn($v) => trim((string)$v) !== '')) === 0) { continue; }
             $payload = [
-                'account_name' => trim((string)($row[$columnMap['account_name']] ?? '')),
-                'bank_name' => trim((string)($row[$columnMap['bank_name']] ?? '')),
-                'account_number' => trim((string)($row[$columnMap['account_number']] ?? '')),
-                'account_holder' => trim((string)($row[$columnMap['account_holder']] ?? '')),
-                'account_type' => trim((string)($row[$columnMap['account_type']] ?? '')),
-                'currency' => strtoupper(trim((string)($row[$columnMap['currency']] ?? 'KRW'))) ?: 'KRW',
-                'is_active' => in_array(strtolower(trim((string)($row[$columnMap['is_active']] ?? '1'))), ['1', 'true', 'yes', 'use', 'active'], true) ? 1 : 0,
-                'note' => trim((string)($row[$columnMap['note']] ?? '')),
-                'memo' => trim((string)($row[$columnMap['memo']] ?? '')),
+                'account_name' => trim((string)($row[$map['계좌명'] ?? -1] ?? '')),
+                'bank_name' => trim((string)($row[$map['은행명'] ?? -1] ?? '')),
+                'account_number' => trim((string)($row[$map['계좌번호'] ?? -1] ?? '')),
+                'account_holder' => trim((string)($row[$map['예금주'] ?? -1] ?? '')),
+                'account_type' => trim((string)($row[$map['계좌유형'] ?? -1] ?? '')),
+                'currency' => trim((string)($row[$map['통화'] ?? -1] ?? 'KRW')) ?: 'KRW',
+                'is_active' => trim((string)($row[$map['상태'] ?? -1] ?? '사용')) === '미사용' ? 0 : 1,
+                'note' => trim((string)($row[$map['비고'] ?? -1] ?? '')),
+                'memo' => trim((string)($row[$map['메모'] ?? -1] ?? '')),
             ];
-
-            if ($payload['account_name'] === '') {
-                continue;
-            }
-
+            if ($payload['account_name'] === '') { continue; }
             $result = $this->save($payload, 'SYSTEM');
-            if ($result['success']) {
-                $count++;
-            } else {
-                $this->logger->warning('Excel row save failed', [
-                    'payload' => $payload,
-                    'error' => $result['message'] ?? null
-                ]);
-            }
+            if (!empty($result['success'])) { $count++; }
         }
-
-        return [
-            'success' => true,
-            'message' => "{$count} rows processed."
-        ];
+        return ['success' => true, 'message' => "{$count}건 업로드되었습니다."];
     }
 
-    /* ============================================================
-    * Bank account Excel download
-    * ============================================================ */
     public function downloadExcel(): void
     {
         $accounts = $this->model->getList();
-
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
-
-        $headers = [
-            'A1' => 'Code',
-            'B1' => 'Account Name',
-            'C1' => 'Bank Name',
-            'D1' => 'Account Number',
-            'E1' => 'Account Holder',
-            'F1' => 'Account Type',
-            'G1' => 'Currency',
-            'H1' => 'Is Active',
-            'I1' => 'Note',
-            'J1' => 'Memo',
-        ];
-
-        foreach ($headers as $cell => $label) {
-            $sheet->setCellValue($cell, $label);
-        }
-
-        $rowIndex = 2;
+        $sheet->setTitle('계좌 목록');
+        $sheet->fromArray(['순번', '계좌명', '은행명', '계좌번호', '예금주', '계좌유형', '통화', '상태', '비고', '메모'], null, 'A1');
+        $rowNo = 2;
         foreach ($accounts as $account) {
-            $sheet->setCellValue('A' . $rowIndex, $account['code'] ?? '');
-            $sheet->setCellValue('B' . $rowIndex, $account['account_name'] ?? '');
-            $sheet->setCellValue('C' . $rowIndex, $account['bank_name'] ?? '');
-            $sheet->setCellValue('D' . $rowIndex, $account['account_number'] ?? '');
-            $sheet->setCellValue('E' . $rowIndex, $account['account_holder'] ?? '');
-            $sheet->setCellValue('F' . $rowIndex, $account['account_type'] ?? '');
-            $sheet->setCellValue('G' . $rowIndex, $account['currency'] ?? 'KRW');
-            $sheet->setCellValue('H' . $rowIndex, !empty($account['is_active']) ? '1' : '0');
-            $sheet->setCellValue('I' . $rowIndex, $account['note'] ?? '');
-            $sheet->setCellValue('J' . $rowIndex, $account['memo'] ?? '');
-            $rowIndex++;
+            $sheet->fromArray([[$account['sort_no'] ?? '', $account['account_name'] ?? '', $account['bank_name'] ?? '', $account['account_number'] ?? '', $account['account_holder'] ?? '', $account['account_type'] ?? '', $account['currency'] ?? '', !empty($account['is_active']) ? '사용' : '미사용', $account['note'] ?? '', $account['memo'] ?? '']], null, 'A' . $rowNo);
+            $rowNo++;
         }
-
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="bank_accounts_' . date('Ymd_His') . '.xlsx"');
-        header('Cache-Control: max-age=0');
-
+        foreach (range('A', 'J') as $col) { $sheet->getColumnDimension($col)->setAutoSize(true); }
         $writer = new Xlsx($spreadsheet);
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment; filename="bank_account_list.xlsx"');
+        header('Cache-Control: max-age=0');
         $writer->save('php://output');
-
         $spreadsheet->disconnectWorksheets();
-        unset($spreadsheet);
         exit;
+    }
+    private function parseExcelActiveValue(mixed $value): int
+    {
+        $normalized = strtolower(trim((string)$value));
+        return in_array($normalized, ['1', 'true', 'yes', 'use', 'active', 'y', '사용'], true) ? 1 : 0;
     }
 }

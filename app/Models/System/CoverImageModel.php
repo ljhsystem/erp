@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Models/System/CoverImageModel.php'
+// 寃쎈줈: PROJECT_ROOT . '/app/Models/System/CoverImageModel.php'
 namespace App\Models\System;
 
 use PDO;
@@ -7,10 +7,10 @@ use Core\Database;
 
 class CoverImageModel
 {
-    // PDO 보관
+    // PDO 蹂닿?
     private PDO $db;
 
-    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
+    // ?앹꽦?????몃??먯꽌 PDO 二쇱엯 ?먮뒗 ?먮룞 ?곌껐
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
@@ -18,8 +18,8 @@ class CoverImageModel
 
 
     /* =============================================================
-     * 전체 목록 조회 (관리자용)
-     *  - 기본은 활성 데이터만 조회
+     * ?꾩껜 紐⑸줉 議고쉶 (愿由ъ옄??
+     *  - 湲곕낯? ?쒖꽦 ?곗씠?곕쭔 議고쉶
      * ============================================================= */
     public function getList(array $filters = []): array
     {
@@ -32,11 +32,11 @@ class CoverImageModel
         $params = [];
 
         /* =========================================================
-        * 🔥 전체 컬럼 맵
+        * ?뵦 ?꾩껜 而щ읆 留?
         * ========================================================= */
         $fieldMap = [
 
-            'code'        => ['col'=>'c.code','type'=>'exact'],
+            'sort_no'        => ['col'=>'c.sort_no','type'=>'exact'],
             'year'        => ['col'=>'c.year','type'=>'exact'],
 
             'title'       => ['col'=>'c.title','type'=>'like'],
@@ -53,7 +53,7 @@ class CoverImageModel
         $globalSearch = [];
 
         /* =========================================================
-        * 🔥 필터 처리
+        * ?뵦 ?꾪꽣 泥섎━
         * ========================================================= */
         foreach ($filters as $i => $f) {
 
@@ -62,21 +62,21 @@ class CoverImageModel
 
             if ($value === '' || $value === null) continue;
 
-            // 🔥 year_start
+            // ?뵦 year_start
             if ($field === 'year_start') {
                 $sql .= " AND CAST(c.year AS UNSIGNED) >= ?";
                 $params[] = (int)$value;
                 continue;
             }
 
-            // 🔥 year_end
+            // ?뵦 year_end
             if ($field === 'year_end') {
                 $sql .= " AND CAST(c.year AS UNSIGNED) <= ?";
                 $params[] = (int)$value;
                 continue;
             }
 
-            // 🔥 전체검색
+            // ?뵦 ?꾩껜寃??
             if ($field === '') {
                 $globalSearch[] = $value;
                 continue;
@@ -87,7 +87,7 @@ class CoverImageModel
             $col  = $fieldMap[$field]['col'];
             $type = $fieldMap[$field]['type'];
 
-            // 날짜
+            // ?좎쭨
             if ($type === 'date') {
 
                 if (is_array($value)) {
@@ -117,7 +117,7 @@ class CoverImageModel
         }
 
         /* =========================================================
-        * 🔥 전체검색 (텍스트 컬럼)
+        * ?뵦 ?꾩껜寃??(?띿뒪??而щ읆)
         * ========================================================= */
         if (!empty($globalSearch)) {
 
@@ -158,7 +158,7 @@ class CoverImageModel
             $sql .= ")";
         }
 
-        $sql .= " ORDER BY c.code ASC";
+        $sql .= " ORDER BY c.sort_no DESC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -167,21 +167,21 @@ class CoverImageModel
     }
 
     /* =============================================================
-    * 공개 페이지용 목록 조회 (About, Home 등)
-    *  - 활성 데이터만 조회
-    *  - 코드 기준 정렬
+    * 怨듦컻 ?섏씠吏??紐⑸줉 議고쉶 (About, Home ??
+    *  - ?쒖꽦 ?곗씠?곕쭔 議고쉶
+    *  - 肄붾뱶 湲곗? ?뺣젹
     * ============================================================= */
     public function getPublicList(): array
     {
         $sql = "
             SELECT
                 id,
-                code,
+                sort_no,
                 year,
                 title,
                 alt,
                 description,
-                src,        
+                src,
                 created_at,
                 created_by,
                 updated_at,
@@ -193,7 +193,7 @@ class CoverImageModel
               AND is_active = 1
               AND src IS NOT NULL
               AND src <> ''
-            ORDER BY code ASC
+            ORDER BY sort_no DESC
         ";
 
         $stmt = $this->db->query($sql);
@@ -202,7 +202,7 @@ class CoverImageModel
 
 
     /* =============================================================
-     * 단건 조회
+     * ?④굔 議고쉶
      * ============================================================= */
     public function getById(string $id): ?array
     {
@@ -210,19 +210,19 @@ class CoverImageModel
             SELECT
                 c.*,
 
-            CASE 
+            CASE
                 WHEN c.created_by LIKE 'SYSTEM:%' THEN c.created_by
                 WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
                 ELSE c.created_by
             END AS created_by_name,
 
-            CASE 
+            CASE
                 WHEN c.updated_by LIKE 'SYSTEM:%' THEN c.updated_by
                 WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
                 ELSE c.updated_by
             END AS updated_by_name,
 
-            CASE 
+            CASE
                 WHEN c.deleted_by LIKE 'SYSTEM:%' THEN c.deleted_by
                 WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
                 ELSE c.deleted_by
@@ -252,14 +252,14 @@ class CoverImageModel
     }
 
     /* =============================================================
-     * 생성
+     * ?앹꽦
      * ============================================================= */
     public function create(array $data): bool
     {
         $sql = "
             INSERT INTO system_coverimage_assets (
                 id,
-                code,
+                sort_no,
                 year,
                 title,
                 alt,
@@ -269,7 +269,7 @@ class CoverImageModel
                 updated_by
             ) VALUES (
                 :id,
-                :code,
+                :sort_no,
                 :year,
                 :title,
                 :alt,
@@ -284,7 +284,7 @@ class CoverImageModel
 
         return $stmt->execute([
             ':id'          => $data['id'],
-            ':code'        => $data['code'],
+            ':sort_no'        => $data['sort_no'],
             ':year'        => $data['year'],
             ':title'       => $data['title'],
             ':alt'         => $data['alt'],
@@ -296,7 +296,7 @@ class CoverImageModel
     }
 
     /* =============================================================
-     * 수정
+     * ?섏젙
      * ============================================================= */
     public function updateById(string $id, array $data): bool
     {
@@ -320,7 +320,7 @@ class CoverImageModel
 
 
     /* =============================================================
-     * 휴지통 이동 (소프트삭제)
+     * ?댁????대룞 (?뚰봽?몄궘??
      * ============================================================= */
     public function deleteById(string $id, ?string $deletedBy): bool
     {
@@ -330,12 +330,12 @@ class CoverImageModel
                 deleted_at = NOW(),
                 deleted_by = :deleted_by,
                 updated_at = NOW(),
-                updated_by = :updated_by    
+                updated_by = :updated_by
             WHERE id = :id
         ";
-    
+
         $stmt = $this->db->prepare($sql);
-    
+
         return $stmt->execute([
             ':id'         => $id,
             ':deleted_by' => $deletedBy,
@@ -346,7 +346,7 @@ class CoverImageModel
 
 
     /* =============================================================
-     * 휴지통 목록 조회
+     * ?댁???紐⑸줉 議고쉶
      * ============================================================= */
     public function getDeleted(): array
     {
@@ -354,19 +354,19 @@ class CoverImageModel
             SELECT
                 c.*,
 
-            CASE 
+            CASE
                 WHEN c.created_by LIKE 'SYSTEM:%' THEN c.created_by
                 WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
                 ELSE c.created_by
             END AS created_by_name,
 
-            CASE 
+            CASE
                 WHEN c.updated_by LIKE 'SYSTEM:%' THEN c.updated_by
                 WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
                 ELSE c.updated_by
             END AS updated_by_name,
 
-            CASE 
+            CASE
                 WHEN c.deleted_by LIKE 'SYSTEM:%' THEN c.deleted_by
                 WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
                 ELSE c.deleted_by
@@ -401,7 +401,7 @@ class CoverImageModel
 
 
     /* =============================================================
-     * 휴지통 복원
+     * ?댁???蹂듭썝
      * ============================================================= */
     public function restoreById(string $id, ?string $updatedBy): bool
     {
@@ -414,25 +414,25 @@ class CoverImageModel
                 updated_by = :updated_by
             WHERE id = :id
         ";
-    
+
         $stmt = $this->db->prepare($sql);
-    
+
         return $stmt->execute([
             ':id'         => $id,
             ':updated_by' => $updatedBy,
         ]);
     }
-    
+
 
     /* =============================================================
-     * 하드삭제
+     * ?섎뱶??젣
      * ============================================================= */
      public function hardDeleteById(string $id): bool
      {
          $sql = "DELETE FROM system_coverimage_assets WHERE id = :id";
-     
+
          $stmt = $this->db->prepare($sql);
-     
+
          return $stmt->execute([
              ':id' => $id
          ]);
@@ -440,13 +440,13 @@ class CoverImageModel
 
 
 
-    public function updateCode(string $id, string $newCode): bool
+    public function updateSortNo(string $id, string $newSortNo): bool
     {
-        $sql = "UPDATE system_coverimage_assets SET code = :newCode WHERE id = :id";
+        $sql = "UPDATE system_coverimage_assets SET sort_no = :newSortNo WHERE id = :id";
         $stmt = $this->db->prepare($sql);
 
         return $stmt->execute([
-            'newCode' => (int)$newCode,
+            'newSortNo' => (int)$newSortNo,
             'id' => $id
         ]);
     }

@@ -43,6 +43,7 @@ class AuthSessionService
             'role_id'   => $user['role_id'] ?? null,
             'role_key'  => $user['role_key'] ?? null,
             'role_name' => $user['role_name'] ?? null,
+            'employee_name' => $user['employee_name'] ?? null,
             'email'     => $user['email'] ?? null,
         ];
     }

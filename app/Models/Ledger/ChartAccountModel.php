@@ -31,7 +31,7 @@ class ChartAccountModel
                 ON sa.account_id = a.id
             WHERE a.deleted_at IS NULL
             GROUP BY a.id
-            ORDER BY CAST(a.code AS UNSIGNED)
+            ORDER BY a.sort_no ASC
         ";
 
         $stmt = $this->db->query($sql);
@@ -265,7 +265,7 @@ class ChartAccountModel
             SELECT *
             FROM ledger_accounts
             WHERE deleted_at IS NULL
-            ORDER BY code
+            ORDER BY sort_no ASC
         ");
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -309,7 +309,7 @@ class ChartAccountModel
             FROM ledger_accounts
             WHERE parent_id = :parent_id
               AND deleted_at IS NULL
-            ORDER BY code
+            ORDER BY sort_no ASC
         ");
 
         $stmt->execute([':parent_id' => $parentId]);
@@ -385,16 +385,16 @@ class ChartAccountModel
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
-    public function updateOrder(string $id, int $code): bool
+    public function updateOrder(string $id, int $sortNo): bool
     {
         $stmt = $this->db->prepare("
             UPDATE ledger_accounts
-            SET code = :code
+            SET sort_no = :sort_no
             WHERE id = :id
         ");
 
         return $stmt->execute([
-            ':code' => $code,
+            ':sort_no' => $sortNo,
             ':id' => $id,
         ]);
     }
@@ -440,6 +440,11 @@ class ChartAccountModel
             $key = ":v{$i}";
 
             switch ($field) {
+                case 'sort_no':
+                    $sql .= " AND a.sort_no LIKE {$key}";
+                    $params[$key] = "%{$value}%";
+                    break;
+
                 case 'account_code':
                 case 'account_name':
                 case 'account_group':
@@ -487,7 +492,7 @@ class ChartAccountModel
             }
         }
 
-        $sql .= " ORDER BY CAST(a.code AS UNSIGNED)";
+        $sql .= " ORDER BY a.sort_no ASC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);

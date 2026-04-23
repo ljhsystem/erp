@@ -27,7 +27,7 @@ class Router
     public function get(string $uri, string $controllerAction, $permission = null)
     {
         $norm = $this->normalize($uri);
-        $permissionData = $this->decorateRouteMeta($norm, $this->registerPermission($permission));
+        $permissionData = $this->registerPermission($permission) ?? [];
 
         $this->routes['GET'][$norm] = [
             'action' => $controllerAction,
@@ -38,7 +38,7 @@ class Router
     public function post(string $uri, string $controllerAction, $permission = null)
     {
         $norm = $this->normalize($uri);
-        $permissionData = $this->decorateRouteMeta($norm, $this->registerPermission($permission));
+        $permissionData = $this->registerPermission($permission) ?? [];
 
         $this->routes['POST'][$norm] = [
             'action' => $controllerAction,
@@ -58,7 +58,9 @@ class Router
         }
 
         if (is_array($permission)) {
-            if (!empty($permission['key'])) {
+            $permission['skip'] = (bool) ($permission['skip'] ?? false);
+
+            if (!$permission['skip'] && !empty($permission['key'])) {
                 PermissionRegistry::register(
                     $permission['key'],
                     $permission['name'] ?? null,
@@ -71,68 +73,6 @@ class Router
         }
 
         return null;
-    }
-
-    private function decorateRouteMeta(string $path, ?array $meta): array
-    {
-        $meta = $meta ?? [];
-
-        if (array_key_exists('auth', $meta)) {
-            return $meta;
-        }
-
-        if (!empty($meta['guest_only'])) {
-            $meta['auth'] = false;
-            return $meta;
-        }
-
-        if (isset($meta['allow_statuses'])) {
-            return $meta;
-        }
-
-        $publicRoutes = [
-            '/',
-            '/home',
-            '/about',
-            '/contact',
-            '/privacy',
-            '/vision',
-            '/sitemap',
-            '/approve_request',
-            '/approve_result',
-            '/approve_user',
-            '/login',
-            '/register',
-            '/register_success',
-            '/waiting_approval',
-            '/find-id',
-            '/find-id/result',
-            '/find-password',
-            '/find-password/result',
-            '/autologout/keepalive',
-            '/autologout/extend',
-            '/autologout/expired',
-            '/api/auth/login',
-            '/api/auth/register',
-            '/api/contact/send',
-            '/api/approve/user',
-            '/api/external/ping',
-            '/api/external/employees/list',
-            '/api/external/employees',
-        ];
-
-        if (in_array($path, $publicRoutes, true)) {
-            $meta['auth'] = false;
-            return $meta;
-        }
-
-        if (!empty($meta['skip_permission']) || in_array('ApiAccessMiddleware', $meta['middleware'] ?? [], true)) {
-            $meta['auth'] = false;
-            return $meta;
-        }
-
-        $meta['auth'] = true;
-        return $meta;
     }
 
     private function normalize(string $uri): string
@@ -169,7 +109,7 @@ class Router
 
             if (
                 !empty($route['permission']['key']) &&
-                empty($route['permission']['skip_permission'])
+                empty($route['permission']['skip'])
             ) {
                 PermissionMiddleware::check($route['permission']);
             }

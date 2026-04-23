@@ -1,12 +1,11 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Services/System/CoverImageService.php'
+// 寃쎈줈: PROJECT_ROOT . '/app/Services/System/CoverImageService.php'
 namespace App\Services\System;
 
 use PDO;
 use App\Models\System\CoverImageModel;
 use App\Services\File\FileService;
 use Core\Helpers\UuidHelper;
-use Core\Helpers\CodeHelper;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\DataHelper;
 use Core\LoggerFactory;
@@ -31,7 +30,7 @@ class CoverImageService
 
 
     /* ============================================================
-     * 관리자 목록 조회
+     * 愿由ъ옄 紐⑸줉 議고쉶
      * ============================================================ */
     public function getList(array $filters = []): array
     {
@@ -61,7 +60,7 @@ class CoverImageService
         }
     }
     /* ============================================================
-     * 공개용 목록 조회(사용자용)
+     * 怨듦컻??紐⑸줉 議고쉶(?ъ슜?먯슜)
      * ============================================================ */
     public function getPublicList(): array
     {
@@ -72,7 +71,7 @@ class CoverImageService
         return array_map(function ($row) {
             return [
                 'id'          => $row['id'] ?? null,
-                'code'        => $row['code'] ?? null,
+                'sort_no'        => $row['sort_no'] ?? null,
                 'year'        => $row['year'],
                 'title'       => $row['title'],
                 'alt'         => $row['alt'],
@@ -81,9 +80,9 @@ class CoverImageService
             ];
         }, $rows);
     }
-    
+
     /* ============================================================
-     * 단건 조회
+     * ?④굔 議고쉶
      * ============================================================ */
     public function getById(string $id): ?array
     {
@@ -113,16 +112,16 @@ class CoverImageService
 
 
     /* ============================================================
-     * 저장 (신규 + 수정)
+     * ???(?좉퇋 + ?섏젙)
      * ============================================================ */
     public function save(array $data): array
     {
         $actor = ActorHelper::user();
-    
+
         $this->logger->info('save() called', [
             'cover_id' => $data['id'] ?? null
         ]);
-    
+
         try {
             $coverId = trim((string)($data['id'] ?? ''));
             $year = trim((string)($data['year'] ?? ''));
@@ -134,91 +133,91 @@ class CoverImageService
             if (!preg_match('/^\d{4}$/', $year)) {
                 return [
                     'success' => false,
-                    'message' => '해당년도는 4자리 연도로 입력해주세요.'
+                    'message' => '?대떦?꾨룄??4?먮━ ?곕룄濡??낅젰?댁＜?몄슂.'
                 ];
             }
 
             if ($title === '') {
                 return [
                     'success' => false,
-                    'message' => '제목을 입력해주세요.'
+                    'message' => '?쒕ぉ???낅젰?댁＜?몄슂.'
                 ];
             }
 
             if ($alt === '') {
                 return [
                     'success' => false,
-                    'message' => '이미지 문구(Alt)를 입력해주세요.'
+                    'message' => '?대?吏 臾멸뎄(Alt)瑜??낅젰?댁＜?몄슂.'
                 ];
             }
 
             if (mb_strlen($title) > 120) {
                 return [
                     'success' => false,
-                    'message' => '제목은 120자 이하로 입력해주세요.'
+                    'message' => '?쒕ぉ? 120???댄븯濡??낅젰?댁＜?몄슂.'
                 ];
             }
 
             if (mb_strlen($alt) > 180) {
                 return [
                     'success' => false,
-                    'message' => '이미지 문구(Alt)는 180자 이하로 입력해주세요.'
+                    'message' => '?대?吏 臾멸뎄(Alt)??180???댄븯濡??낅젰?댁＜?몄슂.'
                 ];
             }
 
             if ($description !== '' && mb_strlen($description) > 500) {
                 return [
                     'success' => false,
-                    'message' => '설명은 500자 이하로 입력해주세요.'
+                    'message' => '?ㅻ챸? 500???댄븯濡??낅젰?댁＜?몄슂.'
                 ];
             }
-    
+
             /* =========================
-               1. 파일 업로드
+               1. ?뚯씪 ?낅줈??
             ========================= */
             if (!empty($data['file']) && (int)($data['file']['error'] ?? 4) === UPLOAD_ERR_OK) {
-    
+
                 $upload = $this->fileService->upload(
                     $data['file'],
                     'public://covers',
                     ['jpg', 'jpeg', 'png', 'webp'],
                     10 * 1024 * 1024
                 );
-    
+
                 if (empty($upload['success'])) {
                     return [
                         'success' => false,
-                        'message' => $upload['message'] ?? '파일 업로드 실패'
+                        'message' => $upload['message'] ?? '?뚯씪 ?낅줈???ㅽ뙣'
                     ];
                 }
-    
+
                 $newSrc = $upload['db_path'];
             }
-    
+
             /* =========================
-               2. 신규일 경우 이미지 필수
+               2. ?좉퇋??寃쎌슦 ?대?吏 ?꾩닔
             ========================= */
             if ($coverId === '' && !$newSrc) {
                 return [
                     'success' => false,
-                    'message' => '이미지는 필수입니다.'
+                    'message' => '?대?吏???꾩닔?낅땲??'
                 ];
             }
-    
+
             /* =========================
                3. UPDATE
             ========================= */
             if ($coverId !== '') {
-    
+
                 $before = $this->model->getById($coverId);
-    
+
                 if (!$before) {
                     return [
                         'success' => false,
-                        'message' => '존재하지 않는 항목입니다.'
+                        'message' => '議댁옱?섏? ?딅뒗 ??ぉ?낅땲??'
                     ];
                 }
-    
+
                 $updateData = [
                     'year'        => $year,
                     'title'       => $title,
@@ -227,61 +226,61 @@ class CoverImageService
                     'src'         => $newSrc ?: ($before['src'] ?? null),
                     'updated_by'  => $actor,
                 ];
-    
+
                 if (!$this->model->updateById($coverId, $updateData)) {
                     return [
                         'success' => false,
-                        'message' => 'DB 업데이트 실패'
+                        'message' => 'DB ?낅뜲?댄듃 ?ㅽ뙣'
                     ];
                 }
-    
-                // 기존 파일 삭제
+
+                // 湲곗〈 ?뚯씪 ??젣
                 if ($newSrc && !empty($before['src'])) {
                     $this->fileService->delete($before['src']);
                 }
-    
+
                 return [
                     'success' => true,
                     'id'      => $coverId
                 ];
             }
-    
+
             /* =========================
                4. INSERT
             ========================= */
             $newId   = UuidHelper::generate();
-            $newCode = CodeHelper::next('system_coverimage_assets');
-    
+            $newSortNo = null;
+
             $insertData = [
                 'id'          => $newId,
-                'code'        => $newCode,
+                'sort_no'        => $newSortNo,
                 'year'        => $year,
                 'title'       => $title,
                 'alt'         => $alt,
                 'description' => $description,
-                'src'         => $newSrc, // 🔥 null 아님 (위에서 필수 체크함)
+                'src'         => $newSrc, // ?뵦 null ?꾨떂 (?꾩뿉???꾩닔 泥댄겕??
                 'created_by'  => $actor,
                 'updated_by'  => $actor,
             ];
-    
+
             if (!$this->model->create($insertData)) {
                 return [
                     'success' => false,
-                    'message' => 'DB INSERT 실패'
+                    'message' => 'DB INSERT ?ㅽ뙣'
                 ];
             }
-    
+
             return [
                 'success' => true,
                 'id'      => $newId
             ];
-    
+
         } catch (\Throwable $e) {
-    
+
             $this->logger->error('save() exception', [
                 'exception' => $e->getMessage()
             ]);
-    
+
             return [
                 'success' => false,
                 'message' => $e->getMessage()
@@ -290,55 +289,55 @@ class CoverImageService
     }
 
     /* ============================================================
-     * 삭제 → 휴지통 이동
+     * ??젣 ???댁????대룞
      * ============================================================ */
     public function delete(string $id): array
     {
         $actor = ActorHelper::user();
-    
+
         $this->logger->info('delete() called', [
             'id' => $id,
             'deleted_by' => $actor
         ]);
-    
-    
+
+
         try {
             $item = $this->model->getById($id);
-    
+
             if (!$item) {
                 return [
                     'success' => false,
-                    'message' => '항목이 존재하지 않습니다.'
+                    'message' => '??ぉ??議댁옱?섏? ?딆뒿?덈떎.'
                 ];
             }
-    
+
             if (!empty($item['deleted_at'])) {
                 return [
                     'success' => false,
-                    'message' => '이미 휴지통에 있습니다.'
+                    'message' => '?대? ?댁??듭뿉 ?덉뒿?덈떎.'
                 ];
             }
-    
+
             if (!$this->model->deleteById($id, $actor)) {
                 return [
                     'success' => false,
-                    'message' => '휴지통 이동 실패'
+                    'message' => '?댁????대룞 ?ㅽ뙣'
                 ];
             }
-            
+
             DataHelper::resequenceCoverImageCodes($this->pdo);
 
             return [
                 'success' => true,
-                'message' => '휴지통으로 이동되었습니다.'
+                'message' => '?댁??듭쑝濡??대룞?섏뿀?듬땲??'
             ];
-    
+
         } catch (\Throwable $e) {
             $this->logger->error('delete() exception', [
                 'id'        => $id,
                 'exception' => $e->getMessage()
             ]);
-    
+
             return [
                 'success' => false,
                 'message' => $e->getMessage()
@@ -351,7 +350,7 @@ class CoverImageService
 
 
     /* ============================================================
-     * 휴지통 목록 조회
+     * ?댁???紐⑸줉 議고쉶
      * ============================================================ */
     public function getTrashList(): array
     {
@@ -382,49 +381,49 @@ class CoverImageService
 
 
     /* ============================================================
-     * 복원
+     * 蹂듭썝
      * ============================================================ */
     public function restore(string $id): array
     {
         $actor = ActorHelper::user();
         $this->logger->info('restore() called', ['id' => $id]);
-    
+
         try {
             $item = $this->model->getById($id);
-    
+
             if (!$item) {
                 return [
                     'success' => false,
-                    'message' => '항목이 존재하지 않습니다.'
+                    'message' => '??ぉ??議댁옱?섏? ?딆뒿?덈떎.'
                 ];
             }
-    
+
             if (empty($item['deleted_at'])) {
                 return [
                     'success' => false,
-                    'message' => '이미 복원된 항목입니다.'
+                    'message' => '?대? 蹂듭썝????ぉ?낅땲??'
                 ];
             }
-    
+
             if ($this->model->restoreById($id, $actor)) {
 
                 return [
                     'success' => true,
-                    'message' => '복원 완료'
+                    'message' => '蹂듭썝 ?꾨즺'
                 ];
             }
-            
+
             return [
                 'success' => false,
-                'message' => '복원 실패'
+                'message' => '蹂듭썝 ?ㅽ뙣'
             ];
-    
+
         } catch (\Throwable $e) {
             $this->logger->error('restore() exception', [
                 'id' => $id,
                 'exception' => $e->getMessage()
             ]);
-    
+
             return [
                 'success' => false,
                 'message' => $e->getMessage()
@@ -435,39 +434,39 @@ class CoverImageService
     public function restoreBulk(array $ids): array
     {
         if (empty($ids)) {
-            return ['success' => false, 'message' => 'ID 없음'];
+            return ['success' => false, 'message' => 'ID ?놁쓬'];
         }
-    
+
         $this->pdo->beginTransaction();
-    
+
         try {
-    
+
             $success = 0;
-    
+
             foreach ($ids as $id) {
-    
+
                 $res = $this->restore($id);
-    
+
                 if ($res['success'] ?? false) {
                     $success++;
                 } else {
-                    throw new \Exception("복원 실패: {$id}");
+                    throw new \Exception("蹂듭썝 ?ㅽ뙣: {$id}");
                 }
             }
-    
+
             DataHelper::resequenceCoverImageCodes($this->pdo);
-    
+
             $this->pdo->commit();
-    
+
             return [
                 'success' => true,
-                'message' => "복원 완료 ({$success}건)"
+                'message' => "蹂듭썝 ?꾨즺 ({$success}嫄?"
             ];
-    
+
         } catch (\Throwable $e) {
-    
+
             $this->pdo->rollBack();
-    
+
             return [
                 'success' => false,
                 'message' => $e->getMessage()
@@ -479,33 +478,33 @@ class CoverImageService
     public function restoreAll(): array
     {
         $actor = ActorHelper::user();
-    
+
         $this->logger->info('restoreAll() called');
-    
+
         try {
-    
+
             $rows = $this->model->getDeleted();
-    
+
             $success = 0;
-    
+
             foreach ($rows as $row) {
-    
+
                 $ok = $this->model->restoreById($row['id'], $actor);
-    
+
                 if ($ok) {
                     $success++;
                 }
             }
-    
+
             DataHelper::resequenceCoverImageCodes($this->pdo);
 
             return [
                 'success' => true,
-                'message' => "전체 복원 완료 ({$success}건)"
+                'message' => "?꾩껜 蹂듭썝 ?꾨즺 ({$success}嫄?"
             ];
-    
+
         } catch (\Throwable $e) {
-    
+
             return [
                 'success' => false,
                 'message' => $e->getMessage()
@@ -514,7 +513,7 @@ class CoverImageService
     }
 
     /* ============================================================
-     * 하드삭제
+     * ?섎뱶??젣
      * ============================================================ */
     public function purge(string $id): array
     {
@@ -526,7 +525,7 @@ class CoverImageService
             if (!$item) {
                 return [
                     'success' => false,
-                    'message' => '항목이 존재하지 않습니다.'
+                    'message' => '??ぉ??議댁옱?섏? ?딆뒿?덈떎.'
                 ];
             }
 
@@ -535,18 +534,18 @@ class CoverImageService
                 if (!empty($item['src'])) {
                     $this->fileService->delete($item['src']);
                 }
-            
+
                 DataHelper::resequenceCoverImageCodes($this->pdo);
-            
+
                 return [
                     'success' => true,
-                    'message' => '삭제 완료'
+                    'message' => '??젣 ?꾨즺'
                 ];
             }
-            
+
             return [
                 'success' => false,
-                'message' => 'DB 하드삭제 실패'
+                'message' => 'DB ?섎뱶??젣 ?ㅽ뙣'
             ];
 
         } catch (\Throwable $e) {
@@ -561,57 +560,57 @@ class CoverImageService
             ];
         }
     }
-    
+
     public function purgeBulk(array $ids): array
     {
         if (empty($ids)) {
-            return ['success' => false, 'message' => 'ID 없음'];
+            return ['success' => false, 'message' => 'ID ?놁쓬'];
         }
-    
+
         $this->pdo->beginTransaction();
-    
+
         try {
-    
+
             $success = 0;
             $filesToDelete = [];
-    
+
             foreach ($ids as $id) {
-    
+
                 $item = $this->model->getById($id);
-    
+
                 if (!$item) {
-                    throw new \Exception("항목 없음: {$id}");
+                    throw new \Exception("??ぉ ?놁쓬: {$id}");
                 }
-    
+
                 if (!$this->model->hardDeleteById($id)) {
-                    throw new \Exception("삭제 실패: {$id}");
+                    throw new \Exception("??젣 ?ㅽ뙣: {$id}");
                 }
-    
+
                 if (!empty($item['src'])) {
                     $filesToDelete[] = $item['src'];
                 }
-    
+
                 $success++;
             }
-    
+
             DataHelper::resequenceCoverImageCodes($this->pdo);
-    
+
             $this->pdo->commit();
-    
-            // 🔥 트랜잭션 밖에서 파일 삭제
+
+            // ?뵦 ?몃옖??뀡 諛뽰뿉???뚯씪 ??젣
             foreach ($filesToDelete as $src) {
                 $this->fileService->delete($src);
             }
-    
+
             return [
                 'success' => true,
-                'message' => "삭제 완료 ({$success}건)"
+                'message' => "??젣 ?꾨즺 ({$success}嫄?"
             ];
-    
+
         } catch (\Throwable $e) {
-    
+
             $this->pdo->rollBack();
-    
+
             return [
                 'success' => false,
                 'message' => $e->getMessage()
@@ -620,51 +619,51 @@ class CoverImageService
     }
 
     /* =========================================================
-    전체 완전삭제
+    ?꾩껜 ?꾩쟾??젣
     ========================================================= */
     public function purgeAll(string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
-    
+
         $this->logger->info('cover.purgeAll() called', [
             'actorType' => $actorType,
             'actor'     => $actor
         ]);
-    
+
         $this->pdo->beginTransaction();
-    
+
         try {
-    
+
             $rows = $this->model->getDeleted();
-    
+
             foreach ($rows as $row) {
-    
-                // 1️⃣ 파일 삭제
+
+                // 1截뤴깵 ?뚯씪 ??젣
                 if (!empty($row['src'])) {
                     $this->fileService->delete($row['src']);
                 }
-    
-                // 2️⃣ DB 단건 삭제 (🔥 규칙 준수)
+
+                // 2截뤴깵 DB ?④굔 ??젣 (?뵦 洹쒖튃 以??
                 $this->model->hardDeleteById($row['id']);
             }
-    
+
             $this->pdo->commit();
 
             DataHelper::resequenceCoverImageCodes($this->pdo);
-            
+
             return [
                 'success' => true,
-                'message' => '전체 삭제 완료'
+                'message' => '?꾩껜 ??젣 ?꾨즺'
             ];
-    
+
         } catch (\Throwable $e) {
-    
+
             $this->pdo->rollBack();
-    
+
             $this->logger->error('cover.purgeAll() exception', [
                 'exception' => $e->getMessage()
             ]);
-    
+
             return [
                 'success' => false,
                 'message' => $e->getMessage()
@@ -673,9 +672,9 @@ class CoverImageService
     }
 
 
-    
+
     /* ============================================================
-    * 코드 순서 변경 (RowReorder)
+    * 肄붾뱶 ?쒖꽌 蹂寃?(RowReorder)
     * ============================================================ */
     public function reorder(array $changes): bool
     {
@@ -693,35 +692,35 @@ class CoverImageService
                 $this->pdo->beginTransaction();
             }
 
-            /* 1️⃣ 입력값 검증 */
+            /* 1截뤴깵 ?낅젰媛?寃利?*/
             foreach ($changes as $row) {
 
                 if (
                     empty($row['id']) ||
-                    !isset($row['newCode'])
+                    !isset($row['newSortNo'])
                 ) {
-                    throw new \Exception('reorder 데이터 오류');
+                    throw new \Exception('reorder ?곗씠???ㅻ쪟');
                 }
             }
 
-            /* 2️⃣ temp 이동 (충돌 방지) */
+            /* 2截뤴깵 temp ?대룞 (異⑸룎 諛⑹?) */
             foreach ($changes as $row) {
 
-                // 👉 넉넉하게 (절대 충돌 안나게)
-                $tempCode = (int)$row['newCode'] + 1000000;
+                // ?몛 ?됰꼮?섍쾶 (?덈? 異⑸룎 ?덈굹寃?
+                $tempSortNo = (int)$row['newSortNo'] + 1000000;
 
-                $this->model->updateCode(
+                $this->model->updateSortNo(
                     $row['id'],
-                    $tempCode
+                    $tempSortNo
                 );
             }
 
-            /* 3️⃣ 실제 코드 적용 */
+            /* 3截뤴깵 ?ㅼ젣 肄붾뱶 ?곸슜 */
             foreach ($changes as $row) {
 
-                $this->model->updateCode(
+                $this->model->updateSortNo(
                     $row['id'],
-                    (int)$row['newCode']
+                    (int)$row['newSortNo']
                 );
             }
 

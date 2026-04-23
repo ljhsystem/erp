@@ -110,7 +110,7 @@ class Ics
 
             $value = $this->unescapeText($value);
 
-            $multiKeys = ['ATTENDEE','CATEGORIES','COMMENT','EXDATE','RDATE','RELATED-TO','ATTACH'];
+            $multiKeys = ['ATTENDEE', 'CATEGORIES', 'COMMENT', 'EXDATE', 'RDATE', 'RELATED-TO', 'ATTACH'];
             if (in_array($key, $multiKeys, true)) {
                 $props[$key][] = ['value' => $value, 'params' => $params];
             } else {
@@ -126,7 +126,7 @@ class Ics
             if (empty($props['DUE']['value']) && empty($props['DTSTART']['value'])) return null;
         }
 
-        $uid     = $props['UID']['value'] ?? null;
+        $id     = $props['id']['value'] ?? null;
         $summary = $props['SUMMARY']['value'] ?? '';
 
         $dtstart = $props['DTSTART']['value'] ?? null;
@@ -174,8 +174,8 @@ class Ics
 
         $data = [
             'type' => $type,
-        
-            'uid'           => $uid,
+
+            'id'           => $id,
             'sequence'      => $props['SEQUENCE']['value'] ?? null,
             'dtstamp'       => $props['DTSTAMP']['value'] ?? null,
             'created'       => $props['CREATED']['value'] ?? null,
@@ -183,14 +183,14 @@ class Ics
             'creator'       => $props['CREATOR']['value'] ?? null,
             'x_syno_creator'  => $props['X-SYNO-CREATOR']['value'] ?? null,
             'x_syno_modifier' => $props['X-SYNO-MODIFIER']['value'] ?? null,
-        
+
             'dtstart' => $dtstart,
             'dtend'   => $dtend,
             'due'     => $due,
             'start'   => $startIso,
             'end'     => $endIso,
             'due_iso' => $dueIso,
-        
+
             'summary'     => $summary,
             'title'       => $summary,
             'description' => $props['DESCRIPTION']['value'] ?? null,
@@ -198,29 +198,29 @@ class Ics
             'categories'  => $categories,
             'status'      => $props['STATUS']['value'] ?? null,
             'priority'    => $props['PRIORITY']['value'] ?? null,
-        
+
             'class'   => $props['CLASS']['value'] ?? null,
             'transp'  => $props['TRANSP']['value'] ?? null,
             'url'     => $props['URL']['value'] ?? null,
             'comment' => $comments,
             'contact' => $props['CONTACT']['value'] ?? null,
-        
+
             'rrule'         => $props['RRULE']['value'] ?? null,
             'rdate'         => $rdate,
             'exdate'        => $exdate,
             'recurrence_id' => $props['RECURRENCE-ID']['value'] ?? null,
             'exrule'        => $props['EXRULE']['value'] ?? null,
-        
+
             'related_to' => $relatedTo,
-        
+
             'organizer' => $props['ORGANIZER']['value'] ?? null,
             'attendees' => $attendees,
-        
+
             'alarms' => $alarms,
-        
+
             'raw' => $props,
         ];
-        
+
         if ($type === 'VTODO') {
             $data['completed'] = $props['COMPLETED']['value'] ?? null;
             $data['status']    = $props['STATUS']['value'] ?? 'NEEDS-ACTION';
@@ -228,9 +228,8 @@ class Ics
                 ? (int)$props['PERCENT-COMPLETE']['value']
                 : 0;
         }
-        
-        return $data;
 
+        return $data;
     }
 
     private function parseAlarm(array $lines): array
@@ -260,15 +259,15 @@ class Ics
     private function normalizeDateTime(string $v): string
     {
         $v = trim($v);
-    
+
         if (preg_match('/^\d{8}$/', $v)) {
             return substr($v, 0, 4) . '-' .
-                   substr($v, 4, 2) . '-' .
-                   substr($v, 6, 2);
+                substr($v, 4, 2) . '-' .
+                substr($v, 6, 2);
         }
-    
+
         if (preg_match('/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/', $v, $m)) {
-    
+
             $y  = $m[1];
             $mo = $m[2];
             $d  = $m[3];
@@ -276,18 +275,18 @@ class Ics
             $mi = $m[5];
             $s  = ($m[6] ?? '') !== '' ? $m[6] : '00';
             $isUtc = ($m[7] ?? '') === 'Z';
-    
+
             if ($isUtc) {
                 // 🔥 UTC → 서울 변환
                 $dt = new \DateTime("{$y}-{$mo}-{$d} {$h}:{$mi}:{$s}", new \DateTimeZone('UTC'));
                 $dt->setTimezone(new \DateTimeZone('Asia/Seoul'));
                 return $dt->format('Y-m-d\TH:i:s');
             }
-    
+
             // 🔥 TZID 있는 경우는 이미 로컬이므로 그대로
             return "{$y}-{$mo}-{$d}T{$h}:{$mi}:{$s}";
         }
-    
+
         return $v;
     }
 

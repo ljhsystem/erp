@@ -46,7 +46,7 @@ class TransactionLinkModel
             $params[':is_active'] = (int) $filters['is_active'];
         }
 
-        $sql .= " ORDER BY code DESC, created_at DESC";
+        $sql .= " ORDER BY sort_no DESC, created_at DESC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -74,7 +74,7 @@ class TransactionLinkModel
             FROM {$this->table}
             WHERE transaction_id = :transaction_id
               AND deleted_at IS NULL
-            ORDER BY code ASC, created_at ASC
+            ORDER BY sort_no DESC, created_at ASC
         ");
         $stmt->execute([':transaction_id' => $transactionId]);
 
@@ -88,18 +88,35 @@ class TransactionLinkModel
             FROM {$this->table}
             WHERE voucher_id = :voucher_id
               AND deleted_at IS NULL
-            ORDER BY code ASC, created_at ASC
+            ORDER BY sort_no DESC, created_at ASC
         ");
         $stmt->execute([':voucher_id' => $voucherId]);
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    public function existsLink(string $transactionId, string $voucherId): bool
+    {
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*) AS cnt
+            FROM {$this->table}
+            WHERE transaction_id = :transaction_id
+              AND voucher_id = :voucher_id
+              AND deleted_at IS NULL
+        ");
+        $stmt->execute([
+            ':transaction_id' => $transactionId,
+            ':voucher_id' => $voucherId,
+        ]);
+
+        return (int) $stmt->fetchColumn() > 0;
+    }
+
     public function insert(array $data): bool
     {
         $allowed = [
             'id',
-            'code',
+            'sort_no',
             'transaction_id',
             'voucher_id',
             'link_type',
@@ -116,7 +133,7 @@ class TransactionLinkModel
 
         $payload = $this->filterData($data, $allowed);
 
-        if (!isset($payload['id'], $payload['code'], $payload['transaction_id'], $payload['voucher_id'])) {
+        if (!isset($payload['id'], $payload['transaction_id'], $payload['voucher_id'])) {
             return false;
         }
 

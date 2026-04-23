@@ -1,28 +1,52 @@
+import { formatNumber, onlyNumber } from '/public/assets/js/common/format.js';
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
+import {
+    bindTableHighlight,
+    createDataTable,
+    forceTableHeightSync,
+    updateTableHeight,
+} from '/public/assets/js/components/data-table.js';
+import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
+import { SearchForm } from '/public/assets/js/components/search-form.js';
+import { createJournalBasicInfoBridge } from '/public/assets/js/pages/ledger/journal.basic-info.js';
+import '/public/assets/js/components/excel-manager.js';
+import '/public/assets/js/components/trash-manager.js';
+
+window.AdminPicker = AdminPicker;
 
 (() => {
-    const tableBody = document.getElementById('journal-table-body');
+    const journalTableEl = document.getElementById('journal-table');
+    const tableBody = document.getElementById('journal-table-body') || journalTableEl?.querySelector('tbody');
     const form = document.getElementById('journal-edit-form');
     const modalEl = document.getElementById('journalModal');
-    const openBtn = document.getElementById('btnOpenJournalModal');
-    const refreshBtn = document.getElementById('btnJournalRefresh');
     const addLineBtn = document.getElementById('btnAddVoucherLine');
     const lineBody = document.getElementById('voucher-line-body');
-    const deleteBtn = document.getElementById('btnDeleteVoucher');
     const debitTotalEl = document.getElementById('voucher_debit_total');
     const creditTotalEl = document.getElementById('voucher_credit_total');
     const balanceStatusEl = document.getElementById('voucher_balance_status');
     const voucherStatusEl = document.getElementById('voucher_status');
-    const voucherRefTypeEl = document.getElementById('voucher_ref_type');
     const voucherDateEl = document.getElementById('voucher_date');
-    const voucherRefIdEl = document.getElementById('voucher_ref_id');
+    const voucherTypeEl = document.getElementById('voucher_ref_type');
+    const modalTitleEl = document.getElementById('journalModalLabel');
+    const transactionModalEl = document.getElementById('journalTransactionSearchModal');
+    const transactionSearchBody = document.getElementById('journal_transaction_search_body');
+    const transactionSearchKeywordEl = document.getElementById('journal_transaction_search_keyword');
+    const linkedTransactionIdEl = document.getElementById('linked_transaction_id');
+    const linkedTransactionSummaryEl = document.getElementById('linked_transaction_summary');
+    const selectTransactionBtn = document.getElementById('btnSelectTransaction');
+    const clearTransactionLinkBtn = document.getElementById('btnClearTransactionLink');
+    const searchTransactionBtn = document.getElementById('btnSearchTransaction');
 
-    if (!tableBody || !form || !modalEl || !lineBody || !voucherDateEl) {
+    if (!tableBody || !journalTableEl || !form || !modalEl || !lineBody || !voucherDateEl) {
         return;
     }
 
     if (modalEl.parentElement !== document.body) {
         document.body.appendChild(modalEl);
+    }
+
+    if (transactionModalEl && transactionModalEl.parentElement !== document.body) {
+        document.body.appendChild(transactionModalEl);
     }
 
     const pickerLayerEl = document.getElementById('journal-today-picker');
@@ -35,7 +59,16 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
         detail: '/api/ledger/voucher/detail',
         save: '/api/ledger/voucher/save',
         remove: '/api/ledger/voucher/delete',
+        transactionSearch: '/api/ledger/voucher/transaction-search',
         accountList: '/api/ledger/account/list',
+        excelTemplate: '/api/ledger/voucher/template',
+        excelDownload: '/api/ledger/voucher/download',
+        excelUpload: '/api/ledger/voucher/excel-upload',
+        trash: '/api/ledger/voucher/trash',
+        restore: '/api/ledger/voucher/restore',
+        purge: '/api/ledger/voucher/purge',
+        purgeAll: '/api/ledger/voucher/purge-all',
+        reorder: '/api/ledger/voucher/reorder',
     };
 
     const STATUS_LABELS = {
@@ -45,18 +78,34 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
         deleted: '삭제',
     };
 
-    const REF_TYPE_LABELS = {
-        CLIENT: '거래처',
-        PROJECT: '프로젝트',
-        ACCOUNT: '계좌',
-        CARD: '카드',
-        EMPLOYEE: '직원',
-        ORDER: '주문',
+    const TYPE_LABELS = {
+        MANUAL: '수동전표',
+        AUTO: '자동전표',
+        ADJUST: '조정전표',
+        CLOSING: '결산전표',
     };
 
-    const modal = window.bootstrap ? new bootstrap.Modal(modalEl) : null;
+    const LINKED_STATUS_LABELS = {
+        linked: '연결',
+        unlinked: '미연결',
+    };
+
+    const JOURNAL_DATE_OPTIONS = [
+        { value: 'voucher_date', label: '전표일자' },
+        { value: 'updated_at', label: '수정일시' },
+    ];
+
+    const QUICK_CREATE_ACCOUNT_VALUE = '__quick_create_account__';
+    const modal = window.bootstrap ? new bootstrap.Modal(modalEl, { focus: false }) : null;
+    const transactionModal = window.bootstrap && transactionModalEl
+        ? new bootstrap.Modal(transactionModalEl, { focus: false })
+        : null;
+    const basicInfoBridge = createJournalBasicInfoBridge({ notify });
+
     let todayPicker = null;
     let accountPickerItems = null;
+    let transactionRows = [];
+    let journalTable = null;
 
     function escapeHtml(value) {
         return String(value ?? '')
@@ -82,19 +131,146 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
     }
 
     function formatDate(date) {
-        if (!date) return '';
+        if (!date) {
+            return '';
+        }
+
         const y = date.getFullYear();
         const m = String(date.getMonth() + 1).padStart(2, '0');
         const d = String(date.getDate()).padStart(2, '0');
         return `${y}-${m}-${d}`;
     }
 
+    function normalizeAmountValue(value) {
+        const raw = String(value ?? '')
+            .replace(/,/g, '')
+            .trim();
+        const [integerPart = ''] = raw.split('.');
+
+        return onlyNumber(integerPart);
+    }
+
+    function parseAmountValue(value) {
+        const normalized = normalizeAmountValue(value);
+        return normalized === '' ? 0 : Number(normalized);
+    }
+
+    function formatAmountValue(value) {
+        const normalized = normalizeAmountValue(value);
+        return normalized === '' ? '' : formatNumber(normalized);
+    }
+
+    function setAmountInputValue(input, { formatted = true } = {}) {
+        if (!input) {
+            return '';
+        }
+
+        const normalized = normalizeAmountValue(input.value);
+        input.value = normalized === ''
+            ? ''
+            : (formatted ? formatNumber(normalized) : normalized);
+
+        return normalized;
+    }
+
+    function getAmountInputTarget(target) {
+        if (!(target instanceof HTMLInputElement) || !target.classList.contains('input-amount')) {
+            return null;
+        }
+
+        return target;
+    }
+
     function translateStatus(value) {
         return STATUS_LABELS[value] || value || '-';
     }
 
-    function translateRefType(value) {
-        return REF_TYPE_LABELS[value] || value || '-';
+    function translateType(value) {
+        return TYPE_LABELS[value] || value || '-';
+    }
+
+    function translateLinkedStatus(value) {
+        return LINKED_STATUS_LABELS[value] || value || '미연결';
+    }
+
+    function buildTransactionSummary(row = null) {
+        if (!row) {
+            return '연결된 거래가 없습니다.';
+        }
+
+        const date = row.transaction_date || '-';
+        const client = row.client_name || row.client_id || '-';
+        const amount = formatAmountValue(row.total_amount || 0) || '0';
+
+        return `${date} / ${client} / ${amount}`;
+    }
+
+    function setLinkedTransaction(row = null) {
+        if (!linkedTransactionIdEl || !linkedTransactionSummaryEl) {
+            return;
+        }
+
+        linkedTransactionIdEl.value = row?.id || '';
+        linkedTransactionSummaryEl.textContent = buildTransactionSummary(row);
+        linkedTransactionSummaryEl.title = row
+            ? `${buildTransactionSummary(row)}${row.item_summary ? ` / ${row.item_summary}` : ''}`
+            : '';
+    }
+
+    function setModalTitle(mode = 'create') {
+        if (!modalTitleEl) {
+            return;
+        }
+
+        const icon = '<i class="bi bi-journal-check me-2"></i>';
+        modalTitleEl.innerHTML = mode === 'edit'
+            ? `${icon}전표 수정`
+            : `${icon}전표 등록`;
+    }
+
+    function renderPickerOption(data) {
+        const span = document.createElement('span');
+        span.textContent = data?.text || '';
+
+        if (data?.id === QUICK_CREATE_ACCOUNT_VALUE) {
+            span.className = 'journal-quick-create-option';
+        }
+
+        return span;
+    }
+
+    function renderPickerSelection(data) {
+        if (!data || !data.id || data.id === QUICK_CREATE_ACCOUNT_VALUE) {
+            return '계정과목 선택';
+        }
+
+        return data.text || data.id;
+    }
+
+    function setSelect2Option(selectEl, value, text) {
+        if (!selectEl || !window.jQuery) {
+            return;
+        }
+
+        const normalizedValue = String(value ?? '').trim();
+        const $select = window.jQuery(selectEl);
+
+        if (normalizedValue === '') {
+            $select.val('').trigger('change');
+            return;
+        }
+
+        $select.find(`option[value="${normalizedValue}"]`).remove();
+        $select.append(new Option(text || normalizedValue, normalizedValue, true, true));
+        $select.val(normalizedValue).trigger('change');
+    }
+
+    function clearSelect2Value(selectEl) {
+        if (!selectEl || !window.jQuery) {
+            return;
+        }
+
+        window.jQuery(selectEl).val('').trigger('change');
     }
 
     function initTodayPicker() {
@@ -102,7 +278,7 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
             return todayPicker;
         }
 
-        const container = document.getElementById('journal-today-picker');
+        const container = document.getElementById('today-picker') || document.getElementById('journal-today-picker');
         if (!container) {
             return null;
         }
@@ -114,82 +290,183 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 
         todayPicker.subscribe((_, date) => {
             const input = todayPicker.__target;
-            if (!input || !date) return;
+            if (!input || !date) {
+                return;
+            }
 
             input.value = formatDate(date);
+            normalizeStartEnd(input);
             todayPicker.close();
         });
 
         return todayPicker;
     }
 
+    function normalizeStartEnd(input) {
+        if (!input || !['dateStart', 'dateEnd'].includes(input.name)) {
+            return;
+        }
+
+        const formEl = input.closest('form') || document;
+        const start = formEl.querySelector('input[name="dateStart"]');
+        const end = formEl.querySelector('input[name="dateEnd"]');
+
+        if (!start || !end || !start.value || !end.value) {
+            return;
+        }
+
+        if (input.name === 'dateStart' && start.value > end.value) {
+            end.value = start.value;
+        }
+
+        if (input.name === 'dateEnd' && end.value < start.value) {
+            start.value = end.value;
+        }
+    }
+
     function bindDatePickerInput() {
-        voucherDateEl.addEventListener('click', (event) => {
-            event.preventDefault();
-            event.stopPropagation();
+        const openPicker = (input, event) => {
+            if (!input) {
+                return;
+            }
+
+            event?.preventDefault();
+            event?.stopPropagation();
 
             const picker = initTodayPicker();
-            if (!picker) return;
+            if (!picker) {
+                return;
+            }
 
-            picker.__target = voucherDateEl;
+            picker.__target = input;
 
             if (typeof picker.clearDate === 'function') {
                 picker.clearDate();
             }
 
-            if (voucherDateEl.value) {
-                const current = new Date(voucherDateEl.value);
+            if (input.value) {
+                const current = new Date(input.value);
                 if (!Number.isNaN(current.getTime()) && typeof picker.setDate === 'function') {
                     picker.setDate(current);
                 }
             }
 
-            picker.open({ anchor: voucherDateEl });
+            picker.open({ anchor: input });
+        };
+
+        document.querySelectorAll('.admin-date').forEach((input) => {
+            if (input.__journalDatePickerBound) {
+                return;
+            }
+
+            input.__journalDatePickerBound = true;
+            input.addEventListener('click', (event) => openPicker(input, event));
+        });
+
+        document.querySelectorAll('.date-icon').forEach((icon) => {
+            if (icon.__journalDatePickerBound) {
+                return;
+            }
+
+            icon.__journalDatePickerBound = true;
+            icon.addEventListener('click', (event) => {
+                const wrap = icon.closest('.date-input, .date-input-wrap');
+                const input = wrap ? wrap.querySelector('.admin-date') : null;
+                openPicker(input, event);
+            });
         });
     }
 
-    function initStaticSelectPickers() {
-        if (!window.jQuery || !voucherStatusEl || !voucherRefTypeEl) {
-            return;
-        }
+    function buildAccountPickerItems(rows = []) {
+        const mappedRows = rows
+            .map((row) => {
+                const accountCode = String(row.account_code ?? row.value ?? '').trim();
+                const accountName = String(row.account_name ?? row.name ?? '').trim();
 
-        AdminPicker.select2(voucherStatusEl, {
-            placeholder: '상태 선택',
-            minimumResultsForSearch: Infinity,
-            dropdownParent: window.jQuery(modalEl),
-            width: '100%',
-        });
+                return {
+                    id: accountCode,
+                    text: accountCode && accountName ? `${accountCode} - ${accountName}` : accountCode,
+                };
+            })
+            .filter((item) => item.id !== '');
 
-        AdminPicker.select2(voucherRefTypeEl, {
-            placeholder: '참조유형 선택',
-            minimumResultsForSearch: Infinity,
-            dropdownParent: window.jQuery(modalEl),
-            width: '100%',
-        });
+        return [
+            { id: '', text: '계정과목 선택' },
+            ...mappedRows,
+            { id: QUICK_CREATE_ACCOUNT_VALUE, text: '+ 빠른 등록' },
+        ];
     }
 
-    async function ensureAccountPickerItems() {
-        if (Array.isArray(accountPickerItems)) {
+    async function ensureAccountPickerItems(force = false) {
+        if (!force && Array.isArray(accountPickerItems)) {
             return accountPickerItems;
         }
 
         try {
             const json = await fetchJson(API.accountList);
             const rows = Array.isArray(json?.data) ? json.data : [];
-
-            accountPickerItems = [
-                { id: '', text: '계정과목 선택' },
-                ...rows.map((row) => ({
-                    id: String(row.account_code ?? row.code ?? ''),
-                    text: `${row.account_code ?? row.code ?? ''} - ${row.account_name ?? row.name ?? ''}`,
-                })).filter((item) => item.id !== ''),
-            ];
+            accountPickerItems = buildAccountPickerItems(rows);
         } catch (error) {
             console.error('[ledger-journal] account list load failed', error);
-            accountPickerItems = [{ id: '', text: '계정과목 선택' }];
+            accountPickerItems = buildAccountPickerItems([]);
         }
 
         return accountPickerItems;
+    }
+
+    async function reloadAllAccountPickers({ selectedValue = '', selectedText = '', sourceEl = null } = {}) {
+        const items = await ensureAccountPickerItems(true);
+
+        Array.from(lineBody.querySelectorAll('.line-account-code-picker')).forEach((selectEl) => {
+            const currentValue = selectEl === sourceEl
+                ? selectedValue
+                : String(selectEl.value || '').trim();
+
+            AdminPicker.reloadSelect2(selectEl, items, 'id', 'text', currentValue || '');
+
+            if (selectEl === sourceEl && selectedValue) {
+                setSelect2Option(selectEl, selectedValue, selectedText || selectedValue);
+            }
+        });
+    }
+
+    function bindAccountQuickCreate(selectEl) {
+        if (!selectEl || !window.jQuery || selectEl.dataset.quickCreateBound === 'true') {
+            return;
+        }
+
+        const $select = window.jQuery(selectEl);
+        $select.on('select2:select', async (event) => {
+            const selectedId = String(event?.params?.data?.id || '').trim();
+            if (selectedId !== QUICK_CREATE_ACCOUNT_VALUE) {
+                return;
+            }
+
+            event.preventDefault();
+            window.setTimeout(() => {
+                clearSelect2Value(selectEl);
+
+                basicInfoBridge.openQuickCreate('account', {
+                    sourceEl: selectEl,
+                    async onSaved(payload) {
+                        await reloadAllAccountPickers({
+                            selectedValue: payload.value,
+                            selectedText: payload.text,
+                            sourceEl: selectEl,
+                        });
+                    },
+                    async onDeleted(payload) {
+                        await reloadAllAccountPickers();
+
+                        if (payload.value && String(selectEl.value || '').trim() === payload.value) {
+                            clearSelect2Value(selectEl);
+                        }
+                    },
+                });
+            }, 0);
+        });
+
+        selectEl.dataset.quickCreateBound = 'true';
     }
 
     async function initLineAccountPicker(selectEl, selectedValue = '') {
@@ -197,23 +474,22 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
             return;
         }
 
-        const items = await ensureAccountPickerItems();
+        bindAccountQuickCreate(selectEl);
 
         AdminPicker.select2(selectEl, {
             placeholder: '계정과목 선택',
             dropdownParent: window.jQuery(modalEl),
             width: '100%',
+            templateResult: renderPickerOption,
+            templateSelection: renderPickerSelection,
         });
 
+        const items = await ensureAccountPickerItems();
         AdminPicker.reloadSelect2(selectEl, items, 'id', 'text', selectedValue || '');
     }
 
     function emptyLineRow() {
-        return '<tr class="voucher-line-empty"><td colspan="6" class="text-center text-muted py-4">분개 라인을 추가해주세요.</td></tr>';
-    }
-
-    function renderEmptyTable(message = '등록된 전표가 없습니다.') {
-        tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">${escapeHtml(message)}</td></tr>`;
+        return '<tr class="voucher-line-empty"><td colspan="6" class="text-center text-muted py-4">분개라인을 추가해 주세요.</td></tr>';
     }
 
     function syncLineNumbers() {
@@ -232,24 +508,24 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
             .filter((row) => !row.classList.contains('voucher-line-empty'));
 
         const debit = rows.reduce((sum, row) => {
-            const value = parseFloat(row.querySelector('.line-debit')?.value || '0');
+            const value = parseAmountValue(row.querySelector('.line-debit')?.value || '0');
             return sum + (Number.isFinite(value) ? value : 0);
         }, 0);
 
         const credit = rows.reduce((sum, row) => {
-            const value = parseFloat(row.querySelector('.line-credit')?.value || '0');
+            const value = parseAmountValue(row.querySelector('.line-credit')?.value || '0');
             return sum + (Number.isFinite(value) ? value : 0);
         }, 0);
 
-        debitTotalEl.value = debit.toFixed(2);
-        creditTotalEl.value = credit.toFixed(2);
+        debitTotalEl.value = formatAmountValue(debit) || '0';
+        creditTotalEl.value = formatAmountValue(credit) || '0';
 
         if (rows.length === 0) {
-            balanceStatusEl.value = '분개 라인을 입력해주세요.';
+            balanceStatusEl.value = '분개라인을 입력해 주세요.';
             return;
         }
 
-        balanceStatusEl.value = debit.toFixed(2) === credit.toFixed(2)
+        balanceStatusEl.value = debit === credit
             ? '차변/대변 합계가 일치합니다.'
             : '차변/대변 합계가 일치하지 않습니다.';
     }
@@ -266,20 +542,18 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
                 </select>
             </td>
             <td>
-                <input type="number"
-                       step="0.01"
-                       min="0"
-                       class="form-control form-control-sm line-debit"
+                <input type="text"
+                       inputmode="numeric"
+                       class="form-control form-control-sm line-debit input-amount"
                        value="${escapeHtml(line.debit || '')}"
-                       placeholder="0.00">
+                       placeholder="0">
             </td>
             <td>
-                <input type="number"
-                       step="0.01"
-                       min="0"
-                       class="form-control form-control-sm line-credit"
+                <input type="text"
+                       inputmode="numeric"
+                       class="form-control form-control-sm line-credit input-amount"
                        value="${escapeHtml(line.credit || '')}"
-                       placeholder="0.00">
+                       placeholder="0">
             </td>
             <td>
                 <input type="text"
@@ -293,27 +567,30 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
         `;
 
         lineBody.appendChild(row);
+        setAmountInputValue(row.querySelector('.line-debit'));
+        setAmountInputValue(row.querySelector('.line-credit'));
         syncLineNumbers();
         calculateTotals();
 
         const accountSelect = row.querySelector('.line-account-code-picker');
         await initLineAccountPicker(accountSelect, line.account_code || '');
+
+        if (line.account_code && !accountSelect.value) {
+            setSelect2Option(accountSelect, line.account_code, line.account_text || line.account_code);
+        }
     }
 
     function resetModal() {
         form.reset();
         document.getElementById('journal_id').value = '';
+        voucherDateEl.value = formatDate(new Date());
         voucherStatusEl.value = 'draft';
-        voucherRefTypeEl.value = '';
-        if (voucherRefIdEl) {
-            voucherRefIdEl.value = '';
+        if (voucherTypeEl) {
+            voucherTypeEl.value = 'MANUAL';
         }
-        if (window.jQuery) {
-            window.jQuery(voucherStatusEl).trigger('change');
-            window.jQuery(voucherRefTypeEl).trigger('change');
-        }
+        setLinkedTransaction(null);
         lineBody.innerHTML = emptyLineRow();
-        deleteBtn.style.display = 'none';
+        setModalTitle('create');
         calculateTotals();
     }
 
@@ -322,31 +599,18 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
             .filter((row) => !row.classList.contains('voucher-line-empty'))
             .map((row) => ({
                 account_code: row.querySelector('.line-account-code-picker')?.value?.trim() ?? '',
-                debit: row.querySelector('.line-debit')?.value ?? '0',
-                credit: row.querySelector('.line-credit')?.value ?? '0',
+                debit: normalizeAmountValue(row.querySelector('.line-debit')?.value ?? '') || '0',
+                credit: normalizeAmountValue(row.querySelector('.line-credit')?.value ?? '') || '0',
                 line_summary: row.querySelector('.line-summary')?.value?.trim() ?? '',
-            }));
-    }
-
-    function collectPayments() {
-        const paymentRows = Array.from(document.querySelectorAll('[data-payment-row]'));
-
-        if (paymentRows.length === 0) {
-            return [];
-        }
-
-        return paymentRows.map((row) => ({
-            payment_type: row.querySelector('.payment-type')?.value?.trim() ?? '',
-            payment_id: row.querySelector('.payment-id')?.value?.trim() ?? '',
-            amount: row.querySelector('.payment-amount')?.value ?? '0',
-        }));
+            }))
+            .filter((line) => line.account_code || Number(line.debit) > 0 || Number(line.credit) > 0 || line.line_summary);
     }
 
     function validateBeforeSave() {
         const lines = collectLines();
 
         if (lines.length === 0) {
-            notify('warning', '분개 라인을 1건 이상 입력해주세요.');
+            notify('warning', '분개라인을 1개 이상 입력해 주세요.');
             return false;
         }
 
@@ -355,21 +619,21 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 
         for (let index = 0; index < lines.length; index += 1) {
             const line = lines[index];
-            const debit = parseFloat(line.debit || '0');
-            const credit = parseFloat(line.credit || '0');
+            const debit = Number(line.debit || '0');
+            const credit = Number(line.credit || '0');
 
             if (!line.account_code) {
-                notify('warning', `${index + 1}번 라인의 계정과목을 선택해주세요.`);
+                notify('warning', `${index + 1}번 라인의 계정과목을 선택해 주세요.`);
                 return false;
             }
 
             if (debit <= 0 && credit <= 0) {
-                notify('warning', `${index + 1}번 라인의 차변 또는 대변 금액을 입력해주세요.`);
+                notify('warning', `${index + 1}번 라인의 차변 또는 대변 금액을 입력해 주세요.`);
                 return false;
             }
 
             if (debit > 0 && credit > 0) {
-                notify('warning', `${index + 1}번 라인은 차변 또는 대변 중 하나만 입력할 수 있습니다.`);
+                notify('warning', `${index + 1}번 라인은 차변과 대변 중 하나만 입력할 수 있습니다.`);
                 return false;
             }
 
@@ -377,7 +641,7 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
             creditTotal += Number.isFinite(credit) ? credit : 0;
         }
 
-        if (debitTotal.toFixed(2) !== creditTotal.toFixed(2)) {
+        if (debitTotal !== creditTotal) {
             notify('warning', '차변 합계와 대변 합계가 일치해야 합니다.');
             return false;
         }
@@ -385,52 +649,360 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
         return true;
     }
 
-    function renderTable(rows) {
-        if (!Array.isArray(rows) || rows.length === 0) {
-            renderEmptyTable();
+    function getVoucherSortNo(row = {}) {
+        const numericSortNo = Number(String(row.sort_no ?? '').replace(/,/g, ''));
+        return Number.isFinite(numericSortNo) ? numericSortNo : 0;
+    }
+
+    function buildJournalColumns() {
+        return [
+            {
+                title: '<i class="bi bi-arrows-move"></i>',
+                width: '40px',
+                className: 'reorder-handle no-colvis text-center',
+                orderable: false,
+                searchable: false,
+                defaultContent: '<i class="bi bi-list"></i>',
+            },
+            {
+                data: 'sort_no',
+                title: '순번',
+                width: '90px',
+                className: 'text-center journal-sort-no-cell',
+                render(data, type, row) {
+                    const sortNo = getVoucherSortNo(row);
+
+                    if (type === 'sort' || type === 'type') {
+                        return sortNo;
+                    }
+
+                    return escapeHtml(data || '');
+                },
+            },
+            {
+                data: 'voucher_no',
+                title: '전표번호',
+                width: '150px',
+                render(data) {
+                    return escapeHtml(data || '');
+                },
+            },
+            {
+                data: 'voucher_date',
+                title: '전표일자',
+                width: '120px',
+                defaultContent: '',
+                render(data) {
+                    return escapeHtml(data || '');
+                },
+            },
+            {
+                data: 'status',
+                title: '상태',
+                width: '110px',
+                defaultContent: '',
+                render(data) {
+                    return escapeHtml(translateStatus(data));
+                },
+            },
+            {
+                data: 'type',
+                title: '타입',
+                width: '120px',
+                defaultContent: '',
+                render(data, type, row) {
+                    return escapeHtml(translateType(data || row.ref_type));
+                },
+            },
+            {
+                data: 'summary_text',
+                title: '적요',
+                className: 'journal-summary-cell',
+                defaultContent: '',
+                render(data) {
+                    return escapeHtml(data || '');
+                },
+            },
+            {
+                data: 'updated_at',
+                title: '수정일시',
+                width: '150px',
+                name: 'updated_at',
+                render(data, type, row) {
+                    return escapeHtml(data || row.created_at || '');
+                },
+            },
+            {
+                data: 'account_code',
+                title: '계정과목',
+                className: 'no-colvis',
+                visible: false,
+                defaultContent: '',
+                render(data) {
+                    return escapeHtml(data || '');
+                },
+            },
+            {
+                data: 'linked_status',
+                title: '거래연결여부',
+                className: 'no-colvis',
+                visible: false,
+                defaultContent: 'unlinked',
+                render(data, type) {
+                    if (type === 'sort' || type === 'type') {
+                        return data || 'unlinked';
+                    }
+
+                    return escapeHtml(translateLinkedStatus(data));
+                },
+            },
+            {
+                data: null,
+                title: '관리',
+                width: '140px',
+                className: 'text-center no-colvis',
+                orderable: false,
+                searchable: false,
+                render(data, type, row) {
+                    const id = escapeHtml(row.id || '');
+
+                    return `
+                        <button type="button"
+                                class="btn btn-outline-primary btn-sm btn-edit-voucher"
+                                data-id="${id}">수정</button>
+                        <button type="button"
+                                class="btn btn-outline-danger btn-sm btn-delete-voucher"
+                                data-id="${id}">삭제</button>
+                    `;
+                },
+            },
+        ];
+    }
+
+    function initExcelDataset() {
+        const excelForm = document.getElementById('journalExcelForm');
+        if (!excelForm) {
             return;
         }
 
-        tableBody.innerHTML = rows.map((row) => `
-            <tr data-id="${escapeHtml(row.id)}">
-                <td>${escapeHtml(row.code || '')}</td>
-                <td>${escapeHtml(row.voucher_date || '')}</td>
-                <td>${escapeHtml(translateStatus(row.status))}</td>
-                <td>${escapeHtml(translateRefType(row.ref_type))}</td>
-                <td>${escapeHtml(row.ref_id || '')}</td>
-                <td>${escapeHtml(row.summary_text || '')}</td>
-                <td>${escapeHtml(row.updated_at || row.created_at || '')}</td>
-                <td class="text-center">
-                    <button type="button" class="btn btn-outline-primary btn-sm btn-edit-voucher">수정</button>
-                    <button type="button" class="btn btn-outline-danger btn-sm btn-delete-voucher">삭제</button>
-                </td>
-            </tr>
-        `).join('');
+        excelForm.dataset.templateUrl = API.excelTemplate;
+        excelForm.dataset.downloadUrl = API.excelDownload;
+        excelForm.dataset.uploadUrl = API.excelUpload;
     }
 
-    async function loadList() {
-        try {
-            const json = await fetchJson(API.list);
+    function openExcelModal() {
+        const excelModalEl = document.getElementById('journalExcelModal');
 
-            if (!json.success) {
-                notify('error', json.message || '전표 목록을 불러오지 못했습니다.');
-                renderEmptyTable('전표 목록을 불러오지 못했습니다.');
-                return;
-            }
-
-            renderTable(json.data || []);
-        } catch (error) {
-            console.error('[ledger-journal] loadList failed', error);
-            renderEmptyTable('전표 목록을 불러오지 못했습니다.');
+        if (!excelModalEl || !window.bootstrap) {
+            notify('warning', '전표 엑셀 관리 모달을 찾을 수 없습니다.');
+            return;
         }
+
+        const instance = bootstrap.Modal.getInstance(excelModalEl) || new bootstrap.Modal(excelModalEl, {
+            focus: false,
+        });
+
+        instance.show();
+    }
+
+    function openTrashModal() {
+        const trashModalEl = document.getElementById('journalTrashModal');
+        if (!trashModalEl || !window.bootstrap) {
+            notify('warning', '전표 휴지통 모달을 찾을 수 없습니다.');
+            return;
+        }
+
+        trashModalEl.dataset.listUrl = API.trash;
+        trashModalEl.dataset.restoreUrl = API.restore;
+        trashModalEl.dataset.deleteUrl = API.purge;
+        trashModalEl.dataset.deleteAllUrl = API.purgeAll;
+
+        const instance = bootstrap.Modal.getInstance(trashModalEl) || new bootstrap.Modal(trashModalEl, {
+            focus: false,
+        });
+
+        instance.show();
+    }
+
+    function setupTrashColumns() {
+        window.TrashColumns = window.TrashColumns || {};
+        window.TrashColumns.journal = function (row) {
+            return `
+                <td>${escapeHtml(row.voucher_no ?? row.sort_no ?? '')}</td>
+                <td>${escapeHtml(row.voucher_date ?? '')}</td>
+                <td>${escapeHtml(row.summary_text ?? '')}</td>
+                <td>${escapeHtml(row.deleted_at ?? '')}</td>
+                <td>
+                    <button class="btn btn-success btn-sm btn-restore" data-id="${escapeHtml(row.id ?? '')}">복원</button>
+                    <button class="btn btn-danger btn-sm btn-purge" data-id="${escapeHtml(row.id ?? '')}">완전 삭제</button>
+                </td>
+            `;
+        };
+
+        document.addEventListener('trash:changed', (event) => {
+            const { type } = event.detail || {};
+            if (type === 'journal') {
+                reloadJournalTable();
+            }
+        });
+    }
+
+    function updateJournalCount() {
+        if (!journalTable?.page) {
+            return;
+        }
+
+        const countEl = document.getElementById('journalCount');
+        if (!countEl) {
+            return;
+        }
+
+        const info = journalTable.page.info();
+        countEl.textContent = `총 ${info?.recordsDisplay ?? 0}건`;
+    }
+
+    function bindTableLayoutEvents() {
+        if (!journalTable) {
+            return;
+        }
+
+        window.addEventListener('resize', () => {
+            updateTableHeight(journalTable, '#journal-table');
+        });
+
+        document.addEventListener('sidebar:toggled', () => {
+            updateTableHeight(journalTable, '#journal-table');
+            setTimeout(() => {
+                forceTableHeightSync(journalTable, '#journal-table');
+            }, 260);
+        });
+    }
+
+    function bindJournalTableEvents() {
+        if (!window.jQuery || !journalTable) {
+            return;
+        }
+
+        const $ = window.jQuery;
+        $('#journal-table tbody')
+            .off('click.journalSearchFill')
+            .on('click.journalSearchFill', 'td', function (event) {
+                if (event.target.closest('button, .reorder-handle')) {
+                    return;
+                }
+
+                const cell = journalTable.cell(this);
+                const cellIndex = cell.index();
+                if (!cellIndex) {
+                    return;
+                }
+
+                const field = journalTable.column(cellIndex.column).dataSrc();
+                if (!field || typeof field !== 'string') {
+                    return;
+                }
+
+                const value = cell.data();
+                const $first = $('#journalSearchConditions .search-condition').first();
+                $first.find('select').val(field);
+                $first.find('input').val(value ?? '');
+            });
+
+        $('#journal-table tbody')
+            .off('dblclick.journalEdit')
+            .on('dblclick.journalEdit', 'tr', function (event) {
+                if (event.target.closest('button, .reorder-handle')) {
+                    return;
+                }
+
+                const row = journalTable.row(this).data();
+                const id = row?.id || '';
+                if (!id) {
+                    return;
+                }
+
+                resetModal();
+                void loadDetail(id);
+            });
+    }
+
+    function initJournalTable() {
+        if (journalTable || !window.jQuery?.fn?.DataTable) {
+            return Boolean(journalTable);
+        }
+
+        journalTable = createDataTable({
+            tableSelector: '#journal-table',
+            api: API.list,
+            columns: buildJournalColumns(),
+            buttons: [
+                {
+                    text: '엑셀관리',
+                    className: 'btn btn-success btn-sm',
+                    action: function () {
+                        openExcelModal();
+                    },
+                },
+                {
+                    text: '휴지통',
+                    className: 'btn btn-danger btn-sm',
+                    action: function () {
+                        openTrashModal();
+                    },
+                },
+                {
+                    text: '새전표',
+                    className: 'btn btn-warning btn-sm',
+                    action: function () {
+                        void openCreateModal();
+                    },
+                },
+            ],
+            defaultOrder: [[1, 'asc']],
+            pageLength: 10,
+        });
+
+        bindRowReorder(journalTable, { api: API.reorder });
+        bindTableHighlight('#journal-table', journalTable);
+
+        journalTable.on('init.dt draw.dt', updateJournalCount);
+
+        SearchForm({
+            table: journalTable,
+            apiList: API.list,
+            tableId: 'journal',
+            defaultSearchField: 'summary_text',
+            dateOptions: JOURNAL_DATE_OPTIONS,
+        });
+
+        updateTableHeight(journalTable, '#journal-table');
+        bindTableLayoutEvents();
+        bindJournalTableEvents();
+        updateJournalCount();
+
+        return Boolean(journalTable);
+    }
+
+    function reloadJournalTable() {
+        if (journalTable?.ajax) {
+            journalTable.ajax.reload(null, false);
+        }
+    }
+
+    async function openCreateModal() {
+        resetModal();
+        await addLineRow();
+        await addLineRow();
+        modal?.show();
     }
 
     async function loadDetail(id) {
         try {
+            setModalTitle('edit');
             const json = await fetchJson(`${API.detail}?id=${encodeURIComponent(id)}`);
 
             if (!json.success || !json.data) {
-                notify('error', json.message || '전표 상세를 불러오지 못했습니다.');
+                notify('error', json.message || '전표 상세 정보를 불러오지 못했습니다.');
                 return;
             }
 
@@ -438,15 +1010,13 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
             document.getElementById('journal_id').value = data.id || '';
             voucherDateEl.value = data.voucher_date || '';
             voucherStatusEl.value = data.status || 'draft';
-            voucherRefTypeEl.value = data.ref_type || '';
-            if (window.jQuery) {
-                window.jQuery(voucherStatusEl).trigger('change');
-                window.jQuery(voucherRefTypeEl).trigger('change');
+            if (voucherTypeEl) {
+                voucherTypeEl.value = data.ref_type || data.type || 'MANUAL';
             }
-            document.getElementById('voucher_ref_id').value = data.ref_id || '';
             document.getElementById('voucher_summary_text').value = data.summary_text || '';
             document.getElementById('voucher_note').value = data.note || '';
             document.getElementById('voucher_memo').value = data.memo || '';
+            setLinkedTransaction(data.linked_transaction || null);
 
             lineBody.innerHTML = emptyLineRow();
             if (Array.isArray(data.lines) && data.lines.length > 0) {
@@ -455,21 +1025,22 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
                 }
             } else {
                 await addLineRow();
+                await addLineRow();
             }
 
-            deleteBtn.style.display = 'inline-block';
             calculateTotals();
             modal?.show();
         } catch (error) {
             console.error('[ledger-journal] loadDetail failed', error);
-            notify('error', '전표 상세를 불러오지 못했습니다.');
+            setModalTitle('create');
+            notify('error', '전표 상세 정보를 불러오지 못했습니다.');
         }
     }
 
     async function saveVoucher() {
         const formData = new FormData(form);
         formData.set('lines', JSON.stringify(collectLines()));
-        formData.set('payments', JSON.stringify(collectPayments()));
+        formData.set('linked_transaction_id', linkedTransactionIdEl?.value || '');
 
         const json = await fetchJson(API.save, {
             method: 'POST',
@@ -477,13 +1048,13 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
         });
 
         if (!json.success) {
-            notify('error', json.message || '전표를 저장하지 못했습니다.');
+            notify('error', json.message || '전표 저장에 실패했습니다.');
             return;
         }
 
-        notify('success', '저장 완료');
+        notify('success', '전표가 저장되었습니다.');
         modal?.hide();
-        await loadList();
+        reloadJournalTable();
     }
 
     async function deleteVoucher(id) {
@@ -496,121 +1067,213 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
         });
 
         if (!json.success) {
-            notify('error', json.message || '전표를 삭제하지 못했습니다.');
+            notify('error', json.message || '전표 삭제에 실패했습니다.');
             return;
         }
 
-        notify('success', '삭제 완료');
+        notify('success', '전표가 삭제되었습니다.');
         modal?.hide();
-        await loadList();
+        reloadJournalTable();
     }
 
-    openBtn?.addEventListener('click', async () => {
-        resetModal();
-        await addLineRow();
-        modal?.show();
-    });
-
-    refreshBtn?.addEventListener('click', loadList);
-    addLineBtn?.addEventListener('click', async () => {
-        await addLineRow();
-    });
-
-    lineBody.addEventListener('click', (event) => {
-        const button = event.target.closest('.btn-remove-line');
-        if (!button) {
+    function renderTransactionSearchRows(rows = []) {
+        if (!transactionSearchBody) {
             return;
         }
 
-        button.closest('tr')?.remove();
-
-        if (!lineBody.querySelector('tr')) {
-            lineBody.innerHTML = emptyLineRow();
+        if (!rows.length) {
+            transactionSearchBody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">선택할 거래가 없습니다.</td>
+                </tr>
+            `;
+            return;
         }
 
-        syncLineNumbers();
-        calculateTotals();
-    });
+        transactionSearchBody.innerHTML = rows.map((row, index) => `
+            <tr data-index="${index}">
+                <td>${escapeHtml(row.transaction_date || '')}</td>
+                <td>${escapeHtml(row.client_name || '-')}</td>
+                <td>${escapeHtml(row.item_summary || row.description || row.sort_no || '')}</td>
+                <td class="text-end">${escapeHtml(formatAmountValue(row.total_amount || 0) || '0')}</td>
+                <td class="text-center">
+                    <button type="button"
+                            class="btn btn-outline-primary btn-sm btn-pick-transaction">선택</button>
+                </td>
+            </tr>
+        `).join('');
+    }
 
-    lineBody.addEventListener('input', (event) => {
-        if (event.target.closest('.line-debit, .line-credit, .line-summary')) {
+    async function loadTransactionSearch() {
+        if (!transactionSearchBody) {
+            return;
+        }
+
+        transactionSearchBody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-muted py-4">거래를 불러오는 중입니다.</td>
+            </tr>
+        `;
+
+        try {
+            const query = new URLSearchParams();
+            const keyword = transactionSearchKeywordEl?.value?.trim() || '';
+            if (keyword) {
+                query.set('q', keyword);
+            }
+
+            const json = await fetchJson(`${API.transactionSearch}?${query.toString()}`);
+            if (!json.success) {
+                throw new Error(json.message || '거래 목록을 불러오지 못했습니다.');
+            }
+
+            transactionRows = Array.isArray(json.data) ? json.data : [];
+            renderTransactionSearchRows(transactionRows);
+        } catch (error) {
+            console.error('[ledger-journal] transaction search failed', error);
+            transactionRows = [];
+            transactionSearchBody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-danger py-4">거래 목록을 불러오지 못했습니다.</td>
+                </tr>
+            `;
+        }
+    }
+
+    function bindEvents() {
+        addLineBtn?.addEventListener('click', () => {
+            void addLineRow();
+        });
+
+        form.addEventListener('submit', (event) => {
+            event.preventDefault();
             calculateTotals();
-        }
-    });
 
-    lineBody.addEventListener('change', (event) => {
-        if (event.target.closest('.line-account-code-picker')) {
-            calculateTotals();
-        }
-    });
-
-    tableBody.addEventListener('click', (event) => {
-        const row = event.target.closest('tr[data-id]');
-        if (!row) {
-            return;
-        }
-
-        const id = row.dataset.id;
-
-        if (event.target.closest('.btn-edit-voucher')) {
-            resetModal();
-            loadDetail(id);
-            return;
-        }
-
-        if (event.target.closest('.btn-delete-voucher')) {
-            if (!window.confirm('선택한 전표를 삭제하시겠습니까?')) {
+            if (!validateBeforeSave()) {
                 return;
             }
 
-            deleteVoucher(id);
-        }
-    });
+            void saveVoucher();
+        });
 
-    deleteBtn?.addEventListener('click', () => {
-        const id = document.getElementById('journal_id').value;
-        if (!id) {
-            return;
-        }
+        lineBody.addEventListener('click', (event) => {
+            const button = event.target.closest('.btn-remove-line');
+            if (!button) {
+                return;
+            }
 
-        if (!window.confirm('현재 전표를 삭제하시겠습니까?')) {
-            return;
-        }
+            button.closest('tr')?.remove();
 
-        deleteVoucher(id);
-    });
+            if (!lineBody.querySelector('tr')) {
+                lineBody.innerHTML = emptyLineRow();
+            }
 
-    form.addEventListener('submit', async (event) => {
-        event.preventDefault();
+            syncLineNumbers();
+            calculateTotals();
+        });
 
-        if (!validateBeforeSave()) {
-            return;
-        }
+        document.addEventListener('input', (event) => {
+            const input = getAmountInputTarget(event.target);
+            if (!input) {
+                return;
+            }
 
-        try {
-            await saveVoucher();
-        } catch (error) {
-            console.error('[ledger-journal] save failed', error);
-            notify('error', '전표 저장 중 오류가 발생했습니다.');
-        }
-    });
+            setAmountInputValue(input);
+            calculateTotals();
+        });
 
-    modalEl.addEventListener('shown.bs.modal', () => {
-        initStaticSelectPickers();
-    });
+        document.addEventListener('focusin', (event) => {
+            const input = getAmountInputTarget(event.target);
+            if (!input) {
+                return;
+            }
 
-    voucherRefTypeEl?.addEventListener('change', () => {
-        if (voucherRefIdEl) {
-            voucherRefIdEl.value = '';
-        }
-    });
+            setAmountInputValue(input, { formatted: false });
+        });
 
-    bindDatePickerInput();
-    initStaticSelectPickers();
-    calculateTotals();
-    loadList();
+        document.addEventListener('focusout', (event) => {
+            const input = getAmountInputTarget(event.target);
+            if (!input) {
+                return;
+            }
 
-    modalEl.addEventListener('hidden.bs.modal', () => {
-        todayPicker?.close?.();
-    });
+            setAmountInputValue(input);
+            calculateTotals();
+        });
+
+        journalTableEl.addEventListener('click', (event) => {
+            const editBtn = event.target.closest('.btn-edit-voucher');
+            const deleteBtn = event.target.closest('.btn-delete-voucher');
+
+            if (editBtn?.dataset.id) {
+                resetModal();
+                void loadDetail(editBtn.dataset.id);
+                return;
+            }
+
+            if (deleteBtn?.dataset.id && window.confirm('전표를 삭제하시겠습니까?')) {
+                void deleteVoucher(deleteBtn.dataset.id);
+            }
+        });
+
+        selectTransactionBtn?.addEventListener('click', () => {
+            if (!transactionModal) {
+                notify('warning', '거래 선택 모달을 찾을 수 없습니다.');
+                return;
+            }
+
+            if (transactionSearchKeywordEl) {
+                transactionSearchKeywordEl.value = '';
+            }
+
+            transactionModal.show();
+            void loadTransactionSearch();
+        });
+
+        clearTransactionLinkBtn?.addEventListener('click', () => {
+            setLinkedTransaction(null);
+        });
+
+        searchTransactionBtn?.addEventListener('click', () => {
+            void loadTransactionSearch();
+        });
+
+        transactionSearchKeywordEl?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                void loadTransactionSearch();
+            }
+        });
+
+        transactionSearchBody?.addEventListener('click', (event) => {
+            const button = event.target.closest('.btn-pick-transaction');
+            if (!button) {
+                return;
+            }
+
+            const rowEl = button.closest('tr');
+            const index = Number(rowEl?.dataset.index ?? -1);
+            const row = transactionRows[index];
+            if (!row) {
+                return;
+            }
+
+            setLinkedTransaction(row);
+            transactionModal?.hide();
+        });
+    }
+
+    function boot() {
+        initExcelDataset();
+        setupTrashColumns();
+        initJournalTable();
+        bindDatePickerInput();
+        bindEvents();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', boot, { once: true });
+    } else {
+        boot();
+    }
 })();

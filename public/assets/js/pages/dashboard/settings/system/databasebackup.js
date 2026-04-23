@@ -13,6 +13,7 @@
     };
 
     let restorePollTimer = null;
+    let backupResultTimer = null;
 
     document.addEventListener('DOMContentLoaded', () => {
         loadBackupSettings();
@@ -38,6 +39,7 @@
             window.AppCore.notify(type, message);
             return;
         }
+
         console[type === 'error' ? 'error' : 'log'](message);
     }
 
@@ -53,11 +55,11 @@
         try {
             json = text ? JSON.parse(text) : {};
         } catch (_) {
-            throw new Error('??뺤쒔 ?臾먮뼗????곴퐤??? 筌륁궢六??щ빍??');
+            throw new Error('서버 응답을 해석할 수 없습니다.');
         }
 
         if (!response.ok) {
-            throw new Error(json?.message || '?遺욧퍕 筌ｌ꼶??餓???살첒揶쎛 獄쏆뮇源??됰뮸??덈뼄.');
+            throw new Error(json?.message || '요청 처리 중 오류가 발생했습니다.');
         }
 
         return json;
@@ -79,11 +81,24 @@
         return normalized;
     }
 
+    function decodeEscapedUnicode(value) {
+        const text = String(value ?? '');
+        if (!text.includes('\\u')) {
+            return text;
+        }
+
+        try {
+            return JSON.parse(`"${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`);
+        } catch (_) {
+            return text;
+        }
+    }
+
     async function loadBackupSettings() {
         try {
             const json = await fetchJson(API.GET);
             if (!json?.success) {
-                throw new Error(json?.message || '獄쏄퉮毓???쇱젟???븍뜄???? 筌륁궢六??щ빍??');
+                throw new Error(json?.message || '백업 설정을 불러오지 못했습니다.');
             }
 
             const data = json.data || {};
@@ -95,14 +110,16 @@
             setValue('backup_time', data.backup_time || '02:00');
             toggleAutoBackupOptions();
         } catch (error) {
-            notify('error', error.message || '獄쏄퉮毓???쇱젟 鈺곌퀬?????쎈솭??됰뮸??덈뼄.');
+            notify('error', error.message || '백업 설정 조회에 실패했습니다.');
         }
     }
 
     function bindBackupForm() {
         const form = document.getElementById('backup-setting-form');
         const submitButton = document.getElementById('save-backup-settings');
-        if (!form) return;
+        if (!form) {
+            return;
+        }
 
         form.addEventListener('submit', async event => {
             event.preventDefault();
@@ -117,18 +134,18 @@
             };
 
             if (!['daily', 'weekly', 'monthly'].includes(payload.backup_schedule)) {
-                notify('warning', '?癒?짗 獄쏄퉮毓???쎈뻬 雅뚯눊由곁몴??類ㅼ뵥??곻폒?紐꾩뒄.');
+                notify('warning', '백업 실행 주기를 다시 확인해 주세요.');
                 return;
             }
 
             if (!/^(2[0-3]|[01]\d):([0-5]\d)$/.test(payload.backup_time || '')) {
-                notify('warning', '?癒?짗 獄쏄퉮毓???쎈뻬 ??볦퍢???類ㅼ뵥??곻폒?紐꾩뒄.');
+                notify('warning', '백업 실행 시간을 다시 확인해 주세요.');
                 return;
             }
 
             const retentionDays = Number(payload.backup_retention_days);
             if (!Number.isFinite(retentionDays) || retentionDays < 1 || retentionDays > 365) {
-                notify('warning', '獄쏄퉮毓?癰귣떯? 疫꿸퀗而?? 1??깅퓠??365???????鍮???몃빍??');
+                notify('warning', '백업 보관 기간은 1일 이상 365일 이하로 입력해 주세요.');
                 return;
             }
 
@@ -144,12 +161,12 @@
                 });
 
                 if (!json?.success) {
-                    throw new Error(json?.message || '獄쏄퉮毓???쇱젟 ???關肉???쎈솭??됰뮸??덈뼄.');
+                    throw new Error(json?.message || '백업 설정 저장에 실패했습니다.');
                 }
 
-                notify('success', '獄쏄퉮毓???쇱젟?????貫由??됰뮸??덈뼄.');
+                notify('success', '백업 설정이 저장되었습니다.');
             } catch (error) {
-                notify('error', error.message || '獄쏄퉮毓???쇱젟 ???關肉???쎈솭??됰뮸??덈뼄.');
+                notify('error', error.message || '백업 설정 저장에 실패했습니다.');
             } finally {
                 if (submitButton) {
                     submitButton.disabled = false;
@@ -161,39 +178,45 @@
     function bindRunBackup() {
         const button = document.getElementById('run-backup-now');
         const resultBox = document.getElementById('backup-run-result');
-        if (!button || !resultBox) return;
+        if (!button || !resultBox) {
+            return;
+        }
 
         button.addEventListener('click', async () => {
             try {
                 button.disabled = true;
-                button.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>獄쏄퉮毓?餓?..';
+                button.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>백업 실행 중...';
 
                 const json = await fetchJson(API.RUN, { method: 'POST' });
                 if (!json?.success) {
-                    throw new Error(json?.message || '??롫짗 獄쏄퉮毓???쎈뻬????쎈솭??됰뮸??덈뼄.');
+                    throw new Error(json?.message || '수동 백업 실행에 실패했습니다.');
                 }
 
                 resultBox.innerHTML = `
                     <div class="alert alert-success mb-0">
-                        <div class="fw-semibold mb-1">Primary DB 獄쏄퉮毓???袁⑥┷??뤿???щ빍??</div>
-                        <div>???뵬: ${escapeHtml(json.filename || '-')}</div>
-                        <div>??볦퍢: ${escapeHtml(json.time || '-')}</div>
+                        <div class="fw-semibold mb-1">Primary DB 백업이 완료되었습니다.</div>
+                        <div>파일명: ${escapeHtml(json.filename || '-')}</div>
+                        <div>실행시각: ${escapeHtml(json.time || '-')}</div>
                     </div>
                 `;
+                showResultBox(resultBox);
+                queueResultBoxHide(resultBox);
 
-                notify('success', 'Primary DB 獄쏄퉮毓???袁⑥┷??뤿???щ빍??');
+                notify('success', 'Primary DB 백업이 완료되었습니다.');
                 loadBackupInfo();
                 loadBackupLog();
             } catch (error) {
                 resultBox.innerHTML = `
                     <div class="alert alert-danger mb-0">
-                        ${escapeHtml(error.message || '??롫짗 獄쏄퉮毓?餓???살첒揶쎛 獄쏆뮇源??됰뮸??덈뼄.')}
+                        ${escapeHtml(error.message || '수동 백업 실행에 실패했습니다.')}
                     </div>
                 `;
-                notify('error', error.message || '??롫짗 獄쏄퉮毓???쎈뻬????쎈솭??됰뮸??덈뼄.');
+                showResultBox(resultBox);
+                queueResultBoxHide(resultBox);
+                notify('error', error.message || '수동 백업 실행에 실패했습니다.');
             } finally {
                 button.disabled = false;
-                button.innerHTML = '<i class="bi bi-cloud-arrow-down me-1"></i>筌왖疫?獄쏄퉮毓???쎈뻬';
+                button.innerHTML = '<i class="bi bi-cloud-arrow-down me-1"></i>지금 백업 실행';
             }
         });
     }
@@ -202,7 +225,9 @@
         document.querySelectorAll('[data-target][data-step]').forEach(button => {
             button.addEventListener('click', () => {
                 const target = document.querySelector(button.dataset.target);
-                if (!target) return;
+                if (!target) {
+                    return;
+                }
 
                 const step = Number(button.dataset.step || 0);
                 let value = Number(target.value || 0);
@@ -217,30 +242,49 @@
         try {
             const json = await fetchJson(API.INFO);
             if (!json?.success) {
-                throw new Error(json?.message || '獄쏄퉮毓??類ｋ궖???븍뜄???? 筌륁궢六??щ빍??');
+                throw new Error(json?.message || '백업 정보를 불러오지 못했습니다.');
             }
 
             const data = json.data || {};
             const dirBox = document.getElementById('backup-directory');
             const latestBox = document.getElementById('latest-backup-info');
+            const fileListBox = document.getElementById('backup-file-list');
 
             if (dirBox) {
-                dirBox.textContent = data.backup_directory_masked || '-';
+                dirBox.textContent = decodeEscapedUnicode(data.backup_directory_masked || '-');
             }
 
             if (latestBox) {
                 if (data.latest_backup) {
                     latestBox.innerHTML = `
-                        ???뵬: ${escapeHtml(data.latest_backup.file || '-')}<br>
-                        ??볦퍢: ${escapeHtml(data.latest_backup.time || '-')}<br>
-                        ??由? ${formatBytes(data.latest_backup.size || 0)}
+                        파일: ${escapeHtml(data.latest_backup.file || '-')}<br>
+                        백업일: ${escapeHtml(data.latest_backup.time || '-')}<br>
+                        용량: ${formatBytes(data.latest_backup.size || 0)}
                     `;
                 } else {
-                    latestBox.textContent = '獄쏄퉮毓????????곷뮸??덈뼄.';
+                    latestBox.textContent = '백업 파일이 없습니다.';
+                }
+            }
+
+            if (fileListBox) {
+                const files = Array.isArray(data.backup_files) ? data.backup_files : [];
+
+                if (!files.length) {
+                    fileListBox.textContent = '표시할 백업 파일이 없습니다.';
+                } else {
+                    fileListBox.innerHTML = files.map(file => `
+                        <div class="d-flex justify-content-between align-items-start gap-2 py-2 ${file === files[files.length - 1] ? '' : 'border-bottom'}">
+                            <div class="min-w-0">
+                                <div class="fw-semibold text-dark text-break">${escapeHtml(file.file || '-')}</div>
+                                <div class="text-muted">${escapeHtml(file.time || '-')}</div>
+                            </div>
+                            <div class="text-nowrap text-muted">${formatBytes(file.size || 0)}</div>
+                        </div>
+                    `).join('');
                 }
             }
         } catch (error) {
-            notify('error', error.message || '獄쏄퉮毓??類ｋ궖 鈺곌퀬?????쎈솭??됰뮸??덈뼄.');
+            notify('error', error.message || '백업 정보 조회에 실패했습니다.');
         }
     }
 
@@ -248,15 +292,15 @@
         try {
             const json = await fetchJson(API.LOG);
             if (!json?.success) {
-                throw new Error(json?.message || '獄쏄퉮毓?嚥≪뮄?뉒몴??븍뜄???? 筌륁궢六??щ빍??');
+                throw new Error(json?.message || '백업 로그를 불러오지 못했습니다.');
             }
 
             const logViewer = document.getElementById('backup-log-viewer');
             if (logViewer) {
-                logViewer.textContent = json.data?.log || '嚥≪뮄?뉐첎? ??곷뮸??덈뼄.';
+                logViewer.textContent = json.data?.log || '로그가 없습니다.';
             }
         } catch (error) {
-            notify('error', error.message || '獄쏄퉮毓?嚥≪뮄??鈺곌퀬?????쎈솭??됰뮸??덈뼄.');
+            notify('error', error.message || '백업 로그 조회에 실패했습니다.');
         }
     }
 
@@ -264,7 +308,7 @@
         try {
             const json = await fetchJson(API.REPLICATION);
             if (!json?.success) {
-                throw new Error(json?.message || '癰귣벊???怨밴묶???븍뜄???? 筌륁궢六??щ빍??');
+                throw new Error(json?.message || '복제 상태를 불러오지 못했습니다.');
             }
 
             const primary = json.primary || {};
@@ -302,19 +346,21 @@
                 checkedAt.textContent = json.checked_at || '-';
             }
         } catch (error) {
-            notify('error', error.message || '癰귣벊???怨밴묶 鈺곌퀬?????쎈솭??됰뮸??덈뼄.');
+            notify('error', error.message || '복제 상태 조회에 실패했습니다.');
         }
     }
 
     function setReplicationRow(type, online, host, port, readOnly, slaveStatus = null) {
         const statusEl = document.getElementById(`${type}-status`);
         const badgeEl = document.getElementById(`${type}-badge`);
-        if (!statusEl || !badgeEl) return;
+        if (!statusEl || !badgeEl) {
+            return;
+        }
 
         if (!online) {
             badgeEl.className = 'badge bg-danger';
             badgeEl.textContent = 'OFFLINE';
-            statusEl.textContent = '?怨뚭퍙 ??쎈솭';
+            statusEl.textContent = '연결되지 않음';
             return;
         }
 
@@ -334,13 +380,13 @@
         if (slaveStatus?.replication === false) {
             badgeEl.className = 'badge bg-secondary';
             badgeEl.textContent = 'STANDBY';
-            statusEl.textContent = '??疫??怨밴묶 (Replication 沃섎㈇???';
+            statusEl.textContent = '대기 상태(Replication 미구성)';
             return;
         }
 
         badgeEl.className = 'badge bg-warning';
         badgeEl.textContent = 'DEGRADED';
-        statusEl.textContent = slaveStatus?.last_error || '?怨밴묶 ??곴맒';
+        statusEl.textContent = slaveStatus?.last_error || '복제 오류';
     }
 
     function toggleAutoBackupOptions() {
@@ -371,7 +417,9 @@
         try {
             const json = await fetchJson(API.RESTORE_INFO);
             const box = document.getElementById('latest-secondary-restore-info');
-            if (!box) return;
+            if (!box) {
+                return;
+            }
 
             const data = json?.data || {};
             const state = data.state || 'idle';
@@ -398,7 +446,7 @@
                 ${data.updated_at ? `<div>최근 갱신: ${escapeHtml(data.updated_at)}</div>` : ''}
                 ${data.rollback_attempted ? `<div>롤백: ${data.rollback_success ? '성공' : '실패'}</div>` : ''}
                 ${data.rollback_message ? `<div class="text-muted small mt-1">${escapeHtml(data.rollback_message)}</div>` : ''}
-                ${isStaleFailure ? `<div class="text-danger small mt-2">복원 프로세스 응답이 오래 없어 실패로 전환되었습니다. 로그를 확인한 뒤 다시 시도해주세요.</div>` : ''}
+                ${isStaleFailure ? '<div class="text-danger small mt-2">복원 프로세스 응답이 없어 실패로 전환되었습니다. 로그를 확인한 뒤 다시 시도해 주세요.</div>' : ''}
                 ${data.warning ? `<div class="text-muted small mt-2">${escapeHtml(data.warning)}</div>` : ''}
             `;
 
@@ -416,7 +464,9 @@
         const runButton = document.getElementById('run-secondary-restore');
         const confirmButton = document.getElementById('confirm-secondary-restore');
         const modalElement = document.getElementById('restoreWarningModal');
-        if (!runButton || !confirmButton || !modalElement) return;
+        if (!runButton || !confirmButton || !modalElement) {
+            return;
+        }
 
         const modal = new bootstrap.Modal(modalElement);
 
@@ -427,7 +477,7 @@
             runButton.disabled = true;
             confirmButton.disabled = true;
             const originalText = runButton.textContent;
-            runButton.textContent = '癰귣벊???遺욧퍕 餓?..';
+            runButton.textContent = '복원 요청 중...';
 
             startRestorePolling();
 
@@ -439,7 +489,7 @@
 
                 if (!response.ok && response.status !== 202) {
                     const text = normalizeResponseText(await response.text());
-                    let message = 'Secondary DB 癰귣벊???遺욧퍕????쎈솭??됰뮸??덈뼄.';
+                    let message = 'Secondary DB 복원 요청에 실패했습니다.';
 
                     if (text) {
                         try {
@@ -453,19 +503,19 @@
                     throw new Error(message);
                 }
 
-                notify('info', 'Secondary DB 癰귣벊???遺욧퍕???臾믩땾??됰뮸??덈뼄. ?袁⑥삋 癰귣벊???怨밴묶???類ㅼ뵥??뤾쉭??');
+                notify('info', 'Secondary DB 복원 요청이 접수되었습니다. 진행 상태를 확인해 주세요.');
             } catch (error) {
                 try {
                     const statusJson = await fetchJson(API.RESTORE_INFO);
                     const state = statusJson?.data?.state || '';
 
                     if (state === 'running') {
-                        notify('info', '癰귣벊???臾믩씜?? ??뽰삂??뤿???щ빍?? ?袁⑥삋 癰귣벊???怨밴묶???類ㅼ뵥??뤾쉭??');
+                        notify('info', '복원 요청은 이미 접수되어 진행 중입니다. 진행 상태를 확인해 주세요.');
                     } else {
-                        notify('error', error.message || 'Secondary DB 癰귣벊???遺욧퍕????쎈솭??됰뮸??덈뼄.');
+                        notify('error', error.message || 'Secondary DB 복원 요청에 실패했습니다.');
                     }
                 } catch (_) {
-                    notify('error', error.message || 'Secondary DB 癰귣벊???遺욧퍕????쎈솭??됰뮸??덈뼄.');
+                    notify('error', error.message || 'Secondary DB 복원 요청에 실패했습니다.');
                 }
             } finally {
                 runButton.disabled = false;
@@ -488,6 +538,38 @@
         }
     }
 
+    function queueResultBoxHide(resultBox) {
+        if (!resultBox) {
+            return;
+        }
+
+        if (backupResultTimer) {
+            clearTimeout(backupResultTimer);
+        }
+
+        backupResultTimer = window.setTimeout(() => {
+            resultBox.style.maxHeight = '0px';
+            resultBox.style.opacity = '0';
+            resultBox.style.marginTop = '0';
+
+            window.setTimeout(() => {
+                resultBox.innerHTML = '';
+            }, 260);
+        }, 5000);
+    }
+
+    function showResultBox(resultBox) {
+        if (!resultBox) {
+            return;
+        }
+
+        resultBox.style.marginTop = '12px';
+        resultBox.style.opacity = '1';
+
+        const targetHeight = resultBox.scrollHeight;
+        resultBox.style.maxHeight = `${targetHeight}px`;
+    }
+
     function getValue(id) {
         const element = document.getElementById(id);
         return element ? element.value : '';
@@ -507,7 +589,10 @@
 
     function setCheckbox(id, value) {
         const element = document.getElementById(id);
-        if (!element) return;
+        if (!element) {
+            return;
+        }
+
         element.checked = String(value) === '1' || value === true;
     }
 
@@ -522,10 +607,18 @@
 
     function formatBytes(size) {
         const numericSize = Number(size || 0);
-        if (numericSize <= 0) return '0 B';
-        if (numericSize < 1024) return `${numericSize} B`;
-        if (numericSize < 1024 * 1024) return `${(numericSize / 1024).toFixed(1)} KB`;
-        if (numericSize < 1024 * 1024 * 1024) return `${(numericSize / 1024 / 1024).toFixed(1)} MB`;
+        if (numericSize <= 0) {
+            return '0 B';
+        }
+        if (numericSize < 1024) {
+            return `${numericSize} B`;
+        }
+        if (numericSize < 1024 * 1024) {
+            return `${(numericSize / 1024).toFixed(1)} KB`;
+        }
+        if (numericSize < 1024 * 1024 * 1024) {
+            return `${(numericSize / 1024 / 1024).toFixed(1)} MB`;
+        }
         return `${(numericSize / 1024 / 1024 / 1024).toFixed(1)} GB`;
     }
 })();

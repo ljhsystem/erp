@@ -330,7 +330,7 @@ CREATE TABLE `user_external_accounts` (
   `service_name` varchar(100) NOT NULL COMMENT '외부 서비스 표시 이름',
   `external_login_id` varchar(100) DEFAULT NULL COMMENT '외부 서비스 로그인 ID(아이디/이메일)',
   `external_password` text DEFAULT NULL COMMENT '외부 서비스 비밀번호 (암호화 저장)',
-  `external_identifier` varchar(255) DEFAULT NULL COMMENT '외부 서비스 고유 식별자 (UID / DN 등)',
+  `external_identifier` varchar(255) DEFAULT NULL COMMENT '외부 서비스 고유 식별자 (id / DN 등)',
   `access_token` text DEFAULT NULL COMMENT 'Access Token (암호화 저장)',
   `refresh_token` text DEFAULT NULL COMMENT 'Refresh Token (암호화 저장)',
   `token_expires_at` datetime DEFAULT NULL COMMENT 'Access Token 만료 시각',

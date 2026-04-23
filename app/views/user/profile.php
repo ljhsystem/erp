@@ -21,7 +21,7 @@ $pageScripts =
     AssetHelper::js('/assets/js/common/address.js') .
     AssetHelper::module('/assets/js/pages/auth/profile.js');
 ?>
-<main class="container py-4" style="max-width:720px;">
+<main class="container py-4 profile-page-shell" style="max-width:820px;">
   <div class="profile-card bg-white shadow-sm rounded-4 p-4">
 
     <!-- 로딩 -->
@@ -31,8 +31,8 @@ $pageScripts =
     <div id="profile-content" style="display:none;">
 
       <!-- 👤 프로필 헤더 -->
-      <div class="d-flex align-items-center mb-4">
-        <div class="position-relative me-3" style="width:90px;height:90px;">
+      <div class="d-flex align-items-center mb-4 profile-hero">
+        <div class="position-relative me-3 profile-avatar-wrap" style="width:90px;height:90px;">
           <img id="profile-image"
             src="/public/assets/img/default-avatar.png"
             class="rounded-circle border"
@@ -45,14 +45,14 @@ $pageScripts =
           <input type="file" id="profile-image-input" accept="image/*" hidden>
         </div>
 
-        <div>
+        <div class="profile-hero-meta">
           <h5 id="profile-username" class="fw-bold mb-1">-</h5>
           <div id="profile-email" class="text-muted small">-</div>
         </div>
       </div>
 
       <!-- 🔖 탭 -->
-      <ul class="nav nav-tabs mb-3">
+      <ul class="nav nav-tabs mb-3 profile-tabs">
         <li class="nav-item"><button class="nav-link active" data-tab="account">계정설정</button></li>
         <li class="nav-item"><button class="nav-link" data-tab="password">보안설정</button></li>
         <li class="nav-item"><button class="nav-link" data-tab="notify">알림설정</button></li>
@@ -63,7 +63,7 @@ $pageScripts =
       <div id="tab-account" class="tab-section">
 
         <!-- 이름 + 이메일 -->
-        <div class="row g-2 mb-2">
+        <div class="row g-2 mb-2 profile-form-grid">
           <div class="col-6">
             <label class="form-label">이름</label>
             <input id="employee_name" class="form-control form-control-sm">
@@ -75,7 +75,7 @@ $pageScripts =
         </div>
 
         <!-- 연락처 + 비상연락처 -->
-        <div class="row g-2 mb-2">
+        <div class="row g-2 mb-2 profile-form-grid">
           <div class="col-6">
             <label class="form-label">연락처</label>
             <input id="phone" class="form-control form-control-sm">
@@ -102,8 +102,8 @@ $pageScripts =
         <!-- 대표 자격증 -->
         <div class="mt-3">
           <label class="form-label">대표 자격증</label>
-          <div class="d-flex gap-3 align-items-start">
-            <div class="text-center">
+          <div class="d-flex gap-3 align-items-start profile-cert-section">
+            <div class="text-center profile-cert-preview-box">
               <img id="profile_cert_preview"
                 src="/public/assets/img/placeholder-cert.png"
                 class="border rounded"
@@ -111,7 +111,7 @@ $pageScripts =
               <div class="small text-muted mt-1">자격증 미리보기</div>
             </div>
 
-            <div class="flex-fill">
+            <div class="flex-fill profile-cert-fields">
               <input id="certificate_name"
                 class="form-control form-control-sm mb-2"
                 placeholder="예: 건축기사, 방수기능사">
@@ -135,7 +135,7 @@ $pageScripts =
         </div>
 
         <!-- 2FA -->
-        <div class="d-flex justify-content-end mt-3">
+        <div class="d-flex justify-content-end mt-3 profile-switch-row">
           <div class="form-check form-switch">
             <input class="form-check-input" type="checkbox" id="two_factor_enabled">
             <label class="form-check-label ms-1">2단계 인증</label>
@@ -203,14 +203,14 @@ $pageScripts =
         <div class="row">
           <!-- 🔹 왼쪽: 외부 서비스 계정 목록 -->
           <div class="col-md-4">
-            <div class="list-group" id="external-account-list">
+            <div class="list-group profile-external-list" id="external-account-list">
               <!-- JS 렌더링 -->
             </div>
           </div>
 
           <!-- 🔹 오른쪽: 선택 계정 상세 -->
           <div class="col-md-8">
-            <div id="external-account-editor" class="card d-none">
+            <div id="external-account-editor" class="card d-none profile-external-editor">
               <div class="card-body" id="external-account-form">
                 <!-- JS 렌더링 -->
               </div>

@@ -2,6 +2,7 @@
 // 경로: PROJECT_ROOT . '/app/Controllers/Dashboard/CalendarController.php'
 // 대시보드>일정/캘린더 API 컨트롤러
 declare(strict_types=1);
+
 namespace App\Controllers\Dashboard;
 
 use Core\DbPdo;
@@ -21,13 +22,13 @@ class CalendarController
     private QueryService $query;
     private SyncService $sync;
     private AuthSessionService $authSession;
-    
+
     public function __construct()
     {
         $this->query = new QueryService(DbPdo::conn());
         $this->sync = new SyncService(DbPdo::conn());
         $this->authSession = new AuthSessionService();
-    }    
+    }
 
     private function currentUserId(): ?string
     {
@@ -43,23 +44,23 @@ class CalendarController
     {
         $userId      = $this->currentUserId();
         $hasSynology = $this->hasSynology();
-    
+
         return array_values(array_filter($rows, function ($row) use ($userId, $hasSynology) {
-    
+
             $isPersonal = (int)($row['is_personal'] ?? 0);
             $ownerId    = $row['owner_user_id'] ?? null;
-    
+
             if ($isPersonal === 1) {
-    
+
                 if (!$hasSynology) {
                     return false;
                 }
-    
+
                 if ($ownerId !== $userId) {
                     return false;
                 }
             }
-    
+
             return true;
         }));
     }
@@ -67,27 +68,27 @@ class CalendarController
     private function assertCalendarWritePermission(string $calendarId): void
     {
         $cal = $this->query->getCalendarPermission($calendarId);
-    
+
         if (!$cal) {
             $this->json([
                 'success' => false,
                 'message' => 'Invalid calendar'
             ], 400);
         }
-    
+
         $isPersonal = (int)($cal['is_personal'] ?? 0);
         $ownerId    = $cal['owner_user_id'] ?? null;
         $userId     = $this->currentUserId();
-    
+
         if ($isPersonal === 1) {
-    
+
             if (!$this->hasSynology()) {
                 $this->json([
                     'success' => false,
                     'message' => '캘린더 사용을 위해 Synology 계정 연결이 필요합니다.'
                 ], 403);
             }
-    
+
             if ($ownerId !== $userId) {
                 $this->json([
                     'success' => false,
@@ -96,25 +97,25 @@ class CalendarController
             }
         }
     }
-    
+
     private ?string $synologyLoginId = null;
     private bool $synologyLoaded = false;
-    
+
     private function getSynologyLoginId(): ?string
     {
         if ($this->synologyLoaded) {
             return $this->synologyLoginId;
-        }    
+        }
 
         $externalService = new ExternalAccountService(DbPdo::conn());
         $this->sync = new SyncService(DbPdo::conn());
         $account = $externalService->getMyAccount('synology');
-    
+
         $this->synologyLoginId =
             $account['external_login_id'] ?? null;
-    
+
         $this->synologyLoaded = true;
-    
+
         return $this->synologyLoginId;
     }
 
@@ -122,14 +123,14 @@ class CalendarController
      * 공통
      * ============================================================ */
 
-     protected function guardApi(): void
-     {
-         if (!$this->authSession->isAuthenticated()) {
-             $this->json(['success' => false, 'message' => 'Forbidden'], 403);
-             exit; // ✅ 명시적 종료
-         }
-     }
-     
+    protected function guardApi(): void
+    {
+        if (!$this->authSession->isAuthenticated()) {
+            $this->json(['success' => false, 'message' => 'Forbidden'], 403);
+            exit; // ✅ 명시적 종료
+        }
+    }
+
 
     protected function json($data, int $status = 200): void
     {
@@ -150,11 +151,11 @@ class CalendarController
     public function apiList(): void
     {
         $this->guardApi();
-    
+
         $userId = $this->currentUserId();
-    
+
         $synologyLoginId = $this->getSynologyLoginId();
-    
+
         // 🔥 TTL 기반 자동 Sync
         if ($synologyLoginId) {
 
@@ -167,19 +168,19 @@ class CalendarController
 
 
 
-    
+
         $list = $this->query->getActiveCalendarList(
             $userId,
             $synologyLoginId
         );
-    
+
         if (!is_array($list)) {
             $list = [];
         }
-    
+
         // 🔥 개인 캘린더 정책 필터
         $list = $this->filterByPersonalPolicy($list);
-    
+
         $this->json([
             'success' => true,
             'data'    => array_values($list),
@@ -191,20 +192,20 @@ class CalendarController
     public function apiCacheRebuild(): void
     {
         $this->guardApi();
-    
+
         if (ob_get_level() > 0) {
             ob_clean();
         }
-    
+
         $actor = $this->currentUserId();
-    
+
         if (!$actor) {
             $this->json([
                 'success' => false,
                 'message' => '로그인이 필요합니다.'
             ], 401);
         }
-    
+
         // 🔥 외부계정 없으면 동기화 실행 안함
         if (!$this->hasSynology()) {
             $this->json([
@@ -212,7 +213,7 @@ class CalendarController
                 'message' => 'Synology 계정 연결이 필요합니다.'
             ], 403);
         }
-    
+
         // 🔥 Synology 로그인 ID 조회 (현재 연결된 외부계정 기준)
         $synologyLoginId = $this->getSynologyLoginId();
 
@@ -222,21 +223,21 @@ class CalendarController
                 'message' => 'Synology 로그인 ID를 찾을 수 없습니다.'
             ], 400);
         }
-        
+
         $ownerUserId = $actor;
-    
+
         // 세션 잠금 해제
         session_write_close();
-    
+
         // 1️⃣ 먼저 JSON 응답 출력
         http_response_code(200);
         header('Content-Type: application/json; charset=utf-8');
-    
+
         echo json_encode([
             'success' => true,
             'status'  => 'started'
         ], JSON_UNESCAPED_UNICODE);
-    
+
         // 2️⃣ 클라이언트 응답 종료
         if (function_exists('fastcgi_finish_request')) {
             fastcgi_finish_request();
@@ -244,16 +245,16 @@ class CalendarController
             @ob_flush();
             @flush();
         }
-    
+
         // 3️⃣ 백그라운드 작업 실행
         $service = new SyncService(DbPdo::conn());
-    
+
         $service->rebuildFullCache(
             $synologyLoginId,
             $ownerUserId,
             $actor
         );
-    
+
         exit;
     }
 
@@ -264,7 +265,7 @@ class CalendarController
     * ============================================================ */
     public function apiEventsAll(): void
     {
-        $this->guardApi(); 
+        $this->guardApi();
 
         $synologyLoginId = $this->getSynologyLoginId();
         $userId = $this->currentUserId();
@@ -293,7 +294,7 @@ class CalendarController
                 $to,
                 $userId,
                 $synologyLoginId
-            );           
+            );
             if (!is_array($events)) {
                 $events = [];
             }
@@ -308,7 +309,7 @@ class CalendarController
             if (!is_array($tasks)) {
                 $tasks = [];
             }
-           
+
 
             // 5️⃣ 병합
             $data = array_merge($events, $tasks);
@@ -318,7 +319,6 @@ class CalendarController
                 'success' => true,
                 'data'    => $data,
             ]);
-
         } catch (\Throwable $e) {
 
             if (ob_get_level() > 0) {
@@ -418,7 +418,6 @@ class CalendarController
                 'success' => true,
                 'data'    => array_values($tasks),
             ]);
-
         } catch (\Throwable $e) {
 
             $this->json([
@@ -431,9 +430,9 @@ class CalendarController
     public function apiEventCreate(): void
     {
         $this->guardApi();
-    
+
         $payload = json_decode(file_get_contents('php://input'), true);
-    
+
         // 1️⃣ payload 먼저 검증
         if (!$payload || empty($payload['calendar_id'])) {
             $this->json([
@@ -441,27 +440,27 @@ class CalendarController
                 'message' => 'Invalid payload'
             ], 400);
         }
-    
-        $calendarId = $payload['calendar_id'];    
+
+        $calendarId = $payload['calendar_id'];
 
         // 4️⃣ external + Synology 미연결 → 생성 차단
         $this->assertCalendarWritePermission($calendarId);
-    
-        try {       
+
+        try {
             $service = new CrudService(DbPdo::conn());
             $result  = $service->createEvent($payload);
 
-            $uid = $result['data']['uid'] ?? null;
+            $id = $result['data']['id'] ?? null;
 
-            if ($uid && $this->hasSynology()) {
+            if ($id && $this->hasSynology()) {
                 $synologyLoginId = $this->getSynologyLoginId();
                 $actorUserId     = $this->currentUserId();
-                
-                if ($uid && $synologyLoginId) {
-                
-                    (new SyncService(DbPdo::conn()))          
+
+                if ($id && $synologyLoginId) {
+
+                    (new SyncService(DbPdo::conn()))
                         ->syncOneEventByUid(
-                            $uid,
+                            $id,
                             $synologyLoginId,
                             $actorUserId,
                             [
@@ -470,28 +469,27 @@ class CalendarController
                         );
                 }
             }
-    
+
             if (empty($result['success'])) {
                 $this->json([
                     'success' => false,
                     'message' => $result['message'] ?? 'Event create failed'
                 ], 500);
             }
-    
+
             $this->json([
                 'success' => true,
                 'data'    => $result['data'] ?? null,
             ]);
-    
         } catch (\Throwable $e) {
-    
+
             $this->json([
                 'success' => false,
                 'message' => $e->getMessage(),
             ], 500);
         }
     }
-    
+
     public function apiEventUpdate(): void
     {
         $this->guardApi();
@@ -499,46 +497,46 @@ class CalendarController
         $payload = json_decode(file_get_contents('php://input'), true) ?? [];
 
         // 1️⃣ 기본 검증
-        if (empty($payload['uid'])) {
+        if (empty($payload['id'])) {
             $this->json([
                 'success' => false,
-                'message' => 'uid required'
+                'message' => 'id required'
             ], 400);
         }
         // 🔥 권한 체크
         $calendarId = $payload['calendar_id'] ?? null;
 
         if (!$calendarId) {
-            $calendarId = $this->query->getEventCalendarId($payload['uid']);
+            $calendarId = $this->query->getEventCalendarId($payload['id']);
         }
 
         if ($calendarId) {
             $this->assertCalendarWritePermission($calendarId);
         }
         try {
-            
+
             $crud = new CrudService(DbPdo::conn());
 
             $res  = $crud->updateEvent($payload);
 
-            $uid = $res['data']['uid'] ?? $payload['uid'];
+            $id = $res['data']['id'] ?? $payload['id'];
 
-            if ($uid && $this->hasSynology()) {
+            if ($id && $this->hasSynology()) {
 
                 $calendarId = $payload['calendar_id'] ?? null;
-            
+
                 if (!$calendarId) {
-                    $calendarId = $this->query->getEventCalendarId($uid);
+                    $calendarId = $this->query->getEventCalendarId($id);
                 }
-            
+
                 $synologyLoginId = $this->getSynologyLoginId();
                 $actorUserId     = $this->currentUserId();
-                
-                if ($uid && $synologyLoginId) {
-                
+
+                if ($id && $synologyLoginId) {
+
                     (new SyncService(DbPdo::conn()))
                         ->syncOneEventByUid(
-                            $uid,
+                            $id,
                             $synologyLoginId,
                             $actorUserId,
                             [
@@ -560,11 +558,11 @@ class CalendarController
                 ], 400);
             }
 
-            // ✅ uid / etag 안전 회수
+            // ✅ id / etag 안전 회수
             $uidForReturn =
-                $res['data']['uid'] ??
-                $res['uid'] ??
-                $payload['uid'];
+                $res['data']['id'] ??
+                $res['id'] ??
+                $payload['id'];
 
             $etagForReturn =
                 $res['data']['etag'] ??
@@ -574,11 +572,10 @@ class CalendarController
             $this->json([
                 'success' => true,
                 'data' => [
-                    'uid'  => $uidForReturn,
+                    'id'  => $uidForReturn,
                     'etag' => $etagForReturn,
                 ]
             ]);
-
         } catch (\Throwable $e) {
 
             if (ob_get_level() > 0) {
@@ -591,40 +588,40 @@ class CalendarController
             ], 500);
         }
     }
-    
+
     public function apiEventDelete(): void
     {
         $this->guardApi();
-    
+
         $payload = json_decode(file_get_contents('php://input'), true);
-    
+
         if (json_last_error() !== JSON_ERROR_NONE) {
             $this->json([
                 'success' => false,
                 'message' => 'Invalid JSON payload'
             ], 400);
         }
-    
-        $uid = $payload['uid'] ?? null;
-    
+
+        $id = $payload['id'] ?? null;
+
         // 🔥 배열 방어
-        if (is_array($uid)) {
-            $uid = $uid[0] ?? null;
+        if (is_array($id)) {
+            $id = $id[0] ?? null;
         }
-    
-        if (!$uid) {
+
+        if (!$id) {
             $this->json([
                 'success' => false,
-                'message' => 'uid required'
+                'message' => 'id required'
             ], 400);
         }
-    
+
         // 🔥 prefix 정규화
-        $uid = (string)$uid;
-        $uid = preg_replace('/^(event_|task_)/', '', $uid);
-    
+        $id = (string)$id;
+        $id = preg_replace('/^(event_|task_)/', '', $id);
+
         // 🔥 DB 존재 확인
-        $calendarId = $this->query->getEventCalendarId($uid);
+        $calendarId = $this->query->getEventCalendarId($id);
 
         if (!$calendarId) {
             $this->json([
@@ -632,37 +629,36 @@ class CalendarController
                 'message' => 'event not found'
             ], 404);
         }
-        
+
         $this->assertCalendarWritePermission($calendarId);
-    
+
         try {
-    
+
             $crud = new CrudService(DbPdo::conn());
-            
+
             $res = $crud->deleteComponent([
-                'uid' => $uid
+                'id' => $id
             ]);
-    
+
             if (empty($res['success'])) {
                 $this->json([
                     'success' => false,
                     'message' => $res['message'] ?? 'delete failed'
                 ], 400);
             }
-    
+
             $this->json([
                 'success' => true,
                 'data' => [
-                    'uid' => $uid
+                    'id' => $id
                 ]
             ]);
-    
         } catch (\Throwable $e) {
-    
+
             if (ob_get_level() > 0) {
                 ob_clean();
             }
-    
+
             $this->json([
                 'success' => false,
                 'message' => $e->getMessage(),
@@ -677,9 +673,9 @@ class CalendarController
     public function apiTaskCreate(): void
     {
         $this->guardApi();
-    
+
         $payload = json_decode(file_get_contents('php://input'), true);
-    
+
         // 1️⃣ payload 검증 먼저
         if (!$payload || empty($payload['calendar_id'])) {
             $this->json([
@@ -687,39 +683,39 @@ class CalendarController
                 'message' => 'Invalid payload'
             ], 400);
         }
-    
-        $calendarId  = $payload['calendar_id'];
-        $hasSynology = $this->hasSynology();    
 
-    
+        $calendarId  = $payload['calendar_id'];
+        $hasSynology = $this->hasSynology();
+
+
         // 3️⃣ external + Synology 미연결 → 생성 차단
         $this->assertCalendarWritePermission($calendarId);
-    
+
         try {
-    
+
             $crud =  new CrudService(DbPdo::conn());
             $res  = $crud->createTask($payload);
-    
+
             if (empty($res['success'])) {
                 $this->json([
                     'success' => false,
                     'message' => $res['message'] ?? 'Task create failed'
                 ], 500);
             }
-    
-            $uid = $res['data']['uid'] ?? null;
-    
+
+            $id = $res['data']['id'] ?? null;
+
             // 4️⃣ 단건 즉시 동기화 (Synology 연결된 경우만 의미 있음)
-            if ($uid && $hasSynology) {
+            if ($id && $hasSynology) {
                 $synologyLoginId = $this->getSynologyLoginId();
                 $actorUserId     = $this->currentUserId();
-                
-                if ($uid && $synologyLoginId) {
-                
+
+                if ($id && $synologyLoginId) {
+
                     (new SyncService(DbPdo::conn()))
-                    
+
                         ->syncOneTaskByUid(
-                            $uid,
+                            $id,
                             $synologyLoginId,
                             $actorUserId,
                             [
@@ -728,48 +724,47 @@ class CalendarController
                         );
                 }
             }
-    
+
             $this->json([
                 'success' => true,
                 'data'    => $res['data'] ?? null,
             ]);
-    
         } catch (\Throwable $e) {
-    
+
             if (ob_get_level() > 0) {
                 ob_clean();
             }
-    
+
             $this->json([
                 'success' => false,
                 'message' => $e->getMessage(),
             ], 500);
         }
     }
-     
+
     public function apiTaskUpdate(): void
     {
         $this->guardApi();
-    
+
         $payload = json_decode(file_get_contents('php://input'), true) ?? [];
 
         try {
-    
-            // 1️⃣ uid 정규화
-            if (!empty($payload['uid'])) {
-                $payload['uid'] = preg_replace('/^task_/', '', (string)$payload['uid']);
+
+            // 1️⃣ id 정규화
+            if (!empty($payload['id'])) {
+                $payload['id'] = preg_replace('/^task_/', '', (string)$payload['id']);
             }
-    
-            if (empty($payload['uid'])) {
+
+            if (empty($payload['id'])) {
                 $this->json([
                     'success' => false,
-                    'message' => 'uid required'
+                    'message' => 'id required'
                 ], 400);
             }
-    
+
             // 2️⃣ calendar_id 누락 시 DB에서 보정
             if (empty($payload['calendar_id'])) {
-                $calendarId = $this->query->getTaskCalendarId($payload['uid']);
+                $calendarId = $this->query->getTaskCalendarId($payload['id']);
 
                 if ($calendarId) {
                     $payload['calendar_id'] = $calendarId;
@@ -779,37 +774,37 @@ class CalendarController
             if (!empty($payload['calendar_id'])) {
                 $this->assertCalendarWritePermission($payload['calendar_id']);
             }
-    
+
             // 3️⃣ DB 업데이트 (항상 허용)
             $crud =  new CrudService(DbPdo::conn());
             $res  = $crud->updateTask($payload);
-    
+
             if (empty($res['success'])) {
                 $this->json([
                     'success' => false,
                     'message' => $res['message'] ?? 'task update failed'
                 ], 400);
             }
-    
-            $uid = $res['data']['uid'] ?? null;
-    
+
+            $id = $res['data']['id'] ?? null;
+
             // 4️⃣ Synology 연결된 경우에만 동기화
-            if ($uid && $this->hasSynology()) {
-    
+            if ($id && $this->hasSynology()) {
+
                 $collectionHref = $payload['collection_href'] ?? null;
-    
+
                 if (!$collectionHref) {
-                    $collectionHref = $this->query->getTaskCollectionHref($uid);
+                    $collectionHref = $this->query->getTaskCollectionHref($id);
                 }
                 $synologyLoginId = $this->getSynologyLoginId();
                 $actorUserId     = $this->currentUserId();
-                
-                if ($uid && $synologyLoginId) {
-                
+
+                if ($id && $synologyLoginId) {
+
                     (new SyncService(DbPdo::conn()))
-                    
+
                         ->syncOneTaskByUid(
-                            $uid,
+                            $id,
                             $synologyLoginId,
                             $actorUserId,
                             [
@@ -819,122 +814,119 @@ class CalendarController
                         );
                 }
             }
-    
+
             $this->json([
                 'success' => true,
                 'data'    => $res['data'] ?? null,
             ]);
-    
         } catch (\Throwable $e) {
-    
+
             if (ob_get_level() > 0) {
                 ob_clean();
             }
-    
+
             $this->json([
                 'success' => false,
                 'message' => $e->getMessage(),
             ], 500);
         }
     }
-     
+
     public function apiTaskDelete(): void
     {
         $this->guardApi();
-    
+
         $payload = json_decode(file_get_contents('php://input'), true);
-    
+
         // 1️⃣ 기본 검증
-        if (!$payload || empty($payload['uid'])) {
+        if (!$payload || empty($payload['id'])) {
             $this->json([
                 'success' => false,
-                'message' => 'uid required'
+                'message' => 'id required'
             ], 400);
         }
 
         // 🔥 calendar_id 조회 (Service)
-        $calendarId = $this->query->getTaskCalendarId($payload['uid']);
+        $calendarId = $this->query->getTaskCalendarId($payload['id']);
 
         if ($calendarId) {
             $this->assertCalendarWritePermission($calendarId);
         }
-    
+
         try {
-    
+
             $crud = new CrudService(DbPdo::conn());
-            
+
             $res  = $crud->deleteTask($payload);
-    
+
             if (empty($res['success'])) {
                 $this->json([
                     'success' => false,
                     'message' => $res['message'] ?? 'task delete failed'
                 ], 400);
             }
-    
+
             $this->json([
                 'success' => true,
                 'data'    => $res['data'] ?? null,
             ]);
-    
         } catch (\Throwable $e) {
-    
+
             if (ob_get_level() > 0) {
                 ob_clean();
             }
-    
+
             $this->json([
                 'success' => false,
                 'message' => $e->getMessage(),
             ], 500);
         }
     }
-     
+
 
     public function apiCollectionDelete(): void
     {
         $this->guardApi();
-    
+
         $payload = json_decode(file_get_contents('php://input'), true);
-    
+
         if (!$payload || empty($payload['collection_href'])) {
             $this->json([
                 'success' => false,
                 'message' => 'collection_href required'
             ], 400);
         }
-    
+
         try {
-    
+
             $crud =  new CrudService(DbPdo::conn());
 
             // 🔥 calendar_id 조회 (QueryService)
             $calendarId = $this->query->getCalendarIdByHref($payload['collection_href']);
-            
+
             if ($calendarId) {
                 $this->assertCalendarWritePermission($calendarId);
             }
-            
+
             $res = $crud->deleteCollection($payload['collection_href']);
-    
+
             if (empty($res['success'])) {
                 $this->json([
                     'success' => false,
                     'message' => $res['message'] ?? 'delete failed'
                 ], 400);
             }
-    
+
             $this->json([
                 'success' => true,
                 'data'    => $res['data'] ?? null,
             ]);
-    
         } catch (\Throwable $e) {
-    
+
             if (ob_get_level() > 0) {
                 ob_clean();
             }
-    
+
             $this->json([
                 'success' => false,
                 'message' => $e->getMessage(),
@@ -945,58 +937,57 @@ class CalendarController
     public function apiEventHardDelete(): void
     {
         $this->guardApi();
-    
+
         $payload = json_decode(file_get_contents('php://input'), true);
-    
-        if (!$payload || empty($payload['uid'])) {
+
+        if (!$payload || empty($payload['id'])) {
             $this->json([
                 'success' => false,
-                'message' => 'uid required'
+                'message' => 'id required'
             ], 400);
         }
-    
+
         // 🔥 권한체크 (QueryService)
-        $calendarId = $this->query->getEventCalendarId((string)$payload['uid']);
-    
+        $calendarId = $this->query->getEventCalendarId((string)$payload['id']);
+
         if ($calendarId) {
             $this->assertCalendarWritePermission($calendarId);
         }
-    
+
         try {
             $service =  new TrashService(DbPdo::conn());
-            
+
             $synologyLoginId = $this->getSynologyLoginId();
-    
+
             if (!$synologyLoginId) {
                 $this->json([
                     'success' => false,
                     'message' => 'Synology 계정 연결이 필요합니다.'
                 ], 403);
             }
-    
+
             $ok = $service->hardDeleteEvent(
-                (string)$payload['uid'],
+                (string)$payload['id'],
                 $synologyLoginId
             );
-    
+
             if (!$ok) {
                 $this->json([
                     'success' => false,
                     'message' => 'event hard delete failed'
                 ], 400);
             }
-    
+
             $this->json([
                 'success' => true,
-                'data'    => ['uid' => $payload['uid']]
+                'data'    => ['id' => $payload['id']]
             ]);
-    
         } catch (\Throwable $e) {
-    
+
             if (ob_get_level() > 0) {
                 ob_clean();
             }
-    
+
             $this->json([
                 'success' => false,
                 'message' => $e->getMessage()
@@ -1007,58 +998,57 @@ class CalendarController
     public function apiTaskHardDelete(): void
     {
         $this->guardApi();
-    
+
         $payload = json_decode(file_get_contents('php://input'), true);
-    
-        if (!$payload || empty($payload['uid'])) {
+
+        if (!$payload || empty($payload['id'])) {
             $this->json([
                 'success' => false,
-                'message' => 'uid required'
+                'message' => 'id required'
             ], 400);
         }
-    
+
         // 🔥 권한 체크 (QueryService)
-        $calendarId = $this->query->getTaskCalendarId((string)$payload['uid']);
-    
+        $calendarId = $this->query->getTaskCalendarId((string)$payload['id']);
+
         if ($calendarId) {
             $this->assertCalendarWritePermission($calendarId);
         }
-    
+
         try {
-    
+
             $service =  new TrashService(DbPdo::conn());
             $synologyLoginId = $this->getSynologyLoginId();
-    
+
             if (!$synologyLoginId) {
                 $this->json([
                     'success' => false,
                     'message' => 'Synology 계정 연결이 필요합니다.'
                 ], 403);
             }
-    
+
             $ok = $service->hardDeleteTask(
-                (string)$payload['uid'],
+                (string)$payload['id'],
                 $synologyLoginId
             );
-    
+
             if (!$ok) {
                 $this->json([
                     'success' => false,
                     'message' => 'task hard delete failed'
                 ], 400);
             }
-    
+
             $this->json([
                 'success' => true,
-                'data'    => ['uid' => $payload['uid']]
+                'data'    => ['id' => $payload['id']]
             ]);
-    
         } catch (\Throwable $e) {
-    
+
             if (ob_get_level() > 0) {
                 ob_clean();
             }
-    
+
             $this->json([
                 'success' => false,
                 'message' => $e->getMessage(),
@@ -1069,67 +1059,67 @@ class CalendarController
     public function apiToggleTaskComplete(): void
     {
         $this->guardApi();
-    
+
         $payload = json_decode(file_get_contents('php://input'), true);
-    
+
         if (json_last_error() !== JSON_ERROR_NONE) {
             $this->json([
                 'success' => false,
                 'message' => 'Invalid JSON payload'
             ], 400);
         }
-    
-        // 1️⃣ uid 정규화
-        $uid = isset($payload['uid'])
-            ? preg_replace('/^task_/', '', (string)$payload['uid'])
+
+        // 1️⃣ id 정규화
+        $id = isset($payload['id'])
+            ? preg_replace('/^task_/', '', (string)$payload['id'])
             : null;
-    
+
         $calendarId = $payload['calendar_id'] ?? null;
-    
+
         $completed = isset($payload['completed'])
             ? (bool)$payload['completed']
             : (isset($payload['complete'])
                 ? (bool)$payload['complete']
                 : false);
-    
-        if (!$uid) {
+
+        if (!$id) {
             $this->json([
                 'success' => false,
-                'message' => 'uid required'
+                'message' => 'id required'
             ], 400);
         }
-    
+
         if (!$calendarId) {
             $this->json([
                 'success' => false,
                 'message' => 'calendar_id required'
             ], 400);
         }
-    
+
         $this->assertCalendarWritePermission($calendarId);
         try {
-    
+
             // 2️⃣ DB 업데이트
             $crud =  new CrudService(DbPdo::conn());
-            $res  = $crud->toggleTaskComplete($uid, $calendarId, $completed);
-    
+            $res  = $crud->toggleTaskComplete($id, $calendarId, $completed);
+
             if (empty($res['success'])) {
                 $this->json([
                     'success' => false,
                     'message' => $res['message'] ?? 'Task update failed'
                 ], 400);
             }
-    
+
             // 3️⃣ Synology 연결된 경우에만 동기화
             if ($this->hasSynology()) {
                 $synologyLoginId = $this->getSynologyLoginId();
                 $actorUserId     = $this->currentUserId();
-                
+
                 if ($synologyLoginId) {
-                
-                    (new SyncService(DbPdo::conn()))                    
+
+                    (new SyncService(DbPdo::conn()))
                         ->syncOneTaskByUid(
-                            $uid,
+                            $id,
                             $synologyLoginId,
                             $actorUserId,
                             [
@@ -1138,21 +1128,20 @@ class CalendarController
                         );
                 }
             }
-    
+
             $this->json([
                 'success' => true,
                 'data'    => [
-                    'uid'       => $uid,
+                    'id'       => $id,
                     'completed' => $completed
                 ]
             ]);
-    
         } catch (\Throwable $e) {
-    
+
             if (ob_get_level() > 0) {
                 ob_clean();
             }
-    
+
             $this->json([
                 'success' => false,
                 'message' => $e->getMessage()
@@ -1168,36 +1157,36 @@ class CalendarController
     public function apiUpdateAdminColor(): void
     {
         $this->guardApi();
-    
+
         $payload = json_decode(file_get_contents('php://input'), true);
-    
+
         if (json_last_error() !== JSON_ERROR_NONE) {
             $this->json([
                 'success' => false,
                 'message' => 'Invalid JSON payload'
             ], 400);
         }
-    
+
         $calendarId = $payload['calendar_id'] ?? null;
         $color      = $payload['admin_calendar_color'] ?? null;
-    
+
         if (!$calendarId || !$color) {
             $this->json([
                 'success' => false,
                 'message' => 'calendar_id and admin_calendar_color required'
             ], 400);
         }
-    
+
         // normalize
         $color = strtolower(trim((string)$color));
-    
+
         if (!preg_match('/^#[0-9a-f]{6}$/', $color)) {
             $this->json([
                 'success' => false,
                 'message' => 'Invalid color format'
             ], 400);
         }
-    
+
         // ✅ synology_login_id 필수
         $synologyLoginId = $this->getSynologyLoginId();
         if (!$synologyLoginId) {
@@ -1206,17 +1195,17 @@ class CalendarController
                 'message' => 'Synology account not connected'
             ], 403);
         }
-    
+
         try {
-            $model = new CalendarListModel(DbPdo::conn());            
-    
+            $model = new CalendarListModel(DbPdo::conn());
+
             $model->updateAdminColor(
                 $calendarId,
                 $synologyLoginId,                  // ✅ 추가
                 $color,
                 $this->currentUserId()
             );
-    
+
             $this->json([
                 'success' => true,
                 'data'    => [
@@ -1224,13 +1213,12 @@ class CalendarController
                     'admin_calendar_color' => $color
                 ]
             ]);
-    
         } catch (\Throwable $e) {
-    
+
             if (ob_get_level() > 0) {
                 ob_clean();
             }
-    
+
             $this->json([
                 'success' => false,
                 'message' => $e->getMessage()
@@ -1245,9 +1233,9 @@ class CalendarController
     public function apiEventsDeleted(): void
     {
         $this->guardApi();
-    
+
         try {
-    
+
             $synologyLoginId = $this->getSynologyLoginId();
 
             if (!$synologyLoginId) {
@@ -1256,25 +1244,24 @@ class CalendarController
                     'data'    => []
                 ]);
             }
-            
-            $service = new TrashService(DbPdo::conn());     
+
+            $service = new TrashService(DbPdo::conn());
             $rows    = $service->getDeletedEvents($synologyLoginId);
-    
+
             if (!is_array($rows)) {
                 $rows = [];
             }
-    
+
             $this->json([
                 'success' => true,
                 'data'    => array_values($rows),
             ]);
-    
         } catch (\Throwable $e) {
-    
+
             if (ob_get_level() > 0) {
                 ob_clean();
             }
-    
+
             $this->json([
                 'success' => false,
                 'message' => $e->getMessage(),
@@ -1290,7 +1277,7 @@ class CalendarController
     public function apiTasksDeleted(): void
     {
         $this->guardApi();
-    
+
         try {
 
             $synologyLoginId = $this->getSynologyLoginId();
@@ -1300,11 +1287,11 @@ class CalendarController
                     'success' => true,
                     'data'    => []
                 ]);
-            }            
+            }
 
-            $service = new TrashService(DbPdo::conn());  
+            $service = new TrashService(DbPdo::conn());
             $rows    = $service->getDeletedTasks($synologyLoginId);
-    
+
             if (!is_array($rows)) {
                 $rows = [];
             }
@@ -1315,13 +1302,12 @@ class CalendarController
                 'success' => true,
                 'data'    => array_values($rows),
             ]);
-    
         } catch (\Throwable $e) {
-    
+
             if (ob_get_level() > 0) {
                 ob_clean();
             }
-    
+
             $this->json([
                 'success' => false,
                 'message' => $e->getMessage(),
@@ -1332,9 +1318,9 @@ class CalendarController
     public function apiEventHardDeleteAll(): void
     {
         $this->guardApi();
-    
+
         try {
-            $service = new TrashService(DbPdo::conn());  
+            $service = new TrashService(DbPdo::conn());
             $synologyLoginId = $this->getSynologyLoginId();
 
             if (!$synologyLoginId) {
@@ -1343,38 +1329,37 @@ class CalendarController
                     'data' => ['deleted_count' => 0]
                 ]);
             }
-            
+
             $rows = $service->getDeletedEvents($synologyLoginId);
-            
+
             $deletedCount = 0;
-            
+
             foreach ($rows as $row) {
-            
+
                 if (!empty($row['calendar_id'])) {
                     $this->assertCalendarWritePermission($row['calendar_id']);
                 }
-            
+
                 $service->hardDeleteEvent(
-                    $row['uid'],
+                    $row['id'],
                     $synologyLoginId
                 );
-            
+
                 $deletedCount++;
             }
-            
+
             $this->json([
                 'success' => true,
                 'data' => [
                     'deleted_count' => $deletedCount
                 ]
             ]);
-    
         } catch (\Throwable $e) {
-    
+
             if (ob_get_level() > 0) {
                 ob_clean();
             }
-    
+
             $this->json([
                 'success' => false,
                 'message' => $e->getMessage(),
@@ -1384,64 +1369,63 @@ class CalendarController
     public function apiTaskHardDeleteAll(): void
     {
         $this->guardApi();
-    
-        try {   
 
-            $service = new TrashService(DbPdo::conn());  
+        try {
+
+            $service = new TrashService(DbPdo::conn());
             $synologyLoginId = $this->getSynologyLoginId();
-    
+
             if (!$synologyLoginId) {
                 $this->json([
                     'success' => true,
                     'data' => ['deleted_count' => 0]
                 ]);
             }
-    
+
             // 1️⃣ 휴지통 태스크 조회
             $rows = $service->getDeletedTasks($synologyLoginId);
-    
+
             if (!is_array($rows)) {
                 $rows = [];
             }
-    
+
             // 2️⃣ 개인/공유 정책 필터
             $rows = $this->filterByPersonalPolicy($rows);
-    
+
             $deletedCount = 0;
-    
+
             foreach ($rows as $row) {
-    
-                $uid        = $row['uid'] ?? null;
+
+                $id        = $row['id'] ?? null;
                 $calendarId = $row['calendar_id'] ?? null;
-    
-                if (!$uid || !$calendarId) {
+
+                if (!$id || !$calendarId) {
                     continue;
                 }
-    
+
                 // 3️⃣ 권한 재확인
                 $this->assertCalendarWritePermission($calendarId);
-    
+
                 // 4️⃣ 실제 영구삭제
-                $ok = $service->hardDeleteTask($uid, $synologyLoginId);
-    
+                $ok = $service->hardDeleteTask($id, $synologyLoginId);
+
                 if ($ok) {
                     $deletedCount++;
                 }
             }
-    
+
             $this->json([
                 'success' => true,
                 'data'    => [
                     'deleted_count' => $deletedCount
                 ]
             ]);
-    
         } catch (\Throwable $e) {
-    
+
             if (ob_get_level() > 0) {
                 ob_clean();
             }
-    
+
             $this->json([
                 'success' => false,
                 'message' => $e->getMessage(),
@@ -1466,22 +1450,22 @@ class CalendarController
             return;
         }
 
-        if (!$payload || empty($payload['uid'])) {
+        if (!$payload || empty($payload['id'])) {
             $this->json([
                 'success' => false,
-                'message' => 'uid required'
+                'message' => 'id required'
             ], 400);
             return;
         }
 
         try {
 
-            $uid = (string)$payload['uid'];
+            $id = (string)$payload['id'];
 
-            $service = new TrashService(DbPdo::conn()); 
+            $service = new TrashService(DbPdo::conn());
 
             // 🔥 QueryService 사용
-            $calendarId = $this->query->getEventCalendarId($uid);
+            $calendarId = $this->query->getEventCalendarId($id);
 
             if ($calendarId) {
                 $this->assertCalendarWritePermission($calendarId);
@@ -1496,15 +1480,14 @@ class CalendarController
                 ], 403);
             }
 
-            $service->restoreEvent($uid, $synologyLoginId);
+            $service->restoreEvent($id, $synologyLoginId);
 
             $this->json([
                 'success' => true,
                 'data' => [
-                    'uid' => $uid
+                    'id' => $id
                 ]
             ]);
-
         } catch (\Throwable $e) {
 
             if (ob_get_level() > 0) {
@@ -1537,21 +1520,21 @@ class CalendarController
             return;
         }
 
-        if (!$payload || empty($payload['uid'])) {
+        if (!$payload || empty($payload['id'])) {
             $this->json([
                 'success' => false,
-                'message' => 'uid required'
+                'message' => 'id required'
             ], 400);
             return;
         }
 
         try {
 
-            $uid = (string)$payload['uid'];
+            $id = (string)$payload['id'];
 
-            $service = new TrashService(DbPdo::conn()); 
+            $service = new TrashService(DbPdo::conn());
             // 🔥 QueryService 사용
-            $calendarId = $this->query->getTaskCalendarId($uid);
+            $calendarId = $this->query->getTaskCalendarId($id);
 
             if ($calendarId) {
                 $this->assertCalendarWritePermission($calendarId);
@@ -1566,15 +1549,14 @@ class CalendarController
                 ], 403);
             }
 
-            $service->restoreTask($uid, $synologyLoginId);
+            $service->restoreTask($id, $synologyLoginId);
 
             $this->json([
                 'success' => true,
                 'data' => [
-                    'uid' => $uid
+                    'id' => $id
                 ]
             ]);
-
         } catch (\Throwable $e) {
 
             if (ob_get_level() > 0) {
@@ -1607,29 +1589,29 @@ class CalendarController
 
         try {
 
-            $crud = new CrudService(DbPdo::conn()); 
+            $crud = new CrudService(DbPdo::conn());
             $deletedCount = 0;
             $failed       = [];
 
-            foreach ($payload['uids'] as $uid) {
+            foreach ($payload['uids'] as $id) {
 
-                if (!$uid) continue;
+                if (!$id) continue;
 
-                $uid = preg_replace('/^task_/', '', (string)$uid);
+                $id = preg_replace('/^task_/', '', (string)$id);
 
                 // 🔥 QueryService 사용
-                $calendarId = $this->query->getTaskCalendarId($uid);
+                $calendarId = $this->query->getTaskCalendarId($id);
 
                 if ($calendarId) {
                     $this->assertCalendarWritePermission($calendarId);
                 }
 
-                $res = $crud->deleteTask(['uid' => $uid]);
+                $res = $crud->deleteTask(['id' => $id]);
 
                 if (!empty($res['success'])) {
                     $deletedCount++;
                 } else {
-                    $failed[] = $uid;
+                    $failed[] = $id;
                 }
             }
 
@@ -1640,7 +1622,6 @@ class CalendarController
                     'failed'        => $failed
                 ]
             ]);
-
         } catch (\Throwable $e) {
 
             if (ob_get_level() > 0) {
@@ -1674,9 +1655,9 @@ class CalendarController
                 ], 401);
             }
 
-            $profileService = new ProfileService(DbPdo::conn()); 
-            $settingService = new SettingService(DbPdo::conn()); 
-            $externalService = new ExternalAccountService(DbPdo::conn()); 
+            $profileService = new ProfileService(DbPdo::conn());
+            $settingService = new SettingService(DbPdo::conn());
+            $externalService = new ExternalAccountService(DbPdo::conn());
 
             /* ===============================
             * 사용자
@@ -1730,7 +1711,7 @@ class CalendarController
                 'data' => [
                     'user' => [
                         'name'  => $profile['employee_name']
-                                    ?? ($user['username'] ?? ''),
+                            ?? ($user['username'] ?? ''),
                         'email' => $user['email'] ?? '',
                         'profile_image_url' => $profileImageUrl
                     ],
@@ -1745,7 +1726,6 @@ class CalendarController
                     ]
                 ]
             ]);
-
         } catch (\Throwable $e) {
 
             if (ob_get_level() > 0) {
@@ -1758,5 +1738,4 @@ class CalendarController
             ], 500);
         }
     }
-
 }

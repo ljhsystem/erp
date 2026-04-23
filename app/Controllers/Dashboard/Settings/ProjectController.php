@@ -1,6 +1,6 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Controllers/Dashboard/Settings/ProjectController.php'
-// 대시보드>설정>기초정보관리>프로젝트 API 컨트롤러
+// 寃쎈줈: PROJECT_ROOT . '/app/Controllers/Dashboard/Settings/ProjectController.php'
+// ??쒕낫???ㅼ젙>湲곗큹?뺣낫愿由??꾨줈?앺듃 API 而⑦듃濡ㅻ윭
 namespace App\Controllers\Dashboard\Settings;
 
 use Core\DbPdo;
@@ -16,7 +16,7 @@ class ProjectController
         $this->service = new ProjectService(DbPdo::conn());
     }
     // ============================================================
-    // API: 프로젝트 목록 조회
+    // API: ?꾨줈?앺듃 紐⑸줉 議고쉶
     // URL: GET /api/settings/base-info/project/list
     // controller: ProjectController@apiList
     // ============================================================
@@ -36,7 +36,7 @@ class ProjectController
                 }
             }
 
-            // 🔥 거래처와 동일: getList 하나만 사용
+            // ?뵦 嫄곕옒泥섏? ?숈씪: getList ?섎굹留??ъ슜
             $rows = $this->service->getList($filters);
 
             echo json_encode([
@@ -48,7 +48,7 @@ class ProjectController
 
             echo json_encode([
                 'success' => false,
-                'message' => '프로젝트 목록 조회 실패',
+                'message' => '?꾨줈?앺듃 紐⑸줉 議고쉶 ?ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -57,7 +57,7 @@ class ProjectController
     }
 
     // ============================================================
-    // API: 프로젝트 상세 조회
+    // API: ?꾨줈?앺듃 ?곸꽭 議고쉶
     // URL: GET /api/settings/base-info/project/detail
     // ============================================================
     public function apiDetail(): void
@@ -69,7 +69,7 @@ class ProjectController
         if (!$id) {
             echo json_encode([
                 'success' => false,
-                'message' => '프로젝트 아이디 누락'
+                'message' => '?꾨줈?앺듃 ?꾩씠???꾨씫'
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -81,7 +81,7 @@ class ProjectController
             if (!$row) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '프로젝트 없음'
+                    'message' => '?꾨줈?앺듃 ?놁쓬'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -95,7 +95,7 @@ class ProjectController
 
             echo json_encode([
                 'success' => false,
-                'message' => '프로젝트 조회 실패',
+                'message' => '?꾨줈?앺듃 議고쉶 ?ㅽ뙣',
                 'error' => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -104,7 +104,7 @@ class ProjectController
     }
 
     /* ============================================================
-    * API: 프로젝트 검색 자동완성
+    * API: ?꾨줈?앺듃 寃???먮룞?꾩꽦
     * URL: GET /api/settings/base-info/project/search?q=
     * ============================================================ */
     public function apiSearchPicker(): void
@@ -126,8 +126,8 @@ class ProjectController
 
             echo json_encode([
                 'success' => false,
-                'data'    => [],   // 🔥 반드시 있어야 함
-                'message' => '검색 실패',
+                'data'    => [],   // ?뵦 諛섎뱶???덉뼱????
+                'message' => '寃???ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -137,7 +137,7 @@ class ProjectController
 
 
     /* ============================================================
-    * API: 프로젝트 저장 (신규 + 수정)
+    * API: ?꾨줈?앺듃 ???(?좉퇋 + ?섏젙)
     * URL: POST /api/settings/base-info/project/save
     * ============================================================ */
     public function apiSave(): void
@@ -147,13 +147,13 @@ class ProjectController
         try {
 
             /* =========================================================
-            payload 생성 (🔥 단순하게 유지)
+            payload ?앹꽦 (?뵦 ?⑥닚?섍쾶 ?좎?)
             ========================================================= */
 
             $payload = [
 
                 'id' => $_POST['id'] ?? null,
-                'code' => $_POST['code'] ?? null,
+                'sort_no' => $_POST['sort_no'] ?? null,
 
                 'project_name' => trim($_POST['project_name'] ?? ''),
 
@@ -199,21 +199,21 @@ class ProjectController
                 'note' => $_POST['note'] ?? null,
                 'memo' => $_POST['memo'] ?? null,
 
-                /* 🔥 삭제 플래그 (Service로 넘김) */
+                /* ?뵦 ??젣 ?뚮옒洹?(Service濡??섍?) */
                 'delete_project_image' => $_POST['delete_project_image'] ?? '0',
 
                 'is_active' => isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1
             ];
 
             /* =========================================================
-            필수값 체크
+            ?꾩닔媛?泥댄겕
             ========================================================= */
 
             if ($payload['project_name'] === '') {
 
                 echo json_encode([
                     'success' => false,
-                    'message' => '관리명은 필수입니다.'
+                    'message' => '愿由щ챸? ?꾩닔?낅땲??'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -221,7 +221,7 @@ class ProjectController
             if ($payload['contract_date'] && !preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $payload['contract_date'])) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '계약일자는 YYYY-MM-DD 형식이어야 합니다.'
+                    'message' => '怨꾩빟?쇱옄??YYYY-MM-DD ?뺤떇?댁뼱???⑸땲??'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -229,7 +229,7 @@ class ProjectController
             if ($payload['start_date'] && !preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $payload['start_date'])) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '착공일자는 YYYY-MM-DD 형식이어야 합니다.'
+                    'message' => '李⑷났?쇱옄??YYYY-MM-DD ?뺤떇?댁뼱???⑸땲??'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -237,7 +237,7 @@ class ProjectController
             if ($payload['completion_date'] && !preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $payload['completion_date'])) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '준공일자는 YYYY-MM-DD 형식이어야 합니다.'
+                    'message' => '以怨듭씪?먮뒗 YYYY-MM-DD ?뺤떇?댁뼱???⑸땲??'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -249,7 +249,7 @@ class ProjectController
             ) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '준공일자는 착공일자보다 빠를 수 없습니다.'
+                    'message' => '以怨듭씪?먮뒗 李⑷났?쇱옄蹂대떎 鍮좊? ???놁뒿?덈떎.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -261,57 +261,57 @@ class ProjectController
             ) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '최초 계약금액은 숫자만 입력할 수 있습니다.'
+                    'message' => '理쒖큹 怨꾩빟湲덉븸? ?レ옄留??낅젰?????덉뒿?덈떎.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
 
             /* =========================================================
-            저장 (🔥 파일 포함 Service로 위임)
+            ???(?뵦 ?뚯씪 ?ы븿 Service濡??꾩엫)
             ========================================================= */
 
             $result = $this->service->save(
                 $payload,
                 'USER',
-                $_FILES   // 🔥 반드시 전달
+                $_FILES   // ?뵦 諛섎뱶???꾨떖
             );
 
             /* =========================================================
-            에러 메시지 처리 (필요시 확장)
+            ?먮윭 硫붿떆吏 泥섎━ (?꾩슂???뺤옣)
             ========================================================= */
 
             if (!$result['success']) {
 
                 echo json_encode([
                     'success' => false,
-                    'message' => $result['message'] ?? '프로젝트 저장 실패'
+                    'message' => $result['message'] ?? '?꾨줈?앺듃 ????ㅽ뙣'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
 
             /* =========================================================
-            정상
+            ?뺤긽
             ========================================================= */
 
             echo json_encode([
                 'success' => true,
                 'id'      => $result['id'] ?? null,
-                'code'    => $result['code'] ?? null,
-                'message' => '저장 완료'
+                'sort_no'    => $result['sort_no'] ?? null,
+                'message' => '????꾨즺'
             ], JSON_UNESCAPED_UNICODE);
 
         } catch (\Throwable $e) {
 
             echo json_encode([
                 'success' => false,
-                'message' => '프로젝트 저장 중 오류 발생'
+                'message' => '?꾨줈?앺듃 ???以??ㅻ쪟 諛쒖깮'
             ], JSON_UNESCAPED_UNICODE);
         }
 
         exit;
     }
     // ============================================================
-    // API: 프로젝트 삭제
+    // API: ?꾨줈?앺듃 ??젣
     // URL: POST /api/settings/base-info/project/delete
     // ============================================================
     public function apiDelete(): void
@@ -323,7 +323,7 @@ class ProjectController
         if (!$id) {
             echo json_encode([
                 'success' => false,
-                'message' => '프로젝트 아이디 누락'
+                'message' => '?꾨줈?앺듃 ?꾩씠???꾨씫'
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -338,7 +338,7 @@ class ProjectController
 
             echo json_encode([
                 'success' => false,
-                'message' => '프로젝트 삭제 실패',
+                'message' => '?꾨줈?앺듃 ??젣 ?ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -350,7 +350,7 @@ class ProjectController
 
 
     /* ============================================================
-     * API: 프로젝트 휴지통 목록
+     * API: ?꾨줈?앺듃 ?댁???紐⑸줉
      * URL: GET /api/settings/base-info/project/trash
      * ============================================================ */
     public function apiTrashList(): void
@@ -370,7 +370,7 @@ class ProjectController
 
             echo json_encode([
                 'success' => false,
-                'message' => '휴지통 조회 실패',
+                'message' => '?댁???議고쉶 ?ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -379,7 +379,7 @@ class ProjectController
     }
 
     // ============================================================
-    // API: 프로젝트 복원
+    // API: ?꾨줈?앺듃 蹂듭썝
     // URL: POST /api/settings/base-info/project/restore
     // ============================================================
     public function apiRestore(): void
@@ -391,7 +391,7 @@ class ProjectController
         if (!$id) {
             echo json_encode([
                 'success' => false,
-                'message' => '프로젝트 아이디 누락'
+                'message' => '?꾨줈?앺듃 ?꾩씠???꾨씫'
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -406,7 +406,7 @@ class ProjectController
 
             echo json_encode([
                 'success' => false,
-                'message' => '프로젝트 복원 실패',
+                'message' => '?꾨줈?앺듃 蹂듭썝 ?ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -415,7 +415,7 @@ class ProjectController
     }
 
     // ============================================================
-    // API: 프로젝트 선택 복원
+    // API: ?꾨줈?앺듃 ?좏깮 蹂듭썝
     // URL: POST /api/settings/base-info/project/restore-bulk
     // ============================================================
     public function apiRestoreBulk(): void
@@ -430,7 +430,7 @@ class ProjectController
             if (empty($ids) || !is_array($ids)) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '복원할 프로젝트 아이디가 없습니다.'
+                    'message' => '蹂듭썝???꾨줈?앺듃 ?꾩씠?붽? ?놁뒿?덈떎.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -443,7 +443,7 @@ class ProjectController
 
             echo json_encode([
                 'success' => false,
-                'message' => '선택 복원 실패',
+                'message' => '?좏깮 蹂듭썝 ?ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -453,7 +453,7 @@ class ProjectController
 
 
     // ============================================================
-    // API: 프로젝트 전체 복원
+    // API: ?꾨줈?앺듃 ?꾩껜 蹂듭썝
     // URL: POST /api/settings/base-info/project/restore-all
     // ============================================================
     public function apiRestoreAll(): void
@@ -470,7 +470,7 @@ class ProjectController
 
             echo json_encode([
                 'success' => false,
-                'message' => '전체 복원 실패',
+                'message' => '?꾩껜 蹂듭썝 ?ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -482,7 +482,7 @@ class ProjectController
 
 
     // ============================================================
-    // API: 프로젝트 완전삭제
+    // API: ?꾨줈?앺듃 ?꾩쟾??젣
     // URL: POST /api/settings/base-info/project/purge
     // ============================================================
     public function apiPurge(): void
@@ -494,7 +494,7 @@ class ProjectController
         if (!$id) {
             echo json_encode([
                 'success' => false,
-                'message' => '프로젝트 아이디 누락'
+                'message' => '?꾨줈?앺듃 ?꾩씠???꾨씫'
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -509,7 +509,7 @@ class ProjectController
 
             echo json_encode([
                 'success' => false,
-                'message' => '완전삭제 실패',
+                'message' => '?꾩쟾??젣 ?ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -520,7 +520,7 @@ class ProjectController
 
 
     // ============================================================
-    // API: 프로젝트 선택 완전삭제
+    // API: ?꾨줈?앺듃 ?좏깮 ?꾩쟾??젣
     // URL: POST /api/settings/base-info/project/purge-bulk
     // ============================================================
     public function apiPurgeBulk(): void
@@ -535,7 +535,7 @@ class ProjectController
             if (empty($ids) || !is_array($ids)) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '삭제할 프로젝트 아이디가 없습니다.'
+                    'message' => '??젣???꾨줈?앺듃 ?꾩씠?붽? ?놁뒿?덈떎.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -548,7 +548,7 @@ class ProjectController
 
             echo json_encode([
                 'success' => false,
-                'message' => '선택 완전삭제 실패',
+                'message' => '?좏깮 ?꾩쟾??젣 ?ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -558,7 +558,7 @@ class ProjectController
 
 
     // ============================================================
-    // API: 프로젝트 전체 완전삭제
+    // API: ?꾨줈?앺듃 ?꾩껜 ?꾩쟾??젣
     // URL: POST /api/settings/base-info/project/purge-all
     // ============================================================
     public function apiPurgeAll(): void
@@ -575,7 +575,7 @@ class ProjectController
 
             echo json_encode([
                 'success' => false,
-                'message' => '전체 완전삭제 실패',
+                'message' => '?꾩껜 ?꾩쟾??젣 ?ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -584,7 +584,7 @@ class ProjectController
     }
 
     // ============================================================
-    // API: 프로젝트 순서 변경 (RowReorder)
+    // API: ?꾨줈?앺듃 ?쒖꽌 蹂寃?(RowReorder)
     // URL: POST /api/settings/base-info/project/reorder
     // ============================================================
     public function apiReorder(): void
@@ -599,7 +599,7 @@ class ProjectController
             if (empty($changes)) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '변경 데이터 없음'
+                    'message' => '蹂寃??곗씠???놁쓬'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -614,7 +614,7 @@ class ProjectController
 
             echo json_encode([
                 'success' => false,
-                'message' => '순서 저장 실패',
+                'message' => '?쒖꽌 ????ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -625,19 +625,19 @@ class ProjectController
 
 
     // ============================================================
-    // API: 프로젝트 양식 엑셀 다운로드
+    // API: ?꾨줈?앺듃 ?묒떇 ?묒? ?ㅼ슫濡쒕뱶
     // URL: GET /api/settings/base-info/project/template
     // ============================================================
     public function apiDownloadTemplate(): void
     {
         try {
 
-            $this->service->downloadTemplate();
+            $this->service->downloadMigrationTemplate();
 
         } catch (\Throwable $e) {
 
             http_response_code(500);
-            echo '엑셀 템플릿 다운로드 실패 : ' . $e->getMessage();
+            echo '?묒? ?쒗뵆由??ㅼ슫濡쒕뱶 ?ㅽ뙣 : ' . $e->getMessage();
             exit;
         }
     }
@@ -648,7 +648,7 @@ class ProjectController
 
 
     // ============================================================
-    // API: 프로젝트 엑셀 업로드
+    // API: ?꾨줈?앺듃 ?묒? ?낅줈??
     // URL: POST /api/settings/base-info/project/excel-upload
     // ============================================================
     public function apiSaveFromExcel(): void
@@ -660,14 +660,14 @@ class ProjectController
             if (!isset($_FILES['excel']) || !is_uploaded_file($_FILES['excel']['tmp_name'])) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '파일이 업로드되지 않았습니다.'
+                    'message' => '?뚯씪???낅줈?쒕릺吏 ?딆븯?듬땲??'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
 
             $file = $_FILES['excel']['tmp_name'];
 
-            $result = $this->service->saveFromExcelFile($file);
+            $result = $this->service->saveFromMigrationExcelFile($file);
 
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
 
@@ -675,7 +675,7 @@ class ProjectController
 
             echo json_encode([
                 'success' => false,
-                'message' => '엑셀 업로드 실패',
+                'message' => '?묒? ?낅줈???ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -684,19 +684,19 @@ class ProjectController
     }
 
     // ============================================================
-    // API: 프로젝트 전체 엑셀 다운로드
+    // API: ?꾨줈?앺듃 ?꾩껜 ?묒? ?ㅼ슫濡쒕뱶
     // URL: GET /api/settings/base-info/project/excel
     // ============================================================
     public function apiDownload(): void
     {
         try {
 
-            $this->service->downloadExcel();
+            $this->service->downloadMigrationExcel();
 
         } catch (\Throwable $e) {
 
             http_response_code(500);
-            echo '엑셀 다운로드 실패 : ' . $e->getMessage();
+            echo '?묒? ?ㅼ슫濡쒕뱶 ?ㅽ뙣 : ' . $e->getMessage();
             exit;
         }
     }

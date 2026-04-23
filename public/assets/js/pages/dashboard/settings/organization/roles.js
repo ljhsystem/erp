@@ -24,7 +24,7 @@ window.AdminPicker = AdminPicker;
     };
 
     const ROLE_COLUMN_MAP = {
-        code:        { label: '코드', visible: true },
+        sort_no:        { label: '순번', visible: true },
         role_key:    { label: 'Role Key', visible: true },
         role_name:   { label: 'Role Name', visible: true },
         description: { label: '설명', visible: true },

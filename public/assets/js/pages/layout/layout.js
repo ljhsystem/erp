@@ -473,10 +473,8 @@ setInterval(updateClock, 1000);
 updateClock();
 
 // 약간의 짧은 딜레이만 주기 (1500ms → 300~500ms)
-setTimeout(() => {
-    setInterval(updateSessionTimer, 1000);
-    updateSessionTimer();
-}, 300);
+setInterval(updateSessionTimer, 1000);
+updateSessionTimer();
 
 
 

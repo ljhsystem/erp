@@ -8,7 +8,7 @@
 ========================================================= */
 :root {
   /* 레이아웃 */
-  --header-height: 40px;
+  --header-height: 44px;
   --sidebar-width: 240px;
   --sidebar-width-collapsed: 16px;
   --content-padding: 16px;
@@ -131,22 +131,31 @@ body.theme-dark {
 /* =========================================================
    5. 폰트 크기
 ========================================================= */
-body.font-scale-small { --font-scale: 0.9; }
+body.font-scale-small { --font-scale: 0.98; }
 body.font-scale-normal { --font-scale: 1; }
-body.font-scale-large { --font-scale: 1.1; }
+body.font-scale-large { --font-scale: 1.06; }
 
 /* =========================================================
    6. 메인 컨텐츠
 ========================================================= */
 .main-content {
-  padding: var(--content-padding);
-  min-height: calc(100vh - var(--header-height));
+  padding: 0 var(--content-padding) var(--content-padding);
+  min-height: auto;
   margin-left: var(--sidebar-width);
+  margin-top: 0;
+  box-sizing: border-box;
   transition: margin-left .2s ease;
 }
 
 body.is-sidebar-collapsed .main-content {
   margin-left: var(--sidebar-width-collapsed);
+}
+
+.app-shell {
+  padding-top: calc(var(--header-height) - 20px);
+  min-height: calc(100vh - var(--footer-height));
+  box-sizing: border-box;
+  align-items: stretch;
 }
 
 /* =========================================================
@@ -167,9 +176,8 @@ body.is-sidebar-collapsed .main-content {
 }
 
 /* 카드 밀도 */
-body.card-density-compact .card { padding: .5rem; }
-body.card-density-normal .card { padding: 1rem; }
-body.card-density-comfortable .card { padding: 1.5rem; }
+/* 카드 외곽은 고정하고 실제 내용 영역(card-body/section)에서 밀도를 조정한다. */
+.card { padding: 0; }
 
 /* =========================================================
    8. 모서리 스타일
@@ -232,6 +240,41 @@ body.table-density-comfortable .table td { padding: 1rem; }
   width: 100%;
   min-width: 0;
   position: relative;
+}
+
+/* scrollY 사용 시 본문 테이블 안의 숨김 thead가 높이를 차지하지 않도록 한다. */
+.dataTables_wrapper .dataTables_scrollBody table.dataTable {
+  margin-top: 0 !important;
+}
+
+.dataTables_wrapper .dataTables_scrollBody table.dataTable thead,
+.dataTables_wrapper .dataTables_scrollBody table.dataTable thead tr,
+.dataTables_wrapper .dataTables_scrollBody table.dataTable thead th,
+.dataTables_wrapper .dataTables_scrollBody table.dataTable thead td {
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-top: 0 !important;
+  border-bottom: 0 !important;
+  line-height: 0 !important;
+}
+
+.dataTables_wrapper .dataTables_scrollBody table.dataTable thead .dataTables_sizing {
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  overflow: hidden !important;
+}
+
+.dataTables_wrapper .dataTables_scrollHead table.dataTable thead th {
+  white-space: nowrap;
+  vertical-align: middle;
 }
 
 /* 상단/하단 */
@@ -481,6 +524,8 @@ body.no-sidebar .main-content {
   width: 100%;
   display: flex;
   justify-content: center;   /* 🔥 핵심 */
+  margin-top: calc(var(--header-height) - 4px);
+  min-height: calc(100vh - var(--header-height) - var(--footer-height));
 }
 
 body.no-sidebar .main-content > .container {
@@ -505,8 +550,10 @@ body.no-sidebar .main-content > .container {
 .breadcrumb-row {
   display: flex;
   width: 100%;
-  margin: 0 0 14px;
-  padding: 0 4px;
+  margin: 0 !important;
+  padding: 4px 0 !important;
+  min-height: auto !important;
+  align-items: center;
 }
 
 .breadcrumb-row-left {
@@ -529,9 +576,10 @@ body.no-sidebar .main-content > .container {
   display: inline-flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
-  margin: 0;
-  padding: 10px 14px;
+  gap: 6px;
+  margin: 0 !important;
+  padding: 2px 6px;
+  line-height: 1.1;
   list-style: none;
   border-radius: 999px;
   background: rgba(255,255,255,.92);
@@ -542,14 +590,15 @@ body.no-sidebar .main-content > .container {
 }
 
 .breadcrumb-list-compact {
-  padding: 8px 12px;
-  font-size: 13px;
+  padding: 2px 6px;
+  font-size: 12px;
 }
 
 .breadcrumb-item {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  line-height: 1.1;
   color: #6b7280;
   min-width: 0;
 }
@@ -557,13 +606,13 @@ body.no-sidebar .main-content > .container {
 .breadcrumb-item + .breadcrumb-item::before {
   content: "›";
   color: #a1a1aa;
-  margin: 0 2px;
+  margin: 0 1px;
 }
 
 .breadcrumb-item a {
   color: #374151;
   text-decoration: none;
-  padding: 3px 6px;
+  padding: 2px 4px;
   border-radius: 6px;
   transition: background .15s ease, color .15s ease, transform .15s ease;
 }
@@ -577,7 +626,7 @@ body.no-sidebar .main-content > .container {
 .breadcrumb-item .current {
   font-weight: 700;
   color: #111827;
-  padding: 3px 6px;
+  padding: 2px 4px;
 }
 
 
@@ -585,20 +634,418 @@ body.no-sidebar .main-content > .container {
    16. 반응형
 ========================================================= */
 @media (max-width: 991.98px) {
-  :root { --header-height: 54px; }
+  :root { --header-height: 52px; }
 
   .main-content {
     margin-left: var(--content-padding);
+    margin-top: 0;
   }
 
   .breadcrumb-row {
     justify-content: flex-start;
-    margin-bottom: 12px;
-    padding: 0;
+    margin: 0 !important;
+    padding: 4px 0 !important;
   }
 
   .breadcrumb-list {
     width: 100%;
     border-radius: 14px;
   }
+}
+
+@supports (height: 100dvh) {
+  .app-shell {
+    min-height: calc(100dvh - var(--footer-height));
+  }
+
+  body.no-sidebar .main-content {
+    min-height: calc(100dvh - var(--header-height) - var(--footer-height));
+  }
+}
+
+/* =========================================================
+   17. Global UI Density
+========================================================= */
+:root {
+  --font-size: 16px;
+  --row-height: 42px;
+  --padding: 12px;
+  --gap: 12px;
+  --sidebar-shell-padding-y: 10px;
+  --sidebar-shell-padding-x: 10px;
+  --sidebar-font-size: 15px;
+  --sidebar-row-height: 40px;
+  --sidebar-padding-y: 8px;
+  --sidebar-padding-x: 12px;
+  --sidebar-gap: 10px;
+  --sidebar-icon-size: 30px;
+  --sidebar-sub-row-height: 36px;
+  --sidebar-sub-padding-y: 7px;
+  --sidebar-sub-padding-x: 10px;
+  --sidebar-sub-icon-size: 24px;
+  --sidebar-nest-indent: 10px;
+}
+
+body[data-density="compact"] {
+  --font-size: 14px;
+  --row-height: 34px;
+  --padding: 9px;
+  --gap: 9px;
+  --sidebar-shell-padding-y: 8px;
+  --sidebar-shell-padding-x: 8px;
+  --sidebar-font-size: 14px;
+  --sidebar-row-height: 36px;
+  --sidebar-padding-y: 6px;
+  --sidebar-padding-x: 10px;
+  --sidebar-gap: 8px;
+  --sidebar-icon-size: 26px;
+  --sidebar-sub-row-height: 32px;
+  --sidebar-sub-padding-y: 5px;
+  --sidebar-sub-padding-x: 9px;
+  --sidebar-sub-icon-size: 22px;
+  --sidebar-nest-indent: 8px;
+}
+
+body[data-density="normal"] {
+  --font-size: 16px;
+  --row-height: 42px;
+  --padding: 12px;
+  --gap: 12px;
+  --sidebar-shell-padding-y: 10px;
+  --sidebar-shell-padding-x: 10px;
+  --sidebar-font-size: 15px;
+  --sidebar-row-height: 40px;
+  --sidebar-padding-y: 8px;
+  --sidebar-padding-x: 12px;
+  --sidebar-gap: 10px;
+  --sidebar-icon-size: 30px;
+  --sidebar-sub-row-height: 36px;
+  --sidebar-sub-padding-y: 7px;
+  --sidebar-sub-padding-x: 10px;
+  --sidebar-sub-icon-size: 24px;
+  --sidebar-nest-indent: 10px;
+}
+
+body[data-density="comfortable"] {
+  --font-size: 18px;
+  --row-height: 50px;
+  --padding: 16px;
+  --gap: 16px;
+  --sidebar-shell-padding-y: 10px;
+  --sidebar-shell-padding-x: 10px;
+  --sidebar-font-size: 15px;
+  --sidebar-row-height: 42px;
+  --sidebar-padding-y: 8px;
+  --sidebar-padding-x: 12px;
+  --sidebar-gap: 10px;
+  --sidebar-icon-size: 30px;
+  --sidebar-sub-row-height: 38px;
+  --sidebar-sub-padding-y: 7px;
+  --sidebar-sub-padding-x: 10px;
+  --sidebar-sub-icon-size: 24px;
+  --sidebar-nest-indent: 10px;
+}
+
+body[data-density] {
+  font-size: var(--font-size);
+  --dt-control-height: var(--row-height);
+  --dt-control-font-size: var(--font-size);
+  --dt-control-padding-x: var(--padding);
+  --control-padding-y: max(6px, calc(var(--padding) - 3px));
+  --control-padding-x: max(10px, calc(var(--padding) + 1px));
+}
+
+body[data-density] .form-control,
+body[data-density] .form-select,
+body[data-density] .form-check-label,
+body[data-density] input.form-control,
+body[data-density] textarea.form-control,
+body[data-density] .select2-container .select2-selection--single,
+body[data-density] .select2-container .select2-selection--multiple {
+  font-size: var(--font-size) !important;
+}
+
+body[data-density] .form-control,
+body[data-density] .form-select,
+body[data-density] input.form-control,
+body[data-density] textarea.form-control {
+  padding: var(--control-padding-y) var(--control-padding-x) !important;
+  min-height: var(--row-height);
+}
+
+/* Select2도 일반 select 박스와 같은 밀도/외형을 사용한다. */
+.select2-container {
+  max-width: 100%;
+  font-size: var(--font-size, 14px) !important;
+}
+
+.select2.select2-container,
+.select2-hidden-accessible + .select2-container {
+  width: 100% !important;
+}
+
+.select2-container--default .select2-selection--single,
+.select2-container--default .select2-selection--multiple {
+  position: relative !important;
+  min-height: var(--row-height, 38px) !important;
+  border: 1px solid #dee2e6 !important;
+  border-radius: .375rem !important;
+  background-color: #fff !important;
+  font-size: var(--font-size, 14px) !important;
+  box-shadow: none !important;
+}
+
+.select2-container--default .select2-selection--single {
+  height: var(--row-height, 38px) !important;
+  display: flex !important;
+  align-items: center !important;
+  padding: 0 calc(var(--control-padding-x, 12px) + 18px) 0 var(--control-padding-x, 12px) !important;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+  width: 100%;
+  padding: 0 !important;
+  color: var(--color-text, #212529) !important;
+  line-height: 1.5 !important;
+  font-size: var(--font-size, 14px) !important;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__placeholder {
+  color: #6c757d !important;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+  top: 0 !important;
+  right: 8px !important;
+  width: 20px !important;
+  height: 100% !important;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__clear {
+  display: none !important;
+  position: absolute !important;
+  top: 50% !important;
+  right: 28px !important;
+  left: auto !important;
+  transform: translateY(-50%) !important;
+  height: 20px;
+  line-height: 18px;
+  margin: 0 !important;
+  color: #6c757d;
+  z-index: 2;
+}
+
+.select2-container--default .select2-selection--multiple {
+  padding: 2px var(--control-padding-x, 12px) !important;
+}
+
+.select2-container--default .select2-selection--multiple .select2-selection__choice {
+  margin-top: 3px !important;
+  margin-bottom: 2px !important;
+  border-color: #dee2e6 !important;
+  border-radius: .25rem !important;
+  background: #f8f9fa !important;
+}
+
+.select2-container--default.select2-container--open .select2-selection--single,
+.select2-container--default.select2-container--open .select2-selection--multiple,
+.select2-container--default.select2-container--focus .select2-selection--single,
+.select2-container--default.select2-container--focus .select2-selection--multiple {
+  border-color: #86b7fe !important;
+  box-shadow: 0 0 0 .25rem rgba(13, 110, 253, .25) !important;
+}
+
+.select2-container--default.select2-container--disabled .select2-selection--single,
+.select2-container--default.select2-container--disabled .select2-selection--multiple {
+  background-color: #e9ecef !important;
+  opacity: 1;
+}
+
+.select2-dropdown {
+  border: 1px solid #dee2e6 !important;
+  border-radius: .375rem !important;
+  box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .08);
+  overflow: hidden;
+  font-size: var(--font-size, 14px) !important;
+}
+
+.select2-search--dropdown {
+  padding: 6px !important;
+}
+
+.select2-container--default .select2-search--dropdown .select2-search__field {
+  min-height: var(--row-height, 38px);
+  padding: var(--control-padding-y, 6px) var(--control-padding-x, 12px);
+  border: 1px solid #dee2e6 !important;
+  border-radius: .375rem !important;
+  font-size: var(--font-size, 14px);
+  outline: 0;
+}
+
+.select2-results__option {
+  padding: var(--control-padding-y, 6px) var(--control-padding-x, 12px) !important;
+  font-size: var(--font-size, 14px) !important;
+  line-height: 1.5;
+}
+
+.select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
+  background-color: var(--color-primary, #0d6efd) !important;
+  color: #fff !important;
+}
+
+.select2-container--default .select2-results__option--selected {
+  background-color: #e9ecef !important;
+  color: var(--color-text, #212529) !important;
+}
+
+.select2-container--default .select2-results__option--selected.select2-results__option--highlighted {
+  background-color: var(--color-primary, #0d6efd) !important;
+  color: #fff !important;
+}
+
+body[data-density] textarea.form-control {
+  min-height: calc(var(--row-height) * 2.5);
+}
+
+body[data-density] .btn,
+body[data-density] button,
+body[data-density] .dt-button {
+  font-size: var(--font-size) !important;
+}
+
+body[data-density] .btn,
+body[data-density] .dt-button {
+  padding: var(--control-padding-y) var(--control-padding-x) !important;
+  min-height: var(--row-height);
+}
+
+/* Bootstrap grid/flex 유틸리티를 전역 재정의하면 페이지 배치가 흔들리므로 opt-in 레이아웃만 조정한다. */
+body[data-density] .form-grid,
+body[data-density] .table-actions,
+body[data-density] .page-toolbar,
+body[data-density] .filter-row {
+  gap: var(--gap);
+}
+
+body[data-density] .dataTables_wrapper .dt-top,
+body[data-density] .dataTables_wrapper .dt-bottom,
+body[data-density] .dataTables_wrapper .dataTables_length label,
+body[data-density] .dataTables_wrapper .dataTables_filter label,
+body[data-density] .dataTables_wrapper .dataTables_info,
+body[data-density] .dataTables_wrapper .dataTables_paginate {
+  font-size: var(--font-size) !important;
+}
+
+body[data-density] .dataTables_wrapper .dataTables_filter input,
+body[data-density] .dataTables_wrapper .dataTables_length select,
+body[data-density] .dataTables_wrapper .dt-button {
+  min-height: var(--row-height) !important;
+  font-size: var(--font-size) !important;
+}
+
+body.table-density-compact .table th,
+body.table-density-compact .table td,
+body.table-density-compact table.dataTable thead th,
+body.table-density-compact table.dataTable tbody td {
+  padding: 8px !important;
+  min-height: 34px;
+  font-size: 14px !important;
+}
+
+body.table-density-normal .table th,
+body.table-density-normal .table td,
+body.table-density-normal table.dataTable thead th,
+body.table-density-normal table.dataTable tbody td {
+  padding: 12px !important;
+  min-height: 42px;
+  font-size: 16px !important;
+}
+
+body.table-density-comfortable .table th,
+body.table-density-comfortable .table td,
+body.table-density-comfortable table.dataTable thead th,
+body.table-density-comfortable table.dataTable tbody td {
+  padding: 16px !important;
+  min-height: 50px;
+  font-size: 18px !important;
+}
+
+body.card-density-compact .card-body,
+body.card-density-compact .modal-body,
+body.card-density-compact .modal-header,
+body.card-density-compact .modal-footer,
+body.card-density-compact .section,
+body.card-density-compact .table-area-wrapper,
+body.card-density-compact .content-card,
+body.card-density-compact .page-panel {
+  padding: 8px !important;
+}
+
+body.card-density-normal .card-body,
+body.card-density-normal .modal-body,
+body.card-density-normal .modal-header,
+body.card-density-normal .modal-footer,
+body.card-density-normal .section,
+body.card-density-normal .table-area-wrapper,
+body.card-density-normal .content-card,
+body.card-density-normal .page-panel {
+  padding: 12px !important;
+}
+
+body.card-density-comfortable .card-body,
+body.card-density-comfortable .modal-body,
+body.card-density-comfortable .modal-header,
+body.card-density-comfortable .modal-footer,
+body.card-density-comfortable .section,
+body.card-density-comfortable .table-area-wrapper,
+body.card-density-comfortable .content-card,
+body.card-density-comfortable .page-panel {
+  padding: 16px !important;
+}
+
+body[data-density] .breadcrumb-list,
+body[data-density] .breadcrumb-item,
+body[data-density] .nav-tabs .nav-link,
+body[data-density] .modal-title,
+body[data-density] .card-title,
+body[data-density] .page-title {
+  font-size: var(--font-size) !important;
+}
+
+body[data-density="compact"] .breadcrumb-list {
+  padding: 2px 6px;
+}
+
+body[data-density="normal"] .breadcrumb-list {
+  padding: 4px 8px;
+}
+
+body[data-density="comfortable"] .breadcrumb-list {
+  padding: 6px 10px;
+}
+
+body[data-density] .site-transaction-page,
+body[data-density] .site-dashboard,
+body[data-density] .settings-main,
+body[data-density] .journal-page,
+body[data-density] .account-page,
+body[data-density] .modal-content {
+  font-size: var(--font-size);
+}
+
+body[data-density] .modal .form-control-sm,
+body[data-density] .modal .form-select-sm,
+body[data-density] .modal .btn-sm {
+  font-size: var(--font-size) !important;
+}
+
+body[data-density] .modal .form-control-sm,
+body[data-density] .modal .form-select-sm {
+  min-height: var(--row-height) !important;
+  padding: var(--control-padding-y) var(--control-padding-x) !important;
+}
+
+body[data-density] .modal .btn-sm {
+  min-height: calc(var(--row-height) - 4px) !important;
+  padding: max(4px, calc(var(--padding) - 5px)) var(--control-padding-x) !important;
 }

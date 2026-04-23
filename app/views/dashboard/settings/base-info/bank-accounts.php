@@ -97,7 +97,7 @@ $btnDeleteId  = 'accountBtnDeleteSelected';
 $btnDeleteAll = 'accountBtnDeleteAll';
 
 $tableHead = '
-  <th>코드</th>
+  <th>순번</th>
   <th>계좌명</th>
   <th>은행명</th>
   <th>계좌번호</th>

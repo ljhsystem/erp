@@ -1,4 +1,4 @@
-﻿/* 📄 /public/assets/css/pages/dashboard/settings.css */
+/* 📄 /public/assets/css/pages/dashboard/settings.css */
 /* ==========================================================
    SUKHYANG ERP - SETTINGS 공통 레이아웃
    - 가운데 세로 메뉴 제거
@@ -9,22 +9,23 @@
 /* ==========================================================
    1. 전체 래퍼
    ========================================================== */
-   .settings-main {  
+.settings-main {
     width: 100%;
     max-width: 100%;
-    padding: 4px 0 20px;
+    padding: calc(var(--padding) - 6px) 0 calc(var(--padding) - 2px);
     overflow-x: hidden;
     background: transparent;
+    font-size: var(--font-size);
 }
 
 .settings-page-header {
     margin-left:  30px;
-    margin-bottom: 10px;    
+    margin-bottom: 10px;
 }
 
 .settings-title {
     margin: 0;
-    font-size: 1.08rem;
+    font-size: calc(var(--font-size) + 3px);
     font-weight: 700;
     line-height: 1.35;
 }
@@ -40,13 +41,13 @@
 .settings-cat-tabs {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--gap);
 }
 
 .settings-cat-tabs .nav-link {
     border-radius: 999px;
-    padding: 8px 16px;
-    font-size: 14px;
+    padding: calc(var(--padding) - 2px) calc(var(--padding) + 6px);
+    font-size: var(--font-size);
     font-weight: 600;
     color: var(--color-text);
     background: #fff;
@@ -75,7 +76,7 @@
 
 .settings-sub-tabs {
     border-bottom: 1px solid var(--color-border);
-    gap: 4px 4px;
+    gap: calc(var(--gap) - 4px) calc(var(--gap) - 4px);
     flex-wrap: wrap;
 }
 
@@ -86,8 +87,8 @@
 .settings-sub-tabs .nav-link {
     border-radius: 10px 10px 0 0;
     color: var(--color-text);
-    padding: 9px 14px;
-    font-size: 14px;
+    padding: calc(var(--padding) - 1px) calc(var(--padding) + 4px);
+    font-size: var(--font-size);
     border: 1px solid transparent;
     background: transparent;
     margin-bottom: -1px;
@@ -115,7 +116,7 @@
     border-top: 0;
     border-radius: 0 0 var(--radius-md) var(--radius-md);
     box-shadow: var(--shadow-sm);
-    padding: 14px;
+    padding: var(--padding);
     overflow: hidden;
     min-width: 0;
 }
@@ -140,12 +141,15 @@
 
 .settings-main .form-label {
     font-weight: 600;
-    margin-bottom: 6px;
+    margin-bottom: calc(var(--gap) - 4px);
+    font-size: var(--font-size);
 }
 
 .settings-main .form-control,
 .settings-main .form-select {
-    min-height: 38px;
+    min-height: var(--row-height);
+    padding: var(--padding);
+    font-size: var(--font-size);
 }
 
 /* ==========================================================
@@ -163,15 +167,15 @@
     font-weight: 700;
     color: #333;
     border: 1px solid #e5e7eb;
-    padding: 12px 14px;
-    font-size: 14px;
+    padding: var(--padding);
+    font-size: var(--font-size);
     vertical-align: middle;
 }
 
 .settings-main .erp-table td {
     border: 1px solid #e5e7eb;
-    padding: 11px 14px;
-    font-size: 14px;
+    padding: var(--padding);
+    font-size: var(--font-size);
     background: #fff;
     vertical-align: middle;
 }
@@ -189,8 +193,8 @@
     align-items: center;
     justify-content: flex-end;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 10px;
+    gap: var(--gap);
+    margin-bottom: var(--gap);
 }
 
 .settings-main .dt-bottom {
@@ -198,8 +202,8 @@
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 10px;
+    gap: var(--gap);
+    margin-top: var(--gap);
 }
 
 .settings-main .dataTables_filter {
@@ -210,7 +214,7 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-size: 14px;
+    font-size: var(--font-size);
     margin: 0;
 }
 
@@ -223,7 +227,7 @@
 .settings-main .dt-buttons {
     display: flex !important;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: var(--gap);
 }
 
 .settings-main .dt-buttons .btn,
@@ -235,11 +239,11 @@
 .settings-main .dataTables_info,
 .settings-main .dataTables_paginate {
     margin: 0;
-    font-size: 13px;
+    font-size: var(--font-size);
 }
 
 .settings-main .dataTables_wrapper .dataTables_paginate .paginate_button {
-    padding: 5px 10px;
+    padding: calc(var(--padding) - 5px) var(--padding);
     border-radius: 6px;
     border: 1px solid #e6e6e6;
     background: #fff;
@@ -277,7 +281,7 @@
 @media (max-width: 991.98px) {
     .settings-main {
         padding-top: 0;
-        padding-bottom: 16px;
+        padding-bottom: 6px;
     }
 
     .settings-cat-tabs,

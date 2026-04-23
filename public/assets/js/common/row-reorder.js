@@ -5,7 +5,7 @@ export function bindRowReorder(table, options){
     const {
         api,
         idField = 'id',
-        codeField = 'code',
+        sortNoField = 'sort_no',
         extraData = null,
         onSuccess = null,
         onError = null
@@ -39,8 +39,8 @@ export function bindRowReorder(table, options){
   
             const item = {
                 id: rowData[idField],
-                code: d.newPosition + 1,   // 유지 가능
-                newCode: d.newPosition + 1 // 🔥 추가
+                [sortNoField]: d.newPosition + 1,
+                newSortNo: d.newPosition + 1
             };
   
             if(extraData){

@@ -97,7 +97,7 @@ export function createDataTable(config){
         api,
         columns,
         buttons = [],
-        defaultOrder = [[1, "asc"]],
+        defaultOrder = [[0, "desc"]],
         pageLength = 10
     } = config;
 
@@ -122,7 +122,7 @@ export function createDataTable(config){
 
         rowReorder: {
             selector: 'td.reorder-handle',
-            dataSrc: 'code'
+            dataSrc: 'sort_no'
         },
 
         scrollY: getTableHeight(tableSelector),

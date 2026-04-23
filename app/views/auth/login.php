@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // 경로: PROJECT_ROOT . '/app/views/auth/login.php'
 use Core\Helpers\AssetHelper;
 header('Content-Type: text/html; charset=UTF-8');

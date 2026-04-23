@@ -1,6 +1,6 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Controllers/Dashboard/Settings/ClientController.php'
-// 대시보드>설정>기초정보관리>거래처 API 컨트롤러
+// 寃쎈줈: PROJECT_ROOT . '/app/Controllers/Dashboard/Settings/ClientController.php'
+// ??쒕낫???ㅼ젙>湲곗큹?뺣낫愿由?嫄곕옒泥?API 而⑦듃濡ㅻ윭
 namespace App\Controllers\Dashboard\Settings;
 
 use Core\DbPdo;
@@ -19,51 +19,51 @@ class ClientController
     }
 
     // ============================================================
-    // API: 거래처 목록 조회
+    // API: 嫄곕옒泥?紐⑸줉 議고쉶
     // URL: GET /api/settings/base-info/client/list
-    // permission: 
+    // permission:
     // controller: ClientController@apiList
     // ============================================================
     public function apiList(): void
     {
         header('Content-Type: application/json; charset=UTF-8');
-    
+
         try {
-    
+
             $filters = [];
-    
+
             if (!empty($_GET['filters'])) {
                 $decoded = json_decode($_GET['filters'], true);
-    
+
                 if (json_last_error() === JSON_ERROR_NONE) {
                     $filters = $decoded;
                 }
             }
-    
-            // 🔥 무조건 getList 하나만 사용
+
+            // ?뵦 臾댁“嫄?getList ?섎굹留??ъ슜
             $rows = $this->service->getList($filters);
-    
+
             echo json_encode([
                 'success' => true,
                 'data' => $rows
             ], JSON_UNESCAPED_UNICODE);
-    
+
         } catch (\Throwable $e) {
-    
+
             echo json_encode([
                 'success' => false,
-                'message' => '거래처 목록 조회 실패',
+                'message' => '嫄곕옒泥?紐⑸줉 議고쉶 ?ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
-    
+
         exit;
     }
 
 
 
     // ============================================================
-    // API: 거래처 상세 조회
+    // API: 嫄곕옒泥??곸꽭 議고쉶
     // URL: GET /api/settings/base-info/client/detail
     // ============================================================
     public function apiDetail(): void
@@ -75,7 +75,7 @@ class ClientController
         if (!$id) {
             echo json_encode([
                 'success' => false,
-                'message' => '거래처 아이디 누락'
+                'message' => '嫄곕옒泥??꾩씠???꾨씫'
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -87,7 +87,7 @@ class ClientController
             if (!$row) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '거래처 없음'
+                    'message' => '嫄곕옒泥??놁쓬'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -100,7 +100,7 @@ class ClientController
 
             echo json_encode([
                 'success' => false,
-                'message' => '거래처 조회 실패',
+                'message' => '嫄곕옒泥?議고쉶 ?ㅽ뙣',
                 'error' => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -116,7 +116,17 @@ class ClientController
 
         try {
             $keyword = trim($_GET['q'] ?? '');
-            $rows = $this->service->searchPicker($keyword);
+            $options = [];
+
+            if (isset($_GET['client_type'])) {
+                $options['client_type'] = trim((string)$_GET['client_type']);
+            }
+
+            if (isset($_GET['is_active'])) {
+                $options['is_active'] = (int)$_GET['is_active'];
+            }
+
+            $rows = $this->service->searchPicker($keyword, $options);
 
             echo json_encode([
                 'success' => true,
@@ -126,7 +136,7 @@ class ClientController
             echo json_encode([
                 'success' => false,
                 'data'    => [],
-                'message' => '검색 실패',
+                'message' => '寃???ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -136,31 +146,31 @@ class ClientController
 
 
     // ============================================================
-    // API: 거래처 저장 (신규 + 수정)
+    // API: 嫄곕옒泥????(?좉퇋 + ?섏젙)
     // URL: POST /api/settings/base-info/client/save
-    // permission: 
+    // permission:
     // controller: ClientController@apiSave
     // ============================================================
     public function apiSave(): void
     {
         header('Content-Type: application/json; charset=UTF-8');
-    
+
         try {
-    
+
             /* =========================================================
-            payload 생성
+            payload ?앹꽦
             ========================================================= */
-    
+
             $payload = [
-    
+
                 'id' => $_POST['id'] ?? null,
-                'code' => $_POST['code'] ?? null,
-    
+                'sort_no' => $_POST['sort_no'] ?? null,
+
                 'client_name' => trim($_POST['client_name'] ?? ''),
                 'company_name' => $_POST['company_name'] ?? null,
-    
+
                 'registration_date' => $_POST['registration_date'] ?? null,
-    
+
                 'business_number' => (
                     isset($_POST['business_number']) &&
                     trim($_POST['business_number']) !== ''
@@ -173,139 +183,139 @@ class ClientController
                 )
                     ? trim($_POST['rrn'])
                     : null,
-    
+
                 'business_type' => $_POST['business_type'] ?? null,
                 'business_category' => $_POST['business_category'] ?? null,
                 'business_status' => $_POST['business_status'] ?? null,
-    
+
                 'address' => $_POST['address'] ?? null,
                 'address_detail' => $_POST['address_detail'] ?? null,
-    
+
                 'phone' => $_POST['phone'] ?? null,
                 'fax' => $_POST['fax'] ?? null,
                 'email' => $_POST['email'] ?? null,
-    
+
                 'ceo_name' => $_POST['ceo_name'] ?? null,
                 'ceo_phone' => $_POST['ceo_phone'] ?? null,
-    
+
                 'manager_name' => $_POST['manager_name'] ?? null,
                 'manager_phone' => $_POST['manager_phone'] ?? null,
-    
+
                 'homepage' => $_POST['homepage'] ?? null,
-    
+
                 'bank_name' => $_POST['bank_name'] ?? null,
                 'account_number' => $_POST['account_number'] ?? null,
                 'account_holder' => $_POST['account_holder'] ?? null,
-    
+
                 'trade_category' => $_POST['trade_category'] ?? null,
                 'item_category' => $_POST['item_category'] ?? null,
-    
+
                 'client_category' => $_POST['client_category'] ?? null,
                 'client_type' => $_POST['client_type'] ?? null,
                 'tax_type' => $_POST['tax_type'] ?? null,
                 'payment_term' => $_POST['payment_term'] ?? null,
-    
+
                 'client_grade' => $_POST['client_grade'] ?? null,
-    
+
                 'note' => $_POST['note'] ?? null,
                 'memo' => $_POST['memo'] ?? null,
-    
-                /* 🔥 삭제 플래그 (Service로 전달) */
+
+                /* ?뵦 ??젣 ?뚮옒洹?(Service濡??꾨떖) */
                 'delete_business_certificate' => $_POST['delete_business_certificate'] ?? '0',
                 'delete_rrn_image'            => $_POST['delete_rrn_image'] ?? '0',
                 'delete_bank_file'            => $_POST['delete_bank_file'] ?? '0',
 
                 'is_active' => 1
             ];
-    
+
             /* =========================================================
-            필수값 체크
+            ?꾩닔媛?泥댄겕
             ========================================================= */
-    
+
             if ($payload['client_name'] === '') {
-    
+
                 echo json_encode([
                     'success' => false,
-                    'message' => '거래처명은 필수입니다.'
+                    'message' => '嫄곕옒泥섎챸? ?꾩닔?낅땲??'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
-    
+
             /* =========================================================
-            저장 (🔥 파일 포함 Service로 위임)
+            ???(?뵦 ?뚯씪 ?ы븿 Service濡??꾩엫)
             ========================================================= */
-    
+
             $result = $this->service->save(
                 $payload,
                 'USER',
-                $_FILES   // 🔥 핵심
+                $_FILES   // ?뵦 ?듭떖
             );
-    
+
             /* =========================================================
-            에러 메시지 변환
+            ?먮윭 硫붿떆吏 蹂??
             ========================================================= */
-    
+
             if (!$result['success']) {
-    
+
                 $msg = $result['message'] ?? '';
-    
+
                 if (
                     str_contains($msg, 'Duplicate entry') &&
                     str_contains($msg, 'uq_business_number')
                 ) {
                     echo json_encode([
                         'success' => false,
-                        'message' => '이미 등록된 사업자등록번호입니다.'
+                        'message' => '?대? ?깅줉???ъ뾽?먮벑濡앸쾲?몄엯?덈떎.'
                     ], JSON_UNESCAPED_UNICODE);
                     exit;
                 }
-    
+
                 echo json_encode([
                     'success' => false,
-                    'message' => $msg ?: '거래처 저장 실패'
+                    'message' => $msg ?: '嫄곕옒泥?????ㅽ뙣'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
-    
+
             /* =========================================================
-            정상
+            ?뺤긽
             ========================================================= */
-    
+
             echo json_encode([
                 'success' => true,
                 'id'      => $result['id'] ?? null,
-                'code'    => $result['code'] ?? null,
-                'message' => '저장 완료'
+                'sort_no'    => $result['sort_no'] ?? null,
+                'message' => '????꾨즺'
             ], JSON_UNESCAPED_UNICODE);
-    
+
         } catch (\Throwable $e) {
-    
+
             $msg = $e->getMessage();
-    
+
             if (
                 str_contains($msg, 'Duplicate entry') &&
                 str_contains($msg, 'uq_business_number')
             ) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '이미 등록된 사업자등록번호입니다.'
+                    'message' => '?대? ?깅줉???ъ뾽?먮벑濡앸쾲?몄엯?덈떎.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
-    
+
             echo json_encode([
                 'success' => false,
-                'message' => '거래처 저장 중 오류 발생'
+                'message' => '嫄곕옒泥????以??ㅻ쪟 諛쒖깮'
             ], JSON_UNESCAPED_UNICODE);
         }
-    
+
         exit;
     }
 
     // ============================================================
-    // API: 거래처 삭제
+    // API: 嫄곕옒泥???젣
     // URL: POST /api/settings/base-info/client/delete
-    // permission: 
+    // permission:
     // controller: ClientController@apiDelete
     // ============================================================
     public function apiDelete(): void
@@ -317,7 +327,7 @@ class ClientController
         if (!$id) {
             echo json_encode([
                 'success' => false,
-                'message' => '거래처 아이디 누락'
+                'message' => '嫄곕옒泥??꾩씠???꾨씫'
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -328,7 +338,7 @@ class ClientController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '거래처 삭제 실패',
+                'message' => '嫄곕옒泥???젣 ?ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -337,7 +347,7 @@ class ClientController
 
 
     // ============================================================
-    // API: 거래처 휴지통 목록
+    // API: 嫄곕옒泥??댁???紐⑸줉
     // URL: GET /api/settings/base-info/client/trash
     // ============================================================
     public function apiTrashList(): void
@@ -356,7 +366,7 @@ class ClientController
 
             echo json_encode([
                 'success' => false,
-                'message' => '휴지통 조회 실패',
+                'message' => '?댁???議고쉶 ?ㅽ뙣',
                 'error' => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -367,7 +377,7 @@ class ClientController
 
 
     // ============================================================
-    // API: 거래처 복원
+    // API: 嫄곕옒泥?蹂듭썝
     // URL: POST /api/settings/base-info/client/restore
     // ============================================================
     public function apiRestore(): void
@@ -380,7 +390,7 @@ class ClientController
 
             echo json_encode([
                 'success' => false,
-                'message' => '거래처 아이디 누락'
+                'message' => '嫄곕옒泥??꾩씠???꾨씫'
             ], JSON_UNESCAPED_UNICODE);
 
             exit;
@@ -395,7 +405,7 @@ class ClientController
 
             echo json_encode([
                 'success' => false,
-                'message' => '거래처 복원 실패',
+                'message' => '嫄곕옒泥?蹂듭썝 ?ㅽ뙣',
                 'error' => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -409,7 +419,7 @@ class ClientController
 
 
     // ============================================================
-    // API: 거래처 선택 복원
+    // API: 嫄곕옒泥??좏깮 蹂듭썝
     // URL: POST /api/settings/base-info/client/restore-bulk
     // ============================================================
     public function apiRestoreBulk(): void
@@ -423,7 +433,7 @@ class ClientController
             if (empty($ids) || !is_array($ids)) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '복원할 거래처 아이디가 없습니다.'
+                    'message' => '蹂듭썝??嫄곕옒泥??꾩씠?붽? ?놁뒿?덈떎.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -434,7 +444,7 @@ class ClientController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '선택 복원 실패',
+                'message' => '?좏깮 蹂듭썝 ?ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -446,29 +456,29 @@ class ClientController
     public function apiRestoreAll(): void
     {
         header('Content-Type: application/json; charset=UTF-8');
-    
+
         try {
-    
+
             $result = $this->service->restoreAll('USER');
-    
+
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
-    
+
         } catch (\Throwable $e) {
-    
+
             echo json_encode([
                 'success' => false,
-                'message' => '전체 복원 실패',
+                'message' => '?꾩껜 蹂듭썝 ?ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
-    
+
         exit;
     }
 
 
 
     // ============================================================
-    // API: 거래처 완전삭제
+    // API: 嫄곕옒泥??꾩쟾??젣
     // URL: POST /api/settings/base-info/client/purge
     // ============================================================
     public function apiPurge(): void
@@ -481,7 +491,7 @@ class ClientController
 
             echo json_encode([
                 'success' => false,
-                'message' => '거래처 아이디 누락'
+                'message' => '嫄곕옒泥??꾩씠???꾨씫'
             ], JSON_UNESCAPED_UNICODE);
 
             exit;
@@ -496,7 +506,7 @@ class ClientController
 
             echo json_encode([
                 'success' => false,
-                'message' => '완전삭제 실패',
+                'message' => '?꾩쟾??젣 ?ㅽ뙣',
                 'error' => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -507,7 +517,7 @@ class ClientController
 
 
     // ============================================================
-    // API: 거래처 선택 완전삭제
+    // API: 嫄곕옒泥??좏깮 ?꾩쟾??젣
     // URL: POST /api/settings/base-info/client/purge-bulk
     // ============================================================
     public function apiPurgeBulk(): void
@@ -521,7 +531,7 @@ class ClientController
             if (empty($ids) || !is_array($ids)) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '삭제할 거래처 아이디가 없습니다.'
+                    'message' => '??젣??嫄곕옒泥??꾩씠?붽? ?놁뒿?덈떎.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -532,7 +542,7 @@ class ClientController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '선택 완전삭제 실패',
+                'message' => '?좏깮 ?꾩쟾??젣 ?ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -542,7 +552,7 @@ class ClientController
 
 
     // ============================================================
-    // API: 거래처 전체 완전삭제
+    // API: 嫄곕옒泥??꾩껜 ?꾩쟾??젣
     // URL: POST /api/settings/base-info/client/purge-all
     // ============================================================
     public function apiPurgeAll(): void
@@ -557,7 +567,7 @@ class ClientController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '전체 완전삭제 실패',
+                'message' => '?꾩껜 ?꾩쟾??젣 ?ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -570,9 +580,9 @@ class ClientController
 
 
     // ============================================================
-    // API: 거래처 순서 변경 (RowReorder)
+    // API: 嫄곕옒泥??쒖꽌 蹂寃?(RowReorder)
     // URL: POST /api/settings/base-info/client/reorder
-    // permission: 
+    // permission:
     // controller: ClientController@apiReorder
     // ============================================================
     public function apiReorder()
@@ -582,7 +592,7 @@ class ClientController
         $changes = json_decode(file_get_contents('php://input'), true)['changes'] ?? [];
 
         if (!$changes) {
-            echo json_encode(['success'=>false,'message'=>'변경 데이터 없음']);
+            echo json_encode(['success'=>false,'message'=>'蹂寃??곗씠???놁쓬']);
             return;
         }
 
@@ -594,21 +604,21 @@ class ClientController
 
 
     // ============================================================
-    // API: 거래처 양식 엑셀 다운로드
+    // API: 嫄곕옒泥??묒떇 ?묒? ?ㅼ슫濡쒕뱶
     // URL: GET /api/settings/base-info/clients/template
-    // permission: 
+    // permission:
     // controller: ClientController@apiDownloadTemplate
-    // ============================================================    
+    // ============================================================
     public function apiDownloadTemplate(): void
     {
         try {
-    
-            $this->service->downloadTemplate();
-    
+
+            $this->service->downloadMigrationTemplate();
+
         } catch (\Throwable $e) {
-    
+
             http_response_code(500);
-            echo '엑셀 템플릿 다운로드 실패 : ' . $e->getMessage();
+            echo '?묒? ?쒗뵆由??ㅼ슫濡쒕뱶 ?ㅽ뙣 : ' . $e->getMessage();
             exit;
         }
     }
@@ -616,7 +626,7 @@ class ClientController
 
 
     // ============================================================
-    // API: 거래처 엑셀 업로드
+    // API: 嫄곕옒泥??묒? ?낅줈??
     // URL: POST /api/settings/base-info/client/excel-upload
     // ============================================================
     public function apiSaveFromExcel(): void
@@ -628,14 +638,14 @@ class ClientController
             if (!isset($_FILES['excel']) || !is_uploaded_file($_FILES['excel']['tmp_name'])) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '파일이 업로드되지 않았습니다.'
+                    'message' => '?뚯씪???낅줈?쒕릺吏 ?딆븯?듬땲??'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
 
             $file = $_FILES['excel']['tmp_name'];
 
-            $result = $this->service->saveFromExcelFile($file);
+            $result = $this->service->saveFromMigrationExcelFile($file);
 
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
 
@@ -643,7 +653,7 @@ class ClientController
 
             echo json_encode([
                 'success' => false,
-                'message' => '엑셀 업로드 실패',
+                'message' => '?묒? ?낅줈???ㅽ뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -653,21 +663,21 @@ class ClientController
 
 
     // ============================================================
-    // API: 거래처 전체 엑셀 다운로드
+    // API: 嫄곕옒泥??꾩껜 ?묒? ?ㅼ슫濡쒕뱶
     // URL: GET /api/settings/base-info/clients/excel
-    // permission: 
+    // permission:
     // controller: ClientController@apidownload
-    // ============================================================    
+    // ============================================================
     public function apiDownload(): void
     {
         try {
 
-            $this->service->downloadExcel();
+            $this->service->downloadMigrationExcel();
 
         } catch (\Throwable $e) {
 
             http_response_code(500);
-            echo '엑셀 다운로드 실패 : ' . $e->getMessage();
+            echo '?묒? ?ㅼ슫濡쒕뱶 ?ㅽ뙣 : ' . $e->getMessage();
             exit;
         }
     }

@@ -75,8 +75,8 @@
               <div class="row g-2">
 
                 <div class="col-md-2">
-                  <label class="form-label">코드</label>
-                  <input type="text" id="edit_employee_code" class="form-control form-control-sm" readonly>
+                  <label class="form-label">순번</label>
+                  <input type="text" id="edit_employee_sort_no" class="form-control form-control-sm" readonly>
                 </div>
 
                 <div class="col-md-5">

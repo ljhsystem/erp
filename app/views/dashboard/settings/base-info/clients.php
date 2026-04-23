@@ -95,7 +95,7 @@ $btnDeleteId  = 'clientBtnDeleteSelected';
 $btnDeleteAll = 'clientBtnDeleteAll';
 
 $tableHead = '
-  <th>코드</th>
+  <th>순번</th>
   <th>거래처명</th>
   <th>삭제일</th>
   <th>삭제자</th>

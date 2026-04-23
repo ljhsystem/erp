@@ -1,6 +1,6 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Controllers/Dashboard/Settings/CoverController.php'
-// 대시보드>설정>기초정보관리>커버이미지 API 컨트롤러
+// 寃쎈줈: PROJECT_ROOT . '/app/Controllers/Dashboard/Settings/CoverController.php'
+// ??쒕낫???ㅼ젙>湲곗큹?뺣낫愿由?而ㅻ쾭?대?吏 API 而⑦듃濡ㅻ윭
 namespace App\Controllers\Dashboard\Settings;
 
 use Core\DbPdo;
@@ -16,7 +16,7 @@ class CoverController
     }
 
     /* ============================================================
-       목록
+       紐⑸줉
     ============================================================ */
     public function apiList()
     {
@@ -33,7 +33,7 @@ class CoverController
     }
 
     /* ============================================================
-       오픈목록
+       ?ㅽ뵂紐⑸줉
     ============================================================ */
     public function apiPublicList()
     {
@@ -45,7 +45,7 @@ class CoverController
     }
 
     /* ============================================================
-       단건조회
+       ?④굔議고쉶
     ============================================================ */
     public function apiDetail()
     {
@@ -54,7 +54,7 @@ class CoverController
         $id = $_GET['id'] ?? $_POST['id'] ?? null;
 
         if (!$id) {
-            echo json_encode(['success'=>false,'message'=>'ID 누락'], JSON_UNESCAPED_UNICODE);
+            echo json_encode(['success'=>false,'message'=>'ID ?꾨씫'], JSON_UNESCAPED_UNICODE);
             return;
         }
 
@@ -64,7 +64,7 @@ class CoverController
     }
 
     /* ============================================================
-       저장
+       ???
     ============================================================ */
     public function apiSave()
     {
@@ -83,26 +83,26 @@ class CoverController
     }
 
     /* ============================================================
-       소프트 삭제
+       ?뚰봽????젣
     ============================================================ */
     public function apiDelete()
     {
         header('Content-Type: application/json; charset=utf-8');
-    
+
         $input = json_decode(file_get_contents('php://input'), true);
-    
+
         $id = $_POST['id'] ?? $input['id'] ?? null;
-    
+
         if (!$id) {
-            echo json_encode(['success'=>false,'message'=>'ID 누락'], JSON_UNESCAPED_UNICODE);
+            echo json_encode(['success'=>false,'message'=>'ID ?꾨씫'], JSON_UNESCAPED_UNICODE);
             return;
         }
-    
+
         echo json_encode($this->service->delete($id), JSON_UNESCAPED_UNICODE);
     }
 
     /* ============================================================
-       휴지통 목록
+       ?댁???紐⑸줉
     ============================================================ */
     public function apiTrashList()
     {
@@ -114,7 +114,7 @@ class CoverController
     }
 
     /* ============================================================
-       단건 복원
+       ?④굔 蹂듭썝
     ============================================================ */
     public function apiRestore()
     {
@@ -124,7 +124,7 @@ class CoverController
         $id = $_POST['id'] ?? $input['id'] ?? null;
 
         if (!$id) {
-            echo json_encode(['success'=>false,'message'=>'ID 누락'], JSON_UNESCAPED_UNICODE);
+            echo json_encode(['success'=>false,'message'=>'ID ?꾨씫'], JSON_UNESCAPED_UNICODE);
             return;
         }
 
@@ -132,21 +132,21 @@ class CoverController
     }
 
     /* ============================================================
-       선택 복원
+       ?좏깮 蹂듭썝
     ============================================================ */
     public function apiRestoreBulk()
     {
         header('Content-Type: application/json; charset=utf-8');
-    
+
         $input = json_decode(file_get_contents('php://input'), true);
-    
+
         $ids = $input['ids'] ?? $_POST['ids'] ?? [];
-    
+
         echo json_encode($this->service->restoreBulk($ids), JSON_UNESCAPED_UNICODE);
     }
 
     /* ============================================================
-       전체 복원
+       ?꾩껜 蹂듭썝
     ============================================================ */
     public function apiRestoreAll()
     {
@@ -156,7 +156,7 @@ class CoverController
     }
 
     /* ============================================================
-       영구삭제 단건
+       ?곴뎄??젣 ?④굔
     ============================================================ */
     public function apiPurge()
     {
@@ -166,7 +166,7 @@ class CoverController
         $id = $_POST['id'] ?? $input['id'] ?? null;
 
         if (!$id) {
-            echo json_encode(['success'=>false,'message'=>'ID 누락'], JSON_UNESCAPED_UNICODE);
+            echo json_encode(['success'=>false,'message'=>'ID ?꾨씫'], JSON_UNESCAPED_UNICODE);
             return;
         }
 
@@ -174,21 +174,21 @@ class CoverController
     }
 
     /* ============================================================
-       영구삭제 선택
+       ?곴뎄??젣 ?좏깮
     ============================================================ */
     public function apiPurgeBulk()
     {
         header('Content-Type: application/json; charset=utf-8');
-    
+
         $input = json_decode(file_get_contents('php://input'), true);
-    
+
         $ids = $input['ids'] ?? $_POST['ids'] ?? [];
-    
+
         echo json_encode($this->service->purgeBulk($ids), JSON_UNESCAPED_UNICODE);
     }
 
     /* ============================================================
-       영구삭제 전체
+       ?곴뎄??젣 ?꾩껜
     ============================================================ */
     public function apiPurgeAll()
     {
@@ -198,7 +198,7 @@ class CoverController
     }
 
     /* ============================================================
-       순서변경
+       ?쒖꽌蹂寃?
     ============================================================ */
     public function apiReorder()
     {
@@ -207,7 +207,7 @@ class CoverController
         $changes = json_decode(file_get_contents('php://input'), true)['changes'] ?? [];
 
         if (!$changes) {
-            echo json_encode(['success'=>false,'message'=>'변경 데이터 없음']);
+            echo json_encode(['success'=>false,'message'=>'蹂寃??곗씠???놁쓬']);
             return;
         }
 

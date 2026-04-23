@@ -51,7 +51,7 @@ class ExternalApiController
             $employees = array_map(function ($row) {
                 return [
                     'user_id'        => $row['user_id']        ?? null,
-                    'employee_code'  => $row['code']           ?? null,
+                    'employee_code'  => $row['sort_no']        ?? null,
                     'employee_name'  => $row['employee_name']  ?? null,
                     'department'     => $row['department_name']?? null,
                     'position'       => $row['position_name']  ?? null,

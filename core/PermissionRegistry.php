@@ -5,7 +5,6 @@ namespace Core;
 
 use Core\LoggerFactory;
 use Core\Helpers\UuidHelper;
-use Core\Helpers\CodeHelper;
 
 class PermissionRegistry
 {
@@ -106,23 +105,20 @@ class PermissionRegistry
             // 신규 등록
             try {
                 $uuid = UuidHelper::generate();
-                $code = CodeHelper::next('auth_permissions');
 
                 self::$logger->info("DB INSERT 시도", [
                     'uuid' => $uuid,
-                    'code' => $code,
                     'key'  => $key
                 ]);
 
                 $stmt = $pdo->prepare("
                     INSERT INTO auth_permissions
-                    (id, code, permission_key, permission_name, description, category)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    (id, permission_key, permission_name, description, category)
+                    VALUES (?, ?, ?, ?, ?)
                 ");
 
                 $stmt->execute([
                     $uuid,
-                    $code,
                     $perm['key'],
                     $perm['name'],
                     $perm['description'],
@@ -130,8 +126,7 @@ class PermissionRegistry
                 ]);
 
                 self::$logger->info("DB INSERT 성공", [
-                    'key'  => $perm['key'],
-                    'code' => $code
+                    'key'  => $perm['key']
                 ]);
 
             } catch (\Throwable $e) {

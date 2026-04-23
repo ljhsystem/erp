@@ -10,6 +10,7 @@
     const API_REMOVE = "/api/settings/organization/role-permission/remove";
 
     let selectedRoleId = null;
+    let selectedRoleKey = "";
     let permissionTable = null;
     let pendingChanges = {};
 
@@ -174,14 +175,19 @@
             $.post(API_ROLE_LIST, {}, (res) => {
                 if (!res || res.success === false) return;
 
-                const rows = Array.isArray(res.data) ? res.data : [];
+                const rows = (Array.isArray(res.data) ? res.data : []).sort((a, b) => {
+                    return Number(a.sort_no || 0) - Number(b.sort_no || 0);
+                });
                 const tbody = $("#role-list-table tbody");
                 tbody.empty();
 
                 rows.forEach((role) => {
                     tbody.append(`
-                        <tr class="rp-role-row" data-id="${role.id}" data-name="${role.role_name}">
-                            <td>${role.code ?? ""}</td>
+                        <tr class="rp-role-row"
+                            data-id="${role.id}"
+                            data-key="${role.role_key ?? ""}"
+                            data-name="${role.role_name}">
+                            <td>${role.sort_no ?? ""}</td>
                             <td>${role.role_name ?? ""}</td>
                             <td class="text-center">${buildRoleStatusBadge(role.is_active)}</td>
                         </tr>
@@ -201,6 +207,7 @@
                 $(this).addClass("table-active");
 
                 selectedRoleId = $(this).data("id");
+                selectedRoleKey = String($(this).data("key") || "").toLowerCase();
                 $("#rp-selected-role-name").text(`[${$(this).data("name")}]`);
 
                 pendingChanges = {};
@@ -238,10 +245,29 @@
 
                 if (!permissionsRes.success || !assignedPermissionsRes.success) return;
 
-                const assigned = assignedPermissionsRes.data.map((item) => String(item.permission_id));
-                const merged = permissionsRes.data.map((permission) => ({
+                const permissions = Array.isArray(permissionsRes.data) ? permissionsRes.data : [];
+                const assignedRows = Array.isArray(assignedPermissionsRes.data)
+                    ? assignedPermissionsRes.data
+                    : [];
+                const assignedIds = new Set(
+                    assignedRows
+                        .map((item) => item.permission_id ?? item.id ?? "")
+                        .filter((value) => value !== "")
+                        .map((value) => String(value))
+                );
+                const assignedKeys = new Set(
+                    assignedRows
+                        .map((item) => item.permission_key ?? "")
+                        .filter((value) => value !== "")
+                        .map((value) => String(value).toLowerCase())
+                );
+                const isSuperAdmin = selectedRoleKey === "super_admin";
+
+                const merged = permissions.map((permission) => ({
                     ...permission,
-                    assigned: assigned.includes(String(permission.id))
+                    assigned: isSuperAdmin
+                        || assignedIds.has(String(permission.id))
+                        || assignedKeys.has(String(permission.permission_key || "").toLowerCase())
                 }));
 
                 const stats = this.calculateCounts(merged);

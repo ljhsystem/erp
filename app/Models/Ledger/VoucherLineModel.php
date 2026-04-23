@@ -36,7 +36,7 @@ class VoucherLineModel
             $params[':account_code'] = $filters['account_code'];
         }
 
-        $sql .= " ORDER BY voucher_id ASC, line_no ASC, code DESC";
+        $sql .= " ORDER BY sort_no DESC, voucher_id ASC, line_no ASC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -64,7 +64,7 @@ class VoucherLineModel
             FROM {$this->table}
             WHERE voucher_id = :voucher_id
               AND deleted_at IS NULL
-            ORDER BY line_no ASC, code ASC
+            ORDER BY sort_no DESC, line_no ASC
         ");
         $stmt->execute([':voucher_id' => $voucherId]);
 
@@ -75,7 +75,7 @@ class VoucherLineModel
     {
         $allowed = [
             'id',
-            'code',
+            'sort_no',
             'voucher_id',
             'line_no',
             'account_code',
@@ -92,7 +92,7 @@ class VoucherLineModel
 
         $payload = $this->filterData($data, $allowed);
 
-        if (!isset($payload['id'], $payload['code'], $payload['voucher_id'], $payload['line_no'], $payload['account_code'])) {
+        if (!isset($payload['id'], $payload['voucher_id'], $payload['line_no'], $payload['account_code'])) {
             return false;
         }
 

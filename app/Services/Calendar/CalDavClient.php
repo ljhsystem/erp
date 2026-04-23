@@ -84,12 +84,12 @@ class CalDavClient
             ],
             $ics
         );
-    
+
         $etag = null;
         if (!empty($res['headers']['etag'][0])) {
             $etag = trim($res['headers']['etag'][0], '"');
         }
-    
+
         return [
             'success' => ($res['status'] ?? 0) < 300,
             'etag'    => $etag,
@@ -103,64 +103,64 @@ class CalDavClient
         $headers = [
             'Content-Type: text/calendar; charset=utf-8'
         ];
-    
+
         if ($etag) {
             $etag = trim($etag, '"');
             $headers[] = 'If-Match: "' . $etag . '"';
         }
-    
+
         return $this->request('PUT', $href, $headers, $ics);
     }
-     
-     
 
-     public function deleteObject(string $href, ?string $etag = null): array
-     {
-         $href = trim($href);
-         if ($href === '') {
-             throw new \RuntimeException('deleteObject: href required');
-         }
-     
-         $headers = [];
-     
-         if ($etag) {
-             // 🔥 따옴표 제거 후 다시 정확히 감싸기
-             $etag = trim($etag, '"');
-             $headers[] = 'If-Match: "' . $etag . '"';
-         }
-     
-         $this->logger->warning('[CalDAV] DELETE object', [
-             'href' => $href,
-             'etag' => $etag,
-         ]);
-     
-         $res = $this->request('DELETE', $href, $headers);
-     
-         $status = (int)($res['status'] ?? 0);
-     
-         // ✅ 성공 코드만 성공 처리
-         if ($status === 200 || $status === 204) {
-             return [
-                 'success' => true,
-                 'status'  => $status,
-             ];
-         }
-     
-         // 이미 삭제된 경우
-         if ($status === 404) {
-             return [
-                 'success' => true,
-                 'status'  => $status,
-             ];
-         }
-     
-         // ❌ 나머지는 전부 실패
-         throw new \RuntimeException(
-             'CalDAV delete failed (HTTP ' . $status . ')'
-         );
-     }
-     
-     
+
+
+    public function deleteObject(string $href, ?string $etag = null): array
+    {
+        $href = trim($href);
+        if ($href === '') {
+            throw new \RuntimeException('deleteObject: href required');
+        }
+
+        $headers = [];
+
+        if ($etag) {
+            // 🔥 따옴표 제거 후 다시 정확히 감싸기
+            $etag = trim($etag, '"');
+            $headers[] = 'If-Match: "' . $etag . '"';
+        }
+
+        $this->logger->warning('[CalDAV] DELETE object', [
+            'href' => $href,
+            'etag' => $etag,
+        ]);
+
+        $res = $this->request('DELETE', $href, $headers);
+
+        $status = (int)($res['status'] ?? 0);
+
+        // ✅ 성공 코드만 성공 처리
+        if ($status === 200 || $status === 204) {
+            return [
+                'success' => true,
+                'status'  => $status,
+            ];
+        }
+
+        // 이미 삭제된 경우
+        if ($status === 404) {
+            return [
+                'success' => true,
+                'status'  => $status,
+            ];
+        }
+
+        // ❌ 나머지는 전부 실패
+        throw new \RuntimeException(
+            'CalDAV delete failed (HTTP ' . $status . ')'
+        );
+    }
+
+
 
 
     /* =========================================================
@@ -392,10 +392,10 @@ XML;
     {
         $dt = trim($dt);
         if ($dt === '') return '';
-    
+
         // CalendarTime은 "서울시간 DateTimeImmutable"로 파싱
         $local = Time::parseLocal($dt);
-    
+
         // CalDAV query용 UTC(Z) 문자열로 변환
         return $local
             ->setTimezone(new \DateTimeZone('UTC'))
@@ -408,12 +408,12 @@ XML;
         $res = $this->request('GET', $href);
         return $res['body'] ?? null;
     }
-    
+
 
     public function propfind(string $href, int $depth = 1): array
     {
         $href = rtrim($href, '/') . '/';
-    
+
         $xml = <<<XML
     <?xml version="1.0" encoding="UTF-8"?>
     <d:propfind xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
@@ -423,7 +423,7 @@ XML;
       </d:prop>
     </d:propfind>
     XML;
-    
+
         // ✅ requestRaw ❌ → request ✅
         $res = $this->request(
             'PROPFIND',
@@ -434,55 +434,55 @@ XML;
             ],
             $xml
         );
-    
+
         if (($res['status'] ?? 0) >= 300 || empty($res['body'])) {
             return ['success' => false];
         }
-    
+
         return [
             'success' => true,
             'data'    => $this->parsePropfindResponse($res['body']),
         ];
     }
-    
-    
+
+
 
     private function parsePropfindResponse(string $xml): array
     {
         $out = [];
-    
+
         $dom = new \DOMDocument();
         @$dom->loadXML($xml);
-    
+
         $xp = new \DOMXPath($dom);
         $xp->registerNamespace('d', 'DAV:');
-    
+
         foreach ($xp->query('//d:response') as $r) {
             $href = urldecode($xp->evaluate('string(d:href)', $r));
-    
+
             $types = [];
             foreach ($xp->query('.//d:resourcetype/*', $r) as $t) {
                 $types[] = $t->localName;
             }
-    
+
             $out[] = [
                 'href' => $href,
                 'resourcetype' => $types,
             ];
         }
-    
+
         return $out;
     }
-    
 
-/**
- * 🔥 /home/ (calendar-home-set) → 실제 calendar collection href 찾기
- */
-public function resolvePersonalCalendarCollection(string $homeHref): ?string
-{
-    $homeHref = rtrim($homeHref, '/') . '/';
 
-    $xml = <<<XML
+    /**
+     * 🔥 /home/ (calendar-home-set) → 실제 calendar collection href 찾기
+     */
+    public function resolvePersonalCalendarCollection(string $homeHref): ?string
+    {
+        $homeHref = rtrim($homeHref, '/') . '/';
+
+        $xml = <<<XML
 <?xml version="1.0" encoding="UTF-8"?>
 <d:propfind xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
   <d:prop>
@@ -492,82 +492,77 @@ public function resolvePersonalCalendarCollection(string $homeHref): ?string
 </d:propfind>
 XML;
 
-    $res = $this->request(
-        'PROPFIND',
-        $homeHref,
-        ['Depth: 1', 'Content-Type: application/xml; charset=utf-8'],
-        $xml
-    );
+        $res = $this->request(
+            'PROPFIND',
+            $homeHref,
+            ['Depth: 1', 'Content-Type: application/xml; charset=utf-8'],
+            $xml
+        );
 
-    if (empty($res['body'])) {
-        return null;
-    }
-
-    $dom = new \DOMDocument();
-    @$dom->loadXML($res['body']);
-
-    $xp = new \DOMXPath($dom);
-    $xp->registerNamespace('d', 'DAV:');
-
-    foreach ($xp->query('//d:response') as $r) {
-        $href = urldecode($xp->evaluate('string(d:href)', $r));
-        $href = rtrim($href, '/') . '/';
-
-        // 자기 자신(home) 스킵
-        if ($href === $homeHref) continue;
-
-        // resourcetype 안에 <calendar/>
-        if ($xp->query('.//d:resourcetype/*[local-name()="calendar"]', $r)->length > 0) {
-            return $href; // 🎯 이게 진짜 개인 캘린더
+        if (empty($res['body'])) {
+            return null;
         }
-    }
 
-    return null;
-}
+        $dom = new \DOMDocument();
+        @$dom->loadXML($res['body']);
 
-/* =========================================================
- * 🔍 UID 기반 단건 조회 (EVENT)
- * ========================================================= */
-public function getEventByUid(string $uid): ?array
-{
-    $home = $this->getCalendarHomeSetFromRoot();
-    if (!$home) return null;
+        $xp = new \DOMXPath($dom);
+        $xp->registerNamespace('d', 'DAV:');
 
-    $calendars = $this->collections->listCalendars($home);
+        foreach ($xp->query('//d:response') as $r) {
+            $href = urldecode($xp->evaluate('string(d:href)', $r));
+            $href = rtrim($href, '/') . '/';
 
-    foreach ($calendars as $cal) {
-        if (($cal['type'] ?? '') !== 'calendar') continue;
+            // 자기 자신(home) 스킵
+            if ($href === $homeHref) continue;
 
-        $href = rtrim($cal['href'], '/') . '/';
-        $events = $this->objects->getEvents($href, null, null);
-
-        foreach ($events as $ev) {
-            if (($ev['uid'] ?? null) === $uid) {
-                return $ev;
+            // resourcetype 안에 <calendar/>
+            if ($xp->query('.//d:resourcetype/*[local-name()="calendar"]', $r)->length > 0) {
+                return $href; // 🎯 이게 진짜 개인 캘린더
             }
         }
-    }
 
-    return null;
-}
-
-
-/* =========================================================
- * 🔍 UID 기반 단건 조회 (TASK)
- * ========================================================= */
-public function getTaskByHref(string $href): ?array
-{
-    $res = $this->request('GET', $href);
-
-    if (($res['status'] ?? 0) === 404) {
         return null;
     }
 
-    return $this->parser->parseSingleVtodo($res['body']);
-}
+    /* =========================================================
+ * 🔍 id 기반 단건 조회 (EVENT)
+ * ========================================================= */
+    public function getEventByUid(string $id): ?array
+    {
+        $home = $this->getCalendarHomeSetFromRoot();
+        if (!$home) return null;
+
+        $calendars = $this->collections->listCalendars($home);
+
+        foreach ($calendars as $cal) {
+            if (($cal['type'] ?? '') !== 'calendar') continue;
+
+            $href = rtrim($cal['href'], '/') . '/';
+            $events = $this->objects->getEvents($href, null, null);
+
+            foreach ($events as $ev) {
+                if (($ev['id'] ?? null) === $id) {
+                    return $ev;
+                }
+            }
+        }
+
+        return null;
+    }
 
 
+    /* =========================================================
+ * 🔍 id 기반 단건 조회 (TASK)
+ * ========================================================= */
+    public function getTaskByHref(string $href): ?array
+    {
+        $res = $this->request('GET', $href);
 
+        if (($res['status'] ?? 0) === 404) {
+            return null;
+        }
 
-
+        return $this->parser->parseSingleVtodo($res['body']);
+    }
 }

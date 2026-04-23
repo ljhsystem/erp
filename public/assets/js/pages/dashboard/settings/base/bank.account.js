@@ -1,4 +1,4 @@
-﻿// 경로: PROJECT_ROOT . '/assets/js/pages/dashboard/settings/base/bank.account.js'
+// 경로: PROJECT_ROOT . '/assets/js/pages/dashboard/settings/base/bank.account.js'
 
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import { createDataTable, updateTableHeight, forceTableHeightSync, bindTableHighlight } from '/public/assets/js/components/data-table.js';
@@ -46,23 +46,23 @@ window.AdminPicker = AdminPicker;
        계좌 컬럼 한글 매핑
     ========================= */
     const ACCOUNT_COLUMN_MAP = {
-        code             : { label: "코드",     visible: true  },
-    
+        sort_no             : { label: "순번",     visible: true  },
+
         account_name     : { label: "계좌명",   visible: true  },
         bank_name        : { label: "은행명",   visible: true  },
         account_number   : { label: "계좌번호", visible: true  },
         account_holder   : { label: "예금주",   visible: true  },
-    
+
         account_type     : { label: "계좌구분", visible: true  },
         currency         : { label: "통화",     visible: false },
-    
+
         bank_file        : { label: "통장사본", visible: false },
-    
+
         note             : { label: "비고",     visible: true  },
         memo             : { label: "메모",     visible: false },
-    
-        is_active        : { label: "사용여부", visible: false },
-    
+
+        is_active        : { label: "상태",     visible: true  },
+
         created_at       : { label: "생성일시", visible: false },
         created_by_name  : { label: "생성자",   visible: false },
         updated_at       : { label: "수정일시", visible: false },
@@ -153,21 +153,21 @@ window.AdminPicker = AdminPicker;
             const idEl = getIdEl();
             if (idEl) idEl.value = '';
 
-            const codeEl = document.getElementById('modal_code');
+            const codeEl = document.getElementById('modal_sort_no');
             if (codeEl) codeEl.value = '';
 
             const deleteBtn = document.getElementById('btnDeleteAccount');
             if (deleteBtn) deleteBtn.style.display = 'none';
-            
+
             // 🔥 추가
             window.isNewAccount = false;
-            
+
             const titleEl = document.querySelector('#accountModal .modal-title');
             if (titleEl) {
                 titleEl.textContent = '계좌 정보';
             }
             // 🔥 끝
-            
+
             resetBankBookUI();
         });
 
@@ -294,12 +294,12 @@ window.AdminPicker = AdminPicker;
     function onGlobalInput(e) {
         const type = e.target.dataset.format;
         if (!type) return;
-    
+
         if (type === 'currency') {
             e.target.value = String(e.target.value || '').toUpperCase().slice(0, 10);
             return;
         }
-    
+
         if (type === 'account_number') {
             const form = e.target.closest('form');
             const bankName = form?.querySelector('[name="bank_name"]')?.value || '';
@@ -347,7 +347,7 @@ window.AdminPicker = AdminPicker;
 
         window.TrashColumns.account = function(row) {
             return `
-                <td>${row.code ?? ''}</td>
+                <td>${row.sort_no ?? ''}</td>
                 <td>${row.account_name ?? ''}</td>
                 <td>${row.bank_name ?? ''}</td>
                 <td>${row.account_number ?? ''}</td>
@@ -511,7 +511,7 @@ window.AdminPicker = AdminPicker;
                         }
 
                         const idEl = getIdEl();
-                        const codeEl = document.getElementById('modal_code');
+                        const codeEl = document.getElementById('modal_sort_no');
 
                         if (idEl) idEl.value = '';
                         if (codeEl) codeEl.value = '';
@@ -577,8 +577,8 @@ window.AdminPicker = AdminPicker;
     ============================================================ */
     function bindTableEvents($) {
 
-        $(document).on('focus', '#modal_code', function() {
-            AppCore?.notify?.('info', '코드를 입력하지 않아도 저장 시 자동 생성됩니다.');
+        $(document).on('focus', '#modal_sort_no', function() {
+            AppCore?.notify?.('info', '순번은 저장 시 자동 생성됩니다.');
         });
 
         $('#account-table tbody').on('dblclick', 'tr', async function () {
@@ -599,13 +599,13 @@ window.AdminPicker = AdminPicker;
 
                 // 🔥 추가
                 window.isNewAccount = false;
-                
+
                 const titleEl = document.querySelector('#accountModal .modal-title');
                 if (titleEl) {
                     titleEl.textContent = '계좌 정보 수정';
                 }
                 // 🔥 끝
-                
+
                 const deleteBtn = document.getElementById('btnDeleteAccount');
                 if (deleteBtn) deleteBtn.style.display = '';
 
@@ -742,33 +742,33 @@ window.AdminPicker = AdminPicker;
     function fillModal(data) {
 
         Object.keys(data).forEach(key => {
-    
+
             if (key === 'id') return;
             if (key === 'bank_file') return; // 🔥 파일 경로는 file input에 넣지 않음
-    
+
             const byId =
                 document.getElementById('account_' + key) ||
                 document.getElementById('modal_' + key);
-    
+
             const byName = document.querySelector(`#accountForm [name="${key}"]`);
-    
+
             const el = byId || byName;
             if (!el) return;
-    
+
             // 🔥 file input은 절대 value 세팅 금지
             if (el.type === 'file') {
                 el.value = '';
                 return;
             }
-    
+
             if (key === 'account_number') {
                 el.value = formatAccountNumber(data[key] ?? '', data.bank_name ?? '');
                 return;
             }
-    
+
             el.value = data[key] ?? '';
         });
-    
+
         renderBankBook(data);
     }
 
@@ -799,9 +799,9 @@ window.AdminPicker = AdminPicker;
 
                     if (field === 'bank_file') {
                         if (!data) return '';
-                    
+
                         const path = encodeURIComponent(data);
-                    
+
                         return `
                             <a href="/api/file/preview?path=${path}" target="_blank">
                                 📄 보기
@@ -904,22 +904,22 @@ window.AdminPicker = AdminPicker;
         const list = getBankBookListEl();
         const text = getBankBookTextEl();
         const drop = getBankBookDropEl();
-    
+
         if (!text) return;
-    
+
         const filePath = data.bank_file || '';
-    
+
         // 거래처와 동일하게 list는 쓰지 않음
         if (list) list.innerHTML = '';
-    
+
         if (filePath) {
-    
+
             const path = encodeURIComponent(data.bank_file);
-    
+
             if (drop) {
                 drop.dataset.original = "1";
             }
-    
+
             // 🔥 거래처 통장사본과 동일한 문구/구조
             text.innerHTML = `
                 <div class="file-status">
@@ -946,36 +946,36 @@ window.AdminPicker = AdminPicker;
                     </div>
                 </div>
             `;
-    
+
             const btnOpen = document.getElementById('btnOpenBankCopy');
             const btnDelete = document.getElementById('btnDeleteBankBookInline');
-    
+
             if (btnOpen) {
                 btnOpen.classList.remove('disabled');
                 btnOpen.href = "/api/file/preview?path=" + path;
                 btnOpen.target = "_blank";
-    
+
                 btnOpen.addEventListener('click', function (e) {
                     e.stopPropagation();
                 });
             }
-    
+
             if (btnDelete) {
                 btnDelete.classList.remove('disabled');
-    
+
                 btnDelete.onclick = function (e) {
 
                     e.stopPropagation();
-                
+
                     if (!confirm('통장사본을 삭제하시겠습니까?')) return;
-                
+
                     const input = getBankBookInputEl();
                     const del = getDeleteBankBookEl();
-                
+
                     if (input) input.value = '';
                     if (del) del.value = '1';
                     if (drop) drop.dataset.original = "0";
-                
+
                     // 🔥 핵심
                     text.innerHTML = `
                         <div class="upload-guide">
@@ -989,13 +989,13 @@ window.AdminPicker = AdminPicker;
                     `;
                 };
             }
-    
+
         } else {
-    
+
             if (drop) {
                 drop.dataset.original = "0";
             }
-    
+
             text.innerHTML = `
                 여기로 파일을 끌어다 놓거나 클릭하여 업로드
                 <br>

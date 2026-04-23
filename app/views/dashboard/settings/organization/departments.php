@@ -22,7 +22,7 @@
     $searchFieldOptions = '
       <option value="">선택</option>
       <option value="dept_name">부서명</option>
-      <option value="code">코드</option>
+      <option value="sort_no">순번</option>
       <option value="manager_name">부서장</option>
       <option value="description">설명</option>
       <option value="is_active">상태</option>

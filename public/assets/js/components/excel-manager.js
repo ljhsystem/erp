@@ -1,103 +1,82 @@
-// 경로: /assets/js/components/excel-manager.js
+// 공통 엑셀 관리 모달 이벤트
 (() => {
-
     "use strict";
 
-    console.log("[excel-manager] loaded");
-
     document.addEventListener("click", async (e) => {
-
         const btn = e.target.closest("button");
         if (!btn) return;
-    
+
         const modal = btn.closest(".modal");
         if (!modal) return;
-    
+
         const form = modal.querySelector("form");
         if (!form) return;
-    
+
         const fileInput = modal.querySelector("input[type='file']");
         const spinnerWrap = modal.querySelector(".excel-spinner");
-    
-        /* 양식 다운로드 */
+
         if (btn.classList.contains("btn-template-download")) {
-            window.location.href = form.dataset.templateUrl;
+            if (form.dataset.templateUrl) {
+                window.location.href = form.dataset.templateUrl;
+            }
             return;
         }
-    
-        /* 전체 다운로드 */
+
         if (btn.classList.contains("btn-download-all")) {
-            window.location.href = form.dataset.downloadUrl;
+            if (form.dataset.downloadUrl) {
+                window.location.href = form.dataset.downloadUrl;
+            }
             return;
         }
-    
-        /* 업로드 */
-        if (btn.classList.contains("btn-upload-excel")) {
-    
-            if (!fileInput.files.length) {
-                alert("파일 선택하세요");
+
+        if (!btn.classList.contains("btn-upload-excel")) {
+            return;
+        }
+
+        if (!fileInput || !fileInput.files.length) {
+            AppCore?.notify?.("warning", "업로드할 엑셀 파일을 선택하세요.");
+            return;
+        }
+
+        const formData = new FormData(form);
+        if (spinnerWrap) spinnerWrap.style.display = "block";
+
+        try {
+            const res = await fetch(form.dataset.uploadUrl, {
+                method: "POST",
+                body: formData,
+            });
+
+            const json = await res.json();
+
+            if (json.success) {
+                AppCore?.notify?.("success", "엑셀 업로드가 완료되었습니다.");
+
+                const instance = bootstrap.Modal.getInstance(modal)
+                    || new bootstrap.Modal(modal);
+
+                instance.hide();
+                document.dispatchEvent(new Event("excel:uploaded"));
                 return;
             }
-    
-            const formData = new FormData(form);
-    
-            spinnerWrap.style.display = "block";
-    
-            try {
-    
-                const res = await fetch(form.dataset.uploadUrl, {
-                    method: "POST",
-                    body: formData
-                });
-    
-                const json = await res.json();
-    
-                if (json.success) {
-    
-                    AppCore.notify("success", "업로드 완료");
-    
-                    const instance = bootstrap.Modal.getInstance(modal) 
-                    || new bootstrap.Modal(modal);
-      
-                    instance.hide();
-    
-                    document.dispatchEvent(new Event("excel:uploaded"));
-    
-                } else {
-    
-                    AppCore.notify("error", json.message);
-    
-                }
-    
-            } catch (err) {
-    
-                console.error(err);
-                alert("업로드 오류");
-    
-            } finally {
-    
-                spinnerWrap.style.display = "none";
-    
-            }
-    
-        }
-    
-    });
-    document.addEventListener("shown.bs.modal", (e) => {
 
+            AppCore?.notify?.("error", json.message || "엑셀 업로드에 실패했습니다.");
+        } catch (err) {
+            console.error(err);
+            AppCore?.notify?.("error", "엑셀 업로드 중 오류가 발생했습니다.");
+        } finally {
+            if (spinnerWrap) spinnerWrap.style.display = "none";
+        }
+    });
+
+    document.addEventListener("shown.bs.modal", (e) => {
         const modal = e.target;
         if (!modal.classList.contains("modal")) return;
-    
+
         const fileInput = modal.querySelector("input[type='file']");
         const spinner = modal.querySelector(".excel-spinner");
-    
+
         if (fileInput) fileInput.value = "";
-    
         if (spinner) spinner.style.display = "none";
-    
     });
-
-
-
-
 })();

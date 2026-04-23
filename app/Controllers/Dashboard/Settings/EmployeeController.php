@@ -1,5 +1,5 @@
 <?php
-// 寃쎈줈: PROJECT_ROOT . '/app/Controllers/Dashboard/Settings/EmployeeController.php'
+// 경로: PROJECT_ROOT . '/app/Controllers/Dashboard/Settings/EmployeeController.php'
 namespace App\Controllers\Dashboard\Settings;
 
 use Core\DbPdo;
@@ -20,7 +20,7 @@ class EmployeeController
 
 
     // ============================================================
-    // API: 吏곸썝 紐⑸줉 議고쉶
+    // API: 직원 목록 조회
     // URL: GET /api/settings/employee/list
     // permission: settings.employee.list
     // controller: EmployeeController@apiList
@@ -41,7 +41,7 @@ class EmployeeController
                 }
             }
     
-            // ?뵦 Service?먯꽌 紐⑤뱺 泥섎━ (蹂듯샇???ы븿)
+            // Service에서 목록 조회를 처리합니다.
             $rows = $this->service->getList($filters);
     
             echo json_encode([
@@ -53,7 +53,7 @@ class EmployeeController
     
             echo json_encode([
                 'success' => false,
-                'message' => '吏곸썝 紐⑸줉 議고쉶 ?ㅽ뙣',
+                'message' => '직원 목록 조회 실패',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -62,7 +62,7 @@ class EmployeeController
     }
 
     // ============================================================
-    // API: 吏곸썝 ?곸꽭 議고쉶
+    // API: 직원 상세 조회
     // URL: GET /api/settings/employee/detail
     // ============================================================
     public function apiDetail(): void
@@ -74,20 +74,20 @@ class EmployeeController
         if (!$id) {
             echo json_encode([
                 'success' => false,
-                'message' => '吏곸썝 ?꾩씠???꾨씫'
+                'message' => '직원 ID 누락'
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
     
         try {
     
-            // ?뵦 Service?먯꽌 紐⑤뱺 泥섎━ (蹂듯샇???ы븿)
+            // Service에서 상세 조회를 처리합니다.
             $row = $this->service->getById($id);
     
             if (!$row) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '吏곸썝 ?놁쓬'
+                    'message' => '직원 없음'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -101,7 +101,7 @@ class EmployeeController
     
             echo json_encode([
                 'success' => false,
-                'message' => '吏곸썝 議고쉶 ?ㅽ뙣',
+                'message' => '직원 조회 실패',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -112,8 +112,8 @@ class EmployeeController
 
 
     // =====// ============================================================
-    // API: 吏곸썝 寃??(Select2??
-    // URL: GET /api/settings/employee/search?q=?띻만??
+    // API: 직원 검색(Select2)
+    // URL: GET /api/settings/employee/search?q=검색어
     // controller: EmployeeController@apiSearchPicker
     // ============================================================
     
@@ -133,7 +133,7 @@ class EmployeeController
             echo json_encode([
                 'success' => false,
                 'data'    => [],
-                'message' => '寃???ㅽ뙣',
+                'message' => '검색 실패',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -143,7 +143,7 @@ class EmployeeController
 
 
     // ============================================================
-    // API: 吏곸썝 ???(?좉퇋 + ?섏젙)
+    // API: 직원 저장(신규 + 수정)
     // URL: POST /api/settings/employee/save
     // ============================================================
     public function apiSave(): void
@@ -153,20 +153,20 @@ class EmployeeController
         try {
 
             /* =========================================================
-            ?뵦 payload ?앹꽦 (理쒖쥌 ?듯빀蹂?
+            payload 생성
             ========================================================= */
 
             $payload = [
 
                 // =========================
-                // 湲곗?
+                // 기본
                 // =========================
                 'id'       => $_POST['id'] ?? null,
-                'code'     => $_POST['code'] ?? null,
+                'sort_no'     => $_POST['sort_no'] ?? null,
                 'user_id'  => $_POST['user_id'] ?? null,
 
                 // =========================
-                // 湲곕낯 ?뺣낫
+                // 기본 정보
                 // =========================
                 'employee_name' => trim($_POST['employee_name'] ?? ''),
 
@@ -180,7 +180,7 @@ class EmployeeController
                 'position_id'   => $_POST['position_id'] ?? null,
 
                 // =========================
-                // ?좎쭨
+                // 날짜
                 // =========================
                 'doc_hire_date'  => $_POST['doc_hire_date'] ?? null,
                 'real_hire_date' => $_POST['real_hire_date'] ?? null,
@@ -189,7 +189,7 @@ class EmployeeController
                 'real_retire_date' => $_POST['real_retire_date'] ?? null,
 
                 // =========================
-                // 二쇰?踰덊샇
+                // 주민등록번호
                 // =========================
                 'rrn' => (
                     isset($_POST['rrn']) &&
@@ -197,25 +197,25 @@ class EmployeeController
                 ) ? trim($_POST['rrn']) : null,
 
                 // =========================
-                // 怨꾩쥖
+                // 계좌
                 // =========================
                 'bank_name'      => $_POST['bank_name'] ?? null,
                 'account_number' => $_POST['account_number'] ?? null,
                 'account_holder' => $_POST['account_holder'] ?? null,
 
                 // =========================
-                // ?먭꺽利?
+                // 자격증
                 // =========================
                 'certificate_name' => $_POST['certificate_name'] ?? null,
 
                 // =========================
-                // 湲고?
+                // 기타
                 // =========================
                 'note' => $_POST['note'] ?? null,
                 'memo' => $_POST['memo'] ?? null,
 
                 // =========================
-                // ?뵦 ?뚯씪 ??젣 ?뚮옒洹?(?듭떖)
+                // 파일 삭제 플래그
                 // =========================
                 'profile_image_delete'    => $_POST['profile_image_delete'] ?? '0',
                 'rrn_image_delete'        => $_POST['rrn_image_delete'] ?? '0',
@@ -223,7 +223,7 @@ class EmployeeController
                 'bank_file_delete'        => $_POST['bank_file_delete'] ?? '0',
 
                 // =========================
-                // ?뵦 怨꾩젙 (auth_users)
+                // 계정(auth_users)
                 // =========================
                 'username' => trim($_POST['username'] ?? ''),
                 'email'    => trim($_POST['email'] ?? ''),
@@ -236,14 +236,14 @@ class EmployeeController
             ];
 
             /* =========================================================
-            ?꾩닔媛?泥댄겕
+            필수값 체크
             ========================================================= */
 
             if ($payload['employee_name'] === '') {
 
                 echo json_encode([
                     'success' => false,
-                    'message' => '吏곸썝紐낆? ?꾩닔?낅땲??'
+                    'message' => '직원명은 필수입니다.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -331,7 +331,7 @@ class EmployeeController
             }
 
             /* =========================================================
-            ???(Service ?꾩엫)
+            저장(Service 책임)
             ========================================================= */
 
             $result = $this->service->save(
@@ -341,34 +341,34 @@ class EmployeeController
             );
 
             /* =========================================================
-            ?ㅽ뙣 泥섎━
+            실패 처리
             ========================================================= */
 
             if (!$result['success']) {
 
                 echo json_encode([
                     'success' => false,
-                    'message' => $result['message'] ?? '吏곸썝 ????ㅽ뙣'
+                    'message' => $result['message'] ?? '직원 저장 실패'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
 
             /* =========================================================
-            ?깃났
+            성공
             ========================================================= */
 
             echo json_encode([
                 'success' => true,
                 'id'      => $result['id'] ?? null,
-                'code'    => $result['code'] ?? null,
-                'message' => '????꾨즺'
+                'sort_no'    => $result['sort_no'] ?? null,
+                'message' => '저장 완료'
             ], JSON_UNESCAPED_UNICODE);
 
         } catch (\Throwable $e) {
 
             echo json_encode([
                 'success' => false,
-                'message' => '吏곸썝 ???以??ㅻ쪟 諛쒖깮',
+                'message' => '직원 저장 중 오류 발생',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -378,7 +378,7 @@ class EmployeeController
 
 
     // ============================================================
-    // API: 吏곸썝 ?곹깭 蹂寃?(?쒖꽦/鍮꾪솢??
+    // API: 직원 상태 변경(활성/비활성)
     // URL: POST /api/settings/employee/update-status
     // ============================================================
     public function apiUpdateStatus(): void
@@ -391,14 +391,14 @@ class EmployeeController
         if (!$id) {
             echo json_encode([
                 'success' => false,
-                'message' => '吏곸썝 ?꾩씠???꾨씫'
+                'message' => '직원 ID 누락'
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
 
         try {
 
-            // ?뵦 employee_id 湲곗??쇰줈 ?꾨떖
+            // employee_id 기준으로 전달
             $result = $this->service->updateStatus($id, $isActive);
 
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
@@ -407,7 +407,7 @@ class EmployeeController
 
             echo json_encode([
                 'success' => false,
-                'message' => '?곹깭 蹂寃??ㅽ뙣',
+                'message' => '상태 변경 실패',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -417,7 +417,7 @@ class EmployeeController
 
 
     // ============================================================
-    // API: 吏곸썝 ?곴뎄??젣
+    // API: 직원 영구 삭제
     // URL: POST /api/settings/employee/purge
     // ============================================================
     public function apiPurge(): void
@@ -430,7 +430,7 @@ class EmployeeController
 
             echo json_encode([
                 'success' => false,
-                'message' => '吏곸썝 ?꾩씠???꾨씫'
+                'message' => '직원 ID 누락'
             ], JSON_UNESCAPED_UNICODE);
 
             exit;
@@ -438,7 +438,7 @@ class EmployeeController
 
         try {
 
-            // ?뵦 諛섎뱶??user_employees.id 湲곗?
+            // user_employees.id 기준
             $result = $this->service->purge($id, 'USER');
 
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
@@ -447,7 +447,7 @@ class EmployeeController
 
             echo json_encode([
                 'success' => false,
-                'message' => '吏곸썝 ?꾩쟾??젣 ?ㅽ뙣',
+                'message' => '직원 영구 삭제 실패',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -461,7 +461,7 @@ class EmployeeController
 
 
     // ============================================================
-    // API: 吏곸썝 ?쒖꽌 蹂寃?
+    // API: 직원 순서 변경
     // URL: POST /api/settings/employee/reorder
     // ============================================================
     public function apiReorder()
@@ -471,7 +471,7 @@ class EmployeeController
         $changes = json_decode(file_get_contents('php://input'), true)['changes'] ?? [];
 
         if (!$changes) {
-            echo json_encode(['success'=>false,'message'=>'蹂寃??곗씠???놁쓬']);
+            echo json_encode(['success'=>false,'message'=>'변경 데이터 없음']);
             return;
         }
 

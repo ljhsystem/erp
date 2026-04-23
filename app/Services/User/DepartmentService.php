@@ -6,7 +6,7 @@ use PDO;
 use App\Models\User\DepartmentModel;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
-use Core\Helpers\CodeHelper;
+use Core\Helpers\SequenceHelper;
 use Core\LoggerFactory;
 
 class DepartmentService
@@ -44,7 +44,7 @@ class DepartmentService
     }
 
     /* ============================================================
-     * 3) 생성 (UUID + CODE + 중복검사)
+     * 3) 생성 (UUID + sort_no + 중복검사)
      * ============================================================ */
     public function create(array $data)
     {
@@ -60,7 +60,7 @@ class DepartmentService
         $data['id'] = UuidHelper::generate();
 
         // 코드 생성
-        $data['code'] = CodeHelper::next('user_departments');
+        $data['sort_no'] = null;
 
         // created_by 설정
         $data['created_by'] = ActorHelper::user();
@@ -119,18 +119,23 @@ class DepartmentService
                 $this->pdo->beginTransaction();
             }
 
-            foreach ($changes as $row) {
-                if (empty($row['id']) || !isset($row['newCode'])) {
+            foreach ($changes as &$row) {
+                $sortNo = $row['newSortNo'] ?? $row['sort_no'] ?? null;
+
+                if (empty($row['id']) || $sortNo === null) {
                     throw new \Exception('reorder 데이터 오류');
                 }
+
+                $row['_sort_no'] = (int) $sortNo;
+            }
+            unset($row);
+
+            foreach ($changes as $row) {
+                $this->model->updateSortNo($row['id'], $row['_sort_no'] + 1000000);
             }
 
             foreach ($changes as $row) {
-                $this->model->updateCode($row['id'], (int)$row['newCode'] + 1000000);
-            }
-
-            foreach ($changes as $row) {
-                $this->model->updateCode($row['id'], (int)$row['newCode']);
+                $this->model->updateSortNo($row['id'], $row['_sort_no']);
             }
 
             if ($this->pdo->inTransaction()) {

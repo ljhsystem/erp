@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // 경로: PROJECT_ROOT . '/app/views/auth/two_factor.php';
 use Core\Helpers\AssetHelper;
 $message = $message ?? '';

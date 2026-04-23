@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // 경로: PROJECT_ROOT . '/app/views/auth/password_change.php'
 use Core\Helpers\AssetHelper;
 header('Content-Type: text/html; charset=UTF-8');

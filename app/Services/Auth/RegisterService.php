@@ -10,7 +10,7 @@ use App\Services\File\FileService;
 use App\Services\Mail\MailService;
 use App\Services\System\SettingService;
 use Core\Helpers\UuidHelper;
-use Core\Helpers\CodeHelper;
+use Core\Helpers\SequenceHelper;
 use Core\LoggerFactory;
 
 class RegisterService
@@ -45,15 +45,15 @@ class RegisterService
         $name = trim((string)($data['employee_name'] ?? ''));
 
         if ($username === '' || $password === '' || $confirm === '' || $email === '' || $name === '') {
-            return ['success' => false, 'message' => '모든 필드를 입력해 주세요.'];
+            return ['success' => false, 'message' => '筌뤴뫀諭??袁⑤굡????낆젾??雅뚯눘苑??'];
         }
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return ['success' => false, 'message' => '이메일 형식이 올바르지 않습니다.'];
+            return ['success' => false, 'message' => '??李???類ㅻ뻼????而?몴?? ??녿뮸??덈뼄.'];
         }
 
         if ($password !== $confirm) {
-            return ['success' => false, 'message' => '비밀번호가 일치하지 않습니다.'];
+            return ['success' => false, 'message' => '??쑬?甕곕뜇?뉐첎? ??깊뒄??? ??녿뮸??덈뼄.'];
         }
 
         $policyCheck = $this->validatePasswordPolicy($password);
@@ -63,13 +63,13 @@ class RegisterService
 
         $user = $this->employeeModel->getByUsername($username);
         if ($user !== null) {
-            $this->writeLog('회원가입실패:아이디중복', $username, 0);
+            $this->writeLog('REGISTER_DUPLICATE_USERNAME', $username, 0);
             return ['success' => false, 'message' => '이미 사용 중인 아이디입니다.'];
         }
 
         $emailUser = $this->employeeModel->getByEmail($email);
         if ($emailUser !== null) {
-            $this->writeLog('회원가입실패:이메일중복', $username, 0);
+            $this->writeLog('REGISTER_DUPLICATE_EMAIL', $username, 0);
             return ['success' => false, 'message' => '이미 사용 중인 이메일입니다.'];
         }
 
@@ -79,8 +79,7 @@ class RegisterService
         }
 
         $userId = UuidHelper::generate();
-        $userCode = CodeHelper::next('auth_users');
-        $employeeCode = CodeHelper::next('user_employees');
+        $userCode = SequenceHelper::next('auth_users');
         $passwordHash = password_hash($password, PASSWORD_BCRYPT);
 
         try {
@@ -106,7 +105,7 @@ class RegisterService
 
             $okProfile = $this->employeeModel->create([
                 'id'               => UuidHelper::generate(),
-                'code'             => $employeeCode,
+                'sort_no'          => null,
                 'user_id'          => $userId,
                 'employee_name'    => $name,
                 'phone'            => null,
@@ -144,16 +143,16 @@ class RegisterService
                 'username' => $username,
                 'error'    => $e->getMessage(),
             ]);
-            $this->writeLog('회원가입실패:예외', $username, 0);
+            $this->writeLog('???뜚揶쎛??녿뼄????됱뇚', $username, 0);
 
-            return ['success' => false, 'message' => '회원가입 처리 중 오류가 발생했습니다.'];
+            return ['success' => false, 'message' => '???뜚揶쎛??筌ｌ꼶??餓???살첒揶쎛 獄쏆뮇源??됰뮸??덈뼄.'];
         }
 
         $this->authLogs->write([
             'id'            => UuidHelper::generate(),
             'log_type'      => 'auth',
             'action_type'   => 'register',
-            'action_detail' => '회원가입요청',
+            'action_detail' => '회원가입 신청',
             'user_id'       => $userId,
             'username'      => $username,
             'success'       => 1,
@@ -166,7 +165,7 @@ class RegisterService
 
         return [
             'success'   => true,
-            'message'   => '회원가입이 완료되었습니다. 관리자 승인 후 로그인 가능합니다.',
+            'message'   => '???뜚揶쎛??놁뵠 ?袁⑥┷??뤿???щ빍?? ?온?귐딆쁽 ?諭????嚥≪뮄???揶쎛?館鍮??덈뼄.',
             'user_code' => $userCode,
         ];
     }
@@ -176,7 +175,7 @@ class RegisterService
         try {
             $rows = $this->settingService->getByCategory('SECURITY');
         } catch (\Throwable $e) {
-            return ['success' => false, 'message' => '비밀번호 정책 확인 중 오류가 발생했습니다.'];
+            return ['success' => false, 'message' => '??쑬?甕곕뜇???類ㅼ퐠 ?類ㅼ뵥 餓???살첒揶쎛 獄쏆뮇源??됰뮸??덈뼄.'];
         }
 
         $policy = [];
@@ -190,19 +189,19 @@ class RegisterService
 
         $min = (int)($policy['security_password_min'] ?? 0);
         if ($min > 0 && mb_strlen($password) < $min) {
-            return ['success' => false, 'message' => "비밀번호는 최소 {$min}자 이상이어야 합니다."];
+            return ['success' => false, 'message' => "??쑬?甕곕뜇???筌ㅼ뮇??{$min}????곴맒??곷선????몃빍??"];
         }
 
         if (($policy['security_pw_upper'] ?? '0') === '1' && !preg_match('/[A-Z]/', $password)) {
-            return ['success' => false, 'message' => '비밀번호에 대문자를 최소 1자 이상 포함해 주세요.'];
+            return ['success' => false, 'message' => '??쑬?甕곕뜇??????얜챷?꾤몴?筌ㅼ뮇??1????곴맒 ??釉??雅뚯눘苑??'];
         }
 
         if (($policy['security_pw_number'] ?? '0') === '1' && !preg_match('/\d/', $password)) {
-            return ['success' => false, 'message' => '비밀번호에 숫자를 최소 1자 이상 포함해 주세요.'];
+            return ['success' => false, 'message' => '??쑬?甕곕뜇?????ъ쁽??筌ㅼ뮇??1????곴맒 ??釉??雅뚯눘苑??'];
         }
 
         if (($policy['security_pw_special'] ?? '0') === '1' && !preg_match('/[^a-zA-Z0-9]/', $password)) {
-            return ['success' => false, 'message' => '비밀번호에 특수문자를 최소 1자 이상 포함해 주세요.'];
+            return ['success' => false, 'message' => '??쑬?甕곕뜇????諭?붻눧紐꾩쁽??筌ㅼ뮇??1????곴맒 ??釉??雅뚯눘苑??'];
         }
 
         return ['success' => true];
@@ -216,12 +215,12 @@ class RegisterService
         }
 
         if (($file['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
-            return ['success' => false, 'message' => '프로필 이미지 업로드에 실패했습니다.'];
+            return ['success' => false, 'message' => '?袁⑥쨮?????筌왖 ??낆쨮??뽯퓠 ??쎈솭??됰뮸??덈뼄.'];
         }
 
         $upload = $this->fileService->uploadProfile($file);
         if (empty($upload['success'])) {
-            return ['success' => false, 'message' => $upload['message'] ?? '프로필 이미지 업로드에 실패했습니다.'];
+            return ['success' => false, 'message' => $upload['message'] ?? '?袁⑥쨮?????筌왖 ??낆쨮??뽯퓠 ??쎈솭??됰뮸??덈뼄.'];
         }
 
         return ['success' => true, 'db_path' => $upload['db_path'] ?? ''];

@@ -186,6 +186,43 @@ class ChartAccountController
     {
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('계정과목 업로드');
+
+        $sheet->fromArray([
+            '계정코드',
+            '계정과목명',
+            '상위계정코드',
+            '계정구분',
+            '정상잔액',
+            '전표입력',
+            '사용여부',
+            '비고',
+            '메모',
+            '보조계정명',
+        ], null, 'A1');
+
+        $sheet->fromArray([
+            ['1000', '현금', '', '자산', '차변', '가능', '사용', '현금성 계정', '시재 관리용', ''],
+            ['1100', '보통예금', '1000', '자산', '차변', '가능', '사용', '은행 예금 계정', '', ''],
+            ['1110', '국민은행', '1100', '자산', '차변', '가능', '사용', '', '계좌별 보조계정 예시', '일반'],
+            ['2000', '외상매입금', '', '부채', '대변', '가능', '사용', '', '', ''],
+            ['3000', '자본금', '', '자본', '대변', '불가', '사용', '', '', ''],
+            ['4000', '매출', '', '수익', '대변', '불가', '사용', '', '', ''],
+            ['4100', '상품매출', '4000', '수익', '대변', '가능', '사용', '', '', ''],
+            ['5100', '차량유지비', '', '비용', '차변', '가능', '사용', '', '', ''],
+        ], null, 'A2');
+
+        foreach (range('A', 'J') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="account_template.xlsx"');
+        header('Cache-Control: max-age=0');
+
+        $writer = new Xlsx($spreadsheet);
+        $writer->save('php://output');
+        exit;
 
         $sheet->fromArray([
             '계정코드',
@@ -267,6 +304,68 @@ class ChartAccountController
             $accounts = $this->service->getAll();
             $spreadsheet = new Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('계정과목 목록');
+
+            $sheet->fromArray([
+                '계정코드',
+                '계정과목명',
+                '상위계정코드',
+                '계정구분',
+                '정상잔액',
+                '전표입력',
+                '사용여부',
+                '비고',
+                '메모',
+                '보조계정명',
+            ], null, 'A1');
+
+            $accountMap = [];
+            foreach ($accounts as $account) {
+                if (!empty($account['id'])) {
+                    $accountMap[$account['id']] = $account;
+                }
+            }
+
+            $row = 2;
+            foreach ($accounts as $account) {
+                $parentCode = '';
+                if (!empty($account['parent_id']) && isset($accountMap[$account['parent_id']])) {
+                    $parentCode = (string) ($accountMap[$account['parent_id']]['account_code'] ?? '');
+                }
+
+                $sheet->setCellValue('A' . $row, $account['account_code'] ?? '');
+                $sheet->setCellValue('B' . $row, $account['account_name'] ?? '');
+                $sheet->setCellValue('C' . $row, $parentCode);
+                $sheet->setCellValue('D' . $row, $account['account_group'] ?? '');
+                $sheet->setCellValue('E' . $row, ($account['normal_balance'] ?? '') === 'credit' ? '대변' : '차변');
+                $sheet->setCellValue('F' . $row, ((int) ($account['is_posting'] ?? 0)) === 1 ? '가능' : '불가');
+                $sheet->setCellValue('G' . $row, ((int) ($account['is_active'] ?? 0)) === 1 ? '사용' : '미사용');
+                $sheet->setCellValue('H' . $row, $account['note'] ?? '');
+                $sheet->setCellValue('I' . $row, $account['memo'] ?? '');
+                $sheet->setCellValue('J' . $row, '');
+                $row++;
+            }
+
+            foreach (range('A', 'J') as $col) {
+                $sheet->getColumnDimension($col)->setAutoSize(true);
+            }
+
+            $filename = '계정과목목록_' . date('Ymd_His') . '.xlsx';
+
+            header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            header("Content-Disposition: attachment; filename=\"{$filename}\"");
+            header('Cache-Control: max-age=0');
+
+            $writer = new Xlsx($spreadsheet);
+            $writer->save('php://output');
+
+            $spreadsheet->disconnectWorksheets();
+            unset($spreadsheet);
+            exit;
+
+            $accounts = $this->service->getAll();
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
 
             $headers = ['코드', '계정명', '구분', '상위계정', '레벨', '차/대', '전표입력', '사용여부', '보조계정', '비고', '메모'];
             $sheet->fromArray($headers, null, 'A1');
@@ -315,6 +414,12 @@ class ChartAccountController
             if (empty($_FILES['file']['tmp_name'])) {
                 throw new \Exception('파일이 없습니다.');
             }
+
+            echo json_encode(
+                $this->service->saveFromExcelFile($_FILES['file']['tmp_name']),
+                JSON_UNESCAPED_UNICODE
+            );
+            exit;
 
             $spreadsheet = IOFactory::load($_FILES['file']['tmp_name']);
             $rows = $spreadsheet->getActiveSheet()->toArray();

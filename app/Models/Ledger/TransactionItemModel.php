@@ -41,7 +41,7 @@ class TransactionItemModel
             $params[':is_active'] = (int) $filters['is_active'];
         }
 
-        $sql .= " ORDER BY transaction_id ASC, line_no ASC, code ASC";
+        $sql .= " ORDER BY sort_no DESC, transaction_id ASC, line_no ASC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -69,7 +69,7 @@ class TransactionItemModel
             FROM {$this->table}
             WHERE transaction_id = :transaction_id
               AND deleted_at IS NULL
-            ORDER BY line_no ASC, code ASC
+            ORDER BY sort_no DESC, line_no ASC
         ");
         $stmt->execute([':transaction_id' => $transactionId]);
 
@@ -80,7 +80,7 @@ class TransactionItemModel
     {
         $allowed = [
             'id',
-            'code',
+            'sort_no',
             'transaction_id',
             'line_no',
             'item_name',
@@ -106,7 +106,7 @@ class TransactionItemModel
 
         $payload = $this->filterData($data, $allowed);
 
-        if (!isset($payload['id'], $payload['code'], $payload['transaction_id'], $payload['line_no'], $payload['item_name'])) {
+        if (!isset($payload['id'], $payload['transaction_id'], $payload['line_no'], $payload['item_name'])) {
             return false;
         }
 

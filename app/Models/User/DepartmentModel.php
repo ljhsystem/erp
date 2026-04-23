@@ -24,7 +24,7 @@ class DepartmentModel
         $sql = "
             SELECT 
                 d.id,
-                d.code,
+                d.sort_no,
                 d.dept_name,
                 d.manager_id,
                 p.employee_name AS manager_name,
@@ -45,7 +45,7 @@ class DepartmentModel
         if (!empty($filters)) {
             $fieldMap = [
                 'id'           => ['expr' => 'd.id', 'type' => 'exact'],
-                'code'         => ['expr' => 'd.code', 'type' => 'like'],
+                'sort_no'         => ['expr' => 'd.sort_no', 'type' => 'like'],
                 'dept_name'    => ['expr' => 'd.dept_name', 'type' => 'like'],
                 'manager_id'   => ['expr' => 'd.manager_id', 'type' => 'exact'],
                 'manager_name' => ['expr' => 'p.employee_name', 'type' => 'like'],
@@ -137,7 +137,7 @@ class DepartmentModel
 
                 $orParts = [];
                 foreach ($keywords as $keyword) {
-                    foreach (['d.code', 'd.dept_name', 'p.employee_name', 'd.description'] as $expr) {
+                    foreach (['d.sort_no', 'd.dept_name', 'p.employee_name', 'd.description'] as $expr) {
                         $orParts[] = "{$expr} LIKE ?";
                         $params[] = '%' . $keyword . '%';
                     }
@@ -149,7 +149,7 @@ class DepartmentModel
             }
         }
 
-        $sql .= " ORDER BY d.code ASC";
+        $sql .= " ORDER BY d.sort_no ASC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -165,7 +165,7 @@ class DepartmentModel
         $stmt = $this->db->prepare("
             SELECT
                 d.id,
-                d.code,
+                d.sort_no,
                 d.dept_name,
                 d.manager_id,
                 p.employee_name AS manager_name,
@@ -192,16 +192,16 @@ class DepartmentModel
     {
         $sql = "
             INSERT INTO user_departments 
-            (id, code, dept_name, manager_id, description, is_active, created_by, created_at)
+            (id, sort_no, dept_name, manager_id, description, is_active, created_by, created_at)
             VALUES
-            (:id, :code, :dept_name, :manager_id, :description, :is_active, :created_by, NOW())
+            (:id, :sort_no, :dept_name, :manager_id, :description, :is_active, :created_by, NOW())
         ";
 
         $stmt = $this->db->prepare($sql);
 
         return $stmt->execute([
             ':id'          => $data['id'],
-            ':code'        => $data['code'],
+            ':sort_no'        => $data['sort_no'],
             ':dept_name'   => $data['dept_name'],
             ':manager_id'  => $data['manager_id'] ?? null,
             ':description' => $data['description'] ?? null,
@@ -281,14 +281,14 @@ class DepartmentModel
         return $stmt->fetchColumn() > 0;
     }
 
-    public function updateCode(string $id, int $code): bool
+    public function updateSortNo(string $id, int $sort_no): bool
     {
         $stmt = $this->db->prepare("
             UPDATE user_departments
-            SET code = ?, updated_at = NOW()
+            SET sort_no = ?, updated_at = NOW()
             WHERE id = ?
         ");
 
-        return $stmt->execute([$code, $id]);
+        return $stmt->execute([$sort_no, $id]);
     }
 }

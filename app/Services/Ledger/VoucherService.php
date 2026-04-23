@@ -2,9 +2,10 @@
 
 namespace App\Services\Ledger;
 
+use App\Models\Ledger\TransactionLinkModel;
+use App\Models\Ledger\TransactionModel;
 use App\Models\Ledger\VoucherLineModel;
 use App\Models\Ledger\VoucherModel;
-use App\Models\Ledger\VoucherPaymentModel;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
 use PDO;
@@ -12,17 +13,19 @@ use PDO;
 class VoucherService
 {
     private const STATUS_VALUES = ['draft', 'posted', 'locked', 'deleted'];
-    private const REF_TYPES = ['CLIENT', 'PROJECT', 'ACCOUNT', 'CARD', 'EMPLOYEE', 'ORDER'];
+    private const TYPE_VALUES = ['MANUAL', 'AUTO', 'ADJUST', 'CLOSING'];
 
     private VoucherModel $voucherModel;
     private VoucherLineModel $voucherLineModel;
-    private VoucherPaymentModel $voucherPaymentModel;
+    private TransactionLinkModel $transactionLinkModel;
+    private TransactionModel $transactionModel;
 
     public function __construct(private readonly PDO $pdo)
     {
         $this->voucherModel = new VoucherModel($pdo);
         $this->voucherLineModel = new VoucherLineModel($pdo);
-        $this->voucherPaymentModel = new VoucherPaymentModel($pdo);
+        $this->transactionLinkModel = new TransactionLinkModel($pdo);
+        $this->transactionModel = new TransactionModel($pdo);
     }
 
     public function save(array $data): array
@@ -31,46 +34,51 @@ class VoucherService
         $voucherId = trim((string) ($data['id'] ?? ''));
         $voucherDate = trim((string) ($data['voucher_date'] ?? ''));
         $status = trim((string) ($data['status'] ?? 'draft'));
-        $refType = strtoupper(trim((string) ($data['ref_type'] ?? '')));
-        $refId = trim((string) ($data['ref_id'] ?? ''));
+        $type = strtoupper(trim((string) ($data['ref_type'] ?? $data['type'] ?? 'MANUAL'))) ?: 'MANUAL';
+        $linkedTransactionId = trim((string) ($data['linked_transaction_id'] ?? ''));
         $lines = is_array($data['lines'] ?? null) ? $data['lines'] : [];
-        $payments = is_array($data['payments'] ?? null) ? $data['payments'] : [];
 
         if ($voucherDate === '') {
-            throw new \RuntimeException('전표일자를 입력해주세요.');
+            throw new \RuntimeException('전표일자를 입력해 주세요.');
         }
 
-        if ($status === '' || !in_array($status, self::STATUS_VALUES, true)) {
-            throw new \RuntimeException('유효하지 않은 전표 상태입니다.');
+        if (!in_array($status, self::STATUS_VALUES, true)) {
+            throw new \RuntimeException('올바른 전표 상태를 선택해 주세요.');
         }
 
-        if ($refType !== '' && !in_array($refType, self::REF_TYPES, true)) {
-            throw new \RuntimeException('유효하지 않은 참조유형입니다.');
+        if (!in_array($type, self::TYPE_VALUES, true)) {
+            throw new \RuntimeException('올바른 전표 타입을 선택해 주세요.');
+        }
+
+        if ($linkedTransactionId !== '' && !$this->transactionModel->getById($linkedTransactionId)) {
+            throw new \RuntimeException('선택한 거래를 찾을 수 없습니다.');
         }
 
         $normalizedLines = $this->normalizeLines($lines);
         $this->validateBalance($normalizedLines);
-
-        $normalizedPayments = $this->normalizePayments($payments);
+        $timestamp = date('Y-m-d H:i:s');
 
         try {
             $this->pdo->beginTransaction();
 
             if ($voucherId === '') {
                 $voucherId = UuidHelper::generate();
+                $voucherNo = $this->resolveVoucherNo($data, $voucherDate);
 
                 $saved = $this->voucherModel->insert([
                     'id' => $voucherId,
+                    'sort_no' => null,
+                    'voucher_no' => $voucherNo,
                     'voucher_date' => $voucherDate,
-                    'ref_type' => $refType !== '' ? $refType : null,
-                    'ref_id' => $refId !== '' ? $refId : null,
+                    'ref_type' => $type,
+                    'ref_id' => null,
                     'status' => $status,
                     'summary_text' => $this->nullableString($data['summary_text'] ?? null),
                     'note' => $this->nullableString($data['note'] ?? null),
                     'memo' => $this->nullableString($data['memo'] ?? null),
-                    'created_at' => date('Y-m-d H:i:s'),
+                    'created_at' => $timestamp,
                     'created_by' => $actor,
-                    'updated_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => $timestamp,
                     'updated_by' => $actor,
                 ]);
             } else {
@@ -79,17 +87,23 @@ class VoucherService
                     throw new \RuntimeException('전표를 찾을 수 없습니다.');
                 }
 
-                $saved = $this->voucherModel->update($voucherId, [
+                $payload = [
                     'voucher_date' => $voucherDate,
-                    'ref_type' => $refType !== '' ? $refType : null,
-                    'ref_id' => $refId !== '' ? $refId : null,
+                    'ref_type' => $type,
+                    'ref_id' => null,
                     'status' => $status,
                     'summary_text' => $this->nullableString($data['summary_text'] ?? null),
                     'note' => $this->nullableString($data['note'] ?? null),
                     'memo' => $this->nullableString($data['memo'] ?? null),
-                    'updated_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => $timestamp,
                     'updated_by' => $actor,
-                ]);
+                ];
+
+                if (trim((string) ($existing['voucher_no'] ?? '')) === '') {
+                    $payload['voucher_no'] = $this->resolveVoucherNo($data, $voucherDate);
+                }
+
+                $saved = $this->voucherModel->update($voucherId, $payload);
             }
 
             if (!$saved) {
@@ -100,39 +114,25 @@ class VoucherService
             foreach ($normalizedLines as $line) {
                 $ok = $this->voucherLineModel->insert([
                     'id' => UuidHelper::generate(),
+                    'sort_no' => null,
                     'voucher_id' => $voucherId,
                     'line_no' => $line['line_no'],
                     'account_code' => $line['account_code'],
                     'debit' => $line['debit'],
                     'credit' => $line['credit'],
                     'line_summary' => $line['line_summary'],
-                    'created_at' => date('Y-m-d H:i:s'),
+                    'created_at' => $timestamp,
                     'created_by' => $actor,
-                    'updated_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => $timestamp,
                     'updated_by' => $actor,
                 ]);
 
                 if (!$ok) {
-                    throw new \RuntimeException('전표 라인 저장에 실패했습니다.');
+                    throw new \RuntimeException('분개라인 저장에 실패했습니다.');
                 }
             }
 
-            $this->hardDeletePaymentsByVoucherId($voucherId);
-            foreach ($normalizedPayments as $payment) {
-                $ok = $this->voucherPaymentModel->insert([
-                    'id' => UuidHelper::generate(),
-                    'voucher_id' => $voucherId,
-                    'payment_type' => $payment['payment_type'],
-                    'payment_id' => $payment['payment_id'],
-                    'amount' => $payment['amount'],
-                    'created_at' => date('Y-m-d H:i:s'),
-                    'created_by' => $actor,
-                ]);
-
-                if (!$ok) {
-                    throw new \RuntimeException('전표 결제수단 저장에 실패했습니다.');
-                }
-            }
+            $this->replaceManualTransactionLink($voucherId, $linkedTransactionId, $actor, $timestamp);
 
             $this->pdo->commit();
 
@@ -149,6 +149,45 @@ class VoucherService
         }
     }
 
+    public function reorder(array $changes): bool
+    {
+        if ($changes === []) {
+            return true;
+        }
+
+        try {
+            if (!$this->pdo->inTransaction()) {
+                $this->pdo->beginTransaction();
+            }
+
+            foreach ($changes as $row) {
+                if (empty($row['id']) || !isset($row['newSortNo'])) {
+                    throw new \RuntimeException('정렬 데이터가 올바르지 않습니다.');
+                }
+            }
+
+            foreach ($changes as $row) {
+                $this->voucherModel->updateSortNo((string) $row['id'], (int) $row['newSortNo'] + 1000000);
+            }
+
+            foreach ($changes as $row) {
+                $this->voucherModel->updateSortNo((string) $row['id'], (int) $row['newSortNo']);
+            }
+
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->commit();
+            }
+
+            return true;
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $e;
+        }
+    }
+
     private function normalizeLines(array $lines): array
     {
         $normalized = [];
@@ -156,20 +195,24 @@ class VoucherService
 
         foreach ($lines as $line) {
             $accountCode = trim((string) ($line['account_code'] ?? ''));
-            $debit = round((float) ($line['debit'] ?? 0), 2);
-            $credit = round((float) ($line['credit'] ?? 0), 2);
+            $debit = round($this->parseAmount($line['debit'] ?? 0), 2);
+            $credit = round($this->parseAmount($line['credit'] ?? 0), 2);
             $lineSummary = $this->nullableString($line['line_summary'] ?? null);
 
-            if ($accountCode === '' && $debit === 0.0 && $credit === 0.0) {
+            if ($accountCode === '' && $debit === 0.0 && $credit === 0.0 && $lineSummary === null) {
                 continue;
             }
 
             if ($accountCode === '') {
-                throw new \RuntimeException('계정코드가 없는 전표 라인이 있습니다.');
+                throw new \RuntimeException('분개라인의 계정과목을 선택해 주세요.');
             }
 
             if ($debit <= 0 && $credit <= 0) {
-                throw new \RuntimeException('금액이 0인 전표 라인이 있습니다.');
+                throw new \RuntimeException('분개라인에는 차변 또는 대변 금액이 필요합니다.');
+            }
+
+            if ($debit > 0 && $credit > 0) {
+                throw new \RuntimeException('한 분개라인에는 차변 또는 대변 중 하나만 입력할 수 있습니다.');
             }
 
             $normalized[] = [
@@ -182,34 +225,7 @@ class VoucherService
         }
 
         if ($normalized === []) {
-            throw new \RuntimeException('전표 라인을 1건 이상 입력해주세요.');
-        }
-
-        return $normalized;
-    }
-
-    private function normalizePayments(array $payments): array
-    {
-        $normalized = [];
-
-        foreach ($payments as $payment) {
-            $paymentType = strtoupper(trim((string) ($payment['payment_type'] ?? '')));
-            $paymentId = trim((string) ($payment['payment_id'] ?? ''));
-            $amount = round((float) ($payment['amount'] ?? 0), 2);
-
-            if ($paymentType === '' && $paymentId === '' && $amount === 0.0) {
-                continue;
-            }
-
-            if ($paymentType === '' || $paymentId === '' || $amount <= 0) {
-                throw new \RuntimeException('결제수단 정보가 올바르지 않습니다.');
-            }
-
-            $normalized[] = [
-                'payment_type' => $paymentType,
-                'payment_id' => $paymentId,
-                'amount' => number_format($amount, 2, '.', ''),
-            ];
+            throw new \RuntimeException('분개라인을 1건 이상 입력해 주세요.');
         }
 
         return $normalized;
@@ -221,15 +237,8 @@ class VoucherService
         $creditSum = 0.0;
 
         foreach ($lines as $line) {
-            $debit = (float) $line['debit'];
-            $credit = (float) $line['credit'];
-
-            if ($debit > 0 && $credit > 0) {
-                throw new \RuntimeException('같은 라인에는 차변 또는 대변 중 하나만 입력할 수 있습니다.');
-            }
-
-            $debitSum += $debit;
-            $creditSum += $credit;
+            $debitSum += (float) $line['debit'];
+            $creditSum += (float) $line['credit'];
         }
 
         if (round($debitSum, 2) !== round($creditSum, 2)) {
@@ -237,18 +246,37 @@ class VoucherService
         }
     }
 
-    private function hardDeletePaymentsByVoucherId(string $voucherId): void
+    private function resolveVoucherNo(array $data, string $voucherDate): string
     {
-        $payments = $this->voucherPaymentModel->getByVoucherId($voucherId);
-
-        foreach ($payments as $payment) {
-            $paymentId = trim((string) ($payment['id'] ?? ''));
-            if ($paymentId === '') {
-                continue;
-            }
-
-            $this->voucherPaymentModel->hardDelete($paymentId);
+        $voucherNo = trim((string) ($data['voucher_no'] ?? ''));
+        if ($voucherNo !== '') {
+            return $voucherNo;
         }
+
+        return $this->nextVoucherNo($voucherDate);
+    }
+
+    private function nextVoucherNo(string $voucherDate): string
+    {
+        $dateKey = preg_replace('/[^0-9]/', '', $voucherDate) ?: date('Ymd');
+        $prefix = substr($dateKey, 0, 8);
+
+        $stmt = $this->pdo->prepare("
+            SELECT voucher_no
+            FROM ledger_vouchers
+            WHERE voucher_no LIKE :prefix
+            ORDER BY voucher_no DESC
+            LIMIT 1
+        ");
+        $stmt->execute([':prefix' => $prefix . '-%']);
+
+        $latest = (string) ($stmt->fetchColumn() ?: '');
+        $next = 1;
+        if (preg_match('/-(\d+)$/', $latest, $matches)) {
+            $next = ((int) $matches[1]) + 1;
+        }
+
+        return sprintf('%s-%04d', $prefix, $next);
     }
 
     private function hardDeleteLinesByVoucherId(string $voucherId): void
@@ -257,17 +285,74 @@ class VoucherService
 
         foreach ($lines as $line) {
             $lineId = trim((string) ($line['id'] ?? ''));
-            if ($lineId === '') {
-                continue;
+            if ($lineId !== '') {
+                $this->voucherLineModel->hardDelete($lineId);
             }
-
-            $this->voucherLineModel->hardDelete($lineId);
         }
+    }
+
+    private function replaceManualTransactionLink(
+        string $voucherId,
+        string $transactionId,
+        string $actor,
+        string $timestamp
+    ): void {
+        $stmt = $this->pdo->prepare("
+            DELETE FROM ledger_transaction_links
+            WHERE voucher_id = :voucher_id
+              AND link_type = 'MANUAL'
+        ");
+        $stmt->execute([':voucher_id' => $voucherId]);
+
+        if ($transactionId === '') {
+            return;
+        }
+
+        $stmt = $this->pdo->prepare("
+            DELETE FROM ledger_transaction_links
+            WHERE voucher_id = :voucher_id
+              AND transaction_id = :transaction_id
+        ");
+        $stmt->execute([
+            ':voucher_id' => $voucherId,
+            ':transaction_id' => $transactionId,
+        ]);
+
+        $ok = $this->transactionLinkModel->insert([
+            'id' => UuidHelper::generate(),
+            'sort_no' => null,
+            'transaction_id' => $transactionId,
+            'voucher_id' => $voucherId,
+            'link_type' => 'MANUAL',
+            'is_active' => 1,
+            'note' => null,
+            'memo' => null,
+            'created_at' => $timestamp,
+            'created_by' => $actor,
+            'updated_at' => $timestamp,
+            'updated_by' => $actor,
+        ]);
+
+        if (!$ok) {
+            throw new \RuntimeException('거래 연결 저장에 실패했습니다.');
+        }
+    }
+
+    private function parseAmount(mixed $value): float
+    {
+        $cleaned = preg_replace('/[^0-9.\-]/', '', str_replace(',', '', (string) ($value ?? '')));
+
+        if ($cleaned === '' || $cleaned === '-' || $cleaned === '.' || $cleaned === '-.') {
+            return 0.0;
+        }
+
+        return is_numeric($cleaned) ? (float) $cleaned : 0.0;
     }
 
     private function nullableString(mixed $value): ?string
     {
         $string = trim((string) ($value ?? ''));
+
         return $string === '' ? null : $string;
     }
 }

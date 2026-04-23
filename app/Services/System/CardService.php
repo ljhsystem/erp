@@ -1,15 +1,16 @@
 <?php
-// 野껋럥以? PROJECT_ROOT . '/app/Services/System/CardService.php'
+// ?嚥▲굧???뚪뜮? PROJECT_ROOT . '/app/Services/System/CardService.php'
 
 namespace App\Services\System;
 
 use PDO;
 use App\Models\System\CardModel;
+use App\Models\System\ClientModel;
+use App\Models\System\BankAccountModel;
 use App\Services\System\BankAccountService;
 use App\Services\System\ClientService;
 use App\Services\File\FileService;
 use Core\Helpers\UuidHelper;
-use Core\Helpers\CodeHelper;
 use Core\Helpers\ActorHelper;
 use Core\LoggerFactory;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -20,6 +21,8 @@ class CardService
 {
     private PDO $pdo;
     private CardModel $model;
+    private ClientModel $clientModel;
+    private BankAccountModel $bankAccountModel;
     private BankAccountService $accountService;
     private ClientService $clientService;
     private FileService $fileService;
@@ -29,6 +32,8 @@ class CardService
     {
         $this->pdo    = $pdo;
         $this->model  = new CardModel($pdo);
+        $this->clientModel = new ClientModel($pdo);
+        $this->bankAccountModel = new BankAccountModel($pdo);
         $this->accountService  = new BankAccountService($pdo);
         $this->clientService  = new ClientService($pdo);
         $this->fileService = new FileService($pdo);
@@ -38,7 +43,7 @@ class CardService
     }
 
     /* ============================================================
-    * ?袁⑷퍥 筌뤴뫖以?鈺곌퀬??
+    * ????썹땟???꿔꺂??袁ㅻ븶筌믠뫀萸???됰슦????
     * ============================================================ */
     public function getList(array $filters = []): array
     {
@@ -68,7 +73,7 @@ class CardService
     }
 
     /* ============================================================
-    * ??ｊ탷 鈺곌퀬??(id 疫꿸퀣?)
+    * ??壤굿??뺥떑 ??됰슦????(id ???뚯???)
     * ============================================================ */
     public function getById(string $id): ?array
     {
@@ -97,7 +102,7 @@ class CardService
     }
 
     /* =========================================================
-    * 燁삳?諭?野꺜??(Service - Select2 ????
+    * ??⑤㈇?????嚥▲굧????(Service - Select2 ????
     * ========================================================= */
     public function searchPicker(string $keyword): array
     {
@@ -119,12 +124,12 @@ class CardService
 
                 $text = $row['card_name'] ?? '';
 
-                // ?逾?燁삳?諭띈린?딆깈 ?곕떽?
+                // ?????⑤㈇??????ル뎨????⑸룺 ???ㅻ쿋??
                 if (!empty($row['card_number'])) {
                     $text .= ' (' . $row['card_number'] . ')';
                 }
 
-                // ?逾?椰꾧퀡?믭㎗?롮구 ?곕떽?
+                // ????꿸쑨????亦??????????ㅻ쿋??
                 if (!empty($row['client_name'])) {
                     $text .= ' / ' . $row['client_name'];
                 }
@@ -150,11 +155,14 @@ class CardService
 
 
     /* =========================================================
-    * ????(??밴쉐 + ??륁젟)
+    * ????(???꾩룆???+ ????볥궚??
     * ========================================================= */
     public function save(array $data, string $actorType = 'USER', array $files = []): array
     {
         $actor = ActorHelper::resolve($actorType);
+        $data['client_id'] = $this->normalizeNullableId($data['client_id'] ?? null);
+        $data['account_id'] = $this->normalizeNullableId($data['account_id'] ?? null);
+        $data['limit_amount'] = (float)($data['limit_amount'] ?? 0);
         $id = trim((string)($data['id'] ?? ''));
         $mode = $id === '' ? 'CREATE' : 'UPDATE';
         $isCreate = ($mode === 'CREATE');
@@ -166,12 +174,13 @@ class CardService
         ]);
 
         try {
+            $this->assertRelations($data);
             $this->pdo->beginTransaction();
 
             if (!$isCreate) {
                 $before = $this->model->getById($id);
                 if (!$before) {
-                    throw new \Exception('Card not found.');
+                    throw new \Exception('燁삳?諭??類ｋ궖??筌≪뼚??????곷뮸??덈뼄.');
                 }
 
                 if (!empty($data['delete_card_file']) && $data['delete_card_file'] == '1') {
@@ -185,13 +194,13 @@ class CardService
 
                 $file = $files['card_file'] ?? null;
                 if ($file) {
-                    $this->assertUploadOk($file, 'card image');
+                    $this->assertUploadOk($file, '燁삳?諭????筌왖');
                 }
 
                 if ($file && ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
                     $upload = $this->fileService->uploadCardCopy($file);
                     if (!$upload['success']) {
-                        throw new \Exception($upload['message'] ?? 'Card image upload failed.');
+                        throw new \Exception($upload['message'] ?? '燁삳?諭????筌왖 ??낆쨮??뽯퓠 ??쎈솭??됰뮸??덈뼄.');
                     }
 
                     if (!empty($before['card_file']) && $before['card_file'] !== ($upload['db_path'] ?? null)) {
@@ -206,7 +215,7 @@ class CardService
                 unset($updateData['id']);
 
                 if (!$this->model->updateById($id, $updateData)) {
-                    throw new \Exception('Failed to update card.');
+                    throw new \Exception('燁삳?諭???륁젟????쎈솭??됰뮸??덈뼄.');
                 }
 
                 $this->pdo->commit();
@@ -214,36 +223,36 @@ class CardService
                 return [
                     'success' => true,
                     'id' => $id,
-                    'code' => $before['code'] ?? null,
-                    'message' => 'Update completed.'
+                    'sort_no' => $before['sort_no'] ?? null,
+                    'message' => '??륁젟???袁⑥┷??뤿???щ빍??'
                 ];
             }
 
             $file = $files['card_file'] ?? null;
             if ($file) {
-                $this->assertUploadOk($file, 'card image');
+                $this->assertUploadOk($file, '燁삳?諭????筌왖');
             }
 
             if ($file && ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
                 $upload = $this->fileService->uploadCardCopy($file);
                 if (!$upload['success']) {
-                    throw new \Exception($upload['message'] ?? 'Card image upload failed.');
+                    throw new \Exception($upload['message'] ?? '燁삳?諭????筌왖 ??낆쨮??뽯퓠 ??쎈솭??됰뮸??덈뼄.');
                 }
                 $data['card_file'] = $upload['db_path'];
             }
 
             $newId = UuidHelper::generate();
-            $newCode = CodeHelper::next('system_cards');
+            $newSortNo = null;
 
             $insertData = array_merge($data, [
                 'id' => $newId,
-                'code' => $newCode,
+                'sort_no' => $newSortNo,
                 'created_by' => $actor,
                 'updated_by' => $actor
             ]);
 
             if (!$this->model->create($insertData)) {
-                throw new \Exception('Failed to create card.');
+                throw new \Exception('燁삳?諭??源낆쨯????쎈솭??됰뮸??덈뼄.');
             }
 
             $this->pdo->commit();
@@ -251,8 +260,8 @@ class CardService
             return [
                 'success' => true,
                 'id' => $newId,
-                'code' => $newCode,
-                'message' => 'Create completed.'
+                'sort_no' => $newSortNo,
+                'message' => '?源낆쨯???袁⑥┷??뤿???щ빍??'
             ];
         } catch (\Throwable $e) {
             if ($this->pdo->inTransaction()) {
@@ -271,6 +280,35 @@ class CardService
         }
     }
 
+    private function normalizeNullableId(mixed $value): ?string
+    {
+        $value = trim((string)$value);
+        return $value === '' ? null : $value;
+    }
+
+    private function assertRelations(array $data): void
+    {
+        if ($data['client_id'] !== null) {
+            $client = $this->clientModel->getById($data['client_id']);
+
+            if (!$client) {
+                throw new \Exception('?醫뤾문??燁삳?諭??? 筌≪뼚??????곷뮸??덈뼄.');
+            }
+
+            if (!in_array((string)($client['client_type'] ?? ''), ['카드사', 'CARD_COMPANY'], true)) {
+                throw new \Exception('燁삳?諭??以??源낆쨯??椰꾧퀡?믭㎗?롮춸 ?醫뤾문??????됰뮸??덈뼄.');
+            }
+
+            if ((int)($client['is_active'] ?? 0) !== 1 || !empty($client['deleted_at'])) {
+                throw new \Exception('????揶쎛?館釉?燁삳?諭??彛??醫뤾문??????됰뮸??덈뼄.');
+            }
+        }
+
+        if ($data['account_id'] !== null && !$this->bankAccountModel->getById($data['account_id'])) {
+            throw new \Exception('?醫뤾문??野껉퀣?ｆ④쑴伊뽫몴?筌≪뼚??????곷뮸??덈뼄.');
+        }
+    }
+
     private function assertUploadOk(array $file, string $label): void
     {
         $error = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
@@ -285,12 +323,12 @@ class CardService
     private function resolveUploadErrorMessage(int $errorCode, string $label): string
     {
         return match ($errorCode) {
-            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => "The {$label} file exceeds the size limit.",
-            UPLOAD_ERR_PARTIAL => "The {$label} upload was interrupted.",
-            UPLOAD_ERR_NO_TMP_DIR => "No temporary upload directory is available for {$label}.",
-            UPLOAD_ERR_CANT_WRITE => "The server could not write the {$label} file.",
-            UPLOAD_ERR_EXTENSION => "A server extension blocked the {$label} upload.",
-            default => "An upload error occurred while processing {$label}.",
+            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => "{$label} ???뵬????낆쨮????몄쎗 ??쀫립???λ뜃???됰뮸??덈뼄.",
+            UPLOAD_ERR_PARTIAL => "{$label} ??낆쨮??? 餓λ쵌而??餓λ쵎???뤿???щ빍??",
+            UPLOAD_ERR_NO_TMP_DIR => "{$label} ??낆쨮??뽰뒠 ?袁⑸뻻 ???묊몴?筌≪뼚??????곷뮸??덈뼄.",
+            UPLOAD_ERR_CANT_WRITE => "??뺤쒔揶쎛 {$label} ???뵬?????館釉?쭪? 筌륁궢六??щ빍??",
+            UPLOAD_ERR_EXTENSION => "??뺤쒔 ?類ㅼ삢 筌뤴뫀諭??{$label} ??낆쨮??? 筌△뫀???됰뮸??덈뼄.",
+            default => "{$label} ??낆쨮??餓???살첒揶쎛 獄쏆뮇源??됰뮸??덈뼄.",
         };
     }
 
@@ -300,51 +338,51 @@ class CardService
     public function delete(string $id, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
-    
+
         $this->logger->info('delete() called', [
             'id'        => $id,
             'actorType' => $actorType,
             'actor'     => $actor
         ]);
-    
+
         try {
-    
+
             $item = $this->model->getById($id);
-    
+
             if (!$item) {
                 $this->logger->warning('delete() not found', ['id' => $id]);
                 return [
                     'success' => false,
-                    'message' => '鈺곕똻???? ??낅뮉 燁삳?諭??낅빍??'
+                    'message' => '??됰슦?????? ?????놃닓 ??⑤㈇????????뉖뤁??'
                 ];
             }
-    
-            // ?逾???곕늄?紐꾧텣??뽯퓠??뺣뮉 ???뵬 ?????? ??놁벉
-    
+
+            // ???????ㅻ쿋??癲ル슢?????嶺?獄??嶺뚮㉡??㎘???????????? ????⑤９??
+
             if (!$this->model->deleteById($id, $actor)) {
-    
+
                 $this->logger->error('delete() DB failed', [
                     'id'   => $id,
                     'user' => $actor
                 ]);
-    
+
                 return [
                     'success' => false,
-                    'message' => '燁삳?諭???????쎈솭'
+                    'message' => '??⑤㈇?????????????곌숯'
                 ];
             }
-    
+
             $this->logger->info('delete() success', ['id' => $id]);
-    
+
             return ['success' => true];
-    
+
         } catch (\Throwable $e) {
-    
+
             $this->logger->error('delete() exception', [
                 'id'        => $id,
                 'exception' => $e->getMessage()
             ]);
-    
+
             return [
                 'success' => false,
                 'message' => $e->getMessage()
@@ -353,7 +391,7 @@ class CardService
     }
 
     /* =========================================================
-    * ?????筌뤴뫖以?
+    * ??????꿔꺂??袁ㅻ븶筌믠뫀萸?
     * ========================================================= */
     public function getTrashList(): array
     {
@@ -374,7 +412,7 @@ class CardService
     }
 
     /* =========================================================
-    * 癰귣벊??
+    * ??⑤슢?뽫뵓??
     * ========================================================= */
     public function restore(string $id, string $actorType = 'USER'): array
     {
@@ -395,7 +433,7 @@ class CardService
 
                 return [
                     'success' => false,
-                    'message' => '鈺곕똻???? ??낅뮉 燁삳?諭??낅빍??'
+                    'message' => '??됰슦?????? ?????놃닓 ??⑤㈇????????뉖뤁??'
                 ];
             }
 
@@ -408,7 +446,7 @@ class CardService
 
                 return [
                     'success' => false,
-                    'message' => '燁삳?諭?癰귣벊????쎈솭'
+                    'message' => '??⑤㈇??????⑤슢?뽫뵓???????곌숯'
                 ];
             }
 
@@ -416,7 +454,7 @@ class CardService
 
             return [
                 'success' => true,
-                'message' => '癰귣벊???袁⑥┷'
+                'message' => '癰귣벀?꾢첎? ?袁⑥┷??뤿???щ빍??'
             ];
 
         } catch (\Throwable $e) {
@@ -434,7 +472,7 @@ class CardService
     }
 
     /* =========================================================
-    * ?醫뤾문 癰귣벊??
+    * ????ｋ????⑤슢?뽫뵓??
     * ========================================================= */
     public function restoreBulk(array $ids, string $actorType = 'USER'): array
     {
@@ -446,7 +484,7 @@ class CardService
         ]);
 
         if (empty($ids)) {
-            return ['success' => false, 'message' => 'ID ??곸벉'];
+            return ['success' => false, 'message' => 'ID가 없습니다.'];
         }
 
         $this->pdo->beginTransaction();
@@ -466,7 +504,7 @@ class CardService
 
             return [
                 'success' => true,
-                'message' => "癰귣벊???袁⑥┷ ({$success}椰?"
+                'message' => "선택한 카드가 복원되었습니다. ($success건)"
             ];
 
         } catch (\Throwable $e) {
@@ -485,7 +523,7 @@ class CardService
     }
 
     /* =========================================================
-    * ?袁⑷퍥 癰귣벊??
+    * ????썹땟????⑤슢?뽫뵓??
     * ========================================================= */
     public function restoreAll(string $actorType = 'USER'): array
     {
@@ -514,7 +552,7 @@ class CardService
 
             return [
                 'success' => true,
-                'message' => "?袁⑷퍥 癰귣벊???袁⑥┷ ({$success}椰?"
+                'message' => "삭제된 카드가 모두 복원되었습니다. ({$success}건)"
             ];
 
         } catch (\Throwable $e) {
@@ -533,127 +571,127 @@ class CardService
     }
 
     /* =========================================================
-    * ?袁⑹읈????
+    * ????썹땟?????
     * ========================================================= */
     public function purge(string $id, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
-    
+
         $this->logger->info('purge() called', [
             'id'        => $id,
             'actorType' => $actorType,
             'actor'     => $actor
         ]);
-    
+
         $item = $this->model->getById($id);
-    
+
         if (!$item) {
             return [
                 'success' => false,
-                'message' => '鈺곕똻???? ??낅뮉 燁삳?諭??낅빍??'
+                'message' => '??됰슦?????? ?????놃닓 ??⑤㈇????????뉖뤁??'
             ];
         }
-    
+
         $this->pdo->beginTransaction();
-    
+
         try {
-    
-            /* ?逾??怨대럡?????????뵬 ????*/
+
+            /* ???????????????????????*/
             if (!empty($item['card_file'])) {
                 $this->fileService->delete($item['card_file']);
             }
-    
+
             $ok = $this->model->hardDeleteById($id);
-    
+
             if (!$ok) {
-                throw new \Exception('DB ??????쎈솭');
+                throw new \Exception('DB ?????????곌숯');
             }
-    
+
             $this->pdo->commit();
-    
+
             return [
                 'success' => true,
-                'message' => '?袁⑹읈?????袁⑥┷'
+                'message' => '?袁⑹읈 ???ｅ첎? ?袁⑥┷??뤿???щ빍??'
             ];
-    
+
         } catch (\Throwable $e) {
-    
+
             $this->pdo->rollBack();
-    
+
             $this->logger->error('purge() failed', [
                 'error' => $e->getMessage()
             ]);
-    
+
             return [
                 'success' => false,
-                'message' => '??????쎈솭'
+                'message' => '?袁⑹읈 ???????쎈솭??됰뮸??덈뼄.'
             ];
         }
     }
 
     /* =========================================================
-    * ?醫뤾문 ?袁⑹읈????
+    * ????ｋ??????썹땟?????
     * ========================================================= */
     public function purgeBulk(array $ids, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
-    
+
         $this->logger->info('purgeBulk() called', [
             'ids'   => $ids,
             'actor' => $actor
         ]);
-    
+
         if (empty($ids)) {
-            return ['success' => false, 'message' => 'ID ??곸벉'];
+            return ['success' => false, 'message' => 'ID가 없습니다.'];
         }
-    
+
         $this->pdo->beginTransaction();
-    
+
         try {
-    
+
             $success = 0;
-    
+
             foreach ($ids as $id) {
-    
+
                 /* =========================================================
-                * 1?るㅄ源?疫꿸퀣???怨쀬뵠??鈺곌퀬??
+                * 1???節떷?꾨춴????뚯???????????????됰슦????
                 * ========================================================= */
                 $item = $this->model->getById($id);
-    
+
                 if (!$item) {
                     continue;
                 }
-    
+
                 /* =========================================================
-                * 2?るㅄ源????뵬 ????
+                * 2???節떷?꾨춴??????????
                 * ========================================================= */
                 if (!empty($item['card_file'])) {
                     $this->fileService->delete($item['card_file']);
                 }
-    
+
                 /* =========================================================
-                * 3?るㅄ源?DB ????
+                * 3???節떷?꾨춴?DB ????
                 * ========================================================= */
                 $ok = $this->model->hardDeleteById($id);
-    
+
                 if ($ok) $success++;
             }
-    
+
             $this->pdo->commit();
-    
+
             return [
                 'success' => true,
-                'message' => "?????袁⑥┷ ({$success}椰?"
+                'message' => "선택한 카드가 완전 삭제되었습니다. ({$success}건)"
             ];
-    
+
         } catch (\Throwable $e) {
-    
+
             $this->pdo->rollBack();
-    
+
             $this->logger->error('purgeBulk() failed', [
                 'error' => $e->getMessage()
             ]);
-    
+
             return [
                 'success' => false,
                 'message' => $e->getMessage()
@@ -662,7 +700,7 @@ class CardService
     }
 
     /* =========================================================
-    * ?袁⑷퍥 ?袁⑹읈????
+    * ????썹땟??????썹땟?????
     * ========================================================= */
     public function purgeAll(string $actorType = 'USER'): array
     {
@@ -683,14 +721,14 @@ class CardService
             foreach ($rows as $row) {
 
                 /* =========================================================
-                * 1?るㅄ源????뵬 ????
+                * 1???節떷?꾨춴??????????
                 * ========================================================= */
                 if (!empty($row['card_file'])) {
                     $this->fileService->delete($row['card_file']);
                 }
 
                 /* =========================================================
-                * 2?るㅄ源?DB ????
+                * 2???節떷?꾨춴?DB ????
                 * ========================================================= */
                 $ok = $this->model->hardDeleteById($row['id']);
 
@@ -701,7 +739,7 @@ class CardService
 
             return [
                 'success' => true,
-                'message' => "?袁⑷퍥 ?????袁⑥┷ ({$success}椰?"
+                'message' => "?袁⑷퍥 ???ｅ첎? ?袁⑥┷??뤿???щ빍?? ({$success}椰?"
             ];
 
         } catch (\Throwable $e) {
@@ -720,7 +758,7 @@ class CardService
     }
 
     /* ============================================================
-    * ?꾨뗀諭???뽮퐣 癰궰野?(RowReorder)
+    * ??ш끽維?????嶺?筌???⑤슢堉???(RowReorder)
     * ============================================================ */
     public function reorder(array $changes): bool
     {
@@ -738,35 +776,35 @@ class CardService
                 $this->pdo->beginTransaction();
             }
 
-            /* 1?るㅄ源???낆젾揶?野꺜筌?*/
+            /* 1???節떷?꾨춴?????怨몄７???嚥▲굧????*/
             foreach ($changes as $row) {
 
                 if (
                     empty($row['id']) ||
-                    !isset($row['newCode'])
+                    !isset($row['newSortNo'])
                 ) {
-                    throw new \Exception('reorder ?怨쀬뵠????살첒');
+                    throw new \Exception('reorder ?????????????怨몄뵒');
                 }
             }
 
-            /* 2?るㅄ源?temp ??猷?(?겸뫖猷?獄쎻뫗?) */
+            /* 2???節떷?꾨춴?temp ?????(??롪퍓梨띄댚???熬곣뫖?삥납?) */
             foreach ($changes as $row) {
 
-                // ?紐???곌석??띿쓺 (??? ?겸뫖猷???덇돌野?
-                $tempCode = (int)$row['newCode'] + 1000000;
+                // ?癲?????ㅼ뒩?????怨뺤퓡 (??? ??롪퍓梨띄댚??????戮?┝??
+                $tempSortNo = (int)$row['newSortNo'] + 1000000;
 
-                $this->model->updateCode(
+                $this->model->updateSortNo(
                     $row['id'],
-                    $tempCode
+                    $tempSortNo
                 );
             }
 
-            /* 3?るㅄ源???쇱젫 ?꾨뗀諭??怨몄뒠 */
+            /* 3???節떷?꾨춴????繹먮냱議???ш끽維???????쇨덫??*/
             foreach ($changes as $row) {
 
-                $this->model->updateCode(
+                $this->model->updateSortNo(
                     $row['id'],
-                    (int)$row['newCode']
+                    (int)$row['newSortNo']
                 );
             }
 
@@ -792,7 +830,7 @@ class CardService
             throw $e;
         }
     }
-    
+
     /* ============================================================
     * Card template download
     * ============================================================ */
@@ -800,231 +838,72 @@ class CardService
     {
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('Cards');
-
-        $headers = [
-            'Card Name',
-            'Client Name',
-            'Card Number',
-            'Card Type',
-            'Account Name',
-            'Expiry Year',
-            'Expiry Month',
-            'Currency',
-            'Limit Amount',
-            'Is Active',
-            'Note',
-            'Memo'
-        ];
-
+        $sheet->setTitle('카드 업로드');
+        $headers = ['카드명', '카드사', '카드번호', '소유자', '카드유형', '한도금액', '사용여부', '비고', '메모'];
         $sheet->fromArray($headers, null, 'A1');
-        $sheet->fromArray([
-            ['Corporate Main', 'Kookmin Card', '1234-5678-9012-3456', 'corporate', 'Main Operating', '2028', '12', 'KRW', '5000000', '1', 'Sample note', ''],
-            ['Travel Card', 'Shinhan Card', '1111-2222-3333-4444', 'corporate', 'Payroll', '2027', '06', 'KRW', '3000000', '1', 'Travel use', '']
-        ], null, 'A2');
-
-        foreach (range('A', 'L') as $col) {
-            $sheet->getColumnDimension($col)->setAutoSize(true);
-        }
-
+        $sheet->fromArray([['법인카드', '신한카드', '1234-5678-9012-3456', '홍길동', '법인', '1000000', '사용', '', '']], null, 'A2');
+        foreach (range('A', 'I') as $col) { $sheet->getColumnDimension($col)->setAutoSize(true); }
+        $writer = new Xlsx($spreadsheet);
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         header('Content-Disposition: attachment; filename="card_template.xlsx"');
         header('Cache-Control: max-age=0');
-
-        $writer = new Xlsx($spreadsheet);
         $writer->save('php://output');
-
         $spreadsheet->disconnectWorksheets();
-        unset($spreadsheet);
         exit;
     }
 
-    /* =========================================================
-    * Save from Excel upload
-    * ========================================================= */
     public function saveFromExcelFile(string $filePath): array
     {
         $spreadsheet = IOFactory::load($filePath);
-        $sheet = $spreadsheet->getActiveSheet();
-        $rows = $sheet->toArray(null, false, false, false);
-
-        if (empty($rows) || count($rows) < 2) {
-            return [
-                'success' => false,
-                'message' => 'No rows found in the uploaded Excel file.'
-            ];
-        }
-
-        $normalize = static function ($value): string {
-            $value = strtolower(trim((string)$value));
-            $value = preg_replace('/\s+/', '', $value);
-            return $value;
-        };
-
-        $headerMap = [
-            'cardname' => 'card_name',
-            'clientname' => 'client_name',
-            'cardnumber' => 'card_number',
-            'cardtype' => 'card_type',
-            'accountname' => 'account_name',
-            'expiryyear' => 'expiry_year',
-            'expirymonth' => 'expiry_month',
-            'currency' => 'currency',
-            'limitamount' => 'limit_amount',
-            'isactive' => 'is_active',
-            'note' => 'note',
-            'memo' => 'memo'
-        ];
-
-        $headers = array_map($normalize, $rows[0]);
-        $columnMap = [];
-
-        foreach ($headers as $index => $header) {
-            if (isset($headerMap[$header])) {
-                $columnMap[$headerMap[$header]] = $index;
-            }
-        }
-
-        if (!isset($columnMap['card_name']) || !isset($columnMap['card_number'])) {
-            return [
-                'success' => false,
-                'message' => 'Card Name and Card Number columns are required.'
-            ];
-        }
-
-        array_shift($rows);
+        $rows = $spreadsheet->getActiveSheet()->toArray(null, false, false, false);
+        if (empty($rows) || count($rows) < 2) { return ['success' => false, 'message' => '업로드할 데이터가 없습니다.']; }
+        $header = array_map(fn($v) => trim((string)$v), array_shift($rows));
+        $map = array_flip($header);
         $count = 0;
-
         foreach ($rows as $row) {
-            if (count(array_filter($row, static fn($v) => trim((string)$v) !== '')) === 0) {
-                continue;
-            }
-
-            $clientId = null;
-            if (isset($columnMap['client_name'])) {
-                $clientName = trim((string)($row[$columnMap['client_name']] ?? ''));
-                if ($clientName !== '') {
-                    $clients = $this->clientService->searchPicker($clientName);
-                    foreach ($clients as $client) {
-                        if (($client['text'] ?? '') === $clientName) {
-                            $clientId = $client['id'];
-                            break;
-                        }
-                    }
-                }
-            }
-
-            $accountId = null;
-            if (isset($columnMap['account_name'])) {
-                $accountName = trim((string)($row[$columnMap['account_name']] ?? ''));
-                if ($accountName !== '') {
-                    $accounts = $this->accountService->searchPicker($accountName);
-                    foreach ($accounts as $account) {
-                        if (str_contains(($account['text'] ?? ''), $accountName)) {
-                            $accountId = $account['id'];
-                            break;
-                        }
-                    }
-                }
-            }
-
+            if (count(array_filter($row, fn($v) => trim((string)$v) !== '')) === 0) { continue; }
             $payload = [
-                'card_name' => trim((string)($row[$columnMap['card_name']] ?? '')),
-                'card_number' => trim((string)($row[$columnMap['card_number']] ?? '')),
-                'card_type' => trim((string)($row[$columnMap['card_type']] ?? 'corporate')) ?: 'corporate',
-                'client_id' => $clientId,
-                'account_id' => $accountId,
-                'expiry_year' => trim((string)($row[$columnMap['expiry_year']] ?? '')),
-                'expiry_month' => trim((string)($row[$columnMap['expiry_month']] ?? '')),
-                'currency' => strtoupper(trim((string)($row[$columnMap['currency']] ?? 'KRW'))) ?: 'KRW',
-                'limit_amount' => (float)($row[$columnMap['limit_amount']] ?? 0),
-                'is_active' => in_array(strtolower(trim((string)($row[$columnMap['is_active']] ?? '1'))), ['1', 'true', 'yes', 'use', 'active'], true) ? 1 : 0,
-                'note' => trim((string)($row[$columnMap['note']] ?? '')),
-                'memo' => trim((string)($row[$columnMap['memo']] ?? '')),
+                'card_name' => trim((string)($row[$map['카드명'] ?? -1] ?? '')),
+                'card_company' => trim((string)($row[$map['카드사'] ?? -1] ?? '')),
+                'card_number' => trim((string)($row[$map['카드번호'] ?? -1] ?? '')),
+                'card_holder' => trim((string)($row[$map['소유자'] ?? -1] ?? '')),
+                'card_type' => trim((string)($row[$map['카드유형'] ?? -1] ?? '')),
+                'limit_amount' => (float)($row[$map['한도금액'] ?? -1] ?? 0),
+                'is_active' => trim((string)($row[$map['사용여부'] ?? -1] ?? '사용')) === '미사용' ? 0 : 1,
+                'note' => trim((string)($row[$map['비고'] ?? -1] ?? '')),
+                'memo' => trim((string)($row[$map['메모'] ?? -1] ?? '')),
             ];
-
-            if ($payload['card_name'] === '' || $payload['card_number'] === '') {
-                continue;
-            }
-
+            if ($payload['card_name'] === '') { continue; }
             $result = $this->save($payload, 'SYSTEM');
-            if ($result['success']) {
-                $count++;
-            } else {
-                $this->logger->warning('Excel save failed', [
-                    'payload' => $payload,
-                    'error' => $result['message'] ?? null
-                ]);
-            }
+            if (!empty($result['success'])) { $count++; }
         }
-
-        return [
-            'success' => true,
-            'message' => "{$count} rows processed."
-        ];
+        return ['success' => true, 'message' => "{$count}건 업로드되었습니다."];
     }
 
-    /* ============================================================
-    * Card Excel download
-    * ============================================================ */
     public function downloadExcel(): void
     {
         $cards = $this->model->getList();
-
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
-
-        $headers = [
-            'A1' => 'Code',
-            'B1' => 'Card Name',
-            'C1' => 'Client Name',
-            'D1' => 'Card Number',
-            'E1' => 'Card Type',
-            'F1' => 'Account Name',
-            'G1' => 'Expiry Year',
-            'H1' => 'Expiry Month',
-            'I1' => 'Currency',
-            'J1' => 'Limit Amount',
-            'K1' => 'Is Active',
-            'L1' => 'Note',
-            'M1' => 'Memo',
-        ];
-
-        foreach ($headers as $cell => $label) {
-            $sheet->setCellValue($cell, $label);
-        }
-
-        $rowIndex = 2;
+        $sheet->setTitle('카드 목록');
+        $sheet->fromArray(['순번', '카드명', '카드사', '카드번호', '소유자', '카드유형', '한도금액', '사용여부', '비고', '메모'], null, 'A1');
+        $rowNo = 2;
         foreach ($cards as $card) {
-            $sheet->setCellValue('A' . $rowIndex, $card['code'] ?? '');
-            $sheet->setCellValue('B' . $rowIndex, $card['card_name'] ?? '');
-            $sheet->setCellValue('C' . $rowIndex, $card['client_name'] ?? '');
-            $sheet->setCellValue('D' . $rowIndex, $card['card_number'] ?? '');
-            $sheet->setCellValue('E' . $rowIndex, $card['card_type'] ?? '');
-            $sheet->setCellValue('F' . $rowIndex, $card['account_name'] ?? '');
-            $sheet->setCellValue('G' . $rowIndex, $card['expiry_year'] ?? '');
-            $sheet->setCellValue('H' . $rowIndex, $card['expiry_month'] ?? '');
-            $sheet->setCellValue('I' . $rowIndex, $card['currency'] ?? 'KRW');
-            $sheet->setCellValue('J' . $rowIndex, $card['limit_amount'] ?? 0);
-            $sheet->setCellValue('K' . $rowIndex, !empty($card['is_active']) ? '1' : '0');
-            $sheet->setCellValue('L' . $rowIndex, $card['note'] ?? '');
-            $sheet->setCellValue('M' . $rowIndex, $card['memo'] ?? '');
-            $rowIndex++;
+            $sheet->fromArray([[$card['sort_no'] ?? '', $card['card_name'] ?? '', $card['card_company'] ?? '', $card['card_number'] ?? '', $card['card_holder'] ?? '', $card['card_type'] ?? '', $card['limit_amount'] ?? '', !empty($card['is_active']) ? '사용' : '미사용', $card['note'] ?? '', $card['memo'] ?? '']], null, 'A' . $rowNo);
+            $rowNo++;
         }
-
-        foreach (range('A', 'M') as $col) {
-            $sheet->getColumnDimension($col)->setAutoSize(true);
-        }
-
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="cards_' . date('Ymd_His') . '.xlsx"');
-        header('Cache-Control: max-age=0');
-
+        foreach (range('A', 'J') as $col) { $sheet->getColumnDimension($col)->setAutoSize(true); }
         $writer = new Xlsx($spreadsheet);
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment; filename="card_list.xlsx"');
+        header('Cache-Control: max-age=0');
         $writer->save('php://output');
-
         $spreadsheet->disconnectWorksheets();
-        unset($spreadsheet);
         exit;
+    }
+    private function parseExcelActiveValue(mixed $value): int
+    {
+        $normalized = strtolower(trim((string)$value));
+        return in_array($normalized, ['1', 'true', 'yes', 'use', 'active', 'y', '사용'], true) ? 1 : 0;
     }
 }

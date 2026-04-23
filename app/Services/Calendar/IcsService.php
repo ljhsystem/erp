@@ -40,7 +40,7 @@ class IcsService
 
 
     /* =========================================================
-     * UID / COMPONENT / SEQUENCE
+     * id / COMPONENT / SEQUENCE
      * ========================================================= */
 
     public function extractUid(string $ics): ?string
@@ -74,17 +74,17 @@ class IcsService
         if (!in_array($component, ['VEVENT', 'VTODO'], true)) {
             $component = 'VEVENT';
         }
-    
-        $uid   = $data['uid'] ?? ('uid-' . bin2hex(random_bytes(10)));
+
+        $id   = $data['id'] ?? ('id-' . bin2hex(random_bytes(10)));
         $title = $this->escapeText($data['title'] ?? '');
         $now   = gmdate('Ymd\THis\Z');
-    
+
         $lines = [
             'BEGIN:VCALENDAR',
             'VERSION:2.0',
             'PRODID:-//SUKHYANG ERP//Calendar//KO',
             'CALSCALE:GREGORIAN',
-        
+
             // 🔥 RFC 5545 정석: TZID 사용 시 반드시 VTIMEZONE 포함
             'BEGIN:VTIMEZONE',
             'TZID:Asia/Seoul',
@@ -95,25 +95,25 @@ class IcsService
             'TZNAME:KST',
             'END:STANDARD',
             'END:VTIMEZONE',
-        
+
             "BEGIN:$component",
-            "UID:$uid",
+            "id:$id",
             "DTSTAMP:$now",
             "CREATED:$now",
             "LAST-MODIFIED:$now",
         ];
-    
+
         if ($title !== '') {
             $lines[] = "SUMMARY:$title";
         }
-    
+
         foreach ($data['raw_lines'] ?? [] as $line) {
             $lines[] = $line;
         }
-    
+
         $lines[] = "END:$component";
         $lines[] = 'END:VCALENDAR';
-    
+
         return $this->foldLines($lines);
     }
 
@@ -135,17 +135,15 @@ class IcsService
                 $set[] = 'COMPLETED:' . gmdate('Ymd\THis\Z');
                 $set[] = 'PERCENT-COMPLETE:100';
                 $remove[] = 'PERCENT-COMPLETE';
-            }
-            elseif ($status === 'IN-PROCESS') {
+            } elseif ($status === 'IN-PROCESS') {
                 $set[] = 'PERCENT-COMPLETE:50';
                 $remove[] = 'COMPLETED';
-            }
-            else { // NEEDS-ACTION
+            } else { // NEEDS-ACTION
                 $set[] = 'PERCENT-COMPLETE:0';
                 $remove[] = 'COMPLETED';
             }
         }
-        
+
 
         return $this->patchComponent($ics, $component, $set, $remove);
     }
@@ -274,118 +272,107 @@ class IcsService
     }
 
 
-/**
- * 🔥 create / rebuild 공용
- * payload → VEVENT raw lines 생성
- */
-public function buildEventRawLines(array $payload, string $tzid = 'Asia/Seoul'): array
-{
-    $rawLines = [];
+    /**
+     * 🔥 create / rebuild 공용
+     * payload → VEVENT raw lines 생성
+     */
+    public function buildEventRawLines(array $payload, string $tzid = 'Asia/Seoul'): array
+    {
+        $rawLines = [];
 
-    // LOCATION
-    if (array_key_exists('location', $payload)) {
-        $rawLines[] = 'LOCATION:' . $this->escapeText($payload['location'] ?? '');
-    }
+        // LOCATION
+        if (array_key_exists('location', $payload)) {
+            $rawLines[] = 'LOCATION:' . $this->escapeText($payload['location'] ?? '');
+        }
 
-    // DESCRIPTION
-    if (array_key_exists('description', $payload)) {
-        $rawLines[] = 'DESCRIPTION:' . $this->escapeText($payload['description'] ?? '');
-    }
+        // DESCRIPTION
+        if (array_key_exists('description', $payload)) {
+            $rawLines[] = 'DESCRIPTION:' . $this->escapeText($payload['description'] ?? '');
+        }
 
-    $start = (string)($payload['start'] ?? '');
-    $end   = (string)($payload['end'] ?? '');
+        $start = (string)($payload['start'] ?? '');
+        $end   = (string)($payload['end'] ?? '');
 
-    $isAllDay =
-        !empty($payload['allDay']) ||
-        (!empty($payload['allday'])) ||
-        ($start !== '' && $end !== '' && substr($start, 0, 10) === substr($end, 0, 10));
+        $isAllDay =
+            !empty($payload['allDay']) ||
+            (!empty($payload['allday'])) ||
+            ($start !== '' && $end !== '' && substr($start, 0, 10) === substr($end, 0, 10));
 
         if ($isAllDay) {
             $baseStart = substr($start, 0, 10);
-        
+
             // ✅ end가 없거나 start와 같으면 "하루짜리"
             $rawLines[] = 'DTSTART;VALUE=DATE:' . str_replace('-', '', $baseStart);
             $rawLines[] = 'DTEND;VALUE=DATE:' . date('Ymd', strtotime($baseStart . ' +1 day'));
         } else {
-        if ($start !== '') {
-            $rawLines[] =
-                'DTSTART;TZID=' . $tzid . ':' .
-                Time::toIcsLocal($start);
+            if ($start !== '') {
+                $rawLines[] =
+                    'DTSTART;TZID=' . $tzid . ':' .
+                    Time::toIcsLocal($start);
+            }
+
+            if ($end !== '') {
+                $rawLines[] =
+                    'DTEND;TZID=' . $tzid . ':' .
+                    Time::toIcsLocal($end);
+            }
         }
-        
-        if ($end !== '') {
-            $rawLines[] =
-                'DTEND;TZID=' . $tzid . ':' .
-                Time::toIcsLocal($end);
+
+        // RRULE
+        if (!empty($payload['rrule'])) {
+            $rr = (string)$payload['rrule'];
+            if (!str_starts_with($rr, 'RRULE:')) {
+                $rr = 'RRULE:' . $rr;
+            }
+            $rawLines[] = $rr;
         }
+
+        return $rawLines;
     }
 
-    // RRULE
-    if (!empty($payload['rrule'])) {
-        $rr = (string)$payload['rrule'];
-        if (!str_starts_with($rr, 'RRULE:')) {
-            $rr = 'RRULE:' . $rr;
+
+
+    /**
+     * 🔔 Reminder → ICS TRIGGER 정규화
+     *
+     * 허용 입력 예:
+     *  - 'at'        → TRIGGER:PT0S
+     *  - '5m'        → TRIGGER:-PT5M
+     *  - '10m'
+     *  - '30m'
+     *  - '1h'
+     *  - '2h'
+     *  - '1d'
+     *  - '-PT15M'    (이미 ICS 포맷)
+     */
+    public function normalizeAlarmTrigger(string $v): string
+    {
+        $v = trim($v);
+
+        if ($v === '' || $v === 'at') {
+            return 'PT0S';
         }
-        $rawLines[] = $rr;
-    }
 
-    return $rawLines;
-}
+        // 이미 ICS TRIGGER 형식이면 그대로
+        if (preg_match('/^-?P(T?\d+[SMHD])+$/i', $v)) {
+            return $v;
+        }
 
+        // 숫자 + 단위 파싱
+        if (preg_match('/^(\d+)([smhd])$/i', $v, $m)) {
+            $num  = (int)$m[1];
+            $unit = strtoupper($m[2]);
 
+            return match ($unit) {
+                'S' => "-PT{$num}S",
+                'M' => "-PT{$num}M",
+                'H' => "-PT{$num}H",
+                'D' => "-P{$num}D",
+                default => '-PT0S',
+            };
+        }
 
-/**
- * 🔔 Reminder → ICS TRIGGER 정규화
- *
- * 허용 입력 예:
- *  - 'at'        → TRIGGER:PT0S
- *  - '5m'        → TRIGGER:-PT5M
- *  - '10m'
- *  - '30m'
- *  - '1h'
- *  - '2h'
- *  - '1d'
- *  - '-PT15M'    (이미 ICS 포맷)
- */
-public function normalizeAlarmTrigger(string $v): string
-{
-    $v = trim($v);
-
-    if ($v === '' || $v === 'at') {
+        // fallback (안전)
         return 'PT0S';
     }
-
-    // 이미 ICS TRIGGER 형식이면 그대로
-    if (preg_match('/^-?P(T?\d+[SMHD])+$/i', $v)) {
-        return $v;
-    }
-
-    // 숫자 + 단위 파싱
-    if (preg_match('/^(\d+)([smhd])$/i', $v, $m)) {
-        $num  = (int)$m[1];
-        $unit = strtoupper($m[2]);
-
-        return match ($unit) {
-            'S' => "-PT{$num}S",
-            'M' => "-PT{$num}M",
-            'H' => "-PT{$num}H",
-            'D' => "-P{$num}D",
-            default => '-PT0S',
-        };
-    }
-
-    // fallback (안전)
-    return 'PT0S';
-}
-
-
-
-
-
-
-
-
-
-
-
 }

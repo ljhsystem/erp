@@ -146,6 +146,7 @@ class SystemController
                     'home_intro_title'        => '홈 소개 제목',
                     'home_intro_url'          => '홈 소개 링크',
                     'sidebar_default'         => '사이드바 기본 상태',
+                    'ui_density'              => 'UI 밀도',
                     'table_density'           => '테이블 밀도',
                     'card_density'            => '카드 밀도',
                     'radius_style'            => '모서리 스타일',
@@ -750,6 +751,7 @@ class SystemController
                 'data' => [
                     'backup_directory_masked' => $this->backupService->getBackupDirectoryMasked(),
                     'latest_backup'    => $latest,
+                    'backup_files'     => $this->backupService->getRecentBackupFiles(12),
                 ]
             ]);
         } catch (\Throwable $e) {
@@ -1055,4 +1057,3 @@ class SystemController
         exit;
     }
 }
-

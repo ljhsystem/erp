@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // 경로: PROJECT_ROOT . '/app/views/auth/register_success.php'
 use Core\Helpers\AssetHelper;
 ?>

@@ -19,7 +19,7 @@
                         <table id="role-list-table" class="table table-bordered table-hover m-0">
                             <thead>
                                 <tr>
-                                    <th style="width:72px">코드</th>
+                                    <th style="width:72px">순번</th>
                                     <th>역할명</th>
                                     <th style="width:96px">상태</th>
                                 </tr>

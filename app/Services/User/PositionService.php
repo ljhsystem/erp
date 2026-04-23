@@ -6,7 +6,7 @@ use PDO;
 use App\Models\User\PositionModel;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
-use Core\Helpers\CodeHelper;
+use Core\Helpers\SequenceHelper;
 use Core\LoggerFactory;
 
 class PositionService
@@ -44,7 +44,7 @@ class PositionService
     }
 
     /* ============================================================
-     * 3) 생성 (UUID + CODE + 검증)
+     * 3) 생성 (UUID + sort_no + 검증)
      * ============================================================ */
     public function create(array $data): array
     {
@@ -59,9 +59,9 @@ class PositionService
             return ['success' => false, 'message' => 'duplicate'];
         }
 
-        // UUID + Code 생성
+        // UUID + sort_no 생성
         $data['id'] = UuidHelper::generate();
-        $data['code'] = CodeHelper::next('user_positions');
+        $data['sort_no'] = null;
 
         $data['created_by'] = ActorHelper::user();
 
@@ -131,18 +131,23 @@ class PositionService
                 $this->pdo->beginTransaction();
             }
 
-            foreach ($changes as $row) {
-                if (empty($row['id']) || !isset($row['newCode'])) {
+            foreach ($changes as &$row) {
+                $sortNo = $row['newSortNo'] ?? $row['sort_no'] ?? null;
+
+                if (empty($row['id']) || $sortNo === null) {
                     throw new \Exception('reorder 데이터 오류');
                 }
+
+                $row['_sort_no'] = (int) $sortNo;
+            }
+            unset($row);
+
+            foreach ($changes as $row) {
+                $this->model->updateSortNo($row['id'], $row['_sort_no'] + 1000000);
             }
 
             foreach ($changes as $row) {
-                $this->model->updateCode($row['id'], (int)$row['newCode'] + 1000000);
-            }
-
-            foreach ($changes as $row) {
-                $this->model->updateCode($row['id'], (int)$row['newCode']);
+                $this->model->updateSortNo($row['id'], $row['_sort_no']);
             }
 
             if ($this->pdo->inTransaction()) {

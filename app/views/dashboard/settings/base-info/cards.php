@@ -95,7 +95,7 @@ $btnDeleteId  = 'cardBtnDeleteSelected';
 $btnDeleteAll = 'cardBtnDeleteAll';
 
 $tableHead = '
-  <th>코드</th>
+  <th>순번</th>
   <th>카드명</th>
   <th>카드번호</th>
   <th>카드유형</th>

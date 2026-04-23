@@ -24,7 +24,7 @@
                 <div class="col-lg-4">
                     <div class="fw-semibold text-dark mb-1">복제 상태</div>
                     <div class="text-muted small">
-                        Primary/Secondary 연결 상태와 Replication 구성 여부를 점검하는 모니터링 영역입니다.
+                        Primary/Secondary DB 연결 상태와 Replication 구성 여부를 모니터링합니다.
                     </div>
                 </div>
             </div>
@@ -32,13 +32,13 @@
     </div>
 
     <form id="backup-setting-form">
-        <div class="row g-3 mb-4">
+        <div class="row g-3 mb-4 backup-top-row">
             <div class="col-lg-6">
-                <div class="card h-100">
+                <div class="card backup-top-card h-100">
                     <div class="card-header fw-semibold text-primary">
                         수동 백업
                     </div>
-                    <div class="card-body">
+                    <div class="card-body d-flex flex-column backup-manual-body h-100">
                         <div class="mb-2">
                             <label class="fw-semibold d-block mb-1">백업 저장소</label>
                             <div class="p-2 bg-light rounded border small">
@@ -62,18 +62,32 @@
                             백업 파일을 다른 저장소로 옮기거나 Secondary DB에 반영하는 작업은 별도로 진행해야 합니다.
                         </div>
 
-                        <div id="backup-run-result" class="mt-3"></div>
+                        <div
+                            id="backup-run-result"
+                            class="overflow-hidden"
+                            style="max-height: 0; opacity: 0; margin-top: 0; transition: max-height .25s ease, opacity .25s ease, margin-top .25s ease;"
+                        ></div>
+
+                        <div class="mt-3 d-flex flex-column flex-grow-1 backup-file-list-wrap">
+                            <label class="fw-semibold d-block mb-2">백업 파일 목록</label>
+                            <div
+                                id="backup-file-list"
+                                class="border rounded bg-light small p-2 backup-file-list-box"
+                            >
+                                파일 목록을 불러오는 중...
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <div class="col-lg-6">
-                <div class="card h-100">
+                <div class="card backup-top-card h-100">
                     <div class="card-header d-flex align-items-center justify-content-between fw-semibold text-primary">
                         <span>자동 백업 설정</span>
                         <span class="badge bg-secondary">사전 설정</span>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body backup-auto-body d-flex flex-column h-100">
                         <div class="alert alert-warning small mb-4">
                             현재 이 영역은 <b>자동 실행 조건을 저장하는 사전 설정</b>입니다.<br>
                             실제 자동 백업/자동 복원은 시놀로지 작업 스케줄러 또는 외부 cron에

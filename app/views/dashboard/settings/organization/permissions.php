@@ -24,7 +24,7 @@
       <option value="permission_name">퍼미션명</option>
       <option value="category">카테고리</option>
       <option value="permission_key">퍼미션키</option>
-      <option value="code">코드</option>
+      <option value="sort_no">순번</option>
       <option value="description">설명</option>
       <option value="is_active">상태</option>
     ';

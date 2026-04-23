@@ -1,15 +1,21 @@
 <?php
 $displayName = $displayName ?? 'Guest';
 $currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$sessionExpireAt = (int)($expireTime ?? 0);
+$sessionRemaining = max(0, $sessionExpireAt - time());
+$sessionInitialText = $sessionRemaining > 0
+    ? sprintf('남은시간 %d:%02d', intdiv($sessionRemaining, 60), $sessionRemaining % 60)
+    : '세션 만료';
+
 $navItems = [
-    ['/dashboard', '메인'],
-    ['/sukhyang', '문서관리'],
-    ['/approval', '전자결재'],
-    ['/ledger', '회계관리'],
-    ['/institution', '대외기관업무'],
-    ['/site', '현장관리'],
-    ['/notice', '공지/회의'],
-    ['/sitemap', '사이트맵'],
+    ['/document', '내부문서', 'bi-folder2-open'],
+    ['/approval', '전자결재', 'bi-check2-square'],
+    ['/ledger', '회계관리', 'bi-journal-text'],
+    ['/institution', '대외기관업무', 'bi-building'],
+    ['/site', '현장관리', 'bi-cash-stack'],
+    ['/shop', '쇼핑몰관리', 'bi-bag'],
+    ['/notice', '공지/회의', 'bi-megaphone'],
+    ['/sitemap', '사이트맵', 'bi-diagram-3'],
 ];
 
 $isActiveNav = static function (string $href) use ($currentPath): bool {
@@ -45,13 +51,13 @@ $isActiveNav = static function (string $href) use ($currentPath): bool {
 
             <div class="desktop-navbar" aria-label="데스크톱 메뉴">
                 <ul class="desktop-navbar-menu">
-                    <?php foreach ($navItems as [$href, $label]): ?>
+                    <?php foreach ($navItems as [$href, $label, $iconClass]): ?>
                         <li class="desktop-navbar-item">
                             <a
                                 class="nav-link<?= $isActiveNav($href) ? ' active' : '' ?>"
                                 href="<?= htmlspecialchars($href, ENT_QUOTES, 'UTF-8') ?>"
                             >
-                                <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
+                                <span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span>
                             </a>
                         </li>
                     <?php endforeach; ?>
@@ -81,7 +87,8 @@ $isActiveNav = static function (string $href) use ($currentPath): bool {
                     id="session-timer"
                     data-expire-time="<?= htmlspecialchars((string)($expireTime ?? 0), ENT_QUOTES, 'UTF-8') ?>"
                     data-session-timeout="<?= htmlspecialchars((string)($sessionTimeout ?? 0), ENT_QUOTES, 'UTF-8') ?>"
-                >00:00</span>
+                    data-session-alert="<?= htmlspecialchars((string)($sessionAlert ?? 0), ENT_QUOTES, 'UTF-8') ?>"
+                ><?= htmlspecialchars($sessionInitialText, ENT_QUOTES, 'UTF-8') ?></span>
             </div>
 
             <div class="desktop-navbar-actions">
@@ -122,20 +129,20 @@ $isActiveNav = static function (string $href) use ($currentPath): bool {
         </div>
         <div class="mobile-status-chip">
             <i class="bi bi-hourglass-split" aria-hidden="true"></i>
-            <span id="mobile-session-timer">00:00</span>
+            <span id="mobile-session-timer"><?= htmlspecialchars($sessionInitialText, ENT_QUOTES, 'UTF-8') ?></span>
         </div>
     </div>
 
     <div class="mobile-navbar-body">
         <ul class="mobile-navbar-menu">
-            <?php foreach ($navItems as [$href, $label]): ?>
+            <?php foreach ($navItems as [$href, $label, $iconClass]): ?>
                 <li>
                     <a
                         class="mobile-nav-link<?= $isActiveNav($href) ? ' active' : '' ?>"
                         href="<?= htmlspecialchars($href, ENT_QUOTES, 'UTF-8') ?>"
                         data-mobile-nav-link="true"
                     >
-                        <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
+                        <span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span>
                     </a>
                 </li>
             <?php endforeach; ?>
@@ -157,5 +164,3 @@ $isActiveNav = static function (string $href) use ($currentPath): bool {
         </a>
     </div>
 </aside>
-
-<div class="fixed-top-space"></div>

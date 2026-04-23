@@ -32,7 +32,9 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/account.js');
     <div class="account-page py-4">
 
         <div class="page-header">
-            <h5 class="mb-1 fw-bold">회계관리 계정과목 관리</h5>
+            <h5 class="mb-1 fw-bold">
+                <i class="bi bi-journal-text me-2"></i>계정과목
+            </h5>
             <span id="accountCount"
                   class="text-primary"
                   style="font-size:1rem; margin-left:35px;"></span>
@@ -207,7 +209,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/account.js');
                                    id="subaccount-table">
                                 <thead>
                                     <tr>
-                                        <th width="50">코드</th>
+                                        <th width="50">순번</th>
                                         <th>보조계정명</th>
                                         <th width="120">관리</th>
                                     </tr>
@@ -225,14 +227,15 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/account.js');
     <?php include __DIR__ . '/partials/account_modal.php'; ?>
 
     <?php
-    $templateUrl = '/api/settings/base-info/account/template';
-    $downloadUrl = '/api/settings/base-info/account/excel';
-    $uploadUrl = '/api/settings/base-info/account/excel-upload';
+    $templateUrl = '/api/ledger/account/template';
+    $downloadUrl = '/api/ledger/accounts/excel';
+    $uploadUrl = '/api/ledger/account/excel-upload';
 
     $modalId = 'accountExcelModal';
     $formId = 'account-excel-upload-form';
     $modalTitle = '계정과목 엑셀 관리';
     $fileInputId = 'excelUpload';
+    $fileInputName = 'file';
     $spinnerId = 'excelUploadSpinner';
     $btnTemplateId = 'btnDownloadAccountTemplate';
     $btnDownloadAll = 'btnDownloadAllAccounts';
@@ -263,6 +266,17 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/account.js');
       <th width="140" class="text-center">관리</th>
     ';
     $emptyMessage = '삭제된 계정과목을 선택해주세요.';
+
+    $modalTitle = '계정과목 휴지통';
+    $tableHead = '
+      <th width="110">계정코드</th>
+      <th>계정과목명</th>
+      <th width="90">구분</th>
+      <th width="160">삭제일시</th>
+      <th width="130">삭제자</th>
+      <th width="160" class="text-center">관리</th>
+    ';
+    $emptyMessage = '삭제된 계정과목을 선택해 주세요.';
 
     include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
     ?>

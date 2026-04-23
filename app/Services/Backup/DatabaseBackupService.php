@@ -148,6 +148,27 @@ class DatabaseBackupService
         ];
     }
 
+    public function getRecentBackupFiles(int $limit = 10): array
+    {
+        $dbName = $this->getCurrentDatabaseName();
+        $files = glob($this->backupDir . $dbName . '_*.sql') ?: [];
+
+        if (!$files) {
+            return [];
+        }
+
+        usort($files, static fn($a, $b) => filemtime($b) <=> filemtime($a));
+        $files = array_slice($files, 0, max(1, $limit));
+
+        return array_map(function (string $path): array {
+            return [
+                'file' => basename($path),
+                'time' => $this->formatFileTime($path),
+                'size' => (int) (@filesize($path) ?: 0),
+            ];
+        }, $files);
+    }
+
     public function restoreLatestBackupToSecondary(string $trigger = 'manual'): array
     {
         $startedAt = $this->now()->format('Y-m-d H:i:s');

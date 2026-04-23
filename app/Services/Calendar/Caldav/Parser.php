@@ -115,13 +115,13 @@ class Parser
                 'boolean(d:propstat/d:prop/d:resourcetype//*[local-name()="calendar"])',
                 $r
             );
-            
+
             if (!$isCalendarResource) continue;
-            
+
             $components = $this->extractComponents($xp, $r);
-            
+
             if (!$components) continue;
-            
+
             $type = null;
             if (in_array('VEVENT', $components, true)) {
                 $type = 'calendar';
@@ -130,7 +130,7 @@ class Parser
             } else {
                 $type = 'unknown';
             }
-            
+
 
             $name = trim($this->decode(
                 (string)$xp->evaluate('string(d:propstat/d:prop/d:displayname)', $r)
@@ -187,7 +187,8 @@ class Parser
         foreach ($nodes as $r) {
             $href = trim($xp->evaluate('string(d:href)', $r));
             $etag = trim($xp->evaluate(
-                'string(d:propstat/d:prop/d:getetag)', $r
+                'string(d:propstat/d:prop/d:getetag)',
+                $r
             ));
 
             $ics = trim($this->decode(
@@ -240,121 +241,113 @@ class Parser
         ));
     }
 
-/* =========================================================
+    /* =========================================================
  * Synology calendar color extractor
  * ========================================================= */
-private function extractCalendarColor(\DOMXPath $xp, \DOMNode $r): ?string
-{
-    $queries = [
-        'string(d:propstat/d:prop/cs:calendar-color)',
-        'string(d:propstat/d:prop/apple:calendar-color)',
-        'string(d:propstat/d:prop/*[local-name()="calendar-color"])',
-    ];
+    private function extractCalendarColor(\DOMXPath $xp, \DOMNode $r): ?string
+    {
+        $queries = [
+            'string(d:propstat/d:prop/cs:calendar-color)',
+            'string(d:propstat/d:prop/apple:calendar-color)',
+            'string(d:propstat/d:prop/*[local-name()="calendar-color"])',
+        ];
 
-    foreach ($queries as $q) {
-        $v = trim((string)$xp->evaluate($q, $r));
-        if ($v !== '') {
-            // #RRGGBB 또는 #RRGGBBAA → #RRGGBB 로 정규화
-            if ($v[0] === '#') {
-                return strtoupper(substr($v, 0, 7));
+        foreach ($queries as $q) {
+            $v = trim((string)$xp->evaluate($q, $r));
+            if ($v !== '') {
+                // #RRGGBB 또는 #RRGGBBAA → #RRGGBB 로 정규화
+                if ($v[0] === '#') {
+                    return strtoupper(substr($v, 0, 7));
+                }
             }
         }
-    }
 
-    return null;
-}
-
-private function extractComponents(\DOMXPath $xp, \DOMNode $r): array
-{
-    $nodes = $xp->query(
-        'd:propstat/d:prop/c:supported-calendar-component-set/c:comp',
-        $r
-    );
-
-    if (!$nodes) return [];
-
-    $out = [];
-    foreach ($nodes as $n) {
-        if (!$n instanceof \DOMElement) continue; // ⭐ 핵심
-
-        $name = strtoupper(trim($n->getAttribute('name')));
-        if ($name !== '') {
-            $out[] = $name;
-        }
-    }
-
-    return array_values(array_unique($out));
-}
-
-
-/* =========================================================
- * 🔍 Single VTODO ICS 파서 (GET 단건 조회용)
- * ========================================================= */
-public function parseSingleVtodo(string $ics): ?array
-{
-    $ics = trim($ics);
-    if ($ics === '') return null;
-
-    // UID
-    if (!preg_match('/^UID:(.+)$/mi', $ics, $m)) {
         return null;
     }
 
-    $uid = trim($m[1]);
+    private function extractComponents(\DOMXPath $xp, \DOMNode $r): array
+    {
+        $nodes = $xp->query(
+            'd:propstat/d:prop/c:supported-calendar-component-set/c:comp',
+            $r
+        );
 
-    // STATUS
-    $status = null;
-    if (preg_match('/^STATUS:(.+)$/mi', $ics, $m)) {
-        $status = strtoupper(trim($m[1]));
+        if (!$nodes) return [];
+
+        $out = [];
+        foreach ($nodes as $n) {
+            if (!$n instanceof \DOMElement) continue; // ⭐ 핵심
+
+            $name = strtoupper(trim($n->getAttribute('name')));
+            if ($name !== '') {
+                $out[] = $name;
+            }
+        }
+
+        return array_values(array_unique($out));
     }
 
-    // PERCENT-COMPLETE
-    $percent = null;
-    if (preg_match('/^PERCENT-COMPLETE:(\d+)/mi', $ics, $m)) {
-        $percent = (int)$m[1];
+
+    /* =========================================================
+ * 🔍 Single VTODO ICS 파서 (GET 단건 조회용)
+ * ========================================================= */
+    public function parseSingleVtodo(string $ics): ?array
+    {
+        $ics = trim($ics);
+        if ($ics === '') return null;
+
+        // id
+        if (!preg_match('/^id:(.+)$/mi', $ics, $m)) {
+            return null;
+        }
+
+        $id = trim($m[1]);
+
+        // STATUS
+        $status = null;
+        if (preg_match('/^STATUS:(.+)$/mi', $ics, $m)) {
+            $status = strtoupper(trim($m[1]));
+        }
+
+        // PERCENT-COMPLETE
+        $percent = null;
+        if (preg_match('/^PERCENT-COMPLETE:(\d+)/mi', $ics, $m)) {
+            $percent = (int)$m[1];
+        }
+
+        // COMPLETED
+        $completed = null;
+        if (preg_match('/^COMPLETED:(.+)$/mi', $ics, $m)) {
+            $completed = trim($m[1]);
+        }
+
+        // SUMMARY
+        $title = null;
+        if (preg_match('/^SUMMARY:(.+)$/mi', $ics, $m)) {
+            $title = trim($m[1]);
+        }
+
+        // DESCRIPTION
+        $description = null;
+        if (preg_match('/^DESCRIPTION:(.+)$/mi', $ics, $m)) {
+            $description = trim($m[1]);
+        }
+
+        // DUE
+        $due = null;
+        if (preg_match('/^DUE(:|;[^:]+:)(.+)$/mi', $ics, $m)) {
+            $due = trim($m[2]);
+        }
+
+        return [
+            'id'       => $id,
+            'status'    => $status,
+            'percent'   => $percent,
+            'completed' => $completed,
+            'title'     => $title,
+            'description' => $description,
+            'due'       => $due,
+            'ics'       => $ics, // 원본 보관
+        ];
     }
-
-    // COMPLETED
-    $completed = null;
-    if (preg_match('/^COMPLETED:(.+)$/mi', $ics, $m)) {
-        $completed = trim($m[1]);
-    }
-
-    // SUMMARY
-    $title = null;
-    if (preg_match('/^SUMMARY:(.+)$/mi', $ics, $m)) {
-        $title = trim($m[1]);
-    }
-
-    // DESCRIPTION
-    $description = null;
-    if (preg_match('/^DESCRIPTION:(.+)$/mi', $ics, $m)) {
-        $description = trim($m[1]);
-    }
-
-    // DUE
-    $due = null;
-    if (preg_match('/^DUE(:|;[^:]+:)(.+)$/mi', $ics, $m)) {
-        $due = trim($m[2]);
-    }
-
-    return [
-        'uid'       => $uid,
-        'status'    => $status,
-        'percent'   => $percent,
-        'completed' => $completed,
-        'title'     => $title,
-        'description'=> $description,
-        'due'       => $due,
-        'ics'       => $ics, // 원본 보관
-    ];
-}
-
-
-
-
-
-
-
-    
 }

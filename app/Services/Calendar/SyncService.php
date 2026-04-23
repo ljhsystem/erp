@@ -41,7 +41,6 @@ class SyncService
             'sapi' => PHP_SAPI,
             'pid'  => function_exists('getmypid') ? getmypid() : null,
         ]);
-
     }
 
     public function isSyncRunning(string $synologyLoginId): bool
@@ -52,18 +51,18 @@ class SyncService
             WHERE synology_login_id = :login
             LIMIT 1
         ");
-    
+
         $stmt->execute([':login' => $synologyLoginId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    
+
         if (!$row) return false;
         if ((int)$row['is_running'] !== 1) return false;
-    
+
         $started = strtotime($row['started_at'] ?? '');
-    
+
         if ($started && (time() - $started) > 300) {
             $this->logger->warning('[SYNC] stale lock - force unlock');
-    
+
             $this->pdo->prepare("
                 UPDATE dashboard_calendar_sync_state
                 SET is_running = 0,
@@ -71,19 +70,19 @@ class SyncService
                     actor = NULL
                 WHERE synology_login_id = :login
             ")->execute([':login' => $synologyLoginId]);
-    
+
             return false;
         }
-    
+
         return true;
     }
-    
+
     private function setSyncRunning(
         string $synologyLoginId,
         bool $state,
         ?string $actor = null
     ): void {
-    
+
         $sql = "
             INSERT INTO dashboard_calendar_sync_state
                 (synology_login_id, is_running, started_at, actor)
@@ -94,7 +93,7 @@ class SyncService
                 started_at = VALUES(started_at),
                 actor = VALUES(actor)
         ";
-    
+
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
             ':login'      => $synologyLoginId,
@@ -111,16 +110,15 @@ class SyncService
         string $synologyLoginId,
         string $ownerUserId,
         string $actor
-    ): void
-    {
+    ): void {
         $this->logger->info('[SYNCALL] start', [
             'actor' => $actor,
             'synology_login_id' => $synologyLoginId,
             'owner_user_id' => $ownerUserId
         ]);
-    
+
         try {
-    
+
             // 1️⃣ 캘린더 리스트 동기화
             $calendarList = $this->syncCalendarList(
                 $synologyLoginId,
@@ -130,23 +128,23 @@ class SyncService
             $this->logger->info('[SYNCALL] calendar list ready', [
                 'count' => count($calendarList),
             ]);
-    
+
             if (empty($calendarList)) {
                 $this->logger->error('[SYNCALL] aborted - calendar list is empty');
                 return;
             }
-    
+
             // 2️⃣ 각 캘린더 동기화
             foreach ($calendarList as $cal) {
-    
+
                 $id   = (string)$cal['id'];
                 $href = (string)$cal['href'];
                 $type = $cal['type'];
-    
+
                 if ($id === '' || $href === '') {
                     continue;
                 }
-    
+
                 if ($type === 'calendar') {
                     $this->syncEventCalendar(
                         $id,
@@ -155,7 +153,7 @@ class SyncService
                         $actor
                     );
                 }
-    
+
                 if ($type === 'task') {
                     $this->syncTaskCalendar(
                         $id,
@@ -165,66 +163,64 @@ class SyncService
                     );
                 }
             }
-    
+
             $this->logger->info('[SYNCALL] done');
-    
         } catch (\Throwable $e) {
-    
+
             $this->logger->error('[SYNCALL] failed', [
                 'error' => $e->getMessage(),
                 'file'  => $e->getFile(),
                 'line'  => $e->getLine(),
             ]);
-    
+
             throw $e;
         }
     }
-    
+
     private function syncCalendarList(
         string $synologyLoginId,
         string $ownerUserId,
         ?string $actor
-    ): array
-    {
+    ): array {
         $this->logger->info('[LIST] sync start', ['actor' => $actor]);
-    
+
         if (!$actor) {
             return [];
         }
-    
+
         $res = $this->crud->fetchRemoteCalendars();
         if (!$res['success'] || empty($res['data'])) {
             return [];
         }
-    
+
         $remoteList = $res['data'];
         $activeIds  = [];
-    
+
         $this->pdo->beginTransaction();
-    
+
         try {
-    
+
             foreach ($remoteList as $cal) {
 
                 $href = rtrim((string)($cal['href'] ?? ''), '/') . '/';
                 $name = trim((string)($cal['name'] ?? ''));
-            
+
                 if ($href === '' || $name === '') {
                     continue;
                 }
-            
+
                 $loginPrincipal = $synologyLoginId;
                 $hrefParts = explode('/', trim($href, '/'));
                 $ownerPrincipal = $hrefParts[1] ?? $loginPrincipal;
-            
+
                 $isPersonal = ($loginPrincipal === $ownerPrincipal);
                 $localId = md5($href);
-            
+
                 $rawType = strtolower((string)($cal['type'] ?? ''));
                 $type = (str_contains($rawType, 'task') || str_contains($rawType, 'vtodo'))
                     ? 'task'
                     : 'calendar';
-            
+
                 // 1️⃣ list upsert
                 $this->listModel->upsert([
                     'id' => $localId,
@@ -237,7 +233,7 @@ class SyncService
                     'synology_login_principal' => $loginPrincipal,
                     'is_personal' => $isPersonal ? 1 : 0,
                 ], $actor);
-            
+
                 // 🔥 2️⃣ visibility upsert (여기로 이동)
                 $this->visibilityModel->upsert([
                     'calendar_id' => $localId,
@@ -245,9 +241,9 @@ class SyncService
                     'owner_user_id' => $ownerUserId,
                     'is_visible' => 1,
                 ]);
-            
+
                 $activeIds[] = $localId;
-            }   
+            }
 
 
             $this->listModel->markVisibilityInactiveMissing(
@@ -256,25 +252,24 @@ class SyncService
                 $ownerUserId,
                 $actor
             );
-    
+
             $this->pdo->commit();
-    
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
             throw $e;
         }
-    
+
         return $this->listModel->getActiveListBySynology($synologyLoginId);
     }
 
-    
+
     private function syncEventCalendar(
         string $calendarId,
         string $calendarHref,
         string $synologyLoginId,
         ?string $actor
     ): void {
-    
+
         $this->logger->info('[EVENT SYNC ENTER]', [
             'calendar_id' => $calendarId
         ]);
@@ -287,14 +282,14 @@ class SyncService
         if (!$calendarRow) {
             return;
         }
-        
+
         // 🔐 개인 캘린더 보호
         if ((int)$calendarRow['is_personal'] === 1) {
             if ($calendarRow['synology_login_id'] !== $synologyLoginId) {
                 return;
             }
         }
-        
+
         $realSynologyLoginId = $calendarRow['synology_login_id'];
 
         $eventsRes = $this->crud->getEvents(
@@ -302,21 +297,21 @@ class SyncService
             date('Y-m-d', strtotime('-1 year')),
             date('Y-m-d', strtotime('+2 years'))
         );
-        
-    
+
+
         // 🔒 Remote fetch 실패 시 삭제 판단 절대 금지
         if (!$eventsRes['success']) {
             return;
         }
-    
+
         $events = $eventsRes['data'] ?? [];
-            
+
         /* =====================================================
         * 1️⃣ UPSERT (Soft Delete 보호 포함)
         * ===================================================== */
         foreach ($events as $event) {
 
-            if (empty($event['uid'])) {
+            if (empty($event['id'])) {
                 continue;
             }
 
@@ -331,7 +326,7 @@ class SyncService
 
             // 🔥 1. 기존 레코드 조회
             $existing = $this->eventModel->findAnyByUid(
-                $event['uid'],
+                $event['id'],
                 $realSynologyLoginId
             );
 
@@ -350,7 +345,7 @@ class SyncService
 
             $this->eventModel->upsert($payload);
         }
-    
+
         /* =====================================================
         * 2️⃣ 삭제 감지
         * ===================================================== */
@@ -358,8 +353,8 @@ class SyncService
         $remoteUids = [];
 
         foreach ($events as $event) {
-            if (!empty($event['uid'])) {
-                $remoteUids[] = $event['uid'];
+            if (!empty($event['id'])) {
+                $remoteUids[] = $event['id'];
             }
         }
 
@@ -370,40 +365,40 @@ class SyncService
 
         $missing = array_diff($dbUids, $remoteUids);
 
-        foreach ($missing as $uid) {
+        foreach ($missing as $id) {
 
             $row = $this->eventModel->findAnyByUid(
-                $uid,
+                $id,
                 $realSynologyLoginId
             );
-        
+
             if (!$row) {
                 continue;
             }
-        
+
             // 이미 휴지통이면 skip
             if ((int)$row['is_active'] === 0) {
                 continue;
             }
-        
+
             // 복원 보호
             if (!empty($row['restored_at'])) {
-        
+
                 $restored = strtotime($row['restored_at']);
-        
+
                 if ($restored && (time() - $restored) < 300) {
                     continue;
                 }
             }
-        
+
             // ERP 생성 이벤트 보호
             if (!empty($row['raw_ics'])) {
                 continue;
             }
-        
+
             // 🔥 Synology 원본 삭제 상태 기록
             $this->eventModel->markSynologyMissing(
-                $uid,
+                $id,
                 $calendarId,
                 $realSynologyLoginId
             );
@@ -413,9 +408,9 @@ class SyncService
             'calendar_id' => $calendarId,
         ]);
     }
-    
-    
-    
+
+
+
 
 
 
@@ -425,14 +420,14 @@ class SyncService
         string $synologyLoginId,
         ?string $actor
     ): void {
-    
+
         $this->logger->info('[TASK] sync start', [
             'calendar_id' => $calendarId,
             'href'        => $calendarHref,
         ]);
-    
+
         $tasksRes = $this->crud->getTasks($calendarHref, null, null);
-    
+
         // 🔒 fetch 실패 시 삭제 판단 금지
         if (!$tasksRes['success']) {
             $this->logger->error('[TASK] fetch failed', [
@@ -440,9 +435,9 @@ class SyncService
             ]);
             return;
         }
-    
+
         $tasks = $tasksRes['data'] ?? [];
-    
+
         $this->logger->info('[TASK] fetched', [
             'calendar_id' => $calendarId,
             'count'       => count($tasks),
@@ -456,14 +451,14 @@ class SyncService
         if (!$calendarRow) {
             return;
         }
-        
+
         // 🔐 개인 캘린더 보호
         if ((int)$calendarRow['is_personal'] === 1) {
             if ($calendarRow['synology_login_id'] !== $synologyLoginId) {
                 return;
             }
         }
-        
+
         $realSynologyLoginId = $calendarRow['synology_login_id'];
 
         /* ===============================
@@ -471,7 +466,7 @@ class SyncService
         * =============================== */
         foreach ($tasks as $task) {
 
-            if (empty($task['uid'])) {
+            if (empty($task['id'])) {
                 continue;
             }
 
@@ -479,7 +474,7 @@ class SyncService
             $realSynologyLoginId = $calendarRow['synology_login_id'];
 
             $existing = $this->taskModel->findAnyByUid(
-                $task['uid'],
+                $task['id'],
                 $realSynologyLoginId
             );
 
@@ -502,66 +497,66 @@ class SyncService
         /* ===============================
          * 2️⃣ 삭제 판단 (데이터 있을 때만)
          * =============================== */
-    
+
         $remoteUids = [];
-    
+
         foreach ($tasks as $task) {
 
-            if (empty($task['uid'])) {
+            if (empty($task['id'])) {
                 continue;
             }
-        
-            $uid = preg_replace('/^task_/', '', $task['uid']);
-        
-            $remoteUids[] = $uid;
+
+            $id = preg_replace('/^task_/', '', $task['id']);
+
+            $remoteUids[] = $id;
         }
-    
+
         $dbUids = $this->taskModel->getActiveUidsByCalendar(
             $calendarId,
             $realSynologyLoginId
         );
-    
+
         $missing = array_diff($dbUids, $remoteUids);
 
-        foreach ($missing as $uid) {
+        foreach ($missing as $id) {
 
             $row = $this->taskModel->findAnyByUid(
-                $uid,
+                $id,
                 $realSynologyLoginId
             );
-        
+
             if (!$row) {
                 continue;
             }
-        
+
             // 이미 휴지통이면 skip
             if ((int)$row['is_active'] === 0) {
                 continue;
             }
-        
+
             // 복원 보호
             if (!empty($row['restored_at'])) {
-        
+
                 $restored = strtotime($row['restored_at']);
-        
+
                 if ($restored && (time() - $restored) < 300) {
                     continue;
                 }
             }
-        
+
             // ERP 생성 task 보호
             if (!empty($row['raw_ics'])) {
                 continue;
             }
-        
+
             // 🔥 Synology 원본 삭제 상태 기록
             $this->taskModel->markSynologyMissing(
-                $uid,
+                $id,
                 $calendarId,
                 $realSynologyLoginId
             );
         }
-    
+
         $this->logger->info('[TASK] sync done', [
             'calendar_id' => $calendarId,
             'count'       => count($tasks),
@@ -578,8 +573,7 @@ class SyncService
         string $calendarId,
         ?string $realSynologyLoginId,
         ?string $actor
-    ): array
-    {
+    ): array {
         // 🔥 Synology raw = VEVENT
         $vevent = is_array($event['raw'] ?? null) ? $event['raw'] : [];
 
@@ -592,23 +586,22 @@ class SyncService
         // DTSTART / DTEND
         $dtstartRaw = $rawValue($vevent, 'DTSTART') ?? $event['dtstart'] ?? null;
         $dtendRaw   = $rawValue($vevent, 'DTEND')   ?? $event['dtend']   ?? null;
-        
+
         $allDay = (($vevent['DTSTART']['params']['VALUE'] ?? null) === 'DATE') ? 1 : 0;
-        
+
         if ($allDay && $dtstartRaw && $dtendRaw) {
-        
+
             // Synology 종일은 DTEND가 +1 day 이므로
             $startDate = substr($dtstartRaw, 0, 8);
             $endDate   = substr($dtendRaw,   0, 8);
-        
+
             $dtstart = $startDate;
-        
+
             $dtend = Time::parseLocal($endDate)
                 ->modify('-1 day')
                 ->format('Ymd');
-        
         } else {
-        
+
             $dtstart = $dtstartRaw;
             $dtend   = $dtendRaw;
         }
@@ -637,7 +630,7 @@ class SyncService
         * ========================================================= */
         $existingAdminColor = null;
 
-        $uidForLookup = (string)($event['uid'] ?? '');
+        $uidForLookup = (string)($event['id'] ?? '');
         if ($uidForLookup !== '') {
             try {
                 $existingRow = $this->eventModel->findByUidAndCalendar(
@@ -656,24 +649,24 @@ class SyncService
 
         $existing = null;
 
-        if (!empty($event['uid'])) {
+        if (!empty($event['id'])) {
             $existing = $this->eventModel->findByUidAndCalendar(
-                $event['uid'],
+                $event['id'],
                 $realCalendarId,
                 $realSynologyLoginId
             );
         }
-        
+
         $alarmsJson =
             !empty($event['alarms'])
-                ? json_encode($event['alarms'], JSON_UNESCAPED_UNICODE)
-                : ($existing['alarms_json'] ?? null);
+            ? json_encode($event['alarms'], JSON_UNESCAPED_UNICODE)
+            : ($existing['alarms_json'] ?? null);
 
         return [
             /* ===============================
             * 식별
             * =============================== */
-            'uid'         => $event['uid'] ?? null,
+            'id'         => $event['id'] ?? null,
             'calendar_id' => $realCalendarId,
             'owner_user_id' => $actor,
             'synology_login_id' => $realSynologyLoginId,
@@ -708,20 +701,20 @@ class SyncService
             * 색상
             * =============================== */
             'event_color' =>
-                $rawValue($vevent, 'X-SYNO-EVT-COLOR')
+            $rawValue($vevent, 'X-SYNO-EVT-COLOR')
                 ?? $rawValue($vevent, 'COLOR'),
 
             // ✅ ERP 확장필드 (DB 보존)
             'admin_event_color' =>
-                $existing['admin_event_color'] ?? null,
+            $existing['admin_event_color'] ?? null,
 
             /* ===============================
             * 상태
             * =============================== */
             'status'   => $rawValue($vevent, 'STATUS'),
             'priority' => isset($vevent['PRIORITY']['value'])
-                            ? (int)$vevent['PRIORITY']['value']
-                            : null,
+                ? (int)$vevent['PRIORITY']['value']
+                : null,
             'transp'   => $rawValue($vevent, 'TRANSP'),
 
             /* ===============================
@@ -730,40 +723,38 @@ class SyncService
             'alarms_json' => $alarmsJson,
 
             'attendees_json' =>
-                isset($vevent['ATTENDEE'])
-                    ? json_encode($vevent['ATTENDEE'], JSON_UNESCAPED_UNICODE)
-                    : null,
+            isset($vevent['ATTENDEE'])
+                ? json_encode($vevent['ATTENDEE'], JSON_UNESCAPED_UNICODE)
+                : null,
 
-            'recurrence_json' =>
-                ($rrule || !empty($rdate) || !empty($exdate))
-                    ? json_encode([
-                        'rrule'  => $rrule,
-                        'rdate'  => $rdate,
-                        'exdate' => $exdate,
-                    ], JSON_UNESCAPED_UNICODE)
-                    : null,
+            'recurrence_json' => ($rrule || !empty($rdate) || !empty($exdate))
+                ? json_encode([
+                    'rrule'  => $rrule,
+                    'rdate'  => $rdate,
+                    'exdate' => $exdate,
+                ], JSON_UNESCAPED_UNICODE)
+                : null,
 
             'categories_json' =>
-                isset($vevent['CATEGORIES'])
-                    ? json_encode($vevent['CATEGORIES'], JSON_UNESCAPED_UNICODE)
-                    : null,
+            isset($vevent['CATEGORIES'])
+                ? json_encode($vevent['CATEGORIES'], JSON_UNESCAPED_UNICODE)
+                : null,
 
             'comments_json' =>
-                isset($vevent['COMMENT'])
-                    ? json_encode($vevent['COMMENT'], JSON_UNESCAPED_UNICODE)
-                    : null,
+            isset($vevent['COMMENT'])
+                ? json_encode($vevent['COMMENT'], JSON_UNESCAPED_UNICODE)
+                : null,
 
             'attachments_json' =>
-                isset($vevent['ATTACH'])
-                    ? json_encode($vevent['ATTACH'], JSON_UNESCAPED_UNICODE)
-                    : null,
+            isset($vevent['ATTACH'])
+                ? json_encode($vevent['ATTACH'], JSON_UNESCAPED_UNICODE)
+                : null,
 
             /* ===============================
             * RAW
             * =============================== */
             'raw_json' => json_encode($event, JSON_UNESCAPED_UNICODE),
         ];
-
     }
 
 
@@ -777,8 +768,7 @@ class SyncService
         string $calendarId,
         ?string $realSynologyLoginId,
         ?string $actor
-    ): array
-    {
+    ): array {
         $raw = is_array($task['raw'] ?? null) ? $task['raw'] : [];
 
         $rawValue = static function (array $raw, string $key) {
@@ -793,9 +783,9 @@ class SyncService
         * 🔥 기존 DB 값 조회 (보존용)
         * =============================== */
         $existing = null;
-        if (!empty($task['uid'])) {
+        if (!empty($task['id'])) {
             $existing = $this->taskModel->findAnyByUid(
-                $task['uid'],
+                $task['id'],
                 $realSynologyLoginId
             );
         }
@@ -828,54 +818,52 @@ class SyncService
 
         $dueRaw   = $task['due']   ?? $rawValue($raw, 'DUE');
         $startRaw = $task['start'] ?? $rawValue($raw, 'DTSTART');
-        
+
         $dueForDb = null;
         $dueYmd   = null;
         $startYmd = null;
-        
+
         /**
          * VALUE=DATE 판정
-        * - raw 파서 구조가 없을 수도 있으니 ?? []로 방어
-        */
+         * - raw 파서 구조가 없을 수도 있으니 ?? []로 방어
+         */
         $dueIsDateParam   = (((($raw['DUE'] ?? [])['params']['VALUE'] ?? null) === 'DATE'));
         $startIsDateParam = (((($raw['DTSTART'] ?? [])['params']['VALUE'] ?? null) === 'DATE'));
-        
+
         /* ===============================
         * DUE 처리
         * =============================== */
         if ($dueRaw) {
-        
+
             // ✅ DATE 타입: 날짜만 저장 (시간 삭제)
             if ($dueIsDateParam || preg_match('/^\d{8}$/', (string)$dueRaw)) {
-        
+
                 $dt = Time::parseLocal((string)$dueRaw);
                 $dueYmd   = $dt->format('Ymd');
                 $dueForDb = $dt->format('Y-m-d');
-        
             } else {
-        
+
                 // ✅ 시간 타입: 서울시간으로 normalize
                 $dt = Time::parseLocal((string)$dueRaw);
                 $dueYmd   = $dt->format('Ymd');
                 $dueForDb = $dt->format('Y-m-d H:i:s');
             }
         }
-        
+
         /* ===============================
         * DTSTART 처리
         * =============================== */
         if ($startRaw) {
-        
+
             // ✅ DTSTART도 parseLocal로 통일
             $dt = Time::parseLocal((string)$startRaw);
             $startYmd = $dt->format('Ymd');
-        
         } elseif (is_array($existing) && !empty($existing['start_ymd'])) {
-        
+
             // 🔥 기존 DB 값 유지
             $startYmd = $existing['start_ymd'];
         }
-        
+
         /* ===============================
         * all_day 판정 (단일 기준)
         * - DUE 또는 DTSTART 중 하나라도 VALUE=DATE면 all_day
@@ -902,7 +890,7 @@ class SyncService
 
         $href = $task['_href'] ?? null;
         $etag = $task['_etag'] ?? null;
-        
+
         /* 🔥 기존값 보호 */
         if (!$href && is_array($existing)) {
             $href = $existing['href'] ?? null;
@@ -910,14 +898,14 @@ class SyncService
         if (!$etag && is_array($existing)) {
             $etag = $existing['etag'] ?? null;
         }
-        
+
         /* 🔥 collection 추출 (절대 안정형) */
         $collectionHref = null;
-        
+
         if ($href) {
             $collectionHref = rtrim(dirname($href), '/') . '/';
         }
-        
+
         if (!$collectionHref && is_array($existing)) {
             $collectionHref = $existing['collection_href'] ?? null;
         }
@@ -954,7 +942,6 @@ class SyncService
             //     → 기존 DB 값 유지
             if (!empty($existing['status'])) {
                 $status = $existing['status'];
-
             } else {
 
                 // 🔹 기존 값도 없으면 기본값
@@ -972,14 +959,14 @@ class SyncService
         * - STATUS 누락 문제 분석용
         * ========================================================= */
         $this->logger->debug('[MAP TASK STATUS]', [
-            'uid' => $task['uid'] ?? null,
+            'id' => $task['id'] ?? null,
             'raw_status' => $rawValue($raw, 'STATUS'),
             'existing_status' => $existing['status'] ?? null,
             'final_status' => $status,
         ]);
 
         return [
-            'uid'         => $task['uid'] ?? null,
+            'id'         => $task['id'] ?? null,
             'calendar_id' => $calendarId,
             'owner_user_id' => $actor,
             'synology_login_id' => $realSynologyLoginId,
@@ -987,15 +974,15 @@ class SyncService
             'href'        => $href,
             'collection_href' => $collectionHref,
             'etag'        => $etag,
-        
+
             'title'       => $title,
             'description' => $description,
-        
+
             // 🔥 여기 수정
             'due'        => $dueForDb,
             'start'      => $startRaw,
             'due_ymd'    => $dueYmd,
-            'start_ymd'  => $startYmd,       
+            'start_ymd'  => $startYmd,
             'all_day' => $allDay,
 
             'status' => $status,
@@ -1028,21 +1015,20 @@ class SyncService
     * - 무조건 UPSERT
     * ========================================================= */
     public function syncOneEventByUid(
-        string $uid,
+        string $id,
         string $arg2,
         ?string $actor = null,
         array $extra = []
-    ): array
-    {
+    ): array {
         /*
         ------------------------------------------------------------
         🔥 하위 호환 처리
         ------------------------------------------------------------
         예전 방식:
-            syncOneEventByUid($uid, $userId, $extra)
+            syncOneEventByUid($id, $userId, $extra)
 
         새 방식:
-            syncOneEventByUid($uid, $synologyLoginId, $actor, $extra)
+            syncOneEventByUid($id, $synologyLoginId, $actor, $extra)
         ------------------------------------------------------------
         */
 
@@ -1056,24 +1042,24 @@ class SyncService
             $synologyLoginId = $arg2;
         }
 
-        if ($uid === '') {
+        if ($id === '') {
             return ['status' => 'noop', 'event' => null];
         }
 
-        $res = $this->crud->getEventByUid($uid);
+        $res = $this->crud->getEventByUid($id);
 
         if (!$res['success'] || empty($res['data'])) {
 
             // 🔥 Synology 응답 지연 보호
             $row = $this->eventModel->findAnyByUid(
-                $uid,
+                $id,
                 $synologyLoginId
             );
-        
+
             if ($row) {
                 return ['status' => 'pending', 'event' => $row];
             }
-        
+
             return ['status' => 'noop', 'event' => null];
         }
 
@@ -1088,7 +1074,7 @@ class SyncService
 
         if (!$calendarId) {
             throw new \RuntimeException(
-                'calendar_id missing for uid: ' . $uid
+                'calendar_id missing for id: ' . $id
             );
         }
 
@@ -1101,7 +1087,7 @@ class SyncService
         if (!$calendarRow) {
             return ['status' => 'noop', 'event' => null];
         }
-        
+
         // 🔐 개인 보호
         if ((int)$calendarRow['is_personal'] === 1) {
             if ($calendarRow['synology_login_id'] !== $synologyLoginId) {
@@ -1131,15 +1117,14 @@ class SyncService
                 (int)$extra['force_update_id'],
                 $payload
             );
-
         } else {
 
             $this->eventModel->upsert($payload);
         }
-        
+
 
         $row = $this->eventModel->findByUidAndCalendar(
-            $uid,
+            $id,
             $calendarId,
             $realSynologyLoginId
         );
@@ -1160,15 +1145,14 @@ class SyncService
     * - 무조건 UPSERT
     * ========================================================= */
     public function syncOneTaskByUid(
-        string $uid,
+        string $id,
         string $synologyLoginId,
         ?string $actor = null,
         array $extra = []
-    ): array
-    {
-        $uid = preg_replace('/^task_/', '', $uid);
+    ): array {
+        $id = preg_replace('/^task_/', '', $id);
 
-        if ($uid === '') {
+        if ($id === '') {
             return ['status' => 'noop', 'task' => null];
         }
 
@@ -1183,7 +1167,7 @@ class SyncService
 
             try {
                 $direct = $this->crud->getTaskByUid(
-                    $uid,
+                    $id,
                     $extra['collection_href'] ?? null,
                     $extra   // 🔥 force_href 전달
                 );
@@ -1191,11 +1175,9 @@ class SyncService
                 if ($direct['success'] && !empty($direct['data'])) {
                     $task = $direct['data'];
                 }
-
             } catch (\Throwable $e) {
                 return ['status' => 'error', 'task' => null];
             }
-
         } else {
 
             /**
@@ -1204,7 +1186,7 @@ class SyncService
              * =========================================================
              */
             $res = $this->crud->getTaskByUid(
-                $uid,
+                $id,
                 $extra['collection_href'] ?? null,
                 $extra
             );
@@ -1231,10 +1213,10 @@ class SyncService
             if (!empty($extra['force_href'])) {
                 return ['status' => 'pending', 'task' => null];
             }
-        
+
             // 🔥 owner를 모를 수 있으므로 owner 없이 조회
             $existing = $this->taskModel->findAnyByUid(
-                $uid,
+                $id,
                 $synologyLoginId
             );
 
@@ -1251,15 +1233,15 @@ class SyncService
                 if (!empty($existing['raw_ics'])) {
                     return ['status' => 'erp-only', 'task' => $existing];
                 }
-            
+
                 $this->taskModel->markInactive(
-                    $uid,
+                    $id,
                     $existing['calendar_id'],
                     $existing['owner_user_id'],
                     $actor
                 );
             }
-        
+
             return ['status' => 'deleted', 'task' => null];
         }
 
@@ -1276,7 +1258,7 @@ class SyncService
 
         if (!$calendarId) {
             throw new \RuntimeException(
-                'calendar_id missing for task uid: ' . $uid
+                'calendar_id missing for task id: ' . $id
             );
         }
 
@@ -1293,7 +1275,7 @@ class SyncService
         if (!$calendarRow) {
             return ['status' => 'noop', 'task' => null];
         }
-            
+
         // 🔐 개인 보호
         if ((int)$calendarRow['is_personal'] === 1) {
             if ($calendarRow['synology_login_id'] !== $synologyLoginId) {
@@ -1312,7 +1294,7 @@ class SyncService
 
         // 🔥 기존 존재 여부 확인
         $existing = $this->taskModel->findAnyByUid(
-            $uid,
+            $id,
             $realSynologyLoginId
         );
 
@@ -1326,7 +1308,7 @@ class SyncService
 
         // 🔥 재조회
         $row = $this->taskModel->findByUidAndCalendar(
-            $uid,
+            $id,
             $calendarId,
             $realSynologyLoginId
         );
@@ -1350,8 +1332,7 @@ class SyncService
         string $synologyLoginId,
         string $ownerUserId,
         string $actor
-    ): void
-    {
+    ): void {
         $this->logger->warning('[REBUILD] FULL CACHE REBUILD START', [
             'actor' => $actor,
         ]);
@@ -1359,7 +1340,7 @@ class SyncService
         if (!$actor) {
             throw new \RuntimeException('actor required for rebuild');
         }
-        
+
 
         if (!$actor) {
             throw new \RuntimeException('actor required for rebuild');
@@ -1370,7 +1351,7 @@ class SyncService
             $this->logger->warning('[REBUILD] skipped - already running');
             return;
         }
-        
+
         $this->setSyncRunning($synologyLoginId, true, $actor);
 
         try {
@@ -1418,7 +1399,6 @@ class SyncService
             }
             $this->setSyncRunning($synologyLoginId, false);
             $this->logger->warning('[REBUILD] FULL CACHE REBUILD DONE');
-
         } catch (\Throwable $e) {
 
             $this->setSyncRunning($synologyLoginId, false);
@@ -1456,20 +1436,20 @@ class SyncService
                 OR started_at < DATE_SUB(NOW(), INTERVAL 5 MINUTE)
             )
         ");
-    
+
         $stmt->execute([':login' => $loginId]);
-    
+
         if ($stmt->rowCount() > 0) {
             return true;
         }
-    
+
         // 최초 row 없으면 생성
         $this->pdo->prepare("
             INSERT IGNORE INTO dashboard_calendar_sync_state
             (synology_login_id, started_at)
             VALUES (:login, NOW())
-        ")->execute([':login'=>$loginId]);
-    
+        ")->execute([':login' => $loginId]);
+
         return true;
     }
 
@@ -1506,6 +1486,4 @@ class SyncService
 
         $this->logger->info('[QUICK SYNC] done');
     }
-
-
 }

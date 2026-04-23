@@ -20,9 +20,9 @@ function normalizeOptions(options = {}) {
     return {
         width: '100%',
         language: 'ko',
-        allowClear: true,
-        placeholder: '선택하세요',
-        dropdownAutoWidth: true,
+        allowClear: false,
+        placeholder: '선택',
+        dropdownAutoWidth: false,
         ...options
     };
 }
@@ -42,6 +42,21 @@ function resolveDropdownParent(el, options = {}) {
     return $(document.body);
 }
 
+function ensureEmptyOption(el, placeholder = '선택') {
+    if (!el || el.multiple) {
+        return;
+    }
+
+    const hasEmptyOption = Array.from(el.options || [])
+        .some((option) => option.value === '');
+
+    if (hasEmptyOption) {
+        return;
+    }
+
+    el.insertBefore(new Option(placeholder || '선택', '', false, false), el.firstChild);
+}
+
 function createSelect2(target, options = {}) {
     const $ = ensureJQuery();
     ensureSelect2($);
@@ -56,9 +71,13 @@ function createSelect2(target, options = {}) {
     }
 
     const config = normalizeOptions(options);
+    ensureEmptyOption(el, config.placeholder);
 
     const finalOptions = {
         ...config,
+        width: '100%',
+        allowClear: false,
+        dropdownAutoWidth: false,
         dropdownParent: resolveDropdownParent(el, config)
     };
 

@@ -68,7 +68,7 @@ window.AdminPicker = AdminPicker;
        ??嚥▲꺂??嶸←빊?
     ========================================================= */
     const COVER_COLUMN_MAP = {
-        code:        { label: "\uCF54\uB4DC", visible: true },
+        sort_no:        { label: "순번", visible: true },
         url:         { label: "\uC774\uBBF8\uC9C0(View)", visible: true },
         year:        { label: "\uD574\uB2F9\uB144\uB3C4(Year)", visible: true },
         title:       { label: "\uD0C0\uC774\uD2C0(Title)", visible: true },
@@ -553,14 +553,14 @@ window.AdminPicker = AdminPicker;
                     action: function () {
                         const trashModalEl = document.getElementById('coverTrashModal');
                         if (!trashModalEl) return;
-                
+
                         /* ???????? JS?????API ?癲ル슢?뤸뤃??(??????????? */
                         trashModalEl.dataset.listUrl      = API.TRASH;
                         trashModalEl.dataset.restoreUrl   = API.RESTORE;
-                        
+
                         trashModalEl.dataset.deleteUrl    = API.PURGE;
                         trashModalEl.dataset.deleteAllUrl = API.PURGE_ALL;
-                
+
                         const modal = new bootstrap.Modal(trashModalEl);
                         modal.show();
                     }
@@ -786,7 +786,7 @@ window.AdminPicker = AdminPicker;
 
         $(document).off('submit', DOM.form);
         $(document).on('submit', DOM.form, function (e) {
-            e.preventDefault();           
+            e.preventDefault();
 
             const fileInput = qs(DOM.modalImageFile);
             const hasFile = !!(fileInput && fileInput.files && fileInput.files.length > 0);
@@ -1068,24 +1068,24 @@ window.AdminPicker = AdminPicker;
 
         //     const modal = e.target.closest('.modal');
         //     if (!modal) return;
-        
+
         //     const layout = modal.querySelector('.trash-layout');
         //     const detail = modal.querySelector('.trash-right');
         //     const table  = modal.querySelector('.trash-table');
-        
+
         //     if (!layout || !detail || !table) return;
-        
+
         //     const row = e.target.closest('tbody tr');
         //     if (!row) return;
-        
+
         //     if (!table.contains(row)) return;
-        
+
         //     console.log('?????醫딆┫???????源낇꺙 ??????);
-        
+
         //     /* ??????類ㅺ퉻??嚥???????源낇꺙 */
         //     layout.classList.add('open');
         //     detail.style.display = 'block';
-        
+
         //     /* ???????ㅼ굡獒????β뼯爰???ш끽維???*/
         //     detail.innerHTML = `
         //         <div style="padding:20px;">
@@ -1093,7 +1093,7 @@ window.AdminPicker = AdminPicker;
         //             <p>?????嶺뚮Ĳ?????????癲ル슢캉????/p>
         //         </div>
         //     `;
-        
+
         // });
 
 
@@ -1103,17 +1103,17 @@ window.AdminPicker = AdminPicker;
             const { data, modal, type } = e.detail || {};
             if (type !== 'cover') return;
             if (!modal || modal.dataset.type !== 'cover') return;
-    
+
             const detailBox = modal.querySelector('.trash-detail');
             if (!detailBox) return;
-    
+
             detailBox.innerHTML = `
                 <div class="cover-trash-detail-card">
                     <div class="cover-trash-detail-head">
                         <h6 class="cover-trash-detail-title">?????????노듋??癲ル슢???ъ쒜?/h6>
                         <button type="button" class="cover-trash-detail-close" id="btnCloseCoverTrashDetail">??/button>
                     </div>
-    
+
                     <div class="cover-trash-preview">
                         ${
                             data?.url
@@ -1121,9 +1121,9 @@ window.AdminPicker = AdminPicker;
                                 : `<div class="cover-trash-empty-preview">?????꿔꺂??? ????ㅼ굡??/div>`
                         }
                     </div>
-    
+
                     <div class="cover-trash-detail-grid">
-                        <div class="label">??ш끽維???/div><div class="value">${escapeHtml(data?.code ?? '')}</div>
+                        <div class="label">??ш끽維???/div><div class="value">${escapeHtml(data?.sort_no ?? '')}</div>
                         <div class="label">????썹땟?嶺?/div><div class="value">${escapeHtml(data?.year ?? '')}</div>
                         <div class="label">??嶺뚮Ŋ猷꾥굜?/div><div class="value">${escapeHtml(data?.title ?? '')}</div>
                         <div class="label">Alt</div><div class="value">${escapeHtml(data?.alt ?? '')}</div>
@@ -1134,29 +1134,29 @@ window.AdminPicker = AdminPicker;
                 </div>
             `;
         });
-    
+
         document.addEventListener('trash:changed', (e) => {
             const { type } = e.detail || {};
             if (type === 'cover' && coverTable) {
                 coverTable.ajax.reload(null, false);
             }
         });
-    
+
         window.jQuery(document).off('click', '#btnCloseCoverTrashDetail');
         window.jQuery(document).on('click', '#btnCloseCoverTrashDetail', function (e) {
             e.preventDefault();
             e.stopPropagation();
-    
+
             const modal = document.querySelector(DOM.trashModal);
             const layout = modal?.querySelector('.trash');
             const detail = modal?.querySelector('.trash-detail');
-    
+
             if (layout) layout.classList.remove('open');
             if (detail) {
                 detail.innerHTML = '';
                 detail.style.display = 'none';
             }
-    
+
             window.jQuery(`${DOM.trashTable} tbody tr`).removeClass('active');
         });
     }
@@ -1184,14 +1184,14 @@ window.AdminPicker = AdminPicker;
 
 
 
-    
+
 
     function initTrashColumns() {
         window.TrashColumns = window.TrashColumns || {};
-    
+
         window.TrashColumns.cover = function(row) {
             return `
-                <td>${row.code ?? ''}</td>
+                <td>${row.sort_no ?? ''}</td>
                 <td>
                     ${
                         row.url
@@ -1214,7 +1214,7 @@ window.AdminPicker = AdminPicker;
 
 
 
-    
+
     /* =========================================================
        ???뚯???
     ========================================================= */
@@ -1273,11 +1273,11 @@ window.AdminPicker = AdminPicker;
     function resetCoverAfterAction() {
         clearCoverSearchConditions();
         populateCoverYearOptions();
-    
+
         if (coverModal) {
             coverModal.hide();
         }
-    
+
         if (coverTable) {
             reloadCoverTable(true);
         }
@@ -1324,11 +1324,11 @@ window.AdminPicker = AdminPicker;
         }
 
         $select.empty();
-        $select.append('<option value="">????ｋ???嶺뚮슣堉???/option>');
+        $select.append('<option value="">선택하세요</option>');
 
         for (let year = endYear; year >= startYear; year--) {
             const selected = String(year) === normalizedYear ? 'selected' : '';
-            $select.append(`<option value="${year}" ${selected}>${year}</option>`);
+            $select.append(`<option value="${year}" ${selected}>${year}년</option>`);
         }
 
         $select.val(normalizedYear);
@@ -1346,5 +1346,5 @@ window.AdminPicker = AdminPicker;
     function escapeHtmlAttr(value) {
         return escapeHtml(value);
     }
-    
+
 })();

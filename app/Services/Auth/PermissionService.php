@@ -8,7 +8,7 @@ use App\Models\Auth\PermissionModel;
 use App\Models\Auth\RolePermissionModel;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
-use Core\Helpers\CodeHelper;
+use Core\Helpers\SequenceHelper;
 use Core\LoggerFactory;
 
 class PermissionService
@@ -43,7 +43,7 @@ class PermissionService
     }
 
     /* ---------------------------------------------------------------
-     * 권한 생성 (UUID + CodeHelper 생성 책임)
+     * 권한 생성 (UUID + SequenceHelper 생성 책임)
      * --------------------------------------------------------------- */
     public function create(array $data): array
     {
@@ -60,14 +60,14 @@ class PermissionService
         $data['id'] = UuidHelper::generate();
 
         // ⭐ 권한 코드 생성
-        $data['code'] = CodeHelper::next('auth_permissions');
+        $data['sort_no'] = null;
         $data['created_by'] = ActorHelper::user();
         $data['updated_by'] = ActorHelper::user();
 
         // 생성자 정보
         $ok = $this->permModel->create($data);
 
-        return ['success' => $ok, 'id' => $data['id'], 'code' => $data['code']];
+        return ['success' => $ok, 'id' => $data['id'], 'sort_no' => $data['sort_no']];
     }
 
     /* ---------------------------------------------------------------
@@ -173,18 +173,23 @@ class PermissionService
                 $this->pdo->beginTransaction();
             }
 
-            foreach ($changes as $row) {
-                if (empty($row['id']) || !isset($row['newCode'])) {
+            foreach ($changes as &$row) {
+                $sortNo = $row['newSortNo'] ?? $row['sort_no'] ?? null;
+
+                if (empty($row['id']) || $sortNo === null) {
                     throw new \Exception('reorder 데이터 오류');
                 }
+
+                $row['_sort_no'] = (int) $sortNo;
+            }
+            unset($row);
+
+            foreach ($changes as $row) {
+                $this->permModel->updateSortNo($row['id'], $row['_sort_no'] + 1000000);
             }
 
             foreach ($changes as $row) {
-                $this->permModel->updateCode($row['id'], (int)$row['newCode'] + 1000000);
-            }
-
-            foreach ($changes as $row) {
-                $this->permModel->updateCode($row['id'], (int)$row['newCode']);
+                $this->permModel->updateSortNo($row['id'], $row['_sort_no']);
             }
 
             if ($this->pdo->inTransaction()) {

@@ -1,243 +1,133 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/views/layout/sidebar.php';
 use Core\Helpers\AssetHelper;
 ?>
 <?= AssetHelper::css('/assets/css/pages/layout/sidebar.css') ?>
 
 <?php
-$uri = trim($_SERVER['REQUEST_URI'], '/');
-$section = explode('/', $uri)[0];
+$uri = trim($_SERVER['REQUEST_URI'] ?? '', '/');
+$currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$segments = $uri === '' ? [] : explode('/', $uri);
+$section = $segments[0] ?? '';
+
+$icon = static function (string $class): string {
+    return '<i class="bi ' . htmlspecialchars($class, ENT_QUOTES, 'UTF-8') . '" aria-hidden="true"></i>';
+};
+
+$isActiveLink = static function (string $href) use ($currentPath): bool {
+    return $currentPath === $href;
+};
+
+$link = static function (string $href, string $label, string $iconClass, string $extraClass = '') use ($icon, $isActiveLink): string {
+    $class = trim('nav-link ' . ($isActiveLink($href) ? 'active ' : '') . $extraClass);
+
+    return '<a href="' . htmlspecialchars($href, ENT_QUOTES, 'UTF-8') . '" class="' . htmlspecialchars($class, ENT_QUOTES, 'UTF-8') . '">' . $icon($iconClass) . '<span>' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</span></a>';
+};
 ?>
 
-
 <div class="sidebar <?= ($ui['sidebar_default'] === 'collapsed') ? 'collapsed' : '' ?>">
-    <div class="section-title">
-        <?php
-        switch ($section) {
-            case 'sukhyang':
-                echo '📁 석향서류';
-                break;
-            case 'approval':
-                echo '📝 결재서류';
-                break;
-            case 'ledger':
-                echo '🧮 회계관리';
-                break;
-            case 'institution':
-                echo '🏛 대외기관업무';
-                break;
-            case 'site':
-                echo '🏗 현장관리';
-                break;
-            case 'notice':
-                echo '📢 공지/회의';
-                break;
-            default:
-                echo '🏠 메인';
-                break;
-        }
-        ?>
-    </div>
-
-
     <ul class="nav nav-pills flex-column mb-auto">
-
-        <!-- 다른 섹션(대시보드, 석향서류, 결재서류)은 기존 구조 유지 -->
         <?php if ($section === 'dashboard'): ?>
-            <li><a href="/dashboard" class="nav-link">🏠 대시보드</a></li>
-            <li><a href="/dashboard/report" class="nav-link">📈 통합 보고서</a></li>
-            <li><a href="/dashboard/activity" class="nav-link">🕒 최근 활동</a></li>
-            <li><a href="/dashboard/notifications" class="nav-link">📢 공지사항</a></li>
-            <li><a href="/dashboard/kpi" class="nav-link">📊 실적 현황</a></li>
-            <li><a href="/dashboard/calendar" class="nav-link">📅 일정/캘린더</a></li>
-            <li><a href="/dashboard/settings" class="nav-link">⚙️ 설정</a></li>
-        <?php elseif ($section === 'sukhyang'): ?>
-            <li><a href="/sukhyang" class="nav-link">📄 문서 대시보드</a></li>
-            <li><a href="/sukhyang/file_register" class="nav-link">📝 문서 등록</a></li>
-            <li><a href="/sukhyang/view" class="nav-link">🔍 문서 상세 보기</a></li>
-            <li><a href="/sukhyang/edit" class="nav-link">✏️ 문서 수정</a></li>
-            <li><a href="/sukhyang/stats" class="nav-link">📊 문서 통계</a></li>
+            <li><?= $link('/dashboard', '메인 대시보드', 'bi-speedometer2') ?></li>
+            <li><?= $link('/dashboard/report', '통합 보고서', 'bi-bar-chart-line') ?></li>
+            <li><?= $link('/dashboard/activity', '최근 활동', 'bi-activity') ?></li>
+            <li><?= $link('/dashboard/notifications', '공지사항', 'bi-megaphone') ?></li>
+            <li><?= $link('/dashboard/kpi', '실적 현황', 'bi-graph-up-arrow') ?></li>
+            <li><?= $link('/dashboard/calendar', '일정/캘린더', 'bi-calendar3') ?></li>
+            <li><?= $link('/dashboard/settings', '설정', 'bi-gear') ?></li>
+        <?php elseif ($section === 'document' || $section === 'sukhyang'): ?>
+            <li><?= $link('/document', '문서 대시보드', 'bi-folder2-open') ?></li>
+            <li><?= $link('/document/file_register', '문서 등록', 'bi-file-earmark-plus') ?></li>
+            <li><?= $link('/document/view', '문서 상세 보기', 'bi-file-earmark-text') ?></li>
+            <li><?= $link('/document/edit', '문서 수정', 'bi-pencil-square') ?></li>
+            <li><?= $link('/document/stats', '문서 통계', 'bi-bar-chart') ?></li>
         <?php elseif ($section === 'approval'): ?>
-            <li><a href="/approval" class="nav-link">📑 결재 목록</a></li>
-            <li><a href="/approval/write_expenditure" class="nav-link">💰 지출결의서 작성</a></li>
-            <li><a href="/approval/write_purchase_request" class="nav-link">🛒 구매요청서</a></li>
-            <li><a href="/approval/write_leave_request" class="nav-link">🌴 휴가신청서</a></li>
-            <li><a href="/approval/write_trip_report" class="nav-link">🚗 출장보고서</a></li>
-            <li><a href="/approval/write_work_report" class="nav-link">📝 업무보고서</a></li>
-            <li><a href="/approval/write_review_request" class="nav-link">🔍 실행검토요청</a></li>
-            <li><a href="/approval/write_progress_review" class="nav-link">📋 기성검토요청</a></li>
-            <li><a href="/approval/write_foreign_remit" class="nav-link">💸 외화송금결재요청</a></li>
-            <li><a href="/approval/write_free_draft" class="nav-link">📄 자유양식 기안서</a></li>
-            <li><a href="/approval/status" class="nav-link">📊 결재 현황</a></li>
+            <li><?= $link('/approval', '결재 목록', 'bi-check2-square') ?></li>
+            <li><?= $link('/approval/write_expenditure', '지출결의서 작성', 'bi-receipt') ?></li>
+            <li><?= $link('/approval/write_purchase_request', '구매요청서', 'bi-cart-plus') ?></li>
+            <li><?= $link('/approval/write_leave_request', '휴가요청서', 'bi-airplane') ?></li>
+            <li><?= $link('/approval/write_trip_report', '출장보고서', 'bi-briefcase') ?></li>
+            <li><?= $link('/approval/write_work_report', '업무보고서', 'bi-clipboard-data') ?></li>
+            <li><?= $link('/approval/write_review_request', '선행결재요청', 'bi-search') ?></li>
+            <li><?= $link('/approval/write_progress_review', '기성결재요청', 'bi-list-check') ?></li>
+            <li><?= $link('/approval/write_foreign_remit', '외화송금결재요청', 'bi-currency-exchange') ?></li>
+            <li><?= $link('/approval/write_free_draft', '자유양식 기안문', 'bi-file-earmark-richtext') ?></li>
+            <li><?= $link('/approval/status', '결재 현황', 'bi-hourglass-split') ?></li>
         <?php endif; ?>
-
 
         <?php if ($section === 'ledger'): ?>
-            <!-- 거래원장 대시보드 -->
-            <li><a href="/ledger" class="nav-link">📊 회계관리 대시보드</a></li>
-
-            <!-- 기초정보 -->
+            <li><?= $link('/ledger', '회계관리 대시보드', 'bi-journal-text') ?></li>
+            <li><?= $link('/ledger/transaction/create', '거래입력', 'bi-pencil-square') ?></li>
+            <li><?= $link('/ledger/transaction', '거래내역', 'bi-list') ?></li>
             <li>
-                <a href="#menu-ledger-basic" class="nav-link toggle" aria-expanded="false">
-                    🧾 기초정보관리
-                </a>
+                <a href="#menu-ledger-basic" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-gear') ?><span>기초정보관리</span></a>
                 <ul id="menu-ledger-basic" class="collapse">
-                    <li><a href="/ledger/accounts" class="nav-link">📑 계정과목</a></li>
-                    <li><a href="/ledger/description" class="nav-link">📝 적요</a></li>
-                    <li><a href="/ledger/voucher-types" class="nav-link">📄 전표유형</a></li>
+                    <li><?= $link('/ledger/accounts', '계정과목', 'bi-list-ul') ?></li>
+                    <li><?= $link('/ledger/description', '적요', 'bi-chat-left-text') ?></li>
+                    <li><?= $link('/ledger/voucher-types', '전표유형', 'bi-tags') ?></li>
                 </ul>
             </li>
-
-
-            <!-- 전표입력 -->
             <li>
-                <a href="#menu-ledger-journal" class="nav-link toggle" aria-expanded="false">
-                    📝 전표입력
-                </a>
+                <a href="#menu-ledger-journal" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-pencil-square') ?><span>전표입력</span></a>
                 <ul id="menu-ledger-journal" class="collapse">
-                    <li><a href="/ledger/journal" class="nav-link">🧾 일반전표</a></li>
-                    <li><a href="/ledger/input/tax_invoice" class="nav-link">📑 세금계산서</a></li>
-                    <li><a href="/ledger/card/corporate" class="nav-link">💳 법인카드</a></li>
-                    <li><a href="/ledger/card/personal" class="nav-link">👤 경비정산</a></li>
-                    <li><a href="/ledger/bank" class="nav-link">🏦 입출금거래</a></li>
-                    <li><a href="/ledger/input/withholding" class="nav-link">💸 원천징수</a></li>
-                    <li><a href="/ledger/input/forex" class="nav-link">💱 외화전표</a></li>
-                    <li><a href="/ledger/journal/review" class="nav-link">🔎 전표검토</a></li>
+                    <li><?= $link('/ledger/journal', '일반전표', 'bi-journal-richtext') ?></li>
+                    <li><?= $link('/ledger/input/tax_invoice', '세금계산서', 'bi-receipt-cutoff') ?></li>
+                    <li><?= $link('/ledger/card/corporate', '법인카드', 'bi-credit-card') ?></li>
+                    <li><?= $link('/ledger/card/personal', '경비정산', 'bi-wallet2') ?></li>
+                    <li><?= $link('/ledger/bank', '입출금거래', 'bi-bank') ?></li>
+                    <li><?= $link('/ledger/input/withholding', '원천징수', 'bi-percent') ?></li>
+                    <li><?= $link('/ledger/input/forex', '외화전표', 'bi-currency-dollar') ?></li>
+                    <li><?= $link('/ledger/journal/review', '전표검토', 'bi-search') ?></li>
                 </ul>
             </li>
-
-            <!-- 장부관리 -->
             <li>
-                <a href="#menu-ledger-book" class="nav-link toggle" aria-expanded="false">
-                    📘 장부관리
-                </a>
+                <a href="#menu-ledger-book" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-book') ?><span>장부관리</span></a>
                 <ul id="menu-ledger-book" class="collapse">
-                    <li><a href="/ledger/book/journal" class="nav-link">📑 분개장</a></li>
-                    <li><a href="/ledger/book/general" class="nav-link">📘 총계정원장</a></li>
-                    <li><a href="/ledger/book/account" class="nav-link">📂 계정별원장</a></li>
-                    <li><a href="/ledger/book/partner" class="nav-link">🧾 거래처원장</a></li>
-                    <li><a href="/ledger/book/project_account" class="nav-link">💼 프로젝트계정별원장</a></li>
-                    <li><a href="/ledger/book/daily_monthly" class="nav-link">📅 일/월계표</a></li>
-                    <li><a href="/ledger/book/purchase_sale" class="nav-link">📄 매입매출장</a></li>
-                    <li><a href="/ledger/book/car_log" class="nav-link">🚗 운행기록부</a></li>
+                    <li><?= $link('/ledger/book/journal', '분개장', 'bi-journal') ?></li>
+                    <li><?= $link('/ledger/book/general', '총계정원장', 'bi-bookmarks') ?></li>
+                    <li><?= $link('/ledger/book/account', '계정별원장', 'bi-collection') ?></li>
+                    <li><?= $link('/ledger/book/partner', '거래처원장', 'bi-people') ?></li>
+                    <li><?= $link('/ledger/book/project_account', '프로젝트계정별원장', 'bi-building') ?></li>
+                    <li><?= $link('/ledger/book/daily_monthly', '일계표', 'bi-calendar-week') ?></li>
+                    <li><?= $link('/ledger/book/purchase_sale', '매입매출장', 'bi-cash-coin') ?></li>
+                    <li><?= $link('/ledger/book/car_log', '차량운행기록부', 'bi-truck') ?></li>
                 </ul>
             </li>
-
-            <!-- 결산/마감 -->
-            <li>
-                <a href="#menu-ledger-closing" class="nav-link toggle" aria-expanded="false">
-                    📅 결산/마감
-                </a>
-                <ul id="menu-ledger-closing" class="collapse">
-                    <li><a href="/ledger/setup/opening_balance" class="nav-link">🔄 기초잔액입력</a></li>
-                    <li><a href="/ledger/closing/monthly" class="nav-link">🔐 월마감처리</a></li>
-                    <li><a href="/ledger/closing/carry_forward" class="nav-link">🧾 이월처리</a></li>
-                </ul>
-            </li>
-
-            <!-- 결산/재무제표 -->
-            <li>
-                <a href="#menu-ledger-financial" class="nav-link toggle" aria-expanded="false">
-                    📊 결산/재무제표
-                </a>
-                <ul id="menu-ledger-financial" class="collapse">
-                    <li><a href="/ledger/closing/trial_balance" class="nav-link">📊 합계잔액시산표</a></li>
-                    <li><a href="/ledger/closing/income_statement" class="nav-link">📉 손익계산서</a></li>
-                    <li><a href="/ledger/closing/balance_sheet" class="nav-link">📈 재무상태표</a></li>
-                    <li><a href="/ledger/closing/cost_statement" class="nav-link">🧮 원가명세서</a></li>
-                    <li><a href="/ledger/closing/retained_earnings" class="nav-link">💼 이익잉여금처분</a></li>
-                    <li><a href="/ledger/closing/equity_change" class="nav-link">📋 자본변동표</a></li>
-                    <li><a href="/ledger/closing/cash_flow" class="nav-link">💵 현금흐름표</a></li>
-                </ul>
-            </li>
-
-            <!-- 신고 -->
-            <li>
-                <a href="#menu-ledger-declaration" class="nav-link toggle" aria-expanded="false">
-                    🏢 세무신고
-                </a>
-                <ul id="menu-ledger-declaration" class="collapse">
-                    <li><a href="/ledger/report/regular_worker" class="nav-link">👨‍💼 상용근로자 신고</a></li>
-                    <li><a href="/ledger/report/daily_worker" class="nav-link">👷 일용근로자 신고</a></li>
-                    <li><a href="/ledger/report/business_income" class="nav-link">💼 사업소득 신고</a></li>
-                    <li><a href="/ledger/report/vat" class="nav-link">🧾 부가세신고</a></li>
-                    <li><a href="/ledger/report/corporate_tax" class="nav-link">🏢 법인세신고</a></li>
-                </ul>
-            </li>
-
-            <!-- 관리 -->
-            <li>
-                <a href="#menu-ledger-manage" class="nav-link toggle" aria-expanded="false">
-                    ⚙️ 자산관리
-                </a>
-                <ul id="menu-ledger-manage" class="collapse">
-                    <li><a href="/ledger/manage/corporate" class="nav-link">🏢 법인등기관리</a></li>
-                    <li><a href="/ledger/manage/license" class="nav-link">📄 면허등록/관리</a></li>
-                    <li><a href="/ledger/manage/assets" class="nav-link">🏠 자산등록/관리</a></li>
-                    <li><a href="/ledger/manage/depreciation" class="nav-link">📉 감가상각 자동분개</a></li>
-                    <li><a href="/ledger/manage/payment" class="nav-link">💳 결재/결제현황</a></li>
-                    <li><a href="/ledger/approval" class="nav-link">✅ 전표승인 프로세스</a></li>
-                </ul>
-            </li>
-
-            <li>
-                <a href="#menu-ledger-report" class="nav-link toggle" aria-expanded="false">
-                    📋 경영분석
-                </a>
-                <ul id="menu-ledger-report" class="collapse">
-                    <li><a href="/ledger/report/export" class="nav-link">📄 PDF/엑셀 출력</a></li>
-                    <li><a href="/ledger/report/finance_kpi" class="nav-link">📊 재무비율 분석</a></li>
-                    <li><a href="/ledger/report/costcenter_pl" class="nav-link">📋 부서/프로젝트별 손익</a></li>
-                </ul>
-            </li>
-
-            <li>
-                <a href="#menu-ledger-trade" class="nav-link toggle" aria-expanded="false">
-                    🚢 무역관리
-                </a>
-                <ul id="menu-ledger-trade" class="collapse">
-                    <li><a href="/trade/import_contract" class="nav-link">📄 수입계약</a></li>
-                    <li><a href="/trade/remittance" class="nav-link">💱 수입송금</a></li>
-                    <li><a href="/trade/customs" class="nav-link">🧾 통관관리</a></li>
-                    <li><a href="/trade/logistics" class="nav-link">🚚 물류비관리</a></li>
-                    <li><a href="/trade/import_cost" class="nav-link">📊 수입원가</a></li>
-                    <li><a href="/trade/settlement" class="nav-link">🧮 수입정산</a></li>
-                </ul>
-            </li>
-
-            <li>
-                <a href="/ledger/search" class="nav-link">🔍 전표검색</a>
-            </li>
-        <?php endif; ?>
-
-
-        <?php if ($section === 'institution'): ?>
-            <li><a href="/institution" class="nav-link<?php echo ($action === 'tax_office') ? ' active' : ''; ?>">🧾 기관대시보드</a></li>
-            <li><a href="/institution/tax_office" class="nav-link<?php echo ($action === 'tax_office') ? ' active' : ''; ?>">🧾 세무서(국세관련)</a></li>
-            <li><a href="/institution/local_government" class="nav-link<?php echo ($action === 'local_government') ? ' active' : ''; ?>">🏛️ 지방자치단체(지방세관련)</a></li>
-            <li><a href="/institution/welfare_corp" class="nav-link<?php echo ($action === 'welfare_corp') ? ' active' : ''; ?>">👷 근로복지공단(보수총액/고용산재신고)</a></li>
-            <li><a href="/institution/health_insurance" class="nav-link<?php echo ($action === 'health_insurance') ? ' active' : ''; ?>">🏥 건강보험공단(건강보험신고)</a></li>
-            <li><a href="/institution/pension" class="nav-link<?php echo ($action === 'pension') ? ' active' : ''; ?>">💳 국민연금관리공단(국민연금신고)</a></li>
-            <li><a href="/institution/credit_guarantee" class="nav-link<?php echo ($action === 'credit_guarantee') ? ' active' : ''; ?>">🔒 신용보증기금(신용보증관리)</a></li>
-            <li><a href="/institution/construction_assoc" class="nav-link<?php echo ($action === 'construction_assoc') ? ' active' : ''; ?>">🏗️ 대한전문건설협회(실적신고)</a></li>
-            <li><a href="/institution/construction_union" class="nav-link<?php echo ($action === 'construction_union') ? ' active' : ''; ?>">🛡️ 전문건설공제조합(보증/공제관리)</a></li>
-            <li><a href="/institution/engineer_assoc" class="nav-link<?php echo ($action === 'engineer_assoc') ? ' active' : ''; ?>">👨‍🔧 기술인협회(경력신고)</a></li>
-            <li><a href="/institution/construction_worker_union" class="nav-link<?php echo ($action === 'construction_worker_union') ? ' active' : ''; ?>">👷‍♂️ 건설근로자공제회(퇴직공제부금신고)</a></li>
+            <li><?= $link('/ledger/search', '전표검색', 'bi-search') ?></li>
+        <?php elseif ($section === 'institution'): ?>
+            <li><?= $link('/institution', '기관 대시보드', 'bi-building') ?></li>
+            <li><?= $link('/institution/tax_office', '세무서 / 국세청', 'bi-receipt') ?></li>
+            <li><?= $link('/institution/local_government', '지방자치단체 / 지방세관', 'bi-map') ?></li>
+            <li><?= $link('/institution/welfare_corp', '근로복지공단', 'bi-shield-check') ?></li>
+            <li><?= $link('/institution/health_insurance', '건강보험공단', 'bi-heart-pulse') ?></li>
+            <li><?= $link('/institution/pension', '국민연금공단', 'bi-safe') ?></li>
+            <li><?= $link('/institution/credit_guarantee', '신용보증기금', 'bi-patch-check') ?></li>
+            <li><?= $link('/institution/construction_assoc', '전문건설협회', 'bi-buildings') ?></li>
+            <li><?= $link('/institution/construction_union', '전문건설공제조합', 'bi-bank2') ?></li>
+            <li><?= $link('/institution/engineer_assoc', '기술인협회', 'bi-tools') ?></li>
+            <li><?= $link('/institution/construction_worker_union', '건설근로자공제회', 'bi-people-fill') ?></li>
         <?php elseif ($section === 'site'): ?>
-            <li><a href="/site" class="nav-link">📊 현장대시보드</a></li>
-            <li><a href="/site/estimate" class="nav-link">📑 견적관리</a></li>
-            <li><a href="/site/contract" class="nav-link">📄 계약관리</a></li>
-            <li><a href="/site/execution" class="nav-link">📝 실행관리</a></li>
-            <li><a href="/site/guarantee" class="nav-link">🔒 보증/보험관리</a></li>
-            <li><a href="/site/progress" class="nav-link">📈 기성확정내역</a></li>
-            <li><a href="/site/construction_progress" class="nav-link">🏢 시공기성확정내역</a></li>
-            <li><a href="/site/transaction" class="nav-link">💳 거래내역</a></li>
-            <li><a href="/site/safety" class="nav-link">🦺 안전관리</a></li>
+            <li><?= $link('/site', '현장 대시보드', 'bi-speedometer2') ?></li>
+            <li><?= $link('/site/estimate', '견적관리', 'bi-file-earmark-spreadsheet') ?></li>
+            <li><?= $link('/site/contract', '계약관리', 'bi-file-earmark-text') ?></li>
+            <li><?= $link('/site/execution', '실행관리', 'bi-play-circle') ?></li>
+            <li><?= $link('/site/guarantee', '보증/보험관리', 'bi-shield-lock') ?></li>
+            <li><?= $link('/site/progress', '기성예정내역', 'bi-list-task') ?></li>
+            <li><?= $link('/site/construction_progress', '시공기성예정내역', 'bi-hammer') ?></li>
+            <li><?= $link('/site/transaction/create', '거래입력', 'bi-pencil-square') ?></li>
+            <li><?= $link('/site/transaction', '거래내역', 'bi-list') ?></li>
+            <li><?= $link('/site/safety', '안전관리', 'bi-cone-striped') ?></li>
+        <?php elseif ($section === 'shop'): ?>
+            <li><?= $link('/shop', '쇼핑몰 대시보드', 'bi-bag') ?></li>
+            <li><?= $link('/shop/products', '상품관리', 'bi-box-seam') ?></li>
+            <li><?= $link('/shop/categories', '카테고리관리', 'bi-diagram-3') ?></li>
+            <li><?= $link('/shop/orders', '주문관리', 'bi-receipt') ?></li>
+            <li><?= $link('/shop/payments', '결제관리', 'bi-credit-card') ?></li>
+            <li><?= $link('/shop/settlement', '매출/정산', 'bi-cash-coin') ?></li>
         <?php elseif ($section === 'notice'): ?>
-            <li><a href="/notice" class="nav-link">📋 공지대시보드</a></li>
-            <li><a href="/notice/employee" class="nav-link">👤 직원별공지</a></li>
-            <li><a href="/notice/department" class="nav-link">🏢 부서별공지</a></li>
-            <li><a href="/notice/all" class="nav-link">🌐 전체공지</a></li>
+            <li><?= $link('/notice', '공지 대시보드', 'bi-megaphone') ?></li>
+            <li><?= $link('/notice/employee', '직원 공지', 'bi-person-badge') ?></li>
+            <li><?= $link('/notice/department', '부서별 공지', 'bi-diagram-3') ?></li>
+            <li><?= $link('/notice/all', '전체 공지', 'bi-broadcast') ?></li>
         <?php endif; ?>
     </ul>
 </div>

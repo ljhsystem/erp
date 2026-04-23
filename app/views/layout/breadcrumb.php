@@ -51,7 +51,7 @@ $pageMap = [
         'group' => '환경설정',
         'name' => '설정',
     ],
-    '/sukhyang' => [
+    '/document' => [
         'category' => '문서관리',
         'group' => '',
         'name' => '대시보드',

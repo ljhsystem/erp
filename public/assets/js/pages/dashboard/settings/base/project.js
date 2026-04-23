@@ -1,4 +1,4 @@
-﻿// 경로: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/base/project.js'
+// 경로: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/base/project.js'
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import { formatDateDisplay, formatAmount, unformatAmount } from '/public/assets/js/common/format.js';
 import { createDataTable, updateTableHeight, forceTableHeightSync, bindTableHighlight } from '/public/assets/js/components/data-table.js';
@@ -22,26 +22,26 @@ window.AdminPicker = AdminPicker;
         SAVE: "/api/settings/base-info/project/save",
         DELETE: "/api/settings/base-info/project/delete",
         DETAIL: "/api/settings/base-info/project/detail",
-    
+
         TRASH: "/api/settings/base-info/project/trash",
         RESTORE: "/api/settings/base-info/project/restore",
         PURGE: "/api/settings/base-info/project/purge",
         PURGE_ALL: "/api/settings/base-info/project/purge-all",
-    
+
         REORDER: "/api/settings/base-info/project/reorder",
-    
+
         EXCEL_UPLOAD: '/api/settings/base-info/project/excel-upload',
         EXCEL_TEMPLATE: '/api/settings/base-info/project/template',
         EXCEL_DOWNLOAD: '/api/settings/base-info/project/download',
-    
-        EMPLOYEE_SEARCH: "/api/settings/employee/search",
+
+        EMPLOYEE_SEARCH: "/api/settings/organization/employee/search-picker",
         CLIENT_SEARCH: "/api/settings/base-info/client/search-picker"
     };
     /* =========================
        프로젝트 컬럼 한글 매핑
     ========================= */
     const PROJECT_COLUMN_MAP = {
-        code:                       { label: "코드", visible: true },
+        sort_no:                       { label: "순번", visible: true },
         project_name:               { label: "프로젝트명", visible: true },
         construction_name:          { label: "공사명", visible: true },
         linked_client_name:         { label: "거래처", visible: true },
@@ -118,34 +118,34 @@ window.AdminPicker = AdminPicker;
     function initProjectPage($){
         initModal();
         initAdminDatePicker();
-    
+
         initExcelDataset(); // 🔥 추가 (핵심)
-    
+
         initDataTable($);
         initExternal();
-    
+
         bindRowReorder(projectTable, { api: API.REORDER });
         bindTableEvents($);
-    
+
         bindModalEvents($);
         bindAdminDateInputs();
-    
+
         bindTableLayoutEvents(projectTable, '#project-table');
-    
+
         bindUIEvents();
-    
+
         bindExcelEvents();
         bindTrashEvents();
-    
+
         bindGlobalEvents();
     }
     function initExcelDataset() {
-        const form = document.getElementById('project-excel-upload-form'); 
+        const form = document.getElementById('project-excel-upload-form');
         if (!form) return;
-    
-        form.dataset.templateUrl = API.EXCEL_TEMPLATE; 
-        form.dataset.downloadUrl = API.EXCEL_DOWNLOAD; 
-        form.dataset.uploadUrl   = API.EXCEL_UPLOAD; 
+
+        form.dataset.templateUrl = API.EXCEL_TEMPLATE;
+        form.dataset.downloadUrl = API.EXCEL_DOWNLOAD;
+        form.dataset.uploadUrl   = API.EXCEL_UPLOAD;
     }
     function initModal(){
         const modalEl = document.getElementById('projectModal');
@@ -262,9 +262,9 @@ window.AdminPicker = AdminPicker;
     function bindTrashEvents(){
         document.addEventListener('trash:detail-render', function(e){
             const { data, modal } = e.detail;
-        
+
             if (modal.dataset.type !== 'project') return;
-        
+
             const detailBox = modal.querySelector('.trash-detail');
             if(!detailBox) return;
 
@@ -308,7 +308,7 @@ window.AdminPicker = AdminPicker;
 
         window.TrashColumns.project = function(row) {
             return `
-                <td>${row.code ?? ''}</td>
+                <td>${row.sort_no ?? ''}</td>
                 <td>${row.project_name ?? ''}</td>
                 <td>${row.deleted_at ?? ''}</td>
                 <td>${row.deleted_by_name ?? ''}</td>
@@ -323,13 +323,13 @@ window.AdminPicker = AdminPicker;
         document.addEventListener('trash:changed', (e) => {
 
             const { type } = e.detail || {};
-        
+
             if (type === 'project') {
                 if (window.projectTable) {
                     window.projectTable.ajax.reload(null, false);
                 }
             }
-        
+
         });
     }
 
@@ -439,13 +439,13 @@ window.AdminPicker = AdminPicker;
                     action: function () {
                         const trashModalEl = document.getElementById('projectTrashModal');
                         if (!trashModalEl) return;
-                    
+
                         /* 🔥 핵심: JS에서 API 세팅 */
                         trashModalEl.dataset.listUrl      = API.TRASH;
                         trashModalEl.dataset.restoreUrl   = API.RESTORE;
                         trashModalEl.dataset.deleteUrl    = API.PURGE;
                         trashModalEl.dataset.deleteAllUrl = API.PURGE_ALL;
-                    
+
                         const modal = new bootstrap.Modal(trashModalEl);
                         modal.show();
                     }
@@ -460,7 +460,7 @@ window.AdminPicker = AdminPicker;
                         resetProjectModalSelect2();
 
                         $('#modal_project_id').val('');
-                        $('#modal_code').val('');
+                        $('#modal_sort_no').val('');
                         $('#btnDeleteProject').hide();
 
                         window.isNewProject = true;
@@ -486,7 +486,7 @@ window.AdminPicker = AdminPicker;
         window.projectTable = projectTable;
 
         if (projectTable) {
-            console.log('✅ DataTable 생성 완료');               
+            console.log('✅ DataTable 생성 완료');
 
             projectTable.on('init.dt', () => {
                 updateProjectCount(projectTable.page.info()?.recordsDisplay ?? 0);
@@ -516,11 +516,11 @@ window.AdminPicker = AdminPicker;
     }
 
     function bindTableEvents($) {
-        $(document).on('focus', '#modal_code', function(){
+        $(document).on('focus', '#modal_sort_no', function(){
             if(window.isNewProject){
                 AppCore.notify(
                     'info',
-                    '코드를 입력하지 않아도 저장 시 자동 생성됩니다.'
+                    '순번은 저장 시 자동 생성됩니다.'
                 );
             }
         });
@@ -827,7 +827,7 @@ window.AdminPicker = AdminPicker;
                 return {
                     results: rows.map(row => ({
                         id: String(row.id ?? ''),
-                        text: row.client_name ?? '',
+                        text: row.text ?? row.client_name ?? '',
                         raw: row
                     })).filter(item => item.id !== '')
                 };

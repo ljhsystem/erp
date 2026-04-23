@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // 경로: PROJECT_ROOT . '/app/views/layout/header.php'
 use Core\Helpers\AssetHelper;
 // layout.php에서 로드된 UI 설정 배열 사용
@@ -9,6 +9,7 @@ $ui = array_merge([
     'ui_skin'        => 'default',
     'theme_mode'     => 'light',
     'font_family'    => '',
+    'ui_density'     => 'normal',
     'font_scale'     => 'normal',
     'table_density'  => 'normal',
     'card_density'   => 'normal',
@@ -41,6 +42,20 @@ $ui = array_merge([
                                 ? "'" . htmlspecialchars($ui['font_family'], ENT_QUOTES, 'UTF-8') . "', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
                                 : "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
                             ?>;
+            --color-primary: <?= htmlspecialchars((string)($ui['primary_color'] ?? '#0d6efd'), ENT_QUOTES, 'UTF-8') ?>;
+            --color-primary-hover: color-mix(in srgb, var(--color-primary) 88%, black);
+            --color-primary-soft: color-mix(in srgb, var(--color-primary) 14%, transparent);
+            --color-sidebar-bg: <?= htmlspecialchars((string)($ui['sidebar_color'] ?? '#ffffff'), ENT_QUOTES, 'UTF-8') ?>;
+            --color-text: <?= htmlspecialchars((string)($ui['text_color'] ?? '#212529'), ENT_QUOTES, 'UTF-8') ?>;
+            --color-text-muted: color-mix(in srgb, var(--color-text) 58%, white);
+            --color-sidebar-hover-bg: color-mix(in srgb, var(--color-primary) 6%, var(--color-sidebar-bg));
+            --color-sidebar-active-bg: color-mix(in srgb, var(--color-primary) 14%, var(--color-sidebar-bg));
+            --color-sidebar-border: color-mix(in srgb, var(--color-text) 12%, var(--color-sidebar-bg));
+            --color-sidebar-icon: color-mix(in srgb, var(--color-text) 55%, white);
+            --navbar-bg-start: color-mix(in srgb, var(--color-primary) 80%, black);
+            --navbar-bg-end: var(--color-primary);
+            --navbar-surface-soft: color-mix(in srgb, white 14%, transparent);
+            --navbar-active-bg: color-mix(in srgb, white 20%, transparent);
         }
     </style>
 
@@ -51,6 +66,7 @@ $ui = array_merge([
         window.__UI_SETTINGS__ = {
             skin: "<?= htmlspecialchars($ui['ui_skin'], ENT_QUOTES, 'UTF-8') ?>",
             theme: "<?= htmlspecialchars($ui['theme_mode'], ENT_QUOTES, 'UTF-8') ?>",
+            uiDensity: "<?= htmlspecialchars($ui['ui_density'], ENT_QUOTES, 'UTF-8') ?>",
             fontScale: "<?= htmlspecialchars($ui['font_scale'], ENT_QUOTES, 'UTF-8') ?>",
             tableDensity: "<?= htmlspecialchars($ui['table_density'], ENT_QUOTES, 'UTF-8') ?>",
             cardDensity: "<?= htmlspecialchars($ui['card_density'], ENT_QUOTES, 'UTF-8') ?>",
@@ -79,7 +95,7 @@ $ui = array_merge([
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@100..900&display=swap" rel="stylesheet">
 
     <?= AssetHelper::css('https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css') ?>
-    <?= AssetHelper::css('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css') ?>
+    <?= AssetHelper::css('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css') ?>
     <?= AssetHelper::css('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css') ?>
 
     <?= AssetHelper::css('https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css') ?>

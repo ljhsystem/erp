@@ -21,7 +21,11 @@ $userId = $userId ?? '';
 $uiSettings = [
     'ui_skin' => ConfigHelper::system('ui_skin', 'default'),
     'theme_mode' => ConfigHelper::system('theme_mode', 'light'),
+    'primary_color' => ConfigHelper::system('primary_color', '#0d6efd'),
+    'sidebar_color' => ConfigHelper::system('sidebar_color', '#ffffff'),
+    'text_color' => ConfigHelper::system('text_color', '#212529'),
     'font_family' => ConfigHelper::system('site_font_family', ''),
+    'ui_density' => ConfigHelper::system('ui_density', 'normal'),
     'font_scale' => ConfigHelper::system('font_scale', 'normal'),
     'table_density' => ConfigHelper::system('table_density', 'normal'),
     'card_density' => ConfigHelper::system('card_density', 'normal'),
@@ -42,6 +46,7 @@ $ui = $uiSettings;
 <?php endif; ?>
 
 <body data-userid="<?= htmlspecialchars((string)$userId, ENT_QUOTES, 'UTF-8') ?>"
+data-density="<?= htmlspecialchars($ui['ui_density'], ENT_QUOTES, 'UTF-8') ?>"
 class="
   <?= ($ui['sidebar_default'] === 'collapsed') ? 'is-sidebar-collapsed' : '' ?>
   skin-<?= htmlspecialchars($ui['ui_skin'], ENT_QUOTES, 'UTF-8') ?>
@@ -70,7 +75,7 @@ class="
 <?php endif; ?>
 
 <?php if ($layoutOptions['sidebar']) : ?>
-<div class="d-flex">
+<div class="d-flex app-shell">
     <?php include __DIR__ . '/sidebar.php'; ?>
     <main class="main-content flex-grow-1">
         <?php include __DIR__ . '/breadcrumb.php'; ?>

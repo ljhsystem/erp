@@ -74,89 +74,88 @@ class TrashService
      * ♻️ Restore (synology_login_id 기준)
      * ========================================================= */
 
-     public function restoreEvent(string $uid, string $synologyLoginId): bool
-     {
-         $this->pdo->beginTransaction();
-     
-         try {
-             $stmt = $this->pdo->prepare("
+    public function restoreEvent(string $id, string $synologyLoginId): bool
+    {
+        $this->pdo->beginTransaction();
+
+        try {
+            $stmt = $this->pdo->prepare("
                  SELECT e.*, l.id AS list_id, l.is_active AS calendar_active
                  FROM dashboard_calendar_events e
                  INNER JOIN dashboard_calendar_list l
                      ON l.id = e.calendar_id
-                WHERE e.uid = :uid
+                WHERE e.id = :id
                 AND e.synology_login_id = :synology
                 AND e.is_active = 0
                  LIMIT 1
                  FOR UPDATE
              ");
-     
-             $stmt->execute([
-                 ':uid'      => $uid,
-                 ':synology' => $synologyLoginId
-             ]);
-     
-             $row = $stmt->fetch(PDO::FETCH_ASSOC);
-     
-             if (!$row) {
-                 throw new \RuntimeException('event not found');
-             }
-     
-             // 🔥 캘린더 정합성 확인
-             if (empty($row['calendar_id']) || empty($row['list_id'])) {
-                 throw new \RuntimeException('calendar relation missing');
-             }
-     
-             // 🔥 비활성 캘린더면 복원 금지
-             if ((int)$row['calendar_active'] !== 1) {
-                 throw new \RuntimeException('calendar inactive');
-             }
-     
-             // 🔥 이미 활성 상태면 성공 처리
-             if ((int)$row['is_active'] === 1) {
-                 $this->pdo->commit();
-                 return true;
-             }
-     
-             // 🔥 DB만 즉시 복원
-             $update = $this->pdo->prepare("
+
+            $stmt->execute([
+                ':id'      => $id,
+                ':synology' => $synologyLoginId
+            ]);
+
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$row) {
+                throw new \RuntimeException('event not found');
+            }
+
+            // 🔥 캘린더 정합성 확인
+            if (empty($row['calendar_id']) || empty($row['list_id'])) {
+                throw new \RuntimeException('calendar relation missing');
+            }
+
+            // 🔥 비활성 캘린더면 복원 금지
+            if ((int)$row['calendar_active'] !== 1) {
+                throw new \RuntimeException('calendar inactive');
+            }
+
+            // 🔥 이미 활성 상태면 성공 처리
+            if ((int)$row['is_active'] === 1) {
+                $this->pdo->commit();
+                return true;
+            }
+
+            // 🔥 DB만 즉시 복원
+            $update = $this->pdo->prepare("
                  UPDATE dashboard_calendar_events
                  SET is_active = 1,
                      deleted_at = NULL,
                      deleted_by = NULL,
                      restored_at = NOW(),
                      updated_at = NOW()
-                 WHERE uid = :uid
+                 WHERE id = :id
                    AND synology_login_id = :synology
                    AND is_active = 0
              ");
-     
-             $update->execute([
-                 ':uid'      => $uid,
-                 ':synology' => $synologyLoginId
-             ]);
-     
-             $this->pdo->commit();
-             return true;
-     
-         } catch (\Throwable $e) {
-             $this->pdo->rollBack();
-             throw $e;
-         }
-     }
 
-    public function restoreTask(string $uid, string $synologyLoginId): bool
+            $update->execute([
+                ':id'      => $id,
+                ':synology' => $synologyLoginId
+            ]);
+
+            $this->pdo->commit();
+            return true;
+        } catch (\Throwable $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
+    }
+
+    public function restoreTask(string $id, string $synologyLoginId): bool
     {
         $stmt = $this->pdo->prepare("
             SELECT *
             FROM dashboard_calendar_tasks
-            WHERE uid = :uid
+            WHERE id = :id
               AND synology_login_id = :synology
             LIMIT 1
         ");
 
         $stmt->execute([
-            ':uid'      => $uid,
+            ':id'      => $id,
             ':synology' => $synologyLoginId
         ]);
 
@@ -170,7 +169,7 @@ class TrashService
         $exists = false;
 
         try {
-            $res = $this->crud->getTaskByUid($uid);
+            $res = $this->crud->getTaskByUid($id);
             $exists = !empty($res['data']);
         } catch (\Throwable $e) {
             $exists = false;
@@ -183,43 +182,40 @@ class TrashService
              * CASE 1 : ERP에서 생성된 이벤트 (raw_ics 존재)
              * ===================================================== */
             if (!empty($row['raw_ics']) && !empty($row['href'])) {
-        
+
                 $caldav = (new \ReflectionClass($this->crud))
                     ->getMethod('createCalDavClient')
                     ->invoke($this->crud);
-        
+
                 // 새 href 생성
                 $collectionPath = dirname($row['href']);
                 $newHref = $collectionPath . '/' . uniqid('', true) . '.ics';
-        
+
                 // Synology에 이벤트 재생성
                 $caldav->createObject($newHref, $row['raw_ics']);
-        
+
                 // DB href 업데이트
                 $this->pdo->prepare("
                     UPDATE dashboard_calendar_tasks
                     SET href = :href
-                    WHERE uid = :uid
+                    WHERE id = :id
                       AND synology_login_id = :synology
                 ")->execute([
                     ':href'     => $newHref,
-                    ':uid'      => $uid,
+                    ':id'      => $id,
                     ':synology' => $synologyLoginId
                 ]);
-        
             }
             /* =====================================================
              * CASE 2 : Synology 원본 이벤트 (raw_ics 없음)
-             * ===================================================== */
-            else {
-        
+             * ===================================================== */ else {
+
                 // Synology에서 다시 동기화
                 $this->sync->syncOneTaskByUid(
-                    $uid,
+                    $id,
                     $synologyLoginId,
                     null
                 );
-        
             }
         }
 
@@ -230,12 +226,12 @@ class TrashService
                 deleted_at = NULL,
                 deleted_by = NULL,
                 restored_at = NOW()
-            WHERE uid = :uid
+            WHERE id = :id
             AND synology_login_id = :synology
         ");
 
         $update->execute([
-            ':uid'      => $uid,
+            ':id'      => $id,
             ':synology' => $synologyLoginId
         ]);
 
@@ -246,19 +242,19 @@ class TrashService
      * 💀 Hard Delete (synology_login_id 기준)
      * ========================================================= */
 
-    public function hardDeleteEvent(string $uid, string $synologyLoginId): bool
+    public function hardDeleteEvent(string $id, string $synologyLoginId): bool
     {
         $stmt = $this->pdo->prepare("
             SELECT href, etag 
             FROM dashboard_calendar_events
-            WHERE uid = :uid
+            WHERE id = :id
               AND is_active = 0
               AND synology_login_id = :synology
             LIMIT 1
         ");
 
         $stmt->execute([
-            ':uid'      => $uid,
+            ':id'      => $id,
             ':synology' => $synologyLoginId
         ]);
 
@@ -278,30 +274,30 @@ class TrashService
 
         $del = $this->pdo->prepare("
             DELETE FROM dashboard_calendar_events
-            WHERE uid = :uid
+            WHERE id = :id
               AND is_active = 0
               AND synology_login_id = :synology
         ");
 
         return $del->execute([
-            ':uid'      => $uid,
+            ':id'      => $id,
             ':synology' => $synologyLoginId
         ]);
     }
 
-    public function hardDeleteTask(string $uid, string $synologyLoginId): bool
+    public function hardDeleteTask(string $id, string $synologyLoginId): bool
     {
         $stmt = $this->pdo->prepare("
             SELECT href, etag
             FROM dashboard_calendar_tasks
-            WHERE uid = :uid
+            WHERE id = :id
               AND synology_login_id = :synology
               AND is_active = 0
             LIMIT 1
         ");
 
         $stmt->execute([
-            ':uid'      => $uid,
+            ':id'      => $id,
             ':synology' => $synologyLoginId
         ]);
 
@@ -322,7 +318,7 @@ class TrashService
             $realHref = $this->crud->resolveTaskObjectHrefByUid(
                 $caldav,
                 $collectionHref,
-                $uid
+                $id
             );
 
             $hrefToDelete = $realHref ?: $row['href'];
@@ -341,13 +337,13 @@ class TrashService
 
         $del = $this->pdo->prepare("
             DELETE FROM dashboard_calendar_tasks
-            WHERE uid = :uid
+            WHERE id = :id
               AND synology_login_id = :synology
               AND is_active = 0
         ");
 
         return $del->execute([
-            ':uid'      => $uid,
+            ':id'      => $id,
             ':synology' => $synologyLoginId
         ]);
     }
@@ -363,7 +359,7 @@ class TrashService
         try {
 
             $stmt = $this->pdo->prepare("
-                SELECT uid
+                SELECT id
                 FROM dashboard_calendar_events
                 WHERE is_active = 0
                   AND synology_login_id = :synology
@@ -375,13 +371,12 @@ class TrashService
 
             $uids = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-            foreach ($uids as $uid) {
-                $this->hardDeleteEvent($uid, $synologyLoginId);
+            foreach ($uids as $id) {
+                $this->hardDeleteEvent($id, $synologyLoginId);
             }
 
             $this->pdo->commit();
             return true;
-
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
             throw $e;
@@ -395,7 +390,7 @@ class TrashService
         try {
 
             $stmt = $this->pdo->prepare("
-                SELECT uid
+                SELECT id
                 FROM dashboard_calendar_tasks
                 WHERE is_active = 0
                   AND synology_login_id = :synology
@@ -407,13 +402,12 @@ class TrashService
 
             $uids = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-            foreach ($uids as $uid) {
-                $this->hardDeleteTask($uid, $synologyLoginId);
+            foreach ($uids as $id) {
+                $this->hardDeleteTask($id, $synologyLoginId);
             }
 
             $this->pdo->commit();
             return true;
-
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
             throw $e;

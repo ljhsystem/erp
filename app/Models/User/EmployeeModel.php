@@ -27,7 +27,7 @@ class EmployeeModel
                 * user_employees
                 * ========================= */
                 p.id,
-                p.code,
+                p.sort_no,
                 p.user_id,
                 p.employee_name,
                 p.phone,
@@ -203,7 +203,7 @@ class EmployeeModel
             $fieldMap = [
 
                 // 기본
-                'code'              => ['expr' => 'p.code', 'type' => 'exact'],
+                'sort_no'              => ['expr' => 'p.sort_no', 'type' => 'exact'],
                 'employee_name'     => ['expr' => 'p.employee_name', 'type' => 'like'],
 
                 // 사용자
@@ -404,7 +404,7 @@ class EmployeeModel
             }
         }
 
-        $sql .= " ORDER BY p.code ASC";
+        $sql .= " ORDER BY p.sort_no ASC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -424,7 +424,7 @@ class EmployeeModel
                 * user_employees
                 * ========================= */
                 p.id,
-                p.code,
+                p.sort_no,
                 p.user_id,
                 p.employee_name,
                 p.phone,
@@ -659,7 +659,7 @@ class EmployeeModel
         $sql = "
             SELECT
                 p.id,
-                p.code,
+                p.sort_no,
                 p.employee_name,
                 d.dept_name AS department_name,
                 s.position_name,
@@ -676,7 +676,7 @@ class EmployeeModel
             WHERE u.is_active = 1
             AND (
                 p.employee_name LIKE :keyword1
-                OR CAST(p.code AS CHAR) LIKE :keyword2
+                OR CAST(p.sort_no AS CHAR) LIKE :keyword2
                 OR COALESCE(u.username, '') LIKE :keyword3
                 OR COALESCE(u.email, '') LIKE :keyword4
             )
@@ -715,7 +715,7 @@ class EmployeeModel
     {
         $sql = "
             INSERT INTO user_employees (
-                id, code, user_id, employee_name,
+                id, sort_no, user_id, employee_name,
                 phone, address, address_detail,
                 department_id, position_id,
                 doc_hire_date, real_hire_date,
@@ -730,7 +730,7 @@ class EmployeeModel
                 note, memo,
                 created_by, updated_by
             ) VALUES (
-                :id, :code, :user_id, :employee_name,
+                :id, :sort_no, :user_id, :employee_name,
                 :phone, :address, :address_detail,
                 :department_id, :position_id,
                 :doc_hire_date, :real_hire_date,
@@ -752,7 +752,7 @@ class EmployeeModel
         return $stmt->execute([
 
             'id'               => $data['id'],
-            'code'             => $data['code'] ?? null,
+            'sort_no'             => $data['sort_no'] ?? null,
             'user_id'          => $data['user_id'],
             'employee_name'    => $data['employee_name'],
 
@@ -918,16 +918,16 @@ class EmployeeModel
 
 
     /* =========================================================
-    * 직원 code 수정 (거래처와 통일)
+    * 직원 sort_no 수정 (거래처와 통일)
     * ========================================================= */
-    public function updateCode(string $id, int $newCode): bool
+    public function updateSortNo(string $id, int $sortNo): bool
     {
-        $sql = "UPDATE user_employees SET code = :newCode WHERE id = :id";
+        $sql = "UPDATE user_employees SET sort_no = :sort_no WHERE id = :id";
 
         $stmt = $this->db->prepare($sql);
 
         return $stmt->execute([
-            'newCode' => (int)$newCode,
+            'sort_no' => (int)$sortNo,
             'id'      => $id
         ]);
     }

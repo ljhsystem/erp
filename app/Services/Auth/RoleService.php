@@ -6,7 +6,7 @@ use PDO;
 use App\Models\Auth\RoleModel;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
-use Core\Helpers\CodeHelper;
+use Core\Helpers\SequenceHelper;
 use Core\LoggerFactory;
 
 class RoleService
@@ -56,7 +56,7 @@ class RoleService
 
         // ⭐ Service가 생성해야 하는 값들
         $data['id']         = UuidHelper::generate();
-        $data['code']       = CodeHelper::next('auth_roles');
+        $data['sort_no']       = null;
         $data['created_by'] = ActorHelper::user();
 
         $res = $this->model->create($data);
@@ -143,18 +143,23 @@ class RoleService
                 $this->pdo->beginTransaction();
             }
 
-            foreach ($changes as $row) {
-                if (empty($row['id']) || !isset($row['newCode'])) {
+            foreach ($changes as &$row) {
+                $sortNo = $row['newSortNo'] ?? $row['sort_no'] ?? null;
+
+                if (empty($row['id']) || $sortNo === null) {
                     throw new \Exception('reorder 데이터 오류');
                 }
+
+                $row['_sort_no'] = (int) $sortNo;
+            }
+            unset($row);
+
+            foreach ($changes as $row) {
+                $this->model->updateSortNo($row['id'], $row['_sort_no'] + 1000000);
             }
 
             foreach ($changes as $row) {
-                $this->model->updateCode($row['id'], (int)$row['newCode'] + 1000000);
-            }
-
-            foreach ($changes as $row) {
-                $this->model->updateCode($row['id'], (int)$row['newCode']);
+                $this->model->updateSortNo($row['id'], $row['_sort_no']);
             }
 
             if ($this->pdo->inTransaction()) {

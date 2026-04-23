@@ -25,7 +25,7 @@ window.AdminPicker = AdminPicker;
     };
 
     const DEPARTMENT_COLUMN_MAP = {
-        code:         { label: '코드', visible: true },
+        sort_no:         { label: '순번', visible: true },
         dept_name:    { label: '부서명', visible: true },
         manager_name: { label: '부서장', visible: true },
         description:  { label: '설명', visible: true },

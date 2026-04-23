@@ -75,6 +75,7 @@ $pageStyles .=
     AssetHelper::css('/assets/css/pages/dashboard/settings/project.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/bank.account.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/card.css') .
+    AssetHelper::css('/assets/css/pages/dashboard/settings/databasebackup.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/employee.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/departments.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/positions.css') .

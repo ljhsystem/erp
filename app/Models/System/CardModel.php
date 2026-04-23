@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Models/System/CardModel.php'
+// 寃쎈줈: PROJECT_ROOT . '/app/Models/System/CardModel.php'
 
 namespace App\Models\System;
 
@@ -8,17 +8,17 @@ use Core\Database;
 
 class CardModel
 {
-    // PDO 보관
+    // PDO 蹂닿?
     private PDO $db;
 
-    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
+    // ?앹꽦?????몃??먯꽌 PDO 二쇱엯 ?먮뒗 ?먮룞 ?곌껐
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
     /* =========================================================
-    * 카드 전체 목록
+    * 移대뱶 ?꾩껜 紐⑸줉
     * ========================================================= */
     public function getList(array $filters = []): array
     {
@@ -32,73 +32,73 @@ class CardModel
             LEFT JOIN system_bank_accounts b ON c.account_id = b.id
             WHERE c.deleted_at IS NULL
         ";
-    
+
         $params = [];
-    
+
         /* =========================================================
-         * 🔥 전체 컬럼 맵
+         * ?뵦 ?꾩껜 而щ읆 留?
          * ========================================================= */
         $fieldMap = [
-    
-            // 기본
-            'code'            => ['col'=>'c.code','type'=>'exact'],
+
+            // 湲곕낯
+            'sort_no'            => ['col'=>'c.sort_no','type'=>'exact'],
             'card_name'       => ['col'=>'c.card_name','type'=>'like'],
             'card_number'     => ['col'=>'c.card_number','type'=>'like'],
             'card_type'       => ['col'=>'c.card_type','type'=>'like'],
-    
-            // 관계
+
+            // 愿怨?
             'client_id'       => ['col'=>'c.client_id','type'=>'exact'],
             'account_id'      => ['col'=>'c.account_id','type'=>'exact'],
             'client_name'     => ['col'=>'cl.client_name','type'=>'like'],
             'account_name'    => ['col'=>'b.account_name','type'=>'like'],
-    
-            // 유효기간
+
+            // ?좏슚湲곌컙
             'expiry_year'     => ['col'=>'c.expiry_year','type'=>'exact'],
             'expiry_month'    => ['col'=>'c.expiry_month','type'=>'exact'],
-    
-            // 금액
+
+            // 湲덉븸
             'limit_amount'    => ['col'=>'c.limit_amount','type'=>'exact'],
-    
-            // 기타
+
+            // 湲고?
             'currency'        => ['col'=>'c.currency','type'=>'like'],
             'card_file'       => ['col'=>'c.card_file','type'=>'like'],
             'note'            => ['col'=>'c.note','type'=>'like'],
             'memo'            => ['col'=>'c.memo','type'=>'like'],
-    
-            // 상태
+
+            // ?곹깭
             'is_active'       => ['col'=>'c.is_active','type'=>'exact'],
-    
-            // 날짜
+
+            // ?좎쭨
             'created_at'      => ['col'=>'c.created_at','type'=>'date'],
             'updated_at'      => ['col'=>'c.updated_at','type'=>'date'],
         ];
-    
+
         $globalSearch = [];
-    
+
         /* =========================================================
-         * 🔥 필터 처리
+         * ?뵦 ?꾪꽣 泥섎━
          * ========================================================= */
         foreach ($filters as $f) {
-    
+
             $field = $f['field'] ?? '';
             $value = $f['value'] ?? '';
-    
+
             if ($value === '' || $value === null) continue;
-    
-            // 🔥 전체검색
+
+            // ?뵦 ?꾩껜寃??
             if ($field === '') {
                 $globalSearch[] = $value;
                 continue;
             }
-    
+
             if (!isset($fieldMap[$field])) continue;
-    
+
             $col  = $fieldMap[$field]['col'];
             $type = $fieldMap[$field]['type'];
-    
-            // 날짜
+
+            // ?좎쭨
             if ($type === 'date') {
-    
+
                 if (is_array($value)) {
                     $sql .= " AND DATE($col) BETWEEN ? AND ?";
                     $params[] = $value['start'];
@@ -109,14 +109,14 @@ class CardModel
                 }
                 continue;
             }
-    
+
             // LIKE
             if ($type === 'like') {
                 $sql .= " AND $col LIKE ?";
                 $params[] = "%{$value}%";
                 continue;
             }
-    
+
             // EXACT
             if ($type === 'exact') {
                 $sql .= " AND $col = ?";
@@ -124,63 +124,63 @@ class CardModel
                 continue;
             }
         }
-    
+
         /* =========================================================
-         * 🔥 전체검색 (텍스트 컬럼 + 조인)
+         * ?뵦 ?꾩껜寃??(?띿뒪??而щ읆 + 議곗씤)
          * ========================================================= */
         if (!empty($globalSearch)) {
-    
+
             $searchCols = [
-    
+
                 'c.card_name',
                 'c.card_number',
                 'c.card_type',
                 'c.currency',
                 'c.note',
                 'c.memo',
-    
+
                 'cl.client_name',
                 'b.account_name'
             ];
-    
+
             $sql .= " AND (";
-    
+
             $first = true;
-    
+
             foreach ($globalSearch as $keyword) {
-    
+
                 if (!$first) $sql .= " OR ";
-    
+
                 $sql .= "(";
-    
+
                 $colFirst = true;
-    
+
                 foreach ($searchCols as $col) {
-    
+
                     if (!$colFirst) $sql .= " OR ";
-    
+
                     $sql .= "$col LIKE ?";
                     $params[] = "%{$keyword}%";
-    
+
                     $colFirst = false;
                 }
-    
+
                 $sql .= ")";
                 $first = false;
             }
-    
+
             $sql .= ")";
         }
-    
-        $sql .= " ORDER BY c.code ASC";
-    
+
+        $sql .= " ORDER BY c.sort_no DESC";
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
-    
+
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
     /* =========================================================
-    * 카드 단일 조회 (id 기준)
+    * 移대뱶 ?⑥씪 議고쉶 (id 湲곗?)
     * ========================================================= */
     public function getById(string $id): ?array
     {
@@ -190,19 +190,19 @@ class CardModel
                 cl.client_name,
                 b.account_name,
 
-                CASE 
+                CASE
                     WHEN c.created_by LIKE 'SYSTEM:%' THEN c.created_by
                     WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
                     ELSE c.created_by
                 END AS created_by_name,
 
-                CASE 
+                CASE
                     WHEN c.updated_by LIKE 'SYSTEM:%' THEN c.updated_by
                     WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
                     ELSE c.updated_by
                 END AS updated_by_name,
 
-                CASE 
+                CASE
                     WHEN c.deleted_by LIKE 'SYSTEM:%' THEN c.deleted_by
                     WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
                     ELSE c.deleted_by
@@ -236,7 +236,7 @@ class CardModel
         return $row ?: null;
     }
     /* =========================================================
-    * 카드 검색 (Model - RAW 데이터 반환)
+    * 移대뱶 寃??(Model - RAW ?곗씠??諛섑솚)
     * ========================================================= */
     public function searchPicker(string $keyword = '', int $limit = 20): array
     {
@@ -247,9 +247,9 @@ class CardModel
         $prefix = $keyword . '%';
 
         $sql = "
-            SELECT 
+            SELECT
                 c.id,
-                c.code,
+                c.sort_no,
                 c.card_name,
                 c.card_number,
                 cl.client_name
@@ -287,14 +287,14 @@ class CardModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
     /* =========================================================
-    * 카드 생성
+    * 移대뱶 ?앹꽦
     * ========================================================= */
     public function create(array $data): bool
     {
         $sql = "
             INSERT INTO system_cards (
                 id,
-                code,
+                sort_no,
                 card_name,
                 card_number,
                 card_type,
@@ -313,7 +313,7 @@ class CardModel
             )
             VALUES (
                 :id,
-                :code,
+                :sort_no,
                 :card_name,
                 :card_number,
                 :card_type,
@@ -336,7 +336,7 @@ class CardModel
 
         return $stmt->execute([
             'id' => $data['id'],
-            'code' => $data['code'] ?? null,
+            'sort_no' => $data['sort_no'] ?? null,
 
             'card_name' => trim((string)($data['card_name'] ?? '')),
             'card_number' => trim((string)($data['card_number'] ?? '')),
@@ -363,7 +363,7 @@ class CardModel
         ]);
     }
     /* =========================================================
-    * 카드 수정 (id 기준)
+    * 移대뱶 ?섏젙 (id 湲곗?)
     * ========================================================= */
     public function updateById(string $id, array $data): bool
     {
@@ -416,13 +416,13 @@ class CardModel
         return $stmt->execute($params);
     }
     /* -------------------------------------------------------------
-    * 카드 삭제 (id 기준)
+    * 移대뱶 ??젣 (id 湲곗?)
     * ------------------------------------------------------------- */
     public function deleteById(string $id, string $actor): bool
     {
         $sql = "
             UPDATE system_cards
-            SET 
+            SET
                 deleted_at = NOW(),
                 deleted_by = :actor
             WHERE id = :id
@@ -439,7 +439,7 @@ class CardModel
     }
 
     /* -------------------------------------------------------------
-    * 카드 휴지통 목록
+    * 移대뱶 ?댁???紐⑸줉
     * ------------------------------------------------------------- */
     public function getDeleted(): array
     {
@@ -449,19 +449,19 @@ class CardModel
                 cl.client_name,
                 b.account_name,
 
-                CASE 
+                CASE
                     WHEN c.created_by LIKE 'SYSTEM:%' THEN c.created_by
                     WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
                     ELSE c.created_by
                 END AS created_by_name,
 
-                CASE 
+                CASE
                     WHEN c.updated_by LIKE 'SYSTEM:%' THEN c.updated_by
                     WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
                     ELSE c.updated_by
                 END AS updated_by_name,
 
-                CASE 
+                CASE
                     WHEN c.deleted_by LIKE 'SYSTEM:%' THEN c.deleted_by
                     WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
                     ELSE c.deleted_by
@@ -494,13 +494,13 @@ class CardModel
     }
 
     /* -------------------------------------------------------------
-    * 카드 복원 (id 기준)
+    * 移대뱶 蹂듭썝 (id 湲곗?)
     * ------------------------------------------------------------- */
     public function restoreById(string $id, string $actor): bool
     {
         $sql = "
             UPDATE system_cards
-            SET                 
+            SET
                 deleted_at = NULL,
                 deleted_by = NULL,
                 updated_by = :actor
@@ -516,11 +516,11 @@ class CardModel
     }
 
     /* -------------------------------------------------------------
-    * 카드 영구삭제 (파일 포함)
+    * 移대뱶 ?곴뎄??젣 (?뚯씪 ?ы븿)
     * ------------------------------------------------------------- */
     public function hardDeleteById(string $id): bool
     {
-        // 1. 파일 경로 조회
+        // 1. ?뚯씪 寃쎈줈 議고쉶
         $stmt = $this->db->prepare("
             SELECT card_file
             FROM system_cards
@@ -529,14 +529,14 @@ class CardModel
         $stmt->execute([':id' => $id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        // 2. DB 삭제
+        // 2. DB ??젣
         $stmt = $this->db->prepare("
             DELETE FROM system_cards
             WHERE id = :id
         ");
         $stmt->execute([':id' => $id]);
 
-        // 3. 파일 삭제
+        // 3. ?뚯씪 ??젣
         if ($row && !empty($row['card_file'])) {
 
             $filePath = PROJECT_ROOT . '/public/uploads/' . str_replace('public://', '', $row['card_file']);
@@ -550,15 +550,15 @@ class CardModel
     }
 
     /* -------------------------------------------------------------
-    * 카드 순서 변경 (충돌 방지)
+    * 移대뱶 ?쒖꽌 蹂寃?(異⑸룎 諛⑹?)
     * ------------------------------------------------------------- */
-    public function updateCode(string $id, string $newCode): bool
+    public function updateSortNo(string $id, string $newSortNo): bool
     {
-        $sql = "UPDATE system_cards SET code = :newCode WHERE id = :id";
+        $sql = "UPDATE system_cards SET sort_no = :newSortNo WHERE id = :id";
         $stmt = $this->db->prepare($sql);
 
         return $stmt->execute([
-            'newCode' => (int)$newCode,
+            'newSortNo' => (int)$newSortNo,
             'id' => $id
         ]);
     }

@@ -24,7 +24,7 @@ class RoleModel
         try {
             $sql = "
                 SELECT 
-                    id, code, role_key, role_name,
+                    id, sort_no, role_key, role_name,
                     description, is_active,
                     created_at, created_by,
                     updated_at, updated_by
@@ -37,7 +37,7 @@ class RoleModel
             if (!empty($filters)) {
                 $fieldMap = [
                     'id'          => ['expr' => 'id', 'type' => 'exact'],
-                    'code'        => ['expr' => 'code', 'type' => 'like'],
+                    'sort_no'        => ['expr' => 'sort_no', 'type' => 'like'],
                     'role_key'    => ['expr' => 'role_key', 'type' => 'like'],
                     'role_name'   => ['expr' => 'role_name', 'type' => 'like'],
                     'description' => ['expr' => 'description', 'type' => 'like'],
@@ -128,7 +128,7 @@ class RoleModel
 
                     $orParts = [];
                     foreach ($keywords as $keyword) {
-                        foreach (['code', 'role_key', 'role_name', 'description'] as $expr) {
+                        foreach (['sort_no', 'role_key', 'role_name', 'description'] as $expr) {
                             $orParts[] = "{$expr} LIKE ?";
                             $params[] = '%' . $keyword . '%';
                         }
@@ -140,7 +140,7 @@ class RoleModel
                 }
             }
 
-            $sql .= " ORDER BY code ASC";
+            $sql .= " ORDER BY sort_no DESC";
 
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
@@ -162,7 +162,7 @@ class RoleModel
         try {
             $stmt = $this->db->prepare("
                 SELECT 
-                    id, code, role_key, role_name,
+                    id, sort_no, role_key, role_name,
                     description, is_active,
                     created_at, created_by,
                     updated_at, updated_by
@@ -217,17 +217,17 @@ class RoleModel
 
             $stmt = $this->db->prepare("
                 INSERT INTO auth_roles (
-                    id, code, role_key, role_name, description,
+                    id, sort_no, role_key, role_name, description,
                     is_active, created_at, created_by
                 ) VALUES (
-                    :id, :code, :role_key, :role_name, :description,
+                    :id, :sort_no, :role_key, :role_name, :description,
                     :is_active, NOW(), :created_by
                 )
             ");
 
             $ok = $stmt->execute([
                 ':id'          => $data['id'],     // ⭐ Service 생성값
-                ':code'        => $data['code'],   // ⭐ Service 생성값
+                ':sort_no'        => $data['sort_no'],   // ⭐ Service 생성값
                 ':role_key'    => $data['role_key'],
                 ':role_name'   => $data['role_name'],
                 ':description' => $data['description'] ?? null,
@@ -338,16 +338,16 @@ class RoleModel
         }
     }
 
-    public function updateCode(string $id, int $code): bool
+    public function updateSortNo(string $id, int $sort_no): bool
     {
         try {
             $stmt = $this->db->prepare("
                 UPDATE auth_roles
-                SET code = ?, updated_at = NOW()
+                SET sort_no = ?, updated_at = NOW()
                 WHERE id = ?
             ");
 
-            return $stmt->execute([$code, $id]);
+            return $stmt->execute([$sort_no, $id]);
         } catch (\Throwable $e) {
             return false;
         }

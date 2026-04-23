@@ -6,6 +6,7 @@ use Core\Router;
 use Core\Session;
 use Core\Database;
 use Core\PermissionRegistry;
+use App\Services\Auth\AuthSessionService;
 use App\Services\System\SessionConfigService;
 
 ini_set('display_errors', 1);
@@ -103,6 +104,25 @@ $router = new Router();
 $sessionConfigService = new SessionConfigService(Database::getInstance()->getConnection());
 Session::start($sessionConfigService->getTimeoutMinutes());
 error_log("🌐 세션 시작됨: " . session_id());
+
+$normalizedUri = $uri !== '/' ? rtrim((string)$uri, '/') : '/';
+if ($normalizedUri === '') {
+    $normalizedUri = '/';
+}
+
+$authSessionService = new AuthSessionService();
+$isAuthenticated = $authSessionService->isAuthenticated();
+error_log('Auth check: ' . ($isAuthenticated ? 'YES' : 'NO') . ' uri=' . $normalizedUri);
+
+if ($isAuthenticated && in_array($normalizedUri, ['/', '/home', '/index', '/index.php', '/login'], true)) {
+    header('Location: /dashboard');
+    exit;
+}
+
+if (!$isAuthenticated && in_array($normalizedUri, ['/index', '/index.php'], true)) {
+    header('Location: /home');
+    exit;
+}
 
 /* ============================================================
  * 8) 라우트 로드

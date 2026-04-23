@@ -91,13 +91,13 @@ class ExportService
             'all_day'     => !empty($ev['allDay']) ? 'Y' : 'N',
 
             'creator'    => $ev['creator_displayname']
-                            ?? $ev['creator_account']
-                            ?? '',
+                ?? $ev['creator_account']
+                ?? '',
 
             'location'   => $ev['location'] ?? '',
             'status'     => $ev['status'] ?? '',
             'component'  => $ev['component'] ?? '',
-            'uid'        => $ev['uid'] ?? '',
+            'id'        => $ev['id'] ?? '',
 
             'calendar_id' => $ev['calendar_id'] ?? '',
             'collection'  => $ev['collection_href'] ?? '',
@@ -116,7 +116,7 @@ class ExportService
             '장소',
             '상태',
             '유형',
-            'UID',
+            'id',
             '캘린더ID',
             '컬렉션'
         ];

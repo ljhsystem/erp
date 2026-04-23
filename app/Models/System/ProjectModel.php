@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Models/System/ProjectModel.php'
+// 寃쎈줈: PROJECT_ROOT . '/app/Models/System/ProjectModel.php'
 namespace App\Models\System;
 
 use PDO;
@@ -7,10 +7,10 @@ use Core\Database;
 
 class ProjectModel
 {
-    // PDO 보관
+    // PDO 蹂닿?
     private PDO $db;
 
-    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
+    // ?앹꽦?????몃??먯꽌 PDO 二쇱엯 ?먮뒗 ?먮룞 ?곌껐
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
@@ -28,68 +28,68 @@ class ProjectModel
             LEFT JOIN user_employees e ON p.employee_id = e.id
             WHERE p.deleted_at IS NULL
         ";
-    
+
         $params = [];
-    
+
         /* =========================================================
-         * 🔥 전체 컬럼 맵 (하나도 빠짐없이)
+         * ?뵦 ?꾩껜 而щ읆 留?(?섎굹??鍮좎쭚?놁씠)
          * ========================================================= */
         $fieldMap = [
-    
-            // 🔥 기본
-            'code'                    => ['col'=>'p.code','type'=>'exact'],
+
+            // ?뵦 湲곕낯
+            'sort_no'                    => ['col'=>'p.sort_no','type'=>'exact'],
             'project_name'            => ['col'=>'p.project_name','type'=>'like'],
             'construction_name'       => ['col'=>'p.construction_name','type'=>'like'],
-    
-            // 🔥 관계
+
+            // ?뵦 愿怨?
             'client_id'               => ['col'=>'p.client_id','type'=>'exact'],
             'employee_id'             => ['col'=>'p.employee_id','type'=>'exact'],
             'linked_client_name'      => ['col'=>'c.client_name','type'=>'like'],
            'client_name'              => ['col'=>'p.client_name','type'=>'like'],
             'employee_name'           => ['col'=>'e.employee_name','type'=>'like'],
-    
-            // 🔥 인물
+
+            // ?뵦 ?몃Ъ
             'site_agent'              => ['col'=>'p.site_agent','type'=>'like'],
             'director'                => ['col'=>'p.director','type'=>'like'],
             'manager'                 => ['col'=>'p.manager','type'=>'like'],
-    
-            // 🔥 사업
+
+            // ?뵦 ?ъ뾽
             'business_type'           => ['col'=>'p.business_type','type'=>'like'],
             'housing_type'            => ['col'=>'p.housing_type','type'=>'like'],
-    
-            // 🔥 위치
+
+            // ?뵦 ?꾩튂
             'site_region_city'        => ['col'=>'p.site_region_city','type'=>'like'],
             'site_region_district'    => ['col'=>'p.site_region_district','type'=>'like'],
             'site_region_address'     => ['col'=>'p.site_region_address','type'=>'like'],
             'site_region_address_detail'=>['col'=>'p.site_region_address_detail','type'=>'like'],
-    
-            // 🔥 공종
+
+            // ?뵦 怨듭쥌
             'work_type'               => ['col'=>'p.work_type','type'=>'like'],
             'work_subtype'            => ['col'=>'p.work_subtype','type'=>'like'],
             'work_detail_type'        => ['col'=>'p.work_detail_type','type'=>'like'],
             'contract_work_type'      => ['col'=>'p.contract_work_type','type'=>'like'],
-    
-            // 🔥 입찰
+
+            // ?뵦 ?낆같
             'bid_type'                => ['col'=>'p.bid_type','type'=>'like'],
-    
-            // 🔥 발주자
+
+            // ?뵦 諛쒖＜??
             'client_type'             => ['col'=>'p.client_type','type'=>'like'],
-    
-            // 🔥 기관
+
+            // ?뵦 湲곌?
             'permit_agency'           => ['col'=>'p.permit_agency','type'=>'like'],
-    
-            // 🔥 금액
+
+            // ?뵦 湲덉븸
             'initial_contract_amount' => ['col'=>'p.initial_contract_amount','type'=>'exact'],
-    
-            // 🔥 기타
+
+            // ?뵦 湲고?
             'authorized_company_seal' => ['col'=>'p.authorized_company_seal','type'=>'like'],
             'note'                    => ['col'=>'p.note','type'=>'like'],
             'memo'                    => ['col'=>'p.memo','type'=>'like'],
-    
-            // 🔥 상태
+
+            // ?뵦 ?곹깭
             'is_active'               => ['col'=>'p.is_active','type'=>'exact'],
-    
-            // 🔥 날짜
+
+            // ?뵦 ?좎쭨
             'permit_date'             => ['col'=>'p.permit_date','type'=>'date'],
             'contract_date'           => ['col'=>'p.contract_date','type'=>'date'],
             'start_date'              => ['col'=>'p.start_date','type'=>'date'],
@@ -98,32 +98,32 @@ class ProjectModel
             'created_at'              => ['col'=>'p.created_at','type'=>'date'],
             'updated_at'              => ['col'=>'p.updated_at','type'=>'date'],
         ];
-    
+
         $globalSearch = [];
-    
+
         /* =========================================================
-         * 🔥 필터 처리
+         * ?뵦 ?꾪꽣 泥섎━
          * ========================================================= */
         foreach ($filters as $f) {
-    
+
             $field = $f['field'] ?? '';
             $value = $f['value'] ?? '';
-    
+
             if ($value === '' || $value === null) continue;
-    
-            // 🔥 전체검색
+
+            // ?뵦 ?꾩껜寃??
             if ($field === '') {
                 $globalSearch[] = $value;
                 continue;
             }
-    
+
             if (!isset($fieldMap[$field])) continue;
-    
+
             $col  = $fieldMap[$field]['col'];
             $type = $fieldMap[$field]['type'];
-    
+
             if ($type === 'date') {
-    
+
                 if (is_array($value)) {
                     $sql .= " AND DATE($col) BETWEEN ? AND ?";
                     $params[] = $value['start'];
@@ -134,27 +134,27 @@ class ProjectModel
                 }
                 continue;
             }
-    
+
             if ($type === 'like') {
                 $sql .= " AND $col LIKE ?";
                 $params[] = "%{$value}%";
                 continue;
             }
-    
+
             if ($type === 'exact') {
                 $sql .= " AND $col = ?";
                 $params[] = $value;
                 continue;
             }
         }
-    
+
         /* =========================================================
-         * 🔥 전체검색 (모든 TEXT 컬럼)
+         * ?뵦 ?꾩껜寃??(紐⑤뱺 TEXT 而щ읆)
          * ========================================================= */
         if (!empty($globalSearch)) {
-    
+
             $searchCols = [
-    
+
                 'p.project_name','p.construction_name',
                 'p.site_agent','p.director','p.manager',
                 'p.business_type','p.housing_type',
@@ -165,50 +165,50 @@ class ProjectModel
                 'p.client_name','p.client_type',
                 'p.permit_agency','p.authorized_company_seal',
                 'p.note','p.memo',
-    
+
                 'c.client_name',
                 'e.employee_name'
             ];
-    
+
             $sql .= " AND (";
-    
+
             $first = true;
-    
+
             foreach ($globalSearch as $keyword) {
-    
+
                 if (!$first) $sql .= " OR ";
-    
+
                 $sql .= "(";
-    
+
                 $colFirst = true;
-    
+
                 foreach ($searchCols as $col) {
-    
+
                     if (!$colFirst) $sql .= " OR ";
-    
+
                     $sql .= "$col LIKE ?";
                     $params[] = "%{$keyword}%";
-    
+
                     $colFirst = false;
                 }
-    
+
                 $sql .= ")";
                 $first = false;
             }
-    
+
             $sql .= ")";
         }
-    
-        $sql .= " ORDER BY p.code ASC";
-    
+
+        $sql .= " ORDER BY p.sort_no DESC";
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
-    
+
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /* -------------------------------------------------------------
-    * 프로젝트 단일 조회 (id 기준)
+    * ?꾨줈?앺듃 ?⑥씪 議고쉶 (id 湲곗?)
     * ------------------------------------------------------------- */
     public function getById(string $id): ?array
     {
@@ -219,19 +219,19 @@ class ProjectModel
                 c.client_name AS linked_client_name,
                 e.employee_name AS employee_name,
 
-                CASE 
+                CASE
                     WHEN p.created_by LIKE 'SYSTEM:%' THEN p.created_by
                     WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
                     ELSE p.created_by
                 END AS created_by_name,
 
-                CASE 
+                CASE
                     WHEN p.updated_by LIKE 'SYSTEM:%' THEN p.updated_by
                     WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
                     ELSE p.updated_by
                 END AS updated_by_name,
 
-                CASE 
+                CASE
                     WHEN p.deleted_by LIKE 'SYSTEM:%' THEN p.deleted_by
                     WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
                     ELSE p.deleted_by
@@ -269,7 +269,7 @@ class ProjectModel
     }
 
     /* =========================================================
-    * 프로젝트 검색 (Model - RAW 데이터 반환)
+    * ?꾨줈?앺듃 寃??(Model - RAW ?곗씠??諛섑솚)
     * ========================================================= */
     public function searchPicker(string $keyword = '', int $limit = 20): array
     {
@@ -282,7 +282,7 @@ class ProjectModel
         $sql = "
             SELECT
                 id,
-                code,
+                sort_no,
                 project_name,
                 construction_name
 
@@ -292,7 +292,7 @@ class ProjectModel
             AND (
                 project_name LIKE :k1
                 OR construction_name LIKE :k2
-                OR CAST(code AS CHAR) LIKE :k3
+                OR CAST(sort_no AS CHAR) LIKE :k3
             )
 
             ORDER BY
@@ -317,16 +317,41 @@ class ProjectModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    public function findIdByProjectName(string $projectName): ?string
+    {
+        $projectName = trim($projectName);
+
+        if ($projectName === '') {
+            return null;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT id
+            FROM system_projects
+            WHERE project_name = :project_name
+              AND deleted_at IS NULL
+            LIMIT 1
+        ");
+
+        $stmt->execute([
+            'project_name' => $projectName,
+        ]);
+
+        $id = $stmt->fetchColumn();
+
+        return $id !== false ? (string)$id : null;
+    }
+
 
     /* -------------------------------------------------------------
-    * 프로젝트 생성
+    * ?꾨줈?앺듃 ?앹꽦
     * ------------------------------------------------------------- */
     public function create(array $data): bool
     {
         $sql = "
             INSERT INTO system_projects (
                 id,
-                code,
+                sort_no,
                 project_name,
                 client_id,
                 employee_id,
@@ -363,7 +388,7 @@ class ProjectModel
                 updated_by
             ) VALUES (
                 :id,
-                :code,
+                :sort_no,
                 :project_name,
                 :client_id,
                 :employee_id,
@@ -405,7 +430,7 @@ class ProjectModel
 
         return $stmt->execute([
             'id' => $data['id'],
-            'code' => $data['code'] ?? null,
+            'sort_no' => $data['sort_no'] ?? null,
 
             'project_name' => $data['project_name'] ?? null,
             'client_id' => $data['client_id'] ?? null,
@@ -449,7 +474,7 @@ class ProjectModel
             'note' => $data['note'] ?? null,
             'memo' => $data['memo'] ?? null,
 
-            // 🔥 기본값 통일
+            // ?뵦 湲곕낯媛??듭씪
             'is_active' => isset($data['is_active']) ? (int)$data['is_active'] : 1,
 
             'created_by' => $data['created_by'],
@@ -459,7 +484,7 @@ class ProjectModel
 
 
     /* -------------------------------------------------------------
-    * 프로젝트 수정 (id 기준)
+    * ?꾨줈?앺듃 ?섏젙 (id 湲곗?)
     * ------------------------------------------------------------- */
     public function updateById(string $id, array $data): bool
     {
@@ -517,8 +542,8 @@ class ProjectModel
         $params = [
             'id' => $id,
 
-            'project_name' => isset($data['project_name']) 
-                ? trim((string)$data['project_name']) 
+            'project_name' => isset($data['project_name'])
+                ? trim((string)$data['project_name'])
                 : null,
 
             'client_id' => $data['client_id'] ?? null,
@@ -562,7 +587,7 @@ class ProjectModel
             'note' => $data['note'] ?? null,
             'memo' => $data['memo'] ?? null,
 
-            // 🔥 기본값 통일
+            // ?뵦 湲곕낯媛??듭씪
             'is_active' => isset($data['is_active']) ? (int)$data['is_active'] : 1,
 
             'updated_by' => $data['updated_by']
@@ -573,32 +598,32 @@ class ProjectModel
     }
 
     /* -------------------------------------------------------------
-    * 프로젝트 삭제 (id 기준)
+    * ?꾨줈?앺듃 ??젣 (id 湲곗?)
     * ------------------------------------------------------------- */
     public function deleteById(string $id, string $actor): bool
     {
         $sql = "
             UPDATE system_projects
-            SET 
+            SET
                 deleted_at = NOW(),
                 deleted_by = :actor
             WHERE id = :id
               AND deleted_at IS NULL
         ";
-    
+
         $stmt = $this->db->prepare($sql);
-    
+
         $stmt->execute([
             ':id'    => $id,
             ':actor' => $actor
         ]);
-    
+
         return $stmt->rowCount() > 0;
     }
 
 
     /* -------------------------------------------------------------
-    * 프로젝트 휴지통 목록
+    * ?꾨줈?앺듃 ?댁???紐⑸줉
     * ------------------------------------------------------------- */
     public function getDeleted(): array
     {
@@ -609,19 +634,19 @@ class ProjectModel
                 c.client_name AS linked_client_name,
                 e.employee_name AS employee_name,
 
-                CASE 
+                CASE
                     WHEN p.created_by LIKE 'SYSTEM:%' THEN p.created_by
                     WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
                     ELSE p.created_by
                 END AS created_by_name,
 
-                CASE 
+                CASE
                     WHEN p.updated_by LIKE 'SYSTEM:%' THEN p.updated_by
                     WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
                     ELSE p.updated_by
                 END AS updated_by_name,
 
-                CASE 
+                CASE
                     WHEN p.deleted_by LIKE 'SYSTEM:%' THEN p.deleted_by
                     WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
                     ELSE p.deleted_by
@@ -657,7 +682,7 @@ class ProjectModel
     }
 
     /* -------------------------------------------------------------
-    * 프로젝트 복원 (id 기준)
+    * ?꾨줈?앺듃 蹂듭썝 (id 湲곗?)
     * ------------------------------------------------------------- */
     public function restoreById(string $id, string $actor): bool
     {
@@ -670,19 +695,19 @@ class ProjectModel
             WHERE id = :id
               AND deleted_at IS NOT NULL
         ";
-    
+
         $stmt = $this->db->prepare($sql);
-    
+
         $stmt->execute([
             ':id' => $id,
             ':actor' => $actor
         ]);
-    
+
         return $stmt->rowCount() > 0;
     }
 
     /* -------------------------------------------------------------
-    * 프로젝트 영구삭제
+    * ?꾨줈?앺듃 ?곴뎄??젣
     * ------------------------------------------------------------- */
     public function hardDeleteById(string $id): bool
     {
@@ -698,15 +723,15 @@ class ProjectModel
 
 
     /* -------------------------------------------------------------
-    * ID 기준 code 수정
+    * ID 湲곗? sort_no ?섏젙
     * ------------------------------------------------------------- */
-    public function updateCode(string $id, string $newCode): bool
+    public function updateSortNo(string $id, string $newSortNo): bool
     {
-        $sql = "UPDATE system_projects SET code = :newCode WHERE id = :id";
+        $sql = "UPDATE system_projects SET sort_no = :newSortNo WHERE id = :id";
         $stmt = $this->db->prepare($sql);
 
         return $stmt->execute([
-            'newCode' => (int)$newCode,
+            'newSortNo' => (int)$newSortNo,
             'id' => $id
         ]);
     }

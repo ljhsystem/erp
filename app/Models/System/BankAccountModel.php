@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Models/System/BankAccountModel.php'
+// 寃쎈줈: PROJECT_ROOT . '/app/Models/System/BankAccountModel.php'
 
 namespace App\Models\System;
 
@@ -8,17 +8,17 @@ use Core\Database;
 
 class BankAccountModel
 {
-    // PDO 보관
+    // PDO 蹂닿?
     private PDO $db;
 
-    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
+    // ?앹꽦?????몃??먯꽌 PDO 二쇱엯 ?먮뒗 ?먮룞 ?곌껐
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
     /* =========================================================
-    * 계좌 전체 목록
+    * 怨꾩쥖 ?꾩껜 紐⑸줉
     * ========================================================= */
     public function getList(array $filters = []): array
     {
@@ -28,64 +28,64 @@ class BankAccountModel
             FROM system_bank_accounts a
             WHERE a.deleted_at IS NULL
         ";
-    
+
         $params = [];
-    
+
         /* =========================================================
-         * 🔥 전체 컬럼 맵 (빠짐없이)
+         * ?뵦 ?꾩껜 而щ읆 留?(鍮좎쭚?놁씠)
          * ========================================================= */
         $fieldMap = [
-    
-            // 기본
-            'code'            => ['col'=>'a.code','type'=>'exact'],
+
+            // 湲곕낯
+            'sort_no'            => ['col'=>'a.sort_no','type'=>'exact'],
             'account_name'    => ['col'=>'a.account_name','type'=>'like'],
             'bank_name'       => ['col'=>'a.bank_name','type'=>'like'],
             'account_number'  => ['col'=>'a.account_number','type'=>'like'],
             'account_holder'  => ['col'=>'a.account_holder','type'=>'like'],
             'account_type'    => ['col'=>'a.account_type','type'=>'like'],
             'currency'        => ['col'=>'a.currency','type'=>'like'],
-    
-            // 파일
+
+            // ?뚯씪
             'bank_file'       => ['col'=>'a.bank_file','type'=>'like'],
-    
-            // 메모
+
+            // 硫붾え
             'note'            => ['col'=>'a.note','type'=>'like'],
             'memo'            => ['col'=>'a.memo','type'=>'like'],
-    
-            // 상태
+
+            // ?곹깭
             'is_active'       => ['col'=>'a.is_active','type'=>'exact'],
-    
-            // 날짜
+
+            // ?좎쭨
             'created_at'      => ['col'=>'a.created_at','type'=>'date'],
             'updated_at'      => ['col'=>'a.updated_at','type'=>'date'],
         ];
-    
+
         $globalSearch = [];
-    
+
         /* =========================================================
-         * 🔥 필터 처리
+         * ?뵦 ?꾪꽣 泥섎━
          * ========================================================= */
         foreach ($filters as $f) {
-    
+
             $field = $f['field'] ?? '';
             $value = $f['value'] ?? '';
-    
+
             if ($value === '' || $value === null) continue;
-    
-            // 🔥 전체검색
+
+            // ?뵦 ?꾩껜寃??
             if ($field === '') {
                 $globalSearch[] = $value;
                 continue;
             }
-    
+
             if (!isset($fieldMap[$field])) continue;
-    
+
             $col  = $fieldMap[$field]['col'];
             $type = $fieldMap[$field]['type'];
-    
-            // 날짜
+
+            // ?좎쭨
             if ($type === 'date') {
-    
+
                 if (is_array($value)) {
                     $sql .= " AND DATE($col) BETWEEN ? AND ?";
                     $params[] = $value['start'];
@@ -96,14 +96,14 @@ class BankAccountModel
                 }
                 continue;
             }
-    
+
             // LIKE
             if ($type === 'like') {
                 $sql .= " AND $col LIKE ?";
                 $params[] = "%{$value}%";
                 continue;
             }
-    
+
             // EXACT
             if ($type === 'exact') {
                 $sql .= " AND $col = ?";
@@ -111,14 +111,14 @@ class BankAccountModel
                 continue;
             }
         }
-    
+
         /* =========================================================
-         * 🔥 전체검색 (모든 텍스트 컬럼)
+         * ?뵦 ?꾩껜寃??(紐⑤뱺 ?띿뒪??而щ읆)
          * ========================================================= */
         if (!empty($globalSearch)) {
-    
+
             $searchCols = [
-    
+
                 'a.account_name',
                 'a.bank_name',
                 'a.account_number',
@@ -128,46 +128,46 @@ class BankAccountModel
                 'a.note',
                 'a.memo'
             ];
-    
+
             $sql .= " AND (";
-    
+
             $first = true;
-    
+
             foreach ($globalSearch as $keyword) {
-    
+
                 if (!$first) $sql .= " OR ";
-    
+
                 $sql .= "(";
-    
+
                 $colFirst = true;
-    
+
                 foreach ($searchCols as $col) {
-    
+
                     if (!$colFirst) $sql .= " OR ";
-    
+
                     $sql .= "$col LIKE ?";
                     $params[] = "%{$keyword}%";
-    
+
                     $colFirst = false;
                 }
-    
+
                 $sql .= ")";
                 $first = false;
             }
-    
+
             $sql .= ")";
         }
-    
-        $sql .= " ORDER BY a.code ASC";
-    
+
+        $sql .= " ORDER BY a.sort_no DESC";
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
-    
+
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /* =========================================================
-    * 계좌 단일 조회 (id 기준)
+    * 怨꾩쥖 ?⑥씪 議고쉶 (id 湲곗?)
     * ========================================================= */
     public function getById(string $id): ?array
     {
@@ -175,19 +175,19 @@ class BankAccountModel
             SELECT
                 a.*,
 
-                CASE 
+                CASE
                     WHEN a.created_by LIKE 'SYSTEM:%' THEN a.created_by
                     WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
                     ELSE a.created_by
                 END AS created_by_name,
 
-                CASE 
+                CASE
                     WHEN a.updated_by LIKE 'SYSTEM:%' THEN a.updated_by
                     WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
                     ELSE a.updated_by
                 END AS updated_by_name,
 
-                CASE 
+                CASE
                     WHEN a.deleted_by LIKE 'SYSTEM:%' THEN a.deleted_by
                     WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
                     ELSE a.deleted_by
@@ -219,7 +219,7 @@ class BankAccountModel
     }
 
     /* =========================================================
-    * 계좌 검색 (Model - RAW 데이터 반환)
+    * 怨꾩쥖 寃??(Model - RAW ?곗씠??諛섑솚)
     * ========================================================= */
     public function searchPicker(string $keyword = '', int $limit = 20): array
     {
@@ -230,9 +230,9 @@ class BankAccountModel
         $prefix = $keyword . '%';
 
         $sql = "
-            SELECT 
+            SELECT
                 id,
-                code,
+                sort_no,
                 account_name,
                 bank_name,
                 account_number,
@@ -272,14 +272,14 @@ class BankAccountModel
     }
 
     /* =========================================================
-    * 생성
+    * ?앹꽦
     * ========================================================= */
     public function create(array $data): bool
     {
         $sql = "
             INSERT INTO system_bank_accounts (
                 id,
-                code,
+                sort_no,
                 account_name,
                 bank_name,
                 account_number,
@@ -295,7 +295,7 @@ class BankAccountModel
             )
             VALUES (
                 :id,
-                :code,
+                :sort_no,
                 :account_name,
                 :bank_name,
                 :account_number,
@@ -315,23 +315,23 @@ class BankAccountModel
 
         return $stmt->execute([
             'id' => $data['id'],
-            'code' => $data['code'] ?? null,        
-            'account_name' => $data['account_name'] ?? null,        
+            'sort_no' => $data['sort_no'] ?? null,
+            'account_name' => $data['account_name'] ?? null,
             'bank_name' => $data['bank_name'] ?? null,
             'account_number' => $data['account_number'] ?? null,
             'account_holder' => $data['account_holder'] ?? null,
-            'account_type' => $data['account_type'] ?? null,        
-            'currency' => $data['currency'] ?? 'KRW', 
+            'account_type' => $data['account_type'] ?? null,
+            'currency' => $data['currency'] ?? 'KRW',
             'bank_file' => $data['bank_file'] ?? null,
-            'is_active' => $data['is_active'] ?? 1,       
+            'is_active' => $data['is_active'] ?? 1,
             'note' => $data['note'] ?? null,
-            'memo' => $data['memo'] ?? null,        
+            'memo' => $data['memo'] ?? null,
             'created_by' => $data['created_by'],
             'updated_by' => $data['updated_by'],
         ]);
     }
     /* =========================================================
-    * 계좌 수정 (id 기준)
+    * 怨꾩쥖 ?섏젙 (id 湲곗?)
     * ========================================================= */
     public function updateById(string $id, array $data): bool
     {
@@ -370,13 +370,13 @@ class BankAccountModel
         return $stmt->execute($params);
     }
     /* -------------------------------------------------------------
-    * 계좌 삭제 (id 기준)
+    * 怨꾩쥖 ??젣 (id 湲곗?)
     * ------------------------------------------------------------- */
     public function deleteById(string $id, string $actor): bool
     {
         $sql = "
             UPDATE system_bank_accounts
-            SET 
+            SET
                 deleted_at = NOW(),
                 deleted_by = :actor
             WHERE id = :id
@@ -393,7 +393,7 @@ class BankAccountModel
     }
 
     /* -------------------------------------------------------------
-    * 계좌 휴지통 목록
+    * 怨꾩쥖 ?댁???紐⑸줉
     * ------------------------------------------------------------- */
     public function getDeleted(): array
     {
@@ -401,19 +401,19 @@ class BankAccountModel
             SELECT
                 a.*,
 
-                CASE 
+                CASE
                     WHEN a.created_by LIKE 'SYSTEM:%' THEN a.created_by
                     WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
                     ELSE a.created_by
                 END AS created_by_name,
 
-                CASE 
+                CASE
                     WHEN a.updated_by LIKE 'SYSTEM:%' THEN a.updated_by
                     WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
                     ELSE a.updated_by
                 END AS updated_by_name,
 
-                CASE 
+                CASE
                     WHEN a.deleted_by LIKE 'SYSTEM:%' THEN a.deleted_by
                     WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
                     ELSE a.deleted_by
@@ -443,13 +443,13 @@ class BankAccountModel
     }
 
     /* -------------------------------------------------------------
-    * 계좌 복원 (id 기준)
+    * 怨꾩쥖 蹂듭썝 (id 湲곗?)
     * ------------------------------------------------------------- */
     public function restoreById(string $id, string $actor): bool
     {
         $sql = "
             UPDATE system_bank_accounts
-            SET                 
+            SET
                 deleted_at = NULL,
                 deleted_by = NULL,
                 updated_by = :actor
@@ -466,7 +466,7 @@ class BankAccountModel
 
 
     /* -------------------------------------------------------------
-    * 계좌 영구삭제 (id 기준)
+    * 怨꾩쥖 ?곴뎄??젣 (id 湲곗?)
     * ------------------------------------------------------------- */
     public function hardDeleteById(string $id): bool
     {
@@ -483,16 +483,16 @@ class BankAccountModel
     }
 
     /* -------------------------------------------------------------
-    * 계좌 순서 변경 (충돌 방지)
+    * 怨꾩쥖 ?쒖꽌 蹂寃?(異⑸룎 諛⑹?)
     * ------------------------------------------------------------- */
 
-    public function updateCode(string $id, string $newCode): bool
+    public function updateSortNo(string $id, string $newSortNo): bool
     {
-        $sql = "UPDATE system_bank_accounts SET code = :newCode WHERE id = :id";
+        $sql = "UPDATE system_bank_accounts SET sort_no = :newSortNo WHERE id = :id";
         $stmt = $this->db->prepare($sql);
 
         return $stmt->execute([
-            'newCode' => (int)$newCode,
+            'newSortNo' => (int)$newSortNo,
             'id' => $id
         ]);
     }

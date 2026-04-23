@@ -26,6 +26,7 @@ class LayoutService
             'ui_skin' => $this->settingService->get('ui_skin', 'default'),
             'theme_mode' => $this->settingService->get('theme_mode', 'light'),
             'font_family' => $this->settingService->get('site_font_family', ''),
+            'ui_density' => $this->settingService->get('ui_density', 'normal'),
             'font_scale' => $this->settingService->get('font_scale', 'normal'),
             'table_density' => $this->settingService->get('table_density', 'normal'),
             'card_density' => $this->settingService->get('card_density', 'normal'),
@@ -42,9 +43,12 @@ class LayoutService
 
     public function getSessionInfo(): array
     {
+        $timeout = $this->sessionConfigService->getTimeoutMinutes();
+        \Core\Session::start($timeout);
+
         return [
             'expire_time' => max(\Core\Session::getExpireTime(), time()),
-            'timeout' => $this->sessionConfigService->getTimeoutMinutes(),
+            'timeout' => $timeout,
             'alert' => $this->sessionConfigService->getAlertTimeMinutes(),
             'sound' => $this->sessionConfigService->getAlertSound(),
         ];
@@ -54,11 +58,22 @@ class LayoutService
     {
         if ($this->authSessionService->isAuthenticated()) {
             $user = $this->authSessionService->getCurrentUser() ?? [];
-            $displayName = $user['username'] ?? '';
+            $userId = $this->authSessionService->getCurrentUserId();
+            $employeeName = trim((string)($user['employee_name'] ?? ''));
+
+            if ($employeeName === '' && $userId) {
+                $employeeName = $this->findEmployeeNameByUserId((string)$userId);
+            }
+
+            $displayName = $employeeName
+                ?: trim((string)($user['username'] ?? ''))
+                ?: trim((string)($user['email'] ?? ''));
 
             return [
                 'display_name' => $displayName,
-                'user_id' => $this->authSessionService->getCurrentUserId(),
+                'employee_name' => $employeeName ?: null,
+                'username' => $user['username'] ?? null,
+                'user_id' => $userId,
                 'role_key' => $user['role_key'] ?? null,
                 'role_name' => $user['role_name'] ?? null,
                 'is_guest' => false,
@@ -68,12 +83,27 @@ class LayoutService
 
         return [
             'display_name' => '',
+            'employee_name' => null,
+            'username' => null,
             'user_id' => null,
             'role_key' => null,
             'role_name' => null,
             'is_guest' => true,
             'menu_auth_state' => 'guest',
         ];
+    }
+
+    private function findEmployeeNameByUserId(string $userId): string
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT employee_name
+            FROM user_employees
+            WHERE user_id = :user_id
+            LIMIT 1
+        ");
+        $stmt->execute([':user_id' => $userId]);
+
+        return trim((string)($stmt->fetchColumn() ?: ''));
     }
 
     public function getBrandInfo(): array

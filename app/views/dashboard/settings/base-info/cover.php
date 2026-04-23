@@ -85,7 +85,7 @@
 
         /* 🔥 컬럼 */
         $tableHead = '
-        <th>코드</th>
+        <th>순번</th>
         <th>이미지</th>
         <th>년도</th>
         <th>제목</th>

@@ -1,9 +1,341 @@
-﻿/* 📄 /public/assets/css/pages/auth/profile.css */
-/* ==========================================================
-   SUKHYANG ERP - 프로필(내정보) 스타일
-   깔끔한 2열 카드형 프로필 폼
-   ========================================================== */
+/* 📄 /public/assets/css/pages/auth/profile.css */
 
-/* =========================================
-   🔧 프로필 헤더/아바타 레이아웃 FIX
-   ========================================= */
+:root {
+  --profile-bg: #f4f7fb;
+  --profile-surface: rgba(255, 255, 255, 0.92);
+  --profile-surface-strong: #ffffff;
+  --profile-border: rgba(148, 163, 184, 0.2);
+  --profile-text: #10213d;
+  --profile-muted: #64748b;
+  --profile-accent: #ff8a5b;
+  --profile-shadow: 0 24px 54px rgba(15, 23, 42, 0.1);
+  --profile-radius-xl: 28px;
+  --profile-radius-lg: 22px;
+  --profile-radius-md: 16px;
+}
+
+body.no-sidebar .main-content.single-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  margin-left: 0;
+  padding: 18px 20px 56px;
+  background:
+    radial-gradient(circle at top left, rgba(31, 73, 216, 0.1), transparent 30%),
+    radial-gradient(circle at top right, rgba(255, 138, 91, 0.14), transparent 28%),
+    linear-gradient(180deg, #f8fbff 0%, var(--profile-bg) 100%);
+}
+
+body.no-sidebar .main-content.single-layout .breadcrumb-row {
+  width: min(820px, 100%);
+  justify-content: flex-start;
+  margin: 8px 0 18px;
+  padding: 0;
+}
+
+body.no-sidebar .main-content.single-layout .breadcrumb-list {
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.07);
+  backdrop-filter: blur(16px);
+}
+
+.profile-page-shell {
+  width: min(820px, 100%);
+  max-width: none !important;
+  padding-top: 10px !important;
+}
+
+.profile-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--profile-border) !important;
+  border-radius: var(--profile-radius-xl) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 249, 255, 0.96)) !important;
+  box-shadow: var(--profile-shadow) !important;
+  padding: 28px !important;
+}
+
+.profile-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 140px;
+  background:
+    linear-gradient(135deg, rgba(16, 42, 120, 0.98), rgba(31, 73, 216, 0.95) 72%, rgba(108, 141, 255, 0.92));
+  opacity: 0.98;
+}
+
+.profile-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+#profile-loading {
+  min-height: 380px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+
+#profile-content {
+  display: none;
+}
+
+.profile-hero {
+  position: relative;
+  margin: -4px 0 26px !important;
+  padding: 8px 0 18px;
+  align-items: center !important;
+}
+
+.profile-avatar-wrap {
+  flex-shrink: 0;
+  width: 96px !important;
+  height: 96px !important;
+}
+
+#profile-image {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border: 4px solid rgba(255, 255, 255, 0.88) !important;
+  box-shadow: 0 16px 32px rgba(10, 23, 66, 0.22);
+}
+
+#btn-change-image {
+  border: 0 !important;
+  background: #ffffff !important;
+  width: 32px !important;
+  height: 32px !important;
+}
+
+.profile-hero-meta {
+  min-width: 0;
+}
+
+#profile-username {
+  margin: 0 0 6px !important;
+  color: #ffffff;
+  font-size: 1.45rem;
+  letter-spacing: -0.03em;
+}
+
+#profile-email {
+  color: rgba(231, 239, 255, 0.9) !important;
+  font-size: 13px;
+}
+
+.profile-tabs {
+  gap: 8px;
+  margin: 0 0 22px !important;
+  padding: 6px;
+  border: 0 !important;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.profile-tabs .nav-item {
+  margin: 0;
+}
+
+.profile-tabs .nav-link {
+  border: 0 !important;
+  border-radius: 14px !important;
+  padding: 10px 14px;
+  color: var(--profile-muted);
+  font-weight: 700;
+  font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.profile-tabs .nav-link:hover {
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.profile-tabs .nav-link.active {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, var(--navbar-bg-start), var(--navbar-bg-end));
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--color-primary) 26%, transparent);
+}
+
+.tab-section {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: var(--profile-radius-lg);
+  background: rgba(255, 255, 255, 0.84);
+  padding: 22px;
+}
+
+.tab-section .form-label {
+  margin-bottom: 6px;
+  color: var(--profile-text);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.tab-section .form-control,
+.tab-section .form-select,
+.tab-section .input-group .btn,
+.tab-section .input-group-text {
+  min-height: 42px;
+  border-radius: 12px !important;
+}
+
+.tab-section .form-control,
+.tab-section .form-select {
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  background: #fbfdff;
+  color: var(--profile-text);
+  padding: 10px 12px;
+  box-shadow: none;
+}
+
+.tab-section .form-control:focus,
+.tab-section .form-select:focus {
+  border-color: color-mix(in srgb, var(--color-primary) 45%, white);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 10%, transparent);
+  background: #ffffff;
+}
+
+.tab-section .btn-outline-secondary,
+.tab-section .password-toggle {
+  border-color: rgba(148, 163, 184, 0.3);
+  background: #ffffff;
+  color: var(--profile-text);
+}
+
+.tab-section .btn-outline-secondary:hover,
+.tab-section .password-toggle:hover {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 28%, white);
+}
+
+.profile-cert-section {
+  gap: 18px !important;
+  padding: 18px;
+  border: 1px dashed rgba(148, 163, 184, 0.32);
+  border-radius: var(--profile-radius-md);
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.94), rgba(255, 255, 255, 0.94));
+}
+
+.profile-cert-preview-box {
+  min-width: 136px;
+}
+
+#profile_cert_preview {
+  width: 120px !important;
+  height: 120px !important;
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.22) !important;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+}
+
+.profile-cert-fields {
+  min-width: 0;
+}
+
+.profile-switch-row {
+  padding-top: 4px;
+}
+
+.tab-section .form-check-input {
+  width: 44px;
+  height: 24px;
+  margin-top: 0;
+  border-color: rgba(148, 163, 184, 0.36);
+}
+
+.tab-section .form-check-input:checked {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.tab-section .btn-primary.w-100 {
+  min-height: 46px;
+  margin-top: 18px !important;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--navbar-bg-start), var(--navbar-bg-end));
+  box-shadow: 0 14px 28px color-mix(in srgb, var(--color-primary) 24%, transparent);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.tab-section .btn-primary.w-100:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.03);
+}
+
+.profile-external-list .list-group-item,
+#external-account-editor.card {
+  border-radius: 14px !important;
+}
+
+.profile-external-list {
+  gap: 10px;
+}
+
+.profile-external-list .list-group-item {
+  margin-bottom: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.profile-external-editor {
+  border: 1px solid rgba(148, 163, 184, 0.18) !important;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.08) !important;
+}
+
+#profileImageModal .modal-content {
+  border: 0;
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.24);
+}
+
+#profileImageModal .modal-header {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+@media (max-width: 768px) {
+  body.no-sidebar .main-content.single-layout {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .profile-card {
+    padding: 20px !important;
+  }
+
+  .profile-hero {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 14px;
+  }
+
+  .profile-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profile-form-grid > .col-6,
+  .profile-cert-section > * {
+    width: 100%;
+  }
+
+  .profile-cert-section {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .tab-section {
+    padding: 18px;
+  }
+}

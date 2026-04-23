@@ -103,9 +103,11 @@ class UserModel
         $sql = "
             SELECT 
                 u.*, 
+                e.employee_name,
                 r.role_key,
                 r.role_name
             FROM auth_users u
+            LEFT JOIN user_employees e ON e.user_id = u.id
             LEFT JOIN auth_roles r ON r.id = u.role_id
             WHERE u.id = ?
             LIMIT 1
@@ -119,9 +121,11 @@ class UserModel
         $sql = "
             SELECT 
                 u.*, 
+                e.employee_name,
                 r.role_key,
                 r.role_name
             FROM auth_users u
+            LEFT JOIN user_employees e ON e.user_id = u.id
             LEFT JOIN auth_roles r ON r.id = u.role_id
             WHERE u.username = ?
             LIMIT 1

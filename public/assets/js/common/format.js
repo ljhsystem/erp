@@ -1,158 +1,267 @@
-// 경로: PROJECT_ROOT . '/assets/js/common/format.js'
-export function onlyNumber(val){
-    return String(val ?? '').replace(/\D/g,'');
+// 경로: PROJECT_ROOT . '/public/assets/js/common/format.js'
+
+export function onlyNumber(val) {
+    return String(val ?? '').replace(/\D/g, '');
 }
 
-/* 사업자번호 */
-export function formatBizNumber(val){
+export function formatBizNumber(val) {
+    const value = onlyNumber(val);
 
-    val = onlyNumber(val);
+    if (value.length <= 3) return value;
+    if (value.length <= 5) return value.replace(/(\d{3})(\d+)/, '$1-$2');
 
-    if(val.length <= 3) return val;
-    if(val.length <= 5) return val.replace(/(\d{3})(\d+)/,'$1-$2');
-
-    return val.replace(/(\d{3})(\d{2})(\d+)/,'$1-$2-$3');
+    return value.replace(/(\d{3})(\d{2})(\d+)/, '$1-$2-$3');
 }
 
-/* 법인번호 / 주민번호 */
-export function formatCorpNumber(val){
+export function formatCorpNumber(val) {
+    const value = onlyNumber(val);
 
-    val = onlyNumber(val);
+    if (value.length <= 6) return value;
 
-    if(val.length <= 6) return val;
-
-    return val.replace(/(\d{6})(\d+)/,'$1-$2');
+    return value.replace(/(\d{6})(\d+)/, '$1-$2');
 }
 
-/* 휴대폰 */
-export function formatMobile(val){
+export function formatMobile(val) {
+    const value = onlyNumber(val);
 
-    val = onlyNumber(val);
+    if (value.length <= 3) return value;
+    if (value.length <= 7) return value.replace(/(\d{3})(\d+)/, '$1-$2');
 
-    if(val.length <= 3) return val;
-    if(val.length <= 7) return val.replace(/(\d{3})(\d+)/,'$1-$2');
-
-    return val.replace(/(\d{3})(\d{4})(\d+)/,'$1-$2-$3');
+    return value.replace(/(\d{3})(\d{4})(\d+)/, '$1-$2-$3');
 }
 
-/* 일반전화 / 팩스 */
-export function formatPhone(val){
+export function formatPhone(val) {
+    const value = onlyNumber(val);
 
-    val = onlyNumber(val);
+    if (value.startsWith('02')) {
+        if (value.length <= 2) return value;
+        if (value.length <= 5) return value.replace(/(\d{2})(\d+)/, '$1-$2');
+        if (value.length <= 9) return value.replace(/(\d{2})(\d{3})(\d+)/, '$1-$2-$3');
 
-    if(val.startsWith("02")){
-
-        if(val.length <= 2) return val;
-        if(val.length <= 5) return val.replace(/(\d{2})(\d+)/,'$1-$2');
-        if(val.length <= 9) return val.replace(/(\d{2})(\d{3})(\d+)/,'$1-$2-$3');
-
-        return val.replace(/(\d{2})(\d{4})(\d+)/,'$1-$2-$3');
-
-    }else{
-
-        if(val.length <= 3) return val;
-        if(val.length <= 6) return val.replace(/(\d{3})(\d+)/,'$1-$2');
-        if(val.length <= 10) return val.replace(/(\d{3})(\d{3})(\d+)/,'$1-$2-$3');
-
-        return val.replace(/(\d{3})(\d{4})(\d+)/,'$1-$2-$3');
-
+        return value.replace(/(\d{2})(\d{4})(\d+)/, '$1-$2-$3');
     }
+
+    if (value.length <= 3) return value;
+    if (value.length <= 6) return value.replace(/(\d{3})(\d+)/, '$1-$2');
+    if (value.length <= 10) return value.replace(/(\d{3})(\d{3})(\d+)/, '$1-$2-$3');
+
+    return value.replace(/(\d{3})(\d{4})(\d+)/, '$1-$2-$3');
 }
 
-/* 날짜: 0000-00-00 같은 값 숨김 */
-export function formatDateDisplay(val){
-    const v = String(val ?? '').trim();
+export function formatDateDisplay(val) {
+    const value = String(val ?? '').trim();
 
-    if(
-        v === '' ||
-        v === '0000-00-00' ||
-        v === '0000-00-00 00:00:00' ||
-        v === 'null' ||
-        v === 'undefined'
-    ){
+    if (
+        value === '' ||
+        value === '0000-00-00' ||
+        value === '0000-00-00 00:00:00' ||
+        value === 'null' ||
+        value === 'undefined'
+    ) {
         return '';
     }
 
-    return v;
+    return value;
 }
 
-/* 금액 표시: 소수점 제거 + 천단위 콤마 */
-export function formatAmount(val){
+export function formatAmount(val) {
     const num = Number(
         String(val ?? '')
             .replace(/,/g, '')
             .trim()
     );
 
-    if(!Number.isFinite(num)) return '';
+    if (!Number.isFinite(num)) return '';
 
     return Math.trunc(num).toLocaleString('ko-KR');
 }
 
-/* 금액 저장용: 콤마 제거 + 숫자/소수점만 허용 */
-export function unformatAmount(val){
+export function unformatAmount(val) {
     const cleaned = String(val ?? '')
         .replace(/,/g, '')
         .replace(/[^\d.]/g, '')
         .trim();
 
-    if(cleaned === '') return '';
+    if (cleaned === '') return '';
 
     const num = Number(cleaned);
 
-    if(!Number.isFinite(num)) return '';
+    if (!Number.isFinite(num)) return '';
 
     return String(Math.trunc(num));
 }
 
-/* 계좌번호 */
-export function formatAccountNumber(val, bankName = ''){
+export function parseNumber(val) {
+    const normalized = normalizeNumberString(val);
 
-    val = onlyNumber(val);
-    bankName = String(bankName ?? '').trim();
+    if (
+        normalized === '' ||
+        normalized === '-' ||
+        normalized === '.' ||
+        normalized === '-.'
+    ) {
+        return 0;
+    }
 
-    if(!val) return '';
+    const num = Number(normalized);
+    return Number.isFinite(num) ? num : 0;
+}
 
-    switch(bankName){
+export function formatNumber(val) {
+    const parts = splitNumberParts(val);
 
-        /* 국민은행: 242-087942-01-023 */
+    if (parts.integerPart === '' && parts.decimalPart === '' && !parts.hasDecimal) {
+        return '';
+    }
+
+    const integer = addThousandsSeparator(parts.integerPart || '0');
+
+    if (!parts.hasDecimal) {
+        return `${parts.sign}${integer}`;
+    }
+
+    return `${parts.sign}${integer}.${parts.decimalPart}`;
+}
+
+export function bindNumberInput(input) {
+    if (!input || input.dataset.numberFormatBound === 'true') {
+        return input;
+    }
+
+    input.addEventListener('focus', () => {
+        input.value = normalizeNumberString(input.value);
+    });
+
+    input.addEventListener('input', () => {
+        input.value = normalizeNumberString(input.value);
+    });
+
+    input.addEventListener('blur', () => {
+        const normalized = normalizeNumberString(input.value);
+        input.value = normalized === '' ? '' : formatNumber(normalized);
+    });
+
+    if (String(input.value ?? '').trim() !== '') {
+        input.value = formatNumber(input.value);
+    }
+
+    input.dataset.numberFormatBound = 'true';
+    return input;
+}
+
+export function initNumberInputs(selector = '.number-input') {
+    document.querySelectorAll(selector).forEach(bindNumberInput);
+}
+
+export function formatAccountNumber(val, bankName = '') {
+    const value = onlyNumber(val);
+    const bank = String(bankName ?? '').trim();
+
+    if (!value) return '';
+
+    switch (bank) {
         case '국민은행':
-            if(val.length === 14){
-                return val.replace(/(\d{3})(\d{6})(\d{2})(\d{3})/, '$1-$2-$3-$4');
+            if (value.length === 14) {
+                return value.replace(/(\d{3})(\d{6})(\d{2})(\d{3})/, '$1-$2-$3-$4');
             }
             break;
 
-        /* 신한은행: 110-123-456789 */
         case '신한은행':
-            if(val.length === 12){
-                return val.replace(/(\d{3})(\d{3})(\d{6})/, '$1-$2-$3');
+            if (value.length === 12) {
+                return value.replace(/(\d{3})(\d{3})(\d{6})/, '$1-$2-$3');
             }
             break;
 
-        /* 우리은행: 1002-345-678901 */
         case '우리은행':
-            if(val.length === 13){
-                return val.replace(/(\d{4})(\d{3})(\d{6})/, '$1-$2-$3');
+            if (value.length === 13) {
+                return value.replace(/(\d{4})(\d{3})(\d{6})/, '$1-$2-$3');
             }
+            break;
+
+        default:
             break;
     }
 
-    /* fallback */
-    if(val.length === 11){
-        return val.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
+    if (value.length === 11) {
+        return value.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
     }
 
-    if(val.length === 12){
-        return val.replace(/(\d{3})(\d{3})(\d{6})/, '$1-$2-$3');
+    if (value.length === 12) {
+        return value.replace(/(\d{3})(\d{3})(\d{6})/, '$1-$2-$3');
     }
 
-    if(val.length === 13){
-        return val.replace(/(\d{4})(\d{3})(\d{6})/, '$1-$2-$3');
+    if (value.length === 13) {
+        return value.replace(/(\d{4})(\d{3})(\d{6})/, '$1-$2-$3');
     }
 
-    if(val.length === 14){
-        return val.replace(/(\d{3})(\d{6})(\d{2})(\d{3})/, '$1-$2-$3-$4');
+    if (value.length === 14) {
+        return value.replace(/(\d{3})(\d{6})(\d{2})(\d{3})/, '$1-$2-$3-$4');
     }
 
-    return val;
+    return value;
+}
+
+function normalizeNumberString(val) {
+    const cleaned = String(val ?? '')
+        .replace(/,/g, '')
+        .replace(/\s+/g, '')
+        .replace(/[^0-9.\-]/g, '');
+
+    let result = '';
+    let hasSign = false;
+    let hasDot = false;
+
+    for (let i = 0; i < cleaned.length; i += 1) {
+        const char = cleaned[i];
+
+        if (char === '-') {
+            if (!hasSign && result.length === 0) {
+                result += char;
+                hasSign = true;
+            }
+            continue;
+        }
+
+        if (char === '.') {
+            if (!hasDot) {
+                result += char;
+                hasDot = true;
+            }
+            continue;
+        }
+
+        result += char;
+    }
+
+    return result;
+}
+
+function splitNumberParts(val) {
+    const normalized = normalizeNumberString(val);
+
+    if (normalized === '') {
+        return {
+            sign: '',
+            integerPart: '',
+            decimalPart: '',
+            hasDecimal: false,
+        };
+    }
+
+    const sign = normalized.startsWith('-') ? '-' : '';
+    const unsigned = normalized.replace(/-/g, '');
+    const [integerRaw = '', ...decimalParts] = unsigned.split('.');
+    const decimalPart = decimalParts.join('');
+    const integerPart = integerRaw.replace(/^0+(?=\d)/, '') || '0';
+
+    return {
+        sign,
+        integerPart,
+        decimalPart,
+        hasDecimal: unsigned.includes('.'),
+    };
+}
+
+function addThousandsSeparator(val) {
+    return String(val).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }

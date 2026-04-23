@@ -24,7 +24,7 @@ class PositionModel
         $sql = "
             SELECT
                 id,
-                code,
+                sort_no,
                 position_name,
                 level_rank,
                 description,
@@ -42,7 +42,7 @@ class PositionModel
         if (!empty($filters)) {
             $fieldMap = [
                 'id'            => ['expr' => 'id', 'type' => 'exact'],
-                'code'          => ['expr' => 'code', 'type' => 'like'],
+                'sort_no'          => ['expr' => 'sort_no', 'type' => 'like'],
                 'position_name' => ['expr' => 'position_name', 'type' => 'like'],
                 'level_rank'    => ['expr' => 'level_rank', 'type' => 'exact'],
                 'description'   => ['expr' => 'description', 'type' => 'like'],
@@ -133,7 +133,7 @@ class PositionModel
 
                 $orParts = [];
                 foreach ($keywords as $keyword) {
-                    foreach (['code', 'position_name', 'description'] as $expr) {
+                    foreach (['sort_no', 'position_name', 'description'] as $expr) {
                         $orParts[] = "{$expr} LIKE ?";
                         $params[] = '%' . $keyword . '%';
                     }
@@ -145,7 +145,7 @@ class PositionModel
             }
         }
 
-        $sql .= " ORDER BY code ASC";
+        $sql .= " ORDER BY sort_no DESC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -196,22 +196,22 @@ class PositionModel
     }
 
     /* ============================================================
-     * 4) 생성 (UUID 및 Code 생성은 서비스에서 처리)
+     * 4) 생성 (UUID 및 sort_no 생성은 서비스에서 처리)
      * ============================================================ */
     public function create(array $data): bool
     {
         $sql = "
             INSERT INTO user_positions
-            (id, code, position_name, level_rank, description, is_active, created_by, created_at)
+            (id, sort_no, position_name, level_rank, description, is_active, created_by, created_at)
             VALUES
-            (:id, :code, :position_name, :level_rank, :description, :is_active, :created_by, NOW())
+            (:id, :sort_no, :position_name, :level_rank, :description, :is_active, :created_by, NOW())
         ";
 
         $stmt = $this->db->prepare($sql);
 
         return $stmt->execute([
             ':id'            => $data['id'],
-            ':code'          => $data['code'],
+            ':sort_no'          => $data['sort_no'],
             ':position_name' => $data['position_name'],
             ':level_rank'    => $data['level_rank'],
             ':description'   => $data['description'] ?? null,
@@ -254,14 +254,14 @@ class PositionModel
         return $stmt->execute([$id]);
     }
 
-    public function updateCode(string $id, int $code): bool
+    public function updateSortNo(string $id, int $sort_no): bool
     {
         $stmt = $this->db->prepare("
             UPDATE user_positions
-            SET code = ?, updated_at = NOW()
+            SET sort_no = ?, updated_at = NOW()
             WHERE id = ?
         ");
 
-        return $stmt->execute([$code, $id]);
+        return $stmt->execute([$sort_no, $id]);
     }
 }

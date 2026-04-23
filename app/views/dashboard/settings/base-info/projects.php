@@ -100,7 +100,7 @@ $btnDeleteId  = 'btnDeleteSelectedProject';
 $btnDeleteAll = 'btnDeleteAllProjects';
 
 $tableHead = '
-  <th>코드</th>
+  <th>순번</th>
   <th>프로젝트명</th>
   <th>삭제일</th>
   <th>삭제자</th>

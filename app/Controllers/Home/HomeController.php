@@ -129,7 +129,7 @@ class HomeController
     // ============================================================
     public function webSitemap()
     { 
-        $this->renderPage('/app/views/home/sitemap.php', [
+        $this->renderPage('/app/views/sitemap/index.php', [
             'pageTitle' => '사이트맵'
         ]);
     }

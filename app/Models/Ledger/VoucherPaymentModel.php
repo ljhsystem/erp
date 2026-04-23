@@ -41,7 +41,7 @@ class VoucherPaymentModel
             $params[':payment_id'] = $filters['payment_id'];
         }
 
-        $sql .= " ORDER BY voucher_id ASC, code DESC, created_at DESC";
+        $sql .= " ORDER BY voucher_id ASC, created_at DESC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -68,7 +68,7 @@ class VoucherPaymentModel
             SELECT *
             FROM {$this->table}
             WHERE voucher_id = :voucher_id
-            ORDER BY code ASC, created_at ASC
+            ORDER BY created_at ASC
         ");
         $stmt->execute([':voucher_id' => $voucherId]);
 

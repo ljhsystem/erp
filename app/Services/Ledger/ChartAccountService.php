@@ -343,6 +343,31 @@ class ChartAccountService
                 'sub_name' => 'sub_name',
             ];
 
+            $headerAliases = array_merge($headerAliases, [
+                '계정코드' => 'account_code',
+                '코드' => 'account_code',
+                '계정과목명' => 'account_name',
+                '계정과목' => 'account_name',
+                '계정명' => 'account_name',
+                '상위계정코드' => 'parent_code',
+                '상위계정' => 'parent_code',
+                '계정구분' => 'account_group',
+                '구분' => 'account_group',
+                '정상잔액' => 'normal_balance',
+                '차대구분' => 'normal_balance',
+                '차/대' => 'normal_balance',
+                'normal_balance' => 'normal_balance',
+                '전표입력' => 'is_posting',
+                '전표입력가능' => 'is_posting',
+                'is_posting' => 'is_posting',
+                '사용여부' => 'is_active',
+                '비고' => 'note',
+                '메모' => 'memo',
+                'memo' => 'memo',
+                '보조계정명' => 'sub_name',
+                '보조계정' => 'sub_name',
+            ]);
+
             $excelHeaders = array_map(
                 static fn ($value) => trim((string) $value),
                 $rows[0]
@@ -358,7 +383,7 @@ class ChartAccountService
             if (!isset($columnMap['account_name']) || !isset($columnMap['account_code'])) {
                 return [
                     'success' => false,
-                    'message' => '엑셀 양식이 올바르지 않습니다. [계정명, 계정코드] 컬럼이 필요합니다.',
+                    'message' => '엑셀 양식이 올바르지 않습니다. [계정코드, 계정과목명] 컬럼이 필요합니다.',
                 ];
             }
 
@@ -380,6 +405,9 @@ class ChartAccountService
                 $note = trim((string) ($row[$columnMap['note']] ?? ''));
                 $accountGroup = trim((string) ($row[$columnMap['account_group']] ?? ''));
                 $subName = trim((string) ($row[$columnMap['sub_name']] ?? ''));
+                $rawNormalBalance = trim((string) ($row[$columnMap['normal_balance']] ?? ''));
+                $rawIsPosting = trim((string) ($row[$columnMap['is_posting']] ?? ''));
+                $memo = trim((string) ($row[$columnMap['memo']] ?? ''));
 
                 if ($accountCode === '' || $accountName === '') {
                     $errors[] = ($rowIndex + 2) . '행: 계정코드 또는 계정명이 비어 있습니다.';
@@ -388,7 +416,16 @@ class ChartAccountService
 
                 $existing = $this->findByCode($accountCode);
                 $parent = null;
-                $parentId = null;
+                $parentColumnExists = isset($columnMap['parent_code']);
+                $parentId = ($existing && !$parentColumnExists) ? ($existing['parent_id'] ?? null) : null;
+
+                if (!isset($columnMap['note'])) {
+                    $note = (string) ($existing['note'] ?? '');
+                }
+
+                if (!isset($columnMap['memo'])) {
+                    $memo = (string) ($existing['memo'] ?? '');
+                }
 
                 if ($parentCode !== '') {
                     $parent = $this->findByCode($parentCode);
@@ -416,15 +453,31 @@ class ChartAccountService
                 $isActive = $this->normalizeExcelBoolean($rawIsActive, (int) ($existing['is_active'] ?? 1));
                 $normalBalance = in_array($accountGroup, ['자산', '비용'], true) ? 'debit' : 'credit';
 
+                $isPosting = $this->normalizeExcelBoolean($rawIsPosting, (int) ($existing['is_posting'] ?? 1));
+                $normalBalance = $this->normalizeExcelNormalBalanceValue($rawNormalBalance);
+
+                if ($rawNormalBalance !== '' && $normalBalance === null) {
+                    $errors[] = ($rowIndex + 2) . "행 정상잔액 값이 올바르지 않습니다. [{$rawNormalBalance}]";
+                    continue;
+                }
+
+                if ($normalBalance === null) {
+                    $normalBalance = $this->inferNormalBalanceFromGroupValue(
+                        $accountGroup,
+                        (string) ($existing['normal_balance'] ?? 'debit')
+                    );
+                }
+
                 $payload = [
                     'account_code' => $accountCode,
                     'account_name' => $accountName,
                     'parent_id' => $parentId,
                     'account_group' => $accountGroup,
                     'normal_balance' => $normalBalance,
-                    'is_posting' => 1,
+                    'is_posting' => $isPosting,
                     'is_active' => $isActive,
                     'note' => $note,
+                    'memo' => $memo,
                 ];
 
                 if ($existing) {
@@ -557,7 +610,7 @@ class ChartAccountService
         foreach ($changes as $row) {
             $this->model->updateOrder(
                 $row['id'],
-                (int) $row['newCode']
+                (int) $row['newSortNo']
             );
         }
     }
@@ -634,8 +687,93 @@ class ChartAccountService
         );
     }
 
+    private function normalizeExcelNormalBalance(string $value): ?string
+    {
+        if ($value === '') {
+            return null;
+        }
+
+        $normalized = mb_strtolower(trim($value), 'UTF-8');
+
+        if (in_array($normalized, ['1', 'y', 'yes', 'true', '사용', '사용함', '가능', '허용', '예'], true)) {
+            return 1;
+        }
+
+        if (in_array($normalized, ['0', 'n', 'no', 'false', '미사용', '사용안함', '불가', '미허용', '아니오'], true)) {
+            return 0;
+        }
+
+        if (in_array($normalized, ['debit', '차변', '차', 'dr', 'd', '李⑤?'], true)) {
+            return 'debit';
+        }
+
+        if (in_array($normalized, ['credit', '대변', '대', 'cr', 'c', '?蹂'], true)) {
+            return 'credit';
+        }
+
+        return null;
+    }
+
+    private function inferNormalBalanceFromGroup(string $accountGroup, string $default = 'debit'): string
+    {
+        $normalized = trim($accountGroup);
+
+        if (in_array($normalized, ['자산', '비용', '?먯궛', '鍮꾩슜'], true)) {
+            return 'debit';
+        }
+
+        if (in_array($normalized, ['부채', '자본', '수익', '遺梨?', '?먮낯', '?섏씡'], true)) {
+            return 'credit';
+        }
+
+        return in_array($default, ['debit', 'credit'], true) ? $default : 'debit';
+    }
+
+    private function normalizeExcelNormalBalanceValue(string $value): ?string
+    {
+        if ($value === '') {
+            return null;
+        }
+
+        $normalized = mb_strtolower(trim($value), 'UTF-8');
+
+        if (in_array($normalized, ['debit', '차변', '차', 'dr', 'd'], true)) {
+            return 'debit';
+        }
+
+        if (in_array($normalized, ['credit', '대변', '대', 'cr', 'c'], true)) {
+            return 'credit';
+        }
+
+        return null;
+    }
+
+    private function inferNormalBalanceFromGroupValue(string $accountGroup, string $default = 'debit'): string
+    {
+        $normalized = trim($accountGroup);
+
+        if (in_array($normalized, ['자산', '비용'], true)) {
+            return 'debit';
+        }
+
+        if (in_array($normalized, ['부채', '자본', '수익'], true)) {
+            return 'credit';
+        }
+
+        return in_array($default, ['debit', 'credit'], true) ? $default : 'debit';
+    }
+
     private function normalizeExcelBoolean(string $value, int $default): int
     {
+        $quickNormalized = mb_strtolower(trim($value), 'UTF-8');
+
+        if ($quickNormalized !== '' && in_array($quickNormalized, ['1', 'y', 'yes', 'true', '사용', '사용함', '가능', '허용', '예'], true)) {
+            return 1;
+        }
+
+        if ($quickNormalized !== '' && in_array($quickNormalized, ['0', 'n', 'no', 'false', '미사용', '사용안함', '불가', '미허용', '아니오'], true)) {
+            return 0;
+        }
         if ($value === '') {
             return $default;
         }

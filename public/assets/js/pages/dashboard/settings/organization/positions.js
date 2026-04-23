@@ -24,7 +24,7 @@ window.AdminPicker = AdminPicker;
     };
 
     const POSITION_COLUMN_MAP = {
-        code:          { label: '코드', visible: true },
+        sort_no:          { label: '순번', visible: true },
         position_name: { label: '직책명', visible: true },
         level_rank:    { label: '레벨', visible: true },
         description:   { label: '설명', visible: true },

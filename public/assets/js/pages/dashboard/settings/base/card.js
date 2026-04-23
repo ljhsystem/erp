@@ -1,9 +1,10 @@
-﻿// 경로: PROJECT_ROOT . '/assets/js/pages/dashboard/settings/base/card.js'
+// 경로: PROJECT_ROOT . '/assets/js/pages/dashboard/settings/base/card.js'
 
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import { createDataTable, updateTableHeight, forceTableHeightSync, bindTableHighlight } from '/public/assets/js/components/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
+import { formatAmount, initNumberInputs, parseNumber } from '/public/assets/js/common/format.js';
 import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
 
@@ -44,29 +45,29 @@ window.AdminPicker = AdminPicker;
        카드 컬럼 매핑
     ========================= */
     const CARD_COLUMN_MAP = {
-        code             : { label: "코드",       visible: true  },
-    
+        sort_no             : { label: "순번",       visible: true  },
+
         card_name        : { label: "카드명",     visible: true  },
         client_name      : { label: "카드사",     visible: true  },
         card_number      : { label: "카드번호",   visible: true  },
         card_type        : { label: "카드유형",   visible: true  },
-    
+
         account_name     : { label: "연결계좌",   visible: true  },
         account_id       : { label: "계좌ID",     visible: false },
-    
+
         expiry_year      : { label: "유효기간(년)", visible: false },
         expiry_month     : { label: "유효기간(월)", visible: false },
-    
+
         currency         : { label: "통화",       visible: true  },
         limit_amount     : { label: "한도",       visible: true  },
-    
+
         card_file        : { label: "카드이미지", visible: false },
-    
+
         note             : { label: "비고",       visible: true  },
         memo             : { label: "메모",       visible: false },
-    
-        is_active        : { label: "사용여부",   visible: false },
-    
+
+        is_active        : { label: "사용여부",   visible: true  },
+
         created_at       : { label: "생성일시",   visible: false },
         created_by_name  : { label: "생성자",     visible: false },
         updated_at       : { label: "수정일시",   visible: false },
@@ -104,6 +105,7 @@ window.AdminPicker = AdminPicker;
     function initCardPage($) {
 
         initModal();
+        initNumberInputs('#cardForm .number-input, #card-edit-form .number-input');
         initAdminDatePicker();
         initCardImageUpload();
         initExcelDataset();
@@ -162,8 +164,8 @@ window.AdminPicker = AdminPicker;
             if (idEl) idEl.value = '';
 
             const codeEl =
-                document.getElementById('modal_code') ||
-                form?.querySelector('[name="code"]');
+                document.getElementById('modal_sort_no') ||
+                form?.querySelector('[name="sort_no"]');
 
             if (codeEl) codeEl.value = '';
 
@@ -209,7 +211,8 @@ window.AdminPicker = AdminPicker;
         let selectInitialized = false;
 
         modalEl.addEventListener('shown.bs.modal', () => {
-        
+            initNumberInputs('#cardForm .number-input, #card-edit-form .number-input');
+
             if (!selectInitialized) {
                 initSelectPickers();
                 selectInitialized = true;
@@ -243,20 +246,20 @@ window.AdminPicker = AdminPicker;
         const btnRemoveCardFile =
             document.getElementById('btnDeleteCardFile') ||
             document.getElementById('btnRemoveCardFile');
-    
+
         if (btnRemoveCardFile) {
             btnRemoveCardFile.addEventListener('click', function () {
                 if (!confirm('카드 이미지를 삭제하시겠습니까?')) return;
-    
+
                 const input = getCardFileInputEl();
                 const del = getDeleteCardFileEl();
                 const list = getCardFileListEl();
                 const drop = getCardFileDropEl();
                 const text = getCardFileTextEl();
-    
+
                 if (input) input.value = '';
                 if (del) del.value = '1';
-    
+
                 if (list) {
                     list.dataset.original = '0';
                     list.innerHTML = `
@@ -268,9 +271,9 @@ window.AdminPicker = AdminPicker;
                         </div>
                     `;
                 }
-    
+
                 if (drop) drop.dataset.original = '0';
-    
+
                 if (text) {
                     text.innerHTML = `
                         여기로 파일을 끌어다 놓거나 클릭하여 업로드
@@ -355,7 +358,7 @@ window.AdminPicker = AdminPicker;
 
         window.TrashColumns.card = function(row) {
             return `
-                <td>${row.code ?? ''}</td>
+                <td>${row.sort_no ?? ''}</td>
                 <td>${row.card_name ?? ''}</td>
                 <td>${row.client_name ?? ''}</td>
                 <td>${row.card_number ?? ''}</td>
@@ -515,8 +518,8 @@ window.AdminPicker = AdminPicker;
                             form?.querySelector('[name="id"]');
 
                         const codeEl =
-                            document.getElementById('modal_code') ||
-                            form?.querySelector('[name="code"]');
+                            document.getElementById('modal_sort_no') ||
+                            form?.querySelector('[name="sort_no"]');
 
                         if (idEl) idEl.value = '';
                         if (codeEl) codeEl.value = '';
@@ -542,7 +545,7 @@ window.AdminPicker = AdminPicker;
                         const currencyEl = form?.querySelector('[name="currency"]');
                         const isActiveEl = form?.querySelector('[name="is_active"]');
                         const cardTypeEl = form?.querySelector('[name="card_type"]');
-                        
+
                         if (expiryYearEl) expiryYearEl.value = '';
                         if (expiryMonthEl) expiryMonthEl.value = '';
                         if (currencyEl && !currencyEl.value) currencyEl.value = 'KRW';
@@ -598,9 +601,9 @@ window.AdminPicker = AdminPicker;
     ============================================================ */
     function bindTableEvents($) {
 
-        $(document).on('focus', '#modal_code', function() {
+        $(document).on('focus', '#modal_sort_no', function() {
             if (window.isNewCard) {
-                AppCore?.notify?.('info', '코드를 입력하지 않아도 저장 시 자동 생성됩니다.');
+                AppCore?.notify?.('info', '순번은 저장 시 자동 생성됩니다.');
             }
         });
 
@@ -634,7 +637,7 @@ window.AdminPicker = AdminPicker;
 
                 const delFile = getDeleteCardFileEl();
                 const fileInput = getCardFileInputEl();
-                
+
                 if (delFile) delFile.value = '0';
                 if (fileInput) fileInput.value = '';
 
@@ -686,7 +689,8 @@ window.AdminPicker = AdminPicker;
             const currency = String(formData.get('currency') || '').trim().toUpperCase();
             const expiryYear = String(formData.get('expiry_year') || '').trim();
             const expiryMonth = String(formData.get('expiry_month') || '').trim();
-            const limitAmount = String(formData.get('limit_amount') || '').trim();
+            const limitAmountRaw = String(formData.get('limit_amount') || '').trim();
+            const limitAmount = limitAmountRaw === '' ? 0 : parseNumber(limitAmountRaw);
 
             if (!cardName) {
                 AppCore?.notify?.('warning', '카드명은 필수입니다.');
@@ -713,12 +717,13 @@ window.AdminPicker = AdminPicker;
                 return;
             }
 
-            if (limitAmount && Number(limitAmount) < 0) {
+            if (limitAmount < 0) {
                 AppCore?.notify?.('warning', '한도금액은 0 이상이어야 합니다.');
                 return;
             }
 
             formData.set('currency', currency || 'KRW');
+            formData.set('limit_amount', String(limitAmount));
 
             const btn = form.querySelector('button[type="submit"]');
             if (btn) btn.disabled = true;
@@ -782,47 +787,61 @@ window.AdminPicker = AdminPicker;
 
         const form = document.getElementById('cardForm');
         if (!form) return;
-    
+
         /* 기본값 세팅 */
         Object.keys(data).forEach(key => {
-    
+
             if (key === 'id') return;
             if (key === 'card_file') return;
-    
+
             const el = form.querySelector(`[name="${key}"]`);
             if (!el) return;
-    
+
             if (el.type === 'file') {
                 el.value = '';
                 return;
             }
-    
+
             let value = data[key] ?? '';
-    
-            if (key === 'limit_amount' && value !== '') {
-                value = Number(value);
+
+            if (key === 'card_type' && value !== '') {
+                value = normalizeCardTypeValue(value);
             }
-    
+
+            if (key === 'limit_amount' && value !== '') {
+                value = formatAmount(parseNumber(value));
+            }
+
             el.value = value;
         });
-    
+
         /* 🔥 Select2 값 세팅 (반복문 밖으로 이동) */
         setSelect2Initial('#cardClientSelect', data.client_id, data.client_name);
         setSelect2Initial('#cardAccountSelect', data.account_id, data.account_name);
-    
+
         renderCardFile(data);
+    }
+
+    function normalizeCardTypeValue(value) {
+        const normalized = String(value ?? '').trim().toLowerCase();
+
+        if (normalized === '법인' || normalized === 'corporate') return 'corporate';
+        if (normalized === '개인' || normalized === 'personal') return 'personal';
+        if (normalized === '가상' || normalized === 'virtual') return 'virtual';
+
+        return normalized || 'corporate';
     }
 
     function setSelect2Initial(selector, id, text) {
 
         if (!id) return;
-    
+
         const el = document.querySelector(selector);
         if (!el) return;
-    
+
         const option = new Option(text || '', id, true, true);
         el.append(option);
-    
+
         AdminPicker.setSelect2Value(selector, id);
     }
 
@@ -851,10 +870,6 @@ window.AdminPicker = AdminPicker;
                     if (data == null) return "";
                     if (type !== 'display') return data;
 
-                    if (field === 'card_number') {
-                        return maskCardNumber(data);
-                    }
-                    
                     if (field === 'card_file') {
                         if (!data) return '';
                         const path = encodeURIComponent(data);
@@ -864,20 +879,24 @@ window.AdminPicker = AdminPicker;
                             </a>
                         `;
                     }
-                    
+
+                    if (field === 'limit_amount') {
+                        return formatAmount(data);
+                    }
+
                     if (field === 'card_type') {
                         if (data === 'corporate') return '법인';
                         if (data === 'personal') return '개인';
                         if (data === 'virtual') return '가상';
                         return data;
                     }
-                    
+
                     if (field === 'is_active') {
                         return String(data) === '1'
                             ? '<span class="badge bg-success">사용</span>'
                             : '<span class="badge bg-secondary">미사용</span>';
                     }
-                    
+
                     return data;
                 }
             });
@@ -885,17 +904,6 @@ window.AdminPicker = AdminPicker;
 
         return columns;
     }
-
-    function maskCardNumber(cardNumber) {
-        const raw = String(cardNumber || '').replace(/\D/g, '');
-        if (!raw) return '';
-
-        if (raw.length <= 4) return raw;
-
-        const last4 = raw.slice(-4);
-        return `****-****-****-${last4}`;
-    }
-
 
     /* ============================================================
        CARD IMAGE
@@ -905,13 +913,13 @@ window.AdminPicker = AdminPicker;
         const drop = getCardFileDropEl();
         const input = getCardFileInputEl();
         const text = getCardFileTextEl();
-    
+
         if (!drop || !input || !text) return;
-    
+
         if (!drop.dataset.original) {
             drop.dataset.original = "0";
         }
-    
+
         function renderFile(file) {
             const ext = (file.name.split('.').pop() || '').toLowerCase();
             const allowed = ['pdf', 'jpg', 'jpeg', 'png'];
@@ -932,9 +940,9 @@ window.AdminPicker = AdminPicker;
             const message = hasOriginal
                 ? "저장 시 기존 카드 이미지가 교체됩니다."
                 : "저장 시 카드 이미지가 등록됩니다.";
-    
+
             const shortName = shortenFileName(file.name, 20);
-    
+
             text.innerHTML = `
                 📄 <strong>카드 이미지</strong>
                 <br>
@@ -945,9 +953,9 @@ window.AdminPicker = AdminPicker;
 
             return true;
         }
-    
+
         drop.addEventListener('click', () => input.click());
-    
+
         input.addEventListener('change', e => {
             const file = e.target.files[0];
             if (!file) return;
@@ -955,14 +963,14 @@ window.AdminPicker = AdminPicker;
                 input.value = '';
             }
         });
-    
+
         drop.addEventListener('dragover', e => {
             e.preventDefault();
         });
-    
+
         drop.addEventListener('drop', e => {
             e.preventDefault();
-    
+
             const file = e.dataTransfer.files[0];
             if (!file) return;
 
@@ -978,21 +986,21 @@ window.AdminPicker = AdminPicker;
         const list = getCardFileListEl();
         const text = getCardFileTextEl();
         const drop = getCardFileDropEl();
-    
+
         if (!text) return;
-    
+
         const filePath = data.card_file || '';
-    
+
         if (list) list.innerHTML = '';
-    
+
         if (filePath) {
-    
+
             const path = encodeURIComponent(filePath);
-    
+
             if (drop) {
                 drop.dataset.original = "1";
             }
-    
+
             text.innerHTML = `
                 <div class="file-status">
                     <div class="upload-guide">
@@ -1018,36 +1026,36 @@ window.AdminPicker = AdminPicker;
                     </div>
                 </div>
             `;
-    
+
             const btnOpen = document.getElementById('btnOpenCardFile');
             const btnDelete = document.getElementById('btnDeleteCardFileInline');
-    
+
             if (btnOpen) {
                 btnOpen.classList.remove('disabled');
                 btnOpen.href = "/api/file/preview?path=" + path;
                 btnOpen.target = "_blank";
-    
+
                 btnOpen.addEventListener('click', function (e) {
                     e.stopPropagation();
                 });
             }
-    
+
             if (btnDelete) {
                 btnDelete.classList.remove('disabled');
-    
+
                 btnDelete.onclick = function (e) {
-    
+
                     e.stopPropagation();
-    
+
                     if (!confirm('카드 이미지를 삭제하시겠습니까?')) return;
-    
+
                     const input = getCardFileInputEl();
                     const del = getDeleteCardFileEl();
-    
+
                     if (input) input.value = '';
                     if (del) del.value = '1';
                     if (drop) drop.dataset.original = "0";
-    
+
                     text.innerHTML = `
                         <div class="upload-guide">
                             여기로 파일을 끌어다 놓거나 클릭하여 업로드
@@ -1060,13 +1068,13 @@ window.AdminPicker = AdminPicker;
                     `;
                 };
             }
-    
+
         } else {
-    
+
             if (drop) {
                 drop.dataset.original = "0";
             }
-    
+
             text.innerHTML = `
                 여기로 파일을 끌어다 놓거나 클릭하여 업로드
                 <br>
@@ -1082,12 +1090,12 @@ window.AdminPicker = AdminPicker;
         const list = getCardFileListEl();
         const text = getCardFileTextEl();
         const drop = getCardFileDropEl();
-    
+
         if (input) input.value = '';
         if (del) del.value = '0';
         if (list) list.innerHTML = '';
         if (drop) drop.dataset.original = '0';
-    
+
         if (text) {
             text.innerHTML = `
                 여기로 파일을 끌어다 놓거나 클릭하여 업로드
@@ -1122,28 +1130,28 @@ window.AdminPicker = AdminPicker;
             document.querySelector('#cardForm [name="card_file"]')
         );
     }
-    
+
     function getDeleteCardFileEl() {
         return (
             document.getElementById('delete_card_file') ||
             document.querySelector('#cardForm [name="delete_card_file"]')
         );
     }
-    
+
     function getCardFileListEl() {
         return (
             document.getElementById('cardFileList') ||
             document.getElementById('cardPreview')
         );
     }
-    
+
     function getCardFileTextEl() {
         return (
             document.getElementById('cardUploadText') ||
             document.getElementById('cardImageText')
         );
     }
-    
+
     function getCardFileDropEl() {
         return (
             document.getElementById('cardUpload') ||
@@ -1151,50 +1159,65 @@ window.AdminPicker = AdminPicker;
         );
     }
     function initSelectPickers() {
+        const modalParent = window.jQuery ? window.jQuery('#cardModal') : null;
+
+        if (modalParent && modalParent.length === 0) {
+            return;
+        }
 
         /* 카드사 */
         AdminPicker.select2Ajax('#cardClientSelect', {
             url: '/api/settings/base-info/client/search-picker',
+            placeholder: '카드사 검색',
             minimumInputLength: 0,
-    
+            dropdownParent: modalParent,
+            width: '100%',
+
             dataBuilder(params) {
                 return {
-                    q: params.term || ''
+                    q: params.term || '',
+                    limit: 20,
+                    client_type: '카드사',
+                    is_active: 1,
                 };
             },
-    
+
             processResults(data) {
-                
-                const rows = data?.data ?? [];
-    
+
+                const rows = data?.results ?? data?.data ?? [];
+
                 return {
                     results: rows.map(row => ({
-                        id: row.id,
-                        text: row.client_name
-                    }))
+                        id: String(row.id ?? ''),
+                        text: row.text || row.client_name || ''
+                    })).filter(row => row.id !== '')
                 };
             }
         });
-    
+
         /* 결제계좌 */
         AdminPicker.select2Ajax('#cardAccountSelect', {
             url: '/api/settings/base-info/bank-account/search-picker',
+            placeholder: '결제계좌 검색',
             minimumInputLength: 0,
-    
+            dropdownParent: modalParent,
+            width: '100%',
+
             dataBuilder(params) {
                 return {
-                    q: params.term || ''
+                    q: params.term || '',
+                    limit: 20,
                 };
             },
-    
-            processResults(data) {     
-                const rows = data?.data ?? [];
-    
+
+            processResults(data) {
+                const rows = data?.results ?? data?.data ?? [];
+
                 return {
                     results: rows.map(row => ({
-                        id: row.id,
-                        text: `${row.account_name} (${row.bank_name})`
-                    }))
+                        id: String(row.id ?? ''),
+                        text: row.text || `${row.account_name || ''}${row.bank_name ? ` (${row.bank_name})` : ''}`
+                    })).filter(row => row.id !== '')
                 };
             }
         });

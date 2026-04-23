@@ -24,7 +24,7 @@ class PermissionModel
         try {
             $sql = "
                 SELECT 
-                    id, code, permission_key, permission_name,
+                    id, sort_no, permission_key, permission_name,
                     description, category, is_active,
                     created_at, created_by, updated_at, updated_by
                 FROM auth_permissions
@@ -36,7 +36,7 @@ class PermissionModel
             if (!empty($filters)) {
                 $fieldMap = [
                     'id'              => ['expr' => 'id', 'type' => 'exact'],
-                    'code'            => ['expr' => 'code', 'type' => 'like'],
+                    'sort_no'            => ['expr' => 'sort_no', 'type' => 'like'],
                     'permission_key'  => ['expr' => 'permission_key', 'type' => 'like'],
                     'permission_name' => ['expr' => 'permission_name', 'type' => 'like'],
                     'category'        => ['expr' => 'category', 'type' => 'like'],
@@ -128,7 +128,7 @@ class PermissionModel
 
                     $orParts = [];
                     foreach ($keywords as $keyword) {
-                        foreach (['permission_name', 'category', 'permission_key', 'code', 'description'] as $expr) {
+                        foreach (['permission_name', 'category', 'permission_key', 'sort_no', 'description'] as $expr) {
                             $orParts[] = "{$expr} LIKE ?";
                             $params[] = '%' . $keyword . '%';
                         }
@@ -140,7 +140,7 @@ class PermissionModel
                 }
             }
 
-            $sql .= " ORDER BY code ASC";
+            $sql .= " ORDER BY sort_no DESC";
 
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
@@ -162,7 +162,7 @@ class PermissionModel
         try {
             $stmt = $this->db->prepare("
                 SELECT 
-                    id, code, permission_key, permission_name,
+                    id, sort_no, permission_key, permission_name,
                     description, category, is_active,
                     created_at, created_by, updated_at, updated_by
                 FROM auth_permissions
@@ -203,18 +203,18 @@ class PermissionModel
     }
 
     /* ===============================================================
-     * 4) 권한 생성 (Service에서 만들어준 id, code 사용)
+     * 4) 권한 생성 (Service에서 만들어준 id, sort_no 사용)
      * =============================================================== */
     public function create(array $data): bool
     {
         try {
             $stmt = $this->db->prepare("
                 INSERT INTO auth_permissions (
-                    id, code, permission_key, permission_name,
+                    id, sort_no, permission_key, permission_name,
                     description, category, is_active,
                     created_at, created_by
                 ) VALUES (
-                    :id, :code, :pkey, :pname,
+                    :id, :sort_no, :pkey, :pname,
                     :description, :category, :is_active,
                     NOW(), :created_by
                 )
@@ -222,7 +222,7 @@ class PermissionModel
 
             return $stmt->execute([
                 ':id'          => $data['id'],
-                ':code'        => $data['code'],
+                ':sort_no'        => $data['sort_no'],
                 ':pkey'        => $data['permission_key'],
                 ':pname'       => $data['permission_name'],
                 ':description' => $data['description'] ?? null,
@@ -301,16 +301,16 @@ class PermissionModel
         }
     }
 
-    public function updateCode(string $id, int $code): bool
+    public function updateSortNo(string $id, int $sort_no): bool
     {
         try {
             $stmt = $this->db->prepare("
                 UPDATE auth_permissions
-                SET code = ?, updated_at = NOW()
+                SET sort_no = ?, updated_at = NOW()
                 WHERE id = ?
             ");
 
-            return $stmt->execute([$code, $id]);
+            return $stmt->execute([$sort_no, $id]);
         } catch (\Throwable $e) {
             return false;
         }

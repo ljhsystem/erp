@@ -123,7 +123,7 @@ class RoleController
             return ['success' => false, 'message' => 'role_key, role_name은 필수입니다.'];
         }
 
-        // UUID 제거, CODE 제거 → 서비스가 모두 처리함
+        // UUID 제거, sort_no 제거 → 서비스가 모두 처리함
         $payload = [
             'role_key'    => $roleKey,
             'role_name'   => $roleName,

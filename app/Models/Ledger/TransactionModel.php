@@ -19,64 +19,76 @@ class TransactionModel
     public function getList(array $filters = []): array
     {
         $sql = "
-            SELECT *
-            FROM {$this->table}
-            WHERE deleted_at IS NULL
+            SELECT
+                t.*,
+                COALESCE(sc.client_name, '') AS client_name,
+                COALESCE(sp.project_name, '') AS project_name
+            FROM {$this->table} t
+            LEFT JOIN system_clients sc
+                ON t.client_id = sc.id
+            LEFT JOIN system_projects sp
+                ON t.project_id = sp.id
+            WHERE t.deleted_at IS NULL
         ";
 
         $params = [];
 
         if (!empty($filters['source_type'])) {
-            $sql .= " AND source_type = :source_type";
+            $sql .= " AND t.source_type = :source_type";
             $params[':source_type'] = $filters['source_type'];
         }
 
+        if (!empty($filters['work_unit'])) {
+            $sql .= " AND t.work_unit = :work_unit";
+            $params[':work_unit'] = $filters['work_unit'];
+        }
+
         if (!empty($filters['transaction_type'])) {
-            $sql .= " AND transaction_type = :transaction_type";
+            $sql .= " AND t.transaction_type = :transaction_type";
             $params[':transaction_type'] = $filters['transaction_type'];
         }
 
         if (!empty($filters['status'])) {
-            $sql .= " AND status = :status";
+            $sql .= " AND t.status = :status";
             $params[':status'] = $filters['status'];
         }
 
         if (!empty($filters['doc_status'])) {
-            $sql .= " AND doc_status = :doc_status";
+            $sql .= " AND t.doc_status = :doc_status";
             $params[':doc_status'] = $filters['doc_status'];
         }
 
         if (!empty($filters['match_status'])) {
-            $sql .= " AND match_status = :match_status";
+            $sql .= " AND t.match_status = :match_status";
             $params[':match_status'] = $filters['match_status'];
         }
 
         if (!empty($filters['acct_status'])) {
-            $sql .= " AND acct_status = :acct_status";
+            $sql .= " AND t.acct_status = :acct_status";
             $params[':acct_status'] = $filters['acct_status'];
         }
 
         if (!empty($filters['project_id'])) {
-            $sql .= " AND project_id = :project_id";
+            $sql .= " AND t.project_id = :project_id";
             $params[':project_id'] = $filters['project_id'];
         }
 
         if (!empty($filters['client_id'])) {
-            $sql .= " AND client_id = :client_id";
+            $sql .= " AND t.client_id = :client_id";
             $params[':client_id'] = $filters['client_id'];
         }
 
         if (!empty($filters['date_from'])) {
-            $sql .= " AND transaction_date >= :date_from";
+            $sql .= " AND t.transaction_date >= :date_from";
             $params[':date_from'] = $filters['date_from'];
         }
 
         if (!empty($filters['date_to'])) {
-            $sql .= " AND transaction_date <= :date_to";
+            $sql .= " AND t.transaction_date <= :date_to";
             $params[':date_to'] = $filters['date_to'];
         }
 
-        $sql .= " ORDER BY code DESC, transaction_date DESC, created_at DESC";
+        $sql .= " ORDER BY t.sort_no DESC, t.transaction_date DESC, t.created_at DESC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -91,7 +103,7 @@ class TransactionModel
             FROM {$this->table}
             WHERE deleted_at IS NULL
               AND acct_status = 'unposted'
-            ORDER BY code DESC, transaction_date DESC, created_at DESC
+            ORDER BY sort_no DESC, transaction_date DESC, created_at DESC
         ");
         $stmt->execute();
 
@@ -101,9 +113,16 @@ class TransactionModel
     public function getById(string $id): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT *
-            FROM {$this->table}
-            WHERE id = :id
+            SELECT
+                t.*,
+                COALESCE(sc.client_name, '') AS client_name,
+                COALESCE(sp.project_name, '') AS project_name
+            FROM {$this->table} t
+            LEFT JOIN system_clients sc
+                ON t.client_id = sc.id
+            LEFT JOIN system_projects sp
+                ON t.project_id = sp.id
+            WHERE t.id = :id
             LIMIT 1
         ");
         $stmt->execute([':id' => $id]);
@@ -115,7 +134,8 @@ class TransactionModel
     {
         $allowed = [
             'id',
-            'code',
+            'sort_no',
+            'work_unit',
             'source_type',
             'transaction_type',
             'transaction_date',
@@ -127,6 +147,7 @@ class TransactionModel
             'order_ref',
             'document_type',
             'document_no',
+            'ref_type',
             'tax_type',
             'item_summary',
             'description',
@@ -157,7 +178,7 @@ class TransactionModel
 
         $payload = $this->filterData($data, $allowed);
 
-        if (!isset($payload['id'], $payload['code'], $payload['source_type'], $payload['transaction_type'], $payload['transaction_date'])) {
+        if (!isset($payload['id'], $payload['source_type'], $payload['transaction_type'], $payload['transaction_date'])) {
             return false;
         }
 
@@ -180,6 +201,7 @@ class TransactionModel
     {
         $allowed = [
             'source_type',
+            'work_unit',
             'transaction_type',
             'transaction_date',
             'project_id',
@@ -190,6 +212,7 @@ class TransactionModel
             'order_ref',
             'document_type',
             'document_no',
+            'ref_type',
             'tax_type',
             'item_summary',
             'description',

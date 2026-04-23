@@ -1,4 +1,4 @@
-﻿// 경로: PROJECT_ROOT . '/assets/js/pages/dashboard/settings/base/client.js'
+// 경로: PROJECT_ROOT . '/assets/js/pages/dashboard/settings/base/client.js'
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import { checkBusinessStatus }from '/public/assets/js/common/biz_api.js';
 import { formatBizNumber, formatCorpNumber, formatMobile, formatPhone, onlyNumber } from '/public/assets/js/common/format.js';
@@ -11,36 +11,36 @@ window.AdminPicker = AdminPicker;
 
 (() => {
     'use strict';
-    console.log('[base-client.js] loaded');    
+    console.log('[base-client.js] loaded');
     /* =========================
     API / 상수
     ========================= */
     const API = {
         LIST: "/api/settings/base-info/client/list",
         DETAIL: "/api/settings/base-info/client/detail",
-    
+
         SAVE: "/api/settings/base-info/client/save",
         DELETE: "/api/settings/base-info/client/delete",
-    
+
         TRASH: "/api/settings/base-info/client/trash",
         RESTORE: "/api/settings/base-info/client/restore",
         RESTORE_BULK: "/api/settings/base-info/client/restore-bulk",
         RESTORE_ALL: "/api/settings/base-info/client/restore-all",
-    
+
         PURGE: "/api/settings/base-info/client/purge",
         PURGE_BULK: "/api/settings/base-info/client/purge-bulk",
         PURGE_ALL: "/api/settings/base-info/client/purge-all",
-    
+
         REORDER: "/api/settings/base-info/client/reorder",
-    
+
         EXCEL_UPLOAD: "/api/settings/base-info/client/excel-upload",
         EXCEL_DOWNLOAD: "/api/settings/base-info/client/download",
         EXCEL_TEMPLATE: "/api/settings/base-info/client/template",
-    
+
         SEARCH_PICKER: "/api/settings/base-info/client/search-picker"
     };
 
-    // fetch(API.DETAIL + '?code=' + code);
+    // fetch(API.DETAIL + '?sort_no=' + sort_no);
     // fetch(API.TRASH);
     // fetch(API.RESTORE);
     // fetch(API.PURGE);
@@ -51,63 +51,63 @@ window.AdminPicker = AdminPicker;
     const CLIENT_COLUMN_MAP = {
 
         /* 기본 */
-        code : { label:"코드", visible:true },    
-        client_name : { label:"거래처명", visible:true },    
-        company_name : { label:"상호", visible:true },    
-        registration_date : { label:"등록일자", visible:true },    
-    
+        sort_no : { label:"순번", visible:true },
+        client_name : { label:"거래처명", visible:true },
+        company_name : { label:"상호", visible:true },
+        registration_date : { label:"등록일자", visible:true },
+
         /* 사업자 */
-        business_number : { label:"사업자등록번호", visible:true },    
-        rrn : { label:"법인/주민민번호", visible:false },    
-        business_type : { label:"업태", visible:false },    
-        business_category : { label:"업종", visible:false },    
-        business_status : { label:"사업자상태", visible:true },    
-        business_certificate : { label:"사업자등록증", visible:false },    
-    
+        business_number : { label:"사업자등록번호", visible:true },
+        rrn : { label:"법인/주민민번호", visible:false },
+        business_type : { label:"업태", visible:false },
+        business_category : { label:"업종", visible:false },
+        business_status : { label:"사업자상태", visible:true },
+        business_certificate : { label:"사업자등록증", visible:false },
+
         /* 주소 */
-        address : { label:"주소", visible:false },    
-        address_detail : { label:"상세주소", visible:false },    
-    
+        address : { label:"주소", visible:false },
+        address_detail : { label:"상세주소", visible:false },
+
         /* 연락 */
-        phone : { label:"전화번호", visible:true },    
-        fax : { label:"팩스", visible:false },    
-        email : { label:"이메일", visible:true },    
-    
+        phone : { label:"전화번호", visible:true },
+        fax : { label:"팩스", visible:false },
+        email : { label:"이메일", visible:true },
+
         /* 담당자 */
-        ceo_name : { label:"대표자", visible:true },    
-        ceo_phone : { label:"대표자전화", visible:false },    
-        manager_name : { label:"담당자", visible:false },    
-        manager_phone : { label:"담당자전화", visible:false },    
-    
+        ceo_name : { label:"대표자", visible:true },
+        ceo_phone : { label:"대표자전화", visible:false },
+        manager_name : { label:"담당자", visible:false },
+        manager_phone : { label:"담당자전화", visible:false },
+
         /* 금융 */
         bank_name : { label:"은행명", visible:false },   // 🔥 추가
         account_number : { label:"계좌번호", visible:false },
         account_holder : { label:"예금주", visible:false }, // 🔥 추가
         bank_file : { label:"통장사본", visible:false },
-    
+
         /* 거래 */
         trade_category : { label:"거래구분", visible:false }, // 🔥 추가
-        item_category : { label:"취급품목", visible:false },    
-        client_category : { label:"거래처분류", visible:false },    
-        client_type : { label:"거래유형", visible:false },    
-        tax_type : { label:"과세구분", visible:false },    
-        payment_term : { label:"결제조건", visible:false },    
+        item_category : { label:"취급품목", visible:false },
+        client_category : { label:"거래처분류", visible:false },
+        client_type : { label:"거래유형", visible:false },
+        tax_type : { label:"과세구분", visible:false },
+        payment_term : { label:"결제조건", visible:false },
         client_grade : { label:"거래처등급", visible:false },
-    
+
         /* 기타 */
         homepage : { label:"홈페이지", visible:false }, // 🔥 추가
-        note : { label:"비고", visible:true },    
-        memo : { label:"메모", visible:false },    
-    
+        note : { label:"비고", visible:true },
+        memo : { label:"메모", visible:false },
+
         /* 상태 */
-        is_active : { label:"사용여부", visible:false },    
-    
+        is_active : { label:"사용여부", visible:false },
+
         /* 시스템 */
-        created_at : { label:"생성일시", visible:false },    
+        created_at : { label:"생성일시", visible:false },
         created_by_name : { label:"생성자", visible:false },
-        updated_at : { label:"수정일시", visible:false },    
+        updated_at : { label:"수정일시", visible:false },
         updated_by_name : { label:"수정자", visible:false },
-        deleted_at : { label:"삭제일시", visible:false },    
+        deleted_at : { label:"삭제일시", visible:false },
         deleted_by_name : { label:"삭제자", visible:false }
     };
 
@@ -124,7 +124,7 @@ window.AdminPicker = AdminPicker;
     let rrnVisible = false;
     let globalBound = false;
 
-    
+
 /* ============================================================
    DOM READY (앱 진입점)
    - 페이지 로딩 완료 후 초기화 시작
@@ -217,14 +217,14 @@ function initClientPage($){
         const modalEl = document.getElementById('clientModal');
         clientModal = new bootstrap.Modal(modalEl, {
             focus:false
-        });        
+        });
         excelModal = new bootstrap.Modal(
             document.getElementById('clientExcelModal')   // 변경
         );
         modalEl.addEventListener('hidden.bs.modal', () => {
             const help = document.getElementById('bizCertHelp');
             if(help) help.style.display = 'block';
-            const form = document.getElementById('client-edit-form');        
+            const form = document.getElementById('client-edit-form');
             form.reset();
             /* 통장사본 초기화 */
             const bankText = document.getElementById('bankCopyText');
@@ -238,22 +238,22 @@ function initClientPage($){
             const drop = document.getElementById('bankCopyUpload');
             if(drop){
                 drop.dataset.original = "0";
-            }            
+            }
             const delBank = document.getElementById('delete_bank_file');
             if(delBank){
                 delBank.value = '0';
-            }        
+            }
             /* 사업자등록증 파일 input 초기화 */
             const fileInput = document.getElementById('modal_business_certificate');
             if(fileInput){
                 fileInput.value = '';
-            }        
+            }
             /* 드롭존 텍스트 초기화 */
             const text = document.getElementById('dropZoneTextBiz');
             if(text){
                 text.innerHTML =
                     "여기로 파일을 끌어다 놓거나 클릭하여 선택하세요.<br>(PDF, JPG, PNG)";
-            }        
+            }
             /* 아이콘 초기화 */
             const icon = document.getElementById('certStatusIcon');
             if(icon){
@@ -264,7 +264,7 @@ function initClientPage($){
             const rrnDelete = document.getElementById('delete_rrn_image');
             const rrnList = document.getElementById('rrnImageList');
             const rrnText = document.getElementById('dropZoneTextRrn');
-            
+
             if (rrnInput) rrnInput.value = '';
             if (rrnDelete) rrnDelete.value = '0';
             if (rrnList) rrnList.innerHTML = '';
@@ -272,15 +272,15 @@ function initClientPage($){
                 rrnText.innerHTML =
                     "파일 드롭 또는 클릭<br>(JPG, PNG)";
             }
-            
+
             const rrnField = document.getElementById('modal_rrn');
             if (rrnField) {
                 rrnField.value = '';
                 rrnField.dataset.real = '';
             }
-            
+
             rrnVisible = false;
-            
+
             const toggleBtn = document.querySelector('.toggle-rrn');
             if (toggleBtn) {
                 const icon = toggleBtn.querySelector('i');
@@ -289,32 +289,32 @@ function initClientPage($){
                     icon.classList.add('bi-eye');
                 }
             }
-            
+
 
         });
 
         document.querySelectorAll('.date-icon').forEach(icon => {
-            icon.addEventListener('click', e => {        
+            icon.addEventListener('click', e => {
                 e.preventDefault();
-                e.stopPropagation();        
+                e.stopPropagation();
                 const wrap = icon.closest('.date-input, .date-input-wrap');
-                const input = wrap ? wrap.querySelector('input') : null;        
-                if (!input) return;        
+                const input = wrap ? wrap.querySelector('input') : null;
+                if (!input) return;
                 const picker = initAdminDatePicker();
-                if (!picker) return;        
-                picker.__target = input;        
+                if (!picker) return;
+                picker.__target = input;
                 if (typeof picker.clearDate === 'function') {
                     picker.clearDate();
-                }        
-                const v = input.value;        
+                }
+                const v = input.value;
                 if (v) {
                     const d = new Date(v);
                     if (!isNaN(d)) picker.setDate(d);
-                }        
+                }
                 picker.open({
                     anchor: input
-                });        
-            });        
+                });
+            });
         });
         //모달에서 picker 위치 문제 방지
         modalEl.addEventListener('shown.bs.modal', () => {
@@ -325,37 +325,37 @@ function initClientPage($){
 
 
     function bindTableLayoutEvents(table, tableSelector){
-        if(!table) return;    
+        if(!table) return;
         /* resize */
         window.addEventListener('resize', () => {
             updateTableHeight(table, tableSelector);
-        });    
+        });
         /* sidebar toggle */
         document.addEventListener('sidebar:toggled', () => {
-    
+
             updateTableHeight(table, tableSelector);
-    
+
             setTimeout(() => {
                 forceTableHeightSync(table, tableSelector);
-            }, 340);    
-        });    
+            }, 340);
+        });
     }
 
 
 
 
-    function bindUIEvents(){        
+    function bindUIEvents(){
         /* ==============================
         사업자등록증 교체
-        ============================== */        
-        const btnReplaceCert = document.getElementById('btnReplaceCert');        
-        if(btnReplaceCert){        
-            btnReplaceCert.addEventListener('click', function(){        
+        ============================== */
+        const btnReplaceCert = document.getElementById('btnReplaceCert');
+        if(btnReplaceCert){
+            btnReplaceCert.addEventListener('click', function(){
                 document
                     .getElementById('modal_business_certificate')
-                    .click();        
-            });        
-        }        
+                    .click();
+            });
+        }
         /* ==============================
         사업자등록증 삭제
         ============================== */
@@ -364,7 +364,7 @@ function initClientPage($){
             btnRemoveCert.addEventListener('click', function(){
                 if(!confirm('사업자등록증 파일을 삭제하시겠습니까?')){
                     return;
-                }               
+                }
                 document.getElementById('modal_business_certificate').value = '';
 
                 const bizList = document.getElementById('bizCertList');
@@ -372,16 +372,16 @@ function initClientPage($){
                     bizList.dataset.original = "0";
                     bizList.innerHTML = '';
                 }
-                
+
                 const preview = document.getElementById('bizCertPreview');
                 if (preview) preview.innerHTML = '';
-                
+
                 const actions = document.getElementById('bizCertActions');
                 if (actions) actions.style.display = 'none';
-                
+
                 const icon = document.getElementById('certStatusIcon');
                 if (icon) icon.innerHTML = '';
-                
+
                 document.getElementById('delete_business_certificate').value = '1';
 
                 const dropZoneTextBiz = document.getElementById('dropZoneTextBiz');
@@ -412,7 +412,7 @@ function initClientPage($){
         document.addEventListener("excel:uploaded", () => {
             if (clientTable) {
                 clientTable.ajax.reload(null, false);
-            }    
+            }
         });
     }
 
@@ -483,58 +483,58 @@ function initClientPage($){
 
         const type = e.target.dataset.format;
         if(!type) return;
-    
+
         if(type === 'biz'){
             e.target.value = formatBizNumber(e.target.value);
         }
-    
+
         if(type === 'corp'){
             e.target.value = formatCorpNumber(e.target.value);
         }
-    
+
         if(type === 'mobile'){
             e.target.value = formatMobile(e.target.value);
         }
-    
+
         if(type === 'phone' || type === 'fax'){
             e.target.value = formatPhone(e.target.value);
         }
     }
 
- 
+
     function bindTrashEvents(){
 
         document.addEventListener('trash:detail-render', function(e){
-    
+
             const { data, modal } = e.detail;
 
             // 🔥 이거 반드시 추가
             if(modal.dataset.type !== 'client') return;
-    
+
             console.log("detail data:", data);
-    
+
             const detailBox = modal.querySelector('.trash-detail');
             if(!detailBox) return;
-    
+
             let html = `
                 <div class="p-3">
                     <h6 class="mb-3">거래처 상세</h6>
             `;
-    
+
             Object.entries(CLIENT_COLUMN_MAP).forEach(([key, config]) => {
-    
+
                 const value = data[key];
-    
+
                 // 값 없으면 스킵 (원하면 제거 가능)
                 if(value === null || value === undefined || value === '') return;
-    
+
                 html += `
                     <div><b>${config.label}:</b> ${value}</div>
                 `;
             });
-    
+
             html += `</div>`;
-    
+
             detailBox.innerHTML = html;
         });
 
@@ -543,7 +543,7 @@ function initClientPage($){
 
         window.TrashColumns.client = function(row) {
             return `
-                <td>${row.code ?? ''}</td>
+                <td>${row.sort_no ?? ''}</td>
                 <td>${row.client_name ?? ''}</td>
                 <td>${row.deleted_at ?? ''}</td>
                 <td>${row.deleted_by_name ?? ''}</td>
@@ -558,34 +558,34 @@ function initClientPage($){
         document.addEventListener('trash:changed', (e) => {
 
             const { type } = e.detail || {};
-        
+
             if (type === 'client') {
                 if (clientTable){
                     clientTable.ajax.reload(null, false);
                 }
             }
-        
+
         });
     }
 
 
     function initAdminDatePicker(){
-        if (todayPicker) return todayPicker;    
+        if (todayPicker) return todayPicker;
         const container = document.getElementById('today-picker');
-        if (!container) return null;    
+        if (!container) return null;
         todayPicker = AdminPicker.create({
             type:'today',
             container
-        });    
-        todayPicker.subscribe((_, date) => {    
+        });
+        todayPicker.subscribe((_, date) => {
             const input = todayPicker.__target;
-            if (!input || !date) return;    
-            input.value = formatDate(date);    
+            if (!input || !date) return;
+            input.value = formatDate(date);
             normalizeStartEnd(
             input.name === 'dateStart' ? 'start' : 'end'
-            );    
-            todayPicker.close();    
-        });    
+            );
+            todayPicker.close();
+        });
         return todayPicker;
     }
 
@@ -600,50 +600,50 @@ function initClientPage($){
             /* 🔥 항상 상태 초기화 */
             if (typeof picker.clearDate === 'function') {
                 picker.clearDate();
-            }        
-            const v = input.value;        
+            }
+            const v = input.value;
             /* 값 있으면 다시 세팅 */
             if(v){
                 const d = new Date(v);
                 if(!isNaN(d)){
                 picker.setDate(d);
                 }
-            }        
+            }
             picker.open({
                 anchor: input
             });
             });
         });
     }
-    
+
     function formatDate(date){
-        if(!date) return '';    
+        if(!date) return '';
         const y = date.getFullYear();
         const m = String(date.getMonth()+1).padStart(2,'0');
-        const d = String(date.getDate()).padStart(2,'0');    
-        return `${y}-${m}-${d}`;    
+        const d = String(date.getDate()).padStart(2,'0');
+        return `${y}-${m}-${d}`;
     }
 
     function normalizeStartEnd(type){
         const start = document.querySelector('input[name="dateStart"]');
-        const end   = document.querySelector('input[name="dateEnd"]');    
-        if(!start || !end) return;    
-        if(!start.value || !end.value) return;    
+        const end   = document.querySelector('input[name="dateEnd"]');
+        if(!start || !end) return;
+        if(!start.value || !end.value) return;
         if(type === 'start'){
             if(start.value > end.value){
             end.value = start.value;
             }
-        }    
+        }
         if(type === 'end'){
             if(end.value < start.value){
             start.value = end.value;
             }
-        }    
+        }
     }
 
 
     function initDataTable($) {
-        const columns = buildClientColumns();    
+        const columns = buildClientColumns();
         clientTable = createDataTable({
             tableSelector: '#client-table',
             api: API.LIST,
@@ -666,17 +666,17 @@ function initClientPage($){
                     action: function () {
                         const trashModalEl = document.getElementById('clientTrashModal');
                         if (!trashModalEl) return;
-                    
+
                         /* 🔥 핵심: URL 세팅 (JS에서 처리) */
                         trashModalEl.dataset.listUrl      = API.TRASH;
                         trashModalEl.dataset.restoreUrl   = API.RESTORE;
                         trashModalEl.dataset.restoreBulkUrl = API.RESTORE_BULK;
                         trashModalEl.dataset.restoreAllUrl  = API.RESTORE_ALL;
-                        
+
                         trashModalEl.dataset.deleteUrl    = API.PURGE;
                         trashModalEl.dataset.deleteBulkUrl = API.PURGE_BULK;
                         trashModalEl.dataset.deleteAllUrl = API.PURGE_ALL;
-                    
+
                         const modal = new bootstrap.Modal(trashModalEl);
                         modal.show();
                     }
@@ -685,63 +685,63 @@ function initClientPage($){
                     text: "새 거래처",
                     className: "btn btn-warning btn-sm",
                     action: function () {
-    
+
                         const form = document.getElementById('client-edit-form');
                         if (form) form.reset();
-    
+
                         $('#modal_client_id').val('');
-                        $('#modal_code').val('');
+                        $('#modal_sort_no').val('');
                         $('#btnDeleteClient').hide();
-    
+
                         window.isNewClient = true;
-    
+
                         const titleEl = document.getElementById('clientModalLabel');
                         if (titleEl) {
                             titleEl.textContent = '거래처 신규 등록';
                         }
-    
+
                         const bizList = document.getElementById('bizCertList');
                         const bizHelp = document.getElementById('bizCertHelp');
                         const bizInput = document.getElementById('modal_business_certificate');
                         const bizDelete = document.getElementById('delete_business_certificate');
                         const dropText = document.getElementById('dropZoneTextBiz');
                         const certIcon = document.getElementById('certStatusIcon');
-    
+
                         if (bizList) {
                             bizList.innerHTML = '';
                             bizList.dataset.original = '0';
                         }
-    
+
                         if (bizHelp) bizHelp.style.display = 'block';
                         if (bizInput) bizInput.value = '';
                         if (bizDelete) bizDelete.value = '0';
-    
+
                         if (dropText) {
                             dropText.innerHTML =
                                 '여기로 파일을 끌어다 놓거나 클릭하여 선택하세요.<br>(PDF, JPG, PNG)';
                         }
-    
+
                         if (certIcon) certIcon.innerHTML = '';
-    
+
                         const bankText = document.getElementById('bankCopyText');
                         const bankDrop = document.getElementById('bankCopyUpload');
                         const bankDelete = document.getElementById('delete_bank_file');
                         const bankInput = document.getElementById('modal_bank_file');
-    
+
                         if (bankText) {
                             bankText.innerHTML =
                                 '여기로 파일을 끌어다 놓거나 클릭하여 업로드<br>(PDF, JPG, PNG)';
                         }
-    
+
                         if (bankDrop) bankDrop.dataset.original = '0';
                         if (bankDelete) bankDelete.value = '0';
                         if (bankInput) bankInput.value = '';
-                        
+
                         const rrnInput = document.getElementById('modal_rrn_image');
                         const rrnDelete = document.getElementById('delete_rrn_image');
                         const rrnList = document.getElementById('rrnImageList');
                         const rrnText = document.getElementById('dropZoneTextRrn');
-                        
+
                         if (rrnInput) rrnInput.value = '';
                         if (rrnDelete) rrnDelete.value = '0';
                         if (rrnList) rrnList.innerHTML = '';
@@ -764,17 +764,17 @@ function initClientPage($){
         });
 
         window.clientTable = clientTable;
-    
+
         if (clientTable) {
-            console.log('✅ DataTable 생성 완료');               
-             
+            console.log('✅ DataTable 생성 완료');
+
             SearchForm({
                 table: clientTable,
                 apiList: API.LIST,
                 tableId: 'client',
                 defaultSearchField: 'client_name',
                 dateOptions: DATE_OPTIONS   // ✅ 이것만 유지
-            });    
+            });
             updateTableHeight(clientTable, '#client-table');
             bindTableHighlight('#client-table', clientTable);
 
@@ -797,16 +797,16 @@ function initClientPage($){
 
 
     function bindTableEvents($) {
-        /* 코드 안내 */
-        $(document).on('focus', '#modal_code', function(){    
-            if(window.isNewClient){    
+        /* 순번 안내 */
+        $(document).on('focus', '#modal_sort_no', function(){
+            if(window.isNewClient){
                 AppCore.notify(
                     'info',
-                    '코드를 입력하지 않아도 저장 시 자동 생성됩니다.'
-                );    
-            }    
+                    '순번은 저장 시 자동 생성됩니다.'
+                );
+            }
         });
-    
+
         /* ================================
         더블클릭 → 수정 모달
         ================================ */
@@ -814,63 +814,63 @@ function initClientPage($){
 
             const row = clientTable.row(this).data();
             if (!row) return;
-        
+
             try {
                 const res = await fetch(API.DETAIL + '?id=' + row.id);
                 const json = await res.json();
-        
+
                 if (!json.success) {
                     AppCore.notify('error', '상세조회 실패');
                     return;
                 }
-        
+
                 const data = json.data;
-        
+
                 window.isNewClient = false;
                 $('#btnDeleteClient').show();
                 $('#modal_client_id').val(data.id);
-                
+
                 /* 🔥 삭제 플래그/파일 input 먼저 초기화 */
                 const delBiz = document.getElementById('delete_business_certificate');
                 const delRrn = document.getElementById('delete_rrn_image');
                 const delBank = document.getElementById('delete_bank_file');
-                
+
                 const bizInput = document.getElementById('modal_business_certificate');
                 const rrnInput = document.getElementById('modal_rrn_image');
                 const bankInput = document.getElementById('modal_bank_file');
-                
+
                 if (delBiz) delBiz.value = '0';
                 if (delRrn) delRrn.value = '0';
                 if (delBank) delBank.value = '0';
-                
+
                 if (bizInput) bizInput.value = '';
                 if (rrnInput) rrnInput.value = '';
                 if (bankInput) bankInput.value = '';
-                
+
                 fillModal(data);
                 clientModal.show();
-        
+
             } catch (e) {
                 console.error(e);
                 AppCore.notify('error', '서버 오류');
             }
         });
-    
+
         /* ================================
         셀 클릭 → 검색조건 입력
         ================================ */
-        $('#client-table tbody').on('click', 'td', function () {    
-            const cell = clientTable.cell(this);    
+        $('#client-table tbody').on('click', 'td', function () {
+            const cell = clientTable.cell(this);
             const value = cell.data();
             const colIndex = cell.index().column;
-            const field = clientTable.column(colIndex).dataSrc();    
-            if(!field) return;    
-            const $first = $('.search-condition').first();    
+            const field = clientTable.column(colIndex).dataSrc();
+            if(!field) return;
+            const $first = $('.search-condition').first();
             $first.find('select').val(field);
-            $first.find('input').val(value);    
-        });    
+            $first.find('input').val(value);
+        });
     }
-    
+
 
 
 
@@ -881,26 +881,26 @@ function initClientPage($){
 
     /* ============================================================
        모달 저장 / 삭제
-    ============================================================ */    
-    function bindModalEvents($) {     
+    ============================================================ */
+    function bindModalEvents($) {
         // 🔥 기존 submit 바인딩 제거 후 다시 바인딩 (중복 방지)
         $(document).off('submit', '#client-edit-form');
 
         $(document).on('submit', '#client-edit-form', function (e) {
             e.preventDefault();
-        
+
             const form = this;
             const formData = new FormData(form);
-            
+
             const rrnInput = document.getElementById('modal_rrn');
             if (rrnInput) {
                 const realVal = onlyNumber(rrnInput.dataset.real || '');
                 formData.set('rrn', realVal !== '' ? realVal : '');
             }
-            
+
             const btn = form.querySelector('button[type="submit"]');
             if (btn) btn.disabled = true;   // 🔥 중복 클릭 방지
-        
+
             $.ajax({
                 url: API.SAVE,
                 method: 'POST',
@@ -909,15 +909,15 @@ function initClientPage($){
                 contentType: false
             })
             .done(res => {
-        
+
                 if (!res.success) {
                     AppCore.notify('error', res.message || '저장 실패');
                     return; // 🔥 반드시 있어야 함 (연속 저장 방지)
                 }
-        
+
                 clientModal.hide();
                 clientTable.ajax.reload(null, false);
-        
+
                 AppCore.notify('success', '저장 완료');
             })
             .fail(() => {
@@ -927,59 +927,59 @@ function initClientPage($){
                 if (btn) btn.disabled = false; // 🔥 다시 활성화
             });
         });
-    
-    
-        $('#btnDeleteClient').on('click', function () {    
-            const id = $('#modal_client_id').val();    
-            if (!id || !confirm('삭제하시겠습니까?')) return;    
+
+
+        $('#btnDeleteClient').on('click', function () {
+            const id = $('#modal_client_id').val();
+            if (!id || !confirm('삭제하시겠습니까?')) return;
             $.post(API.DELETE, { id })
-                .done(res => {    
-                    if (res.success) {    
+                .done(res => {
+                    if (res.success) {
                         AppCore.notify(
                             'success',
                             '삭제 완료'
-                        );    
-                        clientTable.ajax.reload(null, false);    
-                        clientModal.hide();    
-                    } else {    
-                        alert(res.message || '삭제 실패');    
-                    }    
-                });    
-        });    
+                        );
+                        clientTable.ajax.reload(null, false);
+                        clientModal.hide();
+                    } else {
+                        alert(res.message || '삭제 실패');
+                    }
+                });
+        });
     }
-    
- 
-    
-    
-    
+
+
+
+
+
     /* ============================================================
        UTIL
     ============================================================ */
-    
+
     function fillModal(data){
         Object.keys(data).forEach(key => {
 
             if(key === 'id') return;
             if(key === 'business_certificate') return;
-            if (key === 'rrn_image') return; 
+            if (key === 'rrn_image') return;
             if(key === 'bank_file') return;
-    
+
             const el = document.getElementById('modal_' + key);
-    
+
             if(!el) return;
-    
+
             let value = data[key] ?? '';
 
             if (key === 'rrn') {
                 const raw = onlyNumber(value);
                 el.dataset.real = raw;
                 rrnVisible = false;
-                
+
                 // 🔥 여기 중요
                 setTimeout(() => {
                     el.value = maskRrn(raw);
                 }, 0);
-            
+
                 const toggleBtn = document.querySelector('.toggle-rrn');
                 if (toggleBtn) {
                     const icon = toggleBtn.querySelector('i');
@@ -990,9 +990,9 @@ function initClientPage($){
                 }
                 return;
             }
-            
+
             const formatType = el.dataset.format;
-            
+
             if(formatType === 'biz'){
                 value = formatBizNumber(value);
             }
@@ -1005,9 +1005,9 @@ function initClientPage($){
             else if(formatType === 'phone' || formatType === 'fax'){
                 value = formatPhone(value);
             }
-            
+
             el.value = value;
-    
+
         });
         const list = document.getElementById('bizCertList');
         const help = document.getElementById('bizCertHelp');
@@ -1016,13 +1016,13 @@ function initClientPage($){
         if(data.business_certificate){
             if(help) help.style.display = 'none';   // 🔥 추가
             const fileName = data.business_certificate.split('/').pop();
-            const path = encodeURIComponent(data.business_certificate);    
-            list.dataset.original = "1";    
+            const path = encodeURIComponent(data.business_certificate);
+            list.dataset.original = "1";
             list.innerHTML = `
-            <div class="file-item">    
+            <div class="file-item">
                 <span>
                     📄 <strong>사업자등록증</strong> (${fileName})
-                </span>    
+                </span>
                 <div class="file-actions">
                     <a href="/api/file/preview?path=${path}"
                     target="_blank"
@@ -1035,22 +1035,22 @@ function initClientPage($){
                     class="file-delete">
                     삭제
                     </a>
-                </div>    
+                </div>
             </div>
             `;
-    
-            document.getElementById('btnDeleteCert').onclick = function(){    
+
+            document.getElementById('btnDeleteCert').onclick = function(){
                 if(!confirm('사업자등록증을 삭제하시겠습니까?')) return;
-            
+
                 const del = document.getElementById('delete_business_certificate');
                 const input = document.getElementById('modal_business_certificate');
-            
+
                 if (del) del.value = '1';
                 if (input) input.value = '';
                 list.dataset.original = "0";
-            
+
                 list.innerHTML = `
-                <div class="file-item">    
+                <div class="file-item">
                     <span>
                         📄 <strong>사업자등록증</strong> (${fileName})
                     </span>
@@ -1058,28 +1058,28 @@ function initClientPage($){
                         사업자등록증이 삭제됩니다. 저장 시 반영됩니다.
                     </div>
                 </div>
-                `;    
-            };   
-        }else{    
-            list.dataset.original = "0";    
+                `;
+            };
+        }else{
+            list.dataset.original = "0";
         }
         const rrnList = document.getElementById('rrnImageList');
 
         if (!rrnList) return;
-        
+
         rrnList.innerHTML = '';
-        
+
         if (data.rrn_image) {
-        
+
             const fileName = data.rrn_image.split('/').pop();
             const path = encodeURIComponent(data.rrn_image);
-        
+
             rrnList.innerHTML = `
                 <div class="file-item">
                     <span>
                         📄 <strong>신분증</strong> (${fileName})
                     </span>
-        
+
                     <div class="file-actions">
                         <a href="/api/file/preview?path=${path}" target="_blank">
                             미리보기
@@ -1091,17 +1091,17 @@ function initClientPage($){
                     </div>
                 </div>
             `;
-        
+
             document.getElementById('btnDeleteRrn').onclick = function(){
-        
+
                 if(!confirm('신분증을 삭제하시겠습니까?')) return;
-        
+
                 const input = document.getElementById('modal_rrn_image');
                 const del = document.getElementById('delete_rrn_image');
-        
+
                 if (input) input.value = '';
                 if (del) del.value = '1';
-        
+
                 rrnList.innerHTML = `
                     <div class="file-item">
                         <span>
@@ -1113,9 +1113,9 @@ function initClientPage($){
                     </div>
                 `;
             };
-        
+
         }
-        
+
         /* =========================
         통장사본 표시
         ========================= */
@@ -1128,54 +1128,54 @@ function initClientPage($){
                 }
                 const path = encodeURIComponent(data.bank_file);
                 bankText.innerHTML = `
-                <div class="file-status">       
+                <div class="file-status">
                     <div class="upload-guide">
                         여기로 파일을 끌어다 놓거나 클릭하여 업로드
                         <br>
-                        (PDF, JPG, PNG)     
+                        (PDF, JPG, PNG)
                     </div>
                     <div class="file-line">
                         📄 <strong>통장사본 등록됨</strong>
-                    </div>            
-                    <div class="file-links">            
+                    </div>
+                    <div class="file-links">
                         <a href="javascript:void(0)"
                            id="btnOpenBankCopy"
                            class="file-link-open disabled">
                            미리보기
-                        </a>            
-                        <span class="file-divider">|</span>            
+                        </a>
+                        <span class="file-divider">|</span>
                         <a href="javascript:void(0)"
                            id="btnDeleteBankCopy"
                            class="file-link-delete disabled">
                            삭제
-                        </a>            
-                    </div>            
+                        </a>
+                    </div>
                 </div>
                 `;
                 const btnOpen = document.getElementById("btnOpenBankCopy");
-                const btnDelete = document.getElementById("btnDeleteBankCopy");                
+                const btnDelete = document.getElementById("btnDeleteBankCopy");
                 if(btnOpen){
-                    btnOpen.classList.remove("disabled");                
+                    btnOpen.classList.remove("disabled");
                     btnOpen.href = "/api/file/preview?path=" + path;
-                    btnOpen.target = "_blank";                
+                    btnOpen.target = "_blank";
                     btnOpen.addEventListener("click", function(e){
                         e.stopPropagation();   // 🔥 업로드 이벤트 차단
-                    });                
+                    });
                 }
-                
+
                 if(btnDelete){
-                    btnDelete.classList.remove("disabled");                
-                    btnDelete.onclick = function(e){                
-                        e.stopPropagation();                
-                        if(!confirm('통장사본을 삭제하시겠습니까?')) return;                
+                    btnDelete.classList.remove("disabled");
+                    btnDelete.onclick = function(e){
+                        e.stopPropagation();
+                        if(!confirm('통장사본을 삭제하시겠습니까?')) return;
                         const del = document.getElementById('delete_bank_file');
                         const drop = document.getElementById('bankCopyUpload');
-                        const input = document.getElementById('modal_bank_file');                
-                        if(del) del.value = '1';                
-                        if(drop) drop.dataset.original = "0";                
+                        const input = document.getElementById('modal_bank_file');
+                        if(del) del.value = '1';
+                        if(drop) drop.dataset.original = "0";
                         if(input) input.value = '';
                         const bankfileName = data.bank_file.split('/').pop();
-                        const shortName = shortenFileName(bankfileName, 20);                        
+                        const shortName = shortenFileName(bankfileName, 20);
                         bankText.innerHTML = `
                         📄 <strong>통장사본</strong> (${shortName})
                         <br>
@@ -1183,26 +1183,26 @@ function initClientPage($){
                         통장사본이 삭제됩니다.<br>
                         저장 시 반영됩니다.
                         </div>
-                        `;                
+                        `;
                     };
                 }
             }else{
                 if(drop){
                     drop.dataset.original = "0";
-                }            
+                }
                 bankText.innerHTML = `
                     여기로 파일을 끌어다 놓거나 클릭하여 업로드
                     <br>
                     (PDF, JPG, PNG)
-                `;            
+                `;
             }
-        }    
+        }
     }
 
 
     function buildClientColumns(){
         const columns = [];
-    
+
         /* 드래그 컬럼 */
         columns.push({
             title: '<i class="bi bi-arrows-move"></i>',
@@ -1212,7 +1212,7 @@ function initClientPage($){
             searchable:false,
             render: () => '<i class="bi bi-list"></i>'
         });
-    
+
         Object.entries(CLIENT_COLUMN_MAP).forEach(([field,config]) => {
 
             columns.push({
@@ -1223,33 +1223,33 @@ function initClientPage($){
                 render: function(data,type,row){
 
                     if(data == null) return "";
-                
+
                     // 🔥 핵심: display 일때만 가공
                     if(type !== 'display') return data;
-                
+
                     if(field === "bank_file")
                         return data ? "등록됨" : "";
-                
+
                     if(field === "business_number")
                         return formatBizNumber(data);
-                
+
                     if(field === "rrn")
                         return formatCorpNumber(data);
-                
+
                     if(field === "ceo_phone")
                         return formatMobile(data);
-                
+
                     if(field === "manager_phone")
                         return formatMobile(data);
-                
+
                     if(field === "phone" || field === "fax")
                         return formatPhone(data);
-                
+
                     return data;
                 }
             });
         });
-    
+
         return columns;
     }
 
@@ -1259,27 +1259,27 @@ function initClientPage($){
     function initBizCertUpload(){
         const drop  = document.getElementById('dropZoneBiz');
         const input = document.getElementById('modal_business_certificate');
-        const list  = document.getElementById('bizCertList');    
-        if(!drop || !input) return;    
+        const list  = document.getElementById('bizCertList');
+        if(!drop || !input) return;
         drop.addEventListener('click', () => {
             input.click();
-        });    
-        input.addEventListener('change', e => {    
+        });
+        input.addEventListener('change', e => {
             const file = e.target.files[0];
-            if(!file) return;    
-            renderFile(file);    
-        });    
+            if(!file) return;
+            renderFile(file);
+        });
         drop.addEventListener('dragover', e=>{
             e.preventDefault();
-        });    
-        drop.addEventListener('drop', e=>{    
-            e.preventDefault();    
-            const file = e.dataTransfer.files[0];
-            if(!file) return;    
-            input.files = e.dataTransfer.files;    
-            renderFile(file);    
         });
-    
+        drop.addEventListener('drop', e=>{
+            e.preventDefault();
+            const file = e.dataTransfer.files[0];
+            if(!file) return;
+            input.files = e.dataTransfer.files;
+            renderFile(file);
+        });
+
         function renderFile(file){
             const allowedExt = ['pdf', 'jpg', 'jpeg', 'png'];
             const fileExt = String(file.name || '').split('.').pop()?.toLowerCase() || '';
@@ -1296,13 +1296,13 @@ function initClientPage($){
                 return;
             }
 
-            const hasOriginal = drop.dataset.original === "1";        
-            let message = "";        
+            const hasOriginal = drop.dataset.original === "1";
+            let message = "";
             if(hasOriginal){
                 message = "저장 시 기존 사업자등록증이 교체됩니다.";
             }else{
-                message = "저장 시 사업자등록증이 등록됩니다.";            }        
-            const shortName = shortenFileName(file.name);        
+                message = "저장 시 사업자등록증이 등록됩니다.";            }
+            const shortName = shortenFileName(file.name);
             const title = hasOriginal ? "교체파일" : "선택파일";
             const text = document.getElementById('dropZoneTextBiz');
             text.innerHTML = `
@@ -1318,49 +1318,49 @@ function initClientPage($){
 
         const drop  = document.getElementById('dropZoneRrn');
         const input = document.getElementById('modal_rrn_image');
-    
+
         if(!drop || !input) return;
-    
+
         // 클릭
         drop.addEventListener('click', () => {
             input.click();
         });
-    
+
         // 파일 선택
         input.addEventListener('change', e => {
-    
+
             const file = e.target.files[0];
             if(!file) return;
-    
+
             renderFile(file);
         });
-    
+
         // drag
         drop.addEventListener('dragover', e=>{
             e.preventDefault();
         });
-    
+
         // drop
         drop.addEventListener('drop', e=>{
-    
+
             e.preventDefault();
-    
+
             const file = e.dataTransfer.files[0];
             if(!file) return;
-    
+
             input.files = e.dataTransfer.files;
-    
+
             renderFile(file);
         });
-    
+
         function renderFile(file){
-    
+
             const shortName = file.name.length > 20
                 ? file.name.substring(0,17)+'...'
                 : file.name;
-    
+
             const text = document.getElementById('dropZoneTextRrn');
-    
+
             text.innerHTML = `
             📄 <strong>${shortName}</strong>
             <br>
@@ -1371,42 +1371,42 @@ function initClientPage($){
         }
     }
     function shortenFileName(name, max = 20){ //길이제한 기본값
-        if(!name) return '';    
-        const lastDot = name.lastIndexOf('.');    
+        if(!name) return '';
+        const lastDot = name.lastIndexOf('.');
         if(lastDot <= 0){
             return name.length <= max
                 ? name
                 : name.substring(0, Math.max(1, max - 3)) + '...';
-        }    
+        }
         const ext = name.substring(lastDot);   // ".pdf"
-        const base = name.substring(0, lastDot);    
+        const base = name.substring(0, lastDot);
         if(name.length <= max){
             return name;
-        }    
-        const keep = Math.max(1, max - ext.length - 3);    
+        }
+        const keep = Math.max(1, max - ext.length - 3);
         return base.substring(0, keep) + '...' + ext;
     }
 
     function initBankFileUpload(){
         const drop  = document.getElementById('bankCopyUpload');
         const input = document.getElementById('modal_bank_file');
-        const text  = document.getElementById('bankCopyText');    
-        if(!drop || !input || !text) return;    
+        const text  = document.getElementById('bankCopyText');
+        if(!drop || !input || !text) return;
         if(!drop.dataset.original){
             drop.dataset.original = "0";
         }
 
         function renderFile(file){
-            const hasOriginal = drop.dataset.original === "1";        
-            let message = "";        
+            const hasOriginal = drop.dataset.original === "1";
+            let message = "";
             if(hasOriginal){
                 message = "저장 시 기존 통장사본이 교체됩니다.";
             }else{
                 message = "저장 시 통장사본이 등록됩니다.";
-            }        
+            }
             const shortName = shortenFileName(file.name, 20);//15줄 제한
             text.innerHTML = `
-            📄 <strong>통장사본</strong> 
+            📄 <strong>통장사본</strong>
             <br>
             (${shortName})
             <br>
@@ -1414,29 +1414,29 @@ function initClientPage($){
             ${message}
             </span>
             `;
-        }    
+        }
         /* 클릭 업로드 */
         drop.addEventListener('click', () => {
             input.click();
-        });    
+        });
         /* 파일 선택 */
-        input.addEventListener('change', e => {    
+        input.addEventListener('change', e => {
             const file = e.target.files[0];
-            if(!file) return;    
-            renderFile(file);    
-        });    
+            if(!file) return;
+            renderFile(file);
+        });
         /* drag */
         drop.addEventListener('dragover', e=>{
             e.preventDefault();
-        });    
+        });
         /* drop */
-        drop.addEventListener('drop', e=>{    
-            e.preventDefault();    
+        drop.addEventListener('drop', e=>{
+            e.preventDefault();
             const file = e.dataTransfer.files[0];
-            if(!file) return;    
-            input.files = e.dataTransfer.files;    
-            renderFile(file);    
-        });    
+            if(!file) return;
+            input.files = e.dataTransfer.files;
+            renderFile(file);
+        });
     }
 
 
@@ -1444,51 +1444,51 @@ function initClientPage($){
 
         const btn = document.getElementById('btnCheckBizStatus');
         if(!btn) return;
-    
+
         btn.addEventListener('click', async function(e){
-    
+
             e.preventDefault();
             e.stopPropagation();
-    
+
             const bizInput = document.getElementById('modal_business_number');
-    
+
             if(!bizInput){
                 console.error('사업자번호 input 없음');
                 return;
             }
-    
+
             const bizNo = bizInput.value.replace(/[^0-9]/g,'');
-    
+
             if(!bizNo){
                 AppCore.notify('warning','사업자번호를 입력하세요');
                 return;
             }
-    
+
             if(bizNo.length !== 10){
                 AppCore.notify('warning','사업자번호는 10자리입니다');
                 return;
             }
-    
+
             btn.disabled = true;
             btn.innerHTML = '조회중...';
-    
+
             try{
-    
+
                 const res = await checkBusinessStatus(bizNo);
 
                 if(!res || !res.data || res.data.status_code !== "OK"){
                     AppCore.notify('error','사업자 조회 실패');
                     return;
                 }
-                
+
                 if(!res.data.data || !res.data.data.length){
                     AppCore.notify('warning','조회 결과 없음');
                     return;
                 }
-                
+
                 const info = res.data.data[0];
                 const statusSelect = document.getElementById('modal_business_status');
-    
+
                 /* ===============================
                    🔥 상태 매핑
                 =============================== */
@@ -1500,97 +1500,97 @@ function initClientPage($){
                     "폐업자": "폐업",
                     "폐업": "폐업"
                 };
-    
+
                 /* ------------------------------
                    1. 정상 상태 (b_stt)
                 ------------------------------ */
                 if(info.b_stt){
-    
+
                     const mapped = STATUS_MAP[info.b_stt] ?? "";
-    
+
                     AppCore.notify('success', `사업자 상태 : ${info.b_stt}`);
-    
+
                     if(statusSelect){
                         statusSelect.value = mapped;
                         statusSelect.dispatchEvent(new Event('change'));
                     }
-    
+
                     return;
                 }
-    
+
                 /* ------------------------------
                    2. 미등록 사업자
                 ------------------------------ */
                 if(info.tax_type){
-    
+
                     AppCore.notify('warning', info.tax_type);
-    
+
                     if(statusSelect){
                         statusSelect.value = "";   // 🔥 선택 없음
                         statusSelect.dispatchEvent(new Event('change'));
                     }
-    
+
                     return;
                 }
-    
+
                 /* ------------------------------
                    3. 알 수 없는 상태
                 ------------------------------ */
                 AppCore.notify('warning','사업자 상태 확인 불가');
-    
+
             }catch(err){
-    
+
                 console.error(err);
                 AppCore.notify('error','사업자 조회 실패');
-    
+
             }finally{
-    
+
                 btn.disabled = false;
                 btn.innerHTML = '상태확인';
-    
+
             }
-    
+
         });
     }
 
     function maskRrn(rrn) {
         if (!rrn) return '';
-    
+
         const clean = String(rrn).replace(/\D/g, '');
-    
+
         if (clean.length <= 6) return clean;
-    
+
         return clean.substring(0, 6) + '-' + '********';
     }
-    
+
     function bindRrnInputEvents($) {
         $(document)
             .off('input.clientRrn focus.clientRrn blur.clientRrn', '#modal_rrn')
             .off('click.clientToggleRrn', '.toggle-rrn')
-    
+
             .on('input.clientRrn', '#modal_rrn', function () {
 
                 const $input = $(this);
                 let raw = onlyNumber($input.val());
-            
+
                 raw = raw.substring(0, 13);
-            
+
                 $input.data('real', raw);
-            
+
                 this.dataset.real = raw;   // 🔥 핵심 추가
-            
+
                 if (rrnVisible) {
                     $input.val(formatRrn(raw));
                 } else {
                     $input.val(maskRrn(raw));
                 }
             })
-    
+
             .on('focus.clientRrn', '#modal_rrn', function () {
-    
+
                 const $input = $(this);
                 const raw = onlyNumber($input.data('real') || '');
-    
+
                 // 🔥 절대 풀지 않는다
                 if (rrnVisible) {
                     $input.val(formatRrn(raw));
@@ -1598,25 +1598,25 @@ function initClientPage($){
                     $input.val(maskRrn(raw));
                 }
             })
-    
+
             .on('blur.clientRrn', '#modal_rrn', function () {
-    
+
                 if (rrnVisible) return;
-    
+
                 const $input = $(this);
                 const raw = onlyNumber($input.data('real') || '');
-    
+
                 $input.val(maskRrn(raw));
             })
-    
+
             .on('click.clientToggleRrn', '.toggle-rrn', function () {
-    
+
                 const $input = $('#modal_rrn');
                 const icon = this.querySelector('i');
                 const realVal = onlyNumber($input.data('real') || '');
-    
+
                 rrnVisible = !rrnVisible;
-    
+
                 if (rrnVisible) {
                     $input.val(formatRrn(realVal));
                     icon?.classList.replace('bi-eye', 'bi-eye-slash');
@@ -1629,14 +1629,12 @@ function initClientPage($){
 
     function formatRrn(rrn) {
         if (!rrn) return '';
-    
+
         const clean = String(rrn).replace(/\D/g, '');
-    
+
         if (clean.length <= 6) return clean;
-    
+
         return clean.substring(0, 6) + '-' + clean.substring(6);
     }
 
 })();
-
-

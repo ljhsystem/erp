@@ -14,7 +14,7 @@ class DataHelper
     
             // 1️⃣ 전체 조회 (삭제 포함)
             $stmt = $pdo->query("
-                SELECT id, deleted_at, code
+                SELECT id, deleted_at, sort_no
                 FROM system_coverimage_assets
             ");
     
@@ -23,7 +23,7 @@ class DataHelper
             // 2️⃣ 임시 이동 (충돌 방지)
             $pdo->exec("
                 UPDATE system_coverimage_assets
-                SET code = code + 100000
+                SET sort_no = sort_no + 100000
             ");
     
             // 3️⃣ 정렬 (🔥 핵심: 활성 먼저, 휴지통 뒤)
@@ -36,7 +36,7 @@ class DataHelper
                     return $aDeleted <=> $bDeleted;
                 }
     
-                return (int)$a['code'] <=> (int)$b['code'];
+                return (int)$a['sort_no'] <=> (int)$b['sort_no'];
             });
     
             // 4️⃣ 재부여
@@ -46,12 +46,12 @@ class DataHelper
     
                 $stmt = $pdo->prepare("
                     UPDATE system_coverimage_assets
-                    SET code = :code
+                    SET sort_no = :sort_no
                     WHERE id = :id
                 ");
     
                 $stmt->execute([
-                    ':code' => $seq++,
+                    ':sort_no' => $seq++,
                     ':id'   => $row['id']
                 ]);
             }

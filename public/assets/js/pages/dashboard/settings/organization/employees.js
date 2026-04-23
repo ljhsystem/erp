@@ -45,7 +45,7 @@ window.AdminPicker = AdminPicker;
        직원 컬럼 매핑
     ========================================================= */
     const EMPLOYEE_COLUMN_MAP = {
-        code:                 { label: '코드', visible: true },
+        sort_no:                 { label: '순번', visible: true },
         profile_image:        { label: '사진', visible: true },
         username:             { label: '아이디', visible: true },
         employee_name:        { label: '직원명', visible: true },
@@ -623,7 +623,7 @@ window.AdminPicker = AdminPicker;
         $('#employeeModalTitle').html('<i class="bi bi-person-plus"></i> 새 직원 추가');
     
         $('#edit_employee_id').val('');
-        $('#edit_employee_code').val('');
+        $('#edit_employee_sort_no').val('');
 
         AdminPicker.clearSelect2('#edit_department_select', true);
         AdminPicker.clearSelect2('#edit_position_select', true);
@@ -790,7 +790,7 @@ window.AdminPicker = AdminPicker;
         $('#edit_bank_file_delete').val('0');
 
         $('#edit_employee_id').val(row.id || '');
-        $('#edit_employee_code').val(row.code || '');
+        $('#edit_employee_sort_no').val(row.sort_no || '');
         $('#edit_employee_username').val(row.username || '');
         $('#edit_employee_name').val(row.employee_name || '');
         $('#edit_employee_email').val(row.email || '');
@@ -1039,9 +1039,9 @@ window.AdminPicker = AdminPicker;
         }
 
         $(document)
-            .off('focus.employeeCode')
-            .on('focus.employeeCode', '#edit_employee_code', function () {
-                notifyOnce('code', '코드는 자동 처리됩니다. 입력하지 마세요.');
+            .off('focus.employeeSortNo')
+            .on('focus.employeeSortNo', '#edit_employee_sort_no', function () {
+                notifyOnce('sort_no', '순번은 자동 처리됩니다. 입력하지 마세요.');
             });
 
         $(document)
