@@ -82,6 +82,28 @@ window.AdminPicker = AdminPicker;
         deleted_by_name:            { label: "삭제자", visible: false }
     };
 
+    function getProjectColumnAlignClass(field) {
+        if ([
+            'sort_no',
+            'employee_name',
+            'work_type',
+            'permit_date',
+            'contract_date',
+            'start_date',
+            'completion_date',
+            'bid_notice_date',
+            'is_active'
+        ].includes(field)) {
+            return 'text-center';
+        }
+
+        if (field === 'initial_contract_amount') {
+            return 'text-end';
+        }
+
+        return '';
+    }
+
     const DATE_OPTIONS = [
         { value: 'start_date', label: '착공일자' },
         { value: 'completion_date', label: '준공일자' },
@@ -422,7 +444,7 @@ window.AdminPicker = AdminPicker;
             api: API.LIST,
             columns: columns,
             defaultOrder: [[1, "asc"]],
-            pageLength: 10,
+            pageLength: 100,
             buttons: [
                 {
                     text: "엑셀관리",
@@ -715,17 +737,22 @@ window.AdminPicker = AdminPicker;
         columns.push({
             data:null,
             title: '<i class="bi bi-arrows-move"></i>',
-            width:"40px",
-            className:"reorder-handle no-colvis text-center",
+            className:"col-reorder reorder-handle no-colvis text-center",
+            headerClassName:"col-reorder no-colvis text-center",
             orderable:false,
             defaultContent:'<i class="bi bi-list"></i>',
         });
 
         Object.entries(PROJECT_COLUMN_MAP).forEach(([field, config]) => {
+            const alignClassName = getProjectColumnAlignClass(field);
+            const columnClassName = alignClassName || '';
+
             columns.push({
                 data: field,
                 title: config.label,
                 visible: config.visible ?? true,
+                className: columnClassName,
+                headerClassName: columnClassName,
                 defaultContent: "",
                 render: function(data){
                     if(data === null || data === undefined) return "";

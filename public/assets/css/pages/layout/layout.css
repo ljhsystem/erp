@@ -1,4 +1,4 @@
-﻿/* =========================================================
+/* =========================================================
    레이아웃 공용 CSS
    - UI 스킨 / 테마 / 밀도 / 폰트 / 버튼 / 모션 전부 연동
 ========================================================= */
@@ -144,6 +144,8 @@ body.font-scale-large { --font-scale: 1.06; }
   margin-left: var(--sidebar-width);
   margin-top: 0;
   box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: auto;
   transition: margin-left .2s ease;
 }
 
@@ -153,9 +155,11 @@ body.is-sidebar-collapsed .main-content {
 
 .app-shell {
   padding-top: calc(var(--header-height) - 20px);
-  min-height: calc(100vh - var(--footer-height));
+  height: calc(100vh - var(--footer-height));
+  min-height: 0;
   box-sizing: border-box;
   align-items: stretch;
+  overflow: hidden;
 }
 
 /* =========================================================
@@ -240,6 +244,26 @@ body.table-density-comfortable .table td { padding: 1rem; }
   width: 100%;
   min-width: 0;
   position: relative;
+}
+
+.dataTables_wrapper .dataTables_scroll {
+  height: 100%;
+  overflow: hidden;
+}
+
+.dataTables_wrapper .dataTables_scrollHeadInner,
+.dataTables_wrapper .dataTables_scrollHeadInner table.dataTable,
+.dataTables_wrapper .dataTables_scrollBody table.dataTable {
+  min-width: 100%;
+}
+
+.dataTables_wrapper .dataTables_scrollHead {
+  overflow: hidden !important;
+}
+
+.dataTables_wrapper .dataTables_scrollBody {
+  overflow-y: auto !important;
+  overflow-x: auto !important;
 }
 
 /* scrollY 사용 시 본문 테이블 안의 숨김 thead가 높이를 차지하지 않도록 한다. */
@@ -525,7 +549,8 @@ body.no-sidebar .main-content {
   display: flex;
   justify-content: center;   /* 🔥 핵심 */
   margin-top: calc(var(--header-height) - 4px);
-  min-height: calc(100vh - var(--header-height) - var(--footer-height));
+  height: calc(100vh - var(--header-height) - var(--footer-height));
+  min-height: 0;
 }
 
 body.no-sidebar .main-content > .container {
@@ -655,11 +680,11 @@ body.no-sidebar .main-content > .container {
 
 @supports (height: 100dvh) {
   .app-shell {
-    min-height: calc(100dvh - var(--footer-height));
+    height: calc(100dvh - var(--footer-height));
   }
 
   body.no-sidebar .main-content {
-    min-height: calc(100dvh - var(--header-height) - var(--footer-height));
+    height: calc(100dvh - var(--header-height) - var(--footer-height));
   }
 }
 

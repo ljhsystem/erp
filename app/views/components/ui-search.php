@@ -105,11 +105,11 @@ $showSearchTooltip = $showSearchTooltip ?? true;
 }
 
 </style>
-<div id="<?= $searchId ?>SearchFormContainer" class="search-form-container">
+<div id="<?= $searchId ?>SearchFormContainer" class="search-form-container collapsed">
 
     <span id="<?= $searchId ?>ToggleSearchForm" class="search-toggle-text">접기</span>
 
-    <div id="<?= $searchId ?>SearchFormBody" class="search-form-body">
+    <div id="<?= $searchId ?>SearchFormBody" class="search-form-body hidden">
 
         <label class="search-form-title">검색 폼</label>
 

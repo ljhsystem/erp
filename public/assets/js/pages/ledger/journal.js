@@ -658,7 +658,6 @@ window.AdminPicker = AdminPicker;
         return [
             {
                 title: '<i class="bi bi-arrows-move"></i>',
-                width: '40px',
                 className: 'reorder-handle no-colvis text-center',
                 orderable: false,
                 searchable: false,
@@ -667,7 +666,6 @@ window.AdminPicker = AdminPicker;
             {
                 data: 'sort_no',
                 title: '순번',
-                width: '90px',
                 className: 'text-center journal-sort-no-cell',
                 render(data, type, row) {
                     const sortNo = getVoucherSortNo(row);
@@ -682,7 +680,6 @@ window.AdminPicker = AdminPicker;
             {
                 data: 'voucher_no',
                 title: '전표번호',
-                width: '150px',
                 render(data) {
                     return escapeHtml(data || '');
                 },
@@ -690,7 +687,6 @@ window.AdminPicker = AdminPicker;
             {
                 data: 'voucher_date',
                 title: '전표일자',
-                width: '120px',
                 defaultContent: '',
                 render(data) {
                     return escapeHtml(data || '');
@@ -699,7 +695,6 @@ window.AdminPicker = AdminPicker;
             {
                 data: 'status',
                 title: '상태',
-                width: '110px',
                 defaultContent: '',
                 render(data) {
                     return escapeHtml(translateStatus(data));
@@ -708,7 +703,6 @@ window.AdminPicker = AdminPicker;
             {
                 data: 'type',
                 title: '타입',
-                width: '120px',
                 defaultContent: '',
                 render(data, type, row) {
                     return escapeHtml(translateType(data || row.ref_type));
@@ -726,7 +720,6 @@ window.AdminPicker = AdminPicker;
             {
                 data: 'updated_at',
                 title: '수정일시',
-                width: '150px',
                 name: 'updated_at',
                 render(data, type, row) {
                     return escapeHtml(data || row.created_at || '');
@@ -759,7 +752,6 @@ window.AdminPicker = AdminPicker;
             {
                 data: null,
                 title: '관리',
-                width: '140px',
                 className: 'text-center no-colvis',
                 orderable: false,
                 searchable: false,
@@ -959,7 +951,7 @@ window.AdminPicker = AdminPicker;
                 },
             ],
             defaultOrder: [[1, 'asc']],
-            pageLength: 10,
+            pageLength: 100,
         });
 
         bindRowReorder(journalTable, { api: API.reorder });

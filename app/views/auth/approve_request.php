@@ -146,8 +146,8 @@ try {
                 <p class="text-muted">가입일: <?= htmlspecialchars($formattedDate) ?></p>
 
 
-                <!-- action을 컨트롤러 승인 엔드포인트로 변경: /approve_user -->
-                <form method="post" action="<?= rtrim((string)ConfigHelper::get('App.BaseUrl', ''), '/') . '/approve_user' ?>" class="mt-4">
+                <!-- 승인 실행은 POST /api/auth/approval/approve 에서만 수행 -->
+                <form method="post" action="<?= rtrim((string)ConfigHelper::get('App.BaseUrl', ''), '/') . '/api/auth/approval/approve' ?>" class="mt-4">
                     <input type="hidden" name="code" value="<?= htmlspecialchars((string)$user['code'], ENT_QUOTES, 'UTF-8') ?>">
                     <!-- 클라이언트에서 승인자 이메일을 보내지 않음 (서버에서 토큰으로 결정) -->
                     <input type="hidden" name="approve_token" value="<?= htmlspecialchars($_GET['approve_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">

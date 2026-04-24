@@ -34,6 +34,11 @@
     line-height:1;
 }
 
+.project-page #project-table_wrapper table.dataTable th,
+.project-page #project-table_wrapper table.dataTable td {
+    vertical-align: middle;
+}
+
 /* ==============================
    MODAL SIZE ONLY
 ============================== */
