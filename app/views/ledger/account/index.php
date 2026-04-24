@@ -42,10 +42,10 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/account.js');
 
         <div class="content-area">
 
-            <div id="searchFormContainer" class="search-form-container">
+            <div id="searchFormContainer" class="search-form-container collapsed">
                 <span id="toggleSearchForm" class="search-toggle-text">접기</span>
 
-                <div id="searchFormBody" class="search-form-body">
+                <div id="searchFormBody" class="search-form-body hidden">
                     <label class="search-form-title">검색</label>
 
                     <div class="period-row">

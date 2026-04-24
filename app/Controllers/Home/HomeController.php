@@ -58,10 +58,6 @@ class HomeController
     // ============================================================
     public function webRoot()
     {
-        if ($this->authSessionService->isAuthenticated()) {
-            header("Location: /dashboard");
-            exit;
-        }
         header("Location: /home");
         exit;
     }    

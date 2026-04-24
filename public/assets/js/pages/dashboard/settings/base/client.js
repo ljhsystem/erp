@@ -649,7 +649,7 @@ function initClientPage($){
             api: API.LIST,
             columns: columns,
             defaultOrder: [[1, "asc"]],
-            pageLength: 10,
+            pageLength: 100,
             buttons: [
                 {
                     text: "엑셀관리",

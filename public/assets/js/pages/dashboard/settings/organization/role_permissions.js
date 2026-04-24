@@ -172,7 +172,7 @@
         },
 
         loadRoleList() {
-            $.post(API_ROLE_LIST, {}, (res) => {
+            $.get(API_ROLE_LIST, (res) => {
                 if (!res || res.success === false) return;
 
                 const rows = (Array.isArray(res.data) ? res.data : []).sort((a, b) => {
@@ -237,7 +237,7 @@
             if (!selectedRoleId) return;
 
             $.when(
-                $.post(API_PERM_LIST, {}),
+                $.get(API_PERM_LIST),
                 $.post(API_ROLE_PERMISSIONS, { role_id: selectedRoleId })
             ).done((permRes, assignedRes) => {
                 const permissionsRes = permRes[0];
@@ -292,6 +292,7 @@
                     rowGroup: { dataSrc: "category" },
                     scrollY: 500,
                     scrollCollapse: true,
+                    autoWidth: true,
                     columns: [
                         { data: "category" },
                         { data: "permission_name" },
@@ -308,7 +309,15 @@
                                 `;
                             }
                         }
-                    ]
+                    ],
+                    initComplete: function () {
+                        const table = this.api();
+                        table.columns.adjust();
+
+                        setTimeout(() => {
+                            table.columns.adjust().draw(false);
+                        }, 100);
+                    }
                 });
 
                 permissionTable.rows.add(merged).draw();
@@ -320,7 +329,7 @@
                     if (permissionTable.fixedHeader) {
                         permissionTable.fixedHeader.adjust();
                     }
-                }, 50);
+                }, 100);
             });
         },
 

@@ -545,7 +545,7 @@ window.AdminPicker = AdminPicker;
             api: API.LIST,
             columns,
             defaultOrder: [[1, 'asc']],
-            pageLength: 10,
+            pageLength: 100,
             buttons: [
                 {
                     text: '휴지통',
@@ -635,7 +635,6 @@ window.AdminPicker = AdminPicker;
         columns.push({
             data: null,
             title: '<i class="bi bi-arrows-move"></i>',
-            width: '40px',
             className: 'reorder-handle no-colvis text-center',
             orderable: false,
             searchable: false,
@@ -893,6 +892,10 @@ window.AdminPicker = AdminPicker;
 
         if (!container || !body || !btn) return;
 
+        container.classList.add('collapsed');
+        body.classList.add('hidden');
+        btn.textContent = '\uC5F4\uAE30';
+
         btn.addEventListener('click', () => {
             body.classList.toggle('hidden');
             container.classList.toggle('collapsed');
@@ -901,7 +904,7 @@ window.AdminPicker = AdminPicker;
             btn.textContent = hidden ? '\uC5F4\uAE30' : '\uC811\uAE30';
 
             if (coverTable) {
-                coverTable.page.len(hidden ? 100 : 10).draw(false);
+                coverTable.page.len(100).draw(false);
                 updateTableHeight(coverTable, DOM.table);
                 coverTable.columns.adjust().draw(false);
             }

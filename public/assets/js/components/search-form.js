@@ -1,8 +1,7 @@
 // 경로: /assets/js/components/search-form.js
 import {
     updateTableHeight,
-    forceTableHeightSync,
-    animateSearchFormRelayout
+    forceTableHeightSync
 } from '/public/assets/js/components/data-table.js';
 
 export function SearchForm(config){
@@ -20,6 +19,9 @@ export function SearchForm(config){
 
     const $ = window.jQuery;
     const MAX_CONDITION = 5;
+    const DEFAULT_PAGE_LENGTH = 100;
+    const OPEN_LABEL = '\uC5F4\uAE30';
+    const CLOSE_LABEL = '\uC811\uAE30';
 
     const formId          = `#${tableId}SearchConditionsForm`;
     const conditionsId    = `#${tableId}SearchConditions`;
@@ -42,6 +44,37 @@ export function SearchForm(config){
     populateFirstSearchFields();
     populateDateOptions(dateOptions);
     bindPeriodButtons();
+    applyInitialState();
+
+    function applyInitialState(){
+        if(containerEl){
+            containerEl.classList.add('collapsed');
+        }
+
+        if(bodyEl){
+            bodyEl.classList.add('hidden');
+        }
+
+        if(toggleBtnEl){
+            toggleBtnEl.textContent = OPEN_LABEL;
+        }
+
+        if(!table){
+            return;
+        }
+
+        if(table.page.len() !== DEFAULT_PAGE_LENGTH){
+            table.page.len(DEFAULT_PAGE_LENGTH).draw(false);
+        }
+
+        updateTableHeight(table, `#${tableId}-table`);
+
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                forceTableHeightSync(table, `#${tableId}-table`);
+            });
+        });
+    }
 
     function bindToggle(){
         if(!containerEl || !bodyEl || !toggleBtnEl) return;
@@ -54,19 +87,17 @@ export function SearchForm(config){
             toggleBtnEl.textContent = hidden ? '열기' : '접기';
 
             if(table){
-                if(hidden){
-                    table.page.len(100).draw(false);
-                }else{
-                    table.page.len(10).draw(false);
-                }
-
-                updateTableHeight(table, `#${tableId}-table`);
-                animateSearchFormRelayout(table, `#${tableId}-table`, 320);
-
-                setTimeout(() => {
-                    forceTableHeightSync(table, `#${tableId}-table`);
-                }, 340);
+                table.page.len(DEFAULT_PAGE_LENGTH).draw(false);
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        updateTableHeight(table, `#${tableId}-table`);
+                        table.columns.adjust().draw(false);
+                        forceTableHeightSync(table, `#${tableId}-table`);
+                    });
+                });
             }
+
+            toggleBtnEl.textContent = hidden ? OPEN_LABEL : CLOSE_LABEL;
         });
     }
 
@@ -164,9 +195,11 @@ export function SearchForm(config){
             updateRemoveButtons();
 
             if(table){
-                setTimeout(() => {
-                    forceTableHeightSync(table, `#${tableId}-table`);
-                }, 30);
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        forceTableHeightSync(table, `#${tableId}-table`);
+                    });
+                });
             }
         });
 
@@ -193,9 +226,11 @@ export function SearchForm(config){
                 onAfterReset();
             }
 
-            setTimeout(() => {
-                forceTableHeightSync(table, `#${tableId}-table`);
-            }, 30);
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    forceTableHeightSync(table, `#${tableId}-table`);
+                });
+            });
         });
 
         $(addBtnId).off('click.searchFormAdd').on('click.searchFormAdd', function(){
@@ -230,9 +265,11 @@ export function SearchForm(config){
             $(`${conditionsId} .search-condition:last`).after(html);
             updateRemoveButtons();
 
-            setTimeout(() => {
-                forceTableHeightSync(table, `#${tableId}-table`);
-            }, 30);
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    forceTableHeightSync(table, `#${tableId}-table`);
+                });
+            });
         });
     }
 

@@ -113,7 +113,7 @@ class AdminApprovalMail
         }
 
         $approveUrl = sprintf(
-            '%s/approve_request?code=%s%s',
+            '%s/auth/approval/request?code=%s%s',
             $baseUrl,
             urlencode($this->userCode),
             $token ? '&approve_token=' . urlencode($token) : ''

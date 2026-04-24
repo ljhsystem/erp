@@ -1,6 +1,6 @@
 {
   
-  "IsDevelopment": false,
+  "IsDevelopment": true,
 
   "App": {
     "BaseUrl": "http://localhost:8000"

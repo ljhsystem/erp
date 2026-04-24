@@ -3,6 +3,8 @@
 namespace Core\Middleware;
 
 use App\Services\Auth\AuthSessionService;
+use App\Services\Auth\PermissionService;
+use Core\Database;
 
 class AuthMiddleware
 {
@@ -20,7 +22,7 @@ class AuthMiddleware
             }
 
             if ($loggedIn) {
-                self::redirect('/dashboard', $isApi);
+                self::redirect(self::authenticatedLanding($authSession), $isApi);
             }
 
             return;
@@ -41,7 +43,7 @@ class AuthMiddleware
             }
 
             if ($loggedIn) {
-                self::redirect('/dashboard', $isApi);
+                self::redirect(self::authenticatedLanding($authSession), $isApi);
             }
 
             if ($status === null) {
@@ -88,6 +90,27 @@ class AuthMiddleware
 
         header('Location: /login');
         exit;
+    }
+
+    private static function authenticatedLanding(AuthSessionService $authSession): string
+    {
+        $userId = $authSession->getCurrentUserId();
+
+        if (!$userId) {
+            return '/home';
+        }
+
+        try {
+            $permissionService = new PermissionService(Database::getInstance()->getConnection());
+
+            if ($permissionService->hasPermission((string) $userId, 'web.dashboard.main')) {
+                return '/dashboard';
+            }
+        } catch (\Throwable) {
+            // Fall back to the public home page if permission resolution fails.
+        }
+
+        return '/home';
     }
 
     private static function redirect(string $location, bool $isApi): void

@@ -161,6 +161,10 @@ document.addEventListener('trash:detail-render', async function(event) {
         const body = document.getElementById('searchFormBody');
         const btn = document.getElementById('toggleSearchForm');
 
+        if (container) container.classList.add('collapsed');
+        if (body) body.classList.add('hidden');
+        if (btn) btn.textContent = '\uC5F4\uAE30';
+
         btn.addEventListener('click', () => {
 
             body.classList.toggle('hidden');
@@ -173,23 +177,25 @@ document.addEventListener('trash:detail-render', async function(event) {
                 accountTable.page.len(100).draw(false);
             }else{
                 btn.textContent = '접기';
-                accountTable.page.len(10).draw(false);
+                accountTable.page.len(100).draw(false);
             }
 
             /* 즉시 1차 반영 */
-            updateTableHeight();
+            btn.textContent = hidden ? '\uC5F4\uAE30' : '\uC811\uAE30';
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    updateTableHeight();
 
-            if(accountTable){
-                accountTable.columns.adjust().draw(false);
-            }
+                    if(accountTable){
+                        accountTable.columns.adjust().draw(false);
+                    }
+
+                    forceTableHeightSync();
+                });
+            });
 
             /* 토글 애니메이션 동안 계속 보정 */
-            animateSearchFormRelayout(280);
-
             /* transition 끝난 뒤 최종 보정 */
-            setTimeout(() => {
-                forceTableHeightSync();
-            }, 300);
         });
 
 
@@ -1103,6 +1109,9 @@ document.addEventListener('trash:detail-render', async function(event) {
         const tableWrapper = document.querySelector('#account-table_wrapper');
         const dtTop = document.querySelector('#account-table_wrapper .dt-top');
         const dtBottom = document.querySelector('#account-table_wrapper .dt-bottom');
+        const scrollHead = document.querySelector('#account-table_wrapper .dataTables_scrollHead');
+        const scrollBody = document.querySelector('#account-table_wrapper .dataTables_scrollBody');
+        const footer = document.querySelector('.footer.footer-fixed');
 
         if (!main || !tableBox || !tableWrapper) {
             return 320;
@@ -1111,24 +1120,41 @@ document.addEventListener('trash:detail-render', async function(event) {
         const mainRect = main.getBoundingClientRect();
         const tableBoxRect = tableBox.getBoundingClientRect();
 
+        const mainStyle = window.getComputedStyle(main);
         const tableBoxStyle = window.getComputedStyle(tableBox);
         const tableBoxPaddingTop = parseFloat(tableBoxStyle.paddingTop) || 0;
         const tableBoxPaddingBottom = parseFloat(tableBoxStyle.paddingBottom) || 0;
+        const tableBoxBorderTop = parseFloat(tableBoxStyle.borderTopWidth) || 0;
+        const tableBoxBorderBottom = parseFloat(tableBoxStyle.borderBottomWidth) || 0;
+        const tableBoxMarginBottom = parseFloat(tableBoxStyle.marginBottom) || 0;
+        const mainPaddingBottom = parseFloat(mainStyle.paddingBottom) || 0;
 
         const dtTopHeight = dtTop ? dtTop.offsetHeight : 0;
         const dtBottomHeight = dtBottom ? dtBottom.offsetHeight : 0;
-
-        /* 하단 여유 */
-        const gapToBottom = 100;
+        const scrollHeadHeight = scrollHead ? scrollHead.offsetHeight : 0;
+        const footerTop = footer?.getBoundingClientRect?.().top;
+        const bottomLimit = Number.isFinite(footerTop)
+            ? Math.min(footerTop, mainRect.bottom - mainPaddingBottom)
+            : mainRect.bottom - mainPaddingBottom;
+        const estimatedScrollBodyTop =
+            tableBoxRect.top
+            + tableBoxPaddingTop
+            + tableBoxBorderTop
+            + dtTopHeight
+            + scrollHeadHeight;
+        const scrollBodyTop = scrollBody
+            ? scrollBody.getBoundingClientRect().top
+            : estimatedScrollBodyTop;
+        const safetyGap = 4;
 
         const available =
-            mainRect.bottom
-            - tableBoxRect.top
-            - tableBoxPaddingTop
-            - tableBoxPaddingBottom
-            - dtTopHeight
+            bottomLimit
+            - scrollBodyTop
             - dtBottomHeight
-            - gapToBottom;
+            - tableBoxPaddingBottom
+            - tableBoxBorderBottom
+            - tableBoxMarginBottom
+            - safetyGap;
 
         return Math.max(220, Math.floor(available));
     }
@@ -1219,7 +1245,7 @@ document.addEventListener('trash:detail-render', async function(event) {
             processing: true,
             deferRender: true,
 
-            responsive: true,
+            responsive: false,
             autoWidth: true,
 
             language: {
@@ -1233,9 +1259,9 @@ document.addEventListener('trash:detail-render', async function(event) {
 
             order: [[1, 'asc']],
 
-            pageLength: 10,
+            pageLength: 100,
 
-            lengthMenu: [5, 10, 20, 50, 100],
+            lengthMenu: [10, 25, 50, 100],
 
             infoCallback: function(settings, start, end, max, total){
                 const displayLength = Number(settings._iDisplayLength || 10);
@@ -1247,6 +1273,18 @@ document.addEventListener('trash:detail-render', async function(event) {
                     : 0;
 
                 return `${currentPage} / ${totalPages} 페이지 (총 ${max}건 / 검색 ${total}건)`;
+            },
+
+            initComplete: function () {
+                const table = this.api();
+                table.columns.adjust();
+
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        updateTableHeight();
+                        table.columns.adjust().draw(false);
+                    });
+                });
             },
 
             buttons: [

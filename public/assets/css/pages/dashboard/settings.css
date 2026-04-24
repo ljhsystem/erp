@@ -16,6 +16,9 @@
     overflow-x: hidden;
     background: transparent;
     font-size: var(--font-size);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .settings-page-header {
@@ -119,6 +122,113 @@
     padding: var(--padding);
     overflow: hidden;
     min-width: 0;
+    min-height: 0;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.settings-main .account-page,
+.settings-main .card-page,
+.settings-main .client-page,
+.settings-main .cover-page,
+.settings-main .department-page,
+.settings-main .employee-page,
+.settings-main .permission-page,
+.settings-main .position-page,
+.settings-main .project-page,
+.settings-main .role-page,
+.settings-main .role-permission-page {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.settings-main .content-area,
+.settings-main .table-box,
+.settings-main .table-responsive,
+.settings-main .dataTables_wrapper,
+.settings-main .dataTables_scroll,
+.settings-main .dataTables_scrollBody {
+    min-height: 0;
+}
+
+.settings-main .content-area,
+.settings-main .table-box {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.settings-main .content-area {
+    gap: 14px;
+}
+
+.settings-main .table-box > .table-toolbar,
+.settings-main .table-box > .table-footer {
+    flex: 0 0 auto;
+}
+
+.settings-main .table-box > .table-responsive,
+.settings-main .table-box .dataTables_wrapper {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.settings-main .table-box > .table-responsive {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.settings-main .table-box .dataTables_wrapper,
+.settings-main .table-box .dataTables_scroll {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.settings-main .table-box .dataTables_scroll {
+    flex: 1 1 auto;
+}
+
+.settings-main .table-box .dataTables_scrollBody {
+    flex: 1 1 auto;
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+}
+
+@supports selector(.main-content:has(> .settings-main)) {
+    .app-shell:has(.settings-main) {
+        height: calc(100vh - var(--footer-height));
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .main-content:has(> .settings-main) {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .main-content:has(> .settings-main) > .settings-main {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+    }
+}
+
+@supports (height: 100dvh) {
+    @supports selector(.app-shell:has(.settings-main)) {
+        .app-shell:has(.settings-main) {
+            height: calc(100dvh - var(--footer-height));
+        }
+    }
 }
 
 /* ==========================================================

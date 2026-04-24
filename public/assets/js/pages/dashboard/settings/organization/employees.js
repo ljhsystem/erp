@@ -311,7 +311,7 @@ window.AdminPicker = AdminPicker;
             api: API.LIST,
             columns,
             defaultOrder: [[1, 'asc']],
-            pageLength: 10,
+            pageLength: 100,
             buttons: [
                 {
                     text: '새 직원 추가',
@@ -350,7 +350,6 @@ window.AdminPicker = AdminPicker;
 
         columns.push({
             title: '<i class="bi bi-arrows-move"></i>',
-            width: '40px',
             className: 'reorder-handle no-colvis text-center',
             orderable: false,
             searchable: false,

@@ -11,6 +11,74 @@
 
 const __dtAdjustState = new WeakMap();
 
+if (!window.__dtLayoutRefreshBound) {
+    window.__dtLayoutRefreshBound = true;
+
+    document.addEventListener('shown.bs.tab', () => {
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                window.dispatchEvent(new Event('resize'));
+            });
+        });
+    });
+}
+
+function toNumber(value) {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getOuterHeight(element) {
+    if (!element) {
+        return 0;
+    }
+
+    const style = window.getComputedStyle(element);
+    return element.offsetHeight
+        + toNumber(style.marginTop)
+        + toNumber(style.marginBottom);
+}
+
+function getViewportBottomLimit() {
+    const fixedFooter = document.querySelector('.footer.footer-fixed');
+    const footerTop = fixedFooter?.getBoundingClientRect?.().top;
+
+    if (Number.isFinite(footerTop) && footerTop > 0) {
+        return footerTop;
+    }
+
+    return window.innerHeight;
+}
+
+function tokenizeClasses(...values) {
+    return values
+        .flatMap((value) => String(value || '').split(/\s+/))
+        .map((token) => token.trim())
+        .filter(Boolean);
+}
+
+function applyColumnHeaderClasses(table, columns = []) {
+    if (!table || !Array.isArray(columns) || columns.length === 0) {
+        return;
+    }
+
+    const originalHeaders = Array.from(table.table().header()?.querySelectorAll('th') || []);
+    const wrapper = table.table().container();
+    const scrollHeaders = Array.from(wrapper?.querySelectorAll('.dataTables_scrollHead th') || []);
+
+    columns.forEach((column, index) => {
+        const classes = tokenizeClasses(column.className, column.headerClassName);
+        if (classes.length === 0) {
+            return;
+        }
+
+        [originalHeaders[index], scrollHeaders[index]].forEach((headerNode) => {
+            if (!headerNode) return;
+            headerNode.classList.add(...classes);
+        });
+    });
+}
+
 /* =========================================================
    내부 유틸: adjust 스케줄링
 ========================================================= */
@@ -98,10 +166,13 @@ export function createDataTable(config){
         columns,
         buttons = [],
         defaultOrder = [[0, "desc"]],
-        pageLength = 10
+        pageLength = 100,
+        responsive = false,
+        autoWidth = true
     } = config;
 
     const $ = window.jQuery;
+    const tableColumns = Array.isArray(columns) ? columns : [];
 
     const table = $(tableSelector).DataTable({
 
@@ -115,10 +186,10 @@ export function createDataTable(config){
             }
         },
 
-        columns,
+        columns: tableColumns,
         order: defaultOrder,
         pageLength,
-        lengthMenu: [5,10,20,50,100],
+        lengthMenu: [10,25,50,100],
 
         rowReorder: {
             selector: 'td.reorder-handle',
@@ -129,8 +200,8 @@ export function createDataTable(config){
         scrollX: true,
         scrollCollapse: true,
 
-        responsive: true,
-        autoWidth: false,
+        responsive,
+        autoWidth,
         deferRender: true,
         paging: true,
         processing: true,
@@ -174,10 +245,15 @@ export function createDataTable(config){
         initComplete: function () {
             const api = this.api();
 
+            applyColumnHeaderClasses(api, tableColumns);
             applyScrollHeight(api, tableSelector);
-            scheduleAdjust(api, {
-                draw: false,
-                delay: 60
+            api.columns.adjust();
+
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    applyScrollHeight(api, tableSelector);
+                    api.columns.adjust().draw(false);
+                });
             });
         }
     });
@@ -200,11 +276,22 @@ export function createDataTable(config){
        컬럼 보이기/숨기기 후 안정화
     ========================================================= */
     table.on('column-visibility.dt responsive-resize.dt', function () {
+        applyColumnHeaderClasses(table, tableColumns);
         applyScrollHeight(table, tableSelector);
         scheduleAdjust(table, {
             draw: false,
-            delay: 50
+            delay: 100
         });
+    });
+
+    const handleResize = () => {
+        applyScrollHeight(table, tableSelector);
+        table.columns.adjust().draw(false);
+    };
+
+    window.addEventListener('resize', handleResize);
+    table.on('destroy.dt', function () {
+        window.removeEventListener('resize', handleResize);
     });
 
     return table;
@@ -222,16 +309,41 @@ export function getTableHeight(tableSelector){
     if(!box) return 300;
 
     const rect = box.getBoundingClientRect();
+    const mainContent = box.closest('.main-content');
+    const mainRect = mainContent?.getBoundingClientRect();
+    const mainStyle = mainContent ? window.getComputedStyle(mainContent) : null;
+    const boxStyle = window.getComputedStyle(box);
+    const wrapper = box.querySelector('.dataTables_wrapper');
+    const scrollBody = wrapper?.querySelector('.dataTables_scrollBody');
+    const toolbar = box.querySelector('.table-toolbar');
+    const footer = box.querySelector('.table-footer');
+    const dtTop = wrapper?.querySelector('.dt-top');
+    const dtBottom = wrapper?.querySelector('.dt-bottom');
+    const scrollHead = wrapper?.querySelector('.dataTables_scrollHead');
+    const viewportBottom = getViewportBottomLimit();
+    const mainPaddingBottom = toNumber(mainStyle?.paddingBottom);
+    const mainBottom = mainRect
+        ? mainRect.bottom - mainPaddingBottom
+        : viewportBottom;
+    const bottomLimit = Math.min(viewportBottom, mainBottom);
+    const estimatedScrollBodyTop = rect.top
+        + toNumber(boxStyle.paddingTop)
+        + toNumber(boxStyle.borderTopWidth)
+        + getOuterHeight(toolbar)
+        + getOuterHeight(dtTop)
+        + getOuterHeight(scrollHead);
+    const scrollBodyTop = scrollBody
+        ? scrollBody.getBoundingClientRect().top
+        : estimatedScrollBodyTop;
+    const bottomInset = getOuterHeight(dtBottom)
+        + getOuterHeight(footer)
+        + toNumber(boxStyle.paddingBottom)
+        + toNumber(boxStyle.borderBottomWidth)
+        + toNumber(boxStyle.marginBottom);
+    const safetyGap = 4;
+    const availableHeight = bottomLimit - scrollBodyTop - bottomInset - safetyGap;
 
-    const searchContainer = box
-        .closest('.content-area')
-        ?.querySelector('.search-form-container');
-
-    const isCollapsed = searchContainer?.classList.contains('collapsed');
-
-    const bottomGap = isCollapsed ? 187 : 187;
-
-    return window.innerHeight - rect.top - bottomGap;
+    return Math.max(180, Math.floor(availableHeight));
 }
 
 /* =========================================================

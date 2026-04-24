@@ -52,7 +52,13 @@ class PermissionMiddleware
 
         $userId = (string)$user['id'];
 
-        if (!empty($user['roles']) && is_array($user['roles']) && in_array('super_admin', $user['roles'], true)) {
+        $sessionRoles = $user['roles'] ?? [];
+        if (!is_array($sessionRoles)) {
+            $sessionRoles = [];
+        }
+
+        $roleKey = strtolower(trim((string)($user['role_key'] ?? '')));
+        if (in_array('super_admin', $sessionRoles, true) || $roleKey === 'super_admin') {
             return;
         }
 

@@ -58,9 +58,16 @@ class Router
         }
 
         if (is_array($permission)) {
-            $permission['skip'] = (bool) ($permission['skip'] ?? false);
+            $permission['permissions'] = is_array($permission['permissions'] ?? null)
+                ? $permission['permissions']
+                : [];
+            $permission['skip_permission'] = (bool) ($permission['skip_permission'] ?? false);
 
-            if (!$permission['skip'] && !empty($permission['key'])) {
+            if (
+                !$permission['skip_permission'] &&
+                !empty($permission['key']) &&
+                $permission['permissions'] !== []
+            ) {
                 PermissionRegistry::register(
                     $permission['key'],
                     $permission['name'] ?? null,
@@ -73,6 +80,17 @@ class Router
         }
 
         return null;
+    }
+
+    private function shouldCheckPermission(array $meta): bool
+    {
+        if (!empty($meta['skip_permission']) || empty($meta['key'])) {
+            return false;
+        }
+
+        $permissions = $meta['permissions'] ?? [];
+
+        return is_array($permissions) && $permissions !== [];
     }
 
     private function normalize(string $uri): string
@@ -107,10 +125,7 @@ class Router
 
             AuthMiddleware::handle($path, $route);
 
-            if (
-                !empty($route['permission']['key']) &&
-                empty($route['permission']['skip'])
-            ) {
+            if ($this->shouldCheckPermission($route['permission'] ?? [])) {
                 PermissionMiddleware::check($route['permission']);
             }
 

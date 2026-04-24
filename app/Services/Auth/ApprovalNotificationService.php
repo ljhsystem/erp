@@ -33,7 +33,7 @@ class ApprovalNotificationService
         }
 
         $url = $baseUrl
-             . '/approve_request?'
+             . '/auth/approval/request?'
              . 'code=' . urlencode($user['code'])
              . '&approve_token=' . urlencode($token);
 

@@ -37,14 +37,21 @@ class AuthSessionService
 
     private function normalizeUser(array $user): array
     {
+        $roles = [];
+        $roleKey = trim((string)($user['role_key'] ?? ''));
+        if ($roleKey !== '') {
+            $roles[] = $roleKey;
+        }
+
         return [
             'id'        => $user['id'] ?? null,
             'username'  => $user['username'] ?? null,
             'role_id'   => $user['role_id'] ?? null,
-            'role_key'  => $user['role_key'] ?? null,
+            'role_key'  => $roleKey !== '' ? $roleKey : null,
             'role_name' => $user['role_name'] ?? null,
             'employee_name' => $user['employee_name'] ?? null,
             'email'     => $user['email'] ?? null,
+            'roles'     => $roles,
         ];
     }
 
