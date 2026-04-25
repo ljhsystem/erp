@@ -34,24 +34,20 @@ $enableReorder  = $enableReorder  ?? false;
 
     </div>
 
-    <!-- 테이블 -->
-    <div class="table-responsive">
+    <!-- 테이블: DataTables scrollX가 스크롤 래퍼를 직접 관리한다. -->
+    <table id="<?= $tableId ?>"
+           class="<?= $tableClass ?>"
+           style="width:100%;">
 
-        <table id="<?= $tableId ?>"
-               class="<?= $tableClass ?>"
-               style="width:100%;">
+        <thead>
+            <tr>
+                <!-- JS에서 자동 생성 -->
+            </tr>
+        </thead>
 
-            <thead>
-                <tr>
-                    <!-- JS에서 자동 생성 -->
-                </tr>
-            </thead>
+        <tbody></tbody>
 
-            <tbody></tbody>
-
-        </table>
-
-    </div>
+    </table>
 
     <!-- 하단 영역 -->
     <div class="table-footer d-flex justify-content-between align-items-center">

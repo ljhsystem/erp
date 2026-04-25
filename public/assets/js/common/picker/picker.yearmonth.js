@@ -1,8 +1,6 @@
 import { createPickerCore } from './ui.state.js';
 
 export function createYearMonthPicker({ container, yearMin, yearMax } = {}) {
-  console.log('[picker.yearmonth] create called', { container, yearMin, yearMax });
-
   const now = new Date();
   const picker = createPickerCore({ time: false });
 
@@ -29,7 +27,6 @@ export function createYearMonthPicker({ container, yearMin, yearMax } = {}) {
   }
 
   function selectMonth(year, month) {
-    console.log('[picker.yearmonth] select month', { year, month: month + 1 });
     picker.setView(year, month);
     picker.setDate(new Date(year, month, 1));
   }
@@ -138,7 +135,13 @@ export function createYearMonthPicker({ container, yearMin, yearMax } = {}) {
     clearBtn.type = 'button';
     clearBtn.className = 'picker-btn';
     clearBtn.textContent = '\uC9C0\uC6B0\uAE30';
-    clearBtn.onclick = () => picker.clearDate();
+    clearBtn.onclick = () => {
+      picker.clearDate();
+
+      if (typeof picker.onClear === 'function') {
+        picker.onClear();
+      }
+    };
 
     footer.append(currentBtn, clearBtn);
     return footer;
@@ -168,8 +171,6 @@ export function createYearMonthPicker({ container, yearMin, yearMax } = {}) {
   picker.subscribe(scheduleRender);
   picker.setYearMonth = setYearMonth;
   render();
-
-  console.log('[picker.yearmonth] ready');
 
   return picker;
 }

@@ -1,10 +1,8 @@
-// 경로: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/organization/roles.js'
+﻿// 寃쎈줈: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/organization/roles.js'
 
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import {
     createDataTable,
-    updateTableHeight,
-    forceTableHeightSync,
     bindTableHighlight
 } from '/public/assets/js/components/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
@@ -24,18 +22,18 @@ window.AdminPicker = AdminPicker;
     };
 
     const ROLE_COLUMN_MAP = {
-        sort_no:        { label: '순번', visible: true },
+        sort_no:        { label: '?쒕쾲', visible: true },
         role_key:    { label: 'Role Key', visible: true },
         role_name:   { label: 'Role Name', visible: true },
-        description: { label: '설명', visible: true },
-        is_active:   { label: '상태', visible: true, noVis: true },
-        created_at:  { label: '등록일자', visible: false },
-        updated_at:  { label: '수정일자', visible: false }
+        description: { label: '?ㅻ챸', visible: true },
+        is_active:   { label: '?곹깭', visible: true, noVis: true },
+        created_at:  { label: '?깅줉?쇱옄', visible: false },
+        updated_at:  { label: '?섏젙?쇱옄', visible: false }
     };
 
     const DATE_OPTIONS = [
-        { value: 'created_at', label: '등록일자' },
-        { value: 'updated_at', label: '수정일자' }
+        { value: 'created_at', label: '?깅줉?쇱옄' },
+        { value: 'updated_at', label: '?섏젙?쇱옄' }
     ];
 
     let roleTable = null;
@@ -60,7 +58,6 @@ window.AdminPicker = AdminPicker;
         bindRowReorder(roleTable, { api: API.REORDER });
         bindTableEvents($);
         bindModalEvents($);
-        bindTableLayoutEvents(roleTable, '#role-table');
         bindGlobalEvents();
     }
 
@@ -158,10 +155,10 @@ window.AdminPicker = AdminPicker;
             api: API.LIST,
             columns,
             defaultOrder: [[1, 'asc']],
-            pageLength: 100,
+            pageLength: 10,
             buttons: [
                 {
-                    text: '새 역할',
+                    text: '????븷',
                     className: 'btn btn-primary btn-sm',
                     action: function () {
                         openCreateModal();
@@ -184,8 +181,6 @@ window.AdminPicker = AdminPicker;
                 defaultSearchField: 'role_name',
                 dateOptions: DATE_OPTIONS
             });
-
-            updateTableHeight(roleTable, '#role-table');
             bindTableHighlight('#role-table', roleTable);
 
             roleTable.on('draw', updateRoleCountFromTable);
@@ -217,8 +212,8 @@ window.AdminPicker = AdminPicker;
 
                     if (field === 'is_active') {
                         return String(data) === '1'
-                            ? '<span class="badge bg-success">활성</span>'
-                            : '<span class="badge bg-secondary">비활성</span>';
+                            ? '<span class="badge bg-success">?쒖꽦</span>'
+                            : '<span class="badge bg-secondary">鍮꾪솢??/span>';
                     }
 
                     return escapeHtml(data);
@@ -297,7 +292,7 @@ window.AdminPicker = AdminPicker;
 
     function setRoleModalMode(mode) {
         const isCreate = mode === 'create';
-        $('#roleEditModal .modal-title').text(isCreate ? '역할 등록' : '역할 수정');
+        $('#roleEditModal .modal-title').text(isCreate ? '??븷 ?깅줉' : '??븷 ?섏젙');
         $('#role_edit_delete_btn')
             .text('\uC601\uAD6C\uC0AD\uC81C')
             .toggle(!isCreate);
@@ -318,7 +313,7 @@ window.AdminPicker = AdminPicker;
         const roleName = String($('#role_edit_name').val() || '').trim();
 
         if (!roleKey || !roleName) {
-            notify('warning', 'Role Key와 Role Name을 입력하세요.');
+            notify('warning', 'Role Key? Role Name???낅젰?섏꽭??');
             return;
         }
 
@@ -339,12 +334,12 @@ window.AdminPicker = AdminPicker;
                 return;
             }
 
-            notify('success', '저장되었습니다.');
+            notify('success', '??λ릺?덉뒿?덈떎.');
             roleModal?.hide();
             reloadRoleTable();
         } catch (err) {
             console.error('[roles.js] save failed:', err);
-            notify('error', '저장 중 오류가 발생했습니다.');
+            notify('error', '???以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.');
         }
     }
 
@@ -362,29 +357,28 @@ window.AdminPicker = AdminPicker;
             const json = await res.json();
 
             if (!json?.success) {
-                notify('error', json?.message || '삭제 실패');
+                notify('error', json?.message || '??젣 ?ㅽ뙣');
                 return;
             }
 
-            notify('success', '삭제되었습니다.');
+            notify('success', '??젣?섏뿀?듬땲??');
             roleModal?.hide();
             reloadRoleTable();
         } catch (err) {
             console.error('[roles.js] delete failed:', err);
-            notify('error', '삭제 중 오류가 발생했습니다.');
+            notify('error', '??젣 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.');
         }
     }
 
     function resolveSaveMessage(message) {
-        if (message === 'duplicate_key') return '이미 등록된 Role Key입니다.';
-        if (message === 'duplicate') return '이미 등록된 Role Key입니다.';
-        return message || '저장 실패';
+        if (message === 'duplicate_key') return '?대? ?깅줉??Role Key?낅땲??';
+        if (message === 'duplicate') return '?대? ?깅줉??Role Key?낅땲??';
+        return message || '????ㅽ뙣';
     }
 
     function reloadRoleTable() {
         roleTable?.ajax.reload(() => {
             updateRoleCountFromTable();
-            forceTableHeightSync(roleTable, '#role-table');
         }, false);
     }
 
@@ -394,25 +388,11 @@ window.AdminPicker = AdminPicker;
         const info = roleTable.page.info();
         const el = document.getElementById('roleCount');
         if (el) {
-            el.textContent = `총 ${info?.recordsDisplay ?? 0}건`;
+            el.textContent = `珥?${info?.recordsDisplay ?? 0}嫄?;
         }
     }
 
-    function bindTableLayoutEvents(table, tableSelector) {
-        if (!table) return;
-
-        window.addEventListener('resize', () => {
-            updateTableHeight(table, tableSelector);
-        });
-
-        document.addEventListener('sidebar:toggled', () => {
-            updateTableHeight(table, tableSelector);
-
-            setTimeout(() => {
-                forceTableHeightSync(table, tableSelector);
-            }, 340);
-        });
-    }
+    
 
     function bindGlobalEvents() {
         if (globalBound) return;
@@ -484,3 +464,6 @@ window.AdminPicker = AdminPicker;
         return div.textContent || '';
     }
 })();
+
+
+

@@ -8,7 +8,9 @@
 	padding: 0.5rem 0.75rem;
 	text-align: center;
 	/* 레이아웃 변수 사용(없으면 44px로 폴백) */
+	height: var(--footer-height, 44px);
 	min-height: var(--footer-height, 44px);
+	box-sizing: border-box;
 	/* 수직 가운데 정렬 */
 	display: flex;
 	align-items: center;

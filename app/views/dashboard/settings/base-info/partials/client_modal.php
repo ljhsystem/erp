@@ -17,17 +17,7 @@
             <div class="card-header py-1 px-2">기본 정보</div>
             <div class="card-body py-2">
               <div class="row g-2">
-                <div class="col-md-2">
-                  <label class="form-label">순번</label>
-                  <input type="text"
-                         name="sort_no"
-                         id="modal_sort_no"
-                         class="form-control form-control-sm"
-                         placeholder="자동 생성"
-                         readonly>
-                </div>
-
-                <div class="col-md-3">
+                <div class="col-md-4">
                   <label class="form-label">거래처명 *</label>
                   <input type="text"
                          name="client_name"
@@ -36,7 +26,7 @@
                          required>
                 </div>
 
-                <div class="col-md-3">
+                <div class="col-md-4">
                   <label class="form-label">상호</label>
                   <input type="text"
                          name="company_name"
@@ -51,7 +41,7 @@
                            id="modal_registration_date"
                            name="registration_date"
                            class="form-control form-control-sm admin-date"
-                           placeholder="YYYY.MM.DD"
+                           placeholder="YYYY-MM-DD"
                            autocomplete="off">
                     <span class="date-icon"><i class="bi bi-calendar3"></i></span>
                   </div>
@@ -68,6 +58,16 @@
                     <option value="3">3등급</option>
                     <option value="4">4등급</option>
                     <option value="5">5등급</option>
+                  </select>
+                </div>
+
+                <div class="col-md-2">
+                  <label class="form-label">상태</label>
+                  <select name="is_active"
+                          id="modal_is_active"
+                          class="form-select form-select-sm">
+                    <option value="1">사용</option>
+                    <option value="0">미사용</option>
                   </select>
                 </div>
               </div>

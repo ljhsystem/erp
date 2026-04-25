@@ -21,17 +21,7 @@
                         <div class="card-body py-2">
                             <div class="row g-2">
 
-                                <div class="col-md-1">
-                                    <label class="form-label">순번</label>
-                                    <input type="text"
-                                           name="sort_no"
-                                           id="modal_sort_no"
-                                           class="form-control form-control-sm"
-                                           placeholder="자동 생성"
-                                           readonly>
-                                </div>
-
-                                <div class="col-md-3">
+                                <div class="col-md-4">
                                     <label class="form-label">프로젝트명 *</label>
                                     <input type="text"
                                            name="project_name"
@@ -53,8 +43,8 @@
                                     <select name="is_active"
                                             id="modal_is_active"
                                             class="form-select form-select-sm">
-                                        <option value="1">사용</option>
-                                        <option value="0">미사용</option>
+                                        <option value="1">진행중</option>
+                                        <option value="0">완료됨</option>
                                     </select>
                                 </div>
 
@@ -150,7 +140,7 @@
                                 </div>
 
                                 <div class="col-md-3">
-                                    <label class="form-label">관리자</label>
+                                    <label class="form-label">실장</label>
                                     <input type="text"
                                            name="manager"
                                            id="modal_manager"
@@ -213,7 +203,7 @@
                                 </div>
 
                                 <div class="col-md-2">
-                                    <label class="form-label">내부 공사종류</label>
+                                    <label class="form-label">세부 공사종류</label>
                                     <input type="text"
                                            name="work_detail_type"
                                            id="modal_work_detail_type"
@@ -291,7 +281,7 @@
                                                id="modal_permit_date"
                                                name="permit_date"
                                                class="form-control form-control-sm admin-date"
-                                               placeholder="YYYY.MM.DD"
+                                               placeholder="YYYY-MM-DD"
                                                autocomplete="off">
                                         <span class="date-icon"><i class="bi bi-calendar3"></i></span>
                                     </div>
@@ -304,7 +294,7 @@
                                                id="modal_contract_date"
                                                name="contract_date"
                                                class="form-control form-control-sm admin-date"
-                                               placeholder="YYYY.MM.DD"
+                                               placeholder="YYYY-MM-DD"
                                                autocomplete="off">
                                         <span class="date-icon"><i class="bi bi-calendar3"></i></span>
                                     </div>
@@ -317,7 +307,7 @@
                                                id="modal_start_date"
                                                name="start_date"
                                                class="form-control form-control-sm admin-date"
-                                               placeholder="YYYY.MM.DD"
+                                               placeholder="YYYY-MM-DD"
                                                autocomplete="off">
                                         <span class="date-icon"><i class="bi bi-calendar3"></i></span>
                                     </div>
@@ -330,7 +320,7 @@
                                                id="modal_completion_date"
                                                name="completion_date"
                                                class="form-control form-control-sm admin-date"
-                                               placeholder="YYYY.MM.DD"
+                                               placeholder="YYYY-MM-DD"
                                                autocomplete="off">
                                         <span class="date-icon"><i class="bi bi-calendar3"></i></span>
                                     </div>
@@ -343,7 +333,7 @@
                                                id="modal_bid_notice_date"
                                                name="bid_notice_date"
                                                class="form-control form-control-sm admin-date"
-                                               placeholder="YYYY.MM.DD"
+                                               placeholder="YYYY-MM-DD"
                                                autocomplete="off">
                                         <span class="date-icon"><i class="bi bi-calendar3"></i></span>
                                     </div>
@@ -355,7 +345,7 @@
                                            id="modal_initial_contract_amount"
                                            name="initial_contract_amount"
                                            data-format="amount"
-                                           class="form-control form-control-sm"
+                                           class="form-control form-control-sm text-end"
                                            inputmode="decimal">
                                 </div>
                             </div>

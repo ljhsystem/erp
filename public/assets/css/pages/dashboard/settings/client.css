@@ -1,4 +1,4 @@
-/* 📄 /public/assets/css/pages/dashboard/settings/client.css */
+﻿/* ?뱞 /public/assets/css/pages/dashboard/settings/client.css */
 
 /* ==============================
    PAGE
@@ -47,25 +47,7 @@
     overflow-y:auto;
 }
 
-/* ==============================
-   CLIENT ONLY (전용 UI)
-============================== */
-
-/* 카드 (거래처 전용이면 유지 가능) */
-.card{
-    border:1px solid #e1e6ef;
-    border-radius:10px;
-    background:#ffffff;
-    box-shadow:0 3px 8px rgba(0,0,0,.04);
-}
-
-.card-header{
-    background:#c5c5c5;
-    font-weight:600;
-    font-size:13px;
-}
-
-/* 파일 업로드 (거래처만 쓰면 유지) */
+/* ?뚯씪 ?낅줈??(嫄곕옒泥섎쭔 ?곕㈃ ?좎?) */
 .file-upload-box{
     border:2px dashed #d0d5dd;
     padding:15px;
@@ -79,7 +61,7 @@
     border-color:#3b82f6;
 }
 
-/* 파일 리스트 */
+/* ?뚯씪 由ъ뒪??*/
 .file-list{
     display:flex;
     flex-direction:column;

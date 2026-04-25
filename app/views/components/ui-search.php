@@ -2,9 +2,6 @@
 // 경로: PROJECT_ROOT . '/app/views/components/ui-search.php'
 // 공통 검색폼
 
-// =========================
-// 기본값
-// =========================
 $searchId = $searchId ?? 'common';
 
 $dateOptions = $dateOptions ?? '';
@@ -12,18 +9,18 @@ $searchFieldOptions = $searchFieldOptions ?? '';
 
 $periodGuideTitle = $periodGuideTitle ?? '기간 조건 안내';
 $periodGuideItems = $periodGuideItems ?? [
-    '기간 기준(등록일자, 발생일자 등)을 선택 후 원하는 날짜 범위를 지정하세요.',
-    '빠른 선택 버튼(오늘, 1개월 등)을 클릭하면 자동으로 날짜가 입력됩니다.',
-    '직접 시작일/종료일을 입력해도 됩니다.',
+    '기간 기준(등록일자, 발생일자 등)을 선택한 뒤 날짜 범위를 지정하세요.',
+    '빠른 선택 버튼을 클릭하면 날짜가 자동으로 입력됩니다.',
+    '시작일과 종료일을 직접 입력해도 됩니다.',
     '기간 설정 버튼으로 원하는 기간을 적용할 수 있습니다.'
 ];
 
-$searchGuideTitle = $searchGuideTitle ?? '검색어';
+$searchGuideTitle = $searchGuideTitle ?? '검색어 안내';
 $searchGuideItems = $searchGuideItems ?? [
-    '검색어 여러 개를 쉼표(,)로 구분해서 10개까지 동시에 검색할 수 있습니다.',
-    '예시 : 1, 3, 5',
-    '조건 관련 항목은 1개씩만 검색할 수 있습니다.',
-    '검색 입력창은 최대 5개까지 추가 가능합니다.'
+    '검색어 여러 개는 쉼표(,)로 구분해서 입력할 수 있습니다.',
+    '예시: 1, 3, 5',
+    '조건 항목은 한 줄에 하나씩 검색할 수 있습니다.',
+    '검색 조건은 최대 5개까지 추가할 수 있습니다.'
 ];
 
 $periodButtons = $periodButtons ?? [
@@ -45,77 +42,15 @@ $dateInputAttrs = $dateInputAttrs ?? '';
 $showPeriodTooltip = $showPeriodTooltip ?? true;
 $showSearchTooltip = $showSearchTooltip ?? true;
 ?>
-<style>
-.period-label-area,
-.search-label-area{
-    position: relative;
-}
-
-.tooltip-container{
-    position: absolute;
-    z-index: 1000;
-    display: none;
-
-    top: calc(100% + 6px);
-    left: 0;
-
-    width: 320px;
-    padding: 12px;
-
-    background: #fff8c6;
-    border: 1px solid #d6c66f;
-    border-radius: 6px;
-    box-shadow: 0 3px 8px rgba(0,0,0,0.2);    
-}
-
-/* =========================
-   날짜 아이콘 위치 fix
-========================= */
-.date-input{
-    position: relative;
-    display: inline-block;
-}
-
-.date-input input{
-    padding-right: 34px;
-}
-
-.date-icon{
-    position: absolute;
-    right: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 14px;
-    opacity: 0.6;
-    pointer-events: none;
-}
-
-.date-icon{
-    transition: all .15s ease;
-}
-
-.date-input:hover .date-icon{
-    opacity: 1;
-    transform: translateY(-50%) scale(1.1);
-}
-
-.label-btn,
-.tooltip-trigger {
-    cursor: pointer;
-}
-
-</style>
-<div id="<?= $searchId ?>SearchFormContainer" class="search-form-container collapsed">
-
+<div id="<?= $searchId ?>SearchFormContainer" class="search-form-container">
     <span id="<?= $searchId ?>ToggleSearchForm" class="search-toggle-text">접기</span>
 
-    <div id="<?= $searchId ?>SearchFormBody" class="search-form-body hidden">
+    <div id="<?= $searchId ?>SearchFormBody" class="search-form-body">
 
-        <label class="search-form-title">검색 폼</label>
+        <label class="search-form-title">검색</label>
 
         <form id="<?= $searchId ?>SearchConditionsForm">
 
-            <!-- 기간 조건 -->
             <div class="period-row">
 
                 <div class="period-label-area">
@@ -164,7 +99,7 @@ $showSearchTooltip = $showSearchTooltip ?? true;
                                class="<?= htmlspecialchars($dateInputClass, ENT_QUOTES, 'UTF-8') ?>"
                                <?= $dateInputAttrs ?>
                                placeholder="<?= htmlspecialchars($dateStartPlaceholder, ENT_QUOTES, 'UTF-8') ?>">
-                        <span class="date-icon">📅</span>
+                        <i class="fa fa-calendar-days date-icon" aria-hidden="true"></i>
                     </div>
 
                     <span class="date-tilde">~</span>
@@ -175,12 +110,11 @@ $showSearchTooltip = $showSearchTooltip ?? true;
                                class="<?= htmlspecialchars($dateInputClass, ENT_QUOTES, 'UTF-8') ?>"
                                <?= $dateInputAttrs ?>
                                placeholder="<?= htmlspecialchars($dateEndPlaceholder, ENT_QUOTES, 'UTF-8') ?>">
-                        <span class="date-icon">📅</span>
+                        <i class="fa fa-calendar-days date-icon" aria-hidden="true"></i>
                     </div>
                 </div>
             </div>
 
-            <!-- 검색 조건 -->
             <div id="<?= $searchId ?>SearchWrapper" class="search-wrapper">
 
                 <div class="search-label-area">

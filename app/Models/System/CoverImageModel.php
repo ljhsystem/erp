@@ -24,8 +24,33 @@ class CoverImageModel
     public function getList(array $filters = []): array
     {
         $sql = "
-            SELECT c.*
+            SELECT
+                c.*,
+                CASE
+                    WHEN c.created_by LIKE 'SYSTEM:%' THEN c.created_by
+                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
+                    ELSE c.created_by
+                END AS created_by_name,
+                CASE
+                    WHEN c.updated_by LIKE 'SYSTEM:%' THEN c.updated_by
+                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
+                    ELSE c.updated_by
+                END AS updated_by_name,
+                CASE
+                    WHEN c.deleted_by LIKE 'SYSTEM:%' THEN c.deleted_by
+                    WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
+                    ELSE c.deleted_by
+                END AS deleted_by_name
             FROM system_coverimage_assets c
+            LEFT JOIN user_employees p1
+                ON c.created_by NOT LIKE 'SYSTEM:%'
+               AND p1.user_id = REPLACE(c.created_by, 'USER:', '')
+            LEFT JOIN user_employees p2
+                ON c.updated_by NOT LIKE 'SYSTEM:%'
+               AND p2.user_id = REPLACE(c.updated_by, 'USER:', '')
+            LEFT JOIN user_employees p3
+                ON c.deleted_by NOT LIKE 'SYSTEM:%'
+               AND p3.user_id = REPLACE(c.deleted_by, 'USER:', '')
             WHERE c.deleted_at IS NULL
         ";
 
@@ -265,6 +290,7 @@ class CoverImageModel
                 alt,
                 description,
                 src,
+                is_active,
                 created_by,
                 updated_by
             ) VALUES (
@@ -275,6 +301,7 @@ class CoverImageModel
                 :alt,
                 :description,
                 :src,
+                :is_active,
                 :created_by,
                 :updated_by
             )
@@ -290,6 +317,7 @@ class CoverImageModel
             ':alt'         => $data['alt'],
             ':description' => $data['description'],
             ':src'         => $data['src'],
+            ':is_active'   => $data['is_active'] ?? 1,
             ':created_by'  => $data['created_by'],
             ':updated_by'  => $data['updated_by'],
         ]);
@@ -327,6 +355,7 @@ class CoverImageModel
         $sql = "
             UPDATE system_coverimage_assets
             SET
+                is_active = 0,
                 deleted_at = NOW(),
                 deleted_by = :deleted_by,
                 updated_at = NOW(),
@@ -408,6 +437,7 @@ class CoverImageModel
         $sql = "
             UPDATE system_coverimage_assets
             SET
+                is_active = 1,
                 deleted_at = NULL,
                 deleted_by = NULL,
                 updated_at = NOW(),

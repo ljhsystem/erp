@@ -26,10 +26,37 @@ class CardModel
             SELECT
                 c.*,
                 cl.client_name,
-                b.account_name
+                b.account_name,
+
+                CASE
+                    WHEN c.created_by LIKE 'SYSTEM:%' THEN c.created_by
+                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
+                    ELSE c.created_by
+                END AS created_by_name,
+
+                CASE
+                    WHEN c.updated_by LIKE 'SYSTEM:%' THEN c.updated_by
+                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
+                    ELSE c.updated_by
+                END AS updated_by_name,
+
+                CASE
+                    WHEN c.deleted_by LIKE 'SYSTEM:%' THEN c.deleted_by
+                    WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
+                    ELSE c.deleted_by
+                END AS deleted_by_name
             FROM system_cards c
             LEFT JOIN system_clients cl ON c.client_id = cl.id
             LEFT JOIN system_bank_accounts b ON c.account_id = b.id
+            LEFT JOIN user_employees p1
+                ON c.created_by NOT LIKE 'SYSTEM:%'
+                AND p1.user_id = REPLACE(c.created_by, 'USER:', '')
+            LEFT JOIN user_employees p2
+                ON c.updated_by NOT LIKE 'SYSTEM:%'
+                AND p2.user_id = REPLACE(c.updated_by, 'USER:', '')
+            LEFT JOIN user_employees p3
+                ON c.deleted_by NOT LIKE 'SYSTEM:%'
+                AND p3.user_id = REPLACE(c.deleted_by, 'USER:', '')
             WHERE c.deleted_at IS NULL
         ";
 
@@ -71,6 +98,8 @@ class CardModel
             // ?좎쭨
             'created_at'      => ['col'=>'c.created_at','type'=>'date'],
             'updated_at'      => ['col'=>'c.updated_at','type'=>'date'],
+            'created_by_name' => ['col'=>"COALESCE(p1.employee_name, c.created_by)",'type'=>'like'],
+            'updated_by_name' => ['col'=>"COALESCE(p2.employee_name, c.updated_by)",'type'=>'like'],
         ];
 
         $globalSearch = [];
@@ -140,7 +169,9 @@ class CardModel
                 'c.memo',
 
                 'cl.client_name',
-                'b.account_name'
+                'b.account_name',
+                'p1.employee_name',
+                'p2.employee_name'
             ];
 
             $sql .= " AND (";
@@ -423,8 +454,10 @@ class CardModel
         $sql = "
             UPDATE system_cards
             SET
+                is_active = 0,
                 deleted_at = NOW(),
-                deleted_by = :actor
+                deleted_by = :actor,
+                updated_by = :actor
             WHERE id = :id
         ";
 
@@ -501,6 +534,7 @@ class CardModel
         $sql = "
             UPDATE system_cards
             SET
+                is_active = 1,
                 deleted_at = NULL,
                 deleted_by = NULL,
                 updated_by = :actor

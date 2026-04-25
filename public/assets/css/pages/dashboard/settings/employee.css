@@ -1,4 +1,4 @@
-/* 📄 /public/assets/css/pages/dashboard/settings/employee.css */
+﻿/* ?뱞 /public/assets/css/pages/dashboard/settings/employee.css */
 
 /* ==============================
    PAGE
@@ -25,182 +25,6 @@
     align-items:center;
     gap:8px;
     margin-bottom:14px;
-}
-
-.date-range{
-    display:flex;
-    align-items:center;
-    gap:8px;
-}
-
-.date-input{
-    position:relative;
-    width:140px;
-}
-
-.date-input input{
-    width:100%;
-    padding-right:32px;
-}
-
-/* ==============================
-   SEARCH FORM
-============================== */
-.search-form-container{
-    position:relative;
-    border:1px solid #e5e7eb;
-    border-radius:8px;
-    background:#f8f9fb;
-    padding:16px;
-    margin:0;
-    width:100%;
-    overflow:visible;
-    z-index:20;
-}
-
-.search-form-container::before{
-    content:"";
-    position:absolute;
-    left:0;
-    right:0;
-    top:0;
-    border-top:1px solid #e5e7eb;
-    opacity:0;
-    pointer-events:none;
-}
-
-.search-form-title{
-    font-weight:600;
-    margin-bottom:10px;
-    display:block;
-}
-
-.period-row{
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    flex-wrap:wrap;
-    gap:8px;
-    margin-bottom:10px;
-    width:100%;
-}
-
-.period-label-area{
-    width:90px;
-    font-weight:600;
-}
-
-.label-btn{
-    background:none;
-    border:none;
-    font-weight:600;
-    padding:0;
-}
-
-.date-type-select{
-    width:120px;
-}
-
-.period-quick-btns{
-    display:flex;
-    gap:5px;
-}
-
-.search-wrapper{
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    gap:10px;
-    flex-wrap:wrap;
-    width:100%;
-}
-
-.search-label-area{
-    width:90px;
-    font-weight:600;
-}
-
-.search-condition{
-    display:flex;
-    gap:8px;
-    align-items:center;
-    margin-bottom:8px;
-}
-
-.search-condition:not(:last-child){
-    margin-bottom:8px;
-}
-
-.search-field{
-    width:150px;
-}
-
-.search-input{
-    width:350px;
-}
-
-.search-btn-area{
-    display:flex;
-    justify-content:center;
-    margin-top:12px;
-}
-
-.period-row select,
-.period-row input,
-.period-row button,
-.search-wrapper select,
-.search-wrapper input,
-.search-wrapper button{
-    height:38px;
-    min-height:38px;
-    padding:6px 10px;
-    font-size:14px;
-    line-height:1.2;
-    box-sizing:border-box;
-}
-
-.search-wrapper input,
-.search-wrapper select{
-    border-radius:6px;
-}
-
-
-
-.date-tilde{
-    font-weight:600;
-}
-
-.search-toggle-text{
-    position:absolute;
-    top:-9px;
-    right:60px;
-    background:#fff;
-    padding:0 8px;
-    font-size:12px;
-    color:#666;
-    cursor:pointer;
-    z-index:1;
-}
-
-.search-toggle-text:hover{
-    color:#000;
-}
-
-.search-form-body.hidden{
-    display:none;
-}
-
-.search-form-container.collapsed{
-    padding:0;
-    height:0;
-    margin:0;
-    border:0;
-    border-radius:0;
-    background:transparent;
-}
-
-.search-form-container.collapsed::before{
-    opacity:1;
 }
 
 /* ==============================
@@ -251,7 +75,7 @@
     background:#fff;
 }
 
-/* 전체 레이아웃 */
+/* ?꾩껜 ?덉씠?꾩썐 */
 .employee-trash-layout{
     display:flex;
     align-items:stretch;
@@ -261,7 +85,7 @@
     overflow:hidden;
 }
 
-/* 왼쪽 목록 */
+/* ?쇱そ 紐⑸줉 */
 .employee-trash-left{
     flex:1 1 auto;
     min-width:0;
@@ -272,7 +96,7 @@
     flex-direction:column;
 }
 
-/* 오른쪽 상세 */
+/* ?ㅻⅨ履??곸꽭 */
 .employee-trash-right{
     flex:0 0 0;
     width:0;
@@ -290,7 +114,7 @@
     border-left:1px solid #e5e7eb;
 }
 
-/* 툴바 */
+/* ?대컮 */
 .trash-toolbar{
     display:flex;
     align-items:center;
@@ -308,7 +132,7 @@
     margin-left:auto;
 }
 
-/* 테이블 영역 */
+/* ?뚯씠釉??곸뿭 */
 .employee-trash-left .table-responsive{
     flex:1 1 auto;
     min-height:0;
@@ -317,7 +141,7 @@
     border-radius:10px;
 }
 
-/* DataTables 정렬 */
+/* DataTables ?뺣젹 */
 #employee-trash-table_wrapper{
     width:100%;
 }
@@ -372,7 +196,7 @@
     padding-top:6px;
 }
 
-/* 테이블 */
+/* ?뚯씠釉?*/
 #employee-trash-table{
     width:100% !important;
     table-layout:auto;
@@ -399,7 +223,7 @@
     background:#eef6ff !important;
 }
 
-/* 상세 패널 */
+/* ?곸꽭 ?⑤꼸 */
 #employee-trash-detail{
     display:none;
     height:100%;
@@ -586,7 +410,7 @@
   }
 
 /* =========================
-   조직/역할 select 튜닝
+   議곗쭅/??븷 select ?쒕떇
 ========================= */
 
 #edit_tab_group .form-select{
@@ -596,11 +420,11 @@
 }
 
 /* =========================
-   파일 박스 통일
+   ?뚯씪 諛뺤뒪 ?듭씪
 ========================= */
 
 .employee-file-preview-box{
-    height:180px;              /* 🔥 핵심 */
+    height:180px;              /* ?뵦 ?듭떖 */
     width:100%;
     border:1px solid #e5e7eb;
     border-radius:8px;
@@ -612,15 +436,15 @@
     position:relative;
 }
 
-/* 이미지 통일 */
+/* ?대?吏 ?듭씪 */
 .employee-file-preview-img{
     width:100%;
     height:100%;
-    object-fit:cover;          /* 🔥 핵심 */
+    object-fit:cover;          /* ?뵦 ?듭떖 */
 }
 
 
-/* 클릭 가능 이미지 */
+/* ?대┃ 媛???대?吏 */
 #edit_profile_preview,
 #edit_id_preview,
 #edit_cert_preview_img{
@@ -641,7 +465,7 @@
 }
 
 /* =========================
-   파일 hover 상태 표시
+   ?뚯씪 hover ?곹깭 ?쒖떆
 ========================= */
 
 .employee-file-preview-box{
@@ -682,7 +506,7 @@
 
 
 /* =========================
-   자격증 input-group 완전 정렬 FIX
+   ?먭꺽利?input-group ?꾩쟾 ?뺣젹 FIX
 ========================= */
 
 .employee-cert-name-group{    
@@ -690,7 +514,7 @@
     margin-bottom:6px;
 }
 
-/* 아이콘 */
+/* ?꾩씠肄?*/
 .employee-cert-name-group .input-group-text{
     background-color: #f5c2c2;
     border:1px solid #000000;
@@ -698,28 +522,28 @@
     align-items:center;
     justify-content:center;
     padding:0 12px;
-    line-height:36px;      /* 🔥 핵심 */
-    height:auto;           /* 🔥 중요 */
+    line-height:36px;      /* ?뵦 ?듭떖 */
+    height:auto;           /* ?뵦 以묒슂 */
     border-right:0;
 }
 
-/* 입력창 */
+/* ?낅젰李?*/
 .employee-cert-name-group .form-control{
     border:1px solid #000000;
     padding:0 12px;
-    line-height:36px;      /* 🔥 핵심 */
-    height:auto;           /* 🔥 중요 */
+    line-height:36px;      /* ?뵦 ?듭떖 */
+    height:auto;           /* ?뵦 以묒슂 */
     border-left:0;
 }
 
-/* 아이콘 미세 정렬 */
+/* ?꾩씠肄?誘몄꽭 ?뺣젹 */
 .employee-cert-name-group .input-group-text i{
     line-height:1;
     font-size:13px;
 }
 
 
-/* 비밀번호 밑에 설명 */
+/* 鍮꾨?踰덊샇 諛묒뿉 ?ㅻ챸 */
 .form-text{
     margin-top:4px;
     margin-left: 10px;

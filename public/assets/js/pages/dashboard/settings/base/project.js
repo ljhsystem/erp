@@ -1,7 +1,7 @@
 // 경로: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/base/project.js'
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import { formatDateDisplay, formatAmount, unformatAmount } from '/public/assets/js/common/format.js';
-import { createDataTable, updateTableHeight, forceTableHeightSync, bindTableHighlight } from '/public/assets/js/components/data-table.js';
+import { createDataTable, bindTableHighlight } from '/public/assets/js/components/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import '/public/assets/js/components/excel-manager.js';
@@ -35,13 +35,14 @@ window.AdminPicker = AdminPicker;
         EXCEL_DOWNLOAD: '/api/settings/base-info/project/download',
 
         EMPLOYEE_SEARCH: "/api/settings/organization/employee/search-picker",
-        CLIENT_SEARCH: "/api/settings/base-info/client/search-picker"
+        CLIENT_SEARCH: "/api/settings/base-info/client/search-picker",
+        CLIENT_SAVE: "/api/settings/base-info/client/save"
     };
     /* =========================
        프로젝트 컬럼 한글 매핑
     ========================= */
     const PROJECT_COLUMN_MAP = {
-        sort_no:                       { label: "순번", visible: true },
+        sort_no:                    { label: "순번", visible: true },
         project_name:               { label: "프로젝트명", visible: true },
         construction_name:          { label: "공사명", visible: true },
         linked_client_name:         { label: "거래처", visible: true },
@@ -60,7 +61,7 @@ window.AdminPicker = AdminPicker;
         work_type:                  { label: "공종", visible: true },
         work_subtype:               { label: "공종 세분류", visible: false },
         work_detail_type:           { label: "세부 공사종류", visible: false },
-        contract_work_type:         { label: "도급종류", visible: false },
+        contract_work_type:         { label: "업급종류", visible: false },
         bid_type:                   { label: "입찰형태", visible: false },
         client_type:                { label: "발주자분류", visible: false },
         permit_agency:              { label: "인허가기관", visible: false },
@@ -71,9 +72,9 @@ window.AdminPicker = AdminPicker;
         bid_notice_date:            { label: "입찰공고일", visible: false },
         initial_contract_amount:    { label: "최초계약금액", visible: true },
         authorized_company_seal:    { label: "사용인감명", visible: false },
-        is_active:                  { label: "진행상태", visible: true },
         note:                       { label: "비고", visible: true },
         memo:                       { label: "메모", visible: false },
+        is_active:                  { label: "상태", visible: true },
         created_at:                 { label: "등록일시", visible: false },
         created_by_name:            { label: "등록자", visible: false },
         updated_at:                 { label: "수정일시", visible: false },
@@ -141,7 +142,7 @@ window.AdminPicker = AdminPicker;
         initModal();
         initAdminDatePicker();
 
-        initExcelDataset(); // 🔥 추가 (핵심)
+        initExcelDataset(); // 엑셀 업로드 설정
 
         initDataTable($);
         initExternal();
@@ -152,14 +153,13 @@ window.AdminPicker = AdminPicker;
         bindModalEvents($);
         bindAdminDateInputs();
 
-        bindTableLayoutEvents(projectTable, '#project-table');
-
         bindUIEvents();
 
         bindExcelEvents();
         bindTrashEvents();
 
         bindGlobalEvents();
+        bindQuickClientEvents($);
     }
     function initExcelDataset() {
         const form = document.getElementById('project-excel-upload-form');
@@ -194,33 +194,7 @@ window.AdminPicker = AdminPicker;
             }
         });
 
-        document.querySelectorAll('.date-icon').forEach(icon => {
-            icon.addEventListener('click', e => {
-                e.preventDefault();
-                e.stopPropagation();
-
-                const wrap = icon.closest('.date-input, .date-input-wrap');
-                const input = wrap ? wrap.querySelector('input') : null;
-                if (!input) return;
-
-                const picker = initAdminDatePicker();
-                if (!picker) return;
-
-                picker.__target = input;
-
-                if (typeof picker.clearDate === 'function') {
-                    picker.clearDate();
-                }
-
-                const v = input.value;
-                if (v) {
-                    const d = new Date(v);
-                    if (!isNaN(d)) picker.setDate(d);
-                }
-
-                picker.open({ anchor: input });
-            });
-        });
+        bindDateIconPicker();
 
         modalEl.addEventListener('shown.bs.modal', () => {
             bindAdminDateInputs();
@@ -228,24 +202,10 @@ window.AdminPicker = AdminPicker;
         });
     }
 
-    function bindTableLayoutEvents(table, tableSelector){
-        if(!table) return;
 
-        window.addEventListener('resize', () => {
-            updateTableHeight(table, tableSelector);
-        });
-
-        document.addEventListener('sidebar:toggled', () => {
-            updateTableHeight(table, tableSelector);
-
-            setTimeout(() => {
-                forceTableHeightSync(table, tableSelector);
-            }, 340);
-        });
-    }
 
     function bindUIEvents(){
-        // 프로젝트 전용 일반 UI 필요 시 여기에 추가
+        // 프로젝트 전용 일반 UI 이벤트 자리
     }
 
     function initExternal(){
@@ -315,7 +275,7 @@ window.AdminPicker = AdminPicker;
                 }
 
                 if (key === 'is_active') {
-                    value = Number(value) === 1 ? '진행중' : '완료/종료';
+                    value = Number(value) === 1 ? '진행중' : '완료됨';
                 }
 
                 html += `<div><b>${config.label}:</b> ${value}</div>`;
@@ -325,7 +285,7 @@ window.AdminPicker = AdminPicker;
             detailBox.innerHTML = html;
         });
 
-        //휴지통 모달에 전달
+        // 휴지통 컬럼 렌더러
         window.TrashColumns = window.TrashColumns || {};
 
         window.TrashColumns.project = function(row) {
@@ -336,12 +296,12 @@ window.AdminPicker = AdminPicker;
                 <td>${row.deleted_by_name ?? ''}</td>
                 <td>
                     <button class="btn btn-success btn-sm btn-restore" data-id="${row.id}">복원</button>
-                    <button class="btn btn-danger btn-sm btn-purge" data-id="${row.id}">영구삭제</button>
+                    <button class="btn btn-danger btn-sm btn-purge" data-id="${row.id}">삭제</button>
                 </td>
             `;
         };
 
-        //테이블갱신
+        // 휴지통 변경 시 테이블 갱신
         document.addEventListener('trash:changed', (e) => {
 
             const { type } = e.detail || {};
@@ -384,7 +344,19 @@ window.AdminPicker = AdminPicker;
 
     function bindAdminDateInputs(){
         document.querySelectorAll('.admin-date').forEach(input => {
+            if (input.dataset.dateInputBound === '1') return;
+            input.dataset.dateInputBound = '1';
+
+            input.addEventListener('input', () => {
+                input.value = formatDateInputValue(input.value);
+            });
+
+            input.addEventListener('blur', () => {
+                input.value = normalizeDateInputValue(input.value);
+            });
+
             input.addEventListener('click', e => {
+                return;
                 e.preventDefault();
                 e.stopPropagation();
 
@@ -408,6 +380,78 @@ window.AdminPicker = AdminPicker;
                 picker.open({ anchor: input });
             });
         });
+    }
+
+    function bindDateIconPicker() {
+        if (document.__projectDateIconPickerBound) return;
+        document.__projectDateIconPickerBound = true;
+
+        document.addEventListener('click', function (e) {
+            const icon = e.target.closest('.date-icon');
+            if (!icon) return;
+
+            const wrap = icon.closest('.date-input, .date-input-wrap');
+            const input = wrap ? wrap.querySelector('input.admin-date, input[name="dateStart"], input[name="dateEnd"]') : null;
+            if (!input) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+            openDatePickerForInput(input);
+        }, true);
+    }
+
+    function openDatePickerForInput(input) {
+        const picker = initAdminDatePicker();
+        if (!picker) return;
+
+        picker.__target = input;
+
+        if (typeof picker.clearDate === 'function') {
+            picker.clearDate();
+        }
+
+        input.value = normalizeDateInputValue(input.value);
+
+        if (/^\d{4}-\d{2}-\d{2}$/.test(input.value)) {
+            const date = new Date(input.value);
+            if (!Number.isNaN(date.getTime())) {
+                picker.setDate(date);
+            }
+        }
+
+        picker.open({ anchor: input });
+    }
+
+    function formatDateInputValue(value) {
+        const digits = String(value || '').replace(/\D/g, '').slice(0, 8);
+
+        if (digits.length <= 4) return digits;
+        if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+
+        return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
+    }
+
+    function normalizeDateInputValue(value) {
+        const formatted = formatDateInputValue(value);
+        const match = formatted.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+        if (!match) return formatted;
+
+        const year = Number(match[1]);
+        const month = Number(match[2]);
+        const day = Number(match[3]);
+        const date = new Date(year, month - 1, day);
+
+        if (
+            date.getFullYear() !== year ||
+            date.getMonth() !== month - 1 ||
+            date.getDate() !== day
+        ) {
+            AppCore.notify('warning', '올바른 날짜를 입력하세요.');
+            return '';
+        }
+
+        return formatted;
     }
 
     function formatDate(date){
@@ -444,7 +488,7 @@ window.AdminPicker = AdminPicker;
             api: API.LIST,
             columns: columns,
             defaultOrder: [[1, "asc"]],
-            pageLength: 100,
+            pageLength: 10,
             buttons: [
                 {
                     text: "엑셀관리",
@@ -462,7 +506,7 @@ window.AdminPicker = AdminPicker;
                         const trashModalEl = document.getElementById('projectTrashModal');
                         if (!trashModalEl) return;
 
-                        /* 🔥 핵심: JS에서 API 세팅 */
+                        /* 공통 휴지통 컴포넌트에 프로젝트 API를 전달한다. */
                         trashModalEl.dataset.listUrl      = API.TRASH;
                         trashModalEl.dataset.restoreUrl   = API.RESTORE;
                         trashModalEl.dataset.deleteUrl    = API.PURGE;
@@ -482,7 +526,6 @@ window.AdminPicker = AdminPicker;
                         resetProjectModalSelect2();
 
                         $('#modal_project_id').val('');
-                        $('#modal_sort_no').val('');
                         $('#btnDeleteProject').hide();
 
                         window.isNewProject = true;
@@ -508,7 +551,7 @@ window.AdminPicker = AdminPicker;
         window.projectTable = projectTable;
 
         if (projectTable) {
-            console.log('✅ DataTable 생성 완료');
+            console.log('DataTable 생성 완료');
 
             projectTable.on('init.dt', () => {
                 updateProjectCount(projectTable.page.info()?.recordsDisplay ?? 0);
@@ -523,10 +566,9 @@ window.AdminPicker = AdminPicker;
                 apiList: API.LIST,
                 tableId: 'project',
                 defaultSearchField: 'project_name',
-                dateOptions: DATE_OPTIONS
+                dateOptions: DATE_OPTIONS,
+                normalizeFilters: normalizeProjectFilters
             });
-
-            updateTableHeight(projectTable, '#project-table');
             bindTableHighlight('#project-table', projectTable);
         }
     }
@@ -537,16 +579,23 @@ window.AdminPicker = AdminPicker;
         el.textContent = `총 ${count ?? 0}건`;
     }
 
-    function bindTableEvents($) {
-        $(document).on('focus', '#modal_sort_no', function(){
-            if(window.isNewProject){
-                AppCore.notify(
-                    'info',
-                    '순번은 저장 시 자동 생성됩니다.'
-                );
-            }
-        });
+    function normalizeProjectFilters(filters) {
+        return (filters || []).map(filter => {
+            if (filter?.field !== 'is_active') return filter;
 
+            const value = normalizeActiveValue(filter.value);
+            return value === '' ? null : { field: 'is_active', value };
+        }).filter(Boolean);
+    }
+
+    function normalizeActiveValue(value) {
+        const raw = String(value ?? '').trim().toLowerCase();
+        if (['1', '진행중', '사용중', '진행', '진행중', '활성', 'active', 'y', 'yes', 'true'].includes(raw)) return '1';
+        if (['0', '완료됨', '완료', '종료', '비활성', 'inactive', 'n', 'no', 'false'].includes(raw)) return '0';
+        return '';
+    }
+
+    function bindTableEvents($) {
         $('#project-table tbody').on('dblclick', 'tr', async function () {
             const rowData = projectTable.row(this).data();
             if (!rowData || !rowData.id) return;
@@ -579,7 +628,7 @@ window.AdminPicker = AdminPicker;
 
             } catch (err) {
                 console.error(err);
-                AppCore.notify('error', '프로젝트 상세 조회 중 오류');
+                AppCore.notify('error', '프로젝트 상세 조회 중 오류가 발생했습니다.');
             }
         });
 
@@ -602,6 +651,10 @@ window.AdminPicker = AdminPicker;
 
         $(document).on('submit', '#project-edit-form', function (e) {
             e.preventDefault();
+
+            this.querySelectorAll('.admin-date').forEach(input => {
+                input.value = normalizeDateInputValue(input.value);
+            });
 
             const formData = new FormData(this);
             const submitButton = this.querySelector('button[type="submit"]');
@@ -737,7 +790,7 @@ window.AdminPicker = AdminPicker;
         columns.push({
             data:null,
             title: '<i class="bi bi-arrows-move"></i>',
-            className:"col-reorder reorder-handle no-colvis text-center",
+            className:"col-reorder reorder-handle no-sort no-colvis text-center",
             headerClassName:"col-reorder no-colvis text-center",
             orderable:false,
             defaultContent:'<i class="bi bi-list"></i>',
@@ -772,7 +825,9 @@ window.AdminPicker = AdminPicker;
                     }
 
                     if (field === 'is_active') {
-                        return Number(data) === 1 ? '진행중' : '완료/종료';
+                        return Number(data) === 1
+                            ? '<span class="badge bg-success">진행중</span>'
+                            : '<span class="badge bg-secondary">완료됨</span>';
                     }
 
                     return data;
@@ -814,12 +869,23 @@ window.AdminPicker = AdminPicker;
                 const rows = json?.results ?? json?.data ?? [];
 
                 return {
-                    results: rows.map(row => ({
-                        id: String(row.id ?? ''),
-                        text: row.text ?? row.employee_name ?? row.username ?? row.id,
-                        raw: row
-                    })).filter(item => item.id !== '')
+                    results: [
+                        { id: '__none__', text: '선택(없음)', isNone: true },
+                        ...rows.map(row => ({
+                            id: String(row.id ?? ''),
+                            text: row.text ?? row.employee_name ?? row.username ?? row.id,
+                            raw: row
+                        })).filter(item => item.id !== '')
+                    ]
                 };
+            }
+        });
+
+        $el.off('select2:select.projectEmployee');
+        $el.on('select2:select.projectEmployee', function (e) {
+            const item = e.params?.data;
+            if (item?.id === '__none__') {
+                window.jQuery(this).val(null).trigger('change');
             }
         });
 
@@ -842,21 +908,46 @@ window.AdminPicker = AdminPicker;
             minimumInputLength: 0,
             dropdownParent: window.jQuery('#projectModal'),
             width: '100%',
+            templateResult(item) {
+                if (!item.id) return item.text;
+
+                if (item.isQuickCreate) {
+                    return window.jQuery(
+                        '<div class="select2-action-option"><span class="fw-semibold text-primary">+ 신규 거래처 추가</span></div>'
+                    );
+                }
+
+                if (item.isNone) {
+                    return window.jQuery('<span class="text-muted">선택(없음)</span>');
+                }
+
+                return item.text;
+            },
             dataBuilder(params) {
                 return {
                     q: params.term || '',
                     limit: 20
                 };
             },
-            processResults(json) {
+            processResults(json, params) {
                 const rows = json?.results ?? json?.data ?? [];
+                const term = String(params?.term ?? '').trim();
 
                 return {
-                    results: rows.map(row => ({
-                        id: String(row.id ?? ''),
-                        text: row.text ?? row.client_name ?? '',
-                        raw: row
-                    })).filter(item => item.id !== '')
+                    results: [
+                        { id: '__none__', text: '선택(없음)', isNone: true },
+                        ...rows.map(row => ({
+                            id: String(row.id ?? ''),
+                            text: row.text ?? row.client_name ?? '',
+                            raw: row
+                        })).filter(item => item.id !== ''),
+                        {
+                            id: '__quick_client__',
+                            text: '+ 신규 거래처 추가',
+                            isQuickCreate: true,
+                            term
+                        }
+                    ]
                 };
             }
         });
@@ -865,6 +956,18 @@ window.AdminPicker = AdminPicker;
         $el.on('select2:select.projectClient', function (e) {
             const item = e.params?.data;
             if (!item) return;
+
+            if (item.id === '__none__') {
+                window.jQuery(this).val(null).trigger('change');
+                return;
+            }
+
+            if (item.id === '__quick_client__') {
+                window.jQuery(this).val(null).trigger('change');
+                window.jQuery(this).select2('close');
+                openQuickClientModal(item.term || '');
+                return;
+            }
 
             window.jQuery(this).val(String(item.id)).trigger('change');
         });
@@ -935,5 +1038,78 @@ window.AdminPicker = AdminPicker;
         $el.find(`option[value="${clientId}"]`).remove();
         $el.append(new Option(clientText, clientId, true, true));
         $el.val(clientId).trigger('change');
+    }
+
+    function openQuickClientModal(defaultName = '') {
+        const modalEl = document.getElementById('projectQuickClientModal');
+        const form = document.getElementById('projectQuickClientForm');
+        if (!modalEl || !form) return;
+
+        form.reset();
+
+        const nameEl = form.querySelector('[name="client_name"]');
+        const activeEl = form.querySelector('[name="is_active"]');
+        const typeEl = form.querySelector('[name="client_type"]');
+
+        if (nameEl) nameEl.value = defaultName;
+        if (activeEl) activeEl.value = '1';
+        if (typeEl) typeEl.value = '일반';
+
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl, {
+            backdrop: 'static',
+            focus: false
+        });
+
+        modal.show();
+        setTimeout(() => nameEl?.focus(), 160);
+    }
+
+    function bindQuickClientEvents($) {
+        $(document).off('submit.projectQuickClient', '#projectQuickClientForm');
+        $(document).on('submit.projectQuickClient', '#projectQuickClientForm', function (e) {
+            e.preventDefault();
+
+            const form = this;
+            const formData = new FormData(form);
+            const clientName = String(formData.get('client_name') || '').trim();
+
+            if (!clientName) {
+                AppCore?.notify?.('warning', '거래처명을 입력하세요.');
+                return;
+            }
+
+            const btn = form.querySelector('button[type="submit"]');
+            if (btn) btn.disabled = true;
+
+            $.ajax({
+                url: API.CLIENT_SAVE,
+                method: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false
+            })
+            .done(res => {
+                if (!res.success || !res.id) {
+                    AppCore?.notify?.('error', res.message || '거래처 등록에 실패했습니다.');
+                    return;
+                }
+
+                const modalEl = document.getElementById('projectQuickClientModal');
+                bootstrap.Modal.getInstance(modalEl)?.hide();
+
+                const $client = $('#modal_client_id');
+                $client.find(`option[value="${res.id}"]`).remove();
+                $client.append(new Option(clientName, res.id, true, true));
+                $client.val(res.id).trigger('change');
+
+                AppCore?.notify?.('success', '거래처가 등록되었습니다.');
+            })
+            .fail(() => {
+                AppCore?.notify?.('error', '서버 오류가 발생했습니다.');
+            })
+            .always(() => {
+                if (btn) btn.disabled = false;
+            });
+        });
     }
 })();

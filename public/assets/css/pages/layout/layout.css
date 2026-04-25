@@ -1,20 +1,20 @@
 /* =========================================================
-   레이아웃 공용 CSS
-   - UI 스킨 / 테마 / 밀도 / 폰트 / 버튼 / 모션 전부 연동
+   ?덉씠?꾩썐 怨듭슜 CSS
+   - UI ?ㅽ궓 / ?뚮쭏 / 諛??/ ?고듃 / 踰꾪듉 / 紐⑥뀡 ?꾨? ?곕룞
 ========================================================= */
 
 /* =========================================================
-   1. 기본 변수
+   1. 湲곕낯 蹂??
 ========================================================= */
 :root {
-  /* 레이아웃 */
+  /* ?덉씠?꾩썐 */
   --header-height: 44px;
   --sidebar-width: 240px;
   --sidebar-width-collapsed: 16px;
   --content-padding: 16px;
   --footer-height: 44px;
 
-  /* 색상 */
+  /* ?됱긽 */
   --color-primary: #0d6efd;
   --color-primary-hover: #0b5ed7;
   --color-primary-soft: rgba(13,110,253,.12);
@@ -36,26 +36,27 @@
   --cross-col-bg: #dfe8f5;
   --cross-cell-bg: #cddcf1;
 
-  /* DataTables 컨트롤 공통 */
+  /* DataTables 而⑦듃濡?怨듯넻 */
   --dt-control-height: 38px;
   --dt-control-font-size: 14px;
   --dt-control-padding-x: 12px;
 
-  /* 반경 / 효과 */
+  /* 諛섍꼍 / ?④낵 */
   --radius-md: 10px;
   --shadow-sm: 0 1px 0 rgba(0,0,0,.06),
                0 6px 16px rgba(0,0,0,.06);
 
-  /* 폰트 */
+  /* ?고듃 */
   --font-scale: 1;
 }
 
 /* =========================================================
-   2. 기본 영역
+   2. 湲곕낯 ?곸뿭
 ========================================================= */
 html, body {
   height: 100%;
   background: var(--color-bg);
+  overflow: hidden;
 }
 
 body {
@@ -67,7 +68,7 @@ body {
 }
 
 /* =========================================================
-   3. UI 스킨
+   3. UI ?ㅽ궓
 ========================================================= */
 body.skin-default {
   --color-primary: #0d6efd;
@@ -118,7 +119,7 @@ body.skin-dark {
 }
 
 /* =========================================================
-   4. 테마 모드
+   4. ?뚮쭏 紐⑤뱶
 ========================================================= */
 body.theme-dark {
   --color-bg: #121212;
@@ -129,18 +130,19 @@ body.theme-dark {
 }
 
 /* =========================================================
-   5. 폰트 크기
+   5. ?고듃 ?ш린
 ========================================================= */
 body.font-scale-small { --font-scale: 0.98; }
 body.font-scale-normal { --font-scale: 1; }
 body.font-scale-large { --font-scale: 1.06; }
 
 /* =========================================================
-   6. 메인 컨텐츠
-========================================================= */
+   6. 硫붿씤 而⑦뀗痢?========================================================= */
 .main-content {
   padding: 0 var(--content-padding) var(--content-padding);
-  min-height: auto;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
   margin-left: var(--sidebar-width);
   margin-top: 0;
   box-sizing: border-box;
@@ -154,8 +156,14 @@ body.is-sidebar-collapsed .main-content {
 }
 
 .app-shell {
-  padding-top: calc(var(--header-height) - 20px);
-  height: calc(100vh - var(--footer-height));
+  position: absolute;
+  top: var(--header-height);
+  right: 0;
+  bottom: var(--footer-height);
+  left: 0;
+  padding: 0;
+  width: 100%;
+  height: auto;
   min-height: 0;
   box-sizing: border-box;
   align-items: stretch;
@@ -163,7 +171,7 @@ body.is-sidebar-collapsed .main-content {
 }
 
 /* =========================================================
-   7. 카드 / 섹션 (⚠️ table-area-wrapper 제외)
+   7. 移대뱶 / ?뱀뀡 (?좑툘 table-area-wrapper ?쒖쇅)
 ========================================================= */
 .section,
 .card {
@@ -172,19 +180,19 @@ body.is-sidebar-collapsed .main-content {
   box-shadow: var(--shadow-sm);
 }
 
-/* table-area-wrapper는 레이아웃 전용 */
+/* table-area-wrapper???덉씠?꾩썐 ?꾩슜 */
 .table-area-wrapper {
   background: transparent;
   border: 0;
   box-shadow: none;
 }
 
-/* 카드 밀도 */
-/* 카드 외곽은 고정하고 실제 내용 영역(card-body/section)에서 밀도를 조정한다. */
+/* 移대뱶 諛??*/
+/* 移대뱶 ?멸낸? 怨좎젙?섍퀬 ?ㅼ젣 ?댁슜 ?곸뿭(card-body/section)?먯꽌 諛?꾨? 議곗젙?쒕떎. */
 .card { padding: 0; }
 
 /* =========================================================
-   8. 모서리 스타일
+   8. 紐⑥꽌由??ㅽ???
 ========================================================= */
 body.radius-rounded { --radius-md: 10px; }
 body.radius-sharp { --radius-md: 2px; }
@@ -197,7 +205,7 @@ body.radius-sharp { --radius-md: 2px; }
 }
 
 /* =========================================================
-   9. 버튼 스타일
+   9. 踰꾪듉 ?ㅽ???
 ========================================================= */
 .btn-primary {
   background-color: var(--color-primary);
@@ -219,7 +227,7 @@ body.button-outline .btn-primary:hover {
 }
 
 /* =========================================================
-   10. 테이블 밀도
+   10. ?뚯씠釉?諛??
 ========================================================= */
 .table th,
 .table td {
@@ -235,294 +243,21 @@ body.table-density-normal .table td { padding: .75rem; }
 body.table-density-comfortable .table th,
 body.table-density-comfortable .table td { padding: 1rem; }
 
-
 /* =========================================================
-   10-A. DataTables 공통
-========================================================= */
-
-.dataTables_wrapper {
-  width: 100%;
-  min-width: 0;
-  position: relative;
-}
-
-.dataTables_wrapper .dataTables_scroll {
-  height: 100%;
-  overflow: hidden;
-}
-
-.dataTables_wrapper .dataTables_scrollHeadInner,
-.dataTables_wrapper .dataTables_scrollHeadInner table.dataTable,
-.dataTables_wrapper .dataTables_scrollBody table.dataTable {
-  min-width: 100%;
-}
-
-.dataTables_wrapper .dataTables_scrollHead {
-  overflow: hidden !important;
-}
-
-.dataTables_wrapper .dataTables_scrollBody {
-  overflow-y: auto !important;
-  overflow-x: auto !important;
-}
-
-/* scrollY 사용 시 본문 테이블 안의 숨김 thead가 높이를 차지하지 않도록 한다. */
-.dataTables_wrapper .dataTables_scrollBody table.dataTable {
-  margin-top: 0 !important;
-}
-
-.dataTables_wrapper .dataTables_scrollBody table.dataTable thead,
-.dataTables_wrapper .dataTables_scrollBody table.dataTable thead tr,
-.dataTables_wrapper .dataTables_scrollBody table.dataTable thead th,
-.dataTables_wrapper .dataTables_scrollBody table.dataTable thead td {
-  height: 0 !important;
-  min-height: 0 !important;
-  max-height: 0 !important;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
-  border-top: 0 !important;
-  border-bottom: 0 !important;
-  line-height: 0 !important;
-}
-
-.dataTables_wrapper .dataTables_scrollBody table.dataTable thead .dataTables_sizing {
-  height: 0 !important;
-  min-height: 0 !important;
-  max-height: 0 !important;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
-  overflow: hidden !important;
-}
-
-.dataTables_wrapper .dataTables_scrollHead table.dataTable thead th {
-  white-space: nowrap;
-  vertical-align: middle;
-}
-
-/* 상단/하단 */
-.dataTables_wrapper .dt-top,
-.dataTables_wrapper .dt-bottom {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.dataTables_wrapper .dt-top {
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.dataTables_wrapper .dt-bottom {
-  justify-content: space-between;
-  margin-top: 10px;
-}
-
-/* 상단 컨트롤 세로 정렬 통일 */
-.dataTables_wrapper .dt-top > * {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-/* 검색 */
-.dataTables_wrapper .dataTables_filter {
-  margin: 0;
-}
-
-.dataTables_wrapper .dataTables_filter label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  font-size: var(--dt-control-font-size);
-  color: var(--color-text);
-  white-space: nowrap;
-}
-
-.dataTables_wrapper .dataTables_filter input {
-  width: 220px;
-  max-width: 100%;
-  height: var(--dt-control-height);
-  min-height: var(--dt-control-height);
-  margin-left: 0 !important;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  padding: 0 var(--dt-control-padding-x);
-  box-sizing: border-box;
-  font-size: var(--dt-control-font-size);
-  line-height: 1;
-}
-
-.dataTables_wrapper .dataTables_filter input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px var(--color-primary-soft);
-}
-
-/* length / info / paginate */
-.dataTables_wrapper .dataTables_length,
-.dataTables_wrapper .dataTables_info,
-.dataTables_wrapper .dataTables_paginate {
-  margin: 0;
-  font-size: 13px;
-  color: var(--color-text-muted);
-}
-
-.dataTables_wrapper .dataTables_length label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-}
-
-.dataTables_wrapper .dataTables_length select {
-  height: var(--dt-control-height);
-  min-height: var(--dt-control-height);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  padding: 0 32px 0 10px;
-  font-size: var(--dt-control-font-size);
-  line-height: 1;
-  box-sizing: border-box;
-}
-
-/* 버튼 */
-.dataTables_wrapper .dt-buttons {
-  display: flex !important;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-}
-
-.dataTables_wrapper .dt-button,
-.dataTables_wrapper .dt-button.btn,
-.dataTables_wrapper .dt-buttons .btn,
-.dataTables_wrapper .dt-buttons button,
-.dataTables_wrapper .dt-buttons a {
-  height: var(--dt-control-height) !important;
-  min-height: var(--dt-control-height) !important;
-  padding: 0 var(--dt-control-padding-x) !important;
-  border-radius: 8px !important;
-  display: inline-flex !important;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  font-size: var(--dt-control-font-size) !important;
-  line-height: 1 !important;
-  margin: 0 !important;
-  vertical-align: middle;
-}
-
-/* colvis 드롭다운 버튼도 동일 */
-.dataTables_wrapper .buttons-collection {
-  height: var(--dt-control-height) !important;
-  min-height: var(--dt-control-height) !important;
-}
-
-/* 검색영역/버튼영역 내부 요소 높이 통일 */
-.dataTables_wrapper .dataTables_filter,
-.dataTables_wrapper .dt-buttons,
-.dataTables_wrapper .dataTables_length {
-  min-height: var(--dt-control-height);
-  display: flex;
-  align-items: center;
-}
-
-/* =========================
-   TABLE CROSS HIGHLIGHT
-   공통 테이블 행/열 교차 강조
-========================= */
-
-/* 대상: client-table 처럼 class를 가진 테이블만 */
-table.table-cross-highlight td,
-table.table-cross-highlight th,
-.dataTables_wrapper table.table-cross-highlight td,
-.dataTables_wrapper table.table-cross-highlight th{
-  transition: background-color .12s ease;
-}
-
-/* 행 강조 */
-table.table-cross-highlight tr.row-highlight > td,
-table.table-cross-highlight tr.row-highlight > th{
-  background-color: var(--cross-row-bg) !important;
-}
-
-/* 열 강조 */
-table.table-cross-highlight td.col-highlight,
-table.table-cross-highlight th.col-highlight{
-  background-color: var(--cross-col-bg) !important;
-}
-
-/* 교차 셀 강조 */
-table.table-cross-highlight tr.row-highlight > td.col-highlight,
-table.table-cross-highlight tr.row-highlight > th.col-highlight{
-  background-color: var(--cross-cell-bg) !important;
-}
-
-/* 이동 핸들만 손모양 */
-td.reorder-handle {
-  cursor: grab;
-}
-
-td.reorder-handle:active {
-  cursor: grabbing;
-}
-
-@media (max-width: 991.98px) {
-  .dataTables_wrapper .dt-top,
-  .dataTables_wrapper .dt-bottom {
-    justify-content: flex-start;
-  }
-
-  .dataTables_wrapper .dataTables_filter input {
-    width: 160px;
-  }
-}
-
-
-
-
-
-/* =========================================================
-   11. 행 포커스
-========================================================= */
-
-/* 크로스 하이라이트 테이블 제외 */
-body.row-focus-soft .table:not(.table-cross-highlight) tbody tr:hover {
-  background-color: var(--color-primary-soft);
-}
-
-body.row-focus-strong .table:not(.table-cross-highlight) tbody tr:hover {
-  background-color: var(--color-primary);
-  color: #fff;
-}
-
-body.row-focus-none .table:not(.table-cross-highlight) tbody tr:hover {
-  background: none;
-}
-
-/* =========================================================
-   12. 링크 밑줄
+   12. 留곹겕 諛묒쨪
 ========================================================= */
 body.link-underline-on a { text-decoration: underline; }
 body.link-underline-off a { text-decoration: none; }
 
 /* =========================================================
-   13. 아이콘 크기
+   13. ?꾩씠肄??ш린
 ========================================================= */
 body.icon-scale-small i { font-size: .85em; }
 body.icon-scale-normal i { font-size: 1em; }
 body.icon-scale-large i { font-size: 1.2em; }
 
 /* =========================================================
-   14. 알림 강조
+   14. ?뚮┝ 媛뺤“
 ========================================================= */
 body.alert-style-soft .alert { box-shadow: none; }
 
@@ -531,7 +266,7 @@ body.alert-style-strong .alert {
 }
 
 /* =========================================================
-   15. 모션 제어
+   15. 紐⑥뀡 ?쒖뼱
 ========================================================= */
 body.motion-off * {
   transition: none !important;
@@ -541,15 +276,20 @@ body.motion-off * {
 
 
 /* ==============================
-   사이드바 없는 단독 페이지 레이아웃
+   ?ъ씠?쒕컮 ?녿뒗 ?⑤룆 ?섏씠吏 ?덉씠?꾩썐
 ============================== */
 body.no-sidebar .main-content {
+  position: absolute;
+  top: var(--header-height);
+  right: 0;
+  bottom: var(--footer-height);
+  left: 0;
   margin-left: 0 !important;
   width: 100%;
   display: flex;
-  justify-content: center;   /* 🔥 핵심 */
-  margin-top: calc(var(--header-height) - 4px);
-  height: calc(100vh - var(--header-height) - var(--footer-height));
+  justify-content: center;   /* ?뵦 ?듭떖 */
+  margin-top: 0;
+  height: auto;
   min-height: 0;
 }
 
@@ -656,7 +396,7 @@ body.no-sidebar .main-content > .container {
 
 
 /* =========================================================
-   16. 반응형
+   16. 諛섏쓳??
 ========================================================= */
 @media (max-width: 991.98px) {
   :root { --header-height: 52px; }
@@ -680,11 +420,11 @@ body.no-sidebar .main-content > .container {
 
 @supports (height: 100dvh) {
   .app-shell {
-    height: calc(100dvh - var(--footer-height));
+    height: auto;
   }
 
   body.no-sidebar .main-content {
-    height: calc(100dvh - var(--header-height) - var(--footer-height));
+    height: auto;
   }
 }
 
@@ -798,7 +538,7 @@ body[data-density] textarea.form-control {
   min-height: var(--row-height);
 }
 
-/* Select2도 일반 select 박스와 같은 밀도/외형을 사용한다. */
+/* Select2???쇰컲 select 諛뺤뒪? 媛숈? 諛???명삎???ъ슜?쒕떎. */
 .select2-container {
   max-width: 100%;
   font-size: var(--font-size, 14px) !important;
@@ -933,63 +673,38 @@ body[data-density] textarea.form-control {
 }
 
 body[data-density] .btn,
-body[data-density] button,
-body[data-density] .dt-button {
+body[data-density] button {
   font-size: var(--font-size) !important;
 }
 
-body[data-density] .btn,
-body[data-density] .dt-button {
+body[data-density] .btn {
   padding: var(--control-padding-y) var(--control-padding-x) !important;
   min-height: var(--row-height);
 }
 
-/* Bootstrap grid/flex 유틸리티를 전역 재정의하면 페이지 배치가 흔들리므로 opt-in 레이아웃만 조정한다. */
+/* Bootstrap grid/flex ?좏떥由ы떚瑜??꾩뿭 ?ъ젙?섑븯硫??섏씠吏 諛곗튂媛 ?붾뱾由щ?濡?opt-in ?덉씠?꾩썐留?議곗젙?쒕떎. */
 body[data-density] .form-grid,
 body[data-density] .table-actions,
-body[data-density] .page-toolbar,
-body[data-density] .filter-row {
+body[data-density] .page-toolbar {
   gap: var(--gap);
 }
 
-body[data-density] .dataTables_wrapper .dt-top,
-body[data-density] .dataTables_wrapper .dt-bottom,
-body[data-density] .dataTables_wrapper .dataTables_length label,
-body[data-density] .dataTables_wrapper .dataTables_filter label,
-body[data-density] .dataTables_wrapper .dataTables_info,
-body[data-density] .dataTables_wrapper .dataTables_paginate {
-  font-size: var(--font-size) !important;
-}
-
-body[data-density] .dataTables_wrapper .dataTables_filter input,
-body[data-density] .dataTables_wrapper .dataTables_length select,
-body[data-density] .dataTables_wrapper .dt-button {
-  min-height: var(--row-height) !important;
-  font-size: var(--font-size) !important;
-}
-
 body.table-density-compact .table th,
-body.table-density-compact .table td,
-body.table-density-compact table.dataTable thead th,
-body.table-density-compact table.dataTable tbody td {
+body.table-density-compact .table td {
   padding: 8px !important;
   min-height: 34px;
   font-size: 14px !important;
 }
 
 body.table-density-normal .table th,
-body.table-density-normal .table td,
-body.table-density-normal table.dataTable thead th,
-body.table-density-normal table.dataTable tbody td {
+body.table-density-normal .table td {
   padding: 12px !important;
   min-height: 42px;
   font-size: 16px !important;
 }
 
 body.table-density-comfortable .table th,
-body.table-density-comfortable .table td,
-body.table-density-comfortable table.dataTable thead th,
-body.table-density-comfortable table.dataTable tbody td {
+body.table-density-comfortable .table td {
   padding: 16px !important;
   min-height: 50px;
   font-size: 18px !important;

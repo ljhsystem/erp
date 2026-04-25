@@ -1,8 +1,6 @@
-import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
+﻿import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import {
     createDataTable,
-    updateTableHeight,
-    forceTableHeightSync,
     bindTableHighlight
 } from '/public/assets/js/components/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
@@ -22,19 +20,19 @@ window.AdminPicker = AdminPicker;
     };
 
     const PERMISSION_COLUMN_MAP = {
-        sort_no:            { label: '순번', visible: true },
-        category:        { label: '카테고리', visible: true },
-        permission_name: { label: '퍼미션명', visible: true },
-        permission_key:  { label: '퍼미션키', visible: true },
-        is_active:       { label: '상태', visible: true, noVis: true },
-        description:     { label: '설명', visible: false },
-        created_at:      { label: '등록일자', visible: false },
-        updated_at:      { label: '수정일자', visible: false }
+        sort_no:            { label: '?쒕쾲', visible: true },
+        category:        { label: '移댄뀒怨좊━', visible: true },
+        permission_name: { label: '?쇰??섎챸', visible: true },
+        permission_key:  { label: '?쇰??섑궎', visible: true },
+        is_active:       { label: '?곹깭', visible: true, noVis: true },
+        description:     { label: '?ㅻ챸', visible: false },
+        created_at:      { label: '?깅줉?쇱옄', visible: false },
+        updated_at:      { label: '?섏젙?쇱옄', visible: false }
     };
 
     const DATE_OPTIONS = [
-        { value: 'created_at', label: '등록일자' },
-        { value: 'updated_at', label: '수정일자' }
+        { value: 'created_at', label: '?깅줉?쇱옄' },
+        { value: 'updated_at', label: '?섏젙?쇱옄' }
     ];
 
     let permissionTable = null;
@@ -59,7 +57,6 @@ window.AdminPicker = AdminPicker;
         bindRowReorder(permissionTable, { api: API.REORDER });
         bindTableEvents($);
         bindModalEvents($);
-        bindTableLayoutEvents(permissionTable, '#permission-table');
         bindGlobalEvents();
     }
 
@@ -157,10 +154,10 @@ window.AdminPicker = AdminPicker;
             api: API.LIST,
             columns,
             defaultOrder: [[1, 'asc']],
-            pageLength: 100,
+            pageLength: 10,
             buttons: [
                 {
-                    text: '새 권한',
+                    text: '??沅뚰븳',
                     className: 'btn btn-primary btn-sm',
                     action: function () {
                         openCreateModal();
@@ -183,8 +180,6 @@ window.AdminPicker = AdminPicker;
                 defaultSearchField: 'permission_name',
                 dateOptions: DATE_OPTIONS
             });
-
-            updateTableHeight(permissionTable, '#permission-table');
             bindTableHighlight('#permission-table', permissionTable);
 
             permissionTable.on('draw', updatePermissionCountFromTable);
@@ -216,8 +211,8 @@ window.AdminPicker = AdminPicker;
 
                     if (field === 'is_active') {
                         return String(data) === '1'
-                            ? '<span class="badge bg-success">활성</span>'
-                            : '<span class="badge bg-secondary">비활성</span>';
+                            ? '<span class="badge bg-success">?쒖꽦</span>'
+                            : '<span class="badge bg-secondary">鍮꾪솢??/span>';
                     }
 
                     return escapeHtml(data);
@@ -269,7 +264,7 @@ window.AdminPicker = AdminPicker;
 
                 const id = $('#permission_edit_id').val();
                 if (!id) return;
-                if (!confirm('권한을 영구삭제하시겠습니까?')) return;
+                if (!confirm('沅뚰븳???곴뎄??젣?섏떆寃좎뒿?덇퉴?')) return;
 
                 await deletePermission(id);
             });
@@ -297,9 +292,9 @@ window.AdminPicker = AdminPicker;
 
     function setPermissionModalMode(mode) {
         const isCreate = mode === 'create';
-        $('#permissionEditModal .modal-title').text(isCreate ? '권한 등록' : '권한 수정');
+        $('#permissionEditModal .modal-title').text(isCreate ? '沅뚰븳 ?깅줉' : '沅뚰븳 ?섏젙');
         $('#permission_edit_delete_btn')
-            .text('영구삭제')
+            .text('?곴뎄??젣')
             .toggle(!isCreate);
     }
 
@@ -318,7 +313,7 @@ window.AdminPicker = AdminPicker;
         const permissionKey = String($('#permission_edit_key').val() || '').trim();
 
         if (!permissionName || !permissionKey) {
-            notify('warning', '퍼미션명과 퍼미션키를 입력하세요.');
+            notify('warning', '?쇰??섎챸怨??쇰??섑궎瑜??낅젰?섏꽭??');
             return;
         }
 
@@ -339,12 +334,12 @@ window.AdminPicker = AdminPicker;
                 return;
             }
 
-            notify('success', '저장되었습니다.');
+            notify('success', '??λ릺?덉뒿?덈떎.');
             permissionModal?.hide();
             reloadPermissionTable();
         } catch (err) {
             console.error('[permissions.js] save failed:', err);
-            notify('error', '저장 중 오류가 발생했습니다.');
+            notify('error', '???以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.');
         }
     }
 
@@ -362,29 +357,28 @@ window.AdminPicker = AdminPicker;
             const json = await res.json();
 
             if (!json?.success) {
-                notify('error', json?.message || '삭제 실패');
+                notify('error', json?.message || '??젣 ?ㅽ뙣');
                 return;
             }
 
-            notify('success', '삭제되었습니다.');
+            notify('success', '??젣?섏뿀?듬땲??');
             permissionModal?.hide();
             reloadPermissionTable();
         } catch (err) {
             console.error('[permissions.js] delete failed:', err);
-            notify('error', '삭제 중 오류가 발생했습니다.');
+            notify('error', '??젣 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.');
         }
     }
 
     function resolveSaveMessage(message) {
-        if (message === 'duplicate_key') return '이미 등록된 퍼미션키입니다.';
-        if (message === 'duplicate') return '이미 등록된 퍼미션키입니다.';
-        return message || '저장 실패';
+        if (message === 'duplicate_key') return '?대? ?깅줉???쇰??섑궎?낅땲??';
+        if (message === 'duplicate') return '?대? ?깅줉???쇰??섑궎?낅땲??';
+        return message || '????ㅽ뙣';
     }
 
     function reloadPermissionTable() {
         permissionTable?.ajax.reload(() => {
             updatePermissionCountFromTable();
-            forceTableHeightSync(permissionTable, '#permission-table');
         }, false);
     }
 
@@ -394,25 +388,11 @@ window.AdminPicker = AdminPicker;
         const info = permissionTable.page.info();
         const el = document.getElementById('permissionCount');
         if (el) {
-            el.textContent = `총 ${info?.recordsDisplay ?? 0}건`;
+            el.textContent = `珥?${info?.recordsDisplay ?? 0}嫄?;
         }
     }
 
-    function bindTableLayoutEvents(table, tableSelector) {
-        if (!table) return;
-
-        window.addEventListener('resize', () => {
-            updateTableHeight(table, tableSelector);
-        });
-
-        document.addEventListener('sidebar:toggled', () => {
-            updateTableHeight(table, tableSelector);
-
-            setTimeout(() => {
-                forceTableHeightSync(table, tableSelector);
-            }, 340);
-        });
-    }
+    
 
     function bindGlobalEvents() {
         if (globalBound) return;
@@ -484,3 +464,6 @@ window.AdminPicker = AdminPicker;
         return div.textContent || '';
     }
 })();
+
+
+

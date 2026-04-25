@@ -13,6 +13,7 @@ let activePopupPicker = null;
 function withPopup(picker, container) {
   let unbindOutside = null;
   let removeEscListener = null;
+  let escStackHandler = null;
 
   picker.open = ({ anchor, offset = 8 } = {}) => {
     if (!anchor) return;
@@ -93,11 +94,20 @@ function withPopup(picker, container) {
       if (event.key !== 'Escape') return;
       event.preventDefault();
       event.stopPropagation();
+      event.stopImmediatePropagation();
       picker.close();
     };
 
-    document.addEventListener('keydown', escHandler, true);
-    removeEscListener = () => document.removeEventListener('keydown', escHandler, true);
+    if (escStackHandler && window.ESCStack) {
+      window.ESCStack.remove(escStackHandler);
+    }
+    escStackHandler = () => picker.close();
+    if (window.ESCStack) {
+      window.ESCStack.push(escStackHandler);
+    }
+
+    window.addEventListener('keydown', escHandler, true);
+    removeEscListener = () => window.removeEventListener('keydown', escHandler, true);
     activePopupPicker = picker;
   };
 
@@ -128,6 +138,11 @@ function withPopup(picker, container) {
 
     removeEscListener?.();
     removeEscListener = null;
+
+    if (escStackHandler && window.ESCStack) {
+      window.ESCStack.remove(escStackHandler);
+    }
+    escStackHandler = null;
 
     if (activePopupPicker === picker) {
       activePopupPicker = null;

@@ -1,0 +1,142 @@
+/* =========================================================
+   Trash Manager Component
+========================================================= */
+
+.trash {
+  display: flex;
+  height: 65vh;
+  overflow: hidden;
+  background: #fff;
+}
+
+.trash-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.trash-toolbar {
+  display: flex;
+  gap: var(--gap, 6px);
+  padding: 8px 10px;
+  border-bottom: 1px solid #eee;
+  background: #fafafa;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.trash-toolbar > .btn:nth-child(3) {
+  margin-left: auto;
+}
+
+.trash-table {
+  flex: 1;
+  overflow: auto;
+}
+
+.trash-table table {
+  margin: 0;
+}
+
+.trash-table tbody tr:hover {
+  background: #f8fbff;
+  cursor: pointer;
+}
+
+.trash-table tbody tr.active {
+  background: #e7f1ff;
+}
+
+.trash-right {
+  width: 0;
+  overflow: hidden;
+  transition: width .25s ease;
+  border-left: 1px solid #eee;
+  display: flex;
+  flex-direction: column;
+  background: #fafafa;
+  will-change: width;
+}
+
+.trash.open .trash-right {
+  flex: 0 0 380px;
+}
+
+.trash-detail {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  font-size: var(--font-size, 13px);
+  line-height: 1.5;
+}
+
+.trash-detail h6 {
+  font-weight: 600;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 6px;
+}
+
+.trash-detail div {
+  margin-bottom: 6px;
+}
+
+.trash-detail b {
+  display: inline-block;
+  width: 90px;
+  color: #666;
+}
+
+.trash-detail .empty {
+  color: #999;
+  font-size: var(--font-size, 13px);
+  text-align: center;
+  margin-top: 40px;
+}
+
+.trash-table th:first-child,
+.trash-table td:first-child {
+  text-align: center;
+  vertical-align: middle;
+  width: 40px;
+}
+
+.trash-toolbar .btn,
+.btn-restore,
+.btn-purge {
+  padding: 4px 10px;
+  font-size: var(--font-size, 12px);
+}
+
+.trash-table::-webkit-scrollbar,
+.trash-detail::-webkit-scrollbar {
+  width: 6px;
+}
+
+.trash-table::-webkit-scrollbar-thumb,
+.trash-detail::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+
+@media (max-width: 1200px) {
+  .trash.open .trash-right {
+    width: 300px;
+  }
+}
+
+@media (max-width: 768px) {
+  .trash {
+    flex-direction: column;
+  }
+
+  .trash-toolbar > .btn:nth-child(3) {
+    margin-left: 0;
+  }
+
+  .trash-right {
+    width: 100% !important;
+    height: 200px;
+  }
+}

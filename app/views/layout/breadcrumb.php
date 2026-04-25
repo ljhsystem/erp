@@ -24,37 +24,37 @@ $pageMap = [
     '/dashboard' => [
         'category' => '메인',
         'group' => '',
-        'name' => '대시보드',
+        'name' => '메인 대시보드',
     ],
     '/dashboard/report' => [
         'category' => '메인',
-        'group' => '보고서',
+        'group' => '',
         'name' => '통합 보고서',
     ],
     '/dashboard/activity' => [
         'category' => '메인',
-        'group' => '모니터링',
+        'group' => '',
         'name' => '최근 활동',
     ],
     '/dashboard/notifications' => [
         'category' => '메인',
-        'group' => '모니터링',
+        'group' => '',
         'name' => '공지사항',
     ],
     '/dashboard/kpi' => [
         'category' => '메인',
-        'group' => '보고서',
+        'group' => '',
         'name' => '실적 현황',
     ],
     '/dashboard/settings' => [
         'category' => '메인',
-        'group' => '환경설정',
-        'name' => '설정',
+        'group' => '설정',
+        'name' => '기초정보관리',
     ],
     '/document' => [
-        'category' => '문서관리',
+        'category' => '내부문서',
         'group' => '',
-        'name' => '대시보드',
+        'name' => '문서 대시보드',
     ],
     '/approval' => [
         'category' => '전자결재',

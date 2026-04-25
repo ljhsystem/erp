@@ -1,5 +1,5 @@
 <?php
-// 寃쎈줈: PROJECT_ROOT . '/app/Models/System/ProjectModel.php'
+// 경로: PROJECT_ROOT . '/app/Models/System/ProjectModel.php'
 namespace App\Models\System;
 
 use PDO;
@@ -7,10 +7,10 @@ use Core\Database;
 
 class ProjectModel
 {
-    // PDO 蹂닿?
+    // PDO 연결 객체
     private PDO $db;
 
-    // ?앹꽦?????몃??먯꽌 PDO 二쇱엯 ?먮뒗 ?먮룞 ?곌껐
+    // 생성자에서 PDO 주입 또는 기본 연결 사용
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
@@ -22,87 +22,120 @@ class ProjectModel
             SELECT
                 p.*,
                 c.client_name AS linked_client_name,
-                e.employee_name AS employee_name
+                e.employee_name AS employee_name,
+                CASE
+                    WHEN p.created_by LIKE 'SYSTEM:%' THEN p.created_by
+                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
+                    ELSE p.created_by
+                END AS created_by_name,
+                CASE
+                    WHEN p.updated_by LIKE 'SYSTEM:%' THEN p.updated_by
+                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
+                    ELSE p.updated_by
+                END AS updated_by_name,
+                CASE
+                    WHEN p.deleted_by LIKE 'SYSTEM:%' THEN p.deleted_by
+                    WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
+                    ELSE p.deleted_by
+                END AS deleted_by_name
             FROM system_projects p
             LEFT JOIN system_clients c ON p.client_id = c.id
             LEFT JOIN user_employees e ON p.employee_id = e.id
+            LEFT JOIN user_employees p1
+                ON p.created_by NOT LIKE 'SYSTEM:%'
+               AND p1.user_id = REPLACE(p.created_by, 'USER:', '')
+            LEFT JOIN user_employees p2
+                ON p.updated_by NOT LIKE 'SYSTEM:%'
+               AND p2.user_id = REPLACE(p.updated_by, 'USER:', '')
+            LEFT JOIN user_employees p3
+                ON p.deleted_by NOT LIKE 'SYSTEM:%'
+               AND p3.user_id = REPLACE(p.deleted_by, 'USER:', '')
             WHERE p.deleted_at IS NULL
         ";
 
         $params = [];
 
         /* =========================================================
-         * ?뵦 ?꾩껜 而щ읆 留?(?섎굹??鍮좎쭚?놁씠)
+         * 전체 컬럼 검색 매핑
          * ========================================================= */
         $fieldMap = [
 
-            // ?뵦 湲곕낯
-            'sort_no'                    => ['col'=>'p.sort_no','type'=>'exact'],
+            // 기본 정보
+            'id'                      => ['col'=>'p.id','type'=>'exact'],
+            'sort_no'                 => ['col'=>'p.sort_no','type'=>'exact'],
             'project_name'            => ['col'=>'p.project_name','type'=>'like'],
             'construction_name'       => ['col'=>'p.construction_name','type'=>'like'],
 
-            // ?뵦 愿怨?
+            // 관계 정보
             'client_id'               => ['col'=>'p.client_id','type'=>'exact'],
             'employee_id'             => ['col'=>'p.employee_id','type'=>'exact'],
             'linked_client_name'      => ['col'=>'c.client_name','type'=>'like'],
            'client_name'              => ['col'=>'p.client_name','type'=>'like'],
             'employee_name'           => ['col'=>'e.employee_name','type'=>'like'],
 
-            // ?뵦 ?몃Ъ
+            // 인력 정보
             'site_agent'              => ['col'=>'p.site_agent','type'=>'like'],
+            'contract_type'           => ['col'=>'p.contract_type','type'=>'like'],
             'director'                => ['col'=>'p.director','type'=>'like'],
             'manager'                 => ['col'=>'p.manager','type'=>'like'],
 
-            // ?뵦 ?ъ뾽
+            // 사업 정보
             'business_type'           => ['col'=>'p.business_type','type'=>'like'],
             'housing_type'            => ['col'=>'p.housing_type','type'=>'like'],
 
-            // ?뵦 ?꾩튂
+            // 위치 정보
             'site_region_city'        => ['col'=>'p.site_region_city','type'=>'like'],
             'site_region_district'    => ['col'=>'p.site_region_district','type'=>'like'],
             'site_region_address'     => ['col'=>'p.site_region_address','type'=>'like'],
             'site_region_address_detail'=>['col'=>'p.site_region_address_detail','type'=>'like'],
 
-            // ?뵦 怨듭쥌
+            // 공종 정보
             'work_type'               => ['col'=>'p.work_type','type'=>'like'],
             'work_subtype'            => ['col'=>'p.work_subtype','type'=>'like'],
             'work_detail_type'        => ['col'=>'p.work_detail_type','type'=>'like'],
             'contract_work_type'      => ['col'=>'p.contract_work_type','type'=>'like'],
 
-            // ?뵦 ?낆같
+            // 입찰 정보
             'bid_type'                => ['col'=>'p.bid_type','type'=>'like'],
 
-            // ?뵦 諛쒖＜??
+            // 발주자 정보
             'client_type'             => ['col'=>'p.client_type','type'=>'like'],
 
-            // ?뵦 湲곌?
+            // 기관 정보
             'permit_agency'           => ['col'=>'p.permit_agency','type'=>'like'],
 
-            // ?뵦 湲덉븸
+            // 금액 정보
             'initial_contract_amount' => ['col'=>'p.initial_contract_amount','type'=>'exact'],
 
-            // ?뵦 湲고?
+            // 기타 정보
             'authorized_company_seal' => ['col'=>'p.authorized_company_seal','type'=>'like'],
             'note'                    => ['col'=>'p.note','type'=>'like'],
             'memo'                    => ['col'=>'p.memo','type'=>'like'],
 
-            // ?뵦 ?곹깭
+            // 상태 정보
             'is_active'               => ['col'=>'p.is_active','type'=>'exact'],
 
-            // ?뵦 ?좎쭨
+            // 날짜 정보
             'permit_date'             => ['col'=>'p.permit_date','type'=>'date'],
             'contract_date'           => ['col'=>'p.contract_date','type'=>'date'],
             'start_date'              => ['col'=>'p.start_date','type'=>'date'],
             'completion_date'         => ['col'=>'p.completion_date','type'=>'date'],
             'bid_notice_date'         => ['col'=>'p.bid_notice_date','type'=>'date'],
             'created_at'              => ['col'=>'p.created_at','type'=>'date'],
+            'created_by'              => ['col'=>'p.created_by','type'=>'like'],
+            'created_by_name'         => ['col'=>"COALESCE(CONCAT('USER:', p1.employee_name), p.created_by)",'type'=>'like'],
             'updated_at'              => ['col'=>'p.updated_at','type'=>'date'],
+            'updated_by'              => ['col'=>'p.updated_by','type'=>'like'],
+            'updated_by_name'         => ['col'=>"COALESCE(CONCAT('USER:', p2.employee_name), p.updated_by)",'type'=>'like'],
+            'deleted_at'              => ['col'=>'p.deleted_at','type'=>'date'],
+            'deleted_by'              => ['col'=>'p.deleted_by','type'=>'like'],
+            'deleted_by_name'         => ['col'=>"COALESCE(CONCAT('USER:', p3.employee_name), p.deleted_by)",'type'=>'like'],
         ];
 
         $globalSearch = [];
 
         /* =========================================================
-         * ?뵦 ?꾪꽣 泥섎━
+         * 필터 처리
          * ========================================================= */
         foreach ($filters as $f) {
 
@@ -111,7 +144,7 @@ class ProjectModel
 
             if ($value === '' || $value === null) continue;
 
-            // ?뵦 ?꾩껜寃??
+            // 전체 검색
             if ($field === '') {
                 $globalSearch[] = $value;
                 continue;
@@ -149,7 +182,7 @@ class ProjectModel
         }
 
         /* =========================================================
-         * ?뵦 ?꾩껜寃??(紐⑤뱺 TEXT 而щ읆)
+         * 전체 검색(모든 텍스트 컬럼)
          * ========================================================= */
         if (!empty($globalSearch)) {
 
@@ -165,9 +198,13 @@ class ProjectModel
                 'p.client_name','p.client_type',
                 'p.permit_agency','p.authorized_company_seal',
                 'p.note','p.memo',
+                'p.created_by','p.updated_by','p.deleted_by',
 
                 'c.client_name',
-                'e.employee_name'
+                'e.employee_name',
+                "COALESCE(CONCAT('USER:', p1.employee_name), p.created_by)",
+                "COALESCE(CONCAT('USER:', p2.employee_name), p.updated_by)",
+                "COALESCE(CONCAT('USER:', p3.employee_name), p.deleted_by)"
             ];
 
             $sql .= " AND (";
@@ -208,7 +245,7 @@ class ProjectModel
     }
 
     /* -------------------------------------------------------------
-    * ?꾨줈?앺듃 ?⑥씪 議고쉶 (id 湲곗?)
+    * 프로젝트 단일 조회 (id 기준)
     * ------------------------------------------------------------- */
     public function getById(string $id): ?array
     {
@@ -269,7 +306,7 @@ class ProjectModel
     }
 
     /* =========================================================
-    * ?꾨줈?앺듃 寃??(Model - RAW ?곗씠??諛섑솚)
+    * 프로젝트 검색 (Model - RAW 데이터 반환)
     * ========================================================= */
     public function searchPicker(string $keyword = '', int $limit = 20): array
     {
@@ -344,7 +381,7 @@ class ProjectModel
 
 
     /* -------------------------------------------------------------
-    * ?꾨줈?앺듃 ?앹꽦
+    * 프로젝트 생성
     * ------------------------------------------------------------- */
     public function create(array $data): bool
     {
@@ -474,7 +511,7 @@ class ProjectModel
             'note' => $data['note'] ?? null,
             'memo' => $data['memo'] ?? null,
 
-            // ?뵦 湲곕낯媛??듭씪
+            // 기본값 주입
             'is_active' => isset($data['is_active']) ? (int)$data['is_active'] : 1,
 
             'created_by' => $data['created_by'],
@@ -484,7 +521,7 @@ class ProjectModel
 
 
     /* -------------------------------------------------------------
-    * ?꾨줈?앺듃 ?섏젙 (id 湲곗?)
+    * 프로젝트 수정 (id 기준)
     * ------------------------------------------------------------- */
     public function updateById(string $id, array $data): bool
     {
@@ -587,7 +624,7 @@ class ProjectModel
             'note' => $data['note'] ?? null,
             'memo' => $data['memo'] ?? null,
 
-            // ?뵦 湲곕낯媛??듭씪
+            // 기본값 주입
             'is_active' => isset($data['is_active']) ? (int)$data['is_active'] : 1,
 
             'updated_by' => $data['updated_by']
@@ -598,15 +635,17 @@ class ProjectModel
     }
 
     /* -------------------------------------------------------------
-    * ?꾨줈?앺듃 ??젣 (id 湲곗?)
+    * 프로젝트 삭제 (id 기준)
     * ------------------------------------------------------------- */
     public function deleteById(string $id, string $actor): bool
     {
         $sql = "
             UPDATE system_projects
             SET
+                is_active = 0,
                 deleted_at = NOW(),
-                deleted_by = :actor
+                deleted_by = :actor,
+                updated_by = :actor
             WHERE id = :id
               AND deleted_at IS NULL
         ";
@@ -623,7 +662,7 @@ class ProjectModel
 
 
     /* -------------------------------------------------------------
-    * ?꾨줈?앺듃 ?댁???紐⑸줉
+    * 프로젝트 휴지통 목록
     * ------------------------------------------------------------- */
     public function getDeleted(): array
     {
@@ -682,13 +721,14 @@ class ProjectModel
     }
 
     /* -------------------------------------------------------------
-    * ?꾨줈?앺듃 蹂듭썝 (id 湲곗?)
+    * 프로젝트 복원 (id 기준)
     * ------------------------------------------------------------- */
     public function restoreById(string $id, string $actor): bool
     {
         $sql = "
             UPDATE system_projects
             SET
+                is_active = 1,
                 deleted_at = NULL,
                 deleted_by = NULL,
                 updated_by = :actor
@@ -707,7 +747,7 @@ class ProjectModel
     }
 
     /* -------------------------------------------------------------
-    * ?꾨줈?앺듃 ?곴뎄??젣
+    * 프로젝트 영구삭제
     * ------------------------------------------------------------- */
     public function hardDeleteById(string $id): bool
     {
@@ -723,7 +763,7 @@ class ProjectModel
 
 
     /* -------------------------------------------------------------
-    * ID 湲곗? sort_no ?섏젙
+    * ID 기준 sort_no 수정
     * ------------------------------------------------------------- */
     public function updateSortNo(string $id, string $newSortNo): bool
     {

@@ -1,7 +1,7 @@
-// 경로: PROJECT_ROOT . '/assets/js/pages/dashboard/settings/base/bank.account.js'
+// 경로: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/base/bank.account.js'
 
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
-import { createDataTable, updateTableHeight, forceTableHeightSync, bindTableHighlight } from '/public/assets/js/components/data-table.js';
+import { createDataTable, bindTableHighlight } from '/public/assets/js/components/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { onlyNumber, formatAccountNumber } from '/public/assets/js/common/format.js';
@@ -46,29 +46,23 @@ window.AdminPicker = AdminPicker;
        계좌 컬럼 한글 매핑
     ========================= */
     const ACCOUNT_COLUMN_MAP = {
-        sort_no             : { label: "순번",     visible: true  },
-
-        account_name     : { label: "계좌명",   visible: true  },
-        bank_name        : { label: "은행명",   visible: true  },
-        account_number   : { label: "계좌번호", visible: true  },
-        account_holder   : { label: "예금주",   visible: true  },
-
-        account_type     : { label: "계좌구분", visible: true  },
-        currency         : { label: "통화",     visible: false },
-
-        bank_file        : { label: "통장사본", visible: false },
-
-        note             : { label: "비고",     visible: true  },
-        memo             : { label: "메모",     visible: false },
-
-        is_active        : { label: "상태",     visible: true  },
-
-        created_at       : { label: "생성일시", visible: false },
-        created_by_name  : { label: "생성자",   visible: false },
-        updated_at       : { label: "수정일시", visible: false },
-        updated_by_name  : { label: "수정자",   visible: false },
-        deleted_at       : { label: "삭제일시", visible: false },
-        deleted_by_name  : { label: "삭제자",   visible: false }
+        sort_no          : { label: "순번",       visible: true  },
+        account_name     : { label: "계좌명",     visible: true  },
+        bank_name        : { label: "은행명",     visible: true  },
+        account_number   : { label: "계좌번호",   visible: true  },
+        account_holder   : { label: "예금주",     visible: true  },
+        account_type     : { label: "계좌구분",   visible: true  },
+        currency         : { label: "통화",       visible: false },
+        bank_file        : { label: "통장사본",   visible: false },
+        note             : { label: "비고",       visible: true  },
+        memo             : { label: "메모",       visible: false },
+        is_active        : { label: "상태",       visible: true  },
+        created_at       : { label: "등록일시",   visible: false },
+        created_by_name  : { label: "등록자",     visible: false },
+        updated_at       : { label: "수정일시",   visible: false },
+        updated_by_name  : { label: "수정자",     visible: false },
+        deleted_at       : { label: "삭제일시",   visible: false },
+        deleted_by_name  : { label: "삭제자",     visible: false }
     };
 
     const DATE_OPTIONS = [
@@ -110,7 +104,6 @@ window.AdminPicker = AdminPicker;
         bindTableEvents($);
         bindModalEvents($);
         bindAdminDateInputs();
-        bindTableLayoutEvents(accountTable, '#account-table');
         bindUIEvents();
         bindExcelEvents();
         bindTrashEvents();
@@ -153,51 +146,21 @@ window.AdminPicker = AdminPicker;
             const idEl = getIdEl();
             if (idEl) idEl.value = '';
 
-            const codeEl = document.getElementById('modal_sort_no');
-            if (codeEl) codeEl.value = '';
-
             const deleteBtn = document.getElementById('btnDeleteAccount');
             if (deleteBtn) deleteBtn.style.display = 'none';
 
-            // 🔥 추가
+            // 신규/수정 상태 초기화
             window.isNewAccount = false;
 
             const titleEl = document.querySelector('#accountModal .modal-title');
             if (titleEl) {
                 titleEl.textContent = '계좌 정보';
             }
-            // 🔥 끝
 
             resetBankBookUI();
         });
 
-        document.querySelectorAll('.date-icon').forEach(icon => {
-            icon.addEventListener('click', e => {
-                e.preventDefault();
-                e.stopPropagation();
-
-                const wrap = icon.closest('.date-input, .date-input-wrap');
-                const input = wrap ? wrap.querySelector('input') : null;
-                if (!input) return;
-
-                const picker = initAdminDatePicker();
-                if (!picker) return;
-
-                picker.__target = input;
-
-                if (typeof picker.clearDate === 'function') {
-                    picker.clearDate();
-                }
-
-                const v = input.value;
-                if (v) {
-                    const d = new Date(v);
-                    if (!isNaN(d)) picker.setDate(d);
-                }
-
-                picker.open({ anchor: input });
-            });
-        });
+        bindDateIconPicker();
 
         modalEl.addEventListener('shown.bs.modal', () => {
             bindAdminDateInputs();
@@ -207,21 +170,7 @@ window.AdminPicker = AdminPicker;
     /* ============================================================
        TABLE LAYOUT
     ============================================================ */
-    function bindTableLayoutEvents(table, tableSelector) {
-        if (!table) return;
 
-        window.addEventListener('resize', () => {
-            updateTableHeight(table, tableSelector);
-        });
-
-        document.addEventListener('sidebar:toggled', () => {
-            updateTableHeight(table, tableSelector);
-
-            setTimeout(() => {
-                forceTableHeightSync(table, tableSelector);
-            }, 340);
-        });
-    }
 
     /* ============================================================
        UI EVENTS
@@ -234,7 +183,7 @@ window.AdminPicker = AdminPicker;
 
         if (btnRemoveBankBook) {
             btnRemoveBankBook.addEventListener('click', function () {
-                if (!confirm('통장사본을 삭제하시겠습니까?')) return;
+                if (!confirm('통장사본 파일을 삭제하시겠습니까?')) return;
 
                 const input = getBankBookInputEl();
                 const del = getDeleteBankBookEl();
@@ -249,9 +198,9 @@ window.AdminPicker = AdminPicker;
                     list.dataset.original = '0';
                     list.innerHTML = `
                         <div class="file-item">
-                            <span>📄 <strong>통장사본</strong></span>
+                            <span><strong>통장사본</strong></span>
                             <div class="file-status text-danger">
-                                통장사본이 삭제됩니다. 저장 시 반영됩니다.
+                                통장사본 파일을 삭제합니다. 저장 시 반영됩니다.
                             </div>
                         </div>
                     `;
@@ -261,7 +210,7 @@ window.AdminPicker = AdminPicker;
 
                 if (text) {
                     text.innerHTML = `
-                        여기로 파일을 끌어다 놓거나 클릭하여 업로드
+                        여기로 파일을 끌어놓거나 클릭하여 업로드
                         <br>
                         (PDF, JPG, PNG)
                     `;
@@ -358,7 +307,7 @@ window.AdminPicker = AdminPicker;
                 <td>${row.deleted_by_name ?? row.deleted_by ?? ''}</td>
                 <td>
                     <button class="btn btn-success btn-sm btn-restore" data-id="${row.id}">복원</button>
-                    <button class="btn btn-danger btn-sm btn-purge" data-id="${row.id}">영구삭제</button>
+                    <button class="btn btn-danger btn-sm btn-purge" data-id="${row.id}">삭제</button>
                 </td>
             `;
         };
@@ -401,28 +350,89 @@ window.AdminPicker = AdminPicker;
 
     function bindAdminDateInputs() {
         document.querySelectorAll('.admin-date').forEach(input => {
-            input.addEventListener('click', e => {
-                e.preventDefault();
-                e.stopPropagation();
+            if (input.dataset.dateInputBound === '1') return;
+            input.dataset.dateInputBound = '1';
 
-                const picker = initAdminDatePicker();
-                if (!picker) return;
+            input.addEventListener('input', () => {
+                input.value = formatDateInputValue(input.value);
+            });
 
-                picker.__target = input;
-
-                if (typeof picker.clearDate === 'function') {
-                    picker.clearDate();
-                }
-
-                const v = input.value;
-                if (v) {
-                    const d = new Date(v);
-                    if (!isNaN(d)) picker.setDate(d);
-                }
-
-                picker.open({ anchor: input });
+            input.addEventListener('blur', () => {
+                input.value = normalizeDateInputValue(input.value);
             });
         });
+    }
+
+    function bindDateIconPicker() {
+        if (document.__accountDateIconPickerBound) return;
+        document.__accountDateIconPickerBound = true;
+
+        document.addEventListener('click', function (e) {
+            const icon = e.target.closest('.date-icon');
+            if (!icon) return;
+
+            const wrap = icon.closest('.date-input, .date-input-wrap');
+            const input = wrap ? wrap.querySelector('input.admin-date, input[name="dateStart"], input[name="dateEnd"]') : null;
+            if (!input) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+            openDatePickerForInput(input);
+        }, true);
+    }
+
+    function openDatePickerForInput(input) {
+        const picker = initAdminDatePicker();
+        if (!picker) return;
+
+        picker.__target = input;
+
+        if (typeof picker.clearDate === 'function') {
+            picker.clearDate();
+        }
+
+        input.value = normalizeDateInputValue(input.value);
+
+        if (/^\d{4}-\d{2}-\d{2}$/.test(input.value)) {
+            const date = new Date(input.value);
+            if (!Number.isNaN(date.getTime())) {
+                picker.setDate(date);
+            }
+        }
+
+        picker.open({ anchor: input });
+    }
+
+    function formatDateInputValue(value) {
+        const digits = String(value || '').replace(/\D/g, '').slice(0, 8);
+
+        if (digits.length <= 4) return digits;
+        if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+
+        return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
+    }
+
+    function normalizeDateInputValue(value) {
+        const formatted = formatDateInputValue(value);
+        const match = formatted.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+        if (!match) return formatted;
+
+        const year = Number(match[1]);
+        const month = Number(match[2]);
+        const day = Number(match[3]);
+        const date = new Date(year, month - 1, day);
+
+        if (
+            date.getFullYear() !== year ||
+            date.getMonth() !== month - 1 ||
+            date.getDate() !== day
+        ) {
+            AppCore?.notify?.('warning', '올바른 날짜를 입력하세요.');
+            return '';
+        }
+
+        return formatted;
     }
 
     function formatDate(date) {
@@ -461,7 +471,7 @@ window.AdminPicker = AdminPicker;
             api: API.LIST,
             columns: columns,
             defaultOrder: [[1, "asc"]],
-            pageLength: 100,
+            pageLength: 10,
             buttons: [
                 {
                     text: "엑셀관리",
@@ -502,7 +512,6 @@ window.AdminPicker = AdminPicker;
 
 
 
-                        // 신규
                         window.isNewAccount = true;
 
                         const titleEl = document.querySelector('#accountModal .modal-title');
@@ -511,10 +520,8 @@ window.AdminPicker = AdminPicker;
                         }
 
                         const idEl = getIdEl();
-                        const codeEl = document.getElementById('modal_sort_no');
 
                         if (idEl) idEl.value = '';
-                        if (codeEl) codeEl.value = '';
 
                         const deleteBtn = document.getElementById('btnDeleteAccount');
                         if (deleteBtn) deleteBtn.style.display = 'none';
@@ -541,7 +548,7 @@ window.AdminPicker = AdminPicker;
         window.accountTable = accountTable;
 
         if (accountTable) {
-            console.log('✅ Account DataTable 생성 완료');
+            console.log('Account DataTable 생성 완료');
 
             accountTable.on('init.dt', () => {
                 updateAccountCount(accountTable.page.info()?.recordsDisplay ?? 0);
@@ -556,10 +563,9 @@ window.AdminPicker = AdminPicker;
                 apiList: API.LIST,
                 tableId: 'account',
                 defaultSearchField: 'account_name',
-                dateOptions: DATE_OPTIONS
+                dateOptions: DATE_OPTIONS,
+                normalizeFilters: normalizeAccountFilters
             });
-
-            updateTableHeight(accountTable, '#account-table');
             bindTableHighlight('#account-table', accountTable);
         }
 
@@ -572,14 +578,26 @@ window.AdminPicker = AdminPicker;
         el.textContent = `총 ${count ?? 0}건`;
     }
 
+    function normalizeAccountFilters(filters) {
+        return (filters || []).map(filter => {
+            if (filter?.field !== 'is_active') return filter;
+
+            const value = normalizeActiveValue(filter.value);
+            return value === '' ? null : { field: 'is_active', value };
+        }).filter(Boolean);
+    }
+
+    function normalizeActiveValue(value) {
+        const raw = String(value ?? '').trim().toLowerCase();
+        if (['1', '사용', '사용중', '활성', 'active', 'y', 'yes', 'true'].includes(raw)) return '1';
+        if (['0', '미사용', '비활성', 'inactive', 'n', 'no', 'false'].includes(raw)) return '0';
+        return '';
+    }
+
     /* ============================================================
        TABLE EVENTS
     ============================================================ */
     function bindTableEvents($) {
-
-        $(document).on('focus', '#modal_sort_no', function() {
-            AppCore?.notify?.('info', '순번은 저장 시 자동 생성됩니다.');
-        });
 
         $('#account-table tbody').on('dblclick', 'tr', async function () {
 
@@ -591,20 +609,18 @@ window.AdminPicker = AdminPicker;
                 const json = await res.json();
 
                 if (!json.success) {
-                    AppCore?.notify?.('error', '상세조회 실패');
+                    AppCore?.notify?.('error', '계좌 상세 조회 실패');
                     return;
                 }
 
                 const data = json.data;
 
-                // 🔥 추가
                 window.isNewAccount = false;
 
                 const titleEl = document.querySelector('#accountModal .modal-title');
                 if (titleEl) {
                     titleEl.textContent = '계좌 정보 수정';
                 }
-                // 🔥 끝
 
                 const deleteBtn = document.getElementById('btnDeleteAccount');
                 if (deleteBtn) deleteBtn.style.display = '';
@@ -665,7 +681,7 @@ window.AdminPicker = AdminPicker;
             }
 
             if (currency && !/^[A-Z]{3}$/.test(currency)) {
-                AppCore?.notify?.('warning', '통화 코드는 3자리 영문으로 입력해주세요.');
+                AppCore?.notify?.('warning', '통화 코드는 3자리 영문으로 입력하세요.');
                 return;
             }
 
@@ -675,12 +691,12 @@ window.AdminPicker = AdminPicker;
             }
 
             if (bankName.length > 100) {
-                AppCore?.notify?.('warning', '은행명은 100자 이하로 입력해주세요.');
+                AppCore?.notify?.('warning', '은행명은 100자 이하로 입력하세요.');
                 return;
             }
 
             if (accountHolder.length > 100) {
-                AppCore?.notify?.('warning', '예금주는 100자 이하로 입력해주세요.');
+                AppCore?.notify?.('warning', '예금주는 100자 이하로 입력하세요.');
                 return;
             }
 
@@ -744,7 +760,7 @@ window.AdminPicker = AdminPicker;
         Object.keys(data).forEach(key => {
 
             if (key === 'id') return;
-            if (key === 'bank_file') return; // 🔥 파일 경로는 file input에 넣지 않음
+            if (key === 'bank_file') return; // 파일 경로는 file input에 직접 넣을 수 없다.
 
             const byId =
                 document.getElementById('account_' + key) ||
@@ -755,7 +771,7 @@ window.AdminPicker = AdminPicker;
             const el = byId || byName;
             if (!el) return;
 
-            // 🔥 file input은 절대 value 세팅 금지
+            // file input에는 기존 값을 설정하지 않는다.
             if (el.type === 'file') {
                 el.value = '';
                 return;
@@ -779,7 +795,7 @@ window.AdminPicker = AdminPicker;
         columns.push({
             title: '<i class="bi bi-arrows-move"></i>',
             width: "40px",
-            className: "reorder-handle no-colvis text-center",
+            className: "reorder-handle no-sort no-colvis text-center",
             orderable: false,
             searchable: false,
             render: () => '<i class="bi bi-list"></i>'
@@ -804,7 +820,7 @@ window.AdminPicker = AdminPicker;
 
                         return `
                             <a href="/api/file/preview?path=${path}" target="_blank">
-                                📄 보기
+                                보기
                             </a>
                         `;
                     }
@@ -856,13 +872,13 @@ window.AdminPicker = AdminPicker;
 
             const hasOriginal = drop.dataset.original === "1";
             const message = hasOriginal
-                ? "저장 시 기존 통장사본이 교체됩니다."
-                : "저장 시 통장사본이 등록됩니다.";
+                ? "저장 시 기존 통장사본을 교체합니다."
+                : "저장 시 통장사본을 등록합니다.";
 
             const shortName = shortenFileName(file.name, 20);
 
             text.innerHTML = `
-                📄 <strong>통장사본</strong>
+                <strong>통장사본</strong>
                 <br>
                 (${shortName})
                 <br>
@@ -909,7 +925,7 @@ window.AdminPicker = AdminPicker;
 
         const filePath = data.bank_file || '';
 
-        // 거래처와 동일하게 list는 쓰지 않음
+        // 통장사본 표시 영역 초기화
         if (list) list.innerHTML = '';
 
         if (filePath) {
@@ -920,16 +936,16 @@ window.AdminPicker = AdminPicker;
                 drop.dataset.original = "1";
             }
 
-            // 🔥 거래처 통장사본과 동일한 문구/구조
+            // 통장사본 표시 UI
             text.innerHTML = `
                 <div class="file-status">
                     <div class="upload-guide">
-                        여기로 파일을 끌어다 놓거나 클릭하여 업로드
+                        여기로 파일을 끌어놓거나 클릭하여 업로드
                         <br>
                         (PDF, JPG, PNG)
                     </div>
                     <div class="file-line">
-                        📄 <strong>통장사본 등록됨</strong>
+                        <strong>통장사본 등록됨</strong>
                     </div>
                     <div class="file-links">
                         <a href="javascript:void(0)"
@@ -967,7 +983,7 @@ window.AdminPicker = AdminPicker;
 
                     e.stopPropagation();
 
-                    if (!confirm('통장사본을 삭제하시겠습니까?')) return;
+                    if (!confirm('통장사본 파일을 삭제하시겠습니까?')) return;
 
                     const input = getBankBookInputEl();
                     const del = getDeleteBankBookEl();
@@ -976,15 +992,15 @@ window.AdminPicker = AdminPicker;
                     if (del) del.value = '1';
                     if (drop) drop.dataset.original = "0";
 
-                    // 🔥 핵심
+                    // 삭제 대기 표시
                     text.innerHTML = `
                         <div class="upload-guide">
-                            여기로 파일을 끌어다 놓거나 클릭하여 업로드
+                            여기로 파일을 끌어놓거나 클릭하여 업로드
                             <br>
                             (PDF, JPG, PNG)
                         </div>
                         <div class="file-status text-danger">
-                            ⚠ 통장사본이 삭제됩니다. 저장 시 반영됩니다.
+                            통장사본 파일을 삭제합니다. 저장 시 반영됩니다.
                         </div>
                     `;
                 };
@@ -997,7 +1013,7 @@ window.AdminPicker = AdminPicker;
             }
 
             text.innerHTML = `
-                여기로 파일을 끌어다 놓거나 클릭하여 업로드
+                여기로 파일을 끌어놓거나 클릭하여 업로드
                 <br>
                 (PDF, JPG, PNG)
             `;
@@ -1019,7 +1035,7 @@ window.AdminPicker = AdminPicker;
 
         if (text) {
             text.innerHTML = `
-                여기로 파일을 끌어다 놓거나 클릭하여 업로드
+                여기로 파일을 끌어놓거나 클릭하여 업로드
                 <br>
                 (PDF, JPG, PNG)
             `;

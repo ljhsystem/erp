@@ -16,7 +16,7 @@ class BankAccountController
     }
 
     /* ============================================================
-     API: ?④쑴伊?筌뤴뫖以?
+     API: 계좌 목록
      ============================================================ */
     public function apiList(): void
     {
@@ -44,7 +44,7 @@ class BankAccountController
 
             echo json_encode([
                 'success' => false,
-                'message' => '?④쑴伊?筌뤴뫖以?鈺곌퀬????쎈솭',
+                'message' => '계좌 목록 조회 중 오류가 발생했습니다.',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -138,7 +138,7 @@ class BankAccountController
             if ($payload['account_name'] === '') {
                 echo json_encode([
                     'success' => false,
-                    'message' => '怨꾩쥖紐낆? ?꾩닔?낅땲??'
+                    'message' => '계좌명은 필수입니다.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -146,7 +146,7 @@ class BankAccountController
             if ($payload['currency'] !== '' && !preg_match('/^[A-Z]{3}$/', strtoupper($payload['currency']))) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '?듯솕 肄붾뱶??3?먮━ ?곷Ц?쇰줈 ?낅젰?댁＜?몄슂.'
+                    'message' => '통화 코드는 3자리 영문으로 입력하세요.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -154,7 +154,7 @@ class BankAccountController
             if ($payload['account_number'] !== '' && !preg_match('/^[0-9-]+$/', $payload['account_number'])) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '怨꾩쥖踰덊샇???レ옄? ?섏씠?덈쭔 ?낅젰?????덉뒿?덈떎.'
+                    'message' => '계좌번호는 숫자와 하이픈만 입력할 수 있습니다.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -162,7 +162,7 @@ class BankAccountController
             if ($payload['bank_name'] !== '' && mb_strlen($payload['bank_name']) > 100) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '??됰챸? 100???댄븯濡??낅젰?댁＜?몄슂.'
+                    'message' => '은행명은 100자 이하로 입력하세요.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -170,7 +170,7 @@ class BankAccountController
             if ($payload['account_holder'] !== '' && mb_strlen($payload['account_holder']) > 100) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '?덇툑二쇰뒗 100???댄븯濡??낅젰?댁＜?몄슂.'
+                    'message' => '예금주는 100자 이하로 입력하세요.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -476,7 +476,7 @@ class BankAccountController
             if (!isset($_FILES['excel']) || !is_uploaded_file($_FILES['excel']['tmp_name'])) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '???뵬????낆쨮??뺣┷筌왖 ??녿릭??щ빍??'
+                    'message' => '업로드할 엑셀 파일을 선택하세요.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -486,14 +486,14 @@ class BankAccountController
             $fileSize = $_FILES['excel']['size'];
 
             /* =========================================================
-             * ???뵬 野꺜筌?
+             * 엑셀 파일 검증
              * ========================================================= */
             $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
 
             if (!in_array($ext, ['xlsx', 'xls'])) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '?臾? ???뵬筌???낆쨮??揶쎛?館鍮??덈뼄.'
+                    'message' => '엑셀 파일만 업로드할 수 있습니다.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -501,7 +501,7 @@ class BankAccountController
             if ($fileSize > 10 * 1024 * 1024) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '???뵬 ??몄쎗 ?λ뜃??(筌ㅼ뮆? 10MB)'
+                    'message' => '엑셀 파일 용량은 최대 10MB입니다.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }

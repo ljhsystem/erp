@@ -1,0 +1,420 @@
+/* =========================================================
+   DataTable Component
+========================================================= */
+
+.dataTables_wrapper {
+  --dt-header-bg: var(--color-primary-soft, rgba(13,110,253,.08));
+  --dt-header-text: var(--color-text);
+  width: 100%;
+  min-width: 0;
+  position: relative;
+}
+
+.dataTables_wrapper table.dataTable {
+  border-collapse: separate !important;
+  border-spacing: 0;
+  margin: 0 !important;
+}
+
+.dataTables_wrapper table.dataTable th,
+.dataTables_wrapper table.dataTable td {
+  box-sizing: border-box;
+}
+
+.dataTables_wrapper .dataTables_scroll {
+  height: auto;
+  overflow: visible;
+}
+
+.dataTables_wrapper .dataTables_scrollHead {
+  border-top: 1px solid var(--color-border);
+  overflow: hidden !important;
+}
+
+.dataTables_wrapper .dataTables_scrollHead table {
+  border-top: 1px solid var(--color-border);
+}
+
+.dataTables_wrapper .dataTables_scrollBody {
+  height: auto !important;
+  max-height: none !important;
+  overflow-y: visible !important;
+  overflow-x: auto !important;
+  border-top: 0 !important;
+}
+
+.dataTables_wrapper .dataTables_scrollBody table.dataTable {
+  margin-top: 0 !important;
+}
+
+.dataTables_wrapper .dataTables_scrollBody table.dataTable thead,
+.dataTables_wrapper .dataTables_scrollBody table.dataTable thead tr,
+.dataTables_wrapper .dataTables_scrollBody table.dataTable thead th,
+.dataTables_wrapper .dataTables_scrollBody table.dataTable thead td {
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  padding-left: 0 !important;
+  padding-top: 0 !important;
+  padding-right: 0 !important;
+  padding-bottom: 0 !important;
+  border-top: 0 !important;
+  border-bottom: 0 !important;
+  line-height: 0 !important;
+  font-size: 0 !important;
+  color: transparent !important;
+  overflow: hidden !important;
+}
+
+.dataTables_wrapper .dataTables_scrollBody table.dataTable thead th *,
+.dataTables_wrapper .dataTables_scrollBody table.dataTable thead td * {
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  padding-left: 0 !important;
+  padding-top: 0 !important;
+  padding-right: 0 !important;
+  padding-bottom: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  line-height: 0 !important;
+  font-size: 0 !important;
+  color: transparent !important;
+  overflow: hidden !important;
+}
+
+.dataTables_wrapper .dataTables_scrollHead table.dataTable thead th {
+  background-color: var(--dt-header-bg);
+  color: var(--dt-header-text);
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  vertical-align: middle;
+  line-height: 1.25;
+}
+
+table.dataTable thead th {
+  position: relative;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.dataTables_scrollHead th {
+  border-top: 1px solid var(--color-border);
+}
+
+table.dataTable thead th.sorting,
+table.dataTable thead th.sorting_asc,
+table.dataTable thead th.sorting_desc {
+  padding-right: calc(var(--padding, 12px) + 28px) !important;
+  background-position: right 10px center !important;
+}
+
+table.dataTable thead th.sorting::before,
+table.dataTable thead th.sorting::after,
+table.dataTable thead th.sorting_asc::before,
+table.dataTable thead th.sorting_asc::after,
+table.dataTable thead th.sorting_desc::before,
+table.dataTable thead th.sorting_desc::after {
+  right: 10px !important;
+  top: 50% !important;
+  transform: translateY(-50%);
+}
+
+table.dataTable thead th.sorting::before,
+table.dataTable thead th.sorting_asc::before,
+table.dataTable thead th.sorting_desc::before {
+  margin-top: -4px;
+}
+
+table.dataTable thead th.sorting::after,
+table.dataTable thead th.sorting_asc::after,
+table.dataTable thead th.sorting_desc::after {
+  margin-top: 4px;
+}
+
+table.dataTable thead th.no-sort,
+table.dataTable thead th.reorder-handle {
+  background-image: none !important;
+  padding-right: var(--padding, 12px) !important;
+}
+
+table.dataTable thead th.no-sort::before,
+table.dataTable thead th.no-sort::after,
+table.dataTable thead th.reorder-handle::before,
+table.dataTable thead th.reorder-handle::after {
+  display: none !important;
+  content: "" !important;
+}
+
+.dataTables_wrapper .dt-top,
+.dataTables_wrapper .dt-bottom {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--gap, 8px);
+}
+
+.dataTables_wrapper .dt-top {
+  justify-content: space-between;
+  margin-bottom: var(--gap, 10px);
+}
+
+.dataTables_wrapper .dt-bottom {
+  justify-content: space-between;
+  margin-top: var(--gap, 10px);
+}
+
+.dataTables_wrapper .dt-top > * {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dataTables_wrapper .dataTables_filter {
+  margin: 0;
+}
+
+.dataTables_wrapper .dataTables_filter label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--dt-control-font-size, var(--font-size, 14px));
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.dataTables_wrapper .dataTables_filter input {
+  width: 220px;
+  max-width: 100%;
+  height: var(--dt-control-height, var(--row-height, 38px));
+  min-height: var(--dt-control-height, var(--row-height, 38px));
+  margin-left: 0 !important;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 0 var(--dt-control-padding-x, var(--padding, 12px));
+  box-sizing: border-box;
+  font-size: var(--dt-control-font-size, var(--font-size, 14px));
+  line-height: 1;
+}
+
+.dataTables_wrapper .dataTables_filter input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-soft);
+}
+
+.dataTables_wrapper .dataTables_length,
+.dataTables_wrapper .dataTables_info,
+.dataTables_wrapper .dataTables_paginate {
+  margin: 0;
+  font-size: var(--font-size, 13px);
+  color: var(--color-text-muted);
+}
+
+.dataTables_wrapper .dataTables_length label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.dataTables_wrapper .dataTables_length select {
+  height: var(--dt-control-height, var(--row-height, 38px));
+  min-height: var(--dt-control-height, var(--row-height, 38px));
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 0 32px 0 10px;
+  font-size: var(--dt-control-font-size, var(--font-size, 14px));
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+.dataTables_wrapper .dt-buttons {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: var(--gap, 6px);
+  align-items: center;
+}
+
+.dataTables_wrapper .dt-button,
+.dataTables_wrapper .dt-button.btn,
+.dataTables_wrapper .dt-buttons .btn,
+.dataTables_wrapper .dt-buttons button,
+.dataTables_wrapper .dt-buttons a {
+  height: var(--dt-control-height, var(--row-height, 38px)) !important;
+  min-height: var(--dt-control-height, var(--row-height, 38px)) !important;
+  padding: 0 var(--dt-control-padding-x, var(--padding, 12px)) !important;
+  border-radius: 8px !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  font-size: var(--dt-control-font-size, var(--font-size, 14px)) !important;
+  line-height: 1 !important;
+  margin: 0 !important;
+  vertical-align: middle;
+}
+
+.dataTables_wrapper .buttons-collection {
+  height: var(--dt-control-height, var(--row-height, 38px)) !important;
+  min-height: var(--dt-control-height, var(--row-height, 38px)) !important;
+}
+
+.dataTables_wrapper .dataTables_filter,
+.dataTables_wrapper .dt-buttons,
+.dataTables_wrapper .dataTables_length {
+  min-height: var(--dt-control-height, var(--row-height, 38px));
+  display: flex;
+  align-items: center;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button {
+  padding: max(4px, calc(var(--padding, 12px) - 5px)) var(--padding, 12px);
+  border-radius: 6px;
+  border: 1px solid #e6e6e6;
+  background: #fff;
+  color: var(--color-text-muted) !important;
+  cursor: pointer;
+  margin-left: 2px;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button.current,
+.dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+  background: #f8f9fa !important;
+  color: var(--color-text) !important;
+  border-color: #d0d0d0 !important;
+}
+
+table.table-cross-highlight td,
+table.table-cross-highlight th,
+.dataTables_wrapper table.table-cross-highlight td,
+.dataTables_wrapper table.table-cross-highlight th {
+  transition: background-color .12s ease;
+}
+
+table.table-cross-highlight tr.row-highlight > td,
+table.table-cross-highlight tr.row-highlight > th {
+  background-color: var(--cross-row-bg) !important;
+}
+
+table.table-cross-highlight td.col-highlight,
+table.table-cross-highlight th.col-highlight {
+  background-color: var(--cross-col-bg) !important;
+}
+
+table.table-cross-highlight tr.row-highlight > td.col-highlight,
+table.table-cross-highlight tr.row-highlight > th.col-highlight {
+  background-color: var(--cross-cell-bg) !important;
+}
+
+td.reorder-handle {
+  cursor: grab;
+}
+
+td.reorder-handle:active {
+  cursor: grabbing;
+}
+
+body.row-focus-soft .table:not(.table-cross-highlight) tbody tr:hover {
+  background-color: var(--color-primary-soft);
+}
+
+body.row-focus-strong .table:not(.table-cross-highlight) tbody tr:hover {
+  background-color: var(--color-primary);
+  color: #fff;
+}
+
+body.row-focus-none .table:not(.table-cross-highlight) tbody tr:hover {
+  background: none;
+}
+
+.settings-main .dataTables_wrapper,
+.settings-main .dataTables_scroll,
+.settings-main .dataTables_scrollBody {
+  min-height: 0;
+}
+
+.settings-main .table-box .dataTables_wrapper {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+.settings-main .table-box .dataTables_wrapper,
+.settings-main .table-box .dataTables_scroll {
+  display: block;
+  min-height: 0;
+  overflow: visible;
+}
+
+.settings-main .table-box .dataTables_scrollBody {
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+}
+
+.settings-main div.dataTables_scrollBody {
+  border-bottom: 1px solid var(--color-border);
+}
+
+body[data-density] .dataTables_wrapper .dt-top,
+body[data-density] .dataTables_wrapper .dt-bottom,
+body[data-density] .dataTables_wrapper .dataTables_length label,
+body[data-density] .dataTables_wrapper .dataTables_filter label,
+body[data-density] .dataTables_wrapper .dataTables_info,
+body[data-density] .dataTables_wrapper .dataTables_paginate {
+  font-size: var(--font-size) !important;
+}
+
+body[data-density] .dataTables_wrapper .dataTables_filter input,
+body[data-density] .dataTables_wrapper .dataTables_length select,
+body[data-density] .dataTables_wrapper .dt-button {
+  min-height: var(--row-height) !important;
+  font-size: var(--font-size) !important;
+}
+
+body.table-density-compact table.dataTable thead th,
+body.table-density-compact table.dataTable tbody td {
+  padding: 8px !important;
+  min-height: 34px;
+  font-size: 14px !important;
+}
+
+body.table-density-normal table.dataTable thead th,
+body.table-density-normal table.dataTable tbody td {
+  padding: 12px !important;
+  min-height: 42px;
+  font-size: 16px !important;
+}
+
+body.table-density-comfortable table.dataTable thead th,
+body.table-density-comfortable table.dataTable tbody td {
+  padding: 16px !important;
+  min-height: 50px;
+  font-size: 18px !important;
+}
+
+table.dataTable thead th.sorting,
+table.dataTable thead th.sorting_asc,
+table.dataTable thead th.sorting_desc {
+  padding-right: calc(var(--padding, 12px) + 28px) !important;
+}
+
+table.dataTable thead th.no-sort,
+table.dataTable thead th.reorder-handle {
+  padding-right: var(--padding, 12px) !important;
+}
+
+@media (max-width: 991.98px) {
+  .dataTables_wrapper .dt-top,
+  .dataTables_wrapper .dt-bottom {
+    justify-content: flex-start;
+  }
+
+  .dataTables_wrapper .dataTables_filter input {
+    width: 160px;
+  }
+}

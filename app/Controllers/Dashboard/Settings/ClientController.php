@@ -225,7 +225,7 @@ class ClientController
                 'delete_rrn_image'            => $_POST['delete_rrn_image'] ?? '0',
                 'delete_bank_file'            => $_POST['delete_bank_file'] ?? '0',
 
-                'is_active' => 1
+                'is_active' => isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1
             ];
 
             /* =========================================================

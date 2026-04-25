@@ -1,0 +1,220 @@
+/* =========================================================
+   Search Form Component
+========================================================= */
+
+.search-form-container {
+  position: relative;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8f9fb;
+  padding: 16px;
+  margin: 0;
+  width: 100%;
+  overflow: visible;
+  z-index: 20;
+}
+
+.search-toggle-text {
+  position: absolute;
+  top: -9px;
+  right: 60px;
+  background: #fff;
+  padding: 0 8px;
+  font-size: 12px;
+  line-height: 18px;
+  color: #666;
+  cursor: pointer;
+  user-select: none;
+  z-index: 2;
+}
+
+.search-toggle-text:hover {
+  color: #000;
+}
+
+.search-form-body.hidden {
+  display: none;
+}
+
+.search-form-container.collapsed {
+  height: 0;
+  min-height: 0;
+  padding: 0;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.search-form-container::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  border-top: 1px solid #e5e7eb;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.search-form-title {
+  font-weight: 600;
+  margin-bottom: 10px;
+  display: block;
+}
+
+.period-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--gap, 8px);
+  margin-bottom: 10px;
+  width: 100%;
+}
+
+.period-label-area,
+.search-label-area {
+  position: relative;
+  width: 90px;
+  font-weight: 600;
+}
+
+.label-btn {
+  background: none;
+  border: 0;
+  font-weight: 600;
+  padding: 0;
+}
+
+.date-type-select {
+  width: 120px;
+}
+
+.period-quick-btns,
+.date-range {
+  display: flex;
+  align-items: center;
+  gap: var(--gap, 8px);
+}
+
+.search-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--gap, 10px);
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.tooltip-container {
+  position: absolute;
+  z-index: 1000;
+  display: none;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 320px;
+  padding: 12px;
+  background: #fff8c6;
+  border: 1px solid #d6c66f;
+  border-radius: 6px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+}
+
+.date-input {
+  position: relative;
+  display: inline-block;
+}
+
+.date-input-wrap {
+  position: relative;
+}
+
+.date-input input {
+  padding-right: 34px;
+}
+
+.date-input-wrap input {
+  padding-right: 34px;
+}
+
+.date-icon {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  opacity: 0.6;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+
+.date-input:hover .date-icon,
+.date-input-wrap:hover .date-icon {
+  opacity: 1;
+  transform: translateY(-50%) scale(1.1);
+}
+
+.label-btn,
+.tooltip-trigger {
+  cursor: pointer;
+}
+
+.search-condition {
+  display: flex;
+  align-items: center;
+  gap: var(--gap, 8px);
+  flex-wrap: wrap;
+}
+
+.search-condition:not(:last-child) {
+  margin-bottom: var(--gap, 8px);
+}
+
+.search-field,
+.search-input,
+.date-type-select {
+  min-height: var(--row-height, 38px);
+  font-size: var(--font-size, 14px);
+}
+
+.search-field {
+  width: 150px;
+}
+
+.search-input {
+  width: 350px;
+}
+
+.period-row select,
+.period-row input,
+.period-row button,
+.search-wrapper select,
+.search-wrapper input,
+.search-wrapper button {
+  min-height: var(--row-height, 38px);
+  padding: var(--control-padding-y, 6px) var(--control-padding-x, 10px);
+  font-size: var(--font-size, 14px);
+  line-height: 1.2;
+  box-sizing: border-box;
+}
+
+.search-wrapper input,
+.search-wrapper select {
+  border-radius: 6px;
+}
+
+.date-tilde {
+  font-weight: 600;
+}
+
+body[data-density] .filter-row,
+body[data-density] .search-condition,
+body[data-density] .period-row,
+body[data-density] .search-wrapper,
+body[data-density] .period-quick-btns,
+body[data-density] .date-range {
+  gap: var(--gap);
+}

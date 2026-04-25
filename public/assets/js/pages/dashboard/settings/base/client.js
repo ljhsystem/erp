@@ -2,7 +2,7 @@
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import { checkBusinessStatus }from '/public/assets/js/common/biz_api.js';
 import { formatBizNumber, formatCorpNumber, formatMobile, formatPhone, onlyNumber } from '/public/assets/js/common/format.js';
-import { createDataTable, updateTableHeight, forceTableHeightSync, bindTableHighlight } from '/public/assets/js/components/data-table.js';
+import { createDataTable, bindTableHighlight } from '/public/assets/js/components/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import '/public/assets/js/components/excel-manager.js';
@@ -45,73 +45,100 @@ window.AdminPicker = AdminPicker;
     // fetch(API.RESTORE);
     // fetch(API.PURGE);
 
-    /* =========================
-    거래처 컬럼 한글 매핑
-    ========================= */
     const CLIENT_COLUMN_MAP = {
-
-        /* 기본 */
-        sort_no : { label:"순번", visible:true },
-        client_name : { label:"거래처명", visible:true },
-        company_name : { label:"상호", visible:true },
-        registration_date : { label:"등록일자", visible:true },
-
-        /* 사업자 */
-        business_number : { label:"사업자등록번호", visible:true },
-        rrn : { label:"법인/주민민번호", visible:false },
-        business_type : { label:"업태", visible:false },
-        business_category : { label:"업종", visible:false },
-        business_status : { label:"사업자상태", visible:true },
-        business_certificate : { label:"사업자등록증", visible:false },
-
-        /* 주소 */
-        address : { label:"주소", visible:false },
-        address_detail : { label:"상세주소", visible:false },
-
-        /* 연락 */
-        phone : { label:"전화번호", visible:true },
-        fax : { label:"팩스", visible:false },
-        email : { label:"이메일", visible:true },
-
-        /* 담당자 */
-        ceo_name : { label:"대표자", visible:true },
-        ceo_phone : { label:"대표자전화", visible:false },
-        manager_name : { label:"담당자", visible:false },
-        manager_phone : { label:"담당자전화", visible:false },
-
-        /* 금융 */
-        bank_name : { label:"은행명", visible:false },   // 🔥 추가
-        account_number : { label:"계좌번호", visible:false },
-        account_holder : { label:"예금주", visible:false }, // 🔥 추가
-        bank_file : { label:"통장사본", visible:false },
-
-        /* 거래 */
-        trade_category : { label:"거래구분", visible:false }, // 🔥 추가
-        item_category : { label:"취급품목", visible:false },
-        client_category : { label:"거래처분류", visible:false },
-        client_type : { label:"거래유형", visible:false },
-        tax_type : { label:"과세구분", visible:false },
-        payment_term : { label:"결제조건", visible:false },
-        client_grade : { label:"거래처등급", visible:false },
-
-        /* 기타 */
-        homepage : { label:"홈페이지", visible:false }, // 🔥 추가
-        note : { label:"비고", visible:true },
-        memo : { label:"메모", visible:false },
-
-        /* 상태 */
-        is_active : { label:"사용여부", visible:false },
-
-        /* 시스템 */
-        created_at : { label:"생성일시", visible:false },
-        created_by_name : { label:"생성자", visible:false },
-        updated_at : { label:"수정일시", visible:false },
-        updated_by_name : { label:"수정자", visible:false },
-        deleted_at : { label:"삭제일시", visible:false },
-        deleted_by_name : { label:"삭제자", visible:false }
+        sort_no: { label: "순번", visible: true },
+        client_name: { label: "거래처명", visible: true },
+        company_name: { label: "상호", visible: true },
+        registration_date: { label: "등록일자", visible: true },
+        business_number: { label: "사업자등록번호", visible: true },
+        rrn: { label: "법인/주민등록번호", visible: false },
+        business_type: { label: "업태", visible: false },
+        business_category: { label: "업종", visible: false },
+        business_status: { label: "사업자상태", visible: true },
+        business_certificate: { label: "사업자등록증", visible: false },
+        address: { label: "주소", visible: false },
+        address_detail: { label: "상세주소", visible: false },
+        phone: { label: "전화번호", visible: true },
+        fax: { label: "팩스", visible: false },
+        email: { label: "이메일", visible: true },
+        ceo_name: { label: "대표자", visible: true },
+        ceo_phone: { label: "대표자전화", visible: false },
+        manager_name: { label: "담당자", visible: false },
+        manager_phone: { label: "담당자전화", visible: false },
+        bank_name: { label: "은행명", visible: false },
+        account_number: { label: "계좌번호", visible: false },
+        account_holder: { label: "예금주", visible: false },
+        bank_file: { label: "통장사본", visible: false },
+        trade_category: { label: "거래구분", visible: false },
+        item_category: { label: "취급품목", visible: false },
+        client_category: { label: "거래처분류", visible: false },
+        client_type: { label: "거래유형", visible: false },
+        tax_type: { label: "과세구분", visible: false },
+        payment_term: { label: "결제조건", visible: false },
+        client_grade: { label: "거래처등급", visible: false },
+        homepage: { label: "홈페이지", visible: false },
+        note: { label: "비고", visible: true },
+        memo: { label: "메모", visible: false },
+        is_active: { label: "사용여부", visible: false },
+        created_at: { label: "생성일시", visible: false },
+        created_by_name: { label: "생성자", visible: false },
+        updated_at: { label: "수정일시", visible: false },
+        updated_by_name: { label: "수정자", visible: false },
+        deleted_at: { label: "삭제일시", visible: false },
+        deleted_by_name: { label: "삭제자", visible: false }
     };
 
-    // 🔥 페이지 전용 기간 필드
+    CLIENT_COLUMN_MAP.rrn_image = { label: "등록증이미지", visible: false };
+    CLIENT_COLUMN_MAP.is_active = { label: "상태", visible: true };
+    CLIENT_COLUMN_MAP.created_by_name = { label: "생성자", visible: false };
+    CLIENT_COLUMN_MAP.updated_by_name = { label: "수정자", visible: false };
+    CLIENT_COLUMN_MAP.deleted_by_name = { label: "삭제자", visible: false };
+
+    const CLIENT_COLUMN_WIDTHS = {
+        __reorder: '40px',
+        sort_no: '80px',
+        client_name: '200px',
+        company_name: '160px',
+        registration_date: '120px',
+        business_number: '140px',
+        rrn: '150px',
+        rrn_image: '120px',
+        business_type: '120px',
+        business_category: '120px',
+        business_status: '100px',
+        business_certificate: '120px',
+        address: '240px',
+        address_detail: '220px',
+        phone: '140px',
+        fax: '140px',
+        email: '200px',
+        ceo_name: '120px',
+        ceo_phone: '140px',
+        manager_name: '120px',
+        manager_phone: '140px',
+        bank_name: '120px',
+        account_number: '160px',
+        account_holder: '120px',
+        bank_file: '120px',
+        trade_category: '120px',
+        item_category: '140px',
+        client_category: '140px',
+        client_type: '120px',
+        tax_type: '120px',
+        payment_term: '140px',
+        client_grade: '120px',
+        homepage: '200px',
+        note: '220px',
+        memo: '220px',
+        is_active: '90px',
+        created_at: '160px',
+        created_by_name: '120px',
+        updated_at: '160px',
+        updated_by_name: '120px',
+        deleted_at: '160px',
+        deleted_by_name: '120px'
+    };
+
     const DATE_OPTIONS = [
         { value: 'registration_date', label: '등록일자' },
         { value: 'updated_at', label: '수정일자' }
@@ -126,8 +153,8 @@ window.AdminPicker = AdminPicker;
 
 
 /* ============================================================
-   DOM READY (앱 진입점)
-   - 페이지 로딩 완료 후 초기화 시작
+   DOM READY
+   - 페이지 로딩 완료 후 초기화를 시작한다.
 ============================================================ */
 document.addEventListener('DOMContentLoaded', async () => {
     if (!window.jQuery) {
@@ -135,54 +162,53 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
     const $ = window.jQuery;
-    // ⭐ 전체 페이지 초기화 진입
+    // 전체 페이지 초기화 진입
     initClientPage($);
 });
 
 
 /* ============================================================
-   PAGE INIT (전체 초기화 컨트롤 타워)
-   - 실행 순서 매우 중요
-   - UI → 데이터 → 이벤트 순으로 구성
+   PAGE INIT
+   - 실행 순서가 중요하다.
+   - UI, 데이터, 이벤트 순서로 구성한다.
 ============================================================ */
 function initClientPage($){
     /* --------------------------------------------------------
        1. UI 기본 구성 (DOM + 컴포넌트 준비)
-       - 모달 / 날짜 / 업로드 등 "보이는 것" 먼저
+       - 모달 / 날짜 / 업로드 UI를 먼저 준비한다.
     -------------------------------------------------------- */
     initModal();              // Bootstrap Modal 초기화
     initAdminDatePicker();    // 날짜 선택기
     initBizCertUpload();      // 사업자등록증 업로드 UI
-    initRrnUpload();          //신분증업로드 UI
+    initRrnUpload();          // 신분증 업로드 UI
     initBankFileUpload();     // 통장사본 업로드 UI
-    initExcelDataset();       // 엑셀파일 업로드
+    initExcelDataset();       // 엑셀 파일 업로드
     /* --------------------------------------------------------
-       2. 핵심 데이터 영역 (🔥 가장 중요)
-       - DataTable 생성 → 이후 모든 기능이 여기에 의존
+       2. 공통 데이터 영역
+       - DataTable 생성 후 이후 기능들이 여기에 의존한다.
     -------------------------------------------------------- */
     initDataTable($);         // clientTable 생성
     /* --------------------------------------------------------
        3. 외부 기능 연결
-       - API, 외부 서비스, 주소검색 등
+       - 외부 서비스와 주소 검색 등을 연결한다.
     -------------------------------------------------------- */
     initExternal();
     /* --------------------------------------------------------
        4. 테이블 기능 바인딩 (DataTable 의존)
     -------------------------------------------------------- */
     bindRowReorder(clientTable, { api: API.REORDER });  // 행 드래그 정렬
-    bindTableEvents($);                        // 클릭, 선택 등
+    bindTableEvents($);                        // 클릭, 선택 이벤트
     /* --------------------------------------------------------
        5. 모달 및 입력 관련 이벤트
     -------------------------------------------------------- */
     bindModalEvents($);            // 신규/수정 모달 이벤트
     bindBizStatusButton();         // 사업자 상태 조회 버튼
     bindAdminDateInputs();         // 날짜 input 연동
-    bindRrnInputEvents($);         // 🔥 rrn 마스킹/원본관리
+    bindRrnInputEvents($);         // RRN 마스킹 원본 관리
     /* --------------------------------------------------------
-       6. 🔥 레이아웃 / 높이 제어 (핵심 문제 구간)
-       - 검색폼 열기/닫기 + 테이블 높이 동기화
+       6. 레이아웃 제어
+       - 검색폼과 테이블 영역 동기화
     -------------------------------------------------------- */
-    bindTableLayoutEvents(clientTable, '#client-table');
     /* --------------------------------------------------------
        7. 일반 UI 이벤트
     -------------------------------------------------------- */
@@ -195,11 +221,11 @@ function initClientPage($){
     /* --------------------------------------------------------
        9. 전역 이벤트
     -------------------------------------------------------- */
-    bindGlobalEvents();            // ESC, resize 등
+    bindGlobalEvents();            // 전역 클릭/입력 이벤트
 }
 
 
-    // initClientPage 위 or 아래 아무데나
+    // 엑셀 모달에 API 경로를 주입한다.
     function initExcelDataset() {
 
         const excelForm = document.getElementById('clientExcelForm');
@@ -219,7 +245,7 @@ function initClientPage($){
             focus:false
         });
         excelModal = new bootstrap.Modal(
-            document.getElementById('clientExcelModal')   // 변경
+            document.getElementById('clientExcelModal')   // 엑셀 모달
         );
         modalEl.addEventListener('hidden.bs.modal', () => {
             const help = document.getElementById('bizCertHelp');
@@ -230,7 +256,7 @@ function initClientPage($){
             const bankText = document.getElementById('bankCopyText');
             if(bankText){
                 bankText.innerHTML = `
-                    여기로 파일을 끌어다 놓거나 클릭하여 업로드
+                    여기에 파일을 끌어놓거나 클릭하여 업로드
                     <br>
                     (PDF, JPG, PNG)
                 `;
@@ -252,7 +278,7 @@ function initClientPage($){
             const text = document.getElementById('dropZoneTextBiz');
             if(text){
                 text.innerHTML =
-                    "여기로 파일을 끌어다 놓거나 클릭하여 선택하세요.<br>(PDF, JPG, PNG)";
+                    "여기에 파일을 끌어놓거나 클릭하여 선택하세요<br>(PDF, JPG, PNG)";
             }
             /* 아이콘 초기화 */
             const icon = document.getElementById('certStatusIcon');
@@ -270,7 +296,7 @@ function initClientPage($){
             if (rrnList) rrnList.innerHTML = '';
             if (rrnText) {
                 rrnText.innerHTML =
-                    "파일 드롭 또는 클릭<br>(JPG, PNG)";
+                    "파일 선택 또는 클릭<br>(JPG, PNG)";
             }
 
             const rrnField = document.getElementById('modal_rrn');
@@ -293,54 +319,12 @@ function initClientPage($){
 
         });
 
-        document.querySelectorAll('.date-icon').forEach(icon => {
-            icon.addEventListener('click', e => {
-                e.preventDefault();
-                e.stopPropagation();
-                const wrap = icon.closest('.date-input, .date-input-wrap');
-                const input = wrap ? wrap.querySelector('input') : null;
-                if (!input) return;
-                const picker = initAdminDatePicker();
-                if (!picker) return;
-                picker.__target = input;
-                if (typeof picker.clearDate === 'function') {
-                    picker.clearDate();
-                }
-                const v = input.value;
-                if (v) {
-                    const d = new Date(v);
-                    if (!isNaN(d)) picker.setDate(d);
-                }
-                picker.open({
-                    anchor: input
-                });
-            });
-        });
-        //모달에서 picker 위치 문제 방지
+        bindDateIconPicker();
+        // 모달 안에서 picker 위치 문제 방지
         modalEl.addEventListener('shown.bs.modal', () => {
             bindAdminDateInputs();
         });
     }
-
-
-
-    function bindTableLayoutEvents(table, tableSelector){
-        if(!table) return;
-        /* resize */
-        window.addEventListener('resize', () => {
-            updateTableHeight(table, tableSelector);
-        });
-        /* sidebar toggle */
-        document.addEventListener('sidebar:toggled', () => {
-
-            updateTableHeight(table, tableSelector);
-
-            setTimeout(() => {
-                forceTableHeightSync(table, tableSelector);
-            }, 340);
-        });
-    }
-
 
 
 
@@ -387,7 +371,7 @@ function initClientPage($){
                 const dropZoneTextBiz = document.getElementById('dropZoneTextBiz');
                 if (dropZoneTextBiz) {
                     dropZoneTextBiz.innerHTML =
-                        "여기로 파일을 끌어다 놓거나 클릭하여 선택하세요.<br>(PDF, JPG, PNG)";
+                        "여기에 파일을 끌어놓거나 클릭하여 선택하세요<br>(PDF, JPG, PNG)";
                 }
             });
         }
@@ -399,7 +383,7 @@ function initClientPage($){
 
     function initExternal(){
         /* =====================================
-        카카오주소검색기능 호출
+        카카오 주소 검색기 호출
         ===================================== */
         if(window.KakaoAddress){
             window.KakaoAddress.bind();
@@ -428,11 +412,11 @@ function initClientPage($){
 
 
     /* =========================
-    사업자 상태 조회 (순수 기능만)
+    사업자 상태 조회
     ========================= */
     function onGlobalClick(e){
 
-        // 👉 사업자 상태 조회 버튼만 타겟
+        // 사업자 상태 조회 버튼만 처리
         const btn = e.target.closest('.btn-biz-status');
         if(!btn) return;
 
@@ -441,7 +425,7 @@ function initClientPage($){
 
         const bizNo = input.value?.replace(/\D/g,'');
         if(!bizNo){
-            AppCore.notify('warning','사업자번호를 입력하세요');
+            AppCore.notify('warning','사업자번호를 입력하세요.');
             return;
         }
 
@@ -461,7 +445,7 @@ function initClientPage($){
                 return;
             }
 
-            // 👉 상태 표시 (필요에 맞게 수정)
+            // 상태 표시
             const statusEl = document.getElementById('modal_business_status');
             if(statusEl){
                 statusEl.value = json.data?.status || '';
@@ -477,7 +461,7 @@ function initClientPage($){
 
 
     /* =========================
-    자동하이픈픈
+    ?먮룞?섏씠?덊뵂
     ========================= */
     function onGlobalInput(e){
 
@@ -508,7 +492,7 @@ function initClientPage($){
 
             const { data, modal } = e.detail;
 
-            // 🔥 이거 반드시 추가
+            // 상세 영역이 없으면 종료
             if(modal.dataset.type !== 'client') return;
 
             console.log("detail data:", data);
@@ -525,7 +509,7 @@ function initClientPage($){
 
                 const value = data[key];
 
-                // 값 없으면 스킵 (원하면 제거 가능)
+            // 값이 없으면 숨김
                 if(value === null || value === undefined || value === '') return;
 
                 html += `
@@ -538,7 +522,7 @@ function initClientPage($){
             detailBox.innerHTML = html;
         });
 
-        //휴지통 모달에 전달
+        // 휴지통 모달에 컬럼 렌더러 전달
         window.TrashColumns = window.TrashColumns || {};
 
         window.TrashColumns.client = function(row) {
@@ -554,7 +538,7 @@ function initClientPage($){
             `;
         };
 
-        //테이블갱신
+        // 테이블 갱신
         document.addEventListener('trash:changed', (e) => {
 
             const { type } = e.detail || {};
@@ -591,18 +575,30 @@ function initClientPage($){
 
     function bindAdminDateInputs(){
         document.querySelectorAll('.admin-date').forEach(input => {
+            if (input.dataset.dateInputBound === '1') return;
+            input.dataset.dateInputBound = '1';
+
+            input.addEventListener('input', () => {
+                input.value = formatDateInputValue(input.value);
+            });
+
+            input.addEventListener('blur', () => {
+                input.value = normalizeDateInputValue(input.value);
+            });
+
             input.addEventListener('click', e => {
+            return;
             e.preventDefault();
             e.stopPropagation();
             const picker = initAdminDatePicker();
             if(!picker) return;
             picker.__target = input;
-            /* 🔥 항상 상태 초기화 */
+            /* 기존 상태 초기화 */
             if (typeof picker.clearDate === 'function') {
                 picker.clearDate();
             }
             const v = input.value;
-            /* 값 있으면 다시 세팅 */
+            /* 값이 있으면 다시 세팅 */
             if(v){
                 const d = new Date(v);
                 if(!isNaN(d)){
@@ -614,6 +610,80 @@ function initClientPage($){
             });
             });
         });
+    }
+
+    function formatDateInputValue(value) {
+        const digits = String(value || '').replace(/\D/g, '').slice(0, 8);
+
+        if (digits.length <= 4) return digits;
+        if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+
+        return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
+    }
+
+    function bindDateIconPicker() {
+        if (document.__clientDateIconPickerBound) return;
+        document.__clientDateIconPickerBound = true;
+
+        document.addEventListener('click', function (e) {
+            const icon = e.target.closest('.date-icon');
+            if (!icon) return;
+
+            const wrap = icon.closest('.date-input, .date-input-wrap');
+            const input = wrap ? wrap.querySelector('input.admin-date, input[name="dateStart"], input[name="dateEnd"]') : null;
+            if (!input) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+            openDatePickerForInput(input);
+        }, true);
+    }
+
+    function openDatePickerForInput(input) {
+        const picker = initAdminDatePicker();
+        if (!picker) return;
+
+        picker.__target = input;
+
+        if (typeof picker.clearDate === 'function') {
+            picker.clearDate();
+        }
+
+        input.value = normalizeDateInputValue(input.value);
+
+        if (/^\d{4}-\d{2}-\d{2}$/.test(input.value)) {
+            const date = new Date(input.value);
+            if (!Number.isNaN(date.getTime())) {
+                picker.setDate(date);
+            }
+        }
+
+        picker.open({
+            anchor: input
+        });
+    }
+
+    function normalizeDateInputValue(value) {
+        const formatted = formatDateInputValue(value);
+        const match = formatted.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+        if (!match) return formatted;
+
+        const year = Number(match[1]);
+        const month = Number(match[2]);
+        const day = Number(match[3]);
+        const date = new Date(year, month - 1, day);
+
+        if (
+            date.getFullYear() !== year ||
+            date.getMonth() !== month - 1 ||
+            date.getDate() !== day
+        ) {
+            AppCore.notify('warning', '올바른 날짜를 입력하세요.');
+            return '';
+        }
+
+        return formatted;
     }
 
     function formatDate(date){
@@ -649,7 +719,8 @@ function initClientPage($){
             api: API.LIST,
             columns: columns,
             defaultOrder: [[1, "asc"]],
-            pageLength: 100,
+            pageLength: 10,
+            autoWidth: false,
             buttons: [
                 {
                     text: "엑셀관리",
@@ -667,7 +738,7 @@ function initClientPage($){
                         const trashModalEl = document.getElementById('clientTrashModal');
                         if (!trashModalEl) return;
 
-                        /* 🔥 핵심: URL 세팅 (JS에서 처리) */
+                        /* 공통 휴지통 컴포넌트에 거래처 API를 전달한다. */
                         trashModalEl.dataset.listUrl      = API.TRASH;
                         trashModalEl.dataset.restoreUrl   = API.RESTORE;
                         trashModalEl.dataset.restoreBulkUrl = API.RESTORE_BULK;
@@ -690,7 +761,6 @@ function initClientPage($){
                         if (form) form.reset();
 
                         $('#modal_client_id').val('');
-                        $('#modal_sort_no').val('');
                         $('#btnDeleteClient').hide();
 
                         window.isNewClient = true;
@@ -718,7 +788,7 @@ function initClientPage($){
 
                         if (dropText) {
                             dropText.innerHTML =
-                                '여기로 파일을 끌어다 놓거나 클릭하여 선택하세요.<br>(PDF, JPG, PNG)';
+                                '여기에 파일을 끌어놓거나 클릭하여 선택하세요<br>(PDF, JPG, PNG)';
                         }
 
                         if (certIcon) certIcon.innerHTML = '';
@@ -730,7 +800,7 @@ function initClientPage($){
 
                         if (bankText) {
                             bankText.innerHTML =
-                                '여기로 파일을 끌어다 놓거나 클릭하여 업로드<br>(PDF, JPG, PNG)';
+                                '여기에 파일을 끌어놓거나 클릭하여 업로드<br>(PDF, JPG, PNG)';
                         }
 
                         if (bankDrop) bankDrop.dataset.original = '0';
@@ -746,9 +816,9 @@ function initClientPage($){
                         if (rrnDelete) rrnDelete.value = '0';
                         if (rrnList) rrnList.innerHTML = '';
                         if (rrnText) {
-                            rrnText.innerHTML = '파일 드롭 또는 클릭<br>(JPG, PNG)';
+                            rrnText.innerHTML = '파일 선택 또는 클릭<br>(JPG, PNG)';
                         }
-                        // 🔥 신규거래처 모달이 열릴때 등록일자 오늘날짜로 자동세팅
+                        // 신규 거래처 모달을 열 때 등록일자를 오늘 날짜로 자동 세팅
                         const dateEl = document.getElementById('modal_registration_date');
                         if(dateEl){
                             const d = new Date();
@@ -766,16 +836,16 @@ function initClientPage($){
         window.clientTable = clientTable;
 
         if (clientTable) {
-            console.log('✅ DataTable 생성 완료');
+            console.log('DataTable 생성 완료');
 
             SearchForm({
                 table: clientTable,
                 apiList: API.LIST,
                 tableId: 'client',
                 defaultSearchField: 'client_name',
-                dateOptions: DATE_OPTIONS   // ✅ 이것만 유지
+                dateOptions: DATE_OPTIONS,
+                normalizeFilters: normalizeClientFilters
             });
-            updateTableHeight(clientTable, '#client-table');
             bindTableHighlight('#client-table', clientTable);
 
             clientTable.on('init.dt', function () {
@@ -796,19 +866,25 @@ function initClientPage($){
 
 
 
-    function bindTableEvents($) {
-        /* 순번 안내 */
-        $(document).on('focus', '#modal_sort_no', function(){
-            if(window.isNewClient){
-                AppCore.notify(
-                    'info',
-                    '순번은 저장 시 자동 생성됩니다.'
-                );
-            }
-        });
+    function normalizeClientFilters(filters) {
+        return (filters || []).map(filter => {
+            if (filter?.field !== 'is_active') return filter;
 
+            const value = normalizeActiveValue(filter.value);
+            return value === '' ? null : { field: 'is_active', value };
+        }).filter(Boolean);
+    }
+
+    function normalizeActiveValue(value) {
+        const raw = String(value ?? '').trim().toLowerCase();
+        if (['1', '사용', '사용중', '활성', 'active', 'y', 'yes', 'true'].includes(raw)) return '1';
+        if (['0', '미사용', '비활성', 'inactive', 'n', 'no', 'false'].includes(raw)) return '0';
+        return '';
+    }
+
+    function bindTableEvents($) {
         /* ================================
-        더블클릭 → 수정 모달
+        더블클릭 시 수정 모달
         ================================ */
         $('#client-table tbody').on('dblclick', 'tr', async function () {
 
@@ -830,7 +906,7 @@ function initClientPage($){
                 $('#btnDeleteClient').show();
                 $('#modal_client_id').val(data.id);
 
-                /* 🔥 삭제 플래그/파일 input 먼저 초기화 */
+                /* 삭제 플래그와 파일 input 먼저 초기화 */
                 const delBiz = document.getElementById('delete_business_certificate');
                 const delRrn = document.getElementById('delete_rrn_image');
                 const delBank = document.getElementById('delete_bank_file');
@@ -857,7 +933,7 @@ function initClientPage($){
         });
 
         /* ================================
-        셀 클릭 → 검색조건 입력
+        셀 클릭 시 검색조건 입력
         ================================ */
         $('#client-table tbody').on('click', 'td', function () {
             const cell = clientTable.cell(this);
@@ -883,13 +959,16 @@ function initClientPage($){
        모달 저장 / 삭제
     ============================================================ */
     function bindModalEvents($) {
-        // 🔥 기존 submit 바인딩 제거 후 다시 바인딩 (중복 방지)
+        // 기존 submit 바인딩 제거 후 다시 바인딩 (중복 방지)
         $(document).off('submit', '#client-edit-form');
 
         $(document).on('submit', '#client-edit-form', function (e) {
             e.preventDefault();
 
             const form = this;
+            form.querySelectorAll('.admin-date').forEach(input => {
+                input.value = normalizeDateInputValue(input.value);
+            });
             const formData = new FormData(form);
 
             const rrnInput = document.getElementById('modal_rrn');
@@ -899,7 +978,7 @@ function initClientPage($){
             }
 
             const btn = form.querySelector('button[type="submit"]');
-            if (btn) btn.disabled = true;   // 🔥 중복 클릭 방지
+            if (btn) btn.disabled = true;   // 중복 클릭 방지
 
             $.ajax({
                 url: API.SAVE,
@@ -912,7 +991,7 @@ function initClientPage($){
 
                 if (!res.success) {
                     AppCore.notify('error', res.message || '저장 실패');
-                    return; // 🔥 반드시 있어야 함 (연속 저장 방지)
+                    return; // 반드시 빠져나감 (연속 저장 방지)
                 }
 
                 clientModal.hide();
@@ -924,7 +1003,7 @@ function initClientPage($){
                 AppCore.notify('error', '서버 오류');
             })
             .always(() => {
-                if (btn) btn.disabled = false; // 🔥 다시 활성화
+                if (btn) btn.disabled = false; // 다시 활성화
             });
         });
 
@@ -975,7 +1054,7 @@ function initClientPage($){
                 el.dataset.real = raw;
                 rrnVisible = false;
 
-                // 🔥 여기 중요
+                // 마스킹 적용 타이밍 보정
                 setTimeout(() => {
                     el.value = maskRrn(raw);
                 }, 0);
@@ -1014,14 +1093,14 @@ function initClientPage($){
         if(!list) return;
         list.innerHTML = '';
         if(data.business_certificate){
-            if(help) help.style.display = 'none';   // 🔥 추가
+                if(help) help.style.display = 'none';   // 기존 파일이 있으면 안내 숨김
             const fileName = data.business_certificate.split('/').pop();
             const path = encodeURIComponent(data.business_certificate);
             list.dataset.original = "1";
             list.innerHTML = `
             <div class="file-item">
                 <span>
-                    📄 <strong>사업자등록증</strong> (${fileName})
+                    파일 <strong>사업자등록증</strong> (${fileName})
                 </span>
                 <div class="file-actions">
                     <a href="/api/file/preview?path=${path}"
@@ -1052,7 +1131,7 @@ function initClientPage($){
                 list.innerHTML = `
                 <div class="file-item">
                     <span>
-                        📄 <strong>사업자등록증</strong> (${fileName})
+                         파일 <strong>사업자등록증</strong> (${fileName})
                     </span>
                     <div class="file-status text-danger">
                         사업자등록증이 삭제됩니다. 저장 시 반영됩니다.
@@ -1077,7 +1156,7 @@ function initClientPage($){
             rrnList.innerHTML = `
                 <div class="file-item">
                     <span>
-                        📄 <strong>신분증</strong> (${fileName})
+                         파일 <strong>신분증</strong> (${fileName})
                     </span>
 
                     <div class="file-actions">
@@ -1105,7 +1184,7 @@ function initClientPage($){
                 rrnList.innerHTML = `
                     <div class="file-item">
                         <span>
-                            📄 <strong>신분증</strong> (${fileName})
+                             파일 <strong>신분증</strong> (${fileName})
                         </span>
                         <div class="file-status text-danger">
                             신분증이 삭제됩니다. 저장 시 반영됩니다.
@@ -1130,12 +1209,12 @@ function initClientPage($){
                 bankText.innerHTML = `
                 <div class="file-status">
                     <div class="upload-guide">
-                        여기로 파일을 끌어다 놓거나 클릭하여 업로드
+                        여기에 파일을 끌어놓거나 클릭하여 업로드
                         <br>
                         (PDF, JPG, PNG)
                     </div>
                     <div class="file-line">
-                        📄 <strong>통장사본 등록됨</strong>
+                         파일 <strong>통장사본 등록됨</strong>
                     </div>
                     <div class="file-links">
                         <a href="javascript:void(0)"
@@ -1159,7 +1238,7 @@ function initClientPage($){
                     btnOpen.href = "/api/file/preview?path=" + path;
                     btnOpen.target = "_blank";
                     btnOpen.addEventListener("click", function(e){
-                        e.stopPropagation();   // 🔥 업로드 이벤트 차단
+                        e.stopPropagation();   // 업로드 이벤트 차단
                     });
                 }
 
@@ -1177,7 +1256,7 @@ function initClientPage($){
                         const bankfileName = data.bank_file.split('/').pop();
                         const shortName = shortenFileName(bankfileName, 20);
                         bankText.innerHTML = `
-                        📄 <strong>통장사본</strong> (${shortName})
+                        파일 <strong>통장사본</strong> (${shortName})
                         <br>
                         <div class="file-status text-danger">
                         통장사본이 삭제됩니다.<br>
@@ -1191,7 +1270,7 @@ function initClientPage($){
                     drop.dataset.original = "0";
                 }
                 bankText.innerHTML = `
-                    여기로 파일을 끌어다 놓거나 클릭하여 업로드
+                    여기에 파일을 끌어놓거나 클릭하여 업로드
                     <br>
                     (PDF, JPG, PNG)
                 `;
@@ -1206,8 +1285,8 @@ function initClientPage($){
         /* 드래그 컬럼 */
         columns.push({
             title: '<i class="bi bi-arrows-move"></i>',
-            width:"40px",
-            className:"reorder-handle no-colvis text-center",
+            width: CLIENT_COLUMN_WIDTHS.__reorder,
+            className:"reorder-handle no-sort no-colvis text-center",
             orderable:false,
             searchable:false,
             render: () => '<i class="bi bi-list"></i>'
@@ -1218,17 +1297,28 @@ function initClientPage($){
             columns.push({
                 data: field,
                 title: config.label,
+                width: CLIENT_COLUMN_WIDTHS[field] || '120px',
                 visible: config.visible ?? true,
                 defaultContent: "",
                 render: function(data,type,row){
 
                     if(data == null) return "";
 
-                    // 🔥 핵심: display 일때만 가공
+                    // display 렌더링일 때만 포맷 적용
                     if(type !== 'display') return data;
 
                     if(field === "bank_file")
-                        return data ? "등록됨" : "";
+                        return data ? "등록" : "";
+
+                    if(field === "business_certificate" || field === "rrn_image")
+                        return data ? "등록" : "";
+
+                    if(field === "is_active") {
+                        const active = Number(data) === 1;
+                        return active
+                            ? '<span class="badge bg-success">사용</span>'
+                            : '<span class="badge bg-secondary">미사용</span>';
+                    }
 
                     if(field === "business_number")
                         return formatBizNumber(data);
@@ -1299,14 +1389,15 @@ function initClientPage($){
             const hasOriginal = drop.dataset.original === "1";
             let message = "";
             if(hasOriginal){
-                message = "저장 시 기존 사업자등록증이 교체됩니다.";
+                message = "저장 시 기존 사업자등록증을 교체합니다.";
             }else{
-                message = "저장 시 사업자등록증이 등록됩니다.";            }
+                message = "저장 시 사업자등록증이 등록됩니다.";
+            }
             const shortName = shortenFileName(file.name);
-            const title = hasOriginal ? "교체파일" : "선택파일";
+            const title = hasOriginal ? "교체 파일" : "선택 파일";
             const text = document.getElementById('dropZoneTextBiz');
             text.innerHTML = `
-            📄 <strong>${title} (${shortName})</strong>
+            파일 <strong>${title} (${shortName})</strong>
             <br>
             <span class="text-primary">
             ${message}
@@ -1362,7 +1453,7 @@ function initClientPage($){
             const text = document.getElementById('dropZoneTextRrn');
 
             text.innerHTML = `
-            📄 <strong>${shortName}</strong>
+            파일 <strong>${shortName}</strong>
             <br>
             <span class="text-primary">
             저장 시 신분증이 등록됩니다.
@@ -1370,7 +1461,7 @@ function initClientPage($){
             `;
         }
     }
-    function shortenFileName(name, max = 20){ //길이제한 기본값
+    function shortenFileName(name, max = 20){ // 길이 제한 기본값
         if(!name) return '';
         const lastDot = name.lastIndexOf('.');
         if(lastDot <= 0){
@@ -1400,13 +1491,13 @@ function initClientPage($){
             const hasOriginal = drop.dataset.original === "1";
             let message = "";
             if(hasOriginal){
-                message = "저장 시 기존 통장사본이 교체됩니다.";
+                message = "저장 시 기존 통장사본을 교체합니다.";
             }else{
                 message = "저장 시 통장사본이 등록됩니다.";
             }
-            const shortName = shortenFileName(file.name, 20);//15줄 제한
+            const shortName = shortenFileName(file.name, 20);
             text.innerHTML = `
-            📄 <strong>통장사본</strong>
+            파일 <strong>통장사본</strong>
             <br>
             (${shortName})
             <br>
@@ -1460,12 +1551,12 @@ function initClientPage($){
             const bizNo = bizInput.value.replace(/[^0-9]/g,'');
 
             if(!bizNo){
-                AppCore.notify('warning','사업자번호를 입력하세요');
+                AppCore.notify('warning','사업자번호를 입력하세요.');
                 return;
             }
 
             if(bizNo.length !== 10){
-                AppCore.notify('warning','사업자번호는 10자리입니다');
+                AppCore.notify('warning','사업자번호는 10자리입니다.');
                 return;
             }
 
@@ -1490,15 +1581,15 @@ function initClientPage($){
                 const statusSelect = document.getElementById('modal_business_status');
 
                 /* ===============================
-                   🔥 상태 매핑
+                   상태 매핑
                 =============================== */
                 const STATUS_MAP = {
                     "계속사업자": "정상",
                     "정상": "정상",
-                    "휴업자": "휴업",
-                    "휴업": "휴업",
                     "폐업자": "폐업",
-                    "폐업": "폐업"
+                    "폐업": "폐업",
+                    "휴업자": "휴업",
+                    "휴업": "휴업"
                 };
 
                 /* ------------------------------
@@ -1526,7 +1617,7 @@ function initClientPage($){
                     AppCore.notify('warning', info.tax_type);
 
                     if(statusSelect){
-                        statusSelect.value = "";   // 🔥 선택 없음
+                        statusSelect.value = "";   // 선택 없음
                         statusSelect.dispatchEvent(new Event('change'));
                     }
 
@@ -1577,7 +1668,7 @@ function initClientPage($){
 
                 $input.data('real', raw);
 
-                this.dataset.real = raw;   // 🔥 핵심 추가
+                this.dataset.real = raw;   // 원본 값 동기화
 
                 if (rrnVisible) {
                     $input.val(formatRrn(raw));
@@ -1591,7 +1682,7 @@ function initClientPage($){
                 const $input = $(this);
                 const raw = onlyNumber($input.data('real') || '');
 
-                // 🔥 절대 풀지 않는다
+                // 현재 표시 상태 유지
                 if (rrnVisible) {
                     $input.val(formatRrn(raw));
                 } else {

@@ -128,6 +128,7 @@ class CoverImageService
             $title = trim((string)($data['title'] ?? ''));
             $alt = trim((string)($data['alt'] ?? ''));
             $description = trim((string)($data['description'] ?? ''));
+            $isActive = ((int)($data['is_active'] ?? 1)) === 1 ? 1 : 0;
             $newSrc  = null;
 
             if (!preg_match('/^\d{4}$/', $year)) {
@@ -224,6 +225,7 @@ class CoverImageService
                     'alt'         => $alt,
                     'description' => $description,
                     'src'         => $newSrc ?: ($before['src'] ?? null),
+                    'is_active'   => $isActive,
                     'updated_by'  => $actor,
                 ];
 
@@ -249,7 +251,7 @@ class CoverImageService
                4. INSERT
             ========================= */
             $newId   = UuidHelper::generate();
-            $newSortNo = null;
+            $newSortNo = $this->getNextSortNo();
 
             $insertData = [
                 'id'          => $newId,
@@ -259,6 +261,7 @@ class CoverImageService
                 'alt'         => $alt,
                 'description' => $description,
                 'src'         => $newSrc, // ?뵦 null ?꾨떂 (?꾩뿉???꾩닔 泥댄겕??
+                'is_active'   => $isActive,
                 'created_by'  => $actor,
                 'updated_by'  => $actor,
             ];
@@ -269,6 +272,8 @@ class CoverImageService
                     'message' => 'DB INSERT ?ㅽ뙣'
                 ];
             }
+
+            DataHelper::resequenceCoverImageCodes($this->pdo);
 
             return [
                 'success' => true,
@@ -286,6 +291,16 @@ class CoverImageService
                 'message' => $e->getMessage()
             ];
         }
+    }
+
+    private function getNextSortNo(): int
+    {
+        $stmt = $this->pdo->query("
+            SELECT COALESCE(MAX(sort_no), 0) + 1
+            FROM system_coverimage_assets
+        ");
+
+        return (int)($stmt?->fetchColumn() ?: 1);
     }
 
     /* ============================================================

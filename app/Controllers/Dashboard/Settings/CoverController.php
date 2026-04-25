@@ -76,6 +76,7 @@ class CoverController
             'title'       => $_POST['title'] ?? '',
             'alt'         => $_POST['alt'] ?? '',
             'description' => $_POST['description'] ?? '',
+            'is_active'   => isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1,
             'file'        => $_FILES['cover_image'] ?? null,
         ];
 

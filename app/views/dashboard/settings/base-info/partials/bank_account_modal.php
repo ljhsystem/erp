@@ -1,5 +1,5 @@
 <?php
-// 경로: /app/views/dashboard/settings/base-info/partials/bank_account_modal.php
+// 경로: PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/bank_account_modal.php'
 ?>
 
 <div class="modal fade" id="accountModal" tabindex="-1" aria-hidden="true">
@@ -23,17 +23,7 @@
 
               <div class="row g-2">
 
-                <div class="col-md-2">
-                  <label class="form-label">순번</label>
-                  <input type="text"
-                         name="sort_no"
-                         id="modal_sort_no"
-                         class="form-control form-control-sm"
-                         placeholder="자동 생성"
-                         readonly>
-                </div>
-
-                <div class="col-md-3">
+                <div class="col-md-4">
                   <label class="form-label">계좌명 *</label>
                   <input type="text"
                          name="account_name"
@@ -52,6 +42,7 @@
                   <label class="form-label">계좌번호</label>
                   <input type="text"
                          name="account_number"
+                         data-format="account_number"
                          class="form-control form-control-sm">
                 </div>
 
@@ -67,14 +58,14 @@
                 </div>
 
                 <div class="col-md-3">
-                  <label class="form-label">계좌유형</label>
+                  <label class="form-label">계좌구분</label>
                   <select name="account_type" class="form-select form-select-sm">
                     <option value="">선택</option>
-                    <option value="보통예금">보통예금</option>
-                    <option value="정기예금">정기예금</option>
-                    <option value="적금">적금</option>
+                    <option value="법인">법인</option>
+                    <option value="개인">개인</option>
+                    <option value="외화">외화</option>
                     <option value="대출">대출</option>
-                    <option value="외화예금">외화예금</option>
+                    <option value="기타">기타</option>
                   </select>
                 </div>
 
@@ -82,6 +73,7 @@
                   <label class="form-label">통화</label>
                   <input type="text"
                          name="currency"
+                         data-format="currency"
                          class="form-control form-control-sm"
                          placeholder="KRW"
                          value="KRW">
@@ -132,7 +124,7 @@
 
                   <div class="file-upload-box" id="bankBookUpload">
                     <div id="bankBookText">
-                      파일 드롭 또는 클릭<br>(PDF, JPG, PNG)
+                      파일을 끌어놓거나 클릭하여 업로드<br>(PDF, JPG, PNG)
                     </div>
 
                     <input type="file"

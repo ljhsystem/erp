@@ -1,4 +1,4 @@
-/* 📄 /public/assets/css/pages/dashboard/settings/cover.css */
+﻿/* ?뱞 /public/assets/css/pages/dashboard/settings/cover.css */
 
 /* ==============================
    PAGE
@@ -46,212 +46,12 @@
 }
 
 
-.date-range{
-    display:flex;
-    align-items:center;
-    gap:8px;
-}
-
-.date-input{
-    position:relative;
-    width:140px;
-}
-
-.date-input input{
-    width:100%;
-    padding-right:32px;
-}
-
-
-
-.cover-page .content-area{
-    width:100%;
-    display:flex;
-    flex-direction:column;
-    gap:14px;
-    min-height:0;
-}
-
-
-
-
-/* ==============================
-   SEARCH FORM
-============================== */
-.search-form-container{
-    position:relative;
-    border:1px solid #e5e7eb;
-    border-radius:8px;
-    background:#f8f9fb;
-    padding:16px;
-    margin:0;
-    width:100%;
-    overflow:visible;
-    z-index:20;
-}
-
-.search-form-container::before{
-    content:"";
-    position:absolute;
-    left:0;
-    right:0;
-    top:0;
-    border-top:1px solid #e5e7eb;
-    opacity:0;
-    pointer-events:none;
-}
-
-.search-form-title{
-    font-weight:600;
-    margin-bottom:10px;
-    display:block;
-}
-
-.period-row{
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    flex-wrap:wrap;
-    gap:8px;
-    margin-bottom:10px;
-    width:100%;
-}
-
-.period-label-area{
-    width:90px;
-    font-weight:600;
-}
-
-.label-btn{
-    background:none;
-    border:none;
-    font-weight:600;
-    padding:0;
-}
-
-.date-type-select{
-    width:120px;
-}
-
-.period-quick-btns{
-    display:flex;
-    gap:5px;
-}
-
-.date-range{
-    display:flex;
-    align-items:center;
-    gap:8px;
-}
-
-.search-wrapper{
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    gap:10px;
-    flex-wrap:wrap;
-    width:100%;
-}
-
-.search-label-area{
-    width:90px;
-    font-weight:600;
-}
-
-.search-condition{
-    display:flex;
-    gap:8px;
-    align-items:center;
-    margin-bottom:8px;
-}
-
-.search-condition:not(:last-child){
-    margin-bottom:8px;
-}
-
-.search-field{
-    width:150px;
-}
-
-.search-input{
-    width:350px;
-}
-
-.search-btn-area{
-    display:flex;
-    justify-content:center;
-    margin-top:12px;
-}
-
-.period-row select,
-.period-row input,
-.period-row button,
-.search-wrapper select,
-.search-wrapper input,
-.search-wrapper button{
-    height:38px;
-    min-height:38px;
-    padding:6px 10px;
-    font-size:14px;
-    line-height:1.2;
-    box-sizing:border-box;
-}
-
-.search-wrapper input,
-.search-wrapper select{
-    border-radius:6px;
-}
-
-.date-input-wrap{
-    position:relative;
-}
-
-.date-input-wrap input{
-    padding-right:10px;
-}
-
-.date-tilde{
-    font-weight:600;
-}
-
-.search-toggle-text{
-    position:absolute;
-    top:-9px;
-    right:60px;
-    background:#fff;
-    padding:0 8px;
-    font-size:12px;
-    color:#666;
-    cursor:pointer;
-    z-index:1;
-}
-
-.search-toggle-text:hover{
-    color:#000;
-}
-
-.search-form-body.hidden{
-    display:none;
-}
-
-.search-form-container.collapsed{
-    padding:0;
-    height:0;
-    margin:0;
-    border:0;
-    border-radius:0;
-    background:transparent;
-}
-
-.search-form-container.collapsed::before{
-    opacity:1;
-}
 
 /* ==============================
    MODAL
 ============================== */
 
-/* 커버 신규/수정 모달만 적용 */
+/* 而ㅻ쾭 ?좉퇋/?섏젙 紐⑤떖留??곸슜 */
 #coverImageModal .modal-dialog.modal-lg{
     max-width:900px;
     width:95vw;
@@ -262,7 +62,7 @@
     overflow-y:auto;
 }
 
-/* 휴지통 모달 전용 */
+/* ?댁???紐⑤떖 ?꾩슜 */
 #coverTrashModal .modal-dialog{
     max-width:1100px;
     width:min(1100px, calc(100vw - 32px));
@@ -284,7 +84,7 @@
     table-layout:auto;
 }
 
-/* 혹시 내부 wrapper 때문에 우측 삐져나오면 차단 */
+/* ?뱀떆 ?대? wrapper ?뚮Ц???곗륫 ?먯졇?섏삤硫?李⑤떒 */
 #coverTrashModal .table-responsive,
 #coverTrashModal .trash-table-wrap{
     width:100%;
@@ -322,7 +122,7 @@
    COVER TRASH MODAL
 ========================================= */
 
-/* 모달 크기 */
+/* 紐⑤떖 ?ш린 */
 #coverTrashModal .modal-dialog{
     max-width: 1280px;
     width: calc(100vw - 40px);
@@ -345,7 +145,7 @@
     background: #fff;
 }
 
-/* 전체 레이아웃 */
+/* ?꾩껜 ?덉씠?꾩썐 */
 .cover-trash-layout{
     display: flex;
     align-items: stretch;
@@ -355,7 +155,7 @@
     overflow: hidden;
 }
 
-/* 왼쪽 목록 영역 */
+/* ?쇱そ 紐⑸줉 ?곸뿭 */
 .cover-trash-left{
     flex: 1 1 auto;
     min-width: 0;
@@ -366,7 +166,7 @@
     flex-direction: column;
 }
 
-/* 오른쪽 상세 영역 */
+/* ?ㅻⅨ履??곸꽭 ?곸뿭 */
 .cover-trash-right{
     flex: 0 0 0;
     width: 0;
@@ -384,7 +184,7 @@
     border-left: 1px solid #e5e7eb;
 }
 
-/* 툴바 */
+/* ?대컮 */
 .trash-toolbar{
     display: flex;
     align-items: center;
@@ -394,7 +194,7 @@
     padding: 0;
 }
 
-/* 기존 HTML 그대로 살리기 위해 첫 2개 왼쪽, 마지막 1개 오른쪽 */
+/* 湲곗〈 HTML 洹몃?濡??대━湲??꾪빐 泥?2媛??쇱そ, 留덉?留?1媛??ㅻⅨ履?*/
 .trash-toolbar > .btn{
     flex: 0 0 auto;
 }
@@ -403,7 +203,7 @@
     margin-left: auto;
 }
 
-/* 테이블 감싸는 영역 */
+/* ?뚯씠釉?媛먯떥???곸뿭 */
 .cover-trash-left .table-responsive{
     flex: 1 1 auto;
     min-height: 0;
@@ -412,7 +212,7 @@
     border-radius: 10px;
 }
 
-/* DataTables 정렬 */
+/* DataTables ?뺣젹 */
 #cover-trash-table_wrapper{
     width: 100%;
 }
@@ -467,7 +267,7 @@
     padding-top: 6px;
 }
 
-/* 테이블 */
+/* ?뚯씠釉?*/
 #cover-trash-table{
     width: 100% !important;
     table-layout: auto;
@@ -494,7 +294,7 @@
     background: #eef6ff !important;
 }
 
-/* 썸네일 */
+/* ?몃꽕??*/
 #cover-trash-table .table-img-preview{
     width: 80px;
     height: 80px;
@@ -505,7 +305,7 @@
     box-shadow: 0 2px 8px rgba(0,0,0,.08);
 }
 
-/* 상세 패널 */
+/* ?곸꽭 ?⑤꼸 */
 #cover-trash-detail{
     display: none;
     height: 100%;
@@ -588,12 +388,12 @@
     word-break: break-word;
 }
 
-/* 버튼 줄바꿈 방지 */
+/* 踰꾪듉 以꾨컮轅?諛⑹? */
 #coverTrashModal .btn{
     white-space: nowrap;
 }
 
-/* 반응형 */
+/* 諛섏쓳??*/
 @media (max-width: 1200px){
     #coverTrashModal .modal-dialog{
         width: calc(100vw - 20px);

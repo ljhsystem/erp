@@ -880,7 +880,7 @@ class ProjectService
         $sheet->fromArray(['순번', '프로젝트명', '공사명', '거래처명', '담당직원', '착공일자', '준공일자', '계약금액', '사용여부', '비고'], null, 'A1');
         $rowNo = 2;
         foreach ($projects as $project) {
-            $sheet->fromArray([[$project['sort_no'] ?? '', $project['project_name'] ?? '', $project['construction_name'] ?? '', $project['client_name'] ?? '', $project['contractor_name'] ?? '', $project['start_date'] ?? '', $project['end_date'] ?? '', $project['initial_contract_amount'] ?? '', !empty($project['is_active']) ? '사용' : '미사용', $project['note'] ?? '']], null, 'A' . $rowNo);
+            $sheet->fromArray([[$project['sort_no'] ?? '', $project['project_name'] ?? '', $project['construction_name'] ?? '', $project['client_name'] ?? '', $project['contractor_name'] ?? '', $project['start_date'] ?? '', $project['end_date'] ?? '', $project['initial_contract_amount'] ?? '', !empty($project['is_active']) ? '진행중' : '완료됨', $project['note'] ?? '']], null, 'A' . $rowNo);
             $rowNo++;
         }
         foreach (range('A', 'J') as $col) { $sheet->getColumnDimension($col)->setAutoSize(true); }

@@ -113,11 +113,14 @@ $ui = array_merge([
     <!-- 공통 CSS -->
     <?= AssetHelper::css('/assets/css/common/picker.css') ?>
     <?= AssetHelper::css('/assets/css/common/notification.css') ?>
-    <?= AssetHelper::css('/assets/css/components/trash.css') ?>
     <?= AssetHelper::css('/assets/css/pages/layout/spinner.css') ?>
     <?= AssetHelper::css('/assets/css/pages/layout/navbar.css') ?>
     <?= AssetHelper::css('/assets/css/pages/layout/footer.css') ?>
     <?= AssetHelper::css('/assets/css/pages/layout/layout.css') ?>
+    <?= AssetHelper::css('/assets/css/components/data-table.css') ?>
+    <?= AssetHelper::css('/assets/css/components/search-form.css') ?>
+    <?= AssetHelper::css('/assets/css/components/excel-manager.css') ?>
+    <?= AssetHelper::css('/assets/css/components/trash-manager.css') ?>
 
 
     <!-- 페이지별 CSS -->

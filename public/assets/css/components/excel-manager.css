@@ -1,0 +1,16 @@
+/* =========================================================
+   Excel Manager Component
+========================================================= */
+
+.excel-spinner {
+  color: var(--color-text-muted);
+}
+
+.excel-spinner .spinner-border {
+  width: calc(var(--row-height, 38px) - 8px);
+  height: calc(var(--row-height, 38px) - 8px);
+}
+
+.btn-upload-excel {
+  min-height: calc(var(--row-height, 38px) - 4px);
+}

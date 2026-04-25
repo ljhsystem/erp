@@ -329,7 +329,7 @@
         if (cached) {
             renderRows(tbody, cached, modal);
         } else {
-            tbody.innerHTML = `<tr><td colspan="6">불러오는 중...</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="${getColumnCount(modal)}">불러오는 중...</td></tr>`;
         }
 
         try {
@@ -343,7 +343,7 @@
 
         } catch (e) {
             console.error(e);
-            tbody.innerHTML = `<tr><td colspan="6">로드 실패</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="${getColumnCount(modal)}">로드 실패</td></tr>`;
         }
     }
 
@@ -368,7 +368,7 @@
         tbody.innerHTML = '';
     
         if (!data.length) {
-            tbody.innerHTML = `<tr><td colspan="6">데이터 없음</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="${getColumnCount(modal)}">데이터 없음</td></tr>`;
             return;
         }
     
@@ -392,6 +392,10 @@
     function getColumns(row, modal){
         const fn = window.TrashColumns?.[modal.dataset.type];
         return fn ? fn(row) : `<td>${row.id}</td>`;
+    }
+
+    function getColumnCount(modal) {
+        return modal.querySelectorAll('.trash-table thead th').length || 1;
     }
 
 })();

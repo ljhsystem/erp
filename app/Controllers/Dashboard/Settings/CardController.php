@@ -1,5 +1,5 @@
 <?php
-// 寃쎈줈: PROJECT_ROOT . '/app/Controllers/Dashboard/Settings/CardController.php'
+// Path: PROJECT_ROOT . '/app/Controllers/Dashboard/Settings/CardController.php'
 
 namespace App\Controllers\Dashboard\Settings;
 
@@ -34,7 +34,7 @@ class CardController
         } catch (\Throwable $e) {
             $this->jsonResponse([
                 'success' => false,
-                'message' => '移대뱶 紐⑸줉??遺덈윭?ㅼ? 紐삵뻽?듬땲??',
+                'message' => '카드 목록 조회 중 오류가 발생했습니다.',
                 'error' => $e->getMessage(),
             ]);
         }
@@ -45,10 +45,7 @@ class CardController
         $id = trim((string) ($_GET['id'] ?? ''));
 
         if ($id === '') {
-            $this->jsonResponse([
-                'success' => false,
-                'message' => '移대뱶 ID媛 ?꾩슂?⑸땲??',
-            ]);
+            $this->jsonResponse(['success' => false, 'message' => '카드 ID가 없습니다.']);
         }
 
         try {
@@ -59,7 +56,7 @@ class CardController
         } catch (\Throwable $e) {
             $this->jsonResponse([
                 'success' => false,
-                'message' => '移대뱶 ?뺣낫瑜?遺덈윭?ㅼ? 紐삵뻽?듬땲??',
+                'message' => '카드 상세 조회 중 오류가 발생했습니다.',
                 'error' => $e->getMessage(),
             ]);
         }
@@ -80,7 +77,6 @@ class CardController
         try {
             $payload = [
                 'id' => $_POST['id'] ?? null,
-                'sort_no' => $_POST['sort_no'] ?? null,
                 'card_name' => trim((string) ($_POST['card_name'] ?? '')),
                 'card_type' => $this->normalizeCardType((string) ($_POST['card_type'] ?? '')),
                 'card_number' => trim((string) ($_POST['card_number'] ?? '')),
@@ -97,38 +93,38 @@ class CardController
             ];
 
             if ($payload['card_name'] === '') {
-                $this->jsonResponse(['success' => false, 'message' => '移대뱶紐낆? ?꾩닔 ?낅젰?낅땲??']);
+                $this->jsonResponse(['success' => false, 'message' => '카드명을 입력하세요.']);
             }
 
             if ($payload['card_type'] === '') {
-                $this->jsonResponse(['success' => false, 'message' => '移대뱶?좏삎? ?꾩닔 ?낅젰?낅땲??']);
+                $this->jsonResponse(['success' => false, 'message' => '카드유형을 선택하세요.']);
             }
 
             if ($payload['currency'] !== '' && !preg_match('/^[A-Z]{3}$/', $payload['currency'])) {
-                $this->jsonResponse(['success' => false, 'message' => '?듯솕 肄붾뱶??3?먮━ ?곷Ц?쇰줈 ?낅젰?댁＜?몄슂.']);
+                $this->jsonResponse(['success' => false, 'message' => '통화 코드는 3자리 영문으로 입력하세요.']);
             }
 
             if ($payload['card_number'] !== '' && !preg_match('/^[0-9-]+$/', $payload['card_number'])) {
-                $this->jsonResponse(['success' => false, 'message' => '移대뱶踰덊샇???レ옄? ?섏씠?덈쭔 ?낅젰?????덉뒿?덈떎.']);
+                $this->jsonResponse(['success' => false, 'message' => '카드번호는 숫자와 하이픈만 입력할 수 있습니다.']);
             }
 
             if ($payload['expiry_year'] !== '' && !preg_match('/^\d{4}$/', $payload['expiry_year'])) {
-                $this->jsonResponse(['success' => false, 'message' => '?좏슚湲곌컙(??? 4?먮━ ?レ옄濡??낅젰?댁＜?몄슂.']);
+                $this->jsonResponse(['success' => false, 'message' => '유효기간 년도는 4자리 숫자로 입력하세요.']);
             }
 
             if ($payload['expiry_month'] !== '' && !preg_match('/^(0?[1-9]|1[0-2])$/', $payload['expiry_month'])) {
-                $this->jsonResponse(['success' => false, 'message' => '?좏슚湲곌컙(??? 1遺??12 ?ъ씠 ?レ옄濡??낅젰?댁＜?몄슂.']);
+                $this->jsonResponse(['success' => false, 'message' => '유효기간 월은 1부터 12 사이로 입력하세요.']);
             }
 
             if ($payload['limit_amount'] < 0) {
-                $this->jsonResponse(['success' => false, 'message' => '?쒕룄湲덉븸? 0 ?댁긽?댁뼱???⑸땲??']);
+                $this->jsonResponse(['success' => false, 'message' => '한도금액은 0 이상이어야 합니다.']);
             }
 
             $this->jsonResponse($this->service->save($payload, 'USER', $_FILES));
         } catch (\Throwable $e) {
             $this->jsonResponse([
                 'success' => false,
-                'message' => '移대뱶 ???以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.',
+                'message' => '카드 저장 중 오류가 발생했습니다.',
                 'error' => $e->getMessage(),
             ]);
         }
@@ -139,7 +135,7 @@ class CardController
         $id = trim((string) ($_POST['id'] ?? ''));
 
         if ($id === '') {
-            $this->jsonResponse(['success' => false, 'message' => '移대뱶 ID媛 ?꾩슂?⑸땲??']);
+            $this->jsonResponse(['success' => false, 'message' => '카드 ID가 없습니다.']);
         }
 
         $this->jsonResponse($this->service->delete($id, 'USER'));
@@ -158,7 +154,7 @@ class CardController
         $id = trim((string) ($_POST['id'] ?? ''));
 
         if ($id === '') {
-            $this->jsonResponse(['success' => false, 'message' => '蹂듦뎄??移대뱶 ID媛 ?꾩슂?⑸땲??']);
+            $this->jsonResponse(['success' => false, 'message' => '복원할 카드 ID가 없습니다.']);
         }
 
         try {
@@ -166,7 +162,7 @@ class CardController
         } catch (\Throwable $e) {
             $this->jsonResponse([
                 'success' => false,
-                'message' => '移대뱶 蹂듦뎄 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.',
+                'message' => '카드 복원 중 오류가 발생했습니다.',
                 'error' => $e->getMessage(),
             ]);
         }
@@ -179,14 +175,14 @@ class CardController
             $ids = $input['ids'] ?? [];
 
             if (empty($ids) || !is_array($ids)) {
-                $this->jsonResponse(['success' => false, 'message' => '蹂듦뎄??移대뱶媛 ?놁뒿?덈떎.']);
+                $this->jsonResponse(['success' => false, 'message' => '복원할 카드를 선택하세요.']);
             }
 
             $this->jsonResponse($this->service->restoreBulk($ids, 'USER'));
         } catch (\Throwable $e) {
             $this->jsonResponse([
                 'success' => false,
-                'message' => '移대뱶 ?쇨큵 蹂듦뎄 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.',
+                'message' => '카드 일괄 복원 중 오류가 발생했습니다.',
                 'error' => $e->getMessage(),
             ]);
         }
@@ -199,7 +195,7 @@ class CardController
         } catch (\Throwable $e) {
             $this->jsonResponse([
                 'success' => false,
-                'message' => '?꾩껜 移대뱶 蹂듦뎄 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.',
+                'message' => '전체 카드 복원 중 오류가 발생했습니다.',
                 'error' => $e->getMessage(),
             ]);
         }
@@ -210,7 +206,7 @@ class CardController
         $id = trim((string) ($_POST['id'] ?? ''));
 
         if ($id === '') {
-            $this->jsonResponse(['success' => false, 'message' => '?꾩쟾 ??젣??移대뱶 ID媛 ?꾩슂?⑸땲??']);
+            $this->jsonResponse(['success' => false, 'message' => '영구삭제할 카드 ID가 없습니다.']);
         }
 
         try {
@@ -218,7 +214,7 @@ class CardController
         } catch (\Throwable $e) {
             $this->jsonResponse([
                 'success' => false,
-                'message' => '移대뱶 ?꾩쟾 ??젣 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.',
+                'message' => '카드 영구삭제 중 오류가 발생했습니다.',
                 'error' => $e->getMessage(),
             ]);
         }
@@ -231,14 +227,14 @@ class CardController
             $ids = $input['ids'] ?? [];
 
             if (empty($ids) || !is_array($ids)) {
-                $this->jsonResponse(['success' => false, 'message' => '?꾩쟾 ??젣??移대뱶媛 ?놁뒿?덈떎.']);
+                $this->jsonResponse(['success' => false, 'message' => '영구삭제할 카드를 선택하세요.']);
             }
 
             $this->jsonResponse($this->service->purgeBulk($ids, 'USER'));
         } catch (\Throwable $e) {
             $this->jsonResponse([
                 'success' => false,
-                'message' => '移대뱶 ?쇨큵 ?꾩쟾 ??젣 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.',
+                'message' => '카드 일괄 영구삭제 중 오류가 발생했습니다.',
                 'error' => $e->getMessage(),
             ]);
         }
@@ -251,7 +247,7 @@ class CardController
         } catch (\Throwable $e) {
             $this->jsonResponse([
                 'success' => false,
-                'message' => '?꾩껜 移대뱶 ?꾩쟾 ??젣 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.',
+                'message' => '전체 카드 영구삭제 중 오류가 발생했습니다.',
                 'error' => $e->getMessage(),
             ]);
         }
@@ -264,19 +260,19 @@ class CardController
             $changes = $input['changes'] ?? [];
 
             if (empty($changes) || !is_array($changes)) {
-                $this->jsonResponse(['success' => false, 'message' => '?뺣젹 蹂寃??곗씠?곌? ?놁뒿?덈떎.']);
+                $this->jsonResponse(['success' => false, 'message' => '정렬 변경 데이터가 없습니다.']);
             }
 
             $this->service->reorder($changes);
 
             $this->jsonResponse([
                 'success' => true,
-                'message' => '?뺣젹????λ릺?덉뒿?덈떎.',
+                'message' => '정렬 순서가 저장되었습니다.',
             ]);
         } catch (\Throwable $e) {
             $this->jsonResponse([
                 'success' => false,
-                'message' => '?뺣젹 ???以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.',
+                'message' => '정렬 저장 중 오류가 발생했습니다.',
                 'error' => $e->getMessage(),
             ]);
         }
@@ -293,7 +289,7 @@ class CardController
         } catch (\Throwable $e) {
             http_response_code(500);
             header('Content-Type: text/plain; charset=UTF-8');
-            echo '移대뱶 ?쒗뵆由??ㅼ슫濡쒕뱶 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎: ' . $e->getMessage();
+            echo '카드 엑셀 양식 다운로드 중 오류가 발생했습니다: ' . $e->getMessage();
             exit;
         }
     }
@@ -302,7 +298,7 @@ class CardController
     {
         try {
             if (!isset($_FILES['excel']) || !is_uploaded_file($_FILES['excel']['tmp_name'])) {
-                $this->jsonResponse(['success' => false, 'message' => '?낅줈?쒗븷 ?묒? ?뚯씪???좏깮?댁＜?몄슂.']);
+                $this->jsonResponse(['success' => false, 'message' => '업로드할 엑셀 파일을 선택하세요.']);
             }
 
             $fileTmp = (string) $_FILES['excel']['tmp_name'];
@@ -311,18 +307,18 @@ class CardController
             $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
 
             if (!in_array($ext, ['xlsx', 'xls'], true)) {
-                $this->jsonResponse(['success' => false, 'message' => '?묒? ?뚯씪留??낅줈?쒗븷 ???덉뒿?덈떎.']);
+                $this->jsonResponse(['success' => false, 'message' => '엑셀 파일만 업로드할 수 있습니다.']);
             }
 
             if ($fileSize > 10 * 1024 * 1024) {
-                $this->jsonResponse(['success' => false, 'message' => '?묒? ?뚯씪? 理쒕? 10MB源뚯? ?낅줈?쒗븷 ???덉뒿?덈떎.']);
+                $this->jsonResponse(['success' => false, 'message' => '엑셀 파일은 10MB 이하만 업로드할 수 있습니다.']);
             }
 
             $this->jsonResponse($this->service->saveFromExcelFile($fileTmp));
         } catch (\Throwable $e) {
             $this->jsonResponse([
                 'success' => false,
-                'message' => '?묒? ?낅줈??以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.',
+                'message' => '엑셀 업로드 중 오류가 발생했습니다.',
                 'error' => $e->getMessage(),
             ]);
         }
@@ -339,7 +335,7 @@ class CardController
         } catch (\Throwable $e) {
             http_response_code(500);
             header('Content-Type: text/plain; charset=UTF-8');
-            echo '移대뱶 ?묒? ?ㅼ슫濡쒕뱶 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎: ' . $e->getMessage();
+            echo '카드 엑셀 다운로드 중 오류가 발생했습니다: ' . $e->getMessage();
             exit;
         }
     }
@@ -349,9 +345,9 @@ class CardController
         $normalized = strtolower(trim($value));
 
         return match ($normalized) {
-            'corporate', '법인' => 'corporate',
-            'personal', '개인' => 'personal',
-            'virtual', '가상' => 'virtual',
+            'corporate', '법인', '법인카드' => 'corporate',
+            'personal', '개인', '개인카드' => 'personal',
+            'virtual', '가상', '가상카드' => 'virtual',
             default => $normalized,
         };
     }

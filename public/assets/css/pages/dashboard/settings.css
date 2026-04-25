@@ -1,24 +1,25 @@
-/* 📄 /public/assets/css/pages/dashboard/settings.css */
+/* ?뱞 /public/assets/css/pages/dashboard/settings.css */
 /* ==========================================================
-   SUKHYANG ERP - SETTINGS 공통 레이아웃
-   - 가운데 세로 메뉴 제거
-   - 상단 2단 탭 구조
-   - 설정 페이지 전용
+   SUKHYANG ERP - SETTINGS 怨듯넻 ?덉씠?꾩썐
+   - 媛?대뜲 ?몃줈 硫붾돱 ?쒓굅
+   - ?곷떒 2????援ъ“
+   - ?ㅼ젙 ?섏씠吏 ?꾩슜
    ========================================================== */
 
 /* ==========================================================
-   1. 전체 래퍼
+   1. ?꾩껜 ?섑띁
    ========================================================== */
 .settings-main {
     width: 100%;
     max-width: 100%;
     padding: calc(var(--padding) - 6px) 0 calc(var(--padding) - 2px);
     overflow-x: hidden;
+    overflow-y: visible;
     background: transparent;
     font-size: var(--font-size);
     display: flex;
     flex-direction: column;
-    min-height: 0;
+    min-height: auto;
 }
 
 .settings-page-header {
@@ -34,7 +35,7 @@
 }
 
 /* ==========================================================
-   2. 1차 카테고리 탭
+   2. 1李?移댄뀒怨좊━ ??
    ========================================================== */
 .settings-cat-tabs-wrap {
     margin-left:  30px;
@@ -71,7 +72,7 @@
 }
 
 /* ==========================================================
-   3. 2차 서브 탭
+   3. 2李??쒕툕 ??
    ========================================================== */
 .settings-sub-tabs-wrap {
     margin-bottom: 0;
@@ -111,7 +112,7 @@
 }
 
 /* ==========================================================
-   4. 본문 카드
+   4. 蹂몃Ц 移대뱶
    ========================================================== */
 .settings-content-card {
     background: #fff;
@@ -120,10 +121,10 @@
     border-radius: 0 0 var(--radius-md) var(--radius-md);
     box-shadow: var(--shadow-sm);
     padding: var(--padding);
-    overflow: hidden;
+    overflow: visible;
     min-width: 0;
-    min-height: 0;
-    flex: 1 1 auto;
+    min-height: auto;
+    flex: 0 0 auto;
     display: flex;
     flex-direction: column;
 }
@@ -139,24 +140,21 @@
 .settings-main .project-page,
 .settings-main .role-page,
 .settings-main .role-permission-page {
-    flex: 1 1 auto;
-    min-height: 0;
+    flex: 0 0 auto;
+    min-height: auto;
     display: flex;
     flex-direction: column;
 }
 
 .settings-main .content-area,
 .settings-main .table-box,
-.settings-main .table-responsive,
-.settings-main .dataTables_wrapper,
-.settings-main .dataTables_scroll,
-.settings-main .dataTables_scrollBody {
-    min-height: 0;
+.settings-main .table-responsive {
+    min-height: auto;
 }
 
 .settings-main .content-area,
 .settings-main .table-box {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     display: flex;
     flex-direction: column;
 }
@@ -170,10 +168,9 @@
     flex: 0 0 auto;
 }
 
-.settings-main .table-box > .table-responsive,
-.settings-main .table-box .dataTables_wrapper {
-    flex: 1 1 auto;
-    min-height: 0;
+.settings-main .table-box > .table-responsive {
+    flex: 0 0 auto;
+    min-height: auto;
 }
 
 .settings-main .table-box > .table-responsive {
@@ -182,27 +179,9 @@
     overflow: hidden;
 }
 
-.settings-main .table-box .dataTables_wrapper,
-.settings-main .table-box .dataTables_scroll {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
-}
-
-.settings-main .table-box .dataTables_scroll {
-    flex: 1 1 auto;
-}
-
-.settings-main .table-box .dataTables_scrollBody {
-    flex: 1 1 auto;
-    overflow-x: auto !important;
-    overflow-y: auto !important;
-}
-
 @supports selector(.main-content:has(> .settings-main)) {
     .app-shell:has(.settings-main) {
-        height: calc(100vh - var(--footer-height));
+        height: auto;
         min-height: 0;
         overflow: hidden;
     }
@@ -211,28 +190,29 @@
         display: flex;
         flex-direction: column;
         min-height: 0;
-        overflow: hidden;
+        overflow-x: hidden;
+        overflow-y: auto;
     }
 
     .main-content:has(> .settings-main) > .settings-main {
-        flex: 1 1 auto;
+        flex: 0 0 auto;
         display: flex;
         flex-direction: column;
-        min-height: 0;
-        overflow: hidden;
+        min-height: auto;
+        overflow: visible;
     }
 }
 
 @supports (height: 100dvh) {
     @supports selector(.app-shell:has(.settings-main)) {
         .app-shell:has(.settings-main) {
-            height: calc(100dvh - var(--footer-height));
+            height: auto;
         }
     }
 }
 
 /* ==========================================================
-   5. 설정 페이지 내부 공통
+   5. ?ㅼ젙 ?섏씠吏 ?대? 怨듯넻
    ========================================================== */
 .settings-main .section,
 .settings-main .card,
@@ -263,7 +243,7 @@
 }
 
 /* ==========================================================
-   6. ERP 일반 테이블
+   6. ERP ?쇰컲 ?뚯씠釉?
    ========================================================== */
 .settings-main .erp-table {
     width: 100% !important;
@@ -290,91 +270,9 @@
     vertical-align: middle;
 }
 
-/* ==========================================================
-   7. DataTables 공통
-   ========================================================== */
-.settings-main .dataTables_wrapper {
-    width: 100%;
-    overflow: hidden;
-}
-
-.settings-main .dt-top {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    flex-wrap: wrap;
-    gap: var(--gap);
-    margin-bottom: var(--gap);
-}
-
-.settings-main .dt-bottom {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: var(--gap);
-    margin-top: var(--gap);
-}
-
-.settings-main .dataTables_filter {
-    margin: 0;
-}
-
-.settings-main .dataTables_filter label {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: var(--font-size);
-    margin: 0;
-}
-
-.settings-main .dataTables_filter input {
-    width: 220px;
-    max-width: 100%;
-    margin-left: 0 !important;
-}
-
-.settings-main .dt-buttons {
-    display: flex !important;
-    flex-wrap: wrap;
-    gap: var(--gap);
-}
-
-.settings-main .dt-buttons .btn,
-.settings-main .dt-button.btn {
-    margin: 0 !important;
-}
-
-.settings-main .dataTables_length,
-.settings-main .dataTables_info,
-.settings-main .dataTables_paginate {
-    margin: 0;
-    font-size: var(--font-size);
-}
-
-.settings-main .dataTables_wrapper .dataTables_paginate .paginate_button {
-    padding: calc(var(--padding) - 5px) var(--padding);
-    border-radius: 6px;
-    border: 1px solid #e6e6e6;
-    background: #fff;
-    color: #6c757d !important;
-    cursor: pointer;
-    margin-left: 2px;
-}
-
-.settings-main .dataTables_wrapper .dataTables_paginate .paginate_button.current,
-.settings-main .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
-    background: #f8f9fa !important;
-    color: #333 !important;
-    border-color: #d0d0d0 !important;
-}
-
-.settings-main div.dataTables_scrollBody {
-    border-bottom: 1px solid var(--color-border);
-}
 
 /* ==========================================================
-   8. 모달 / 이미지
+   8. 紐⑤떖 / ?대?吏
    ========================================================== */
 #originalImageModal .modal-dialog {
     max-width: 720px;
@@ -386,7 +284,7 @@
 }
 
 /* ==========================================================
-   9. 반응형
+   9. 諛섏쓳??
    ========================================================== */
 @media (max-width: 991.98px) {
     .settings-main {
@@ -409,12 +307,4 @@
         padding: 12px;
     }
 
-    .settings-main .dt-top,
-    .settings-main .dt-bottom {
-        justify-content: flex-start;
-    }
-
-    .settings-main .dataTables_filter input {
-        width: 160px;
-    }
 }

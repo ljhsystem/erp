@@ -1,10 +1,8 @@
-// 경로: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/organization/positions.js'
+﻿// 寃쎈줈: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/organization/positions.js'
 
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import {
     createDataTable,
-    updateTableHeight,
-    forceTableHeightSync,
     bindTableHighlight
 } from '/public/assets/js/components/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
@@ -24,18 +22,18 @@ window.AdminPicker = AdminPicker;
     };
 
     const POSITION_COLUMN_MAP = {
-        sort_no:          { label: '순번', visible: true },
-        position_name: { label: '직책명', visible: true },
-        level_rank:    { label: '레벨', visible: true },
-        description:   { label: '설명', visible: true },
-        is_active:     { label: '상태', visible: true, noVis: true },
-        created_at:    { label: '등록일자', visible: false },
-        updated_at:    { label: '수정일자', visible: false }
+        sort_no:          { label: '?쒕쾲', visible: true },
+        position_name: { label: '吏곸콉紐?, visible: true },
+        level_rank:    { label: '?덈꺼', visible: true },
+        description:   { label: '?ㅻ챸', visible: true },
+        is_active:     { label: '?곹깭', visible: true, noVis: true },
+        created_at:    { label: '?깅줉?쇱옄', visible: false },
+        updated_at:    { label: '?섏젙?쇱옄', visible: false }
     };
 
     const DATE_OPTIONS = [
-        { value: 'created_at', label: '등록일자' },
-        { value: 'updated_at', label: '수정일자' }
+        { value: 'created_at', label: '?깅줉?쇱옄' },
+        { value: 'updated_at', label: '?섏젙?쇱옄' }
     ];
 
     let positionTable = null;
@@ -60,7 +58,6 @@ window.AdminPicker = AdminPicker;
         bindRowReorder(positionTable, { api: API.REORDER });
         bindTableEvents($);
         bindModalEvents($);
-        bindTableLayoutEvents(positionTable, '#position-table');
         bindGlobalEvents();
     }
 
@@ -158,10 +155,10 @@ window.AdminPicker = AdminPicker;
             api: API.LIST,
             columns,
             defaultOrder: [[1, 'asc']],
-            pageLength: 100,
+            pageLength: 10,
             buttons: [
                 {
-                    text: '새 직책',
+                    text: '??吏곸콉',
                     className: 'btn btn-primary btn-sm',
                     action: function () {
                         openCreateModal();
@@ -184,8 +181,6 @@ window.AdminPicker = AdminPicker;
                 defaultSearchField: 'position_name',
                 dateOptions: DATE_OPTIONS
             });
-
-            updateTableHeight(positionTable, '#position-table');
             bindTableHighlight('#position-table', positionTable);
 
             positionTable.on('draw', updatePositionCountFromTable);
@@ -217,8 +212,8 @@ window.AdminPicker = AdminPicker;
 
                     if (field === 'is_active') {
                         return String(data) === '1'
-                            ? '<span class="badge bg-success">활성</span>'
-                            : '<span class="badge bg-secondary">비활성</span>';
+                            ? '<span class="badge bg-success">?쒖꽦</span>'
+                            : '<span class="badge bg-secondary">鍮꾪솢??/span>';
                     }
 
                     return escapeHtml(data);
@@ -297,7 +292,7 @@ window.AdminPicker = AdminPicker;
 
     function setPositionModalMode(mode) {
         const isCreate = mode === 'create';
-        $('#positionEditModal .modal-title').text(isCreate ? '직책 등록' : '직책 수정');
+        $('#positionEditModal .modal-title').text(isCreate ? '吏곸콉 ?깅줉' : '吏곸콉 ?섏젙');
         $('#position_edit_delete_btn')
             .text('\uC601\uAD6C\uC0AD\uC81C')
             .toggle(!isCreate);
@@ -318,7 +313,7 @@ window.AdminPicker = AdminPicker;
         const name = String($('#position_edit_name').val() || '').trim();
 
         if (!name) {
-            notify('warning', '직책명을 입력하세요.');
+            notify('warning', '吏곸콉紐낆쓣 ?낅젰?섏꽭??');
             return;
         }
 
@@ -339,12 +334,12 @@ window.AdminPicker = AdminPicker;
                 return;
             }
 
-            notify('success', '저장되었습니다.');
+            notify('success', '??λ릺?덉뒿?덈떎.');
             positionModal?.hide();
             reloadPositionTable();
         } catch (err) {
             console.error('[positions.js] save failed:', err);
-            notify('error', '저장 중 오류가 발생했습니다.');
+            notify('error', '???以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.');
         }
     }
 
@@ -362,29 +357,28 @@ window.AdminPicker = AdminPicker;
             const json = await res.json();
 
             if (!json?.success) {
-                notify('error', json?.message || '삭제 실패');
+                notify('error', json?.message || '??젣 ?ㅽ뙣');
                 return;
             }
 
-            notify('success', '삭제되었습니다.');
+            notify('success', '??젣?섏뿀?듬땲??');
             positionModal?.hide();
             reloadPositionTable();
         } catch (err) {
             console.error('[positions.js] delete failed:', err);
-            notify('error', '삭제 중 오류가 발생했습니다.');
+            notify('error', '??젣 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.');
         }
     }
 
     function resolveSaveMessage(message) {
-        if (message === 'duplicate') return '이미 등록된 직책명입니다.';
-        if (message === 'empty') return '직책명을 입력하세요.';
-        return message || '저장 실패';
+        if (message === 'duplicate') return '?대? ?깅줉??吏곸콉紐낆엯?덈떎.';
+        if (message === 'empty') return '吏곸콉紐낆쓣 ?낅젰?섏꽭??';
+        return message || '????ㅽ뙣';
     }
 
     function reloadPositionTable() {
         positionTable?.ajax.reload(() => {
             updatePositionCountFromTable();
-            forceTableHeightSync(positionTable, '#position-table');
         }, false);
     }
 
@@ -394,25 +388,11 @@ window.AdminPicker = AdminPicker;
         const info = positionTable.page.info();
         const el = document.getElementById('positionCount');
         if (el) {
-            el.textContent = `총 ${info?.recordsDisplay ?? 0}건`;
+            el.textContent = `珥?${info?.recordsDisplay ?? 0}嫄?;
         }
     }
 
-    function bindTableLayoutEvents(table, tableSelector) {
-        if (!table) return;
-
-        window.addEventListener('resize', () => {
-            updateTableHeight(table, tableSelector);
-        });
-
-        document.addEventListener('sidebar:toggled', () => {
-            updateTableHeight(table, tableSelector);
-
-            setTimeout(() => {
-                forceTableHeightSync(table, tableSelector);
-            }, 340);
-        });
-    }
+    
 
     function bindGlobalEvents() {
         if (globalBound) return;
@@ -484,3 +464,6 @@ window.AdminPicker = AdminPicker;
         return div.textContent || '';
     }
 })();
+
+
+

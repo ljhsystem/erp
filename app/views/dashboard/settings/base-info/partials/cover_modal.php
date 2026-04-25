@@ -43,6 +43,15 @@
                             </div>
 
                             <div class="mb-2">
+                                <label for="modal_is_active">상태</label>
+                                <select name="is_active" id="modal_is_active" class="form-select form-select-sm">
+                                    <option value="1">사용</option>
+                                    <option value="0">미사용</option>
+                                </select>
+                                <div class="form-text">미사용 상태의 이미지는 공개 페이지에 게시되지 않습니다.</div>
+                            </div>
+
+                            <div class="mb-2">
                                 <label for="modal_title">타이틀</label>
                                 <input type="text" name="title" id="modal_title" class="form-control form-control-sm">
                             </div>
@@ -82,8 +91,9 @@
                 <img
                     id="original-image-view"
                     src=""
-                    style="max-width:100%;max-height:70vh;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.15);"
-                    alt="원본 커버 이미지"
+                    alt="원본 이미지"
+                    class="img-fluid rounded shadow-sm"
+                    style="max-height:70vh;"
                 >
             </div>
         </div>

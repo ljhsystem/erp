@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/card_modal.php'
+// Path: PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/card_modal.php'
 ?>
 
 <div class="modal fade" id="cardModal" tabindex="-1" aria-labelledby="cardModalLabel" aria-hidden="true">
@@ -19,16 +19,6 @@
             <div class="card-header py-1 px-2">기본 정보</div>
             <div class="card-body py-2">
               <div class="row g-2">
-                <div class="col-md-2">
-                  <label class="form-label">순번</label>
-                  <input type="text"
-                         name="sort_no"
-                         id="modal_sort_no"
-                         class="form-control form-control-sm"
-                         placeholder="자동 생성"
-                         readonly>
-                </div>
-
                 <div class="col-md-4">
                   <label class="form-label">카드명 *</label>
                   <input type="text"
@@ -37,7 +27,7 @@
                          required>
                 </div>
 
-                <div class="col-md-3">
+                <div class="col-md-4">
                   <label class="form-label">카드유형</label>
                   <select name="card_type" class="form-select form-select-sm">
                     <option value="corporate">법인카드</option>
@@ -46,8 +36,8 @@
                   </select>
                 </div>
 
-                <div class="col-md-3">
-                  <label class="form-label">사용여부</label>
+                <div class="col-md-4">
+                  <label class="form-label">상태</label>
                   <select name="is_active" class="form-select form-select-sm">
                     <option value="1">사용</option>
                     <option value="0">미사용</option>
@@ -60,7 +50,8 @@
                   <label class="form-label">카드번호</label>
                   <input type="text"
                          name="card_number"
-                         class="form-control form-control-sm">
+                         class="form-control form-control-sm"
+                         inputmode="numeric">
                 </div>
 
                 <div class="col-md-3">
@@ -68,6 +59,8 @@
                   <input type="text"
                          name="expiry_year"
                          class="form-control form-control-sm"
+                         inputmode="numeric"
+                         maxlength="4"
                          placeholder="YYYY">
                 </div>
 
@@ -76,6 +69,8 @@
                   <input type="text"
                          name="expiry_month"
                          class="form-control form-control-sm"
+                         inputmode="numeric"
+                         maxlength="2"
                          placeholder="MM">
                 </div>
               </div>
@@ -87,7 +82,7 @@
             <div class="card-body py-2">
               <div class="row g-2">
                 <div class="col-md-4">
-                  <label class="form-label">거래처</label>
+                  <label class="form-label">카드사</label>
                   <select name="client_id"
                           class="form-select form-select-sm"
                           id="cardClientSelect"></select>
@@ -104,15 +99,17 @@
                   <label class="form-label">통화</label>
                   <input type="text"
                          name="currency"
+                         data-format="currency"
                          class="form-control form-control-sm"
-                         value="KRW">
+                         value="KRW"
+                         maxlength="3">
                 </div>
 
                 <div class="col-md-2">
                   <label class="form-label">한도금액</label>
                   <input type="text"
                          name="limit_amount"
-                         class="form-control form-control-sm number-input"
+                         class="form-control form-control-sm number-input text-end"
                          inputmode="decimal">
                 </div>
               </div>
@@ -147,7 +144,7 @@
 
                   <div class="file-upload-box" id="cardUpload">
                     <div id="cardUploadText">
-                      파일 드롭 또는 클릭<br>(PDF, JPG, PNG)
+                      파일을 끌어놓거나 클릭하여 업로드<br>(PDF, JPG, PNG)
                     </div>
 
                     <input type="file"

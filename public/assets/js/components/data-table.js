@@ -1,54 +1,7 @@
-// 경로: /assets/js/components/data-table.js
-
-/* =========================================================
-   DataTable 생성 (단일 기준 / 안정화 버전)
-   - 핵심:
-     1) columns.adjust() 남발 금지
-     2) draw(false) 연속 호출 금지
-     3) scroll 높이 변경과 column width 재계산 분리
-     4) animation 중에는 높이만 갱신, 마지막에 1번만 adjust
-========================================================= */
+// Path: /assets/js/components/data-table.js
 
 const __dtAdjustState = new WeakMap();
-
-if (!window.__dtLayoutRefreshBound) {
-    window.__dtLayoutRefreshBound = true;
-
-    document.addEventListener('shown.bs.tab', () => {
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                window.dispatchEvent(new Event('resize'));
-            });
-        });
-    });
-}
-
-function toNumber(value) {
-    const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function getOuterHeight(element) {
-    if (!element) {
-        return 0;
-    }
-
-    const style = window.getComputedStyle(element);
-    return element.offsetHeight
-        + toNumber(style.marginTop)
-        + toNumber(style.marginBottom);
-}
-
-function getViewportBottomLimit() {
-    const fixedFooter = document.querySelector('.footer.footer-fixed');
-    const footerTop = fixedFooter?.getBoundingClientRect?.().top;
-
-    if (Number.isFinite(footerTop) && footerTop > 0) {
-        return footerTop;
-    }
-
-    return window.innerHeight;
-}
+const __dtHeaderSyncState = new WeakMap();
 
 function tokenizeClasses(...values) {
     return values
@@ -79,15 +32,99 @@ function applyColumnHeaderClasses(table, columns = []) {
     });
 }
 
-/* =========================================================
-   내부 유틸: adjust 스케줄링
-========================================================= */
+function syncHeaderToBodyWidths(table) {
+    if (!table) return;
+
+    const wrapper = table.table().container();
+    if (!wrapper) return;
+
+    const scrollHeadInner = wrapper.querySelector('.dataTables_scrollHeadInner');
+    const scrollHeadTable = wrapper.querySelector('.dataTables_scrollHead table.dataTable');
+    const allScrollHeadCols = Array.from(wrapper.querySelectorAll('.dataTables_scrollHead colgroup col'));
+    const allScrollHeaders = Array.from(wrapper.querySelectorAll('.dataTables_scrollHead thead th'));
+    const visibleColumnIndexes = table.columns(':visible').indexes().toArray();
+    const scrollHeaders = allScrollHeaders.filter(isVisibleElement);
+    const scrollHeadCols = allScrollHeadCols.length === visibleColumnIndexes.length
+        ? allScrollHeadCols
+        : visibleColumnIndexes.map((index) => allScrollHeadCols[index]).filter(Boolean);
+    const bodyTable = wrapper.querySelector('.dataTables_scrollBody table.dataTable');
+    const firstBodyRow = wrapper.querySelector('.dataTables_scrollBody tbody tr:not(.child)');
+
+    if (!scrollHeadTable || !bodyTable || !firstBodyRow) return;
+
+    const bodyCells = Array.from(firstBodyRow.children)
+        .filter((cell) => cell && cell.offsetParent !== null);
+
+    if (bodyCells.length === 0 || bodyCells.length !== scrollHeaders.length) return;
+
+    const widths = bodyCells.map((cell) => cell.getBoundingClientRect().width);
+    const bodyTableWidth = bodyTable.getBoundingClientRect().width;
+
+    if (!Number.isFinite(bodyTableWidth) || bodyTableWidth <= 0) return;
+
+    scrollHeadTable.style.width = bodyTableWidth + 'px';
+
+    if (scrollHeadInner) {
+        scrollHeadInner.style.width = bodyTableWidth + 'px';
+    }
+
+    widths.forEach((width, index) => {
+        if (!Number.isFinite(width) || width <= 0) return;
+
+        const px = width + 'px';
+        const header = scrollHeaders[index];
+        const col = scrollHeadCols[index];
+
+        if (header) {
+            header.style.width = px;
+            header.style.minWidth = px;
+            header.style.maxWidth = px;
+        }
+
+        if (col) {
+            col.style.width = px;
+        }
+    });
+}
+
+function isVisibleElement(element) {
+    if (!element) return false;
+
+    const style = window.getComputedStyle(element);
+    return style.display !== 'none' && style.visibility !== 'hidden';
+}
+
+function scheduleHeaderBodySync(table) {
+    if (!table) return;
+
+    const node = table.table().node();
+    if (!node) return;
+
+    const prev = __dtHeaderSyncState.get(node);
+    if (prev) {
+        cancelAnimationFrame(prev);
+    }
+
+    const raf = requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            try {
+                syncHeaderToBodyWidths(table);
+            } catch (err) {
+                console.error('[data-table] syncHeaderToBodyWidths failed:', err);
+            }
+        });
+    });
+
+    __dtHeaderSyncState.set(node, raf);
+}
+
 function scheduleAdjust(table, options = {}) {
     if (!table) return;
 
     const {
         draw = false,
-        delay = 40
+        delay = 40,
+        repeatDelays = []
     } = options;
 
     const node = table.table().node();
@@ -120,68 +157,70 @@ function scheduleAdjust(table, options = {}) {
                 if (draw) {
                     table.draw(false);
                 }
+
+                scheduleHeaderBodySync(table);
             } catch (err) {
                 console.error('[data-table] scheduleAdjust failed:', err);
             }
         });
     }, delay);
+
+    repeatDelays.forEach((repeatDelay) => {
+        setTimeout(() => {
+            try {
+                table.columns.adjust();
+
+                if (draw) {
+                    table.draw(false);
+                }
+
+                scheduleHeaderBodySync(table);
+            } catch (err) {
+                console.error('[data-table] repeated scheduleAdjust failed:', err);
+            }
+        }, repeatDelay);
+    });
 }
 
-/* =========================================================
-   내부 유틸: scroll body 높이만 반영
-   - width 재계산(columns.adjust)은 여기서 직접 하지 않음
-========================================================= */
-function applyScrollHeight(table, tableSelector) {
-    if (!table) return;
-
-    const height = getTableHeight(tableSelector);
-    const settings = table.settings()?.[0];
-    if (!settings) return;
-
-    settings.oScroll.sY = height + 'px';
-
-    const wrapper = table.table().container();
-    if (!wrapper) return;
-
-    const scrollBody = wrapper.querySelector('.dataTables_scrollBody');
-    if (scrollBody) {
-        scrollBody.style.height = height + 'px';
-        scrollBody.style.maxHeight = height + 'px';
-    }
-
-    const tableParent = table.table().node()?.parentNode;
-    if (tableParent) {
-        tableParent.style.height = height + 'px';
-    }
-}
-
-/* =========================================================
-   DataTable 생성
-========================================================= */
-export function createDataTable(config){
-
+export function createDataTable(config) {
     const {
         tableSelector,
         api,
         columns,
         buttons = [],
-        defaultOrder = [[0, "desc"]],
-        pageLength = 100,
+        defaultOrder = [[0, 'desc']],
+        pageLength = 10,
         responsive = false,
-        autoWidth = true
+        autoWidth = true,
+        ajaxData = null,
+        dataSrc = null
     } = config;
 
     const $ = window.jQuery;
     const tableColumns = Array.isArray(columns) ? columns : [];
 
     const table = $(tableSelector).DataTable({
-
         ajax: {
             url: api,
-            type: "GET",
+            type: 'GET',
             cache: false,
-            dataSrc: function(json){
-                //console.log("🔥 raw json:", json);
+            data: function (request) {
+                if (typeof ajaxData === 'function') {
+                    const result = ajaxData(request);
+
+                    if (result && typeof result === 'object') {
+                        return result;
+                    }
+                }
+
+                return request;
+            },
+            dataSrc: function (json) {
+                if (typeof dataSrc === 'function') {
+                    const rows = dataSrc(json);
+                    return Array.isArray(rows) ? rows : [];
+                }
+
                 return json.data ?? [];
             }
         },
@@ -189,14 +228,13 @@ export function createDataTable(config){
         columns: tableColumns,
         order: defaultOrder,
         pageLength,
-        lengthMenu: [10,25,50,100],
+        lengthMenu: [10, 20, 30, 50],
 
         rowReorder: {
             selector: 'td.reorder-handle',
             dataSrc: 'sort_no'
         },
 
-        scrollY: getTableHeight(tableSelector),
         scrollX: true,
         scrollCollapse: true,
 
@@ -206,217 +244,83 @@ export function createDataTable(config){
         paging: true,
         processing: true,
 
-        /* 🔥 ERP 표준 구조 */
         dom: '<"dt-top d-flex justify-content-end align-items-center gap-2"fBl>rt<"dt-bottom d-flex justify-content-between align-items-center"ip>',
 
         buttons: [
             {
-                extend: "colvis",
-                text: "열표시",
-                className: "btn btn-secondary btn-sm",
+                extend: 'colvis',
+                text: '열표시',
+                className: 'btn btn-secondary btn-sm',
                 popoverTitle: 'Column visibility',
                 collectionLayout: 'fixed two-column',
                 columns: ':not(.no-colvis)'
             },
             {
-                extend: "copy",
-                text: "복사",
-                className: "btn btn-outline-secondary btn-sm"
+                extend: 'copy',
+                text: '복사',
+                className: 'btn btn-outline-secondary btn-sm'
             },
             ...buttons
         ],
 
         language: {
-            lengthMenu: "페이지당 _MENU_ 개씩 보기",
-            zeroRecords: "데이터 없음",
-            info: "_PAGE_ / _PAGES_ 페이지",
-            infoEmpty: "데이터 없음",
-            infoFiltered: "",
-            search: "검색",
+            lengthMenu: '페이지당 _MENU_ 개씩 보기',
+            zeroRecords: '데이터 없음',
+            info: '_PAGE_ / _PAGES_ 페이지',
+            infoEmpty: '데이터 없음',
+            infoFiltered: '',
+            search: '검색',
             paginate: {
-                next: "다음",
-                previous: "이전"
+                next: '다음',
+                previous: '이전'
             }
         },
 
-        /* =====================================================
-           최초 렌더 완료 후 한 번만 안정화
-        ===================================================== */
         initComplete: function () {
             const api = this.api();
 
             applyColumnHeaderClasses(api, tableColumns);
-            applyScrollHeight(api, tableSelector);
             api.columns.adjust();
-
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    applyScrollHeight(api, tableSelector);
-                    api.columns.adjust().draw(false);
-                });
+            scheduleAdjust(api, {
+                draw: false,
+                delay: 40,
+                repeatDelays: [120, 260]
             });
         }
     });
 
-    /* =========================================================
-       정보 영역 커스터마이징
-    ========================================================= */
-    table.on('xhr.dt draw.dt', function(){
-
+    table.on('xhr.dt draw.dt', function () {
         const info = table.page.info();
         const el = document.querySelector(`${tableSelector}_wrapper .dataTables_info`);
-        if(!el) return;
+        if (el) {
+            el.innerHTML =
+                `${info.page + 1} / ${info.pages || 1} 페이지 ` +
+                `(총 ${info.recordsTotal}건 / 검색 ${info.recordsDisplay}건)`;
+        }
 
-        el.innerHTML =
-            `${info.page + 1} / ${info.pages || 1} 페이지 ` +
-            `(총 ${info.recordsTotal}건 / 검색 ${info.recordsDisplay}건)`;
-    });
-
-    /* =========================================================
-       컬럼 보이기/숨기기 후 안정화
-    ========================================================= */
-    table.on('column-visibility.dt responsive-resize.dt', function () {
-        applyColumnHeaderClasses(table, tableColumns);
-        applyScrollHeight(table, tableSelector);
         scheduleAdjust(table, {
             draw: false,
-            delay: 100
+            delay: 30,
+            repeatDelays: [120]
         });
     });
 
-    const handleResize = () => {
-        applyScrollHeight(table, tableSelector);
-        table.columns.adjust().draw(false);
-    };
-
-    window.addEventListener('resize', handleResize);
-    table.on('destroy.dt', function () {
-        window.removeEventListener('resize', handleResize);
+    table.on('column-visibility.dt responsive-resize.dt', function () {
+        applyColumnHeaderClasses(table, tableColumns);
+        scheduleAdjust(table, {
+            draw: false,
+            delay: 40,
+            repeatDelays: [120, 260, 500]
+        });
     });
 
     return table;
 }
 
-/* =========================================================
-   높이 자동조절 (layout 통합됨)
-========================================================= */
-export function getTableHeight(tableSelector){
-
-    const table = document.querySelector(tableSelector);
-    if(!table) return 300;
-
-    const box = table.closest('.table-box');
-    if(!box) return 300;
-
-    const rect = box.getBoundingClientRect();
-    const mainContent = box.closest('.main-content');
-    const mainRect = mainContent?.getBoundingClientRect();
-    const mainStyle = mainContent ? window.getComputedStyle(mainContent) : null;
-    const boxStyle = window.getComputedStyle(box);
-    const wrapper = box.querySelector('.dataTables_wrapper');
-    const scrollBody = wrapper?.querySelector('.dataTables_scrollBody');
-    const toolbar = box.querySelector('.table-toolbar');
-    const footer = box.querySelector('.table-footer');
-    const dtTop = wrapper?.querySelector('.dt-top');
-    const dtBottom = wrapper?.querySelector('.dt-bottom');
-    const scrollHead = wrapper?.querySelector('.dataTables_scrollHead');
-    const viewportBottom = getViewportBottomLimit();
-    const mainPaddingBottom = toNumber(mainStyle?.paddingBottom);
-    const mainBottom = mainRect
-        ? mainRect.bottom - mainPaddingBottom
-        : viewportBottom;
-    const bottomLimit = Math.min(viewportBottom, mainBottom);
-    const estimatedScrollBodyTop = rect.top
-        + toNumber(boxStyle.paddingTop)
-        + toNumber(boxStyle.borderTopWidth)
-        + getOuterHeight(toolbar)
-        + getOuterHeight(dtTop)
-        + getOuterHeight(scrollHead);
-    const scrollBodyTop = scrollBody
-        ? scrollBody.getBoundingClientRect().top
-        : estimatedScrollBodyTop;
-    const bottomInset = getOuterHeight(dtBottom)
-        + getOuterHeight(footer)
-        + toNumber(boxStyle.paddingBottom)
-        + toNumber(boxStyle.borderBottomWidth)
-        + toNumber(boxStyle.marginBottom);
-    const safetyGap = 4;
-    const availableHeight = bottomLimit - scrollBodyTop - bottomInset - safetyGap;
-
-    return Math.max(180, Math.floor(availableHeight));
-}
-
-/* =========================================================
-   높이 변경
-   - 높이만 반영
-   - adjust는 debounce 처리
-========================================================= */
-export function updateTableHeight(table, tableSelector){
-
-    if(!table) return;
-
-    applyScrollHeight(table, tableSelector);
-
-    scheduleAdjust(table, {
-        draw: false,
-        delay: 50
-    });
-}
-
-/* =========================================================
-   강제 동기화
-   - 외부 레이아웃 변화 후 최종 1회 보정
-========================================================= */
-export function forceTableHeightSync(table, tableSelector){
-
-    if(!table) return;
-
-    applyScrollHeight(table, tableSelector);
-
-    scheduleAdjust(table, {
-        draw: false,
-        delay: 80
-    });
-}
-
-/* =========================================================
-   검색폼 애니메이션 대응
-   - 애니메이션 중에는 높이만 갱신
-   - 마지막에 한 번만 adjust
-========================================================= */
-export function animateSearchFormRelayout(table, tableSelector, duration = 320){
-
-    if(!table) return;
-
-    const start = performance.now();
-
-    function frame(now){
-
-        applyScrollHeight(table, tableSelector);
-
-        if(now - start < duration){
-            requestAnimationFrame(frame);
-            return;
-        }
-
-        scheduleAdjust(table, {
-            draw: false,
-            delay: 60
-        });
-    }
-
-    requestAnimationFrame(frame);
-}
-
-/* =========================================================
-   행/열 하이라이트
-========================================================= */
-export function bindTableHighlight(tableSelector, tableInstance){
-
+export function bindTableHighlight(tableSelector, tableInstance) {
     const $table = $(tableSelector);
 
     $table.find('tbody').on('mouseenter', 'td', function () {
-
         const cell = tableInstance.cell(this);
         const idx = cell.index();
 
@@ -424,7 +328,6 @@ export function bindTableHighlight(tableSelector, tableInstance){
 
         const colIndex = idx.column;
         const visibleIndex = tableInstance.column(colIndex).index('visible');
-
         const $wrapper = $table.closest('.dataTables_wrapper');
 
         $wrapper.find('tbody tr').removeClass('row-highlight');
@@ -443,15 +346,12 @@ export function bindTableHighlight(tableSelector, tableInstance){
             .find('.dataTables_scrollHead th')
             .eq(visibleIndex)
             .addClass('col-highlight');
-
     });
 
     $table.find('tbody').on('mouseleave', function () {
-
         const $wrapper = $table.closest('.dataTables_wrapper');
 
         $wrapper.find('tbody tr').removeClass('row-highlight');
         $wrapper.find('td, th').removeClass('col-highlight');
-
     });
 }

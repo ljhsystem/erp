@@ -8,7 +8,7 @@
        HEADER
   ========================== -->
   <div class="page-header">
-    <h5 class="mb-1 fw-bold">🏗 프로젝트관리</h5>
+    <h5 class="mb-1 fw-bold">프로젝트관리</h5>
     <span id="projectCount" class="text-primary project-count page-count"></span>
   </div>
 
@@ -16,7 +16,7 @@
 
     <?php
     /* =========================================================
-       🔥 공통 검색폼
+       공통 검색폼
     ========================================================= */
 
     $searchId = 'project';
@@ -39,7 +39,7 @@
 
     <?php
     /* =========================================================
-       🔥 공통 테이블
+       공통 테이블
     ========================================================= */
 
     $tableId       = 'project-table';
@@ -60,10 +60,9 @@
 
 <?php
 /* =========================================================
-   🔥 공통 엑셀 모달
+   공통 엑셀 모달
 ========================================================= */
 
-/* 🔥 프로젝트 전용 URL */
 $templateUrl = '/api/settings/base-info/project/template';
 $downloadUrl = '/api/settings/base-info/project/excel';
 $uploadUrl   = '/api/settings/base-info/project/excel-upload';
@@ -86,7 +85,7 @@ include PROJECT_ROOT . '/app/views/components/ui-modal-excel.php';
 
 <?php
 /* =========================================================
-   🔥 공통 휴지통 모달
+   공통 휴지통 모달
 ========================================================= */
 $modalId      = 'projectTrashModal';
 $type         = 'project';
@@ -107,7 +106,7 @@ $tableHead = '
   <th>관리</th>
 ';
 
-$emptyMessage = '삭제된 프로젝트를 선택하세요';
+$emptyMessage = '삭제된 프로젝트를 선택하세요.';
 
 include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
 ?>
@@ -115,15 +114,72 @@ include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
 
 <?php
 /* =========================================================
-   🔥 프로젝트 수정 모달 (개별 유지)
+   프로젝트 수정 모달
 ========================================================= */
 include __DIR__ . '/partials/project_modal.php';
 ?>
 
 
+<div class="modal fade" id="projectQuickClientModal" tabindex="-1" aria-labelledby="projectQuickClientModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-md modal-dialog-centered">
+    <div class="modal-content">
+      <form id="projectQuickClientForm">
+        <div class="modal-header">
+          <h5 class="modal-title" id="projectQuickClientModalLabel">신규 거래처 추가</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+        </div>
+
+        <div class="modal-body">
+          <div class="row g-2">
+            <div class="col-md-12">
+              <label class="form-label">거래처명 *</label>
+              <input type="text"
+                     name="client_name"
+                     class="form-control form-control-sm"
+                     required>
+            </div>
+
+            <div class="col-md-12">
+              <label class="form-label">상호</label>
+              <input type="text"
+                     name="company_name"
+                     class="form-control form-control-sm">
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">거래유형</label>
+              <select name="client_type" class="form-select form-select-sm">
+                <option value="일반">일반</option>
+                <option value="매입">매입</option>
+                <option value="매출">매출</option>
+                <option value="겸용">겸용</option>
+                <option value="협력업체">협력업체</option>
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">상태</label>
+              <select name="is_active" class="form-select form-select-sm">
+                <option value="1">진행중</option>
+                <option value="0">완료됨</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-success btn-sm">저장</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+
 <?php
 /* =========================================================
-   🔥 Picker Root
+   Picker Root
 ========================================================= */
 ?>
 <div class="picker-root">

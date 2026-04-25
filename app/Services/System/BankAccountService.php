@@ -1,5 +1,5 @@
 <?php
-// ??????耀붾굝??????筌뤾퍓彛?????????????? PROJECT_ROOT . '/app/Services/System/BankAccountService.php'
+// 경로: PROJECT_ROOT . '/app/Services/System/BankAccountService.php'
 
 namespace App\Services\System;
 
@@ -30,7 +30,7 @@ class BankAccountService
         $this->logger->info('BankAccountService initialized');
     }
     /* ============================================================
-    * ???????????熬곣뫖利당춯??쎾퐲???????????????????꿔꺂?㏘틠??怨몄젦???????????????????????????????????썹땟戮녹??諭?????⑸㎦???????????븐뼐?????????????????饔낅떽????????????????????????
+    * 계좌 목록 조회
     * ============================================================ */
     public function getList(array $filters = []): array
     {
@@ -89,7 +89,7 @@ class BankAccountService
     }
 
     /* =========================================================
-    * ????????????????????耀붾굝??????筌뤾퍓彛?????????(Service - Select2 ????
+    * 계좌 검색 피커 데이터 반환
     * ========================================================= */
     public function searchPicker(string $keyword): array
     {
@@ -146,7 +146,7 @@ class BankAccountService
     }
 
     /* =========================================================
-    * ????(????????????諛몃마嶺뚮?????????????硫λ젒???????????+ ?????????????怨뺤떪?????????
+    * 계좌 저장 (생성/수정 + 통장사본 파일 처리)
     * ========================================================= */
     public function save(array $data, string $actorType = 'USER', array $files = []): array
     {
@@ -290,11 +290,84 @@ class BankAccountService
             default => "An upload error occurred while processing {$label}.",
         };
     }
+
+    /* =========================================================
+    * 계좌 삭제
+    * ========================================================= */
+    public function delete(string $id, string $actorType = 'USER'): array
+    {
+        $actor = ActorHelper::resolve($actorType);
+
+        try {
+            $ok = $this->model->deleteById($id, $actor);
+
+            return [
+                'success' => $ok,
+                'message' => $ok ? '삭제 완료' : '삭제 실패'
+            ];
+        } catch (\Throwable $e) {
+            $this->logger->error('delete() failed', [
+                'id' => $id,
+                'exception' => $e->getMessage()
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+    /* =========================================================
+    * 계좌 휴지통 목록
+    * ========================================================= */
+    public function getTrashList(): array
+    {
+        $this->logger->info('getTrashList() called');
+
+        try {
+            return $this->model->getDeleted();
+        } catch (\Throwable $e) {
+            $this->logger->error('getTrashList() exception', [
+                'exception' => $e->getMessage()
+            ]);
+
+            return [];
+        }
+    }
+
+    /* =========================================================
+    * 계좌 복원
+    * ========================================================= */
+    public function restore(string $id, string $actorType = 'USER'): array
+    {
+        $actor = ActorHelper::resolve($actorType);
+
+        try {
+            $ok = $this->model->restoreById($id, $actor);
+
+            return [
+                'success' => $ok,
+                'message' => $ok ? '복원 완료' : '복원 실패'
+            ];
+        } catch (\Throwable $e) {
+            $this->logger->error('restore() failed', [
+                'id' => $id,
+                'exception' => $e->getMessage()
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
     /* =========================================================
     * ??????????????????????????ㅻ깹???????釉먮폁?????????
     * ========================================================= */
     /* =========================================================
-    * ????壤굿??Β???????곕츥?嶺뚮?爰???
+    * 선택 복원 처리
     * ========================================================= */
     public function restoreBulk(array $ids, string $actorType = 'USER'): array
     {
@@ -341,7 +414,7 @@ class BankAccountService
     }
 
     /* =========================================================
-    * ?????獄쏅챶留???????곕츥?嶺뚮?爰???
+    * 선택 영구삭제 처리
     * ========================================================= */
     public function restoreAll(string $actorType = 'USER'): array
     {
@@ -493,7 +566,7 @@ class BankAccountService
     }
 
     /* =========================================================
-    * ??ш끽維???????????
+    * 순번 변경 처리 (RowReorder)
     * ========================================================= */
     public function purgeAll(string $actorType = 'USER'): array
     {

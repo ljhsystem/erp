@@ -290,7 +290,6 @@
                     ordering: false,
                     dom: "t",
                     rowGroup: { dataSrc: "category" },
-                    scrollY: 500,
                     scrollCollapse: true,
                     autoWidth: true,
                     columns: [

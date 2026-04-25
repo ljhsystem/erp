@@ -1,4 +1,4 @@
-// 경로: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/organization/employees.js'
+﻿// 寃쎈줈: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/organization/employees.js'
 
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import {
@@ -9,8 +9,6 @@ import {
 } from '/public/assets/js/common/format.js';
 import {
     createDataTable,
-    updateTableHeight,
-    forceTableHeightSync,
     bindTableHighlight
 } from '/public/assets/js/components/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
@@ -42,69 +40,69 @@ window.AdminPicker = AdminPicker;
     };
 
     /* =========================================================
-       직원 컬럼 매핑
+       吏곸썝 而щ읆 留ㅽ븨
     ========================================================= */
     const EMPLOYEE_COLUMN_MAP = {
-        sort_no:                 { label: '순번', visible: true },
-        profile_image:        { label: '사진', visible: true },
-        username:             { label: '아이디', visible: true },
-        employee_name:        { label: '직원명', visible: true },
-        role_name:            { label: '역할', visible: true },
+        sort_no:                 { label: '?쒕쾲', visible: true },
+        profile_image:        { label: '?ъ쭊', visible: true },
+        username:             { label: '?꾩씠??, visible: true },
+        employee_name:        { label: '吏곸썝紐?, visible: true },
+        role_name:            { label: '??븷', visible: true },
 
-        department_name:      { label: '부서', visible: false },
-        position_name:        { label: '직책', visible: false },
+        department_name:      { label: '遺??, visible: false },
+        position_name:        { label: '吏곸콉', visible: false },
 
-        approved:             { label: '승인여부', visible: false },
-        approved_at:          { label: '승인일시', visible: false },
-        approved_by_name:     { label: '승인자', visible: false },
+        approved:             { label: '?뱀씤?щ?', visible: false },
+        approved_at:          { label: '?뱀씤?쇱떆', visible: false },
+        approved_by_name:     { label: '?뱀씤??, visible: false },
 
-        email:                { label: '이메일', visible: true },
-        phone:                { label: '연락처', visible: true },
-        emergency_phone:      { label: '비상연락처', visible: false },
+        email:                { label: '?대찓??, visible: true },
+        phone:                { label: '?곕씫泥?, visible: true },
+        emergency_phone:      { label: '鍮꾩긽?곕씫泥?, visible: false },
 
-        two_factor_enabled:   { label: '2차인증', visible: true },
-        email_notify:         { label: '이메일알림', visible: true },
-        sms_notify:           { label: 'SMS알림', visible: false },
+        two_factor_enabled:   { label: '2李⑥씤利?, visible: true },
+        email_notify:         { label: '?대찓?쇱븣由?, visible: true },
+        sms_notify:           { label: 'SMS?뚮┝', visible: false },
 
-        rrn:                  { label: '주민번호', visible: false },
-        address:              { label: '주소', visible: false },
-        address_detail:       { label: '상세주소', visible: false },
+        rrn:                  { label: '二쇰?踰덊샇', visible: false },
+        address:              { label: '二쇱냼', visible: false },
+        address_detail:       { label: '?곸꽭二쇱냼', visible: false },
 
-        doc_hire_date:        { label: '서류입사일', visible: false },
-        real_hire_date:       { label: '실입사일', visible: false },
-        doc_retire_date:      { label: '서류퇴사일', visible: false },
-        real_retire_date:     { label: '실퇴사일', visible: false },
+        doc_hire_date:        { label: '?쒕쪟?낆궗??, visible: false },
+        real_hire_date:       { label: '?ㅼ엯?ъ씪', visible: false },
+        doc_retire_date:      { label: '?쒕쪟?댁궗??, visible: false },
+        real_retire_date:     { label: '?ㅽ눜?ъ씪', visible: false },
 
-        login_fail_count:     { label: '로그인실패횟수', visible: false },
-        account_locked_until: { label: '잠금만료일시', visible: false },
+        login_fail_count:     { label: '濡쒓렇?몄떎?⑦슏??, visible: false },
+        account_locked_until: { label: '?좉툑留뚮즺?쇱떆', visible: false },
 
-        last_login:           { label: '마지막로그인', visible: true },
-        last_login_ip:        { label: '로그인IP', visible: false },
-        last_login_device:    { label: '로그인디바이스', visible: false },
+        last_login:           { label: '留덉?留됰줈洹몄씤', visible: true },
+        last_login_ip:        { label: '濡쒓렇?퇙P', visible: false },
+        last_login_device:    { label: '濡쒓렇?몃뵒諛붿씠??, visible: false },
 
-        password_updated_at:  { label: '비밀번호변경일', visible: false },
-        password_updated_by_name: { label: '비밀번호변경자', visible: false },
+        password_updated_at:  { label: '鍮꾨?踰덊샇蹂寃쎌씪', visible: false },
+        password_updated_by_name: { label: '鍮꾨?踰덊샇蹂寃쎌옄', visible: false },
 
-        note:                 { label: '비고', visible: false },
-        memo:                 { label: '메모', visible: false },
+        note:                 { label: '鍮꾧퀬', visible: false },
+        memo:                 { label: '硫붾え', visible: false },
 
-        user_created_at:      { label: '생성일시', visible: false },
-        user_created_by_name: { label: '생성자', visible: false },
-        user_updated_at:      { label: '수정일시', visible: false },
-        user_updated_by_name: { label: '수정자', visible: false },
+        user_created_at:      { label: '?앹꽦?쇱떆', visible: false },
+        user_created_by_name: { label: '?앹꽦??, visible: false },
+        user_updated_at:      { label: '?섏젙?쇱떆', visible: false },
+        user_updated_by_name: { label: '?섏젙??, visible: false },
 
-        deleted_at:           { label: '비활성화일시', visible: false },
-        deleted_by_name:      { label: '비활성화처리자', visible: false },
+        deleted_at:           { label: '鍮꾪솢?깊솕?쇱떆', visible: false },
+        deleted_by_name:      { label: '鍮꾪솢?깊솕泥섎━??, visible: false },
 
-        is_active:            { label: '상태', visible: true, noVis: true }
+        is_active:            { label: '?곹깭', visible: true, noVis: true }
     };
 
     const DATE_OPTIONS = [
-        { value: 'user_created_at', label: '등록일자' },
-        { value: 'last_login', label: '마지막 로그인' },
-        { value: 'real_hire_date', label: '입사일' },
-        { value: 'real_retire_date', label: '퇴사일' },
-        { value: 'deleted_at', label: '비활성화일' }
+        { value: 'user_created_at', label: '?깅줉?쇱옄' },
+        { value: 'last_login', label: '留덉?留?濡쒓렇?? },
+        { value: 'real_hire_date', label: '?낆궗?? },
+        { value: 'real_retire_date', label: '?댁궗?? },
+        { value: 'deleted_at', label: '鍮꾪솢?깊솕?? }
     ];
 
     let employeeTable = null;
@@ -151,12 +149,11 @@ window.AdminPicker = AdminPicker;
         bindTogglePassword($);
         bindToggleRrn($);
         bindFilePreviewAndDeleteEvents($);
-        bindTableLayoutEvents(employeeTable, '#employee-table');
         bindGlobalEvents();
     }
 
     /* =========================================================
-       외부 모듈
+       ?몃? 紐⑤뱢
     ========================================================= */
     function initEmployeeModules() {
         try {
@@ -172,7 +169,7 @@ window.AdminPicker = AdminPicker;
     }
 
     /* =========================================================
-       모달
+       紐⑤떖
     ========================================================= */
     function initModals() {
         const editEl = document.getElementById('employeeEditModal');
@@ -192,7 +189,7 @@ window.AdminPicker = AdminPicker;
     }
 
     /* =========================================================
-       날짜피커
+       ?좎쭨?쇱빱
     ========================================================= */
     function initAdminDatePicker() {
         if (todayPicker) return todayPicker;
@@ -301,7 +298,7 @@ window.AdminPicker = AdminPicker;
     }
 
     /* =========================================================
-       데이터테이블
+       ?곗씠?고뀒?대툝
     ========================================================= */
     function initDataTable($) {
         const columns = buildEmployeeColumns();
@@ -311,10 +308,10 @@ window.AdminPicker = AdminPicker;
             api: API.LIST,
             columns,
             defaultOrder: [[1, 'asc']],
-            pageLength: 100,
+            pageLength: 10,
             buttons: [
                 {
-                    text: '새 직원 추가',
+                    text: '??吏곸썝 異붽?',
                     className: 'btn btn-primary btn-sm',
                     action: function () {
                         $(document).trigger('employee:create-open');
@@ -333,8 +330,6 @@ window.AdminPicker = AdminPicker;
                 defaultSearchField: 'employee_name',
                 dateOptions: DATE_OPTIONS
             });
-
-            updateTableHeight(employeeTable, '#employee-table');
             bindTableHighlight('#employee-table', employeeTable);
 
             employeeTable.on('draw', function () {
@@ -380,7 +375,7 @@ window.AdminPicker = AdminPicker;
                     }
 
                     if (field === 'approved') {
-                        return String(data) === '1' ? '승인' : '미승인';
+                        return String(data) === '1' ? '?뱀씤' : '誘몄듅??;
                     }
 
                     if (
@@ -393,8 +388,8 @@ window.AdminPicker = AdminPicker;
 
                     if (field === 'is_active') {
                         return String(data) === '1'
-                            ? '<span class="badge bg-success">활성</span>'
-                            : '<span class="badge bg-secondary">비활성</span>';
+                            ? '<span class="badge bg-success">?쒖꽦</span>'
+                            : '<span class="badge bg-secondary">鍮꾪솢??/span>';
                     }
 
                     if (field === 'phone') {
@@ -427,12 +422,12 @@ window.AdminPicker = AdminPicker;
     function updateEmployeeCount(count) {
         const el = document.getElementById('employeeCount');
         if (el) {
-            el.textContent = `총 ${count ?? 0}명`;
+            el.textContent = `珥?${count ?? 0}紐?;
         }
     }
 
     /* =========================================================
-       테이블 이벤트
+       ?뚯씠釉??대깽??
     ========================================================= */
     function bindTableEvents($) {
         $('#employee-table tbody')
@@ -442,7 +437,7 @@ window.AdminPicker = AdminPicker;
 
                 const src = $(this).attr('src');
                 if (!src) {
-                    AppCore.notify('warning', '이미지가 없습니다.');
+                    AppCore.notify('warning', '?대?吏媛 ?놁뒿?덈떎.');
                     return;
                 }
 
@@ -479,26 +474,12 @@ window.AdminPicker = AdminPicker;
     }
 
     /* =========================================================
-       공통 레이아웃
+       怨듯넻 ?덉씠?꾩썐
     ========================================================= */
-    function bindTableLayoutEvents(table, tableSelector) {
-        if (!table) return;
-
-        window.addEventListener('resize', () => {
-            updateTableHeight(table, tableSelector);
-        });
-
-        document.addEventListener('sidebar:toggled', () => {
-            updateTableHeight(table, tableSelector);
-
-            setTimeout(() => {
-                forceTableHeightSync(table, tableSelector);
-            }, 340);
-        });
-    }
+    
 
     /* =========================================================
-       전역 버튼
+       ?꾩뿭 踰꾪듉
     ========================================================= */
     function bindGlobalButtons($) {
         $(document)
@@ -514,16 +495,16 @@ window.AdminPicker = AdminPicker;
                 const mode = $(this).attr('data-mode');
 
                 if (!id) {
-                    AppCore.notify('warning', '대상이 없습니다.');
+                    AppCore.notify('warning', '??곸씠 ?놁뒿?덈떎.');
                     return;
                 }
 
                 if (mode === 'deactivate') {
-                    if (!confirm('계정을 비활성화 하시겠습니까?')) return;
+                    if (!confirm('怨꾩젙??鍮꾪솢?깊솕 ?섏떆寃좎뒿?덇퉴?')) return;
                 } else if (mode === 'activate') {
-                    if (!confirm('계정을 활성화 하시겠습니까?')) return;
+                    if (!confirm('怨꾩젙???쒖꽦???섏떆寃좎뒿?덇퉴?')) return;
                 } else {
-                    AppCore.notify('error', '잘못된 처리 모드입니다.');
+                    AppCore.notify('error', '?섎せ??泥섎━ 紐⑤뱶?낅땲??');
                     return;
                 }
 
@@ -546,15 +527,15 @@ window.AdminPicker = AdminPicker;
                         AppCore.notify(
                             'success',
                             mode === 'deactivate'
-                                ? '계정이 비활성화되었습니다.'
-                                : '계정이 활성화되었습니다.'
+                                ? '怨꾩젙??鍮꾪솢?깊솕?섏뿀?듬땲??'
+                                : '怨꾩젙???쒖꽦?붾릺?덉뒿?덈떎.'
                         );
                     } else {
-                        AppCore.notify('error', json.message || '처리 실패');
+                        AppCore.notify('error', json.message || '泥섎━ ?ㅽ뙣');
                     }
                 } catch (err) {
                     console.error(err);
-                    AppCore.notify('error', '처리 중 오류가 발생했습니다.');
+                    AppCore.notify('error', '泥섎━ 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.');
                 }
             });
 
@@ -564,11 +545,11 @@ window.AdminPicker = AdminPicker;
                 const id = $('#edit_employee_id').val();
 
                 if (!id) {
-                    AppCore.notify('warning', '대상이 없습니다.');
+                    AppCore.notify('warning', '??곸씠 ?놁뒿?덈떎.');
                     return;
                 }
 
-                if (!confirm('정말 영구 삭제하시겠습니까?')) return;
+                if (!confirm('?뺣쭚 ?곴뎄 ??젣?섏떆寃좎뒿?덇퉴?')) return;
 
                 const fd = new FormData();
                 fd.append('id', id);
@@ -585,19 +566,19 @@ window.AdminPicker = AdminPicker;
                     if (json.success) {
                         employeeEditModal?.hide();
                         employeeTable?.ajax.reload(null, false);
-                        AppCore.notify('success', '삭제 완료');
+                        AppCore.notify('success', '??젣 ?꾨즺');
                     } else {
-                        AppCore.notify('error', json.message || '실패');
+                        AppCore.notify('error', json.message || '?ㅽ뙣');
                     }
                 } catch (err) {
                     console.error(err);
-                    AppCore.notify('error', '삭제 실패');
+                    AppCore.notify('error', '??젣 ?ㅽ뙣');
                 }
             });
     }
 
     /* =========================================================
-       모달 브리지
+       紐⑤떖 釉뚮━吏
     ========================================================= */
     function bindModalBridge($) {
         $(document)
@@ -619,7 +600,7 @@ window.AdminPicker = AdminPicker;
         const form = document.getElementById('employee-edit-form');
         form?.reset();
     
-        $('#employeeModalTitle').html('<i class="bi bi-person-plus"></i> 새 직원 추가');
+        $('#employeeModalTitle').html('<i class="bi bi-person-plus"></i> ??吏곸썝 異붽?');
     
         $('#edit_employee_id').val('');
         $('#edit_employee_sort_no').val('');
@@ -631,12 +612,12 @@ window.AdminPicker = AdminPicker;
         $('#edit_profile_preview').attr('src', '/public/assets/img/default-avatar.png');
         $('#edit_profile_delete_btn').hide();
         $('#edit_profile_image_delete').val('0');
-        $('#profile_box').attr('data-label', '업로드');
+        $('#profile_box').attr('data-label', '?낅줈??);
 
         $('#edit_id_preview').attr('src', '/public/assets/img/placeholder-id.png');
         $('#edit_id_delete_btn').hide();
         $('#edit_rrn_image_delete').val('0');
-        $('#id_box').attr('data-label', '업로드');
+        $('#id_box').attr('data-label', '?낅줈??);
 
         $('#edit_cert_preview_img')
             .attr('src', '/public/assets/img/placeholder-cert.png')
@@ -644,10 +625,10 @@ window.AdminPicker = AdminPicker;
         $('#edit_cert_delete_btn').hide();
         $('#edit_certificate_file_delete').val('0');
         $('#edit_certificate_name').val('');
-        $('#cert_box').attr('data-label', '업로드');
+        $('#cert_box').attr('data-label', '?낅줈??);
 
         $('#edit_soft_delete_btn')
-            .text('계정 비활성화')
+            .text('怨꾩젙 鍮꾪솢?깊솕')
             .removeClass('btn-success')
             .addClass('btn-warning')
             .attr('data-mode', 'deactivate')
@@ -685,7 +666,7 @@ window.AdminPicker = AdminPicker;
     }
 
     /* =========================================================
-       저장
+       ???
     ========================================================= */
     function bindModalEvents($) {
         $(document)
@@ -695,7 +676,7 @@ window.AdminPicker = AdminPicker;
 
                 const formData = new FormData(this);
 
-                // ✅ 추가 (여기!!)
+                // ??異붽? (?ш린!!)
                 formData.set(
                     'two_factor_enabled',
                     document.getElementById('edit_two_factor').checked ? '1' : '0'
@@ -737,7 +718,7 @@ window.AdminPicker = AdminPicker;
                     (certName && !hasNewFile && !hasExistingFile) ||
                     (!certName && (hasNewFile || hasExistingFile) && !isDeleted)
                 ) {
-                    AppCore.notify('warning', '자격증 이름과 파일은 함께 입력해야 합니다.');
+                    AppCore.notify('warning', '?먭꺽利??대쫫怨??뚯씪? ?④퍡 ?낅젰?댁빞 ?⑸땲??');
                     return;
                 }
 
@@ -752,29 +733,29 @@ window.AdminPicker = AdminPicker;
                     if (res.success) {
                         employeeEditModal?.hide();
                         employeeTable?.ajax.reload(null, false);
-                        AppCore.notify('success', '저장 완료');
+                        AppCore.notify('success', '????꾨즺');
                     } else {
                         if (res.errors && Array.isArray(res.errors) && res.errors.length > 0) {
                             AppCore.notify('error', res.errors.join('\n'));
                         } else {
-                            AppCore.notify('error', res.message || '저장 실패');
+                            AppCore.notify('error', res.message || '????ㅽ뙣');
                         }
                     }
                 })
                 .fail(err => {
                     console.error(err);
-                    AppCore.notify('error', '저장 실패');
+                    AppCore.notify('error', '????ㅽ뙣');
                 });
             });
     }
 
     /* =========================================================
-       폼 데이터 세팅
+       ???곗씠???명똿
     ========================================================= */
     async function setEmployeeFormData(row) {
         if (!row) return;
 
-        $('#employeeModalTitle').html('<i class="bi bi-pencil-square"></i> 직원 정보 수정');
+        $('#employeeModalTitle').html('<i class="bi bi-pencil-square"></i> 吏곸썝 ?뺣낫 ?섏젙');
         $('#employeeEditSubmitBtn').show();
         $('#edit_soft_delete_btn').show();
         $('#edit_force_delete_btn').show();
@@ -856,10 +837,10 @@ window.AdminPicker = AdminPicker;
         $('#edit_cert_delete_btn').toggle(!!row.certificate_file);
         $('#edit_bank_delete_btn').toggle(!!row.bank_file);
         
-        $('#profile_box').attr('data-label', row.profile_image ? '원본 보기' : '업로드');
-        $('#id_box').attr('data-label', row.rrn_image ? '원본 보기' : '업로드');
-        $('#cert_box').attr('data-label', row.certificate_file ? '원본 보기' : '업로드');
-        $('#bank_box').attr('data-label', row.bank_file ? '원본 보기' : '업로드');
+        $('#profile_box').attr('data-label', row.profile_image ? '?먮낯 蹂닿린' : '?낅줈??);
+        $('#id_box').attr('data-label', row.rrn_image ? '?먮낯 蹂닿린' : '?낅줈??);
+        $('#cert_box').attr('data-label', row.certificate_file ? '?먮낯 蹂닿린' : '?낅줈??);
+        $('#bank_box').attr('data-label', row.bank_file ? '?먮낯 蹂닿린' : '?낅줈??);
 
         $('#edit_created_at').text(row.user_created_at || '-');    
         $('#edit_created_by').text(
@@ -867,7 +848,7 @@ window.AdminPicker = AdminPicker;
             row.created_by_name ||
             ''
         );
-        $('#edit_approved').text(String(row.approved) === '1' ? '승인' : '미승인');
+        $('#edit_approved').text(String(row.approved) === '1' ? '?뱀씤' : '誘몄듅??);
         $('#edit_approved_at').text(row.approved_at || '-');
         $('#edit_approved_by').text(
             row.approved_by_name ||
@@ -908,20 +889,20 @@ window.AdminPicker = AdminPicker;
 
         $('#edit_is_active').html(
             String(row.is_active) === '1'
-                ? '<span class="badge bg-success">활성</span>'
-                : '<span class="badge bg-secondary">비활성</span>'
+                ? '<span class="badge bg-success">?쒖꽦</span>'
+                : '<span class="badge bg-secondary">鍮꾪솢??/span>'
         );
 
         const $btnDeactivate = $('#edit_soft_delete_btn');
         if (String(row.is_active) === '1') {
             $btnDeactivate
-                .text('계정 비활성화')
+                .text('怨꾩젙 鍮꾪솢?깊솕')
                 .removeClass('btn-success')
                 .addClass('btn-warning')
                 .attr('data-mode', 'deactivate');
         } else {
             $btnDeactivate
-                .text('계정 활성화')
+                .text('怨꾩젙 ?쒖꽦??)
                 .removeClass('btn-warning')
                 .addClass('btn-success')
                 .attr('data-mode', 'activate');
@@ -943,7 +924,7 @@ window.AdminPicker = AdminPicker;
     }
 
     /* =========================================================
-       Select2 로딩
+       Select2 濡쒕뵫
     ========================================================= */
     async function loadSelectOptions(selector, apiUrl, selectedValue = '', method = 'GET') {
         selectedValue = selectedValue != null ? String(selectedValue) : '';
@@ -961,7 +942,7 @@ window.AdminPicker = AdminPicker;
             try {
                 json = JSON.parse(text);
             } catch (e) {
-                console.error('JSON parse 실패:', apiUrl, text);
+                console.error('JSON parse ?ㅽ뙣:', apiUrl, text);
                 return;
             }
 
@@ -995,7 +976,7 @@ window.AdminPicker = AdminPicker;
             AdminPicker.destroySelect2(selector);
             AdminPicker.reloadSelect2(selector, items, 'id', 'text', null);
             AdminPicker.select2(selector, {
-                placeholder: '선택해주세요',
+                placeholder: '?좏깮?댁＜?몄슂',
                 allowClear: true,
                 width: '100%'
             });
@@ -1006,7 +987,7 @@ window.AdminPicker = AdminPicker;
                 if (!hasOption) {
                     const el = document.querySelector(selector);
                     if (el) {
-                        const option = new Option('(이름 없음)', selectedValue, false, false);
+                        const option = new Option('(?대쫫 ?놁쓬)', selectedValue, false, false);
                         el.append(option);
                     }
                 }
@@ -1021,7 +1002,7 @@ window.AdminPicker = AdminPicker;
     }
 
     /* =========================================================
-       입력가이드 / 포맷
+       ?낅젰媛?대뱶 / ?щ㎎
     ========================================================= */
     function bindInputGuide($) {
         let shown = {};
@@ -1040,31 +1021,31 @@ window.AdminPicker = AdminPicker;
         $(document)
             .off('focus.employeeSortNo')
             .on('focus.employeeSortNo', '#edit_employee_sort_no', function () {
-                notifyOnce('sort_no', '순번은 자동 처리됩니다. 입력하지 마세요.');
+                notifyOnce('sort_no', '?쒕쾲? ?먮룞 泥섎━?⑸땲?? ?낅젰?섏? 留덉꽭??');
             });
 
         $(document)
             .off('focus.employeeUsername')
             .on('focus.employeeUsername', '#edit_employee_username', function () {
-                notifyOnce('username', '아이디는 영문/숫자 조합으로 입력하세요.');
+                notifyOnce('username', '?꾩씠?붾뒗 ?곷Ц/?レ옄 議고빀?쇰줈 ?낅젰?섏꽭??');
             });
 
         $(document)
             .off('focus.employeeRrn')
             .on('focus.employeeRrn', '#edit_employee_rrn', function () {
-                notifyOnce('rrn', '주민번호는 암호화되어 저장됩니다.');
+                notifyOnce('rrn', '二쇰?踰덊샇???뷀샇?붾릺????λ맗?덈떎.');
             });
 
         $(document)
             .off('focus.employeePhone')
             .on('focus.employeePhone', '#edit_employee_phone', function () {
-                notifyOnce('phone', '연락처는 숫자만 입력하세요.');
+                notifyOnce('phone', '?곕씫泥섎뒗 ?レ옄留??낅젰?섏꽭??');
             });
 
         $(document)
             .off('focus.employeeEmail')
             .on('focus.employeeEmail', '#edit_employee_email', function () {
-                notifyOnce('email', '이메일은 로그인 및 알림에 사용됩니다.');
+                notifyOnce('email', '?대찓?쇱? 濡쒓렇??諛??뚮┝???ъ슜?⑸땲??');
             });
     }
 
@@ -1156,7 +1137,7 @@ window.AdminPicker = AdminPicker;
     }
 
     /* =========================================================
-       파일 처리
+       ?뚯씪 泥섎━
     ========================================================= */
     function bindFilePreviewAndDeleteEvents($) {
         $(document)
@@ -1214,7 +1195,7 @@ window.AdminPicker = AdminPicker;
                 $input.replaceWith($newInput);
 
                 $('#edit_profile_image_delete').val('1');
-                $('#profile_box').attr('data-label', '업로드');
+                $('#profile_box').attr('data-label', '?낅줈??);
                 $(this).hide();
             });
 
@@ -1233,7 +1214,7 @@ window.AdminPicker = AdminPicker;
                 $input.replaceWith($newInput);
 
                 $('#edit_rrn_image_delete').val('1');
-                $('#id_box').attr('data-label', '업로드');
+                $('#id_box').attr('data-label', '?낅줈??);
                 $(this).hide();
             });
 
@@ -1253,7 +1234,7 @@ window.AdminPicker = AdminPicker;
         
                 $('#edit_certificate_file_delete').val('1');
                 $('#edit_certificate_name').val('');
-                $('#cert_box').attr('data-label', '업로드');
+                $('#cert_box').attr('data-label', '?낅줈??);
         
                 $(this).hide();
             });
@@ -1266,7 +1247,7 @@ window.AdminPicker = AdminPicker;
 
                 $('#edit_profile_image_delete').val('0');
                 $('#edit_profile_delete_btn').show();
-                $('#profile_box').attr('data-label', '원본 보기');
+                $('#profile_box').attr('data-label', '?먮낯 蹂닿린');
 
                 const reader = new FileReader();
                 reader.onload = function (e) {
@@ -1283,7 +1264,7 @@ window.AdminPicker = AdminPicker;
 
                 $('#edit_rrn_image_delete').val('0');
                 $('#edit_id_delete_btn').show();
-                $('#id_box').attr('data-label', '원본 보기');
+                $('#id_box').attr('data-label', '?먮낯 蹂닿린');
 
                 const ext = file.name.split('.').pop().toLowerCase();
 
@@ -1306,7 +1287,7 @@ window.AdminPicker = AdminPicker;
 
 
                 $('#edit_cert_delete_btn').show();
-                $('#cert_box').attr('data-label', '원본 보기');
+                $('#cert_box').attr('data-label', '?먮낯 蹂닿린');
 
                 const ext = file.name.split('.').pop().toLowerCase();
 
@@ -1355,7 +1336,7 @@ window.AdminPicker = AdminPicker;
                 const $newInput = $input.clone().val('');
                 $input.replaceWith($newInput);
 
-                $('#bank_box').attr('data-label', '업로드');
+                $('#bank_box').attr('data-label', '?낅줈??);
                 $(this).hide();
             });
 
@@ -1367,7 +1348,7 @@ window.AdminPicker = AdminPicker;
 
                 $('#edit_bank_file_delete').val('0');
                 $('#edit_bank_delete_btn').show();
-                $('#bank_box').attr('data-label', '원본 보기');
+                $('#bank_box').attr('data-label', '?먮낯 蹂닿린');
 
                 const ext = file.name.split('.').pop().toLowerCase();
 
@@ -1416,7 +1397,7 @@ window.AdminPicker = AdminPicker;
     }
 
     /* =========================================================
-       전역 이벤트
+       ?꾩뿭 ?대깽??
     ========================================================= */
     function bindGlobalEvents() {
         if (globalBound) return;
@@ -1459,3 +1440,6 @@ window.AdminPicker = AdminPicker;
 
     
 })();
+
+
+
