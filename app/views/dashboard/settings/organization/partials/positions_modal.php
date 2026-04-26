@@ -40,8 +40,8 @@
         </div>
 
         <div class="modal-footer">
-          <button type="submit" id="position_edit_save_btn" class="btn btn-primary btn-sm">&#51200;&#51109;</button>
-          <button type="button" id="position_edit_delete_btn" class="btn btn-danger btn-sm">&#50689;&#44396;&#49325;&#51228;</button>
+          <button type="button" id="position_edit_delete_btn" class="btn btn-danger btn-sm" style="display:none;">영구삭제</button>
+          <button type="submit" id="position_edit_save_btn" class="btn btn-success btn-sm">저장</button>
           <button type="button" id="position_edit_close_btn" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">&#45803;&#44592;</button>
         </div>
       </div>

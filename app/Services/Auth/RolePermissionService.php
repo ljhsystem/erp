@@ -48,10 +48,9 @@ class RolePermissionService
             return true; // 이미 있으므로 성공 처리
         }
 
-        // auth_role_permissions.code는 업무 식별자라 유지합니다.
         $data = [
             'id'            => UuidHelper::generate(),
-            'code'          => sprintf('RP-%05d', SequenceHelper::next('auth_role_permissions')),
+            'sort_no'       => SequenceHelper::next('auth_role_permissions', 'sort_no'),
             'role_id'       => $roleId,
             'permission_id' => $permissionId,
             'created_by'    => ActorHelper::user()

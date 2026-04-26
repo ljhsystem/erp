@@ -1,6 +1,7 @@
 <?php
 // 경로: PROJECT_ROOT . '/app/views/components/ui-modal-trash.php'
-// 공용 휴지통 모달 (최종 안정 구조)
+// 공통 휴지통 모달
+
 $modalId      = $modalId      ?? 'trashModal';
 $type         = $type         ?? 'default';
 $modalTitle   = $modalTitle   ?? '휴지통';
@@ -12,8 +13,7 @@ $btnDeleteId  = $btnDeleteId  ?? "btnDeleteSelected_{$type}";
 $btnDeleteAll = $btnDeleteAll ?? "btnDeleteAll_{$type}";
 
 $tableHead    = $tableHead    ?? '';
-$emptyMessage = $emptyMessage ?? '삭제된 데이터를 선택하세요';
-
+$emptyMessage = $emptyMessage ?? '삭제된 데이터를 선택하세요.';
 ?>
 
 <div class="modal fade"
@@ -24,29 +24,26 @@ $emptyMessage = $emptyMessage ?? '삭제된 데이터를 선택하세요';
      data-list-url="<?= $listUrl ?? '' ?>"
      data-restore-url="<?= $restoreUrl ?? '' ?>"
      data-delete-url="<?= $deleteUrl ?? '' ?>"
-     data-delete-all-url="<?= $deleteAllUrl ?? '' ?>"
-     >
+     data-delete-all-url="<?= $deleteAllUrl ?? '' ?>">
 
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
 
             <div class="modal-header">
-                <h5 class="modal-title"><?= $modalTitle ?> 🗑</h5>
-                <button class="btn-close" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title"><?= htmlspecialchars($modalTitle, ENT_QUOTES, 'UTF-8') ?></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
             </div>
 
             <div class="modal-body trash-body">
-
-                <!-- trash-manager.js가 찾는 공통 루트 -->
                 <div class="trash trash-layout <?= $type === 'cover' ? 'cover-trash-layout' : '' ?>">
 
                     <div class="trash-left <?= $type === 'cover' ? 'cover-trash-left' : '' ?>">
 
                         <div class="trash-toolbar">
-                            <button class="btn btn-success btn-sm btn-restore-selected" id="<?= $btnRestoreId ?>">선택복원</button>
-                            <button class="btn btn-danger btn-sm btn-delete-selected" id="<?= $btnDeleteId ?>">선택영구삭제</button>
-                            <button class="btn btn-outline-success btn-sm btn-restore-all" id="btnRestoreAll_<?= $type ?>">전체복원</button>
-                            <button class="btn btn-outline-danger btn-sm btn-delete-all" id="<?= $btnDeleteAll ?>">전체영구삭제</button>
+                            <button type="button" class="btn btn-success btn-sm btn-restore-selected" id="<?= $btnRestoreId ?>">선택복원</button>
+                            <button type="button" class="btn btn-danger btn-sm btn-delete-selected" id="<?= $btnDeleteId ?>">선택영구삭제</button>
+                            <button type="button" class="btn btn-outline-success btn-sm btn-restore-all" id="btnRestoreAll_<?= $type ?>">전체복원</button>
+                            <button type="button" class="btn btn-outline-danger btn-sm btn-delete-all" id="<?= $btnDeleteAll ?>">전체영구삭제</button>
                         </div>
 
                         <div class="trash-table">
@@ -64,7 +61,6 @@ $emptyMessage = $emptyMessage ?? '삭제된 데이터를 선택하세요';
                         </div>
                     </div>
 
-                    <!-- 기본은 표시 가능 상태로 두고, CSS/JS가 제어 -->
                     <div class="trash-right <?= $type === 'cover' ? 'cover-trash-right' : '' ?>"
                          id="<?= $type ?>-trash-detail-wrap">
 
@@ -73,7 +69,7 @@ $emptyMessage = $emptyMessage ?? '삭제된 데이터를 선택하세요';
                              style="display:none;">
 
                             <div class="empty">
-                                <?= $emptyMessage ?>
+                                <?= htmlspecialchars($emptyMessage, ENT_QUOTES, 'UTF-8') ?>
                             </div>
 
                         </div>

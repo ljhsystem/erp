@@ -209,6 +209,166 @@ $router->post('/api/settings/base-info/brand/updatestatus', 'BrandController@api
     'log'         => true,
 ]);
 
+$router->get('/api/settings/base-info/code/list', 'CodeController@apiList', [
+    'key'         => 'code.view',
+    'name'        => '기준정보 목록 조회',
+    'description' => '기준정보 목록 조회',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+$router->get('/api/settings/base-info/code/detail', 'CodeController@apiDetail', [
+    'key'         => 'code.view',
+    'name'        => '기준정보 상세 조회',
+    'description' => '기준정보 상세 조회',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+$router->get('/api/settings/base-info/code/groups', 'CodeController@apiGroups', [
+    'key'         => 'code.view',
+    'name'        => '기준정보 그룹 조회',
+    'description' => '기준정보 그룹 조회',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
+$router->post('/api/settings/base-info/code/save', 'CodeController@apiSave', [
+    'key'         => 'code.save',
+    'name'        => '기준정보 저장',
+    'description' => '기준정보 저장',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/settings/base-info/code/delete', 'CodeController@apiDelete', [
+    'key'         => 'code.delete',
+    'name'        => '기준정보 삭제',
+    'description' => '기준정보 삭제',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+$router->get('/api/settings/base-info/code/trash', 'CodeController@apiTrashList', [
+    'key'         => 'code.view',
+    'name'        => '기준정보 휴지통 조회',
+    'description' => '기준정보 휴지통 조회',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+$router->post('/api/settings/base-info/code/restore', 'CodeController@apiRestore', [
+    'key'         => 'code.save',
+    'name'        => '기준정보 복원',
+    'description' => '기준정보 복원',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/settings/base-info/code/restore-bulk', 'CodeController@apiRestoreBulk', [
+    'key'         => 'code.save',
+    'name'        => '기준정보 일괄 복원',
+    'description' => '기준정보 일괄 복원',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/settings/base-info/code/restore-all', 'CodeController@apiRestoreAll', [
+    'key'         => 'code.save',
+    'name'        => '기준정보 전체 복원',
+    'description' => '기준정보 전체 복원',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/settings/base-info/code/purge', 'CodeController@apiPurge', [
+    'key'         => 'code.delete',
+    'name'        => '기준정보 완전 삭제',
+    'description' => '기준정보 완전 삭제',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+$router->post('/api/settings/base-info/code/purge-bulk', 'CodeController@apiPurgeBulk', [
+    'key'         => 'code.delete',
+    'name'        => '기준정보 일괄 완전 삭제',
+    'description' => '기준정보 일괄 완전 삭제',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+$router->post('/api/settings/base-info/code/purge-all', 'CodeController@apiPurgeAll', [
+    'key'         => 'code.delete',
+    'name'        => '기준정보 전체 완전 삭제',
+    'description' => '기준정보 전체 완전 삭제',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+$router->post('/api/settings/base-info/code/reorder', 'CodeController@apiReorder', [
+    'key'         => 'code.save',
+    'name'        => '기준정보 순번 저장',
+    'description' => '기준정보 순번 저장',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->get('/api/settings/base-info/code/template', 'CodeController@apiDownloadTemplate', [
+    'key'         => 'code.view',
+    'name'        => '기준정보 양식 다운로드',
+    'description' => '기준정보 양식 다운로드',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
+$router->get('/api/settings/base-info/code/excel', 'CodeController@apiDownloadExcel', [
+    'key'         => 'code.view',
+    'name'        => '기준정보 엑셀 다운로드',
+    'description' => '기준정보 엑셀 다운로드',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+$router->post('/api/settings/base-info/code/excel-upload', 'CodeController@apiExcelUpload', [
+    'key'         => 'code.save',
+    'name'        => '기준정보 엑셀 업로드',
+    'description' => '기준정보 엑셀 업로드',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
 $router->get('/api/settings/base-info/cover/list', 'CoverController@apiList', [
     'key'         => 'api.settings.base-info.cover.list',
     'name'        => '커버이미지 목록 조회',
@@ -980,6 +1140,156 @@ $router->get('/api/settings/base-info/card/download', 'CardController@apiDownloa
     'log'         => true,
 ]);
 
+$router->get('/api/settings/base-info/work-team/list', 'WorkTeamController@apiList', [
+    'key'         => 'work_team.view',
+    'name'        => '작업팀 목록 조회',
+    'description' => '작업팀 목록 조회',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+$router->get('/api/settings/base-info/work-team/detail', 'WorkTeamController@apiDetail', [
+    'key'         => 'work_team.view',
+    'name'        => '작업팀 상세 조회',
+    'description' => '작업팀 상세 조회',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+$router->post('/api/settings/base-info/work-team/save', 'WorkTeamController@apiSave', [
+    'key'         => 'work_team.save',
+    'name'        => '작업팀 저장',
+    'description' => '작업팀 저장',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/settings/base-info/work-team/delete', 'WorkTeamController@apiDelete', [
+    'key'         => 'work_team.delete',
+    'name'        => '작업팀 삭제',
+    'description' => '작업팀 삭제',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+$router->get('/api/settings/base-info/work-team/trash', 'WorkTeamController@apiTrashList', [
+    'key'         => 'work_team.view',
+    'name'        => '작업팀 휴지통 조회',
+    'description' => '작업팀 휴지통 조회',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+$router->post('/api/settings/base-info/work-team/restore', 'WorkTeamController@apiRestore', [
+    'key'         => 'work_team.save',
+    'name'        => '작업팀 복원',
+    'description' => '작업팀 복원',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/settings/base-info/work-team/restore-bulk', 'WorkTeamController@apiRestoreBulk', [
+    'key'         => 'work_team.save',
+    'name'        => '작업팀 일괄 복원',
+    'description' => '작업팀 일괄 복원',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/settings/base-info/work-team/restore-all', 'WorkTeamController@apiRestoreAll', [
+    'key'         => 'work_team.save',
+    'name'        => '작업팀 전체 복원',
+    'description' => '작업팀 전체 복원',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/settings/base-info/work-team/purge', 'WorkTeamController@apiPurge', [
+    'key'         => 'work_team.delete',
+    'name'        => '작업팀 완전 삭제',
+    'description' => '작업팀 완전 삭제',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+$router->post('/api/settings/base-info/work-team/purge-bulk', 'WorkTeamController@apiPurgeBulk', [
+    'key'         => 'work_team.delete',
+    'name'        => '작업팀 일괄 완전 삭제',
+    'description' => '작업팀 일괄 완전 삭제',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+$router->post('/api/settings/base-info/work-team/purge-all', 'WorkTeamController@apiPurgeAll', [
+    'key'         => 'work_team.delete',
+    'name'        => '작업팀 전체 완전 삭제',
+    'description' => '작업팀 전체 완전 삭제',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+$router->post('/api/settings/base-info/work-team/reorder', 'WorkTeamController@apiReorder', [
+    'key'         => 'work_team.save',
+    'name'        => '작업팀 순번 저장',
+    'description' => '작업팀 순번 저장',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->get('/api/settings/base-info/work-team/template', 'WorkTeamController@apiDownloadTemplate', [
+    'key'         => 'work_team.view',
+    'name'        => '작업팀 양식 다운로드',
+    'description' => '작업팀 양식 다운로드',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
+$router->get('/api/settings/base-info/work-team/excel', 'WorkTeamController@apiDownloadExcel', [
+    'key'         => 'work_team.view',
+    'name'        => '작업팀 엑셀 다운로드',
+    'description' => '작업팀 엑셀 다운로드',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+$router->post('/api/settings/base-info/work-team/excel-upload', 'WorkTeamController@apiExcelUpload', [
+    'key'         => 'work_team.save',
+    'name'        => '작업팀 엑셀 업로드',
+    'description' => '작업팀 엑셀 업로드',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
 $router->get('/api/settings/organization/employee/list', 'EmployeeController@apiList', [
     'key'         => 'api.settings.employee.list',
     'name'        => '직원 목록 조회',
@@ -1030,10 +1340,10 @@ $router->post('/api/settings/organization/employee/update-status', 'EmployeeCont
     'log'         => true,
 ]);
 
-$router->post('/api/settings/organization/employee/purge', 'EmployeeController@apiPurge', [
-    'key'         => 'api.settings.employee.purge',
-    'name'        => '직원 완전 삭제',
-    'description' => '직원 완전 삭제',
+$router->post('/api/settings/organization/employee/delete', 'EmployeeController@apiDelete', [
+    'key'         => 'api.settings.employee.delete',
+    'name'        => '직원 삭제',
+    'description' => '직원 삭제',
     'category'    => '조직관리',
     'auth'        => true,
     'permissions' => ['delete'],
@@ -1042,8 +1352,8 @@ $router->post('/api/settings/organization/employee/purge', 'EmployeeController@a
 
 $router->post('/api/settings/organization/employee/reorder', 'EmployeeController@apiReorder', [
     'key'         => 'api.settings.employee.reorder',
-    'name'        => '직원 정렬 저장',
-    'description' => '직원 정렬 저장',
+    'name'        => '직원 순번 변경',
+    'description' => '직원 순번 변경',
     'category'    => '조직관리',
     'auth'        => true,
     'permissions' => ['save'],
@@ -1080,6 +1390,16 @@ $router->get('/api/settings/organization/department/list', 'DepartmentController
     'log'         => false,
 ]);
 
+$router->get('/api/settings/organization/department/detail', 'DepartmentController@apiDetail', [
+    'key'         => 'api.settings.department.detail',
+    'name'        => '부서 상세 조회',
+    'description' => '부서 상세 조회',
+    'category'    => '조직관리',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
 $router->post('/api/settings/organization/department/save', 'DepartmentController@apiSave', [
     'key'         => 'api.settings.department.save',
     'name'        => '부서 저장',
@@ -1090,10 +1410,20 @@ $router->post('/api/settings/organization/department/save', 'DepartmentControlle
     'log'         => true,
 ]);
 
+$router->post('/api/settings/organization/department/delete', 'DepartmentController@apiDelete', [
+    'key'         => 'api.settings.department.delete',
+    'name'        => '부서 삭제',
+    'description' => '부서 삭제',
+    'category'    => '조직관리',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
 $router->post('/api/settings/organization/department/reorder', 'DepartmentController@apiReorder', [
     'key'         => 'api.settings.department.reorder',
-    'name'        => '부서 정렬 저장',
-    'description' => '부서 정렬 저장',
+    'name'        => '부서 순번 변경',
+    'description' => '부서 순번 변경',
     'category'    => '조직관리',
     'auth'        => true,
     'permissions' => ['save'],
@@ -1110,6 +1440,16 @@ $router->get('/api/settings/organization/position/list', 'PositionController@api
     'log'         => false,
 ]);
 
+$router->get('/api/settings/organization/position/detail', 'PositionController@apiDetail', [
+    'key'         => 'api.settings.position.detail',
+    'name'        => '직책 상세 조회',
+    'description' => '직책 상세 조회',
+    'category'    => '조직관리',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
 $router->post('/api/settings/organization/position/save', 'PositionController@apiSave', [
     'key'         => 'api.settings.position.save',
     'name'        => '직책 저장',
@@ -1120,10 +1460,20 @@ $router->post('/api/settings/organization/position/save', 'PositionController@ap
     'log'         => true,
 ]);
 
+$router->post('/api/settings/organization/position/delete', 'PositionController@apiDelete', [
+    'key'         => 'api.settings.position.delete',
+    'name'        => '직책 삭제',
+    'description' => '직책 삭제',
+    'category'    => '조직관리',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
 $router->post('/api/settings/organization/position/reorder', 'PositionController@apiReorder', [
     'key'         => 'api.settings.position.reorder',
-    'name'        => '직책 정렬 저장',
-    'description' => '직책 정렬 저장',
+    'name'        => '직책 순번 변경',
+    'description' => '직책 순번 변경',
     'category'    => '조직관리',
     'auth'        => true,
     'permissions' => ['save'],
@@ -1140,6 +1490,16 @@ $router->get('/api/settings/organization/role/list', 'RoleController@apiList', [
     'log'         => false,
 ]);
 
+$router->get('/api/settings/organization/role/detail', 'RoleController@apiDetail', [
+    'key'         => 'api.settings.role.detail',
+    'name'        => '역할 상세 조회',
+    'description' => '역할 상세 조회',
+    'category'    => '조직관리',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
 $router->post('/api/settings/organization/role/save', 'RoleController@apiSave', [
     'key'         => 'api.settings.role.save',
     'name'        => '역할 저장',
@@ -1150,24 +1510,24 @@ $router->post('/api/settings/organization/role/save', 'RoleController@apiSave', 
     'log'         => true,
 ]);
 
+$router->post('/api/settings/organization/role/delete', 'RoleController@apiDelete', [
+    'key'         => 'api.settings.role.delete',
+    'name'        => '역할 삭제',
+    'description' => '역할 삭제',
+    'category'    => '조직관리',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
 $router->post('/api/settings/organization/role/reorder', 'RoleController@apiReorder', [
     'key'         => 'api.settings.role.reorder',
-    'name'        => '역할 정렬 저장',
-    'description' => '역할 정렬 저장',
+    'name'        => '역할 순번 변경',
+    'description' => '역할 순번 변경',
     'category'    => '조직관리',
     'auth'        => true,
     'permissions' => ['save'],
     'log'         => true,
-]);
-
-$router->get('/api/settings/organization/permission/list', 'PermissionController@apiList', [
-    'key'         => 'api.settings.permission.list',
-    'name'        => '권한 목록 조회',
-    'description' => '권한 목록 조회',
-    'category'    => '조직관리',
-    'auth'        => true,
-    'permissions' => ['view'],
-    'log'         => false,
 ]);
 
 $router->get('/api/settings/organization/permission/list', 'PermissionController@apiList', [
@@ -1210,6 +1570,16 @@ $router->post('/api/settings/organization/role-permission/remove', 'RolePermissi
     'log'         => true,
 ]);
 
+$router->get('/api/settings/organization/approval/template/list', 'ApprovalTemplateController@apiTemplateList', [
+    'key'         => 'api.settings.approval.template.list',
+    'name'        => '결재 템플릿 목록 조회',
+    'description' => '결재 템플릿 목록 조회',
+    'category'    => '조직관리',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
 $router->post('/api/settings/organization/approval/template/list', 'ApprovalTemplateController@apiTemplateList', [
     'key'         => 'api.settings.approval.template.list',
     'name'        => '결재 템플릿 목록 조회',
@@ -1238,6 +1608,26 @@ $router->post('/api/settings/organization/approval/template/delete', 'ApprovalTe
     'auth'        => true,
     'permissions' => ['delete'],
     'log'         => true
+]);
+
+$router->post('/api/settings/organization/approval/template/reorder', 'ApprovalTemplateController@apiTemplateReorder', [
+    'key'         => 'api.settings.approval.template.save',
+    'name'        => '결재 템플릿 순번 저장',
+    'description' => '결재 템플릿 순번 저장',
+    'category'    => '조직관리',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true
+]);
+
+$router->get('/api/settings/organization/approval/step/list', 'ApprovalTemplateController@apiStepList', [
+    'key'         => 'api.settings.approval.step.list',
+    'name'        => '결재 단계 목록 조회',
+    'description' => '결재 단계 목록 조회',
+    'category'    => '조직관리',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false
 ]);
 
 $router->post('/api/settings/organization/approval/step/list', 'ApprovalTemplateController@apiStepList', [

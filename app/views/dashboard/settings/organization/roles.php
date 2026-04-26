@@ -26,6 +26,8 @@
       <option value="sort_no">순번</option>
       <option value="description">설명</option>
       <option value="is_active">상태</option>
+      <option value="created_by">생성자</option>
+      <option value="updated_by">수정자</option>
     ';
 
     include PROJECT_ROOT . '/app/views/components/ui-search.php';

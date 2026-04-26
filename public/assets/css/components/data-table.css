@@ -5,6 +5,7 @@
 .dataTables_wrapper {
   --dt-header-bg: var(--color-primary-soft, rgba(13,110,253,.08));
   --dt-header-text: var(--color-text);
+  --table-header-bg: color-mix(in srgb, var(--color-primary) 16%, white);
   width: 100%;
   min-width: 0;
   position: relative;
@@ -26,20 +27,10 @@
   overflow: visible;
 }
 
-.dataTables_wrapper .dataTables_scrollHead {
-  border-top: 1px solid var(--color-border);
-  overflow: hidden !important;
-}
-
-.dataTables_wrapper .dataTables_scrollHead table {
-  border-top: 1px solid var(--color-border);
-}
-
 .dataTables_wrapper .dataTables_scrollBody {
   height: auto !important;
   max-height: none !important;
-  overflow-y: visible !important;
-  overflow-x: auto !important;
+  overflow: visible !important;
   border-top: 0 !important;
 }
 
@@ -47,59 +38,33 @@
   margin-top: 0 !important;
 }
 
-.dataTables_wrapper .dataTables_scrollBody table.dataTable thead,
-.dataTables_wrapper .dataTables_scrollBody table.dataTable thead tr,
-.dataTables_wrapper .dataTables_scrollBody table.dataTable thead th,
-.dataTables_wrapper .dataTables_scrollBody table.dataTable thead td {
-  height: 0 !important;
-  min-height: 0 !important;
-  max-height: 0 !important;
-  padding-left: 0 !important;
-  padding-top: 0 !important;
-  padding-right: 0 !important;
-  padding-bottom: 0 !important;
-  border-top: 0 !important;
-  border-bottom: 0 !important;
-  line-height: 0 !important;
-  font-size: 0 !important;
-  color: transparent !important;
-  overflow: hidden !important;
-}
-
-.dataTables_wrapper .dataTables_scrollBody table.dataTable thead th *,
-.dataTables_wrapper .dataTables_scrollBody table.dataTable thead td * {
-  height: 0 !important;
-  min-height: 0 !important;
-  max-height: 0 !important;
-  padding-left: 0 !important;
-  padding-top: 0 !important;
-  padding-right: 0 !important;
-  padding-bottom: 0 !important;
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
-  line-height: 0 !important;
-  font-size: 0 !important;
-  color: transparent !important;
-  overflow: hidden !important;
-}
-
-.dataTables_wrapper .dataTables_scrollHead table.dataTable thead th {
-  background-color: var(--dt-header-bg);
-  color: var(--dt-header-text);
+.dataTables_wrapper .dataTables_scrollBody table.dataTable tbody td {
   white-space: normal;
-  word-break: keep-all;
-  overflow-wrap: anywhere;
-  vertical-align: middle;
-  line-height: 1.25;
+}
+
+table.dataTable {
+  border-collapse: separate !important;
+  border-spacing: 0;
+}
+
+table.dataTable thead {
+  position: static !important;
+  z-index: 50;
+  border-top: 1px solid var(--color-border);
 }
 
 table.dataTable thead th {
-  position: relative;
+  position: sticky !important;
+  top: var(--dt-sticky-top, 0) !important;
+  z-index: 55 !important;
+  background: var(--table-header-bg);
+  color: var(--color-text);
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+  vertical-align: middle;
+  line-height: 1.25;
   border-bottom: 1px solid var(--color-border);
-}
-
-.dataTables_scrollHead th {
-  border-top: 1px solid var(--color-border);
 }
 
 table.dataTable thead th.sorting,
@@ -107,6 +72,11 @@ table.dataTable thead th.sorting_asc,
 table.dataTable thead th.sorting_desc {
   padding-right: calc(var(--padding, 12px) + 28px) !important;
   background-position: right 10px center !important;
+}
+
+table.dataTable thead th.sorting_asc,
+table.dataTable thead th.sorting_desc {
+  background-color: color-mix(in srgb, var(--color-primary) 24%, white);
 }
 
 table.dataTable thead th.sorting::before,
@@ -265,6 +235,23 @@ table.dataTable thead th.reorder-handle::after {
   min-height: var(--dt-control-height, var(--row-height, 38px)) !important;
 }
 
+div.dt-button-collection {
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+div.dt-button-collection.fixed.two-column {
+  width: min(520px, calc(100vw - 32px)) !important;
+}
+
+div.dt-button-collection.fixed.two-column .dt-button,
+div.dt-button-collection.fixed.two-column button.dt-button,
+div.dt-button-collection.fixed.two-column a.dt-button {
+  display: block !important;
+  text-align: left !important;
+}
+
 .dataTables_wrapper .dataTables_filter,
 .dataTables_wrapper .dt-buttons,
 .dataTables_wrapper .dataTables_length {
@@ -352,8 +339,9 @@ body.row-focus-none .table:not(.table-cross-highlight) tbody tr:hover {
 }
 
 .settings-main .table-box .dataTables_scrollBody {
-  overflow-x: auto !important;
-  overflow-y: visible !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
 }
 
 .settings-main div.dataTables_scrollBody {
@@ -408,6 +396,19 @@ table.dataTable thead th.reorder-handle {
   padding-right: var(--padding, 12px) !important;
 }
 
+.dataTables_wrapper table.dataTable > thead,
+.dataTables_wrapper table.dataTable > thead > tr {
+  position: static !important;
+}
+
+.dataTables_wrapper table.dataTable > thead > tr > th,
+.dataTables_wrapper table.dataTable > thead > tr > td {
+  position: sticky !important;
+  top: var(--dt-sticky-top, 0) !important;
+  z-index: 60 !important;
+  background: var(--table-header-bg) !important;
+}
+
 @media (max-width: 991.98px) {
   .dataTables_wrapper .dt-top,
   .dataTables_wrapper .dt-bottom {
@@ -416,5 +417,13 @@ table.dataTable thead th.reorder-handle {
 
   .dataTables_wrapper .dataTables_filter input {
     width: 160px;
+  }
+}
+
+@media (max-width: 479.98px) {
+  div.dt-button-collection.fixed.two-column .dt-button,
+  div.dt-button-collection.fixed.two-column button.dt-button,
+  div.dt-button-collection.fixed.two-column a.dt-button {
+    width: 100% !important;
   }
 }

@@ -5,6 +5,7 @@ import { createDataTable, bindTableHighlight } from '/public/assets/js/component
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { onlyNumber, formatAccountNumber } from '/public/assets/js/common/format.js';
+import { initCodeSelectControls, getCodeName, onCodeOptionsLoaded } from '/public/assets/js/common/code-select.js';
 import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
 
@@ -86,18 +87,22 @@ window.AdminPicker = AdminPicker;
         }
 
         const $ = window.jQuery;
-        initAccountPage($);
+        await initAccountPage($);
     });
 
     /* ============================================================
        PAGE INIT
     ============================================================ */
-    function initAccountPage($) {
+    async function initAccountPage($) {
 
         initModal();
         initAdminDatePicker();
         initBankBookUpload();
         initExcelDataset();
+        await initCodeSelectControls(document.getElementById('accountModal'));
+        onCodeOptionsLoaded(() => {
+            accountTable?.rows().invalidate('data').draw(false);
+        });
 
         initDataTable($);
 
@@ -505,11 +510,15 @@ window.AdminPicker = AdminPicker;
                 {
                     text: "새 계좌",
                     className: "btn btn-warning btn-sm",
-                    action: function () {
+                    action: async function () {
 
                         const form = document.getElementById('accountForm');
                         if (form) form.reset();
-
+                        await initCodeSelectControls(document.getElementById('accountModal'));
+                        const currencyEl = document.getElementById('modal_account_currency');
+                        if (currencyEl) {
+                            currencyEl.value = 'KRW';
+                        }
 
 
                         window.isNewAccount = true;
@@ -569,7 +578,17 @@ window.AdminPicker = AdminPicker;
             bindTableHighlight('#account-table', accountTable);
         }
 
-        bindRowReorder(accountTable, { api: API.REORDER });
+        bindRowReorder(accountTable, {
+            api: API.REORDER,
+            onSuccess() {
+                AppCore?.notify?.('success', '계좌 순번이 저장되었습니다.');
+                accountTable?.ajax.reload(null, false);
+            },
+            onError(json) {
+                AppCore?.notify?.('error', json?.message || '계좌 순번 저장에 실패했습니다.');
+                accountTable?.ajax.reload(null, false);
+            }
+        });
     }
 
     function updateAccountCount(count) {
@@ -634,6 +653,7 @@ window.AdminPicker = AdminPicker;
                 if (delFile) delFile.value = '0';
                 if (fileInput) fileInput.value = '';
 
+                await initCodeSelectControls(document.getElementById('accountModal'));
                 fillModal(data);
                 accountModal.show();
 
@@ -643,18 +663,6 @@ window.AdminPicker = AdminPicker;
             }
         });
 
-        $('#account-table tbody').on('click', 'td', function () {
-            const cell = accountTable.cell(this);
-            const value = cell.data();
-            const colIndex = cell.index().column;
-            const field = accountTable.column(colIndex).dataSrc();
-
-            if (!field) return;
-
-            const $first = $('.search-condition').first();
-            $first.find('select').val(field);
-            $first.find('input').val(value);
-        });
     }
 
     /* ============================================================
@@ -677,11 +685,6 @@ window.AdminPicker = AdminPicker;
 
             if (!accountName) {
                 AppCore?.notify?.('warning', '계좌명은 필수입니다.');
-                return;
-            }
-
-            if (currency && !/^[A-Z]{3}$/.test(currency)) {
-                AppCore?.notify?.('warning', '통화 코드는 3자리 영문으로 입력하세요.');
                 return;
             }
 
@@ -829,6 +832,10 @@ window.AdminPicker = AdminPicker;
                         return String(data) === '1'
                             ? '<span class="badge bg-success">사용</span>'
                             : '<span class="badge bg-secondary">미사용</span>';
+                    }
+
+                    if (field === 'currency') {
+                        return getCodeName(field, data);
                     }
 
                     return data;

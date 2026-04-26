@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // 📄 경로: /app/views/sukhyang/view.php
 use Core\Helpers\AssetHelper;
 

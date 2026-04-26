@@ -126,6 +126,8 @@ include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
 
 <?php include __DIR__ . '/partials/journal_modal.php'; ?>
 
+<?php include PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/code_modal.php'; ?>
+
 <template id="journal-account-modal-template">
     <?php include PROJECT_ROOT . '/app/views/ledger/account/partials/account_modal.php'; ?>
 </template>

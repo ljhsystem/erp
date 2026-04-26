@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // 파일 경로: /app/views/sukhyang/file_register.php
 use Core\Helpers\AssetHelper;
 

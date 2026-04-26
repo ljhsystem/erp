@@ -589,13 +589,19 @@ class ChartAccountController
     {
         header('Content-Type: application/json; charset=UTF-8');
 
+        $id = $_GET['id'] ?? null;
         $code = $_GET['code'] ?? null;
-        if (!$code) {
+        if (!$id && !$code) {
             echo json_encode(['success' => false], JSON_UNESCAPED_UNICODE);
             exit;
         }
 
-        $row = $this->service->getDetailByAccountCode($code);
+        if ($id) {
+            $basic = $this->service->getById($id);
+            $code = $basic['account_code'] ?? null;
+        }
+
+        $row = $code ? $this->service->getDetailByAccountCode($code) : null;
 
         if (!$row) {
             echo json_encode([

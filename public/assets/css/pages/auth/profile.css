@@ -63,7 +63,7 @@ body.no-sidebar .main-content.single-layout .breadcrumb-list {
   content: "";
   position: absolute;
   inset: 0 0 auto 0;
-  height: 140px;
+  height: 132px;
   background:
     linear-gradient(135deg, rgba(16, 42, 120, 0.98), rgba(31, 73, 216, 0.95) 72%, rgba(108, 141, 255, 0.92));
   opacity: 0.98;
@@ -90,8 +90,8 @@ body.no-sidebar .main-content.single-layout .breadcrumb-list {
 
 .profile-hero {
   position: relative;
-  margin: -4px 0 26px !important;
-  padding: 8px 0 18px;
+  margin: -10px 0 20px !important;
+  padding: 0;
   align-items: center !important;
 }
 
@@ -99,25 +99,78 @@ body.no-sidebar .main-content.single-layout .breadcrumb-list {
   flex-shrink: 0;
   width: 96px !important;
   height: 96px !important;
+  margin-right: 10px !important;
 }
 
 #profile-image {
   width: 100% !important;
   height: 100% !important;
   object-fit: cover !important;
+  cursor: pointer;
   border: 4px solid rgba(255, 255, 255, 0.88) !important;
   box-shadow: 0 16px 32px rgba(10, 23, 66, 0.22);
 }
 
 #btn-change-image {
+  right: 2px !important;
+  bottom: 2px !important;
   border: 0 !important;
   background: #ffffff !important;
-  width: 32px !important;
-  height: 32px !important;
+  width: 26px !important;
+  min-width: 26px !important;
+  max-width: 26px !important;
+  height: 26px !important;
+  min-height: 26px !important;
+  max-height: 26px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  box-sizing: border-box !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1 !important;
+  cursor: pointer;
+}
+
+#btn-change-image i {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  height: 1em;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1;
 }
 
 .profile-hero-meta {
   min-width: 0;
+}
+
+.profile-hero-2fa {
+  position: absolute;
+  right: 0;
+  bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.profile-hero-2fa .form-check-input {
+  width: 38px;
+  height: 20px;
+  margin: 0;
+  cursor: pointer;
+  border-color: rgba(255, 255, 255, 0.52);
+}
+
+.profile-hero-2fa .form-check-label {
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 #profile-username {
@@ -227,15 +280,85 @@ body.no-sidebar .main-content.single-layout .breadcrumb-list {
 }
 
 .profile-cert-preview-box {
-  min-width: 136px;
+  min-width: 176px;
 }
 
+.profile-file-preview-box {
+  position: relative;
+  width: 168px;
+  height: 128px;
+  margin: 0 auto;
+  cursor: pointer;
+}
+
+.profile-file-preview-box::after {
+  content: attr(data-label);
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 76px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+  text-align: center;
+  background: rgba(15, 23, 42, 0.72);
+  border-radius: 999px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease;
+  z-index: 1;
+}
+
+.profile-file-preview-box:hover::after {
+  opacity: 1;
+}
+
+.profile-file-preview-img,
 #profile_cert_preview {
-  width: 120px !important;
-  height: 120px !important;
+  width: 168px !important;
+  height: 128px !important;
+  object-fit: contain;
+  cursor: pointer;
   background: #ffffff;
   border: 1px solid rgba(148, 163, 184, 0.22) !important;
   box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+}
+
+.profile-file-delete-btn {
+  position: absolute;
+  top: 6px !important;
+  right: 6px !important;
+  z-index: 2;
+  width: 26px !important;
+  min-width: 26px !important;
+  max-width: 26px !important;
+  height: 26px !important;
+  min-height: 26px !important;
+  max-height: 26px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  box-sizing: border-box !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
+  display: inline-flex;
+  align-items: center !important;
+  justify-content: center !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.18);
+  vertical-align: middle !important;
+  overflow: hidden;
+}
+
+.profile-file-delete-btn i {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 1em;
+  height: 1em;
+  line-height: 1 !important;
+  margin: 0 !important;
 }
 
 .profile-cert-fields {

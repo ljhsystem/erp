@@ -509,7 +509,7 @@ class EmployeeService
                     $newEmployeeId = UuidHelper::generate();
 
                     $employeeData['id'] = $newEmployeeId;
-                    $employeeData['sort_no'] = null;
+                    $employeeData['sort_no'] = SequenceHelper::next('user_employees', 'sort_no');
                     $employeeData['user_id'] = $newUserId;
                     $employeeData['created_by'] = $actor;
 

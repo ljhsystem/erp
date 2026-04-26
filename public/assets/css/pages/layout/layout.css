@@ -1,5 +1,5 @@
 /* =========================================================
-   ?덉씠?꾩썐 怨듭슜 CSS
+   ?이?웃 공용 CSS
    - UI ?ㅽ궓 / ?뚮쭏 / 諛??/ ?고듃 / 踰꾪듉 / 紐⑥뀡 ?꾨? ?곕룞
 ========================================================= */
 
@@ -7,7 +7,7 @@
    1. 湲곕낯 蹂??
 ========================================================= */
 :root {
-  /* ?덉씠?꾩썐 */
+  /* ?이?웃 */
   --header-height: 44px;
   --sidebar-width: 240px;
   --sidebar-width-collapsed: 16px;
@@ -36,7 +36,7 @@
   --cross-col-bg: #dfe8f5;
   --cross-cell-bg: #cddcf1;
 
-  /* DataTables 而⑦듃濡?怨듯넻 */
+  /* DataTables 而⑦?공통 */
   --dt-control-height: 38px;
   --dt-control-font-size: 14px;
   --dt-control-padding-x: 12px;
@@ -180,7 +180,7 @@ body.is-sidebar-collapsed .main-content {
   box-shadow: var(--shadow-sm);
 }
 
-/* table-area-wrapper???덉씠?꾩썐 ?꾩슜 */
+/* table-area-wrapper???이?웃 ?용 */
 .table-area-wrapper {
   background: transparent;
   border: 0;
@@ -250,7 +250,7 @@ body.link-underline-on a { text-decoration: underline; }
 body.link-underline-off a { text-decoration: none; }
 
 /* =========================================================
-   13. ?꾩씠肄??ш린
+   13. ?이??기
 ========================================================= */
 body.icon-scale-small i { font-size: .85em; }
 body.icon-scale-normal i { font-size: 1em; }
@@ -276,7 +276,7 @@ body.motion-off * {
 
 
 /* ==============================
-   ?ъ씠?쒕컮 ?녿뒗 ?⑤룆 ?섏씠吏 ?덉씠?꾩썐
+   ?ъ씠?쒕컮 ?녿뒗 ?⑤룆 ?섏씠吏 ?이?웃
 ============================== */
 body.no-sidebar .main-content {
   position: absolute;
@@ -682,7 +682,7 @@ body[data-density] .btn {
   min-height: var(--row-height);
 }
 
-/* Bootstrap grid/flex ?좏떥由ы떚瑜??꾩뿭 ?ъ젙?섑븯硫??섏씠吏 諛곗튂媛 ?붾뱾由щ?濡?opt-in ?덉씠?꾩썐留?議곗젙?쒕떎. */
+/* Bootstrap grid/flex ?틸리티??역 ?정?하硫??섏씠吏 배치 ?들리??opt-in ?이?웃留?議곗젙?쒕떎. */
 body[data-density] .form-grid,
 body[data-density] .table-actions,
 body[data-density] .page-toolbar {

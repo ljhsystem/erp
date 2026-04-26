@@ -48,7 +48,9 @@ class PositionModel
                 'description'   => ['expr' => 'description', 'type' => 'like'],
                 'is_active'     => ['expr' => 'is_active', 'type' => 'exact'],
                 'created_at'    => ['expr' => 'created_at', 'type' => 'datetime'],
+                'created_by'    => ['expr' => 'created_by', 'type' => 'like'],
                 'updated_at'    => ['expr' => 'updated_at', 'type' => 'datetime'],
+                'updated_by'    => ['expr' => 'updated_by', 'type' => 'like'],
             ];
 
             $globalSearchValues = [];
@@ -133,7 +135,7 @@ class PositionModel
 
                 $orParts = [];
                 foreach ($keywords as $keyword) {
-                    foreach (['sort_no', 'position_name', 'description'] as $expr) {
+                    foreach (['id', 'sort_no', 'position_name', 'level_rank', 'description', 'created_by', 'updated_by'] as $expr) {
                         $orParts[] = "{$expr} LIKE ?";
                         $params[] = '%' . $keyword . '%';
                     }
@@ -145,7 +147,7 @@ class PositionModel
             }
         }
 
-        $sql .= " ORDER BY sort_no DESC";
+        $sql .= " ORDER BY sort_no ASC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);

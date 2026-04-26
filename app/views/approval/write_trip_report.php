@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // 경로: PROJECT_ROOT . 'app/views/approval/write_trip_report.php'
 use Core\Helpers\AssetHelper;
 include(__DIR__ . '/../layout/header.php');

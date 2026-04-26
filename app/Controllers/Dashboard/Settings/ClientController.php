@@ -1,6 +1,6 @@
 <?php
 // 寃쎈줈: PROJECT_ROOT . '/app/Controllers/Dashboard/Settings/ClientController.php'
-// ??쒕낫???ㅼ젙>湲곗큹?뺣낫愿由?嫄곕옒泥?API 而⑦듃濡ㅻ윭
+// ??쒕낫???ㅼ젙>湲곗큹?뺣낫愿由?嫄곕옒泥?API 而⑦롤러
 namespace App\Controllers\Dashboard\Settings;
 
 use Core\DbPdo;
@@ -75,7 +75,7 @@ class ClientController
         if (!$id) {
             echo json_encode([
                 'success' => false,
-                'message' => '嫄곕옒泥??꾩씠???꾨씫'
+                'message' => '嫄곕옒泥??이???락'
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -220,7 +220,7 @@ class ClientController
                 'note' => $_POST['note'] ?? null,
                 'memo' => $_POST['memo'] ?? null,
 
-                /* ?뵦 ??젣 ?뚮옒洹?(Service濡??꾨떖) */
+                /* ?뵦 ??젣 ?뚮옒洹?(Service??달) */
                 'delete_business_certificate' => $_POST['delete_business_certificate'] ?? '0',
                 'delete_rrn_image'            => $_POST['delete_rrn_image'] ?? '0',
                 'delete_bank_file'            => $_POST['delete_bank_file'] ?? '0',
@@ -229,20 +229,20 @@ class ClientController
             ];
 
             /* =========================================================
-            ?꾩닔媛?泥댄겕
+            ?수?泥댄겕
             ========================================================= */
 
             if ($payload['client_name'] === '') {
 
                 echo json_encode([
                     'success' => false,
-                    'message' => '嫄곕옒泥섎챸? ?꾩닔?낅땲??'
+                    'message' => '嫄곕옒泥명? ?수?니??'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
 
             /* =========================================================
-            ???(?뵦 ?뚯씪 ?ы븿 Service濡??꾩엫)
+            ???(?뵦 ?뚯씪 ?ы븿 Service??임)
             ========================================================= */
 
             $result = $this->service->save(
@@ -327,7 +327,7 @@ class ClientController
         if (!$id) {
             echo json_encode([
                 'success' => false,
-                'message' => '嫄곕옒泥??꾩씠???꾨씫'
+                'message' => '嫄곕옒泥??이???락'
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -390,7 +390,7 @@ class ClientController
 
             echo json_encode([
                 'success' => false,
-                'message' => '嫄곕옒泥??꾩씠???꾨씫'
+                'message' => '嫄곕옒泥??이???락'
             ], JSON_UNESCAPED_UNICODE);
 
             exit;
@@ -467,7 +467,7 @@ class ClientController
 
             echo json_encode([
                 'success' => false,
-                'message' => '?꾩껜 蹂듭썝 ?ㅽ뙣',
+                'message' => '?체 복원 ?패',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -478,7 +478,7 @@ class ClientController
 
 
     // ============================================================
-    // API: 嫄곕옒泥??꾩쟾??젣
+    // API: 嫄곕옒泥??전??
     // URL: POST /api/settings/base-info/client/purge
     // ============================================================
     public function apiPurge(): void
@@ -491,7 +491,7 @@ class ClientController
 
             echo json_encode([
                 'success' => false,
-                'message' => '嫄곕옒泥??꾩씠???꾨씫'
+                'message' => '嫄곕옒泥??이???락'
             ], JSON_UNESCAPED_UNICODE);
 
             exit;
@@ -506,7 +506,7 @@ class ClientController
 
             echo json_encode([
                 'success' => false,
-                'message' => '?꾩쟾??젣 ?ㅽ뙣',
+                'message' => '?전?? ?패',
                 'error' => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -517,7 +517,7 @@ class ClientController
 
 
     // ============================================================
-    // API: 嫄곕옒泥??좏깮 ?꾩쟾??젣
+    // API: 嫄곕옒泥??택 ?전??
     // URL: POST /api/settings/base-info/client/purge-bulk
     // ============================================================
     public function apiPurgeBulk(): void
@@ -542,7 +542,7 @@ class ClientController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '?좏깮 ?꾩쟾??젣 ?ㅽ뙣',
+                'message' => '?택 ?전?? ?패',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -552,7 +552,7 @@ class ClientController
 
 
     // ============================================================
-    // API: 嫄곕옒泥??꾩껜 ?꾩쟾??젣
+    // API: 嫄곕옒泥??체 ?전??
     // URL: POST /api/settings/base-info/client/purge-all
     // ============================================================
     public function apiPurgeAll(): void
@@ -567,7 +567,7 @@ class ClientController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '?꾩껜 ?꾩쟾??젣 ?ㅽ뙣',
+                'message' => '?체 ?전?? ?패',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -604,7 +604,7 @@ class ClientController
 
 
     // ============================================================
-    // API: 嫄곕옒泥??묒떇 ?묒? ?ㅼ슫濡쒕뱶
+    // API: 嫄곕옒泥??식 ?? ?운로드
     // URL: GET /api/settings/base-info/clients/template
     // permission:
     // controller: ClientController@apiDownloadTemplate
@@ -618,7 +618,7 @@ class ClientController
         } catch (\Throwable $e) {
 
             http_response_code(500);
-            echo '?묒? ?쒗뵆由??ㅼ슫濡쒕뱶 ?ㅽ뙣 : ' . $e->getMessage();
+            echo '?? ?플??운로드 ?패 : ' . $e->getMessage();
             exit;
         }
     }
@@ -663,7 +663,7 @@ class ClientController
 
 
     // ============================================================
-    // API: 嫄곕옒泥??꾩껜 ?묒? ?ㅼ슫濡쒕뱶
+    // API: 嫄곕옒泥??체 ?? ?운로드
     // URL: GET /api/settings/base-info/clients/excel
     // permission:
     // controller: ClientController@apidownload
@@ -677,7 +677,7 @@ class ClientController
         } catch (\Throwable $e) {
 
             http_response_code(500);
-            echo '?묒? ?ㅼ슫濡쒕뱶 ?ㅽ뙣 : ' . $e->getMessage();
+            echo '?? ?운로드 ?패 : ' . $e->getMessage();
             exit;
         }
     }

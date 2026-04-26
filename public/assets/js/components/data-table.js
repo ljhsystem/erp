@@ -1,7 +1,6 @@
-// Path: /assets/js/components/data-table.js
+﻿// Path: /assets/js/components/data-table.js
 
 const __dtAdjustState = new WeakMap();
-const __dtHeaderSyncState = new WeakMap();
 
 function tokenizeClasses(...values) {
     return values
@@ -32,99 +31,11 @@ function applyColumnHeaderClasses(table, columns = []) {
     });
 }
 
-function syncHeaderToBodyWidths(table) {
-    if (!table) return;
-
-    const wrapper = table.table().container();
-    if (!wrapper) return;
-
-    const scrollHeadInner = wrapper.querySelector('.dataTables_scrollHeadInner');
-    const scrollHeadTable = wrapper.querySelector('.dataTables_scrollHead table.dataTable');
-    const allScrollHeadCols = Array.from(wrapper.querySelectorAll('.dataTables_scrollHead colgroup col'));
-    const allScrollHeaders = Array.from(wrapper.querySelectorAll('.dataTables_scrollHead thead th'));
-    const visibleColumnIndexes = table.columns(':visible').indexes().toArray();
-    const scrollHeaders = allScrollHeaders.filter(isVisibleElement);
-    const scrollHeadCols = allScrollHeadCols.length === visibleColumnIndexes.length
-        ? allScrollHeadCols
-        : visibleColumnIndexes.map((index) => allScrollHeadCols[index]).filter(Boolean);
-    const bodyTable = wrapper.querySelector('.dataTables_scrollBody table.dataTable');
-    const firstBodyRow = wrapper.querySelector('.dataTables_scrollBody tbody tr:not(.child)');
-
-    if (!scrollHeadTable || !bodyTable || !firstBodyRow) return;
-
-    const bodyCells = Array.from(firstBodyRow.children)
-        .filter((cell) => cell && cell.offsetParent !== null);
-
-    if (bodyCells.length === 0 || bodyCells.length !== scrollHeaders.length) return;
-
-    const widths = bodyCells.map((cell) => cell.getBoundingClientRect().width);
-    const bodyTableWidth = bodyTable.getBoundingClientRect().width;
-
-    if (!Number.isFinite(bodyTableWidth) || bodyTableWidth <= 0) return;
-
-    scrollHeadTable.style.width = bodyTableWidth + 'px';
-
-    if (scrollHeadInner) {
-        scrollHeadInner.style.width = bodyTableWidth + 'px';
-    }
-
-    widths.forEach((width, index) => {
-        if (!Number.isFinite(width) || width <= 0) return;
-
-        const px = width + 'px';
-        const header = scrollHeaders[index];
-        const col = scrollHeadCols[index];
-
-        if (header) {
-            header.style.width = px;
-            header.style.minWidth = px;
-            header.style.maxWidth = px;
-        }
-
-        if (col) {
-            col.style.width = px;
-        }
-    });
-}
-
-function isVisibleElement(element) {
-    if (!element) return false;
-
-    const style = window.getComputedStyle(element);
-    return style.display !== 'none' && style.visibility !== 'hidden';
-}
-
-function scheduleHeaderBodySync(table) {
-    if (!table) return;
-
-    const node = table.table().node();
-    if (!node) return;
-
-    const prev = __dtHeaderSyncState.get(node);
-    if (prev) {
-        cancelAnimationFrame(prev);
-    }
-
-    const raf = requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            try {
-                syncHeaderToBodyWidths(table);
-            } catch (err) {
-                console.error('[data-table] syncHeaderToBodyWidths failed:', err);
-            }
-        });
-    });
-
-    __dtHeaderSyncState.set(node, raf);
-}
-
 function scheduleAdjust(table, options = {}) {
     if (!table) return;
 
     const {
-        draw = false,
-        delay = 40,
-        repeatDelays = []
+        draw = false
     } = options;
 
     const node = table.table().node();
@@ -133,15 +44,9 @@ function scheduleAdjust(table, options = {}) {
     let state = __dtAdjustState.get(node);
     if (!state) {
         state = {
-            timer: null,
             raf: null
         };
         __dtAdjustState.set(node, state);
-    }
-
-    if (state.timer) {
-        clearTimeout(state.timer);
-        state.timer = null;
     }
 
     if (state.raf) {
@@ -149,37 +54,111 @@ function scheduleAdjust(table, options = {}) {
         state.raf = null;
     }
 
-    state.timer = setTimeout(() => {
-        state.raf = requestAnimationFrame(() => {
-            try {
-                table.columns.adjust();
+    state.raf = requestAnimationFrame(() => {
+        try {
+            table.columns.adjust();
 
-                if (draw) {
-                    table.draw(false);
-                }
-
-                scheduleHeaderBodySync(table);
-            } catch (err) {
-                console.error('[data-table] scheduleAdjust failed:', err);
+            if (draw) {
+                table.draw(false);
             }
-        });
-    }, delay);
-
-    repeatDelays.forEach((repeatDelay) => {
-        setTimeout(() => {
-            try {
-                table.columns.adjust();
-
-                if (draw) {
-                    table.draw(false);
-                }
-
-                scheduleHeaderBodySync(table);
-            } catch (err) {
-                console.error('[data-table] repeated scheduleAdjust failed:', err);
-            }
-        }, repeatDelay);
+        } catch (err) {
+            console.error('[data-table] scheduleAdjust failed:', err);
+        }
     });
+}
+
+function toCamelCase(value) {
+    return String(value || '').replace(/-([a-z0-9])/g, (_, ch) => ch.toUpperCase());
+}
+
+function stripHtml(value) {
+    const text = String(value ?? '');
+    if (!text.includes('<')) {
+        return text.trim();
+    }
+
+    const div = document.createElement('div');
+    div.innerHTML = text;
+    return div.textContent.trim();
+}
+
+function findTargetSearchCondition(tableNode, explicitTableId) {
+    const tableDomId = tableNode?.id || '';
+    const baseId = tableDomId.replace(/-table$/, '');
+    const candidates = [
+        explicitTableId,
+        baseId,
+        toCamelCase(baseId)
+    ].filter(Boolean);
+
+    for (const id of candidates) {
+        const container = document.getElementById(`${id}SearchConditions`);
+        const condition = getTargetConditionFromContainer(container);
+        if (condition) return condition;
+    }
+
+    const scope = tableNode?.closest?.('.content-area, .card-body, main, body') || document;
+    return getTargetConditionFromContainer(scope);
+}
+
+function getTargetConditionFromContainer(container) {
+    if (!container) return null;
+
+    const conditions = Array.from(container.querySelectorAll('.search-condition'));
+    if (!conditions.length) return null;
+
+    const active = document.activeElement?.closest?.('.search-condition');
+    if (active && conditions.includes(active)) {
+        return active;
+    }
+
+    const empty = conditions.find((condition) => {
+        const input = condition.querySelector('input[type="text"], .search-input, input[name="searchValue[]"]');
+        return input && String(input.value || '').trim() === '';
+    });
+
+    return empty || conditions[conditions.length - 1];
+}
+
+function bindCellSearchFill(table, tableSelector, options = {}) {
+    if (!table || options === false) return;
+    if (typeof options === 'object' && options.enabled === false) return;
+
+    const $ = window.jQuery;
+    const $table = $(tableSelector);
+    const tableNode = $table.get(0);
+    const explicitTableId = typeof options === 'object' ? options.tableId : null;
+
+    $table.find('tbody')
+        .off('click.dtCellSearchFill')
+        .on('click.dtCellSearchFill', 'td', function (event) {
+            if (event.target.closest('a, button, input, select, textarea, .dropdown-menu, .reorder-handle')) {
+                return;
+            }
+
+            const cell = table.cell(this);
+            const index = cell.index();
+            if (!index) return;
+
+            const field = table.column(index.column).dataSrc();
+            if (!field || typeof field !== 'string') return;
+
+            const column = table.settings()?.[0]?.aoColumns?.[index.column];
+            if (column?.bSearchable === false) return;
+
+            const condition = findTargetSearchCondition(tableNode, explicitTableId);
+            if (!condition) return;
+
+            const select = condition.querySelector('select');
+            const input = condition.querySelector('input[type="text"], .search-input, input[name="searchValue[]"]');
+            if (!select || !input) return;
+
+            const hasOption = Array.from(select.options).some((option) => option.value === field);
+            if (!hasOption) return;
+
+            select.value = field;
+            input.value = stripHtml(cell.data());
+        });
 }
 
 export function createDataTable(config) {
@@ -193,7 +172,9 @@ export function createDataTable(config) {
         responsive = false,
         autoWidth = true,
         ajaxData = null,
-        dataSrc = null
+        dataSrc = null,
+        cellSearchFill = true,
+        searchTableId = null
     } = config;
 
     const $ = window.jQuery;
@@ -228,14 +209,14 @@ export function createDataTable(config) {
         columns: tableColumns,
         order: defaultOrder,
         pageLength,
-        lengthMenu: [10, 20, 30, 50],
+        lengthMenu: [10, 20, 30, 50, 100, 200, 300, 500, 1000],
 
         rowReorder: {
             selector: 'td.reorder-handle',
             dataSrc: 'sort_no'
         },
 
-        scrollX: true,
+        scrollX: false,
         scrollCollapse: true,
 
         responsive,
@@ -281,11 +262,6 @@ export function createDataTable(config) {
 
             applyColumnHeaderClasses(api, tableColumns);
             api.columns.adjust();
-            scheduleAdjust(api, {
-                draw: false,
-                delay: 40,
-                repeatDelays: [120, 260]
-            });
         }
     });
 
@@ -298,20 +274,18 @@ export function createDataTable(config) {
                 `(총 ${info.recordsTotal}건 / 검색 ${info.recordsDisplay}건)`;
         }
 
-        scheduleAdjust(table, {
-            draw: false,
-            delay: 30,
-            repeatDelays: [120]
-        });
     });
 
     table.on('column-visibility.dt responsive-resize.dt', function () {
         applyColumnHeaderClasses(table, tableColumns);
         scheduleAdjust(table, {
-            draw: false,
-            delay: 40,
-            repeatDelays: [120, 260, 500]
+            draw: false
         });
+    });
+
+    bindCellSearchFill(table, tableSelector, {
+        tableId: searchTableId,
+        enabled: cellSearchFill
     });
 
     return table;

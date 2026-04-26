@@ -16,7 +16,7 @@ class RolePermissionController
 
     public function webIndex()
     {
-        include PROJECT_ROOT . '/app/views/dashboard/settings/employee/role-permissions.php';
+        include PROJECT_ROOT . '/app/views/dashboard/settings/organization/role_permissions.php';
     }
 
     public function apiList()

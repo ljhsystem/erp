@@ -43,7 +43,9 @@ class RoleModel
                     'description' => ['expr' => 'description', 'type' => 'like'],
                     'is_active'   => ['expr' => 'is_active', 'type' => 'exact'],
                     'created_at'  => ['expr' => 'created_at', 'type' => 'datetime'],
+                    'created_by'  => ['expr' => 'created_by', 'type' => 'like'],
                     'updated_at'  => ['expr' => 'updated_at', 'type' => 'datetime'],
+                    'updated_by'  => ['expr' => 'updated_by', 'type' => 'like'],
                 ];
 
                 $globalSearchValues = [];
@@ -128,7 +130,7 @@ class RoleModel
 
                     $orParts = [];
                     foreach ($keywords as $keyword) {
-                        foreach (['sort_no', 'role_key', 'role_name', 'description'] as $expr) {
+                        foreach (['id', 'sort_no', 'role_key', 'role_name', 'description', 'created_by', 'updated_by'] as $expr) {
                             $orParts[] = "{$expr} LIKE ?";
                             $params[] = '%' . $keyword . '%';
                         }
@@ -140,7 +142,7 @@ class RoleModel
                 }
             }
 
-            $sql .= " ORDER BY sort_no DESC";
+            $sql .= " ORDER BY sort_no ASC";
 
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);

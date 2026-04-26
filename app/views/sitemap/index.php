@@ -28,7 +28,7 @@ $flowSteps = [
 
 $modules = [
     [
-        'title' => '메인 대시보드',
+        'title' => '메인',
         'summary' => '전사 공통 대시보드와 운영 관리 화면',
         'items' => [
             ['name' => '대시보드', 'url' => '/dashboard', 'status' => 'full'],
@@ -44,7 +44,7 @@ $modules = [
         'title' => '내부문서',
         'summary' => '내부문서 관리 및 조회 화면',
         'items' => [
-            ['name' => '문서 대시보드', 'url' => '/document', 'status' => 'ui_only'],
+            ['name' => '대시보드', 'url' => '/document', 'status' => 'ui_only'],
             ['name' => '문서 등록', 'url' => '/document/file_register', 'status' => 'ui_only'],
             ['name' => '문서 상세', 'url' => '/document/view', 'status' => 'ui_only'],
             ['name' => '문서 수정', 'url' => '/document/edit', 'status' => 'ui_only'],
@@ -84,7 +84,7 @@ $modules = [
         'title' => '대외기관업무',
         'summary' => '기관별 신고 및 접수 업무 허브',
         'items' => [
-            ['name' => '기관 대시보드', 'url' => '/institution', 'status' => 'ui_only'],
+            ['name' => '대시보드', 'url' => '/institution', 'status' => 'ui_only'],
             ['name' => '세무서', 'url' => '/institution/tax_office', 'status' => 'empty'],
             ['name' => '지방자치단체', 'url' => '/institution/local_government', 'status' => 'empty'],
             ['name' => '근로복지공단', 'url' => '/institution/welfare_corp', 'status' => 'empty'],
@@ -101,7 +101,7 @@ $modules = [
         'title' => '현장관리',
         'summary' => '현장 운영과 거래 입력 기반 화면',
         'items' => [
-            ['name' => '현장 대시보드', 'url' => '/site', 'status' => 'ui_only'],
+            ['name' => '대시보드', 'url' => '/site', 'status' => 'ui_only'],
             ['name' => '견적관리', 'url' => '/site/estimate', 'status' => 'empty'],
             ['name' => '계약관리', 'url' => '/site/contract', 'status' => 'empty'],
             ['name' => '실행관리', 'url' => '/site/execution', 'status' => 'empty'],

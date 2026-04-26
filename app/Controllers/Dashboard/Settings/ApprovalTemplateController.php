@@ -129,6 +129,40 @@ class ApprovalTemplateController
         ], JSON_UNESCAPED_UNICODE);
     }
 
+    public function apiTemplateReorder()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+
+        $raw = file_get_contents('php://input');
+        $payload = json_decode($raw ?: '{}', true);
+        $changes = $payload['changes'] ?? $_POST['changes'] ?? [];
+
+        if (is_string($changes)) {
+            $changes = json_decode($changes, true) ?: [];
+        }
+
+        if (!is_array($changes)) {
+            echo json_encode([
+                'success' => false,
+                'message' => '순번 변경 데이터가 올바르지 않습니다.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            $ok = $this->templateService->reorder($changes);
+            echo json_encode([
+                'success' => (bool)$ok,
+                'message' => $ok ? '순번이 저장되었습니다.' : '순번 저장에 실패했습니다.'
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            echo json_encode([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
 
     // ============================================================
     // API: 스텝 목록
@@ -139,12 +173,12 @@ class ApprovalTemplateController
     {
         header('Content-Type: application/json; charset=utf-8');
 
-        $templateId = trim($_POST['template_id'] ?? '');
+        $templateId = trim($_POST['template_id'] ?? $_GET['template_id'] ?? '');
 
         if (!$templateId) {
             echo json_encode([
-                'success' => false,
-                'message' => 'template_id 값이 필요합니다.'
+                'success' => true,
+                'data'    => []
             ], JSON_UNESCAPED_UNICODE);
             return;
         }
@@ -194,7 +228,7 @@ class ApprovalTemplateController
                             'role_id'     => $existing['role_id'],
                             'approver_id' => $existing['approver_id'],
                             'is_active'   => $existing['is_active'],
-                            'sequence'    => $row['sequence'] + 1000,
+                            'sort_no'     => $row['sort_no'] + 1000,
                         ];
                         $this->stepService->update($row['id'], $updateData);
                     }
@@ -211,7 +245,7 @@ class ApprovalTemplateController
                             'role_id'     => $existing['role_id'],
                             'approver_id' => $existing['approver_id'],
                             'is_active'   => $existing['is_active'],
-                            'sequence'    => $row['sequence'],
+                            'sort_no'     => $row['sort_no'],
                         ];
                         $this->stepService->update($row['id'], $updateData);
                     }
@@ -254,24 +288,27 @@ class ApprovalTemplateController
             return;
         }
 
-        if (!$roleInput) {
+        if (!$roleInput && !$approverId) {
             echo json_encode([
                 'success' => false, 
-                'message' => '역할(role_id)은 필수 입력값입니다.'
+                'message' => '결재자 역할 또는 특정 결재자를 선택해 주세요.'
             ], JSON_UNESCAPED_UNICODE);
             return;
         }
 
-        $role = $this->roleService->findByIdOrKey($roleInput);
-        if (!$role) {
-            echo json_encode([
-                'success' => false,
-                'message' => '유효하지 않은 역할입니다.'
-            ], JSON_UNESCAPED_UNICODE);
-            return;
-        }
+        $roleId = null;
+        if ($roleInput) {
+            $role = $this->roleService->findByIdOrKey($roleInput);
+            if (!$role) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => '유효하지 않은 역할입니다.'
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+            }
 
-        $roleId = $role['id'];
+            $roleId = $role['id'];
+        }
 
 
         /* ------------------------------
@@ -294,12 +331,8 @@ class ApprovalTemplateController
         /* ------------------------------
          * 신규
          * ------------------------------ */
-        $existingSteps = $this->stepService->getSteps($templateId);
-        $sequence      = count($existingSteps) + 1;
-
         $result = $this->stepService->create([
             'template_id' => $templateId,
-            'sequence'    => $sequence,
             'step_name'   => $stepName,
             'role_id'     => $roleId,
             'approver_id' => $approverId ?: null,

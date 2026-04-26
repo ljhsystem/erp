@@ -11,14 +11,14 @@ class CardModel
     // PDO 蹂닿?
     private PDO $db;
 
-    // ?앹꽦?????몃??먯꽌 PDO 二쇱엯 ?먮뒗 ?먮룞 ?곌껐
+    // ?앹꽦?????몃??먯꽌 PDO 주입 ?는 ?동 ?결
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
     /* =========================================================
-    * 移대뱶 ?꾩껜 紐⑸줉
+    * 카드 ?체 紐⑸줉
     * ========================================================= */
     public function getList(array $filters = []): array
     {
@@ -63,7 +63,7 @@ class CardModel
         $params = [];
 
         /* =========================================================
-         * ?뵦 ?꾩껜 而щ읆 留?
+         * ? ?체 컬럼 留?
          * ========================================================= */
         $fieldMap = [
 
@@ -71,9 +71,8 @@ class CardModel
             'sort_no'            => ['col'=>'c.sort_no','type'=>'exact'],
             'card_name'       => ['col'=>'c.card_name','type'=>'like'],
             'card_number'     => ['col'=>'c.card_number','type'=>'like'],
-            'card_type'       => ['col'=>'c.card_type','type'=>'like'],
 
-            // 愿怨?
+            // ?
             'client_id'       => ['col'=>'c.client_id','type'=>'exact'],
             'account_id'      => ['col'=>'c.account_id','type'=>'exact'],
             'client_name'     => ['col'=>'cl.client_name','type'=>'like'],
@@ -87,7 +86,6 @@ class CardModel
             'limit_amount'    => ['col'=>'c.limit_amount','type'=>'exact'],
 
             // 湲고?
-            'currency'        => ['col'=>'c.currency','type'=>'like'],
             'card_file'       => ['col'=>'c.card_file','type'=>'like'],
             'note'            => ['col'=>'c.note','type'=>'like'],
             'memo'            => ['col'=>'c.memo','type'=>'like'],
@@ -114,7 +112,7 @@ class CardModel
 
             if ($value === '' || $value === null) continue;
 
-            // ?뵦 ?꾩껜寃??
+            // ? ?체??
             if ($field === '') {
                 $globalSearch[] = $value;
                 continue;
@@ -155,7 +153,7 @@ class CardModel
         }
 
         /* =========================================================
-         * ?뵦 ?꾩껜寃??(?띿뒪??而щ읆 + 議곗씤)
+         * ? ?체??(?스??컬럼 + 조인)
          * ========================================================= */
         if (!empty($globalSearch)) {
 
@@ -163,8 +161,6 @@ class CardModel
 
                 'c.card_name',
                 'c.card_number',
-                'c.card_type',
-                'c.currency',
                 'c.note',
                 'c.memo',
 
@@ -328,12 +324,10 @@ class CardModel
                 sort_no,
                 card_name,
                 card_number,
-                card_type,
                 client_id,
                 account_id,
                 expiry_year,
                 expiry_month,
-                currency,
                 limit_amount,
                 card_file,
                 note,
@@ -347,12 +341,10 @@ class CardModel
                 :sort_no,
                 :card_name,
                 :card_number,
-                :card_type,
                 :client_id,
                 :account_id,
                 :expiry_year,
                 :expiry_month,
-                :currency,
                 :limit_amount,
                 :card_file,
                 :note,
@@ -371,7 +363,6 @@ class CardModel
 
             'card_name' => trim((string)($data['card_name'] ?? '')),
             'card_number' => trim((string)($data['card_number'] ?? '')),
-            'card_type' => $data['card_type'] ?? 'corporate',
 
             'client_id' => $data['client_id'] ?? null,
             'account_id' => $data['account_id'] ?? null,
@@ -379,7 +370,6 @@ class CardModel
             'expiry_year' => $data['expiry_year'] ?? null,
             'expiry_month' => $data['expiry_month'] ?? null,
 
-            'currency' => $data['currency'] ?? 'KRW',
             'limit_amount' => $data['limit_amount'] ?? 0,
 
             'card_file' => $data['card_file'] ?? null,
@@ -402,12 +392,10 @@ class CardModel
             UPDATE system_cards SET
                 card_name = :card_name,
                 card_number = :card_number,
-                card_type = :card_type,
                 client_id = :client_id,
                 account_id = :account_id,
                 expiry_year = :expiry_year,
                 expiry_month = :expiry_month,
-                currency = :currency,
                 limit_amount = :limit_amount,
                 card_file = :card_file,
                 is_active = :is_active,
@@ -422,7 +410,6 @@ class CardModel
 
             'card_name' => trim((string)($data['card_name'] ?? '')),
             'card_number' => trim((string)($data['card_number'] ?? '')),
-            'card_type' => $data['card_type'] ?? 'corporate',
 
             'client_id' => $data['client_id'] ?? null,
             'account_id' => $data['account_id'] ?? null,
@@ -430,7 +417,6 @@ class CardModel
             'expiry_year' => $data['expiry_year'] ?? null,
             'expiry_month' => $data['expiry_month'] ?? null,
 
-            'currency' => $data['currency'] ?? 'KRW',
             'limit_amount' => $data['limit_amount'] ?? 0,
 
             'card_file' => $data['card_file'] ?? null,

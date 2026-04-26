@@ -119,62 +119,17 @@ include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
 include __DIR__ . '/partials/project_modal.php';
 ?>
 
+<?php
+/* =========================================================
+   기준정보 오리지널 모달
+========================================================= */
+include __DIR__ . '/partials/code_modal.php';
+?>
 
-<div class="modal fade" id="projectQuickClientModal" tabindex="-1" aria-labelledby="projectQuickClientModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-md modal-dialog-centered">
-    <div class="modal-content">
-      <form id="projectQuickClientForm">
-        <div class="modal-header">
-          <h5 class="modal-title" id="projectQuickClientModalLabel">신규 거래처 추가</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
-        </div>
 
-        <div class="modal-body">
-          <div class="row g-2">
-            <div class="col-md-12">
-              <label class="form-label">거래처명 *</label>
-              <input type="text"
-                     name="client_name"
-                     class="form-control form-control-sm"
-                     required>
-            </div>
-
-            <div class="col-md-12">
-              <label class="form-label">상호</label>
-              <input type="text"
-                     name="company_name"
-                     class="form-control form-control-sm">
-            </div>
-
-            <div class="col-md-6">
-              <label class="form-label">거래유형</label>
-              <select name="client_type" class="form-select form-select-sm">
-                <option value="일반">일반</option>
-                <option value="매입">매입</option>
-                <option value="매출">매출</option>
-                <option value="겸용">겸용</option>
-                <option value="협력업체">협력업체</option>
-              </select>
-            </div>
-
-            <div class="col-md-6">
-              <label class="form-label">상태</label>
-              <select name="is_active" class="form-select form-select-sm">
-                <option value="1">진행중</option>
-                <option value="0">완료됨</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button type="submit" class="btn btn-success btn-sm">저장</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
+<template id="project-client-modal-template">
+  <?php include __DIR__ . '/partials/client_modal.php'; ?>
+</template>
 
 
 <?php

@@ -44,8 +44,8 @@ class AuthService
         $password = trim((string)($data['password'] ?? ''));
 
         if ($username === '' || $password === '') {
-            $this->authLogService->loginFail($username, '嚥≪뮄??紐꾨뼄????낆젾?袁⑥뵭');
-            return ['success' => false, 'message' => '?袁⑹뵠?遺? ??쑬?甕곕뜇?뉒몴???낆젾??雅뚯눘苑??'];
+            $this->authLogService->loginFail($username, '아이디/비밀번호 미입력');
+            return ['success' => false, 'message' => '아이디와 비밀번호를 입력해 주세요.'];
         }
 
         $user = $this->authUserModel->getByUsername($username);
@@ -63,17 +63,17 @@ class AuthService
             $max = (int)ConfigHelper::system('security_login_fail_max', 5);
             $left = max(0, $max - $count);
 
-            $this->authLogService->loginFail($username, "嚥≪뮄??紐꾨뼄????쑬?甕곕뜇???살첒-{$count}", [
+            $this->authLogService->loginFail($username, "비밀번호 불일치-{$count}", [
                 'user_id'   => $userId,
                 'ref_table' => 'auth_users',
                 'ref_id'    => $userId,
             ]);
 
-            $message = '?袁⑹뵠???癒?뮉 ??쑬?甕곕뜇?뉐첎? ??而?몴?? ??녿뮸??덈뼄.';
+            $message = '아이디 또는 비밀번호가 올바르지 않습니다.';
             if ($count < $max) {
-                $message .= " ({$left}????λ릭??щ빍??)";
+                $message .= " ({$left}회 남음)";
             } else {
-                $message .= ' (?④쑴????醫됯펷??щ빍??)';
+                $message .= ' (계정 잠금 예정)';
             }
 
             return ['success' => false, 'message' => $message];
@@ -91,7 +91,7 @@ class AuthService
             return [
                 'success'  => true,
                 'reason'   => 'password_expired',
-                'message'  => '??쑬?甕곕뜇??癰궰野껋럩???袁⑹뒄??몃빍??',
+                'message'  => '비밀번호 변경이 필요합니다.',
                 'redirect' => '/password/change',
             ];
         }
@@ -123,12 +123,12 @@ class AuthService
                     'user_id' => $userId,
                     'error'   => $e->getMessage(),
                 ]);
-                return ['success' => false, 'message' => '2??ｍ??紐꾩쵄 ?꾨뗀諭?獄쏆뮇??餓???살첒揶쎛 獄쏆뮇源??됰뮸??덈뼄.'];
+                return ['success' => false, 'message' => '2단계 인증 메일 발송에 실패했습니다. 관리자에게 문의하세요.'];
             }
 
             return [
                 'success'  => true,
-                'message'  => '2??ｍ??紐꾩쵄 ?꾨뗀諭뜹첎? 獄쏆뮇???뤿???щ빍??',
+                'message'  => '2단계 인증 코드를 이메일로 발송했습니다.',
                 'redirect' => '/2fa',
             ];
         }
@@ -151,24 +151,24 @@ class AuthService
     {
         $code = trim($code);
         if ($code === '') {
-            return ['success' => false, 'message' => '?紐꾩쵄 ?꾨뗀諭띄몴???낆젾??雅뚯눘苑??'];
+            return ['success' => false, 'message' => '인증 코드를 입력해 주세요.'];
         }
 
         $pending = $this->authSessionService->getPendingTwoFactor();
         if (!$this->authSessionService->hasStatus(AuthSessionService::STATUS_TWO_FACTOR_PENDING) || !$pending) {
-            return ['success' => false, 'message' => '?紐꾩쵄 ?紐꾨????곷뮸??덈뼄. ??쇰뻻 嚥≪뮄??紐낅퉸 雅뚯눘苑??', 'redirect' => '/login'];
+            return ['success' => false, 'message' => '인증 요청이 유효하지 않습니다. 다시 로그인해 주세요.', 'redirect' => '/login'];
         }
 
         if (($pending['expires_at'] ?? 0) < time()) {
             $this->authSessionService->clearPendingTwoFactor();
-            return ['success' => false, 'message' => '?紐꾩쵄 ?꾨뗀諭뜹첎? 筌띾슢利??뤿???щ빍??', 'redirect' => '/login'];
+            return ['success' => false, 'message' => '인증 코드가 만료되었습니다.', 'redirect' => '/login'];
         }
 
         $attempts = (int)($pending['attempts'] ?? 0);
         $maxAttempts = (int)($pending['max_attempts'] ?? $this->twoFactorService->getMaxAttempts());
         if ($attempts >= $maxAttempts) {
             $this->authSessionService->clearPendingTwoFactor();
-            return ['success' => false, 'message' => '?紐꾩쵄 ??뺣즲 ??쏅땾???λ뜃???됰뮸??덈뼄. ??쇰뻻 嚥≪뮄??紐낅퉸 雅뚯눘苑??', 'redirect' => '/login'];
+            return ['success' => false, 'message' => '인증 시도 횟수를 초과했습니다. 다시 로그인해 주세요.', 'redirect' => '/login'];
         }
 
         $currentAttempts = $this->authSessionService->incrementPendingTwoFactorAttempts();
@@ -181,16 +181,16 @@ class AuthService
 
             if ($currentAttempts >= $maxAttempts) {
                 $this->authSessionService->clearPendingTwoFactor();
-                return ['success' => false, 'message' => '?紐꾩쵄 ??뺣즲 ??쏅땾???λ뜃???됰뮸??덈뼄. ??쇰뻻 嚥≪뮄??紐낅퉸 雅뚯눘苑??', 'redirect' => '/login'];
+                return ['success' => false, 'message' => '인증 시도 횟수를 초과했습니다. 다시 로그인해 주세요.', 'redirect' => '/login'];
             }
 
-            return ['success' => false, 'message' => '?紐꾩쵄 ?꾨뗀諭뜹첎? ??而?몴?? ??녿뮸??덈뼄.'];
+            return ['success' => false, 'message' => '인증 코드가 올바르지 않습니다.'];
         }
 
         $user = $pending['user'] ?? null;
         if (!is_array($user) || empty($user['id'])) {
             $this->authSessionService->clearPendingTwoFactor();
-            return ['success' => false, 'message' => '??????類ｋ궖??筌≪뼚??????곷뮸??덈뼄.', 'redirect' => '/login'];
+            return ['success' => false, 'message' => '사용자 정보를 찾을 수 없습니다.', 'redirect' => '/login'];
         }
 
         $userId = (string)$user['id'];
@@ -209,16 +209,16 @@ class AuthService
     {
         $pending = $this->authSessionService->getPendingTwoFactor();
         if (!$this->authSessionService->hasStatus(AuthSessionService::STATUS_TWO_FACTOR_PENDING) || !$pending) {
-            $this->authSessionService->setFlash('two_factor_message', '?紐꾩쵄???袁⑹뒄??몃빍?? ??쇰뻻 嚥≪뮄??紐낅릭?紐꾩뒄.');
+            $this->authSessionService->setFlash('two_factor_message', '인증 요청이 만료되었습니다. 다시 로그인해 주세요.');
             return ['allowed' => false, 'redirect' => '/login'];
         }
 
         $reasonLabels = [
-            'force_2fa'      => '癰귣똻釉??類ㅼ퐠???怨뺤뵬 ??筌욊낯??2??ｍ??紐꾩쵄???袁⑹뒄??몃빍??',
-            'user_2fa'       => '?④쑴???2??ｍ??紐꾩쵄????뽮쉐?遺얜┷????됰뮸??덈뼄.',
-            'new_device_2fa' => '??덉쨮??疫꿸퀗由?癒?퐣 嚥≪뮄?????뺣즲揶쎛 揶쏅Ŋ???뤿???щ빍??',
-            'time_window'    => '??됱뒠??? ??? ??볦퍢????嚥≪뮄?????뺣즲??낅빍??',
-            'inactive_guard' => '?觀由겼첎?沃섎챷沅???④쑴??癰귣똾?뉒몴??袁る퉸 ?곕떽? ?紐꾩쵄???袁⑹뒄??몃빍??',
+            'force_2fa'      => '관리자 정책에 따라 2단계 인증이 필요합니다.',
+            'user_2fa'       => '사용자 계정에 2단계 인증이 설정되어 있습니다.',
+            'new_device_2fa' => '새 기기 또는 새 위치에서 로그인하여 추가 인증이 필요합니다.',
+            'time_window'    => '로그인 허용 시간 외 접근으로 추가 인증이 필요합니다.',
+            'inactive_guard' => '장기 미접속 계정 보호 정책에 따라 2단계 인증이 필요합니다.',
         ];
 
         $activeReasons = [];
@@ -261,7 +261,7 @@ class AuthService
     {
         $userId = $this->authSessionService->getCurrentUserId();
         if (!$userId) {
-            return ['success' => false, 'message' => '嚥≪뮄??紐꾩뵠 ?袁⑹뒄??몃빍??', 'status' => 401];
+            return ['success' => false, 'message' => '로그인이 필요합니다.', 'status' => 401];
         }
 
         $newPassword = trim((string)($data['new_password'] ?? ''));
@@ -270,15 +270,15 @@ class AuthService
         $isForceChange = $this->authSessionService->hasStatus(AuthSessionService::STATUS_PASSWORD_EXPIRED);
 
         if ($newPassword === '' || $confirmPassword === '') {
-            return ['success' => false, 'message' => '????쑬?甕곕뜇?뉒몴???낆젾??雅뚯눘苑??'];
+            return ['success' => false, 'message' => '새 비밀번호를 입력해 주세요.'];
         }
 
         if (!$isForceChange && $currentPassword === '') {
-            return ['success' => false, 'message' => '?袁⑹삺 ??쑬?甕곕뜇?뉒몴???낆젾??雅뚯눘苑??'];
+            return ['success' => false, 'message' => '현재 비밀번호를 입력해 주세요.'];
         }
 
         if ($newPassword !== $confirmPassword) {
-            return ['success' => false, 'message' => '????쑬?甕곕뜇?뉐첎? ??깊뒄??? ??녿뮸??덈뼄.'];
+            return ['success' => false, 'message' => '새 비밀번호와 확인 값이 일치하지 않습니다.'];
         }
 
         $result = $this->changePasswordWithVerify($userId, $isForceChange ? null : $currentPassword, $newPassword);
@@ -302,17 +302,17 @@ class AuthService
     public function changePasswordLater(): array
     {
         if (!$this->authSessionService->hasStatus(AuthSessionService::STATUS_PASSWORD_EXPIRED)) {
-            return ['success' => false, 'message' => '??쑬?甕곕뜇??筌띾슢利??怨밴묶揶쎛 ?袁⑤뻸??덈뼄.', 'status' => 400];
+            return ['success' => false, 'message' => '비밀번호 변경을 연기할 수 없는 상태입니다.', 'status' => 400];
         }
 
         $userId = $this->authSessionService->getCurrentUserId();
         if (!$userId) {
-            return ['success' => false, 'message' => '??????類ｋ궖??筌≪뼚??????곷뮸??덈뼄.', 'status' => 401];
+            return ['success' => false, 'message' => '사용자 정보를 찾을 수 없습니다.', 'status' => 401];
         }
 
         $user = $this->authUserModel->getById($userId);
         if (!$user) {
-            return ['success' => false, 'message' => '??????類ｋ궖??筌≪뼚??????곷뮸??덈뼄.', 'status' => 404];
+            return ['success' => false, 'message' => '사용자 정보를 찾을 수 없습니다.', 'status' => 404];
         }
 
         $this->authSessionService->createLoginSession($user);
@@ -364,13 +364,13 @@ class AuthService
     {
         $user = $this->authUserModel->getById($userId);
         if (!$user || empty($user['password'])) {
-            return ['success' => false, 'message' => '??????類ｋ궖??筌≪뼚??????곷뮸??덈뼄.'];
+            return ['success' => false, 'message' => '사용자 정보를 찾을 수 없습니다.'];
         }
 
         $isForceChange = $this->authSessionService->hasStatus(AuthSessionService::STATUS_PASSWORD_EXPIRED);
         if (!$isForceChange) {
             if (empty($currentPassword) || !password_verify($currentPassword, $user['password'])) {
-                return ['success' => false, 'message' => '?袁⑹삺 ??쑬?甕곕뜇?뉐첎? ??而?몴?? ??녿뮸??덈뼄.'];
+                return ['success' => false, 'message' => '현재 비밀번호가 올바르지 않습니다.'];
             }
         }
 
@@ -383,10 +383,10 @@ class AuthService
         $ok = $this->authUserModel->updatePassword($userId, $hash, $userId);
 
         if (!$ok) {
-            return ['success' => false, 'message' => '??쑬?甕곕뜇??癰궰野껋럩肉???쎈솭??됰뮸??덈뼄.'];
+            return ['success' => false, 'message' => '비밀번호 변경에 실패했습니다.'];
         }
 
-        return ['success' => true, 'message' => '??쑬?甕곕뜇?뉐첎? 癰궰野껋럥由??됰뮸??덈뼄.'];
+        return ['success' => true, 'message' => '비밀번호가 변경되었습니다.'];
     }
 
     public function validateNewPassword(string $userId, string $newPassword): array
@@ -396,7 +396,7 @@ class AuthService
         }
 
         if ($this->authUserModel->isSamePassword($userId, $newPassword)) {
-            return ['success' => false, 'message' => '疫꿸퀣????쑬?甕곕뜇?????쇰뻻 ?????????곷뮸??덈뼄.'];
+            return ['success' => false, 'message' => '이전 비밀번호와 동일한 비밀번호는 사용할 수 없습니다.'];
         }
 
         return ['success' => true];
@@ -408,10 +408,10 @@ class AuthService
         $ok = $this->authUserModel->updatePassword($userId, $hash, $updatedBy);
 
         if ($ok) {
-            return ['success' => true, 'message' => '??쑬?甕곕뜇?뉐첎? 癰궰野껋럥由??됰뮸??덈뼄.'];
+            return ['success' => true, 'message' => '비밀번호가 변경되었습니다.'];
         }
 
-        return ['success' => false, 'message' => '??쑬?甕곕뜇??癰궰野???쎈솭'];
+        return ['success' => false, 'message' => '비밀번호 변경 실패'];
     }
 
     public function isPasswordExpired(array $user): bool
@@ -445,25 +445,25 @@ class AuthService
 
         $errors = [];
         if ($username === '') {
-            $errors[] = '?袁⑹뵠??username) ?袁⑥뵭';
+            $errors[] = '아이디(username)는 필수입니다.';
         }
         if ($password === '') {
-            $errors[] = '??쑬?甕곕뜇??password) ?袁⑥뵭';
+            $errors[] = '비밀번호(password)는 필수입니다.';
         }
         if ($employeeName === '') {
-            $errors[] = '筌욊낯?앾쭗?employee_name) ?袁⑥뵭';
+            $errors[] = '직원명(employee_name)은 필수입니다.';
         }
 
         if ($errors) {
-            return ['success' => false, 'message' => '?袁⑸땾揶??袁⑥뵭', 'errors' => $errors];
+            return ['success' => false, 'message' => '필수값이 누락되었습니다.', 'errors' => $errors];
         }
 
         if ($this->authUserModel->getByUsername($username)) {
-            return ['success' => false, 'message' => '餓λ쵎????살첒', 'errors' => ['??? ????餓λ쵐???袁⑹뵠?遺우뿯??덈뼄']];
+            return ['success' => false, 'message' => '중복된 아이디', 'errors' => ['이미 사용 중인 아이디입니다.']];
         }
 
         $userId = UuidHelper::generate();
-        $userCode = SequenceHelper::next('auth_users');
+        $userCode = SequenceHelper::next('auth_users', 'sort_no');
         $passwordHash = password_hash($password, PASSWORD_DEFAULT);
 
         $this->pdo->beginTransaction();
@@ -471,7 +471,7 @@ class AuthService
         try {
             $this->authUserModel->createUser([
                 'id'                 => $userId,
-                'code'               => $userCode,
+                'sort_no'            => $userCode,
                 'username'           => $username,
                 'password'           => $passwordHash,
                 'role_id'            => $data['role_id'] ?? null,
@@ -498,14 +498,14 @@ class AuthService
                 'success' => true,
                 'user_id' => $userId,
                 'code'    => $userCode,
-                'message' => '筌욊낯????밴쉐 ?袁⑥┷',
+                'message' => '사용자가 생성되었습니다.',
             ];
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
 
             return [
                 'success' => false,
-                'message' => '筌욊낯????밴쉐 ??쎈솭',
+                'message' => '사용자 생성 실패',
                 'error'   => $e->getMessage(),
             ];
         }

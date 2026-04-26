@@ -81,19 +81,20 @@ class TemplateStepService
             // 🔥 UUID 생성 (모델 금지)
             $data['id'] = UuidHelper::generate();
 
-            // 🔥 sequence 계산
-            $data['sequence'] = $this->model->getNextSequence($data['template_id']);
+            // 🔥 sort_no 계산
+            $data['sort_no'] = $this->model->getNextSortNo($data['template_id']);
 
             // 🔥 기본값
             $data['is_active'] = $data['is_active'] ?? 1;
             $data['created_by'] = ActorHelper::user();
+            $data['updated_by'] = $data['created_by'];
 
             $ok = $this->model->create($data);
 
             return [
                 'success'  => $ok,
                 'id'       => $data['id'],
-                'sequence' => $data['sequence']
+                'sort_no' => $data['sort_no']
             ];
 
         } catch (\Throwable $e) {

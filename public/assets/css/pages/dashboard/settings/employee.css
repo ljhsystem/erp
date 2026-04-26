@@ -1,4 +1,4 @@
-﻿/* ?뱞 /public/assets/css/pages/dashboard/settings/employee.css */
+/* ?뱞 /public/assets/css/pages/dashboard/settings/employee.css */
 
 /* ==============================
    PAGE
@@ -75,7 +75,7 @@
     background:#fff;
 }
 
-/* ?꾩껜 ?덉씠?꾩썐 */
+/* ?체 ?이?웃 */
 .employee-trash-layout{
     display:flex;
     align-items:stretch;
@@ -506,7 +506,7 @@
 
 
 /* =========================
-   ?먭꺽利?input-group ?꾩쟾 ?뺣젹 FIX
+   ?먭꺽利?input-group ?전 ?렬 FIX
 ========================= */
 
 .employee-cert-name-group{    
@@ -514,7 +514,7 @@
     margin-bottom:6px;
 }
 
-/* ?꾩씠肄?*/
+/* ?이?*/
 .employee-cert-name-group .input-group-text{
     background-color: #f5c2c2;
     border:1px solid #000000;
@@ -536,14 +536,14 @@
     border-left:0;
 }
 
-/* ?꾩씠肄?誘몄꽭 ?뺣젹 */
+/* ?이?미세 ?렬 */
 .employee-cert-name-group .input-group-text i{
     line-height:1;
     font-size:13px;
 }
 
 
-/* 鍮꾨?踰덊샇 諛묒뿉 ?ㅻ챸 */
+/* 비?번호 밑에 ?명 */
 .form-text{
     margin-top:4px;
     margin-left: 10px;

@@ -1,4 +1,4 @@
-﻿/* ?뱞 /public/assets/css/pages/dashboard/settings/cover.css */
+/* ?뱞 /public/assets/css/pages/dashboard/settings/cover.css */
 
 /* ==============================
    PAGE
@@ -62,7 +62,7 @@
     overflow-y:auto;
 }
 
-/* ?댁???紐⑤떖 ?꾩슜 */
+/* ?댁???紐⑤ ?용 */
 #coverTrashModal .modal-dialog{
     max-width:1100px;
     width:min(1100px, calc(100vw - 32px));
@@ -145,7 +145,7 @@
     background: #fff;
 }
 
-/* ?꾩껜 ?덉씠?꾩썐 */
+/* ?체 ?이?웃 */
 .cover-trash-layout{
     display: flex;
     align-items: stretch;
@@ -194,7 +194,7 @@
     padding: 0;
 }
 
-/* 湲곗〈 HTML 洹몃?濡??대━湲??꾪빐 泥?2媛??쇱そ, 留덉?留?1媛??ㅻⅨ履?*/
+/* 湲곗〈 HTML 그???━湲??꾪빐 泥?2媛??쇱そ, 留덉?留?1媛??ㅻⅨ履?*/
 .trash-toolbar > .btn{
     flex: 0 0 auto;
 }

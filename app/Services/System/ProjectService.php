@@ -1,11 +1,11 @@
 <?php
 // 野껋럥以? PROJECT_ROOT . '/app/Services/System/ProjectService.php'
-// ??살구:
-//  - ?袁⑥쨮??븍뱜(Project) ?온????뺥돩??
-//  - UUID ??밴쉐?? Service 筌?굞??
+// ??챸:
+//  - ?⑥쨮??븍뱜(Project) ?온????뺥돩??
+//  - UUID ??밴쉐?? Service ???
 //  - sort_no???꾨뗀諭???????
-//  - DB 筌ｌ꼶?? DashboardProjectModel
-//  - 筌뤴뫀諭?雅뚯눘???癒?カ LoggerFactory ?怨몄뒠
+//  - DB 泥섎?? DashboardProjectModel
+//  - 紐⑤?二쇱???? LoggerFactory ?곸슜
 namespace App\Services\System;
 
 use PDO;
@@ -40,7 +40,7 @@ class ProjectService
     }
 
     /* ============================================================
-     * ?袁⑷퍥 筌뤴뫖以?鈺곌퀬??
+     * ?⑷퍥 筌뤴뫖以?鈺곌퀬??
      * ============================================================ */
     public function getList(array $filters = []): array
     {
@@ -71,7 +71,7 @@ class ProjectService
 
 
     /* ============================================================
-    * ??ｊ탷 鈺곌퀬??(id 疫꿸퀣?)
+    * ??ｊ탷 鈺곌퀬??(id 湲곗?)
     * ============================================================ */
     public function getById(string $id): ?array
     {
@@ -106,7 +106,7 @@ class ProjectService
 
 
     /* =========================================================
-    * ?袁⑥쨮??븍뱜 野꺜??(Service - Select2 ????
+    * ?⑥쨮??븍뱜 野꺜??(Service - Select2 ????
     * ========================================================= */
     public function searchPicker(string $keyword): array
     {
@@ -134,7 +134,7 @@ class ProjectService
                     $text .= ' / ' . $row['construction_name'];
                 }
 
-                // ?逾??꾨뗀諭??곕떽? (?醫뤾문)
+                // ???붾??붽? (?좏깮)
                 if (!empty($row['sort_no'])) {
                     $text .= ' [' . $row['sort_no'] . ']';
                 }
@@ -160,7 +160,7 @@ class ProjectService
 
 
     /* ============================================================
-     * ????(?醫됲뇣 + ??륁젟 ????)
+     * ????(?좉퇋 + ??젙 ????)
      * ============================================================ */
     public function save(array $data, string $actorType = 'USER', array $files = []): array
     {
@@ -183,14 +183,14 @@ class ProjectService
             if ($data['client_id'] !== null && !$this->clientModel->getById($data['client_id'])) {
                 return [
                     'success' => false,
-                    'message' => '?醫뤾문??椰꾧퀡?믭㎗?? 筌≪뼚??????곷뮸??덈뼄. ??쇰뻻 ?醫뤾문??곻폒?紐꾩뒄.'
+                    'message' => '?좏깮??嫄곕?泥?? ≪??????뒿??떎. ??떆 ?좏깮??＜?紐슂.'
                 ];
             }
 
             if ($data['employee_id'] !== null && !$this->employeeModel->getById($data['employee_id'])) {
                 return [
                     'success' => false,
-                    'message' => '?醫뤾문??????쭪怨몄뜚??筌≪뼚??????곷뮸??덈뼄. ??쇰뻻 ?醫뤾문??곻폒?紐꾩뒄.'
+                    'message' => '?좏깮??????곸썝??≪??????뒿??떎. ??떆 ?좏깮??＜?紐슂.'
                 ];
             }
 
@@ -199,7 +199,7 @@ class ProjectService
             $id = trim((string)($data['id'] ?? ''));
 
             /* =========================================================
-            * 疫꿸퀣???怨쀬뵠??鈺곌퀬??(UPDATE ???袁⑸땾)
+            * 湲곗???곗씠??議고??(UPDATE ???⑸땾)
             * ========================================================= */
             $before = [];
 
@@ -207,7 +207,7 @@ class ProjectService
                 $before = $this->model->getById($id);
 
                 if (!$before) {
-                    throw new \Exception('鈺곕똻???? ??낅뮉 ?袁⑥쨮??븍뱜??낅빍??');
+                    throw new \Exception('議댁???? ??뒗 ?⑥쨮??븍뱜??낅빍??');
                 }
             }
 
@@ -229,12 +229,12 @@ class ProjectService
                         'success' => true,
                         'id'      => $id,
                         'sort_no'    => $before['sort_no'] ?? null,
-                        'message' => '癰궰野껋럩沅????곸벉'
+                        'message' => '蹂寃쎌????쓬'
                     ];
                 }
 
                 if (!$this->model->updateById($id, $updateData)) {
-                    throw new \Exception('?袁⑥쨮??븍뱜 ??륁젟 ??쎈솭');
+                    throw new \Exception('?⑥쨮??븍뱜 ??륁젟 ??쎈솭');
                 }
 
                 $this->pdo->commit();
@@ -260,7 +260,7 @@ class ProjectService
             ]);
 
             if (!$this->model->create($insertData)) {
-                throw new \Exception('?袁⑥쨮??븍뱜 ?源낆쨯 ??쎈솭');
+                throw new \Exception('?⑥??듃 ?깅줉 ??뙣');
             }
 
             $this->pdo->commit();
@@ -328,7 +328,7 @@ class ProjectService
 
                 return [
                     'success' => false,
-                    'message' => '鈺곕똻???? ??낅뮉 ?袁⑥쨮??븍뱜??낅빍??'
+                    'message' => '議댁???? ??뒗 ?⑥쨮??븍뱜??낅빍??'
                 ];
             }
 
@@ -341,7 +341,7 @@ class ProjectService
 
                 return [
                     'success' => false,
-                    'message' => '?袁⑥쨮??븍뱜 ??????쎈솭'
+                    'message' => '?⑥쨮??븍뱜 ??????쎈솭'
                 ];
             }
 
@@ -369,7 +369,7 @@ class ProjectService
 
 
     /* =========================================================
-    * ?????筌뤴뫖以?
+    * ?????紐⑸?
     * ========================================================= */
     public function getTrashList(): array
     {
@@ -389,7 +389,7 @@ class ProjectService
         }
     }
     /* =========================================================
-    * 癰귣벊??
+    * 蹂듭??
     * ========================================================= */
     public function restore(string $id, string $actorType = 'USER'): array
     {
@@ -413,7 +413,7 @@ class ProjectService
 
                 return [
                     'success' => false,
-                    'message' => '鈺곕똻???? ??낅뮉 ?袁⑥쨮??븍뱜??낅빍??'
+                    'message' => '議댁???? ??뒗 ?⑥쨮??븍뱜??낅빍??'
                 ];
             }
 
@@ -426,7 +426,7 @@ class ProjectService
 
                 return [
                     'success' => false,
-                    'message' => '?袁⑥쨮??븍뱜 癰귣벊????쎈솭'
+                    'message' => '?⑥쨮??븍뱜 癰귣벊????쎈솭'
                 ];
             }
 
@@ -455,7 +455,7 @@ class ProjectService
 
 
     /* =========================================================
-    * ?醫뤾문 癰귣벊??
+    * ?좏깮 蹂듭??
     * ========================================================= */
     public function restoreBulk(array $ids, string $actorType = 'USER'): array
     {
@@ -473,7 +473,7 @@ class ProjectService
 
             return [
                 'success' => false,
-                'message' => '癰귣벊????袁⑥쨮??븍뱜揶쎛 ??곷뮸??덈뼄.'
+                'message' => '蹂듭????⑥쨮??븍뱜揶쎛 ??곷뮸??덈뼄.'
             ];
         }
 
@@ -490,7 +490,7 @@ class ProjectService
 
             return [
                 'success' => true,
-                'message' => "?醫뤾문 癰귣벊???袁⑥┷ ({$success}椰?"
+                'message' => "?좏깮 蹂듭???⑥┷ ({$success}椰?"
             ];
 
         } catch (\Throwable $e) {
@@ -510,7 +510,7 @@ class ProjectService
 
 
     /* =========================================================
-    * ?袁⑷퍥 癰귣벊??
+    * ?⑷ 蹂듭??
     * ========================================================= */
     public function restoreAll(string $actorType = 'USER'): array
     {
@@ -536,7 +536,7 @@ class ProjectService
 
             return [
                 'success' => true,
-                'message' => "?袁⑷퍥 癰귣벊???袁⑥┷ ({$success}椰?"
+                'message' => "?⑷ 蹂듭???⑥┷ ({$success}椰?"
             ];
 
         } catch (\Throwable $e) {
@@ -555,7 +555,7 @@ class ProjectService
 
 
     /* =========================================================
-    * ?袁⑹읈????
+    * ?⑹읈????
     * ========================================================= */
     public function purge(string $id, string $actorType = 'USER'): array
     {
@@ -579,7 +579,7 @@ class ProjectService
 
                 return [
                     'success' => false,
-                    'message' => '鈺곕똻???? ??낅뮉 ?袁⑥쨮??븍뱜??낅빍??'
+                    'message' => '議댁???? ??뒗 ?⑥쨮??븍뱜??낅빍??'
                 ];
             }
 
@@ -587,7 +587,7 @@ class ProjectService
 
             if (!$ok) {
 
-                throw new \Exception('?袁⑥쨮??븍뱜 ?怨대럡??????쎈솭');
+                throw new \Exception('?⑥??듃 ?곴뎄??????뙣');
             }
 
             $this->pdo->commit();
@@ -620,7 +620,7 @@ class ProjectService
     }
 
     /* =========================================================
-    * ?醫뤾문 ?袁⑹읈????
+    * ?좏깮 ?⑹읈????
     * ========================================================= */
     public function purgeBulk(array $ids, string $actorType = 'USER'): array
     {
@@ -638,7 +638,7 @@ class ProjectService
 
             return [
                 'success' => false,
-                'message' => '??????袁⑥쨮??븍뱜揶쎛 ??곷뮸??덈뼄.'
+                'message' => '??????⑥쨮??븍뱜揶쎛 ??곷뮸??덈뼄.'
             ];
         }
 
@@ -659,7 +659,7 @@ class ProjectService
 
             return [
                 'success' => true,
-                'message' => "?醫뤾문 ?????袁⑥┷ ({$success}椰?"
+                'message' => "?좏깮 ?????⑥┷ ({$success}椰?"
             ];
 
         } catch (\Throwable $e) {
@@ -682,7 +682,7 @@ class ProjectService
     }
 
     /* =========================================================
-    * ?袁⑷퍥 ?袁⑹읈????
+    * ?⑷ ?⑹읈????
     * ========================================================= */
     public function purgeAll(string $actorType = 'USER'): array
     {
@@ -707,7 +707,7 @@ class ProjectService
 
                 return [
                     'success' => false,
-                    'message' => '??????袁⑥쨮??븍뱜揶쎛 ??곷뮸??덈뼄.'
+                    'message' => '??????⑥쨮??븍뱜揶쎛 ??곷뮸??덈뼄.'
                 ];
             }
 
@@ -726,7 +726,7 @@ class ProjectService
 
             return [
                 'success' => true,
-                'message' => "?袁⑷퍥 ?????袁⑥┷ ({$success}椰?"
+                'message' => "?⑷ ?????⑥┷ ({$success}椰?"
             ];
 
         } catch (\Throwable $e) {
@@ -749,7 +749,7 @@ class ProjectService
 
 
     /* ============================================================
-    * ?꾨뗀諭???뽮퐣 癰궰野?(RowReorder)
+    * ?붾???꽌 蹂?(RowReorder)
     * ============================================================ */
     public function reorder(array $changes): bool
     {
@@ -767,18 +767,18 @@ class ProjectService
                 $this->pdo->beginTransaction();
             }
 
-            /* 1?るㅄ源???낆젾揶?野꺜筌?*/
+            /* 1?뤴???젰?寃?*/
             foreach ($changes as $row) {
 
                 if (
                     empty($row['id']) ||
                     !isset($row['newSortNo'])
                 ) {
-                    throw new \Exception('reorder ?怨쀬뵠????살첒');
+                    throw new \Exception('reorder ?곗씠????쪟');
                 }
             }
 
-            /* 2?るㅄ源?temp ??猷?(?겸뫖猷?獄쎻뫗?) */
+            /* 2?뤴?temp ???(?⑸?諛⑹?) */
             foreach ($changes as $row) {
 
                 // ?紐???곌석??띿쓺 (??? ?겸뫖猷???덇돌野?
@@ -790,7 +790,7 @@ class ProjectService
                 );
             }
 
-            /* 3?るㅄ源???쇱젫 ?꾨뗀諭??怨몄뒠 */
+            /* 3?뤴???젣 ?붾??곸슜 */
             foreach ($changes as $row) {
 
                 $this->model->updateSortNo(
@@ -822,7 +822,7 @@ class ProjectService
         }
     }
     /* ============================================================
-    * ??쀫탣????쇱뒲嚥≪뮆諭?
+    * ??뵆????슫≪뮆諭?
     * ============================================================ */
     public function downloadTemplate(): void
     {

@@ -49,12 +49,12 @@ class UserModel
 
         $sql = "
             INSERT INTO auth_users (
-                id, code, username, password, email, role_id,
+                id, sort_no, username, password, email, role_id,
                 two_factor_enabled, email_notify, sms_notify,
                 is_active, approved, created_by
             )
             VALUES (
-                :id, :code, :username, :password, :email, :role_id,
+                :id, :sort_no, :username, :password, :email, :role_id,
                 :two_factor_enabled, :email_notify, :sms_notify,
                 :is_active, :approved, :created_by
             )
@@ -64,7 +64,7 @@ class UserModel
 
         return $stmt->execute([
             ':id'                => $data['id'],
-            ':code'              => $data['code'] ?? null,
+            ':sort_no'           => $data['sort_no'] ?? $data['code'] ?? null,
             ':username'          => $data['username'],
             ':password'          => $data['password'],
             ':email'             => $data['email'] ?? null,
@@ -102,7 +102,8 @@ class UserModel
     {
         $sql = "
             SELECT 
-                u.*, 
+                u.*,
+                u.sort_no AS code,
                 e.employee_name,
                 r.role_key,
                 r.role_name
@@ -120,7 +121,8 @@ class UserModel
     {
         $sql = "
             SELECT 
-                u.*, 
+                u.*,
+                u.sort_no AS code,
                 e.employee_name,
                 r.role_key,
                 r.role_name
@@ -138,12 +140,13 @@ class UserModel
     {
         $sql = "
             SELECT 
-                u.*, 
+                u.*,
+                u.sort_no AS code,
                 r.role_key,
                 r.role_name
             FROM auth_users u
             LEFT JOIN auth_roles r ON r.id = u.role_id
-            WHERE u.code = ?
+            WHERE u.sort_no = ?
             LIMIT 1
         ";
 

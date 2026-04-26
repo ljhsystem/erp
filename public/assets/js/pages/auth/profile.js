@@ -86,15 +86,17 @@ import {
 
             certNameEl: document.getElementById('certificate_name'),
             certFileInput: document.getElementById('certificate_file'),
-            certFileBtn: document.getElementById('certificate_file_btn'),
-            certFileLabel: document.getElementById('certificate_file_label'),
             certPreviewImg: document.getElementById('profile_cert_preview'),
+            certDeleteBtn: document.getElementById('certificate_file_delete_btn'),
+            certDeleteFlag: document.getElementById('certificate_file_delete'),
+            certBox: document.getElementById('profile_cert_box'),
 
             twoFactorEl: document.getElementById('two_factor_enabled'),
             emailNotifyEl: document.getElementById('email_notify'),
             smsNotifyEl: document.getElementById('sms_notify'),
 
             btnSaveAccount: document.getElementById('btn-save-account'),
+            btnSaveCertificate: document.getElementById('btn-save-certificate'),
             btnSaveNotify: document.getElementById('btn-save-notify'),
 
             btnChangePassword: document.getElementById('btn-change-password'),
@@ -174,17 +176,12 @@ import {
         const {
             profileInput,
             certFileInput,
-            certFileLabel
+            certDeleteFlag
         } = getDom();
 
         if (profileInput) profileInput.value = '';
         if (certFileInput) certFileInput.value = '';
-
-        if (certFileLabel) {
-            certFileLabel.textContent = currentCertificatePath
-                ? '기존 파일 있음'
-                : '선택된 파일 없음';
-        }
+        if (certDeleteFlag) certDeleteFlag.value = '0';
     }
 
     /* ============================================================
@@ -205,7 +202,8 @@ import {
             addressDetailEl,
             certNameEl,
             certPreviewImg,
-            certFileLabel,
+            certDeleteBtn,
+            certBox,
             twoFactorEl,
             emailNotifyEl,
             smsNotifyEl
@@ -258,10 +256,12 @@ import {
                 }
             }
 
-            if (certFileLabel) {
-                certFileLabel.textContent = currentCertificatePath
-                    ? '기존 파일 있음'
-                    : '선택된 파일 없음';
+            if (certDeleteBtn) {
+                certDeleteBtn.style.display = currentCertificatePath ? '' : 'none';
+            }
+
+            if (certBox) {
+                certBox.dataset.label = currentCertificatePath ? '원본 보기' : '업로드';
             }
 
             resetFileInputs();
@@ -295,11 +295,14 @@ import {
             smsNotifyEl,
             profileInput,
             certFileInput,
+            certDeleteFlag,
             btnSaveAccount,
+            btnSaveCertificate,
             btnSaveNotify
         } = getDom();
 
         if (btnSaveAccount) btnSaveAccount.disabled = true;
+        if (btnSaveCertificate) btnSaveCertificate.disabled = true;
         if (btnSaveNotify) btnSaveNotify.disabled = true;
 
         try {
@@ -325,6 +328,8 @@ import {
                 fd.append('certificate_file', certFileInput.files[0]);
             }
 
+            fd.append('certificate_file_delete', certDeleteFlag?.value === '1' ? '1' : '0');
+
             const json = await fetchJson(API.SAVE, {
                 method: 'POST',
                 body: fd
@@ -339,14 +344,16 @@ import {
             notify('error', err.message || '저장 실패');
         } finally {
             if (btnSaveAccount) btnSaveAccount.disabled = false;
+            if (btnSaveCertificate) btnSaveCertificate.disabled = false;
             if (btnSaveNotify) btnSaveNotify.disabled = false;
         }
     }
 
     function bindSaveButtons() {
-        const { btnSaveAccount, btnSaveNotify } = getDom();
+        const { btnSaveAccount, btnSaveCertificate, btnSaveNotify } = getDom();
 
         btnSaveAccount?.addEventListener('click', saveProfile);
+        btnSaveCertificate?.addEventListener('click', saveProfile);
         btnSaveNotify?.addEventListener('click', saveProfile);
     }
 
@@ -457,14 +464,44 @@ import {
      * ============================================================ */
     function bindCertificatePicker() {
         const {
-            certFileBtn,
             certFileInput,
-            certFileLabel,
-            certPreviewImg
+            certPreviewImg,
+            certDeleteBtn,
+            certDeleteFlag,
+            certBox,
+            certNameEl
         } = getDom();
 
-        if (certFileBtn && certFileInput) {
-            certFileBtn.addEventListener('click', () => certFileInput.click());
+        if (certDeleteBtn) {
+            certDeleteBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                currentCertificatePath = '';
+
+                if (certPreviewImg) {
+                    certPreviewImg.src = '/public/assets/img/placeholder-cert.png';
+                    certPreviewImg.dataset.filePath = '';
+                }
+
+                if (certFileInput) {
+                    certFileInput.value = '';
+                }
+
+                if (certDeleteFlag) {
+                    certDeleteFlag.value = '1';
+                }
+
+                if (certNameEl) {
+                    certNameEl.value = '';
+                }
+
+                if (certBox) {
+                    certBox.dataset.label = '업로드';
+                }
+
+                certDeleteBtn.style.display = 'none';
+            });
         }
 
         if (certFileInput && certPreviewImg) {
@@ -476,19 +513,30 @@ import {
 
                     certPreviewImg.dataset.filePath = currentCertificatePath || '';
 
-                    if (certFileLabel) {
-                        certFileLabel.textContent = currentCertificatePath
-                            ? '기존 파일 있음'
-                            : '선택된 파일 없음';
+                    if (certDeleteBtn) {
+                        certDeleteBtn.style.display = currentCertificatePath ? '' : 'none';
                     }
+
+                    if (certBox) {
+                        certBox.dataset.label = currentCertificatePath ? '원본 보기' : '업로드';
+                    }
+
                     return;
                 }
 
                 const file = certFileInput.files[0];
                 const ext = String(file.name).split('.').pop().toLowerCase();
 
-                if (certFileLabel) {
-                    certFileLabel.textContent = file.name;
+                if (certDeleteFlag) {
+                    certDeleteFlag.value = '0';
+                }
+
+                if (certDeleteBtn) {
+                    certDeleteBtn.style.display = '';
+                }
+
+                if (certBox) {
+                    certBox.dataset.label = '원본 보기';
                 }
 
                 if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
@@ -510,7 +558,7 @@ import {
                 const path = certPreviewImg.dataset.filePath || '';
 
                 if (!path) {
-                    notify('warning', '등록된 자격증 파일이 없습니다.');
+                    certFileInput?.click();
                     return;
                 }
 

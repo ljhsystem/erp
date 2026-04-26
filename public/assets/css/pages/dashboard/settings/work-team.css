@@ -1,0 +1,31 @@
+#work-team-main {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+}
+
+#work-team-main .page-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+#work-team-main .page-header h5 {
+    margin-bottom: 0;
+}
+
+#work-team-main .page-count {
+    display: inline-flex;
+    align-items: center;
+    font-size: 1rem;
+    margin-left: 2px;
+    font-weight: 500;
+    line-height: 1;
+}
+
+#workTeamModal .work-team-modal-body {
+    max-height: 75vh;
+    overflow-y: auto;
+}

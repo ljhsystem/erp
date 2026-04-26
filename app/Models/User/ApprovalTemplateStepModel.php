@@ -42,13 +42,31 @@ class ApprovalTemplateStepModel
                 r.role_name,
                 r.role_key,
                 u.employee_name AS specific_employee_name,
-                au.username     AS specific_username
+                au.username     AS specific_username,
+                CASE
+                    WHEN s.created_by IS NULL THEN NULL
+                    WHEN s.created_by LIKE 'SYSTEM:%' THEN s.created_by
+                    WHEN cu.employee_name IS NOT NULL THEN CONCAT('USER:', cu.employee_name)
+                    ELSE s.created_by
+                END AS created_by_name,
+                CASE
+                    WHEN s.updated_by IS NULL THEN NULL
+                    WHEN s.updated_by LIKE 'SYSTEM:%' THEN s.updated_by
+                    WHEN uu.employee_name IS NOT NULL THEN CONCAT('USER:', uu.employee_name)
+                    ELSE s.updated_by
+                END AS updated_by_name
             FROM user_approval_template_steps s
             LEFT JOIN auth_roles    r  ON r.id  = s.role_id
             LEFT JOIN auth_users    au ON au.id = s.approver_id
             LEFT JOIN user_employees u  ON u.user_id = au.id
+            LEFT JOIN user_employees cu
+                ON s.created_by NOT LIKE 'SYSTEM:%'
+                AND cu.user_id = REPLACE(s.created_by, 'USER:', '')
+            LEFT JOIN user_employees uu
+                ON s.updated_by NOT LIKE 'SYSTEM:%'
+                AND uu.user_id = REPLACE(s.updated_by, 'USER:', '')
             WHERE s.template_id = ?
-            ORDER BY s.sequence ASC
+            ORDER BY s.sort_no ASC
         ");
         $stmt->execute([$templateId]);
 
@@ -56,12 +74,12 @@ class ApprovalTemplateStepModel
     }
 
     /* ============================================================
-     * 📌 다음 sequence 번호 조회
+     * 📌 다음 sort_no 번호 조회
      * ============================================================ */
-    public function getNextSequence(string $templateId): int
+    public function getNextSortNo(string $templateId): int
     {
         $stmt = $this->db->prepare("
-            SELECT COALESCE(MAX(sequence), 0) + 1
+            SELECT COALESCE(MAX(sort_no), 0) + 1
             FROM user_approval_template_steps
             WHERE template_id = ?
         ");
@@ -71,26 +89,27 @@ class ApprovalTemplateStepModel
 
     /* ============================================================
      * 📌 생성(Create)
-     * ※ UUID 및 sequence는 Service에서 미리 계산하여 전달한다
+     * ※ UUID 및 sort_no는 Service에서 미리 계산하여 전달한다
      * ============================================================ */
     public function create(array $data): bool
     {
         $stmt = $this->db->prepare("
             INSERT INTO user_approval_template_steps
-            (id, template_id, sequence, step_name, role_id, approver_id, is_active, created_by, created_at)
+            (id, sort_no, template_id, step_name, role_id, approver_id, is_active, created_by, updated_by, created_at)
             VALUES
-            (:id, :template_id, :sequence, :step_name, :role_id, :approver_id, :is_active, :created_by, NOW())
+            (:id, :sort_no, :template_id, :step_name, :role_id, :approver_id, :is_active, :created_by, :updated_by, NOW())
         ");
 
         return $stmt->execute([
             ':id'          => $data['id'],
             ':template_id' => $data['template_id'],
-            ':sequence'    => $data['sequence'],
+            ':sort_no'     => $data['sort_no'],
             ':step_name'   => $data['step_name'],
             ':role_id'     => $data['role_id'],
             ':approver_id' => $data['approver_id'],
             ':is_active'   => $data['is_active'],
             ':created_by'  => $data['created_by'],
+            ':updated_by'  => $data['updated_by'] ?? $data['created_by'] ?? null,
         ]);
     }
 
@@ -103,7 +122,7 @@ class ApprovalTemplateStepModel
             UPDATE user_approval_template_steps
             SET 
                 template_id = :template_id,
-                sequence    = :sequence,
+                sort_no     = :sort_no,
                 step_name   = :step_name,
                 role_id     = :role_id,
                 approver_id = :approver_id,
@@ -116,7 +135,7 @@ class ApprovalTemplateStepModel
         return $stmt->execute([
             ':id'          => $id,
             ':template_id' => $data['template_id'],
-            ':sequence'    => $data['sequence'],
+            ':sort_no'     => $data['sort_no'],
             ':step_name'   => $data['step_name'],
             ':role_id'     => $data['role_id'],
             ':approver_id' => $data['approver_id'],

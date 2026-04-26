@@ -34,7 +34,7 @@
                          class="form-control form-control-sm">
                 </div>
 
-                <div class="col-md-2">
+                <div class="col-md-4">
                   <label class="form-label">등록일자</label>
                   <div class="date-input-wrap">
                     <input type="text"
@@ -47,7 +47,11 @@
                   </div>
                 </div>
 
-                <div class="col-md-2">
+
+              </div>
+              <div class="row g-2">
+
+                <div class="col-md-4">
                   <label class="form-label">거래처등급</label>
                   <select name="client_grade"
                           id="modal_client_grade"
@@ -61,7 +65,7 @@
                   </select>
                 </div>
 
-                <div class="col-md-2">
+                <div class="col-md-4">
                   <label class="form-label">상태</label>
                   <select name="is_active"
                           id="modal_is_active"
@@ -70,7 +74,9 @@
                     <option value="0">미사용</option>
                   </select>
                 </div>
+
               </div>
+
             </div>
           </div>
 
@@ -112,12 +118,9 @@
                   <label class="form-label">거래유형</label>
                   <select name="client_type"
                           id="modal_client_type"
-                          class="form-select form-select-sm">
+                          class="form-select form-select-sm"
+                          data-code-group="CLIENT_TYPE">
                     <option value="">선택</option>
-                    <option value="일반">일반</option>
-                    <option value="카드사">카드사</option>
-                    <option value="신용">신용</option>
-                    <option value="사업소득">사업소득</option>
                   </select>
                 </div>
               </div>
@@ -312,33 +315,22 @@
 
                     <div class="col-md-4">
                       <label class="form-label">거래구분</label>
-                      <select name="trade_category" id="modal_trade_category" class="form-select form-select-sm">
+                      <select name="trade_category" id="modal_trade_category" class="form-select form-select-sm" data-code-group="TRADE_CATEGORY">
                         <option value="">선택</option>
-                        <option value="국내">국내</option>
-                        <option value="수입">수입</option>
-                        <option value="수출">수출</option>
                       </select>
                     </div>
 
                     <div class="col-md-4">
                       <label class="form-label">과세구분</label>
-                      <select name="tax_type" id="modal_tax_type" class="form-select form-select-sm">
+                      <select name="tax_type" id="modal_tax_type" class="form-select form-select-sm" data-code-group="TAX_TYPE">
                         <option value="">선택</option>
-                        <option value="과세">과세</option>
-                        <option value="면세">면세</option>
-                        <option value="영세">영세</option>
                       </select>
                     </div>
 
                     <div class="col-md-4">
                       <label class="form-label">결제조건</label>
-                      <select name="payment_term" id="modal_payment_term" class="form-select form-select-sm">
+                      <select name="payment_term" id="modal_payment_term" class="form-select form-select-sm" data-code-group="PAYMENT_TERM">
                         <option value="">선택</option>
-                        <option value="현금">현금</option>
-                        <option value="월말">월말</option>
-                        <option value="익월말">익월말</option>
-                        <option value="60일">60일</option>
-                        <option value="90일">90일</option>
                       </select>
                     </div>
                   </div>

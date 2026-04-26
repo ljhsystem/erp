@@ -45,7 +45,7 @@ class RegisterService
         $name = trim((string)($data['employee_name'] ?? ''));
 
         if ($username === '' || $password === '' || $confirm === '' || $email === '' || $name === '') {
-            return ['success' => false, 'message' => '筌뤴뫀諭??袁⑤굡????낆젾??雅뚯눘苑??'];
+            return ['success' => false, 'message' => '紐⑤??⑤????젰??二쇱??'];
         }
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -79,7 +79,7 @@ class RegisterService
         }
 
         $userId = UuidHelper::generate();
-        $userCode = SequenceHelper::next('auth_users');
+        $userCode = SequenceHelper::next('auth_users', 'sort_no');
         $passwordHash = password_hash($password, PASSWORD_BCRYPT);
 
         try {
@@ -87,7 +87,7 @@ class RegisterService
 
             $okUser = $this->usersModel->createUser([
                 'id'         => $userId,
-                'code'       => $userCode,
+                'sort_no'    => $userCode,
                 'username'   => $username,
                 'password'   => $passwordHash,
                 'email'      => $email,
@@ -105,7 +105,7 @@ class RegisterService
 
             $okProfile = $this->employeeModel->create([
                 'id'               => UuidHelper::generate(),
-                'sort_no'          => null,
+                'sort_no'          => SequenceHelper::next('user_employees', 'sort_no'),
                 'user_id'          => $userId,
                 'employee_name'    => $name,
                 'phone'            => null,
@@ -145,7 +145,7 @@ class RegisterService
             ]);
             $this->writeLog('???뜚揶쎛??녿뼄????됱뇚', $username, 0);
 
-            return ['success' => false, 'message' => '???뜚揶쎛??筌ｌ꼶??餓???살첒揶쎛 獄쏆뮇源??됰뮸??덈뼄.'];
+            return ['success' => false, 'message' => '???媛??泥섎?????쪟媛 諛쒖??뒿??떎.'];
         }
 
         $this->authLogs->write([
@@ -165,7 +165,7 @@ class RegisterService
 
         return [
             'success'   => true,
-            'message'   => '???뜚揶쎛??놁뵠 ?袁⑥┷??뤿???щ빍?? ?온?귐딆쁽 ?諭????嚥≪뮄???揶쎛?館鍮??덈뼄.',
+            'message'   => '???媛??씠 ?⑥┷??뤿???щ빍?? ?온?귐딆쁽 ?諭????嚥≪???媛?ν??떎.',
             'user_code' => $userCode,
         ];
     }
@@ -175,7 +175,7 @@ class RegisterService
         try {
             $rows = $this->settingService->getByCategory('SECURITY');
         } catch (\Throwable $e) {
-            return ['success' => false, 'message' => '??쑬?甕곕뜇???類ㅼ퐠 ?類ㅼ뵥 餓???살첒揶쎛 獄쏆뮇源??됰뮸??덈뼄.'];
+            return ['success' => false, 'message' => '???踰덊???類ㅼ퐠 ?類씤 ???쪟媛 諛쒖??뒿??떎.'];
         }
 
         $policy = [];
@@ -189,19 +189,19 @@ class RegisterService
 
         $min = (int)($policy['security_password_min'] ?? 0);
         if ($min > 0 && mb_strlen($password) < $min) {
-            return ['success' => false, 'message' => "??쑬?甕곕뜇???筌ㅼ뮇??{$min}????곴맒??곷선????몃빍??"];
+            return ['success' => false, 'message' => "???踰덊???理쒖??{$min}????곴맒??곷선????몃빍??"];
         }
 
         if (($policy['security_pw_upper'] ?? '0') === '1' && !preg_match('/[A-Z]/', $password)) {
-            return ['success' => false, 'message' => '??쑬?甕곕뜇??????얜챷?꾤몴?筌ㅼ뮇??1????곴맒 ??釉??雅뚯눘苑??'];
+            return ['success' => false, 'message' => '???踰덊??????몄?瑜?理쒖??1????긽 ????二쇱??'];
         }
 
         if (($policy['security_pw_number'] ?? '0') === '1' && !preg_match('/\d/', $password)) {
-            return ['success' => false, 'message' => '??쑬?甕곕뜇?????ъ쁽??筌ㅼ뮇??1????곴맒 ??釉??雅뚯눘苑??'];
+            return ['success' => false, 'message' => '???踰덊?????옄??理쒖??1????긽 ????二쇱??'];
         }
 
         if (($policy['security_pw_special'] ?? '0') === '1' && !preg_match('/[^a-zA-Z0-9]/', $password)) {
-            return ['success' => false, 'message' => '??쑬?甕곕뜇????諭?붻눧紐꾩쁽??筌ㅼ뮇??1????곴맒 ??釉??雅뚯눘苑??'];
+            return ['success' => false, 'message' => '??쑬?甕곕뜇????諭?붻눧紐옄??理쒖??1????긽 ????二쇱??'];
         }
 
         return ['success' => true];
@@ -215,12 +215,12 @@ class RegisterService
         }
 
         if (($file['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
-            return ['success' => false, 'message' => '?袁⑥쨮?????筌왖 ??낆쨮??뽯퓠 ??쎈솭??됰뮸??덈뼄.'];
+            return ['success' => false, 'message' => '?⑥쨮?????筌왖 ??낆쨮??뽯퓠 ??쎈솭??됰뮸??덈뼄.'];
         }
 
         $upload = $this->fileService->uploadProfile($file);
         if (empty($upload['success'])) {
-            return ['success' => false, 'message' => $upload['message'] ?? '?袁⑥쨮?????筌왖 ??낆쨮??뽯퓠 ??쎈솭??됰뮸??덈뼄.'];
+            return ['success' => false, 'message' => $upload['message'] ?? '?⑥쨮?????筌왖 ??낆쨮??뽯퓠 ??쎈솭??됰뮸??덈뼄.'];
         }
 
         return ['success' => true, 'db_path' => $upload['db_path'] ?? ''];

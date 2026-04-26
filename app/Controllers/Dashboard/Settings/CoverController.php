@@ -1,6 +1,6 @@
 <?php
 // 寃쎈줈: PROJECT_ROOT . '/app/Controllers/Dashboard/Settings/CoverController.php'
-// ??쒕낫???ㅼ젙>湲곗큹?뺣낫愿由?而ㅻ쾭?대?吏 API 而⑦듃濡ㅻ윭
+// ??쒕낫???ㅼ젙>湲곗큹?뺣낫愿由?而ㅻ쾭?대?吏 API 而⑦롤러
 namespace App\Controllers\Dashboard\Settings;
 
 use Core\DbPdo;
@@ -54,7 +54,7 @@ class CoverController
         $id = $_GET['id'] ?? $_POST['id'] ?? null;
 
         if (!$id) {
-            echo json_encode(['success'=>false,'message'=>'ID ?꾨씫'], JSON_UNESCAPED_UNICODE);
+            echo json_encode(['success'=>false,'message'=>'ID ?락'], JSON_UNESCAPED_UNICODE);
             return;
         }
 
@@ -95,7 +95,7 @@ class CoverController
         $id = $_POST['id'] ?? $input['id'] ?? null;
 
         if (!$id) {
-            echo json_encode(['success'=>false,'message'=>'ID ?꾨씫'], JSON_UNESCAPED_UNICODE);
+            echo json_encode(['success'=>false,'message'=>'ID ?락'], JSON_UNESCAPED_UNICODE);
             return;
         }
 
@@ -125,7 +125,7 @@ class CoverController
         $id = $_POST['id'] ?? $input['id'] ?? null;
 
         if (!$id) {
-            echo json_encode(['success'=>false,'message'=>'ID ?꾨씫'], JSON_UNESCAPED_UNICODE);
+            echo json_encode(['success'=>false,'message'=>'ID ?락'], JSON_UNESCAPED_UNICODE);
             return;
         }
 
@@ -147,7 +147,7 @@ class CoverController
     }
 
     /* ============================================================
-       ?꾩껜 蹂듭썝
+       ?체 복원
     ============================================================ */
     public function apiRestoreAll()
     {
@@ -167,7 +167,7 @@ class CoverController
         $id = $_POST['id'] ?? $input['id'] ?? null;
 
         if (!$id) {
-            echo json_encode(['success'=>false,'message'=>'ID ?꾨씫'], JSON_UNESCAPED_UNICODE);
+            echo json_encode(['success'=>false,'message'=>'ID ?락'], JSON_UNESCAPED_UNICODE);
             return;
         }
 
@@ -189,7 +189,7 @@ class CoverController
     }
 
     /* ============================================================
-       ?곴뎄??젣 ?꾩껜
+       ?구?? ?체
     ============================================================ */
     public function apiPurgeAll()
     {

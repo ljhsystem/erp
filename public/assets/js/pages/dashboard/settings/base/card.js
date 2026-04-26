@@ -36,12 +36,10 @@ window.AdminPicker = AdminPicker;
         card_name: { label: '카드명', visible: true, width: '180px' },
         client_name: { label: '카드사', visible: true, width: '150px' },
         card_number: { label: '카드번호', visible: true, width: '170px' },
-        card_type: { label: '카드유형', visible: true, width: '110px' },
         account_name: { label: '결제계좌', visible: true, width: '170px' },
         account_id: { label: '계좌ID', visible: false, width: '220px' },
         expiry_year: { label: '유효기간(년)', visible: false, width: '110px', className: 'text-center' },
         expiry_month: { label: '유효기간(월)', visible: false, width: '110px', className: 'text-center' },
-        currency: { label: '통화', visible: true, width: '80px', className: 'text-center' },
         limit_amount: { label: '한도금액', visible: true, width: '130px', className: 'text-end' },
         card_file: { label: '카드이미지', visible: false, width: '120px', className: 'text-center' },
         note: { label: '비고', visible: true, width: '200px' },
@@ -59,12 +57,6 @@ window.AdminPicker = AdminPicker;
         { value: 'created_at', label: '등록일자' },
         { value: 'updated_at', label: '수정일자' }
     ];
-
-    const CARD_TYPE_LABELS = {
-        corporate: '법인카드',
-        personal: '개인카드',
-        virtual: '가상카드'
-    };
 
     let cardTable = null;
     let cardModal = null;
@@ -147,14 +139,10 @@ window.AdminPicker = AdminPicker;
         AdminPicker.clearSelect2('#cardClientSelect', true);
         AdminPicker.clearSelect2('#cardAccountSelect', true);
 
-        const currencyEl = form?.querySelector('[name="currency"]');
         const activeEl = form?.querySelector('[name="is_active"]');
-        const cardTypeEl = form?.querySelector('[name="card_type"]');
         const deleteFileEl = getDeleteCardFileEl();
 
-        if (currencyEl) currencyEl.value = 'KRW';
         if (activeEl) activeEl.value = '1';
-        if (cardTypeEl) cardTypeEl.value = 'corporate';
         if (deleteFileEl) deleteFileEl.value = '0';
 
         resetCardImageUI();
@@ -182,7 +170,7 @@ window.AdminPicker = AdminPicker;
 
         document.addEventListener('input', (e) => {
             const input = e.target;
-            if (!input?.matches?.('[name="expiry_year"], [name="expiry_month"], [data-format="currency"]')) return;
+            if (!input?.matches?.('[name="expiry_year"], [name="expiry_month"]')) return;
 
             if (input.name === 'expiry_year') {
                 input.value = String(input.value || '').replace(/\D/g, '').slice(0, 4);
@@ -192,9 +180,6 @@ window.AdminPicker = AdminPicker;
                 input.value = String(input.value || '').replace(/\D/g, '').slice(0, 2);
             }
 
-            if (input.dataset.format === 'currency') {
-                input.value = String(input.value || '').replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 3);
-            }
         });
     }
 
@@ -370,7 +355,17 @@ window.AdminPicker = AdminPicker;
             bindTableHighlight('#card-table', cardTable);
         }
 
-        bindRowReorder(cardTable, { api: API.REORDER });
+        bindRowReorder(cardTable, {
+            api: API.REORDER,
+            onSuccess() {
+                AppCore?.notify?.('success', '카드 순번이 저장되었습니다.');
+                cardTable?.ajax.reload(null, false);
+            },
+            onError(json) {
+                AppCore?.notify?.('error', json?.message || '카드 순번 저장에 실패했습니다.');
+                cardTable?.ajax.reload(null, false);
+            }
+        });
     }
 
     function openTrashModal() {
@@ -406,11 +401,6 @@ window.AdminPicker = AdminPicker;
             if (filter?.field === 'is_active') {
                 const value = normalizeActiveValue(filter.value);
                 return value === '' ? null : { field: 'is_active', value };
-            }
-
-            if (filter?.field === 'card_type') {
-                const value = normalizeCardTypeValue(filter.value);
-                return value === '' ? filter : { field: 'card_type', value };
             }
 
             return filter;
@@ -460,17 +450,6 @@ window.AdminPicker = AdminPicker;
             }
         });
 
-        $('#card-table tbody').on('click', 'td', function () {
-            const cell = cardTable.cell(this);
-            const value = cell.data();
-            const colIndex = cell.index().column;
-            const field = cardTable.column(colIndex).dataSrc();
-            if (!field) return;
-
-            const $first = $('.search-condition').first();
-            $first.find('select').val(field);
-            $first.find('input').val(value);
-        });
     }
 
     function bindModalEvents($) {
@@ -483,7 +462,6 @@ window.AdminPicker = AdminPicker;
             const formData = new FormData(form);
             const cardName = String(formData.get('card_name') || '').trim();
             const cardNumber = String(formData.get('card_number') || '').trim();
-            const currency = String(formData.get('currency') || '').trim().toUpperCase();
             const expiryYear = String(formData.get('expiry_year') || '').trim();
             const expiryMonth = String(formData.get('expiry_month') || '').trim().padStart(2, '0');
             const limitAmountRaw = String(formData.get('limit_amount') || '').trim();
@@ -496,11 +474,6 @@ window.AdminPicker = AdminPicker;
 
             if (cardNumber && !/^[0-9-]+$/.test(cardNumber)) {
                 AppCore?.notify?.('warning', '카드번호는 숫자와 하이픈만 입력할 수 있습니다.');
-                return;
-            }
-
-            if (!/^[A-Z]{3}$/.test(currency || 'KRW')) {
-                AppCore?.notify?.('warning', '통화 코드는 3자리 영문으로 입력하세요.');
                 return;
             }
 
@@ -519,8 +492,6 @@ window.AdminPicker = AdminPicker;
                 return;
             }
 
-            formData.set('card_type', normalizeCardTypeValue(formData.get('card_type')) || 'corporate');
-            formData.set('currency', currency || 'KRW');
             formData.set('expiry_month', expiryMonth === '00' ? '' : expiryMonth);
             formData.set('limit_amount', String(limitAmount));
 
@@ -584,10 +555,6 @@ window.AdminPicker = AdminPicker;
 
             let value = data[key] ?? '';
 
-            if (key === 'card_type') {
-                value = normalizeCardTypeValue(value);
-            }
-
             if (key === 'limit_amount' && value !== '') {
                 value = formatAmount(value);
             }
@@ -598,16 +565,6 @@ window.AdminPicker = AdminPicker;
         setSelect2Initial('#cardClientSelect', data.client_id, data.client_name);
         setSelect2Initial('#cardAccountSelect', data.account_id, data.account_name);
         renderCardFile(data);
-    }
-
-    function normalizeCardTypeValue(value) {
-        const normalized = String(value ?? '').trim().toLowerCase();
-
-        if (['법인', '법인카드', 'corporate'].includes(normalized)) return 'corporate';
-        if (['개인', '개인카드', 'personal'].includes(normalized)) return 'personal';
-        if (['가상', '가상카드', 'virtual'].includes(normalized)) return 'virtual';
-
-        return normalized;
     }
 
     function setSelect2Initial(selector, id, text) {
@@ -652,10 +609,6 @@ window.AdminPicker = AdminPicker;
 
                     if (field === 'limit_amount') {
                         return formatAmount(data);
-                    }
-
-                    if (field === 'card_type') {
-                        return CARD_TYPE_LABELS[normalizeCardTypeValue(data)] || data;
                     }
 
                     if (field === 'is_active') {
@@ -827,7 +780,6 @@ window.AdminPicker = AdminPicker;
                 if (value === null || value === undefined || value === '') return;
 
                 let displayValue = value;
-                if (key === 'card_type') displayValue = CARD_TYPE_LABELS[normalizeCardTypeValue(value)] || value;
                 if (key === 'is_active') displayValue = String(value) === '1' ? '사용' : '미사용';
                 if (key === 'limit_amount') displayValue = formatAmount(value);
                 if (key === 'card_file') displayValue = value ? '등록됨' : '';
@@ -846,9 +798,7 @@ window.AdminPicker = AdminPicker;
                 <td>${row.card_name ?? ''}</td>
                 <td>${row.client_name ?? ''}</td>
                 <td>${row.card_number ?? ''}</td>
-                <td>${CARD_TYPE_LABELS[normalizeCardTypeValue(row.card_type)] || row.card_type || ''}</td>
                 <td>${row.account_name ?? ''}</td>
-                <td>${row.currency ?? ''}</td>
                 <td>${String(row.is_active) === '1' ? '사용' : '미사용'}</td>
                 <td>${row.deleted_at ?? ''}</td>
                 <td>${row.deleted_by_name ?? row.deleted_by ?? ''}</td>

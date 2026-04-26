@@ -15,7 +15,7 @@
 
                 <div class="modal-body">
                     <input type="hidden" name="id" id="modal_account_id">
-                    <input type="hidden" name="sub_policies" id="modal_sub_policies">
+                    <input type="hidden" name="sub_policies" id="modal_sub_policies" value="[]">
                     <input type="hidden" name="allow_sub_account" id="modal_allow_sub_account" value="0">
 
                     <ul class="nav nav-tabs mb-3" id="accountModalTabs" role="tablist">
@@ -26,7 +26,7 @@
                                     data-bs-target="#account-basic-pane"
                                     type="button"
                                     role="tab">
-                                기본 정보
+                                기본정보
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
@@ -44,10 +44,10 @@
                     <div class="tab-content" id="accountModalTabContent">
                         <div class="tab-pane fade show active" id="account-basic-pane" role="tabpanel">
                             <div class="card mb-3">
-                                <div class="card-header py-1 px-2">기본 정보</div>
+                                <div class="card-header py-1 px-2">기본정보</div>
                                 <div class="card-body py-2">
                                     <div class="row g-2">
-                                        <div class="col-md-2">
+                                        <div class="col-md-3">
                                             <label class="form-label" for="modal_sort_no">순번</label>
                                             <input type="text"
                                                    name="sort_no"
@@ -58,7 +58,7 @@
                                         </div>
 
                                         <div class="col-md-3">
-                                            <label class="form-label" for="modal_account_code">계정코드</label>
+                                            <label class="form-label" for="modal_account_code">계정코드 <span class="text-danger">*</span></label>
                                             <input type="text"
                                                    name="account_code"
                                                    id="modal_account_code"
@@ -66,29 +66,20 @@
                                                    required>
                                         </div>
 
-                                        <div class="col-md-4">
-                                            <label class="form-label" for="modal_account_name">계정과목명</label>
+                                        <div class="col-md-6">
+                                            <label class="form-label" for="modal_account_name">계정과목명 <span class="text-danger">*</span></label>
                                             <input type="text"
                                                    name="account_name"
                                                    id="modal_account_name"
                                                    class="form-control form-control-sm"
                                                    required>
                                         </div>
-
-                                        <div class="col-md-3">
-                                            <label class="form-label" for="modal_allow_sub_account_label">보조계정 사용</label>
-                                            <input type="text"
-                                                   id="modal_allow_sub_account_label"
-                                                   class="form-control form-control-sm"
-                                                   value="미사용"
-                                                   readonly>
-                                        </div>
                                     </div>
                                 </div>
                             </div>
 
                             <div class="card mb-3">
-                                <div class="card-header py-1 px-2">계정 분류</div>
+                                <div class="card-header py-1 px-2">계정분류</div>
                                 <div class="card-body py-2">
                                     <div class="row g-2">
                                         <div class="col-md-5">
@@ -105,8 +96,8 @@
                                             </div>
                                         </div>
 
-                                        <div class="col-md-4">
-                                            <label class="form-label" for="modal_account_group">계정구분</label>
+                                        <div class="col-md-3">
+                                            <label class="form-label" for="modal_account_group">계정구분 <span class="text-danger">*</span></label>
                                             <select name="account_group"
                                                     id="modal_account_group"
                                                     class="form-select form-select-sm"
@@ -120,7 +111,7 @@
                                             </select>
                                         </div>
 
-                                        <div class="col-md-3">
+                                        <div class="col-md-2">
                                             <label class="form-label" for="modal_normal_balance">정상잔액</label>
                                             <select name="normal_balance"
                                                     id="modal_normal_balance"
@@ -129,12 +120,21 @@
                                                 <option value="credit">대변</option>
                                             </select>
                                         </div>
+
+                                        <div class="col-md-2">
+                                            <label class="form-label" for="modal_allow_sub_account_label">보조계정</label>
+                                            <input type="text"
+                                                   id="modal_allow_sub_account_label"
+                                                   class="form-control form-control-sm"
+                                                   value="미사용"
+                                                   readonly>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
                             <div class="card mb-3">
-                                <div class="card-header py-1 px-2">입력 설정</div>
+                                <div class="card-header py-1 px-2">입력설정</div>
                                 <div class="card-body py-2">
                                     <div class="row g-2">
                                         <div class="col-md-3">
@@ -148,7 +148,7 @@
                                         </div>
 
                                         <div class="col-md-3">
-                                            <label class="form-label" for="modal_is_active">사용여부</label>
+                                            <label class="form-label" for="modal_is_active">상태</label>
                                             <select name="is_active"
                                                     id="modal_is_active"
                                                     class="form-select form-select-sm">
@@ -169,7 +169,7 @@
                                             <textarea name="note"
                                                       id="modal_note"
                                                       class="form-control form-control-sm"
-                                                      rows="5"></textarea>
+                                                      rows="4"></textarea>
                                         </div>
 
                                         <div class="col-md-6">
@@ -177,7 +177,7 @@
                                             <textarea name="memo"
                                                       id="modal_memo"
                                                       class="form-control form-control-sm"
-                                                      rows="5"></textarea>
+                                                      rows="4"></textarea>
                                         </div>
                                     </div>
                                 </div>
@@ -201,7 +201,7 @@
                                                 <tr>
                                                     <th style="width: 26%;">유형</th>
                                                     <th style="width: 18%;">필수</th>
-                                                    <th style="width: 18%;">다중 선택</th>
+                                                    <th style="width: 18%;">다중선택</th>
                                                     <th>Custom 그룹코드</th>
                                                     <th style="width: 90px;">관리</th>
                                                 </tr>

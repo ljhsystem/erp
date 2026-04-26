@@ -1,4 +1,4 @@
-﻿// 寃쎈줈: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/organization/employees.js'
+// 寃쎈줈: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/organization/employees.js'
 
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import {
@@ -31,7 +31,7 @@ window.AdminPicker = AdminPicker;
     
         SAVE: '/api/settings/organization/employee/save',
         UPDATE_STATUS: '/api/settings/organization/employee/update-status',
-        PURGE: '/api/settings/organization/employee/purge',
+        DELETE: '/api/settings/organization/employee/delete',
         REORDER: '/api/settings/organization/employee/reorder',
     
         DEPARTMENT_LIST: '/api/settings/organization/department/list',
@@ -43,66 +43,79 @@ window.AdminPicker = AdminPicker;
        吏곸썝 而щ읆 留ㅽ븨
     ========================================================= */
     const EMPLOYEE_COLUMN_MAP = {
-        sort_no:                 { label: '?쒕쾲', visible: true },
-        profile_image:        { label: '?ъ쭊', visible: true },
-        username:             { label: '?꾩씠??, visible: true },
-        employee_name:        { label: '吏곸썝紐?, visible: true },
-        role_name:            { label: '??븷', visible: true },
+        sort_no:                  { label: '\uC21C\uBC88', visible: true },
+        user_sort_no:             { label: '\uACC4\uC815\uC21C\uBC88', visible: false },
+        user_id:                  { label: '\uC0AC\uC6A9\uC790ID', visible: false },
+        profile_image:            { label: '\uC0AC\uC9C4', visible: true },
+        username:                 { label: '\uC544\uC774\uB514', visible: true },
+        employee_name:            { label: '\uC9C1\uC6D0\uBA85', visible: true },
+        role_name:                { label: '\uC5ED\uD560', visible: true },
+        role_id:                  { label: '\uC5ED\uD560ID', visible: false },
 
-        department_name:      { label: '遺??, visible: false },
-        position_name:        { label: '吏곸콉', visible: false },
+        department_id:            { label: '\uBD80\uC11CID', visible: false },
+        department_name:          { label: '\uBD80\uC11C', visible: false },
+        position_id:              { label: '\uC9C1\uCC45ID', visible: false },
+        position_name:            { label: '\uC9C1\uCC45', visible: false },
 
-        approved:             { label: '?뱀씤?щ?', visible: false },
-        approved_at:          { label: '?뱀씤?쇱떆', visible: false },
-        approved_by_name:     { label: '?뱀씤??, visible: false },
+        approved:                 { label: '\uC2B9\uC778\uC5EC\uBD80', visible: false },
+        approved_at:              { label: '\uC2B9\uC778\uC77C\uC2DC', visible: false },
+        approved_by_name:         { label: '\uC2B9\uC778\uC790', visible: false },
 
-        email:                { label: '?대찓??, visible: true },
-        phone:                { label: '?곕씫泥?, visible: true },
-        emergency_phone:      { label: '鍮꾩긽?곕씫泥?, visible: false },
+        email:                    { label: '\uC774\uBA54\uC77C', visible: true },
+        phone:                    { label: '\uC5F0\uB77D\uCC98', visible: true },
+        emergency_phone:          { label: '\uBE44\uC0C1\uC5F0\uB77D\uCC98', visible: false },
 
-        two_factor_enabled:   { label: '2李⑥씤利?, visible: true },
-        email_notify:         { label: '?대찓?쇱븣由?, visible: true },
-        sms_notify:           { label: 'SMS?뚮┝', visible: false },
+        two_factor_enabled:       { label: '2\uCC28\uC778\uC99D', visible: true },
+        email_notify:             { label: '\uC774\uBA54\uC77C\uC54C\uB9BC', visible: true },
+        sms_notify:               { label: 'SMS\uC54C\uB9BC', visible: false },
 
-        rrn:                  { label: '二쇰?踰덊샇', visible: false },
-        address:              { label: '二쇱냼', visible: false },
-        address_detail:       { label: '?곸꽭二쇱냼', visible: false },
+        rrn:                      { label: '\uC8FC\uBBFC\uB4F1\uB85D\uBC88\uD638', visible: false },
+        rrn_image:                { label: '\uC2E0\uBD84\uC99D\uD30C\uC77C', visible: false },
+        address:                  { label: '\uC8FC\uC18C', visible: false },
+        address_detail:           { label: '\uC0C1\uC138\uC8FC\uC18C', visible: false },
 
-        doc_hire_date:        { label: '?쒕쪟?낆궗??, visible: false },
-        real_hire_date:       { label: '?ㅼ엯?ъ씪', visible: false },
-        doc_retire_date:      { label: '?쒕쪟?댁궗??, visible: false },
-        real_retire_date:     { label: '?ㅽ눜?ъ씪', visible: false },
+        doc_hire_date:            { label: '\uC11C\uB958\uC785\uC0AC\uC77C', visible: false },
+        real_hire_date:           { label: '\uC2E4\uC785\uC0AC\uC77C', visible: false },
+        doc_retire_date:          { label: '\uC11C\uB958\uD1F4\uC0AC\uC77C', visible: false },
+        real_retire_date:         { label: '\uC2E4\uD1F4\uC0AC\uC77C', visible: false },
 
-        login_fail_count:     { label: '濡쒓렇?몄떎?⑦슏??, visible: false },
-        account_locked_until: { label: '?좉툑留뚮즺?쇱떆', visible: false },
+        login_fail_count:         { label: '\uB85C\uADF8\uC778\uC2E4\uD328\uD69F\uC218', visible: false },
+        account_locked_until:     { label: '\uC7A0\uAE08\uB9CC\uB8CC\uC77C\uC2DC', visible: false },
 
-        last_login:           { label: '留덉?留됰줈洹몄씤', visible: true },
-        last_login_ip:        { label: '濡쒓렇?퇙P', visible: false },
-        last_login_device:    { label: '濡쒓렇?몃뵒諛붿씠??, visible: false },
+        last_login:               { label: '\uB9C8\uC9C0\uB9C9\uB85C\uADF8\uC778', visible: true },
+        last_login_ip:            { label: '\uB85C\uADF8\uC778IP', visible: false },
+        last_login_device:        { label: '\uB85C\uADF8\uC778\uB514\uBC14\uC774\uC2A4', visible: false },
 
-        password_updated_at:  { label: '鍮꾨?踰덊샇蹂寃쎌씪', visible: false },
-        password_updated_by_name: { label: '鍮꾨?踰덊샇蹂寃쎌옄', visible: false },
+        password_updated_at:      { label: '\uBE44\uBC00\uBC88\uD638\uBCC0\uACBD\uC77C', visible: false },
+        password_updated_by_name: { label: '\uBE44\uBC00\uBC88\uD638\uBCC0\uACBD\uC790', visible: false },
 
-        note:                 { label: '鍮꾧퀬', visible: false },
-        memo:                 { label: '硫붾え', visible: false },
+        certificate_name:         { label: '\uC790\uACA9\uC99D\uBA85', visible: false },
+        certificate_file:         { label: '\uC790\uACA9\uC99D\uD30C\uC77C', visible: false },
+        bank_name:                { label: '\uC740\uD589\uBA85', visible: false },
+        account_number:           { label: '\uACC4\uC88C\uBC88\uD638', visible: false },
+        account_holder:           { label: '\uC608\uAE08\uC8FC', visible: false },
+        bank_file:                { label: '\uD1B5\uC7A5\uC0AC\uBCF8', visible: false },
 
-        user_created_at:      { label: '?앹꽦?쇱떆', visible: false },
-        user_created_by_name: { label: '?앹꽦??, visible: false },
-        user_updated_at:      { label: '?섏젙?쇱떆', visible: false },
-        user_updated_by_name: { label: '?섏젙??, visible: false },
+        note:                     { label: '\uBE44\uACE0', visible: false },
+        memo:                     { label: '\uBA54\uBAA8', visible: false },
 
-        deleted_at:           { label: '鍮꾪솢?깊솕?쇱떆', visible: false },
-        deleted_by_name:      { label: '鍮꾪솢?깊솕泥섎━??, visible: false },
+        user_created_at:          { label: '\uC0DD\uC131\uC77C\uC2DC', visible: false },
+        user_created_by_name:     { label: '\uC0DD\uC131\uC790', visible: false },
+        user_updated_at:          { label: '\uC218\uC815\uC77C\uC2DC', visible: false },
+        user_updated_by_name:     { label: '\uC218\uC815\uC790', visible: false },
 
-        is_active:            { label: '?곹깭', visible: true, noVis: true }
+        deleted_at:               { label: '\uBE44\uD65C\uC131\uD654\uC77C\uC2DC', visible: false },
+        deleted_by_name:          { label: '\uBE44\uD65C\uC131\uD654\uCC98\uB9AC\uC790', visible: false },
+
+        is_active:                { label: '\uC0C1\uD0DC', visible: true, noVis: true }
     };
 
     const DATE_OPTIONS = [
-        { value: 'user_created_at', label: '?깅줉?쇱옄' },
-        { value: 'last_login', label: '留덉?留?濡쒓렇?? },
-        { value: 'real_hire_date', label: '?낆궗?? },
-        { value: 'real_retire_date', label: '?댁궗?? },
-        { value: 'deleted_at', label: '鍮꾪솢?깊솕?? }
+        { value: 'user_created_at', label: '\uB4F1\uB85D\uC77C\uC790' },
+        { value: 'last_login', label: '\uB9C8\uC9C0\uB9C9 \uB85C\uADF8\uC778' },
+        { value: 'real_hire_date', label: '\uC785\uC0AC\uC77C' },
+        { value: 'real_retire_date', label: '\uD1F4\uC0AC\uC77C' },
+        { value: 'deleted_at', label: '\uBE44\uD65C\uC131\uD654\uC77C' }
     ];
 
     let employeeTable = null;
@@ -133,11 +146,19 @@ window.AdminPicker = AdminPicker;
         initModals();
         initAdminDatePicker();
         bindAdminDateInputs();
+        bindDateIconPicker();
 
         initDataTable($);
-
         bindRowReorder(employeeTable, {
-            api: API.REORDER
+            api: API.REORDER,
+            onSuccess() {
+                AppCore.notify('success', '직원 순번이 저장되었습니다.');
+                employeeTable?.ajax.reload(null, false);
+            },
+            onError(json) {
+                AppCore.notify('error', json?.message || '직원 순번 저장에 실패했습니다.');
+                employeeTable?.ajax.reload(null, false);
+            }
         });
 
         bindTableEvents($);
@@ -218,57 +239,93 @@ window.AdminPicker = AdminPicker;
     }
 
     function bindAdminDateInputs() {
-        document.querySelectorAll('.admin-date').forEach(input => {
-            input.addEventListener('click', e => {
-                e.preventDefault();
-                e.stopPropagation();
+        document.querySelectorAll('#employeeEditModal .admin-date').forEach(input => {
+            if (input.dataset.dateInputBound === '1') return;
+            input.dataset.dateInputBound = '1';
 
-                const picker = initAdminDatePicker();
-                if (!picker) return;
+            input.addEventListener('input', () => {
+                input.value = formatDateInputValue(input.value);
+            });
 
-                picker.__target = input;
-
-                if (typeof picker.clearDate === 'function') {
-                    picker.clearDate();
-                }
-
-                const v = input.value;
-                if (v) {
-                    const d = new Date(v);
-                    if (!isNaN(d)) picker.setDate(d);
-                }
-
-                picker.open({ anchor: input });
+            input.addEventListener('blur', () => {
+                input.value = normalizeDateInputValue(input.value);
             });
         });
+    }
 
-        document.querySelectorAll('.date-icon').forEach(icon => {
-            icon.addEventListener('click', e => {
-                e.preventDefault();
-                e.stopPropagation();
+    function bindDateIconPicker() {
+        if (document.__employeeDateIconPickerBound) return;
+        document.__employeeDateIconPickerBound = true;
 
-                const wrap = icon.closest('.date-input, .date-input-wrap');
-                const input = wrap ? wrap.querySelector('input') : null;
-                if (!input) return;
+        document.addEventListener('click', function (e) {
+            const icon = e.target.closest('.date-icon');
+            if (!icon) return;
+            if (!icon.closest('#employeeEditModal')) return;
 
-                const picker = initAdminDatePicker();
-                if (!picker) return;
+            const wrap = icon.closest('.date-input, .date-input-wrap');
+            const input = wrap ? wrap.querySelector('input.admin-date, input[name="dateStart"], input[name="dateEnd"]') : null;
+            if (!input) return;
 
-                picker.__target = input;
+            e.preventDefault();
+            e.stopPropagation();
+            openDatePickerForInput(input);
+        }, true);
+    }
 
-                if (typeof picker.clearDate === 'function') {
-                    picker.clearDate();
-                }
+    function openDatePickerForInput(input) {
+        const picker = initAdminDatePicker();
+        if (!picker) return;
 
-                const v = input.value;
-                if (v) {
-                    const d = new Date(v);
-                    if (!isNaN(d)) picker.setDate(d);
-                }
+        picker.__target = input;
 
-                picker.open({ anchor: input });
-            });
+        if (typeof picker.clearDate === 'function') {
+            picker.clearDate();
+        }
+
+        input.value = normalizeDateInputValue(input.value);
+
+        if (/^\d{4}-\d{2}-\d{2}$/.test(input.value)) {
+            const date = new Date(input.value);
+            if (!Number.isNaN(date.getTime())) {
+                picker.setDate(date);
+            }
+        }
+
+        picker.open({
+            anchor: input
         });
+    }
+
+    function formatDateInputValue(value) {
+        const digits = String(value || '').replace(/\D/g, '').slice(0, 8);
+
+        if (digits.length <= 4) return digits;
+        if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+
+        return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
+    }
+
+    function normalizeDateInputValue(value) {
+        const formatted = formatDateInputValue(value);
+        const match = formatted.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+        if (!match) return formatted;
+
+        const year = Number(match[1]);
+        const month = Number(match[2]);
+        const day = Number(match[3]);
+        const date = new Date(year, month - 1, day);
+
+        if (
+            date.getFullYear() !== year ||
+            date.getMonth() !== month - 1 ||
+            date.getDate() !== day
+        ) {
+            AppCore.notify('warning', '올바른 날짜를 입력하세요.');
+            return '';
+        }
+
+        return formatted;
     }
 
     function formatDate(date) {
@@ -311,7 +368,7 @@ window.AdminPicker = AdminPicker;
             pageLength: 10,
             buttons: [
                 {
-                    text: '??吏곸썝 異붽?',
+                    text: '\uC0C8 \uC9C1\uC6D0',
                     className: 'btn btn-primary btn-sm',
                     action: function () {
                         $(document).trigger('employee:create-open');
@@ -345,11 +402,13 @@ window.AdminPicker = AdminPicker;
 
         columns.push({
             title: '<i class="bi bi-arrows-move"></i>',
-            className: 'reorder-handle no-colvis text-center',
+            className: 'reorder-handle no-sort no-colvis text-center',
             orderable: false,
             searchable: false,
-            render: () => '<i class="bi bi-list"></i>'
+            defaultContent: '<i class="bi bi-list"></i>'
         });
+
+
 
         Object.entries(EMPLOYEE_COLUMN_MAP).forEach(([field, config]) => {
             columns.push({
@@ -367,15 +426,11 @@ window.AdminPicker = AdminPicker;
 
                     if (field === 'profile_image') {
                         const src = resolveFileSrc(data, '/public/assets/img/default-avatar.png');
-                        return `
-                            <img src="${src}"
-                                 class="employee-img-preview"
-                                 style="width:40px;height:40px;border-radius:6px;object-fit:cover;cursor:pointer;">
-                        `;
+                        return '<img src="' + escapeHtml(src) + '" class="employee-img-preview" style="width:40px;height:40px;border-radius:6px;object-fit:cover;cursor:pointer;">';
                     }
 
                     if (field === 'approved') {
-                        return String(data) === '1' ? '?뱀씤' : '誘몄듅??;
+                        return String(data) === '1' ? '\uC2B9\uC778' : '\uBBF8\uC2B9\uC778';
                     }
 
                     if (
@@ -388,8 +443,8 @@ window.AdminPicker = AdminPicker;
 
                     if (field === 'is_active') {
                         return String(data) === '1'
-                            ? '<span class="badge bg-success">?쒖꽦</span>'
-                            : '<span class="badge bg-secondary">鍮꾪솢??/span>';
+                            ? '<span class="badge bg-success">\uC0AC\uC6A9</span>'
+                            : '<span class="badge bg-secondary">\uBBF8\uC0AC\uC6A9</span>';
                     }
 
                     if (field === 'phone') {
@@ -422,12 +477,12 @@ window.AdminPicker = AdminPicker;
     function updateEmployeeCount(count) {
         const el = document.getElementById('employeeCount');
         if (el) {
-            el.textContent = `珥?${count ?? 0}紐?;
+            el.textContent = '\uCD1D ' + (count ?? 0) + '\uBA85';
         }
     }
 
     /* =========================================================
-       ?뚯씠釉??대깽??
+       테이블 이벤트
     ========================================================= */
     function bindTableEvents($) {
         $('#employee-table tbody')
@@ -437,7 +492,7 @@ window.AdminPicker = AdminPicker;
 
                 const src = $(this).attr('src');
                 if (!src) {
-                    AppCore.notify('warning', '?대?吏媛 ?놁뒿?덈떎.');
+                    AppCore.notify('warning', '대상이 없습니다.');
                     return;
                 }
 
@@ -453,34 +508,84 @@ window.AdminPicker = AdminPicker;
 
                 $(document).trigger('employee:edit-open', [data]);
             });
-
-        $('#employee-table tbody')
-            .off('click.employeeCellSearch', 'td')
-            .on('click.employeeCellSearch', 'td', function () {
-                const cell = employeeTable.cell(this);
-                const idx = cell.index();
-                if (!idx) return;
-
-                const value = cell.data();
-                const field = employeeTable.column(idx.column).dataSrc();
-                if (!field || field === 'profile_image') return;
-
-                const $first = $('.search-condition').first();
-                $first.find('select').val(field);
-                $first.find('input').val(
-                    typeof value === 'string' ? value.replace(/<[^>]*>/g, '') : value
-                );
-            });
     }
 
     /* =========================================================
-       怨듯넻 ?덉씠?꾩썐
+       공통 레이아웃
     ========================================================= */
     
 
     /* =========================================================
-       ?꾩뿭 踰꾪듉
+       ?역 버튼
     ========================================================= */
+    function bindModalEvents($) {
+        $(document)
+            .off('submit.employeeSave', '#employee-edit-form')
+            .on('submit.employeeSave', '#employee-edit-form', function (e) {
+                e.preventDefault();
+                saveEmployee();
+            });
+    }
+
+    async function saveEmployee() {
+        const form = document.getElementById('employee-edit-form');
+        if (!form) return;
+
+        const id = $('#edit_employee_id').val();
+        const name = String($('#edit_employee_name').val() || '').trim();
+        const username = String($('#edit_employee_username').val() || '').trim();
+
+        if (!username || !name) {
+            AppCore.notify('warning', '아이디와 이름을 입력하세요.');
+            return;
+        }
+
+        const certName = String($('#edit_certificate_name').val() || '').trim();
+        const certFile = document.getElementById('edit_certificate_file')?.files?.[0];
+        const hasExistingCert = !!$('#edit_cert_preview_img').data('file-path');
+        const certDeleted = $('#edit_certificate_file_delete').val() === '1';
+
+        if ((certName && !certFile && !hasExistingCert) || (!certName && (certFile || hasExistingCert) && !certDeleted)) {
+            AppCore.notify('warning', '자격증 이름과 파일은 함께 입력해야 합니다.');
+            return;
+        }
+
+        const formData = new FormData(form);
+        formData.set('action', id ? 'update' : 'create');
+
+        const rrnReal = onlyNumber($('#edit_employee_rrn').data('real') || $('#edit_employee_rrn').val() || '');
+        formData.set('rrn', rrnReal);
+        formData.set('two_factor_enabled', $('#edit_two_factor').is(':checked') ? '1' : '0');
+        formData.set('email_notify', $('#edit_email_notify').is(':checked') ? '1' : '0');
+        formData.set('sms_notify', $('#edit_sms_notify').is(':checked') ? '1' : '0');
+
+        try {
+            const res = await fetch(API.SAVE, {
+                method: 'POST',
+                body: formData,
+                credentials: 'include'
+            });
+            const json = await res.json();
+
+            if (json.success) {
+                employeeEditModal?.hide();
+                employeeTable?.ajax.reload(null, false);
+                AppCore.notify('success', '저장 완료');
+                return;
+            }
+
+            if (json.errors && Array.isArray(json.errors) && json.errors.length > 0) {
+                AppCore.notify('error', json.errors.join('\n'));
+                return;
+            }
+
+            AppCore.notify('error', json.message || '저장 실패');
+        } catch (err) {
+            console.error(err);
+            AppCore.notify('error', '저장 실패');
+        }
+    }
+
     function bindGlobalButtons($) {
         $(document)
             .off('click.employeeCreateBtn', '#create-employee-btn')
@@ -495,16 +600,16 @@ window.AdminPicker = AdminPicker;
                 const mode = $(this).attr('data-mode');
 
                 if (!id) {
-                    AppCore.notify('warning', '??곸씠 ?놁뒿?덈떎.');
+                    AppCore.notify('warning', '대상이 없습니다.');
                     return;
                 }
 
                 if (mode === 'deactivate') {
-                    if (!confirm('怨꾩젙??鍮꾪솢?깊솕 ?섏떆寃좎뒿?덇퉴?')) return;
+                    if (!confirm('계정을 비활성화하시겠습니까?')) return;
                 } else if (mode === 'activate') {
-                    if (!confirm('怨꾩젙???쒖꽦???섏떆寃좎뒿?덇퉴?')) return;
+                    if (!confirm('계정을 활성화하시겠습니까?')) return;
                 } else {
-                    AppCore.notify('error', '?섎せ??泥섎━ 紐⑤뱶?낅땲??');
+                    AppCore.notify('error', '잘못된 처리 모드입니다.');
                     return;
                 }
 
@@ -513,29 +618,19 @@ window.AdminPicker = AdminPicker;
                 fd.append('is_active', mode === 'activate' ? '1' : '0');
 
                 try {
-                    const res = await fetch(API.UPDATE_STATUS, {
-                        method: 'POST',
-                        body: fd
-                    });
-
+                    const res = await fetch(API.UPDATE_STATUS, { method: 'POST', body: fd, credentials: 'include' });
                     const json = await res.json();
 
                     if (json.success) {
                         employeeEditModal?.hide();
                         employeeTable?.ajax.reload(null, false);
-
-                        AppCore.notify(
-                            'success',
-                            mode === 'deactivate'
-                                ? '怨꾩젙??鍮꾪솢?깊솕?섏뿀?듬땲??'
-                                : '怨꾩젙???쒖꽦?붾릺?덉뒿?덈떎.'
-                        );
+                        AppCore.notify('success', mode === 'deactivate' ? '계정이 비활성화되었습니다.' : '계정이 활성화되었습니다.');
                     } else {
-                        AppCore.notify('error', json.message || '泥섎━ ?ㅽ뙣');
+                        AppCore.notify('error', json.message || '처리 실패');
                     }
                 } catch (err) {
                     console.error(err);
-                    AppCore.notify('error', '泥섎━ 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.');
+                    AppCore.notify('error', '처리 중 오류가 발생했습니다.');
                 }
             });
 
@@ -545,46 +640,39 @@ window.AdminPicker = AdminPicker;
                 const id = $('#edit_employee_id').val();
 
                 if (!id) {
-                    AppCore.notify('warning', '??곸씠 ?놁뒿?덈떎.');
+                    AppCore.notify('warning', '대상이 없습니다.');
                     return;
                 }
 
-                if (!confirm('?뺣쭚 ?곴뎄 ??젣?섏떆寃좎뒿?덇퉴?')) return;
+                if (!confirm('정말 영구 삭제하시겠습니까?')) return;
 
                 const fd = new FormData();
                 fd.append('id', id);
                 fd.append('action', 'delete');
 
                 try {
-                    const res = await fetch(API.PURGE, {
-                        method: 'POST',
-                        body: fd
-                    });
-
+                    const res = await fetch(API.DELETE, { method: 'POST', body: fd, credentials: 'include' });
                     const json = await res.json();
 
                     if (json.success) {
                         employeeEditModal?.hide();
                         employeeTable?.ajax.reload(null, false);
-                        AppCore.notify('success', '??젣 ?꾨즺');
+                        AppCore.notify('success', '삭제 완료');
                     } else {
-                        AppCore.notify('error', json.message || '?ㅽ뙣');
+                        AppCore.notify('error', json.message || '삭제 실패');
                     }
                 } catch (err) {
                     console.error(err);
-                    AppCore.notify('error', '??젣 ?ㅽ뙣');
+                    AppCore.notify('error', '삭제 실패');
                 }
             });
     }
 
-    /* =========================================================
-       紐⑤떖 釉뚮━吏
-    ========================================================= */
     function bindModalBridge($) {
         $(document)
             .off('employee:create-open.employees')
-            .on('employee:create-open.employees', function () {
-                resetEmployeeFormForCreate();
+            .on('employee:create-open.employees', async function () {
+                await resetEmployeeFormForCreate();
                 employeeEditModal?.show();
             });
 
@@ -596,39 +684,43 @@ window.AdminPicker = AdminPicker;
             });
     }
 
-    function resetEmployeeFormForCreate() {
+    async function resetEmployeeFormForCreate() {
         const form = document.getElementById('employee-edit-form');
         form?.reset();
-    
-        $('#employeeModalTitle').html('<i class="bi bi-person-plus"></i> ??吏곸썝 異붽?');
-    
-        $('#edit_employee_id').val('');
-        $('#edit_employee_sort_no').val('');
 
-        AdminPicker.clearSelect2('#edit_department_select', true);
-        AdminPicker.clearSelect2('#edit_position_select', true);
-        AdminPicker.clearSelect2('#edit_role_select', true);
+        $('#employeeModalTitle').html('<i class="bi bi-person-plus"></i> 새 직원 추가');
+        $('#edit_employee_id').val('');
+        setRrnField('');
+
+        await Promise.all([
+            loadSelectOptions('#edit_department_select', API.DEPARTMENT_LIST, ''),
+            loadSelectOptions('#edit_position_select', API.POSITION_LIST, ''),
+            loadSelectOptions('#edit_role_select', API.ROLE_LIST, '')
+        ]);
 
         $('#edit_profile_preview').attr('src', '/public/assets/img/default-avatar.png');
         $('#edit_profile_delete_btn').hide();
         $('#edit_profile_image_delete').val('0');
-        $('#profile_box').attr('data-label', '?낅줈??);
+        $('#profile_box').attr('data-label', '\uC5C5\uB85C\uB4DC');
 
         $('#edit_id_preview').attr('src', '/public/assets/img/placeholder-id.png');
         $('#edit_id_delete_btn').hide();
         $('#edit_rrn_image_delete').val('0');
-        $('#id_box').attr('data-label', '?낅줈??);
+        $('#id_box').attr('data-label', '\uC5C5\uB85C\uB4DC');
 
-        $('#edit_cert_preview_img')
-            .attr('src', '/public/assets/img/placeholder-cert.png')
-            .data('file-path', '');
+        $('#edit_cert_preview_img').attr('src', '/public/assets/img/placeholder-cert.png').data('file-path', '');
         $('#edit_cert_delete_btn').hide();
         $('#edit_certificate_file_delete').val('0');
         $('#edit_certificate_name').val('');
-        $('#cert_box').attr('data-label', '?낅줈??);
+        $('#cert_box').attr('data-label', '\uC5C5\uB85C\uB4DC');
+
+        $('#edit_bank_preview').attr('src', '/public/assets/img/placeholder-bank.png').data('file-path', '');
+        $('#edit_bank_delete_btn').hide();
+        $('#edit_bank_file_delete').val('0');
+        $('#bank_box').attr('data-label', '\uC5C5\uB85C\uB4DC');
 
         $('#edit_soft_delete_btn')
-            .text('怨꾩젙 鍮꾪솢?깊솕')
+            .text('계정 비활성화')
             .removeClass('btn-success')
             .addClass('btn-warning')
             .attr('data-mode', 'deactivate')
@@ -636,126 +728,12 @@ window.AdminPicker = AdminPicker;
 
         $('#employeeEditSubmitBtn').show();
         $('#edit_force_delete_btn').hide();
-
-        $('#edit_is_active').html('');
-        $('#edit_created_at').text('-');
-        $('#edit_created_by').text('-');
-        $('#edit_approved').text('-');
-        $('#edit_approved_at').text('-');
-        $('#edit_approved_by').text('-');
-        $('#edit_last_login').text('-');
-        $('#edit_last_login_ip').html('-');
-        $('#edit_last_login_device').text('-');
-        $('#edit_updated_at').text('-');
-        $('#edit_updated_by').text('-');
-        $('#edit_password_updated_at').text('-');
-        $('#edit_password_updated_by').text('-');
-        $('#edit_deleted_at').text('-');
-        $('#edit_deleted_by').text('-');
-
-        rrnVisible = false;
-        $('#edit_employee_rrn')
-            .attr('type', 'text')
-            .val('')
-            .data('real', '');
-
-        $('#employeeEditModal .nav-link').removeClass('active');
-        $('#employeeEditModal .tab-pane').removeClass('show active');
-        $('#employeeEditModal .nav-link:first').addClass('active');
-        $('#employeeEditModal .tab-pane:first').addClass('show active');
     }
 
-    /* =========================================================
-       ???
-    ========================================================= */
-    function bindModalEvents($) {
-        $(document)
-            .off('submit.employeeModal', '#employee-edit-form')
-            .on('submit.employeeModal', '#employee-edit-form', function (e) {
-                e.preventDefault();
-
-                const formData = new FormData(this);
-
-                // ??異붽? (?ш린!!)
-                formData.set(
-                    'two_factor_enabled',
-                    document.getElementById('edit_two_factor').checked ? '1' : '0'
-                );
-                
-                formData.set(
-                    'email_notify',
-                    document.getElementById('edit_email_notify').checked ? '1' : '0'
-                );
-                
-                formData.set(
-                    'sms_notify',
-                    document.getElementById('edit_sms_notify').checked ? '1' : '0'
-                );
-
-                const id = $('#edit_employee_id').val();
-
-                if (!id) {
-                    formData.set('action', 'create');
-                } else {
-                    formData.set('action', 'save');
-                    formData.set('id', id);
-                }
-
-                formData.set('phone', onlyNumber(formData.get('phone') || ''));
-                formData.set('emergency_phone', onlyNumber(formData.get('emergency_phone') || ''));
-
-                const $rrnInput = $('#edit_employee_rrn');
-                const realVal = onlyNumber($rrnInput.data('real') || '');
-                formData.set('rrn', realVal !== '' ? realVal : '');
-
-                const certName = String(formData.get('certificate_name') || '').trim();
-                const certFile = formData.get('certificate_file');
-                const hasExistingFile = !!$('#edit_cert_preview_img').data('file-path');
-                const isDeleted = $('#edit_certificate_file_delete').val() === '1';
-                const hasNewFile = certFile && certFile.name;
-
-                if (
-                    (certName && !hasNewFile && !hasExistingFile) ||
-                    (!certName && (hasNewFile || hasExistingFile) && !isDeleted)
-                ) {
-                    AppCore.notify('warning', '?먭꺽利??대쫫怨??뚯씪? ?④퍡 ?낅젰?댁빞 ?⑸땲??');
-                    return;
-                }
-
-                $.ajax({
-                    url: API.SAVE,
-                    method: 'POST',
-                    data: formData,
-                    processData: false,
-                    contentType: false
-                })
-                .done(res => {
-                    if (res.success) {
-                        employeeEditModal?.hide();
-                        employeeTable?.ajax.reload(null, false);
-                        AppCore.notify('success', '????꾨즺');
-                    } else {
-                        if (res.errors && Array.isArray(res.errors) && res.errors.length > 0) {
-                            AppCore.notify('error', res.errors.join('\n'));
-                        } else {
-                            AppCore.notify('error', res.message || '????ㅽ뙣');
-                        }
-                    }
-                })
-                .fail(err => {
-                    console.error(err);
-                    AppCore.notify('error', '????ㅽ뙣');
-                });
-            });
-    }
-
-    /* =========================================================
-       ???곗씠???명똿
-    ========================================================= */
     async function setEmployeeFormData(row) {
         if (!row) return;
 
-        $('#employeeModalTitle').html('<i class="bi bi-pencil-square"></i> 吏곸썝 ?뺣낫 ?섏젙');
+        $('#employeeModalTitle').html('<i class="bi bi-pencil-square"></i> 직원 정보 수정');
         $('#employeeEditSubmitBtn').show();
         $('#edit_soft_delete_btn').show();
         $('#edit_force_delete_btn').show();
@@ -770,139 +748,86 @@ window.AdminPicker = AdminPicker;
         $('#edit_bank_file_delete').val('0');
 
         $('#edit_employee_id').val(row.id || '');
-        $('#edit_employee_sort_no').val(row.sort_no || '');
         $('#edit_employee_username').val(row.username || '');
         $('#edit_employee_name').val(row.employee_name || '');
-        $('#edit_employee_email').val(row.email || '');
         $('#edit_employee_phone').val(formatMobile(row.phone || ''));
         $('#edit_employee_emergency_phone').val(formatPhone(row.emergency_phone || ''));
+        $('#edit_employee_email').val(row.email || '');
+        setRrnField(row.rrn || '');
         $('#edit_employee_address').val(row.address || '');
         $('#edit_employee_address_detail').val(row.address_detail || '');
-
-        rrnVisible = false;
-        $('#edit_employee_rrn')
-            .attr('type', 'text')
-            .val(maskRrn(row.rrn || ''))
-            .data('real', onlyNumber(row.rrn || ''));
-
         $('#edit_doc_hire_date').val(row.doc_hire_date || '');
         $('#edit_real_hire_date').val(row.real_hire_date || '');
         $('#edit_doc_retire_date').val(row.doc_retire_date || '');
         $('#edit_real_retire_date').val(row.real_retire_date || '');
-
-        $('#edit_certificate_name').val(row.certificate_name || '');
-
         $('#edit_bank_name').val(row.bank_name || '');
         $('#edit_account_number').val(row.account_number || '');
         $('#edit_account_holder').val(row.account_holder || '');
-
+        $('#edit_certificate_name').val(row.certificate_name || '');
+        $('#edit_employee_note').val(row.note || '');
+        $('#edit_employee_memo').val(row.memo || '');
 
         $('#edit_two_factor').prop('checked', String(row.two_factor_enabled) === '1');
         $('#edit_email_notify').prop('checked', String(row.email_notify) === '1');
         $('#edit_sms_notify').prop('checked', String(row.sms_notify) === '1');
 
-        $('#edit_employee_note').val(row.note || '');
-        $('#edit_employee_memo').val(row.memo || '');
-
         await Promise.all([
-            loadSelectOptions('#edit_department_select', API.DEPARTMENT_LIST, row.department_id, 'POST'),
-            loadSelectOptions('#edit_position_select', API.POSITION_LIST, row.position_id, 'POST'),
-            loadSelectOptions('#edit_role_select', API.ROLE_LIST, row.role_id, 'POST')
+            loadSelectOptions('#edit_department_select', API.DEPARTMENT_LIST, row.department_id || ''),
+            loadSelectOptions('#edit_position_select', API.POSITION_LIST, row.position_id || ''),
+            loadSelectOptions('#edit_role_select', API.ROLE_LIST, row.role_id || '')
         ]);
 
-        $('#edit_profile_preview')
-            .attr('src', resolveFileSrc(row.profile_image, '/public/assets/img/default-avatar.png'));
-
-        $('#edit_id_preview')
-            .attr('src', resolveFileSrc(row.rrn_image, '/public/assets/img/placeholder-id.png'));
-
-        $('#edit_cert_preview_img')
-            .attr('src', getCertPreview(row.certificate_file || ''))
-            .data('file-path', row.certificate_file || '')
-            .off('error')
-            .on('error', function () {
-                $(this).attr('src', '/public/assets/img/placeholder-cert.png');
-            });
-        
-        $('#edit_bank_preview')
-            .attr('src', getBankPreview(row.bank_file || ''))
-            .data('file-path', row.bank_file || '')
-            .off('error')
-            .on('error', function () {
-                $(this).attr('src', '/public/assets/img/placeholder-bank.png');
-            });
-        
+        const profileSrc = resolveFileSrc(row.profile_image, '/public/assets/img/default-avatar.png');
+        $('#edit_profile_preview').attr('src', profileSrc);
         $('#edit_profile_delete_btn').toggle(!!row.profile_image);
+        $('#profile_box').attr('data-label', row.profile_image ? '\uC6D0\uBCF8 \uBCF4\uAE30' : '\uC5C5\uB85C\uB4DC');
+
+        const idSrc = resolveFileSrc(row.rrn_image, '/public/assets/img/placeholder-id.png');
+        $('#edit_id_preview').attr('src', idSrc);
         $('#edit_id_delete_btn').toggle(!!row.rrn_image);
+        $('#id_box').attr('data-label', row.rrn_image ? '\uC6D0\uBCF8 \uBCF4\uAE30' : '\uC5C5\uB85C\uB4DC');
+
+        $('#edit_cert_preview_img').attr('src', getCertPreview(row.certificate_file)).data('file-path', row.certificate_file || '');
         $('#edit_cert_delete_btn').toggle(!!row.certificate_file);
+        $('#cert_box').attr('data-label', row.certificate_file ? '\uC6D0\uBCF8 \uBCF4\uAE30' : '\uC5C5\uB85C\uB4DC');
+
+        $('#edit_bank_preview').attr('src', getBankPreview(row.bank_file)).data('file-path', row.bank_file || '');
         $('#edit_bank_delete_btn').toggle(!!row.bank_file);
-        
-        $('#profile_box').attr('data-label', row.profile_image ? '?먮낯 蹂닿린' : '?낅줈??);
-        $('#id_box').attr('data-label', row.rrn_image ? '?먮낯 蹂닿린' : '?낅줈??);
-        $('#cert_box').attr('data-label', row.certificate_file ? '?먮낯 蹂닿린' : '?낅줈??);
-        $('#bank_box').attr('data-label', row.bank_file ? '?먮낯 蹂닿린' : '?낅줈??);
+        $('#bank_box').attr('data-label', row.bank_file ? '\uC6D0\uBCF8 \uBCF4\uAE30' : '\uC5C5\uB85C\uB4DC');
 
-        $('#edit_created_at').text(row.user_created_at || '-');    
-        $('#edit_created_by').text(
-            row.user_created_by_name ||
-            row.created_by_name ||
-            ''
-        );
-        $('#edit_approved').text(String(row.approved) === '1' ? '?뱀씤' : '誘몄듅??);
-        $('#edit_approved_at').text(row.approved_at || '-');
-        $('#edit_approved_by').text(
-            row.approved_by_name ||
-            row.approved_by ||
-            '-'
-        );
-
-        $('#edit_last_login').text(row.last_login || '-');
-
-        const rawIp = row.last_login_ip || '-';
-        let external = '';
-        let internal = '';
-
-        if (rawIp.includes('(')) {
-            external = rawIp.split('(')[0].trim();
-            internal = rawIp.split('(')[1].replace(')', '').trim();
-        } else {
-            external = rawIp;
-        }
-
-        $('#edit_last_login_ip').html(`
-            <div style="font-weight:600;">${external || '-'}</div>
-            <div style="font-size:12px;color:#888;">${internal}</div>
-        `);
-
-        $('#edit_last_login_device').text(row.last_login_device || '-');
-        $('#edit_updated_at').text(row.user_updated_at || '-');
-        $('#edit_updated_by').text(
-            row.user_updated_by_name ||
-            row.updated_by_name ||
-            ''
-        );
-
-        $('#edit_password_updated_at').text(row.password_updated_at || '-');
-        $('#edit_password_updated_by').text(row.password_updated_by_name || '-');
+        $('#edit_created_at').text(row.user_created_at || row.created_at || '-');
+        $('#edit_created_by').text(row.user_created_by_name || row.created_by_name || '');
+        $('#edit_updated_at').text(row.user_updated_at || row.updated_at || '-');
+        $('#edit_updated_by').text(row.user_updated_by_name || row.updated_by_name || '');
         $('#edit_deleted_at').text(row.deleted_at || '-');
         $('#edit_deleted_by').text(row.deleted_by_name || '');
+        $('#edit_approved').text(String(row.approved) === '1' ? '\uC2B9\uC778' : '\uBBF8\uC2B9\uC778');
+        $('#edit_approved_at').text(row.approved_at || '-');
+        $('#edit_approved_by').text(row.approved_by_name || '');
+        $('#edit_last_login').text(row.last_login || '-');
+        $('#edit_login_fail_count').text(row.login_fail_count || '0');
+        $('#edit_account_locked_until').text(row.account_locked_until || '-');
+        $('#edit_last_login_ip').html('<div style="font-weight:600;">' + escapeHtml(row.last_login_ip || '-') + '</div>');
+        $('#edit_last_login_device').text(row.last_login_device || '-');
+        $('#edit_password_updated_at').text(row.password_updated_at || '-');
+        $('#edit_password_updated_by').text(row.password_updated_by_name || '');
 
         $('#edit_is_active').html(
             String(row.is_active) === '1'
-                ? '<span class="badge bg-success">?쒖꽦</span>'
-                : '<span class="badge bg-secondary">鍮꾪솢??/span>'
+                ? '<span class="badge bg-success">\uC0AC\uC6A9</span>'
+                : '<span class="badge bg-secondary">\uBBF8\uC0AC\uC6A9</span>'
         );
 
         const $btnDeactivate = $('#edit_soft_delete_btn');
         if (String(row.is_active) === '1') {
             $btnDeactivate
-                .text('怨꾩젙 鍮꾪솢?깊솕')
+                .text('계정 비활성화')
                 .removeClass('btn-success')
                 .addClass('btn-warning')
                 .attr('data-mode', 'deactivate');
         } else {
             $btnDeactivate
-                .text('怨꾩젙 ?쒖꽦??)
+                .text('\uACC4\uC815 \uD65C\uC131\uD654')
                 .removeClass('btn-warning')
                 .addClass('btn-success')
                 .attr('data-mode', 'activate');
@@ -924,25 +849,29 @@ window.AdminPicker = AdminPicker;
     }
 
     /* =========================================================
-       Select2 濡쒕뵫
+       Select2 로딩
     ========================================================= */
     async function loadSelectOptions(selector, apiUrl, selectedValue = '', method = 'GET') {
         selectedValue = selectedValue != null ? String(selectedValue) : '';
 
         try {
-            const res = await fetch(apiUrl, {
+            const fetchOptions = {
                 method,
-                body: new FormData(),
                 credentials: 'include'
-            });
+            };
 
+            if (String(method).toUpperCase() !== 'GET') {
+                fetchOptions.body = new FormData();
+            }
+
+            const res = await fetch(apiUrl, fetchOptions);
             const text = await res.text();
             let json;
 
             try {
                 json = JSON.parse(text);
             } catch (e) {
-                console.error('JSON parse ?ㅽ뙣:', apiUrl, text);
+                console.error('JSON parse failed:', apiUrl, text);
                 return;
             }
 
@@ -950,48 +879,29 @@ window.AdminPicker = AdminPicker;
             const items = [];
 
             list.forEach((row) => {
-                const id =
-                    row.user_id ??
-                    row.department_id ??
-                    row.position_id ??
-                    row.role_id ??
-                    Object.values(row)[0];
+                const id = row.user_id ?? row.department_id ?? row.position_id ?? row.role_id ?? row.id ?? Object.values(row)[0];
+                const text = row.name ?? row.dept_name ?? row.department_name ?? row.position_name ?? row.role_name ?? row.label ?? Object.values(row)[1] ?? '';
 
-                const text =
-                    row.name ??
-                    row.dept_name ??
-                    row.department_name ??
-                    row.position_name ??
-                    row.role_name ??
-                    row.label ??
-                    Object.values(row)[1] ??
-                    '';
-
-                items.push({
-                    id: String(id ?? ''),
-                    text: String(text ?? '')
-                });
+                if (id !== undefined && id !== null && String(id) !== '') {
+                    items.push({ id: String(id), text: String(text ?? '') });
+                }
             });
 
             AdminPicker.destroySelect2(selector);
             AdminPicker.reloadSelect2(selector, items, 'id', 'text', null);
             AdminPicker.select2(selector, {
-                placeholder: '?좏깮?댁＜?몄슂',
+                placeholder: '선택하세요',
                 allowClear: true,
-                width: '100%'
+                width: '100%',
+                dropdownParent: $('#employeeEditModal')
             });
 
             if (selectedValue) {
                 const hasOption = items.some(item => String(item.id) === String(selectedValue));
-
                 if (!hasOption) {
                     const el = document.querySelector(selector);
-                    if (el) {
-                        const option = new Option('(?대쫫 ?놁쓬)', selectedValue, false, false);
-                        el.append(option);
-                    }
+                    if (el) el.append(new Option('(이름 없음)', selectedValue, false, false));
                 }
-
                 AdminPicker.setSelect2Value(selector, selectedValue, true);
             } else {
                 AdminPicker.clearSelect2(selector, true);
@@ -1001,9 +911,6 @@ window.AdminPicker = AdminPicker;
         }
     }
 
-    /* =========================================================
-       ?낅젰媛?대뱶 / ?щ㎎
-    ========================================================= */
     function bindInputGuide($) {
         let shown = {};
 
@@ -1019,33 +926,27 @@ window.AdminPicker = AdminPicker;
         }
 
         $(document)
-            .off('focus.employeeSortNo')
-            .on('focus.employeeSortNo', '#edit_employee_sort_no', function () {
-                notifyOnce('sort_no', '?쒕쾲? ?먮룞 泥섎━?⑸땲?? ?낅젰?섏? 留덉꽭??');
-            });
-
-        $(document)
             .off('focus.employeeUsername')
             .on('focus.employeeUsername', '#edit_employee_username', function () {
-                notifyOnce('username', '?꾩씠?붾뒗 ?곷Ц/?レ옄 議고빀?쇰줈 ?낅젰?섏꽭??');
+                notifyOnce('username', '아이디는 영문/숫자 조합으로 입력하세요.');
             });
 
         $(document)
             .off('focus.employeeRrn')
             .on('focus.employeeRrn', '#edit_employee_rrn', function () {
-                notifyOnce('rrn', '二쇰?踰덊샇???뷀샇?붾릺????λ맗?덈떎.');
+                notifyOnce('rrn', '주민등록번호는 암호화되어 저장됩니다.');
             });
 
         $(document)
             .off('focus.employeePhone')
             .on('focus.employeePhone', '#edit_employee_phone', function () {
-                notifyOnce('phone', '?곕씫泥섎뒗 ?レ옄留??낅젰?섏꽭??');
+                notifyOnce('phone', '연락처는 숫자만 입력하세요.');
             });
 
         $(document)
             .off('focus.employeeEmail')
             .on('focus.employeeEmail', '#edit_employee_email', function () {
-                notifyOnce('email', '?대찓?쇱? 濡쒓렇??諛??뚮┝???ъ슜?⑸땲??');
+                notifyOnce('email', '이메일은 로그인 및 알림에 사용됩니다.');
             });
     }
 
@@ -1063,18 +964,21 @@ window.AdminPicker = AdminPicker;
             });
 
         $(document)
+            .off('focus.employeeRrnReveal', '#edit_employee_rrn')
+            .on('focus.employeeRrnReveal', '#edit_employee_rrn', function () {
+                if (!rrnVisible && String($(this).val() || '').includes('*')) {
+                    setRrnField(getRrnRealValue($(this)), true);
+                }
+            });
+
+        $(document)
             .off('input.employeeRrnFormat', '#edit_employee_rrn')
             .on('input.employeeRrnFormat', '#edit_employee_rrn', function () {
                 const $input = $(this);
-                const raw = onlyNumber($input.val());
+                const raw = onlyNumber($input.val()).slice(0, 13);
 
                 $input.data('real', raw);
-
-                if (rrnVisible) {
-                    $input.val(formatCorpNumber(raw));
-                } else {
-                    $input.val(maskRrn(raw));
-                }
+                $input.val(formatCorpNumber(raw));
             });
     }
 
@@ -1106,34 +1010,49 @@ window.AdminPicker = AdminPicker;
             .off('click.toggleRrn', '.toggle-rrn')
             .on('click.toggleRrn', '.toggle-rrn', function () {
                 const $input = $('#edit_employee_rrn');
-                const $icon = $(this).find('i');
-
-                const currentRaw = onlyNumber($input.val());
-                if (!$input.data('real') && currentRaw !== '') {
-                    $input.data('real', currentRaw);
-                }
-
-                const realVal = onlyNumber($input.data('real') || '');
-
-                if (!rrnVisible) {
-                    rrnVisible = true;
-                    $input.attr('type', 'text').val(formatCorpNumber(realVal));
-                    $icon.removeClass('bi-eye').addClass('bi-eye-slash');
-                } else {
-                    rrnVisible = false;
-                    $input.attr('type', 'text').val(maskRrn(realVal));
-                    $icon.removeClass('bi-eye-slash').addClass('bi-eye');
+                const realVal = getRrnRealValue($input);
+                const nextVisible = !rrnVisible;
+                setRrnField(realVal, nextVisible);
+                if (nextVisible) {
+                    $input.trigger('focus');
                 }
             });
+    }
+
+    function setRrnField(value, visible = false) {
+        const $input = $('#edit_employee_rrn');
+        const raw = onlyNumber(value).slice(0, 13);
+
+        rrnVisible = !!visible;
+        $input
+            .attr('type', 'text')
+            .data('real', raw)
+            .val(rrnVisible ? formatCorpNumber(raw) : maskRrn(raw));
+
+        $('.toggle-rrn i')
+            .toggleClass('bi-eye', !rrnVisible)
+            .toggleClass('bi-eye-slash', rrnVisible);
+    }
+
+    function getRrnRealValue($input) {
+        const currentValue = String($input.val() || '');
+        const storedValue = onlyNumber($input.data('real') || '').slice(0, 13);
+
+        if (currentValue.includes('*')) {
+            return storedValue;
+        }
+
+        return onlyNumber(currentValue).slice(0, 13);
     }
 
     function maskRrn(rrn) {
         if (!rrn) return '';
 
-        const clean = String(rrn).replace(/\D/g, '');
-        if (clean.length < 7) return rrn;
+        const clean = String(rrn).replace(/\D/g, '').slice(0, 13);
+        if (clean.length <= 6) return clean;
+        if (clean.length < 13) return clean.substring(0, 6) + '-' + clean.substring(6);
 
-        return clean.substring(0, 6) + '-' + '*******';
+        return clean.substring(0, 6) + '-' + clean.substring(6, 7) + '******';
     }
 
     /* =========================================================
@@ -1195,7 +1114,7 @@ window.AdminPicker = AdminPicker;
                 $input.replaceWith($newInput);
 
                 $('#edit_profile_image_delete').val('1');
-                $('#profile_box').attr('data-label', '?낅줈??);
+                $('#profile_box').attr('data-label', '\uC5C5\uB85C\uB4DC');
                 $(this).hide();
             });
 
@@ -1214,7 +1133,7 @@ window.AdminPicker = AdminPicker;
                 $input.replaceWith($newInput);
 
                 $('#edit_rrn_image_delete').val('1');
-                $('#id_box').attr('data-label', '?낅줈??);
+                $('#id_box').attr('data-label', '\uC5C5\uB85C\uB4DC');
                 $(this).hide();
             });
 
@@ -1234,7 +1153,7 @@ window.AdminPicker = AdminPicker;
         
                 $('#edit_certificate_file_delete').val('1');
                 $('#edit_certificate_name').val('');
-                $('#cert_box').attr('data-label', '?낅줈??);
+                $('#cert_box').attr('data-label', '\uC5C5\uB85C\uB4DC');
         
                 $(this).hide();
             });
@@ -1247,7 +1166,7 @@ window.AdminPicker = AdminPicker;
 
                 $('#edit_profile_image_delete').val('0');
                 $('#edit_profile_delete_btn').show();
-                $('#profile_box').attr('data-label', '?먮낯 蹂닿린');
+                $('#profile_box').attr('data-label', '\uC6D0\uBCF8 \uBCF4\uAE30');
 
                 const reader = new FileReader();
                 reader.onload = function (e) {
@@ -1264,7 +1183,7 @@ window.AdminPicker = AdminPicker;
 
                 $('#edit_rrn_image_delete').val('0');
                 $('#edit_id_delete_btn').show();
-                $('#id_box').attr('data-label', '?먮낯 蹂닿린');
+                $('#id_box').attr('data-label', '\uC6D0\uBCF8 \uBCF4\uAE30');
 
                 const ext = file.name.split('.').pop().toLowerCase();
 
@@ -1287,7 +1206,7 @@ window.AdminPicker = AdminPicker;
 
 
                 $('#edit_cert_delete_btn').show();
-                $('#cert_box').attr('data-label', '?먮낯 蹂닿린');
+                $('#cert_box').attr('data-label', '\uC6D0\uBCF8 \uBCF4\uAE30');
 
                 const ext = file.name.split('.').pop().toLowerCase();
 
@@ -1310,20 +1229,14 @@ window.AdminPicker = AdminPicker;
             .off('click.bankPreview')
             .on('click.bankPreview', '#edit_bank_preview', function () {
                 const filePath = $(this).data('file-path');
-                const src = $(this).attr('src');
 
-                if (!filePath && (!src || src.includes('placeholder-bank.png'))) {
+                if (!filePath) {
                     $('#edit_bank_file').trigger('click');
                     return;
                 }
 
-                if (filePath) {
-                    const url = `/api/file/preview?path=${encodeURIComponent(filePath)}`;
-                    window.open(url, '_blank');
-                    return;
-                }
-
-                window.open(src, '_blank');
+                const url = `/api/file/preview?path=${encodeURIComponent(filePath)}`;
+                window.open(url, '_blank');
             });                             
         $(document)
             .off('click.employeeBankDelete')
@@ -1331,12 +1244,16 @@ window.AdminPicker = AdminPicker;
                 e.preventDefault();
                 e.stopPropagation();
 
-   
+                $('#edit_bank_preview')
+                    .attr('src', '/public/assets/img/placeholder-bank.png')
+                    .data('file-path', '');
+
                 const $input = $('#edit_bank_file');
                 const $newInput = $input.clone().val('');
                 $input.replaceWith($newInput);
 
-                $('#bank_box').attr('data-label', '?낅줈??);
+                $('#edit_bank_file_delete').val('1');
+                $('#bank_box').attr('data-label', '\uC5C5\uB85C\uB4DC');
                 $(this).hide();
             });
 
@@ -1348,7 +1265,7 @@ window.AdminPicker = AdminPicker;
 
                 $('#edit_bank_file_delete').val('0');
                 $('#edit_bank_delete_btn').show();
-                $('#bank_box').attr('data-label', '?먮낯 蹂닿린');
+                $('#bank_box').attr('data-label', '\uC6D0\uBCF8 \uBCF4\uAE30');
 
                 const ext = file.name.split('.').pop().toLowerCase();
 
@@ -1397,8 +1314,18 @@ window.AdminPicker = AdminPicker;
     }
 
     /* =========================================================
-       ?꾩뿭 ?대깽??
+       ?역 ?벤??
     ========================================================= */
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
     function bindGlobalEvents() {
         if (globalBound) return;
         globalBound = true;
@@ -1440,6 +1367,3 @@ window.AdminPicker = AdminPicker;
 
     
 })();
-
-
-

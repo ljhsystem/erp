@@ -53,7 +53,7 @@ class BankAccountController
     }
 
     /* ============================================================
-     API: ?④쑴伊??怨멸쉭
+     API: ?④??곸꽭
      ============================================================ */
     public function apiDetail(): void
     {
@@ -64,7 +64,7 @@ class BankAccountController
         if (!$id) {
             echo json_encode([
                 'success' => false,
-                'message' => '?④쑴伊?ID ?袁⑥뵭'
+                'message' => '?④쑴伊?ID ?⑥뵭'
             ]);
             exit;
         }
@@ -202,7 +202,7 @@ class BankAccountController
         if (!$id) {
             echo json_encode([
                 'success' => false,
-                'message' => 'ID ?袁⑥뵭'
+                'message' => 'ID ?⑥뵭'
             ]);
             exit;
         }
@@ -238,7 +238,7 @@ class BankAccountController
         if (!$id) {
             echo json_encode([
                 'success' => false,
-                'message' => '?④쑴伊??袁⑹뵠???袁⑥뵭'
+                'message' => '?④??⑹???⑥뵭'
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -253,7 +253,7 @@ class BankAccountController
 
             echo json_encode([
                 'success' => false,
-                'message' => '?④쑴伊?癰귣벊????쎈솭',
+                'message' => '?④?蹂듭????뙣',
                 'error' => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -273,7 +273,7 @@ class BankAccountController
             if (empty($ids) || !is_array($ids)) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '癰귣벊????④쑴伊??袁⑹뵠?遺? ??곷뮸??덈뼄.'
+                    'message' => '蹂듭????④??⑹뵠?遺? ??곷뮸??덈뼄.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -286,7 +286,7 @@ class BankAccountController
 
             echo json_encode([
                 'success' => false,
-                'message' => '?醫뤾문 癰귣벊????쎈솭',
+                'message' => '?좏깮 蹂듭????뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -308,7 +308,7 @@ class BankAccountController
 
             echo json_encode([
                 'success' => false,
-                'message' => '?袁⑷퍥 癰귣벊????쎈솭',
+                'message' => '?⑷ 蹂듭????뙣',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -325,7 +325,7 @@ class BankAccountController
         if (!$id) {
             echo json_encode([
                 'success' => false,
-                'message' => '?④쑴伊??袁⑹뵠???袁⑥뵭'
+                'message' => '?④??⑹???⑥뵭'
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -340,7 +340,7 @@ class BankAccountController
 
             echo json_encode([
                 'success' => false,
-                'message' => '?袁⑹읈??????쎈솭',
+                'message' => '?⑹읈??????쎈솭',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -360,7 +360,7 @@ class BankAccountController
             if (empty($ids) || !is_array($ids)) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '??????④쑴伊??袁⑹뵠?遺? ??곷뮸??덈뼄.'
+                    'message' => '??????④??⑹뵠?遺? ??곷뮸??덈뼄.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -373,7 +373,7 @@ class BankAccountController
 
             echo json_encode([
                 'success' => false,
-                'message' => '?醫뤾문 ?袁⑹읈??????쎈솭',
+                'message' => '?좏깮 ?⑹읈??????쎈솭',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -394,7 +394,7 @@ class BankAccountController
 
         echo json_encode([
             'success' => false,
-            'message' => '?袁⑷퍥 ?袁⑹읈??????쎈솭',
+            'message' => '?⑷ ?⑹읈??????쎈솭',
             'error'   => $e->getMessage()
         ], JSON_UNESCAPED_UNICODE);
     }
@@ -419,7 +419,7 @@ class BankAccountController
              if (empty($changes) || !is_array($changes)) {
                  echo json_encode([
                      'success' => false,
-                     'message' => '癰궰野??怨쀬뵠????곸벉'
+                     'message' => '蹂??곗씠????쓬'
                  ], JSON_UNESCAPED_UNICODE);
                  exit;
              }
@@ -428,7 +428,7 @@ class BankAccountController
 
              echo json_encode([
                  'success' => true,
-                 'message' => '?類ｌ졊 ?????袁⑥┷'
+                 'message' => '?類젹 ?????⑥┷'
              ], JSON_UNESCAPED_UNICODE);
 
          } catch (\Throwable $e) {
@@ -448,7 +448,7 @@ class BankAccountController
     {
         try {
 
-            // ?逾??곗뮆??甕곌쑵???λ뜃由??(餓λ쵐??
+            // ???쒕??踰꾪???덇??(以묒??
             if (ob_get_length()) {
                 ob_end_clean();
             }
@@ -461,7 +461,7 @@ class BankAccountController
 
             header('Content-Type: text/plain; charset=UTF-8');
 
-            echo '?臾? ??쀫탣????쇱뒲嚥≪뮆諭???쎈솭: ' . $e->getMessage();
+            echo '?? ??뵆????슫≪뮆諭???쎈솭: ' . $e->getMessage();
         }
 
         exit;
@@ -507,7 +507,7 @@ class BankAccountController
             }
 
             /* =========================================================
-             * ??뺥돩???紐꾪뀱 (?逾?餓λ쵐?? SYSTEM ACTOR)
+             * ??뺥돩???紐텧 (??以묒?? SYSTEM ACTOR)
              * ========================================================= */
             $actor = 'SYSTEM:EXCEL_UPLOAD';
 
@@ -533,7 +533,7 @@ class BankAccountController
         try {
 
             /* =========================================================
-             * ?逾??곗뮆??甕곌쑵????볤탢 (?臾? 繹먥뫁彛?獄쎻뫗?)
+             * ???쒕??踰꾪????굅 (?? 源⑥?諛⑹?)
              * ========================================================= */
             if (ob_get_length()) {
                 ob_end_clean();
@@ -547,7 +547,7 @@ class BankAccountController
 
             header('Content-Type: text/plain; charset=UTF-8');
 
-            echo '?臾? ??쇱뒲嚥≪뮆諭???쎈솭: ' . $e->getMessage();
+            echo '?? ??슫≪뮆諭???쎈솭: ' . $e->getMessage();
         }
 
         exit;

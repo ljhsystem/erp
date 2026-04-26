@@ -47,12 +47,32 @@
         }
     
         /* 2️⃣ modal */
-        const openModal = document.querySelector('.modal.show');
+        const openModal = getTopVisibleModal();
     
         if(openModal){
-            bootstrap.Modal.getInstance(openModal)?.hide();
+            bootstrap.Modal.getOrCreateInstance(openModal, { focus: false })?.hide();
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
         }
     
     }, true);   // 🔥🔥🔥 캡처 단계
+
+    function getTopVisibleModal(){
+        const modals = Array.from(document.querySelectorAll('.modal.show'));
+
+        if(modals.length === 0) return null;
+
+        return modals
+            .map((modal, index) => ({
+                modal,
+                index,
+                zIndex: Number.parseInt(window.getComputedStyle(modal).zIndex, 10) || 0
+            }))
+            .sort((a, b) => {
+                if(a.zIndex !== b.zIndex) return b.zIndex - a.zIndex;
+                return b.index - a.index;
+            })[0].modal;
+    }
 
 })();

@@ -27,7 +27,7 @@ $link = static function (string $href, string $label, string $iconClass, string 
 <div class="sidebar <?= ($ui['sidebar_default'] === 'collapsed') ? 'collapsed' : '' ?>">
     <ul class="nav nav-pills flex-column mb-auto">
         <?php if ($section === 'dashboard'): ?>
-            <li><?= $link('/dashboard', '메인 대시보드', 'bi-speedometer2') ?></li>
+            <li><?= $link('/dashboard', '대시보드', 'bi-speedometer2') ?></li>
             <li><?= $link('/dashboard/report', '통합 보고서', 'bi-bar-chart-line') ?></li>
             <li><?= $link('/dashboard/activity', '최근 활동', 'bi-activity') ?></li>
             <li><?= $link('/dashboard/notifications', '공지사항', 'bi-megaphone') ?></li>
@@ -35,13 +35,13 @@ $link = static function (string $href, string $label, string $iconClass, string 
             <li><?= $link('/dashboard/calendar', '일정/캘린더', 'bi-calendar3') ?></li>
             <li><?= $link('/dashboard/settings', '설정', 'bi-gear') ?></li>
         <?php elseif ($section === 'document' || $section === 'sukhyang'): ?>
-            <li><?= $link('/document', '문서 대시보드', 'bi-folder2-open') ?></li>
+            <li><?= $link('/document', '대시보드', 'bi-folder2-open') ?></li>
             <li><?= $link('/document/file_register', '문서 등록', 'bi-file-earmark-plus') ?></li>
             <li><?= $link('/document/view', '문서 상세 보기', 'bi-file-earmark-text') ?></li>
             <li><?= $link('/document/edit', '문서 수정', 'bi-pencil-square') ?></li>
             <li><?= $link('/document/stats', '문서 통계', 'bi-bar-chart') ?></li>
         <?php elseif ($section === 'approval'): ?>
-            <li><?= $link('/approval', '결재 목록', 'bi-check2-square') ?></li>
+            <li><?= $link('/approval', '대시보드', 'bi-check2-square') ?></li>
             <li><?= $link('/approval/write_expenditure', '지출결의서 작성', 'bi-receipt') ?></li>
             <li><?= $link('/approval/write_purchase_request', '구매요청서', 'bi-cart-plus') ?></li>
             <li><?= $link('/approval/write_leave_request', '휴가요청서', 'bi-airplane') ?></li>
@@ -55,7 +55,7 @@ $link = static function (string $href, string $label, string $iconClass, string 
         <?php endif; ?>
 
         <?php if ($section === 'ledger'): ?>
-            <li><?= $link('/ledger', '회계관리 대시보드', 'bi-journal-text') ?></li>
+            <li><?= $link('/ledger', '대시보드', 'bi-journal-text') ?></li>
             <li><?= $link('/ledger/transaction/create', '거래입력', 'bi-pencil-square') ?></li>
             <li><?= $link('/ledger/transaction', '거래내역', 'bi-list') ?></li>
             <li>
@@ -94,7 +94,7 @@ $link = static function (string $href, string $label, string $iconClass, string 
             </li>
             <li><?= $link('/ledger/search', '전표검색', 'bi-search') ?></li>
         <?php elseif ($section === 'institution'): ?>
-            <li><?= $link('/institution', '기관 대시보드', 'bi-building') ?></li>
+            <li><?= $link('/institution', '대시보드', 'bi-building') ?></li>
             <li><?= $link('/institution/tax_office', '세무서 / 국세청', 'bi-receipt') ?></li>
             <li><?= $link('/institution/local_government', '지방자치단체 / 지방세관', 'bi-map') ?></li>
             <li><?= $link('/institution/welfare_corp', '근로복지공단', 'bi-shield-check') ?></li>
@@ -106,7 +106,7 @@ $link = static function (string $href, string $label, string $iconClass, string 
             <li><?= $link('/institution/engineer_assoc', '기술인협회', 'bi-tools') ?></li>
             <li><?= $link('/institution/construction_worker_union', '건설근로자공제회', 'bi-people-fill') ?></li>
         <?php elseif ($section === 'site'): ?>
-            <li><?= $link('/site', '현장 대시보드', 'bi-speedometer2') ?></li>
+            <li><?= $link('/site', '대시보드', 'bi-speedometer2') ?></li>
             <li><?= $link('/site/estimate', '견적관리', 'bi-file-earmark-spreadsheet') ?></li>
             <li><?= $link('/site/contract', '계약관리', 'bi-file-earmark-text') ?></li>
             <li><?= $link('/site/execution', '실행관리', 'bi-play-circle') ?></li>
@@ -117,14 +117,14 @@ $link = static function (string $href, string $label, string $iconClass, string 
             <li><?= $link('/site/transaction', '거래내역', 'bi-list') ?></li>
             <li><?= $link('/site/safety', '안전관리', 'bi-cone-striped') ?></li>
         <?php elseif ($section === 'shop'): ?>
-            <li><?= $link('/shop', '쇼핑몰 대시보드', 'bi-bag') ?></li>
+            <li><?= $link('/shop', '대시보드', 'bi-bag') ?></li>
             <li><?= $link('/shop/products', '상품관리', 'bi-box-seam') ?></li>
             <li><?= $link('/shop/categories', '카테고리관리', 'bi-diagram-3') ?></li>
             <li><?= $link('/shop/orders', '주문관리', 'bi-receipt') ?></li>
             <li><?= $link('/shop/payments', '결제관리', 'bi-credit-card') ?></li>
             <li><?= $link('/shop/settlement', '매출/정산', 'bi-cash-coin') ?></li>
         <?php elseif ($section === 'notice'): ?>
-            <li><?= $link('/notice', '공지 대시보드', 'bi-megaphone') ?></li>
+            <li><?= $link('/notice', '대시보드', 'bi-megaphone') ?></li>
             <li><?= $link('/notice/employee', '직원 공지', 'bi-person-badge') ?></li>
             <li><?= $link('/notice/department', '부서별 공지', 'bi-diagram-3') ?></li>
             <li><?= $link('/notice/all', '전체 공지', 'bi-broadcast') ?></li>

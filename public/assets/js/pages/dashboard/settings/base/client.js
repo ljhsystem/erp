@@ -5,6 +5,7 @@ import { formatBizNumber, formatCorpNumber, formatMobile, formatPhone, onlyNumbe
 import { createDataTable, bindTableHighlight } from '/public/assets/js/components/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
+import { initCodeSelectControls, getCodeName, onCodeOptionsLoaded } from '/public/assets/js/common/code-select.js';
 import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
 window.AdminPicker = AdminPicker;
@@ -37,7 +38,8 @@ window.AdminPicker = AdminPicker;
         EXCEL_DOWNLOAD: "/api/settings/base-info/client/download",
         EXCEL_TEMPLATE: "/api/settings/base-info/client/template",
 
-        SEARCH_PICKER: "/api/settings/base-info/client/search-picker"
+        SEARCH_PICKER: "/api/settings/base-info/client/search-picker",
+        CODE_OPTIONS: "/api/settings/base-info/code/list"
     };
 
     // fetch(API.DETAIL + '?sort_no=' + sort_no);
@@ -143,7 +145,6 @@ window.AdminPicker = AdminPicker;
         { value: 'registration_date', label: '등록일자' },
         { value: 'updated_at', label: '수정일자' }
     ];
-
     let clientTable = null;
     let clientModal = null;
     let excelModal = null;
@@ -172,7 +173,7 @@ document.addEventListener('DOMContentLoaded', async () => {
    - 실행 순서가 중요하다.
    - UI, 데이터, 이벤트 순서로 구성한다.
 ============================================================ */
-function initClientPage($){
+async function initClientPage($){
     /* --------------------------------------------------------
        1. UI 기본 구성 (DOM + 컴포넌트 준비)
        - 모달 / 날짜 / 업로드 UI를 먼저 준비한다.
@@ -183,6 +184,10 @@ function initClientPage($){
     initRrnUpload();          // 신분증 업로드 UI
     initBankFileUpload();     // 통장사본 업로드 UI
     initExcelDataset();       // 엑셀 파일 업로드
+    await initCodeSelectControls(document.getElementById('clientModal'));  // 기준정보 select 옵션
+    onCodeOptionsLoaded(() => {
+        clientTable?.rows().invalidate('data').draw(false);
+    });
     /* --------------------------------------------------------
        2. 공통 데이터 영역
        - DataTable 생성 후 이후 기능들이 여기에 의존한다.
@@ -196,7 +201,17 @@ function initClientPage($){
     /* --------------------------------------------------------
        4. 테이블 기능 바인딩 (DataTable 의존)
     -------------------------------------------------------- */
-    bindRowReorder(clientTable, { api: API.REORDER });  // 행 드래그 정렬
+    bindRowReorder(clientTable, {
+        api: API.REORDER,
+        onSuccess() {
+            AppCore.notify('success', '거래처 순번이 저장되었습니다.');
+            clientTable?.ajax.reload(null, false);
+        },
+        onError(json) {
+            AppCore.notify('error', json?.message || '거래처 순번 저장에 실패했습니다.');
+            clientTable?.ajax.reload(null, false);
+        }
+    });  // 행 드래그 순번
     bindTableEvents($);                        // 클릭, 선택 이벤트
     /* --------------------------------------------------------
        5. 모달 및 입력 관련 이벤트
@@ -237,7 +252,6 @@ function initClientPage($){
         excelForm.dataset.uploadUrl   = API.EXCEL_UPLOAD;
 
     }
-
 
     function initModal(){
         const modalEl = document.getElementById('clientModal');
@@ -755,7 +769,8 @@ function initClientPage($){
                 {
                     text: "새 거래처",
                     className: "btn btn-warning btn-sm",
-                    action: function () {
+                    action: async function () {
+                        await initCodeSelectControls(document.getElementById('clientModal'));
 
                         const form = document.getElementById('client-edit-form');
                         if (form) form.reset();
@@ -923,6 +938,7 @@ function initClientPage($){
                 if (rrnInput) rrnInput.value = '';
                 if (bankInput) bankInput.value = '';
 
+                await initCodeSelectControls(document.getElementById('clientModal'));
                 fillModal(data);
                 clientModal.show();
 
@@ -932,19 +948,6 @@ function initClientPage($){
             }
         });
 
-        /* ================================
-        셀 클릭 시 검색조건 입력
-        ================================ */
-        $('#client-table tbody').on('click', 'td', function () {
-            const cell = clientTable.cell(this);
-            const value = cell.data();
-            const colIndex = cell.index().column;
-            const field = clientTable.column(colIndex).dataSrc();
-            if(!field) return;
-            const $first = $('.search-condition').first();
-            $first.find('select').val(field);
-            $first.find('input').val(value);
-        });
     }
 
 
@@ -1334,6 +1337,9 @@ function initClientPage($){
 
                     if(field === "phone" || field === "fax")
                         return formatPhone(data);
+
+                    if (['client_type', 'trade_category', 'tax_type', 'payment_term'].includes(field))
+                        return getCodeName(field, data);
 
                     return data;
                 }

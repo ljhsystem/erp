@@ -371,11 +371,11 @@ class CardService
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('카드 업로드');
-        $headers = ['카드명', '카드사', '카드번호', '카드유형', '유효기간년', '유효기간월', '결제계좌', '통화', '한도금액', '사용여부', '비고', '메모'];
+        $headers = ['카드명', '카드사', '카드번호', '유효기간년', '유효기간월', '결제계좌', '한도금액', '사용여부', '비고', '메모'];
         $sheet->fromArray($headers, null, 'A1');
-        $sheet->fromArray([['법인카드', '신한카드', '1234-5678-9012-3456', '법인카드', '2029', '12', '법인 운영계좌', 'KRW', '1000000', '사용', '', '']], null, 'A2');
+        $sheet->fromArray([['법인카드', '신한카드', '1234-5678-9012-3456', '2029', '12', '법인 운영계좌', '1000000', '사용', '', '']], null, 'A2');
 
-        foreach (range('A', 'L') as $col) {
+        foreach (range('A', 'J') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
@@ -412,12 +412,10 @@ class CardService
             $payload = [
                 'card_name' => trim((string)($row[$map['카드명'] ?? -1] ?? '')),
                 'card_number' => trim((string)($row[$map['카드번호'] ?? -1] ?? '')),
-                'card_type' => trim((string)($row[$map['카드유형'] ?? -1] ?? '')),
                 'client_id' => $this->findClientIdByName($clientName),
                 'account_id' => $this->findAccountIdByName($accountName),
                 'expiry_year' => trim((string)($row[$map['유효기간년'] ?? -1] ?? '')),
                 'expiry_month' => trim((string)($row[$map['유효기간월'] ?? -1] ?? '')),
-                'currency' => strtoupper(trim((string)($row[$map['통화'] ?? -1] ?? 'KRW'))),
                 'limit_amount' => (float)($row[$map['한도금액'] ?? -1] ?? 0),
                 'is_active' => trim((string)($row[$map['사용여부'] ?? -1] ?? '사용')) === '미사용' ? 0 : 1,
                 'note' => trim((string)($row[$map['비고'] ?? -1] ?? '')),
@@ -443,7 +441,7 @@ class CardService
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('카드 목록');
-        $sheet->fromArray(['순번', '카드명', '카드사', '카드번호', '카드유형', '유효기간', '결제계좌', '통화', '한도금액', '사용여부', '비고', '메모'], null, 'A1');
+        $sheet->fromArray(['순번', '카드명', '카드사', '카드번호', '유효기간', '결제계좌', '한도금액', '사용여부', '비고', '메모'], null, 'A1');
 
         $rowNo = 2;
         foreach ($cards as $card) {
@@ -453,10 +451,8 @@ class CardService
                 $card['card_name'] ?? '',
                 $card['client_name'] ?? '',
                 $card['card_number'] ?? '',
-                $this->displayCardType($card['card_type'] ?? ''),
                 $expiry,
                 $card['account_name'] ?? '',
-                $card['currency'] ?? '',
                 $card['limit_amount'] ?? '',
                 !empty($card['is_active']) ? '사용' : '미사용',
                 $card['note'] ?? '',
@@ -465,7 +461,7 @@ class CardService
             $rowNo++;
         }
 
-        foreach (range('A', 'L') as $col) {
+        foreach (range('A', 'J') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
@@ -484,12 +480,10 @@ class CardService
             'id' => trim((string)($data['id'] ?? '')),
             'card_name' => trim((string)($data['card_name'] ?? '')),
             'card_number' => trim((string)($data['card_number'] ?? '')),
-            'card_type' => $this->normalizeCardType($data['card_type'] ?? 'corporate'),
             'client_id' => $this->normalizeNullableId($data['client_id'] ?? null),
             'account_id' => $this->normalizeNullableId($data['account_id'] ?? null),
             'expiry_year' => trim((string)($data['expiry_year'] ?? '')) ?: null,
             'expiry_month' => $this->normalizeExpiryMonth($data['expiry_month'] ?? null),
-            'currency' => strtoupper(trim((string)($data['currency'] ?? 'KRW'))) ?: 'KRW',
             'limit_amount' => (float)($data['limit_amount'] ?? 0),
             'card_file' => $data['card_file'] ?? null,
             'note' => trim((string)($data['note'] ?? '')) ?: null,
@@ -511,28 +505,6 @@ class CardService
         if ($month === '') return null;
 
         return str_pad($month, 2, '0', STR_PAD_LEFT);
-    }
-
-    private function normalizeCardType(mixed $value): string
-    {
-        $normalized = strtolower(trim((string)$value));
-
-        return match ($normalized) {
-            '법인', '법인카드', 'corporate' => 'corporate',
-            '개인', '개인카드', 'personal' => 'personal',
-            '가상', '가상카드', 'virtual' => 'virtual',
-            default => $normalized ?: 'corporate',
-        };
-    }
-
-    private function displayCardType(string $value): string
-    {
-        return match ($this->normalizeCardType($value)) {
-            'corporate' => '법인카드',
-            'personal' => '개인카드',
-            'virtual' => '가상카드',
-            default => $value,
-        };
     }
 
     private function findClientIdByName(string $name): ?string

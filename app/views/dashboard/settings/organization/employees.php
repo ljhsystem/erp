@@ -52,7 +52,7 @@
     $enableButtons = true;
     $enableSearch  = true;
     $enablePaging  = true;
-    $enableReorder = true; // 필요없으면 false
+    $enableReorder = false; // 필요없으면 false
 
     include PROJECT_ROOT . '/app/views/components/ui-table.php';
     ?>

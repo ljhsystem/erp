@@ -68,7 +68,7 @@
                                 <div class="col-md-3">
                                     <label class="form-label">거래처</label>
                                     <select name="client_id"
-                                            id="modal_client_id"
+                                            id="modal_project_client_id"
                                             class="form-select form-select-sm">
                                         <option value="">선택</option>
                                     </select>
@@ -86,13 +86,9 @@
                                     <label class="form-label">거래처유형</label>
                                     <select name="client_type"
                                             id="modal_client_type"
-                                            class="form-select form-select-sm">
+                                            class="form-select form-select-sm"
+                                            data-code-group="CLIENT_TYPE">
                                         <option value="">선택</option>
-                                        <option value="발주처">발주처</option>
-                                        <option value="시공사">시공사</option>
-                                        <option value="법인">법인</option>
-                                        <option value="개인">개인</option>
-                                        <option value="기타">기타</option>
                                     </select>
                                 </div>
 

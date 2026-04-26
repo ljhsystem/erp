@@ -73,8 +73,22 @@
 
 .account-main .page-header{
     display:flex;
-    flex-direction:column;
-    gap:4px;
+    align-items:center;
+    gap:8px;
+    margin-bottom:14px;
+}
+
+.account-main .page-header h5{
+    margin-bottom:0;
+}
+
+.account-main .page-count{
+    display:inline-flex;
+    align-items:center;
+    font-size:1rem;
+    margin-left:2px;
+    font-weight:500;
+    line-height:1;
 }
 
 
@@ -888,6 +902,14 @@
     min-width:360px;
     max-width:480px;
     display:none;
+}
+
+.account-split-layout.subaccount-open .account-right-panel{
+    display:block;
+}
+
+.account-split-layout.subaccount-open .account-left-panel{
+    flex:1 1 74%;
 }
 /* 보조계정 박스 */
 

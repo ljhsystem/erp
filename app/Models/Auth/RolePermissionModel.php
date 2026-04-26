@@ -25,11 +25,22 @@ class RolePermissionModel
             $stmt = $this->db->prepare("
                 SELECT 
                     arp.id AS mapping_id,
-                    arp.code AS mapping_code,
+                    arp.sort_no AS mapping_sort_no,
+                    arp.role_id AS mapping_role_id,
+                    arp.permission_id AS mapping_permission_id,
                     arp.created_at,
+                    arp.created_by,
                     ap.id AS permission_id,
+                    ap.sort_no,
                     ap.permission_key,
-                    ap.permission_name
+                    ap.permission_name,
+                    ap.description,
+                    ap.category,
+                    ap.is_active,
+                    ap.created_at AS permission_created_at,
+                    ap.created_by AS permission_created_by,
+                    ap.updated_at AS permission_updated_at,
+                    ap.updated_by AS permission_updated_by
                 FROM auth_role_permissions arp
                 JOIN auth_permissions ap ON ap.id = arp.permission_id
                 WHERE arp.role_id = ?
@@ -53,7 +64,11 @@ class RolePermissionModel
             $stmt = $this->db->prepare("
                 SELECT 
                     arp.id AS mapping_id,
-                    arp.code AS mapping_code,
+                    arp.sort_no AS mapping_sort_no,
+                    arp.role_id AS mapping_role_id,
+                    arp.permission_id AS mapping_permission_id,
+                    arp.created_at,
+                    arp.created_by,
                     ar.id AS role_id,
                     ar.role_key,
                     ar.role_name
@@ -94,17 +109,17 @@ class RolePermissionModel
         try {
             $stmt = $this->db->prepare("
                 INSERT INTO auth_role_permissions (
-                    id, code, role_id, permission_id,
+                    id, sort_no, role_id, permission_id,
                     created_at, created_by
                 ) VALUES (
-                    :id, :code, :role_id, :permission_id,
+                    :id, :sort_no, :role_id, :permission_id,
                     NOW(), :created_by
                 )
             ");
 
             return $stmt->execute([
                 ':id'           => $data['id'],
-                ':code'         => $data['code'],
+                ':sort_no'      => $data['sort_no'],
                 ':role_id'      => $data['role_id'],
                 ':permission_id'=> $data['permission_id'],
                 ':created_by'   => $data['created_by'],
@@ -191,6 +206,7 @@ class RolePermissionModel
             FROM auth_role_permissions rp
             JOIN auth_permissions p ON p.id = rp.permission_id
             WHERE rp.role_id = ? AND p.permission_key = ?
+              AND COALESCE(p.is_active, 1) = 1
             LIMIT 1
         ");
         $stmt->execute([$roleId, $permissionKey]);

@@ -6,6 +6,7 @@ use PDO;
 use App\Models\User\ApprovalTemplateModel;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
+use Core\Helpers\SequenceHelper;
 use Core\LoggerFactory;
 
 class TemplateService
@@ -74,8 +75,6 @@ class TemplateService
         // Normalize
         $data['template_name'] = $this->normalize($data['template_name']);
         $data['document_type'] = $this->normalize($data['document_type']);
-        $data['updated_by'] = ActorHelper::user();
-
         $this->logger->info('[Template Create] 입력', $data);
 
         // 중복 검사
@@ -95,7 +94,9 @@ class TemplateService
         // 생성
         $id  = UuidHelper::generate();
         $key = $this->generateTemplateKey($data['template_name']);
+        $data['sort_no'] = SequenceHelper::next('user_approval_templates', 'sort_no');
         $data['created_by'] = ActorHelper::user();
+        $data['updated_by'] = $data['created_by'];
 
         $this->logger->info('[Template Create] 생성 진행', [
             'id'  => $id,
@@ -119,6 +120,7 @@ class TemplateService
         // Normalize
         $data['template_name'] = $this->normalize($data['template_name']);
         $data['document_type'] = $this->normalize($data['document_type']);
+        $data['updated_by'] = ActorHelper::user();
 
         $this->logger->info('[Template Update] 요청', [
             'id'            => $id,
@@ -158,5 +160,49 @@ class TemplateService
     {
         $this->logger->info('[Template Delete] 요청', ['id' => $id]);
         return $this->model->delete($id);
+    }
+
+    public function reorder(array $changes): bool
+    {
+        if (!$changes) {
+            return true;
+        }
+
+        try {
+            if (!$this->pdo->inTransaction()) {
+                $this->pdo->beginTransaction();
+            }
+
+            foreach ($changes as &$row) {
+                $sortNo = $row['newSortNo'] ?? $row['sort_no'] ?? null;
+                if (empty($row['id']) || $sortNo === null) {
+                    throw new \InvalidArgumentException('순번 변경 데이터가 올바르지 않습니다.');
+                }
+                $row['_sort_no'] = (int)$sortNo;
+            }
+            unset($row);
+
+            $actor = ActorHelper::user();
+
+            foreach ($changes as $row) {
+                $this->model->updateSortNo($row['id'], $row['_sort_no'] + 1000000, $actor);
+            }
+
+            foreach ($changes as $row) {
+                $this->model->updateSortNo($row['id'], $row['_sort_no'], $actor);
+            }
+
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->commit();
+            }
+
+            return true;
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $e;
+        }
     }
 }

@@ -1,8 +1,11 @@
+import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import {
     formatBizNumber,
     formatCorpNumber,
     formatPhone
 } from '/public/assets/js/common/format.js';
+
+window.AdminPicker = AdminPicker;
 
 (() => {
     'use strict';
@@ -12,8 +15,11 @@ import {
 
     const wrapper = $('#company-settings-wrapper');
     const saveButton = $('#btn-save-all');
+    let todayPicker = null;
 
     $(document).ready(() => {
+        initAdminDatePicker();
+        bindAdminDateInputs();
         loadCompanyInfo();
         bindEvents();
 
@@ -36,6 +42,78 @@ import {
         wrapper.on('input', "[name='tel'], [name='fax']", function () {
             this.value = formatPhone(this.value);
         });
+    }
+
+    function initAdminDatePicker() {
+        if (todayPicker) return todayPicker;
+
+        const container = document.getElementById('today-picker');
+        if (!container) return null;
+
+        todayPicker = AdminPicker.create({
+            type: 'today',
+            container
+        });
+
+        todayPicker.subscribe((_, date) => {
+            const input = todayPicker.__target;
+            if (!input || !date) return;
+
+            input.value = formatDate(date);
+            todayPicker.close();
+        });
+
+        return todayPicker;
+    }
+
+    function bindAdminDateInputs() {
+        document.querySelectorAll('.admin-date').forEach(input => {
+            if (input.dataset.dateInputBound === '1') return;
+            input.dataset.dateInputBound = '1';
+
+            input.addEventListener('input', () => {
+                input.value = formatDateInputValue(input.value);
+            });
+
+            input.addEventListener('blur', () => {
+                input.value = normalizeDateInputValue(input.value);
+            });
+        });
+
+        document.addEventListener('click', function (event) {
+            const icon = event.target.closest('.date-icon');
+            if (!icon) return;
+
+            const wrap = icon.closest('.date-input, .date-input-wrap');
+            const input = wrap ? wrap.querySelector('input.admin-date') : null;
+            if (!input) return;
+
+            event.preventDefault();
+            event.stopPropagation();
+            openDatePickerForInput(input);
+        }, true);
+    }
+
+    function openDatePickerForInput(input) {
+        const picker = initAdminDatePicker();
+        if (!picker) return;
+
+        picker.__target = input;
+
+        if (typeof picker.clearDate === 'function') {
+            picker.clearDate();
+        }
+
+        input.value = normalizeDateInputValue(input.value);
+
+        if (/^\d{4}-\d{2}-\d{2}$/.test(input.value)) {
+            const date = new Date(input.value);
+            if (!Number.isNaN(date.getTime())) {
+                picker.setDate(date);
+            }
+        }
+
+        picker.open({ anchor: input });
     }
 
     function notify(type, message) {
@@ -138,6 +216,11 @@ import {
     }
 
     function collectFormData() {
+        const foundDateInput = wrapper.find("[name='found_date']").get(0);
+        if (foundDateInput) {
+            foundDateInput.value = normalizeDateInputValue(foundDateInput.value);
+        }
+
         return {
             company_name_ko: getValue('company_name_ko'),
             company_name_en: getValue('company_name_en'),
@@ -217,7 +300,49 @@ import {
             return '';
         }
 
-        return value;
+        return normalizeDateInputValue(value);
+    }
+
+    function formatDateInputValue(value) {
+        const digits = String(value || '').replace(/\D/g, '').slice(0, 8);
+
+        if (digits.length <= 4) return digits;
+        if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+
+        return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
+    }
+
+    function normalizeDateInputValue(value) {
+        const formatted = formatDateInputValue(value);
+        const match = formatted.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+        if (!match) return formatted;
+
+        const year = Number(match[1]);
+        const month = Number(match[2]);
+        const day = Number(match[3]);
+        const date = new Date(year, month - 1, day);
+
+        if (
+            date.getFullYear() !== year ||
+            date.getMonth() !== month - 1 ||
+            date.getDate() !== day
+        ) {
+            notify('warning', '올바른 날짜를 입력하세요.');
+            return '';
+        }
+
+        return formatted;
+    }
+
+    function formatDate(date) {
+        if (!date) return '';
+
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+
+        return `${year}-${month}-${day}`;
     }
 
     function clearForm() {

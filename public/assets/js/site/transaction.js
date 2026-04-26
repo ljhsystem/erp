@@ -1,6 +1,7 @@
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import { bindNumberInput, formatNumber, parseNumber } from '/public/assets/js/common/format.js';
 import { initQuickCreateButtons } from '/public/assets/js/common/quick-create.js';
+import { initCodeSelectControls } from '/public/assets/js/common/code-select.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     const page = document.querySelector('[data-transaction-page]');
@@ -17,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-function initTransactionCreate(page) {
+async function initTransactionCreate(page) {
     const form = page.querySelector('[data-role="transaction-form"]');
     const itemsWrap = page.querySelector('[data-role="items"]');
     const addButton = page.querySelector('[data-role="add-item"]');
@@ -464,6 +465,8 @@ function initTransactionCreate(page) {
         placeholder: '프로젝트 검색',
         text: (row) => row.text || row.project_name || row.name || '',
     });
+
+    await initCodeSelectControls(page);
 
     initQuickCreateButtons([
         {

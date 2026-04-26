@@ -702,6 +702,26 @@ $router->get('/dashboard/settings/base-info/cover', 'DashboardController@setting
     'log'         => true,
 ]);
 
+$router->get('/dashboard/settings/base-info/codes', 'DashboardController@settingsBaseInfoCodes', [
+    'key'         => 'code.view',
+    'name'        => '기준정보',
+    'description' => '기준정보 관리 화면 접근',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+$router->get('/dashboard/settings/base-info/code', 'DashboardController@settingsBaseInfoCodes', [
+    'key'         => 'code.view',
+    'name'        => '기준정보',
+    'description' => '기준정보 관리 화면 접근',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
 $router->get('/dashboard/settings/base-info/clients', 'DashboardController@settingsBaseInfoClients', [
     'key'         => 'web.settings.base-info.clients',
     'name'        => '거래처',
@@ -736,6 +756,26 @@ $router->get('/dashboard/settings/base-info/cards', 'DashboardController@setting
     'key'         => 'web.settings.base-info.cards',
     'name'        => '카드',
     'description' => '카드 관리 화면 접근',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+$router->get('/dashboard/settings/base-info/work-teams', 'DashboardController@settingsBaseInfoWorkTeams', [
+    'key'         => 'work_team.view',
+    'name'        => '팀',
+    'description' => '작업팀 관리 화면 접근',
+    'category'    => '기초정보',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+$router->get('/dashboard/settings/base-info/work-team', 'DashboardController@settingsBaseInfoWorkTeams', [
+    'key'         => 'work_team.view',
+    'name'        => '팀',
+    'description' => '작업팀 관리 화면 접근',
     'category'    => '기초정보',
     'auth'        => true,
     'permissions' => ['view'],
@@ -784,16 +824,6 @@ $router->get('/dashboard/settings/organization/roles', 'DashboardController@sett
     'key' => 'web.settings.organization.roles',
     'name' => '역할',
     'description' => '역할 관리 화면 접근',
-    'category' => '조직관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => true
-]);
-
-$router->get('/dashboard/settings/organization/permissions', 'DashboardController@settingsOrgPermissions', [
-    'key' => 'web.settings.organization.permissions',
-    'name' => '권한',
-    'description' => '권한 관리 화면 접근',
     'category' => '조직관리',
     'auth' => true,
     'permissions' => ['view'],

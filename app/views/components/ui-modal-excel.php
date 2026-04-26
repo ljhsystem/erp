@@ -1,9 +1,9 @@
 <?php
-// 공통 엑셀 관리 모달
+// 공통 엑셀관리 모달
 
 $modalId        = $modalId        ?? 'excelModal';
 $formId         = $formId         ?? 'excel-form';
-$modalTitle     = $modalTitle     ?? '엑셀 관리';
+$modalTitle     = $modalTitle     ?? '엑셀관리';
 
 $fileInputId    = $fileInputId    ?? 'excelFile';
 $fileInputName  = $fileInputName  ?? 'excel';

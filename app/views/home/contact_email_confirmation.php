@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // 경로: PROJECT_ROOT . '/app/views/home/contact_email_confirmation.php';
 use Core\Helpers\AssetHelper;
 header('Content-Type: text/html; charset=UTF-8');

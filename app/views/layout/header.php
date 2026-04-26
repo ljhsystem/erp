@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // 경로: PROJECT_ROOT . '/app/views/layout/header.php'
 use Core\Helpers\AssetHelper;
 // layout.php에서 로드된 UI 설정 배열 사용

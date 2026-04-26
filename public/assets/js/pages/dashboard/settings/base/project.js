@@ -1,9 +1,11 @@
-// 경로: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/base/project.js'
+// Path: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/base/project.js'
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import { formatDateDisplay, formatAmount, unformatAmount } from '/public/assets/js/common/format.js';
 import { createDataTable, bindTableHighlight } from '/public/assets/js/components/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
+import { openQuickCreate } from '/public/assets/js/common/quick-create.js';
+import { initCodeSelectControls, getCodeName, onCodeOptionsLoaded } from '/public/assets/js/common/code-select.js';
 import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
 
@@ -61,7 +63,7 @@ window.AdminPicker = AdminPicker;
         work_type:                  { label: "공종", visible: true },
         work_subtype:               { label: "공종 세분류", visible: false },
         work_detail_type:           { label: "세부 공사종류", visible: false },
-        contract_work_type:         { label: "업급종류", visible: false },
+        contract_work_type:         { label: "도급종류", visible: false },
         bid_type:                   { label: "입찰형태", visible: false },
         client_type:                { label: "발주자분류", visible: false },
         permit_agency:              { label: "인허가기관", visible: false },
@@ -82,7 +84,6 @@ window.AdminPicker = AdminPicker;
         deleted_at:                 { label: "삭제일시", visible: false },
         deleted_by_name:            { label: "삭제자", visible: false }
     };
-
     function getProjectColumnAlignClass(field) {
         if ([
             'sort_no',
@@ -113,7 +114,6 @@ window.AdminPicker = AdminPicker;
         { value: 'bid_notice_date', label: '입찰공고일' },
         { value: 'updated_at', label: '수정일자' }
     ];
-
     let projectTable = null;
     let projectModal = null;
     let excelModal = null;
@@ -138,16 +138,30 @@ window.AdminPicker = AdminPicker;
     /* ============================================================
        PAGE INIT
     ============================================================ */
-    function initProjectPage($){
+    async function initProjectPage($){
         initModal();
         initAdminDatePicker();
 
         initExcelDataset(); // 엑셀 업로드 설정
+        await initCodeSelectControls(document.getElementById('projectModal'));
+        onCodeOptionsLoaded(() => {
+            projectTable?.rows().invalidate('data').draw(false);
+        });
 
         initDataTable($);
         initExternal();
 
-        bindRowReorder(projectTable, { api: API.REORDER });
+        bindRowReorder(projectTable, {
+            api: API.REORDER,
+            onSuccess() {
+                AppCore.notify('success', '프로젝트 순번이 저장되었습니다.');
+                projectTable?.ajax.reload(null, false);
+            },
+            onError(json) {
+                AppCore.notify('error', json?.message || '프로젝트 순번 저장에 실패했습니다.');
+                projectTable?.ajax.reload(null, false);
+            }
+        });
         bindTableEvents($);
 
         bindModalEvents($);
@@ -157,9 +171,7 @@ window.AdminPicker = AdminPicker;
 
         bindExcelEvents();
         bindTrashEvents();
-
         bindGlobalEvents();
-        bindQuickClientEvents($);
     }
     function initExcelDataset() {
         const form = document.getElementById('project-excel-upload-form');
@@ -275,7 +287,7 @@ window.AdminPicker = AdminPicker;
                 }
 
                 if (key === 'is_active') {
-                    value = Number(value) === 1 ? '진행중' : '완료됨';
+                    value = Number(value) === 1 ? '진행중' : '완료';
                 }
 
                 html += `<div><b>${config.label}:</b> ${value}</div>`;
@@ -301,7 +313,7 @@ window.AdminPicker = AdminPicker;
             `;
         };
 
-        // 휴지통 변경 시 테이블 갱신
+        // 휴지통 변경 후 테이블 갱신
         document.addEventListener('trash:changed', (e) => {
 
             const { type } = e.detail || {};
@@ -519,9 +531,10 @@ window.AdminPicker = AdminPicker;
                 {
                     text: "새 프로젝트",
                     className: "btn btn-warning btn-sm",
-                    action: function () {
+                    action: async function () {
                         const form = document.getElementById('project-edit-form');
                         if (form) form.reset();
+                        await initCodeSelectControls(document.getElementById('projectModal'));
 
                         resetProjectModalSelect2();
 
@@ -590,8 +603,8 @@ window.AdminPicker = AdminPicker;
 
     function normalizeActiveValue(value) {
         const raw = String(value ?? '').trim().toLowerCase();
-        if (['1', '진행중', '사용중', '진행', '진행중', '활성', 'active', 'y', 'yes', 'true'].includes(raw)) return '1';
-        if (['0', '완료됨', '완료', '종료', '비활성', 'inactive', 'n', 'no', 'false'].includes(raw)) return '0';
+        if (['1', '진행중', '사용중', '진행', '활성', 'active', 'y', 'yes', 'true'].includes(raw)) return '1';
+        if (['0', '완료', '종료', '비활성', 'inactive', 'n', 'no', 'false'].includes(raw)) return '0';
         return '';
     }
 
@@ -614,6 +627,7 @@ window.AdminPicker = AdminPicker;
                 window.isNewProject = false;
                 document.getElementById('projectModalLabel').textContent = '프로젝트 정보 수정';
                 $('#btnDeleteProject').show();
+                await initCodeSelectControls(document.getElementById('projectModal'));
 
                 projectModal.show();
 
@@ -632,18 +646,6 @@ window.AdminPicker = AdminPicker;
             }
         });
 
-        $('#project-table tbody').on('click', 'td', function () {
-            const cell = projectTable.cell(this);
-            const value = cell.data();
-            const colIndex = cell.index().column;
-            const field = projectTable.column(colIndex).dataSrc();
-
-            if(!field) return;
-
-            const $first = $('.search-condition').first();
-            $first.find('select').val(field);
-            $first.find('input').val(value);
-        });
     }
 
     function bindModalEvents($) {
@@ -827,7 +829,11 @@ window.AdminPicker = AdminPicker;
                     if (field === 'is_active') {
                         return Number(data) === 1
                             ? '<span class="badge bg-success">진행중</span>'
-                            : '<span class="badge bg-secondary">완료됨</span>';
+                            : '<span class="badge bg-secondary">완료</span>';
+                    }
+
+                    if (field === 'client_type') {
+                        return getCodeName(field, data);
                     }
 
                     return data;
@@ -893,7 +899,7 @@ window.AdminPicker = AdminPicker;
     }
 
     function initClientSelect2() {
-        const el = document.getElementById('modal_client_id');
+        const el = document.getElementById('modal_project_client_id');
         if (!el || clientSelect2Inited) return;
 
         const $el = window.jQuery(el);
@@ -918,7 +924,7 @@ window.AdminPicker = AdminPicker;
                 }
 
                 if (item.isNone) {
-                    return window.jQuery('<span class="text-muted">선택(없음)</span>');
+                    return item.text;
                 }
 
                 return item.text;
@@ -965,7 +971,7 @@ window.AdminPicker = AdminPicker;
             if (item.id === '__quick_client__') {
                 window.jQuery(this).val(null).trigger('change');
                 window.jQuery(this).select2('close');
-                openQuickClientModal(item.term || '');
+                openProjectClientQuickCreate(item.term || '');
                 return;
             }
 
@@ -977,7 +983,7 @@ window.AdminPicker = AdminPicker;
 
     function resetProjectModalSelect2() {
         const $employee = window.jQuery('#modal_employee_id');
-        const $client   = window.jQuery('#modal_client_id');
+        const $client   = window.jQuery('#modal_project_client_id');
 
         if ($employee.hasClass('select2-hidden-accessible')) {
             $employee.off('.projectEmployee');
@@ -990,7 +996,7 @@ window.AdminPicker = AdminPicker;
         }
 
         const employeeEl = document.getElementById('modal_employee_id');
-        const clientEl   = document.getElementById('modal_client_id');
+        const clientEl   = document.getElementById('modal_project_client_id');
 
         if (employeeEl) {
             employeeEl.innerHTML = '<option value=""></option>';
@@ -1023,7 +1029,7 @@ window.AdminPicker = AdminPicker;
 
     function setProjectClientSelect2(data) {
         const clientId = String(data.client_id ?? '').trim();
-        const $el = $('#modal_client_id');
+        const $el = $('#modal_project_client_id');
 
         if (!clientId) {
             $el.val(null).trigger('change');
@@ -1040,36 +1046,67 @@ window.AdminPicker = AdminPicker;
         $el.val(clientId).trigger('change');
     }
 
-    function openQuickClientModal(defaultName = '') {
-        const modalEl = document.getElementById('projectQuickClientModal');
-        const form = document.getElementById('projectQuickClientForm');
-        if (!modalEl || !form) return;
+    function openProjectClientQuickCreate(defaultName = '') {
+        openQuickCreate({
+            type: 'client',
+            select: document.getElementById('modal_project_client_id'),
+            initialValues: {
+                client_name: defaultName
+            },
+            openDetail: openProjectClientDetailModal,
+            onSuccess(json, values) {
+                AppCore?.notify?.('success', '거래처가 등록되었습니다.');
+            },
+            getOptionText(values) {
+                return values.client_name || '';
+            }
+        });
+    }
 
-        form.reset();
+    async function openProjectClientDetailModal(values = {}) {
+        const template = document.getElementById('project-client-modal-template');
+        if (!(template instanceof HTMLTemplateElement)) {
+            AppCore?.notify?.('error', '거래처 상세 모달 템플릿을 찾을 수 없습니다.');
+            return;
+        }
 
-        const nameEl = form.querySelector('[name="client_name"]');
-        const activeEl = form.querySelector('[name="is_active"]');
-        const typeEl = form.querySelector('[name="client_type"]');
+        const root = document.createElement('div');
+        root.dataset.projectClientDetailRoot = '1';
+        root.appendChild(template.content.cloneNode(true));
+        document.body.appendChild(root);
 
-        if (nameEl) nameEl.value = defaultName;
-        if (activeEl) activeEl.value = '1';
-        if (typeEl) typeEl.value = '일반';
+        const modalEl = root.querySelector('#clientModal');
+        const form = root.querySelector('#client-edit-form');
+
+        if (!modalEl || !form) {
+            root.remove();
+            AppCore?.notify?.('error', '거래처 상세 모달을 초기화할 수 없습니다.');
+            return;
+        }
+
+        const titleEl = modalEl.querySelector('#clientModalLabel');
+        if (titleEl) titleEl.textContent = '거래처 신규 등록';
+
+        const deleteBtn = modalEl.querySelector('#btnDeleteClient');
+        if (deleteBtn) deleteBtn.style.display = 'none';
+
+        fillFormValue(form, 'client_name', values.client_name);
+        fillFormValue(form, 'ceo_name', values.ceo_name);
+        fillFormValue(form, 'phone', values.phone);
+        fillFormValue(form, 'is_active', '1');
 
         const modal = bootstrap.Modal.getOrCreateInstance(modalEl, {
             backdrop: 'static',
             focus: false
         });
 
-        modal.show();
-        setTimeout(() => nameEl?.focus(), 160);
-    }
+        modalEl.addEventListener('hidden.bs.modal', () => {
+            root.remove();
+        }, { once: true });
 
-    function bindQuickClientEvents($) {
-        $(document).off('submit.projectQuickClient', '#projectQuickClientForm');
-        $(document).on('submit.projectQuickClient', '#projectQuickClientForm', function (e) {
-            e.preventDefault();
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
 
-            const form = this;
             const formData = new FormData(form);
             const clientName = String(formData.get('client_name') || '').trim();
 
@@ -1078,38 +1115,47 @@ window.AdminPicker = AdminPicker;
                 return;
             }
 
-            const btn = form.querySelector('button[type="submit"]');
-            if (btn) btn.disabled = true;
+            const submitButton = form.querySelector('button[type="submit"]');
+            if (submitButton) submitButton.disabled = true;
 
-            $.ajax({
-                url: API.CLIENT_SAVE,
-                method: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false
-            })
-            .done(res => {
-                if (!res.success || !res.id) {
-                    AppCore?.notify?.('error', res.message || '거래처 등록에 실패했습니다.');
+            try {
+                const response = await fetch(API.CLIENT_SAVE, {
+                    method: 'POST',
+                    body: formData
+                });
+                const json = await response.json();
+
+                if (!json.success || !json.id) {
+                    AppCore?.notify?.('error', json.message || '거래처 등록에 실패했습니다.');
                     return;
                 }
 
-                const modalEl = document.getElementById('projectQuickClientModal');
-                bootstrap.Modal.getInstance(modalEl)?.hide();
-
-                const $client = $('#modal_client_id');
-                $client.find(`option[value="${res.id}"]`).remove();
-                $client.append(new Option(clientName, res.id, true, true));
-                $client.val(res.id).trigger('change');
+                const $client = $('#modal_project_client_id');
+                $client.find(`option[value="${json.id}"]`).remove();
+                $client.append(new Option(clientName, json.id, true, true));
+                $client.val(json.id).trigger('change');
 
                 AppCore?.notify?.('success', '거래처가 등록되었습니다.');
-            })
-            .fail(() => {
+                modal.hide();
+            } catch (error) {
+                console.error(error);
                 AppCore?.notify?.('error', '서버 오류가 발생했습니다.');
-            })
-            .always(() => {
-                if (btn) btn.disabled = false;
-            });
-        });
+            } finally {
+                if (submitButton) submitButton.disabled = false;
+            }
+        }, { once: true });
+
+        modal.show();
+    }
+
+    function fillFormValue(form, name, value) {
+        if (value == null || String(value).trim() === '') return;
+
+        const field = form.elements.namedItem(name);
+        if (!field || field instanceof RadioNodeList) return;
+
+        field.value = value;
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+        field.dispatchEvent(new Event('change', { bubbles: true }));
     }
 })();

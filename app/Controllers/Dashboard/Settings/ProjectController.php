@@ -1,6 +1,6 @@
 <?php
 // 寃쎈줈: PROJECT_ROOT . '/app/Controllers/Dashboard/Settings/ProjectController.php'
-// ??쒕낫???ㅼ젙>湲곗큹?뺣낫愿由??꾨줈?앺듃 API 而⑦듃濡ㅻ윭
+// ??쒕낫???ㅼ젙>湲곗큹?뺣낫愿由??꾨줈?앺듃 API 而⑦롤러
 namespace App\Controllers\Dashboard\Settings;
 
 use Core\DbPdo;
@@ -69,7 +69,7 @@ class ProjectController
         if (!$id) {
             echo json_encode([
                 'success' => false,
-                'message' => '?꾨줈?앺듃 ?꾩씠???꾨씫'
+                'message' => '?로?트 ?이???락'
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -199,21 +199,21 @@ class ProjectController
                 'note' => $_POST['note'] ?? null,
                 'memo' => $_POST['memo'] ?? null,
 
-                /* ?뵦 ??젣 ?뚮옒洹?(Service濡??섍?) */
+                /* ?뵦 ??젣 ?뚮옒洹?(Service???) */
                 'delete_project_image' => $_POST['delete_project_image'] ?? '0',
 
                 'is_active' => isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1
             ];
 
             /* =========================================================
-            ?꾩닔媛?泥댄겕
+            ?수?泥댄겕
             ========================================================= */
 
             if ($payload['project_name'] === '') {
 
                 echo json_encode([
                     'success' => false,
-                    'message' => '愿由щ챸? ?꾩닔?낅땲??'
+                    'message' => '리명? ?수?니??'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -221,7 +221,7 @@ class ProjectController
             if ($payload['contract_date'] && !preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $payload['contract_date'])) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '怨꾩빟?쇱옄??YYYY-MM-DD ?뺤떇?댁뼱???⑸땲??'
+                    'message' => '계약?자??YYYY-MM-DD ?뺤떇?댁뼱???⑸땲??'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -237,7 +237,7 @@ class ProjectController
             if ($payload['completion_date'] && !preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $payload['completion_date'])) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '以怨듭씪?먮뒗 YYYY-MM-DD ?뺤떇?댁뼱???⑸땲??'
+                    'message' => '공일?는 YYYY-MM-DD ?뺤떇?댁뼱???⑸땲??'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -249,7 +249,7 @@ class ProjectController
             ) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '以怨듭씪?먮뒗 李⑷났?쇱옄蹂대떎 鍮좊? ???놁뒿?덈떎.'
+                    'message' => '공일?는 李⑷났?쇱옄蹂대떎 鍮좊? ???놁뒿?덈떎.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -261,13 +261,13 @@ class ProjectController
             ) {
                 echo json_encode([
                     'success' => false,
-                    'message' => '理쒖큹 怨꾩빟湲덉븸? ?レ옄留??낅젰?????덉뒿?덈떎.'
+                    'message' => '理초 계약금액? ?자留??낅젰?????덉뒿?덈떎.'
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
 
             /* =========================================================
-            ???(?뵦 ?뚯씪 ?ы븿 Service濡??꾩엫)
+            ???(?뵦 ?뚯씪 ?ы븿 Service??임)
             ========================================================= */
 
             $result = $this->service->save(
@@ -277,7 +277,7 @@ class ProjectController
             );
 
             /* =========================================================
-            ?먮윭 硫붿떆吏 泥섎━ (?꾩슂???뺤옣)
+            ?먮윭 硫붿떆吏 泥섎━ (?요???장)
             ========================================================= */
 
             if (!$result['success']) {
@@ -323,7 +323,7 @@ class ProjectController
         if (!$id) {
             echo json_encode([
                 'success' => false,
-                'message' => '?꾨줈?앺듃 ?꾩씠???꾨씫'
+                'message' => '?로?트 ?이???락'
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -391,7 +391,7 @@ class ProjectController
         if (!$id) {
             echo json_encode([
                 'success' => false,
-                'message' => '?꾨줈?앺듃 ?꾩씠???꾨씫'
+                'message' => '?로?트 ?이???락'
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -453,7 +453,7 @@ class ProjectController
 
 
     // ============================================================
-    // API: ?꾨줈?앺듃 ?꾩껜 蹂듭썝
+    // API: ?로?트 ?체 복원
     // URL: POST /api/settings/base-info/project/restore-all
     // ============================================================
     public function apiRestoreAll(): void
@@ -470,7 +470,7 @@ class ProjectController
 
             echo json_encode([
                 'success' => false,
-                'message' => '?꾩껜 蹂듭썝 ?ㅽ뙣',
+                'message' => '?체 복원 ?패',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -494,7 +494,7 @@ class ProjectController
         if (!$id) {
             echo json_encode([
                 'success' => false,
-                'message' => '?꾨줈?앺듃 ?꾩씠???꾨씫'
+                'message' => '?로?트 ?이???락'
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -509,7 +509,7 @@ class ProjectController
 
             echo json_encode([
                 'success' => false,
-                'message' => '?꾩쟾??젣 ?ㅽ뙣',
+                'message' => '?전?? ?패',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -548,7 +548,7 @@ class ProjectController
 
             echo json_encode([
                 'success' => false,
-                'message' => '?좏깮 ?꾩쟾??젣 ?ㅽ뙣',
+                'message' => '?택 ?전?? ?패',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -558,7 +558,7 @@ class ProjectController
 
 
     // ============================================================
-    // API: ?꾨줈?앺듃 ?꾩껜 ?꾩쟾??젣
+    // API: ?로?트 ?체 ?전??
     // URL: POST /api/settings/base-info/project/purge-all
     // ============================================================
     public function apiPurgeAll(): void
@@ -575,7 +575,7 @@ class ProjectController
 
             echo json_encode([
                 'success' => false,
-                'message' => '?꾩껜 ?꾩쟾??젣 ?ㅽ뙣',
+                'message' => '?체 ?전?? ?패',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -637,7 +637,7 @@ class ProjectController
         } catch (\Throwable $e) {
 
             http_response_code(500);
-            echo '?묒? ?쒗뵆由??ㅼ슫濡쒕뱶 ?ㅽ뙣 : ' . $e->getMessage();
+            echo '?? ?플??운로드 ?패 : ' . $e->getMessage();
             exit;
         }
     }
@@ -684,7 +684,7 @@ class ProjectController
     }
 
     // ============================================================
-    // API: ?꾨줈?앺듃 ?꾩껜 ?묒? ?ㅼ슫濡쒕뱶
+    // API: ?로?트 ?체 ?? ?운로드
     // URL: GET /api/settings/base-info/project/excel
     // ============================================================
     public function apiDownload(): void
@@ -696,7 +696,7 @@ class ProjectController
         } catch (\Throwable $e) {
 
             http_response_code(500);
-            echo '?묒? ?ㅼ슫濡쒕뱶 ?ㅽ뙣 : ' . $e->getMessage();
+            echo '?? ?운로드 ?패 : ' . $e->getMessage();
             exit;
         }
     }

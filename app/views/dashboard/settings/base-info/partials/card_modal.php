@@ -28,15 +28,6 @@
                 </div>
 
                 <div class="col-md-4">
-                  <label class="form-label">카드유형</label>
-                  <select name="card_type" class="form-select form-select-sm">
-                    <option value="corporate">법인카드</option>
-                    <option value="personal">개인카드</option>
-                    <option value="virtual">가상카드</option>
-                  </select>
-                </div>
-
-                <div class="col-md-4">
                   <label class="form-label">상태</label>
                   <select name="is_active" class="form-select form-select-sm">
                     <option value="1">사용</option>
@@ -95,17 +86,7 @@
                           id="cardAccountSelect"></select>
                 </div>
 
-                <div class="col-md-2">
-                  <label class="form-label">통화</label>
-                  <input type="text"
-                         name="currency"
-                         data-format="currency"
-                         class="form-control form-control-sm"
-                         value="KRW"
-                         maxlength="3">
-                </div>
-
-                <div class="col-md-2">
+                <div class="col-md-4">
                   <label class="form-label">한도금액</label>
                   <input type="text"
                          name="limit_amount"

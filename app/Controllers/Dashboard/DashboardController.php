@@ -198,6 +198,15 @@ class DashboardController
         ]);
     }
 
+    public function settingsBaseInfoCodes(): void
+    {
+        $this->renderPage('/app/views/dashboard/settings.php', [
+            'pageTitle' => '기준정보',
+            'cat' => 'base-info',
+            'sub' => 'codes'
+        ]);
+    }
+
     public function settingsBaseInfoClients(): void
     {
         $this->renderPage('/app/views/dashboard/settings.php', [
@@ -231,6 +240,15 @@ class DashboardController
             'pageTitle' => '카드',
             'cat' => 'base-info',
             'sub' => 'cards'
+        ]);
+    }
+
+    public function settingsBaseInfoWorkTeams(): void
+    {
+        $this->renderPage('/app/views/dashboard/settings.php', [
+            'pageTitle' => '팀',
+            'cat' => 'base-info',
+            'sub' => 'work-teams'
         ]);
     }
 
@@ -269,15 +287,6 @@ class DashboardController
             'pageTitle' => '역할',
             'cat' => 'organization',
             'sub' => 'roles'
-        ]);
-    }
-
-    public function settingsOrgPermissions(): void
-    {
-        $this->renderPage('/app/views/dashboard/settings.php', [
-            'pageTitle' => '권한',
-            'cat' => 'organization',
-            'sub' => 'permissions'
         ]);
     }
 

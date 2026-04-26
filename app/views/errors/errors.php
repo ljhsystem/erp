@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // 경로: PROJECT_ROOT . '/app/views/errors/403.php'
 
 $isLoggedIn = (new \App\Services\Auth\AuthSessionService())->isAuthenticated();

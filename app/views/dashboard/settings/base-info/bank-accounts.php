@@ -123,6 +123,13 @@ include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
 include __DIR__ . '/partials/bank_account_modal.php';
 ?>
 
+<?php
+/* =========================================================
+   기준정보 오리지널 모달
+========================================================= */
+include __DIR__ . '/partials/code_modal.php';
+?>
+
 
 <?php
 /* =========================================================

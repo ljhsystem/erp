@@ -60,7 +60,7 @@ class CoverImageService
         }
     }
     /* ============================================================
-     * 怨듦컻??紐⑸줉 議고쉶(?ъ슜?먯슜)
+     * 공개??紐⑸줉 議고쉶(?ъ슜?먯슜)
      * ============================================================ */
     public function getPublicList(): array
     {
@@ -134,7 +134,7 @@ class CoverImageService
             if (!preg_match('/^\d{4}$/', $year)) {
                 return [
                     'success' => false,
-                    'message' => '?대떦?꾨룄??4?먮━ ?곕룄濡??낅젰?댁＜?몄슂.'
+                    'message' => '?대떦?꾨룄??4?먮━ ?도??력?주?요.'
                 ];
             }
 
@@ -155,21 +155,21 @@ class CoverImageService
             if (mb_strlen($title) > 120) {
                 return [
                     'success' => false,
-                    'message' => '?쒕ぉ? 120???댄븯濡??낅젰?댁＜?몄슂.'
+                    'message' => '?쒕ぉ? 120???하??력?주?요.'
                 ];
             }
 
             if (mb_strlen($alt) > 180) {
                 return [
                     'success' => false,
-                    'message' => '?대?吏 臾멸뎄(Alt)??180???댄븯濡??낅젰?댁＜?몄슂.'
+                    'message' => '?대?吏 臾멸뎄(Alt)??180???하??력?주?요.'
                 ];
             }
 
             if ($description !== '' && mb_strlen($description) > 500) {
                 return [
                     'success' => false,
-                    'message' => '?ㅻ챸? 500???댄븯濡??낅젰?댁＜?몄슂.'
+                    'message' => '?ㅻ챸? 500???하??력?주?요.'
                 ];
             }
 
@@ -196,12 +196,12 @@ class CoverImageService
             }
 
             /* =========================
-               2. ?좉퇋??寃쎌슦 ?대?吏 ?꾩닔
+               2. ?좉퇋??寃쎌슦 ?대?吏 ?수
             ========================= */
             if ($coverId === '' && !$newSrc) {
                 return [
                     'success' => false,
-                    'message' => '?대?吏???꾩닔?낅땲??'
+                    'message' => '?대?吏???수?니??'
                 ];
             }
 
@@ -260,7 +260,7 @@ class CoverImageService
                 'title'       => $title,
                 'alt'         => $alt,
                 'description' => $description,
-                'src'         => $newSrc, // ?뵦 null ?꾨떂 (?꾩뿉???꾩닔 泥댄겕??
+                'src'         => $newSrc, // ?뵦 null ?님 (?에???수 泥댄겕??
                 'is_active'   => $isActive,
                 'created_by'  => $actor,
                 'updated_by'  => $actor,
@@ -515,7 +515,7 @@ class CoverImageService
 
             return [
                 'success' => true,
-                'message' => "?꾩껜 蹂듭썝 ?꾨즺 ({$success}嫄?"
+                'message' => "?체 복원 ?료 ({$success}嫄?"
             ];
 
         } catch (\Throwable $e) {
@@ -634,7 +634,7 @@ class CoverImageService
     }
 
     /* =========================================================
-    ?꾩껜 ?꾩쟾??젣
+    ?체 ?전??
     ========================================================= */
     public function purgeAll(string $actorType = 'USER'): array
     {
@@ -668,7 +668,7 @@ class CoverImageService
 
             return [
                 'success' => true,
-                'message' => '?꾩껜 ??젣 ?꾨즺'
+                'message' => '?체 ?? ?료'
             ];
 
         } catch (\Throwable $e) {

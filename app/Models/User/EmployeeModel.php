@@ -65,6 +65,7 @@ class EmployeeModel
                 /* =========================
                 * auth_users
                 * ========================= */
+                u.sort_no AS user_sort_no,
                 u.username,
                 u.email,
                 u.role_id,
@@ -462,6 +463,7 @@ class EmployeeModel
                 /* =========================
                 * auth_users
                 * ========================= */
+                u.sort_no AS user_sort_no,
                 u.username,
                 u.email,
                 u.role_id,

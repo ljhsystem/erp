@@ -418,9 +418,9 @@ class EmployeeController
 
     // ============================================================
     // API: 직원 영구 삭제
-    // URL: POST /api/settings/employee/purge
+    // URL: POST /api/settings/employee/delete
     // ============================================================
-    public function apiPurge(): void
+    public function apiDelete(): void
     {
         header('Content-Type: application/json; charset=UTF-8');
 
@@ -455,29 +455,29 @@ class EmployeeController
         exit;
     }
 
-
-
-
-
-
-    // ============================================================
-    // API: 직원 순서 변경
-    // URL: POST /api/settings/employee/reorder
-    // ============================================================
-    public function apiReorder()
+    public function apiReorder(): void
     {
-        header('Content-Type: application/json; charset=UTF-8');
+        header('Content-Type: application/json; charset=utf-8');
 
-        $changes = json_decode(file_get_contents('php://input'), true)['changes'] ?? [];
+        $input = json_decode(file_get_contents('php://input'), true);
+        $changes = $input['changes'] ?? [];
 
-        if (!$changes) {
-            echo json_encode(['success'=>false,'message'=>'변경 데이터 없음']);
-            return;
+        try {
+            $ok = $this->service->reorder($changes);
+            echo json_encode([
+                'success' => (bool)$ok,
+                'message' => $ok ? 'reordered' : 'fail'
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'reorder failed',
+                'error'   => $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE);
         }
 
-        $this->service->reorder($changes);
-
-        echo json_encode(['success'=>true]);
+        exit;
     }
+
 
 }

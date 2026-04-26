@@ -171,7 +171,17 @@ window.AdminPicker = AdminPicker;
 
         initTrashColumns();
 
-        bindRowReorder(coverTable, { api: API.REORDER });  // 드래그 순서 변경 저장
+        bindRowReorder(coverTable, {
+            api: API.REORDER,
+            onSuccess() {
+                notifyMessage('success', '커버이미지 순번이 저장되었습니다.');
+                coverTable?.ajax.reload(null, false);
+            },
+            onError(json) {
+                notifyMessage('error', json?.message || '커버이미지 순번 저장에 실패했습니다.');
+                coverTable?.ajax.reload(null, false);
+            }
+        });  // 드래그 순서 변경 저장
         bindTableEvents($);
         bindModalEvents($);
 
@@ -215,10 +225,6 @@ window.AdminPicker = AdminPicker;
 
     function getSearchFieldSelector() {
         return `${DOM.searchConditions} .search-condition:first select, ${DOM.searchConditions} .search-condition:first .search-field`;
-    }
-
-    function getFirstSearchCondition() {
-        return window.jQuery(`${DOM.searchConditions} .search-condition`).first();
     }
 
     function getDateStartInput() {
@@ -717,43 +723,6 @@ window.AdminPicker = AdminPicker;
 
             $(DOM.originalImageView).attr('src', src);
             new bootstrap.Modal(qs(DOM.originalImageModal)).show();
-        });
-
-        $(DOM.table + ' tbody').on('click', 'td', function (e) {
-            if ($(e.target).closest('.table-img-preview').length) return;
-            if ($(this).hasClass('reorder-handle')) return;
-
-            const td = this;
-            const $tr = $(td).closest('tr');
-
-            if ($tr.hasClass('child')) return;
-
-            if (clickTimer) {
-                clearTimeout(clickTimer);
-                clickTimer = null;
-            }
-
-            clickTimer = setTimeout(() => {
-                const rowData = coverTable.row($tr).data();
-                if (!rowData) return;
-
-                const cell = coverTable.cell(td);
-                const idx = cell.index();
-                if (!idx) return;
-
-                const colIndex = idx.column;
-                const column = coverTable.settings()[0].aoColumns[colIndex];
-                const field = column?.data;
-
-                if (!field || field === 'url') return;
-
-                const value = rowData[field] ?? '';
-                const $first = getFirstSearchCondition();
-                if (!$first.length) return;
-
-                $first.find('select, .search-field').val(field);
-                $first.find('input[type="text"], .search-input').val(String(value).trim());
-            }, 220);
         });
 
         $(DOM.table + ' tbody').on('dblclick', 'tr', function (e) {

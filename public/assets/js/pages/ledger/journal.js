@@ -1,4 +1,4 @@
-﻿import { formatNumber, onlyNumber } from '/public/assets/js/common/format.js';
+import { formatNumber, onlyNumber } from '/public/assets/js/common/format.js';
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import {
     bindTableHighlight,
@@ -7,6 +7,7 @@ import {
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { createJournalBasicInfoBridge } from '/public/assets/js/pages/ledger/journal.basic-info.js';
+import { initCodeSelectControls, getCodeName, onCodeOptionsLoaded } from '/public/assets/js/common/code-select.js';
 import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
 
@@ -70,27 +71,27 @@ window.AdminPicker = AdminPicker;
     };
 
     const STATUS_LABELS = {
-        draft: '?꾩떆???,
-        posted: '?뺤젙',
-        locked: '留덇컧',
-        deleted: '??젣',
+        draft: '임시저장',
+        posted: '확정',
+        locked: '잠금',
+        deleted: '삭제',
     };
 
     const TYPE_LABELS = {
-        MANUAL: '?섎룞?꾪몴',
-        AUTO: '?먮룞?꾪몴',
-        ADJUST: '議곗젙?꾪몴',
-        CLOSING: '寃곗궛?꾪몴',
+        MANUAL: '수동전표',
+        AUTO: '자동전표',
+        ADJUST: '조정전표',
+        CLOSING: '결산전표',
     };
 
     const LINKED_STATUS_LABELS = {
-        linked: '?곌껐',
-        unlinked: '誘몄뿰寃?,
+        linked: '연결',
+        unlinked: '미연결',
     };
 
     const JOURNAL_DATE_OPTIONS = [
-        { value: 'voucher_date', label: '?꾪몴?쇱옄' },
-        { value: 'updated_at', label: '?섏젙?쇱떆' },
+        { value: 'voucher_date', label: '전표일자' },
+        { value: 'updated_at', label: '수정일시' },
     ];
 
     const QUICK_CREATE_ACCOUNT_VALUE = '__quick_create_account__';
@@ -184,16 +185,16 @@ window.AdminPicker = AdminPicker;
     }
 
     function translateType(value) {
-        return TYPE_LABELS[value] || value || '-';
+        return getCodeName('ref_type', value) || TYPE_LABELS[value] || value || '-';
     }
 
     function translateLinkedStatus(value) {
-        return LINKED_STATUS_LABELS[value] || value || '誘몄뿰寃?;
+        return LINKED_STATUS_LABELS[value] || value || '미연결';
     }
 
     function buildTransactionSummary(row = null) {
         if (!row) {
-            return '?곌껐??嫄곕옒媛 ?놁뒿?덈떎.';
+            return '연결된 거래가 없습니다.';
         }
 
         const date = row.transaction_date || '-';
@@ -222,8 +223,8 @@ window.AdminPicker = AdminPicker;
 
         const icon = '<i class="bi bi-journal-check me-2"></i>';
         modalTitleEl.innerHTML = mode === 'edit'
-            ? `${icon}?꾪몴 ?섏젙`
-            : `${icon}?꾪몴 ?깅줉`;
+            ? `${icon}전표 수정`
+            : `${icon}전표 등록`;
     }
 
     function renderPickerOption(data) {
@@ -239,7 +240,7 @@ window.AdminPicker = AdminPicker;
 
     function renderPickerSelection(data) {
         if (!data || !data.id || data.id === QUICK_CREATE_ACCOUNT_VALUE) {
-            return '怨꾩젙怨쇰ぉ ?좏깮';
+            return '계정과목 선택';
         }
 
         return data.text || data.id;
@@ -389,9 +390,9 @@ window.AdminPicker = AdminPicker;
             .filter((item) => item.id !== '');
 
         return [
-            { id: '', text: '怨꾩젙怨쇰ぉ ?좏깮' },
+            { id: '', text: '계정과목 선택' },
             ...mappedRows,
-            { id: QUICK_CREATE_ACCOUNT_VALUE, text: '+ 鍮좊Ⅸ ?깅줉' },
+            { id: QUICK_CREATE_ACCOUNT_VALUE, text: '+ 빠른 등록' },
         ];
     }
 
@@ -475,7 +476,7 @@ window.AdminPicker = AdminPicker;
         bindAccountQuickCreate(selectEl);
 
         AdminPicker.select2(selectEl, {
-            placeholder: '怨꾩젙怨쇰ぉ ?좏깮',
+            placeholder: '계정과목 선택',
             dropdownParent: window.jQuery(modalEl),
             width: '100%',
             templateResult: renderPickerOption,
@@ -487,7 +488,7 @@ window.AdminPicker = AdminPicker;
     }
 
     function emptyLineRow() {
-        return '<tr class="voucher-line-empty"><td colspan="6" class="text-center text-muted py-4">遺꾧컻?쇱씤??異붽???二쇱꽭??</td></tr>';
+        return '<tr class="voucher-line-empty"><td colspan="6" class="text-center text-muted py-4">분개 라인을 추가해주세요.</td></tr>';
     }
 
     function syncLineNumbers() {
@@ -519,13 +520,13 @@ window.AdminPicker = AdminPicker;
         creditTotalEl.value = formatAmountValue(credit) || '0';
 
         if (rows.length === 0) {
-            balanceStatusEl.value = '遺꾧컻?쇱씤???낅젰??二쇱꽭??';
+            balanceStatusEl.value = '분개 라인을 입력해주세요.';
             return;
         }
 
         balanceStatusEl.value = debit === credit
-            ? '李⑤?/?蹂 ?⑷퀎媛 ?쇱튂?⑸땲??'
-            : '李⑤?/?蹂 ?⑷퀎媛 ?쇱튂?섏? ?딆뒿?덈떎.';
+            ? '차변/대변 합계가 일치합니다.'
+            : '차변/대변 합계가 일치하지 않습니다.';
     }
 
     async function addLineRow(line = {}) {
@@ -536,7 +537,7 @@ window.AdminPicker = AdminPicker;
             <td class="text-center line-no"></td>
             <td>
                 <select class="form-select form-select-sm line-account-code-picker">
-                    <option value="">怨꾩젙怨쇰ぉ ?좏깮</option>
+                    <option value="">계정과목 선택</option>
                 </select>
             </td>
             <td>
@@ -557,10 +558,10 @@ window.AdminPicker = AdminPicker;
                 <input type="text"
                        class="form-control form-control-sm line-summary"
                        value="${escapeHtml(line.line_summary || '')}"
-                       placeholder="?쇱씤 ?곸슂">
+                       placeholder="라인 적요">
             </td>
             <td class="text-center">
-                <button type="button" class="btn btn-outline-danger btn-sm btn-remove-line">??젣</button>
+                <button type="button" class="btn btn-outline-danger btn-sm btn-remove-line">삭제</button>
             </td>
         `;
 
@@ -608,7 +609,7 @@ window.AdminPicker = AdminPicker;
         const lines = collectLines();
 
         if (lines.length === 0) {
-            notify('warning', '遺꾧컻?쇱씤??1媛??댁긽 ?낅젰??二쇱꽭??');
+            notify('warning', '분개 라인을 1개 이상 입력해주세요.');
             return false;
         }
 
@@ -621,17 +622,17 @@ window.AdminPicker = AdminPicker;
             const credit = Number(line.credit || '0');
 
             if (!line.account_code) {
-                notify('warning', `${index + 1}踰??쇱씤??怨꾩젙怨쇰ぉ???좏깮??二쇱꽭??`);
+                notify('warning', `${index + 1}번 라인의 계정과목을 선택해주세요.`);
                 return false;
             }
 
             if (debit <= 0 && credit <= 0) {
-                notify('warning', `${index + 1}踰??쇱씤??李⑤? ?먮뒗 ?蹂 湲덉븸???낅젰??二쇱꽭??`);
+                notify('warning', `${index + 1}번 라인의 차변 또는 대변 금액을 입력해주세요.`);
                 return false;
             }
 
             if (debit > 0 && credit > 0) {
-                notify('warning', `${index + 1}踰??쇱씤? 李⑤?怨??蹂 以??섎굹留??낅젰?????덉뒿?덈떎.`);
+                notify('warning', `${index + 1}번 라인은 차변과 대변 중 하나만 입력할 수 있습니다.`);
                 return false;
             }
 
@@ -640,7 +641,7 @@ window.AdminPicker = AdminPicker;
         }
 
         if (debitTotal !== creditTotal) {
-            notify('warning', '李⑤? ?⑷퀎? ?蹂 ?⑷퀎媛 ?쇱튂?댁빞 ?⑸땲??');
+            notify('warning', '차변 합계와 대변 합계가 일치해야 합니다.');
             return false;
         }
 
@@ -663,7 +664,7 @@ window.AdminPicker = AdminPicker;
             },
             {
                 data: 'sort_no',
-                title: '?쒕쾲',
+                title: '순서',
                 className: 'text-center journal-sort-no-cell',
                 render(data, type, row) {
                     const sortNo = getVoucherSortNo(row);
@@ -677,14 +678,14 @@ window.AdminPicker = AdminPicker;
             },
             {
                 data: 'voucher_no',
-                title: '?꾪몴踰덊샇',
+                title: '전표번호',
                 render(data) {
                     return escapeHtml(data || '');
                 },
             },
             {
                 data: 'voucher_date',
-                title: '?꾪몴?쇱옄',
+                title: '전표일자',
                 defaultContent: '',
                 render(data) {
                     return escapeHtml(data || '');
@@ -692,7 +693,7 @@ window.AdminPicker = AdminPicker;
             },
             {
                 data: 'status',
-                title: '?곹깭',
+                title: '상태',
                 defaultContent: '',
                 render(data) {
                     return escapeHtml(translateStatus(data));
@@ -700,7 +701,7 @@ window.AdminPicker = AdminPicker;
             },
             {
                 data: 'type',
-                title: '???,
+                title: '유형',
                 defaultContent: '',
                 render(data, type, row) {
                     return escapeHtml(translateType(data || row.ref_type));
@@ -708,7 +709,7 @@ window.AdminPicker = AdminPicker;
             },
             {
                 data: 'summary_text',
-                title: '?곸슂',
+                title: '적요',
                 className: 'journal-summary-cell',
                 defaultContent: '',
                 render(data) {
@@ -717,7 +718,7 @@ window.AdminPicker = AdminPicker;
             },
             {
                 data: 'updated_at',
-                title: '?섏젙?쇱떆',
+                title: '수정일시',
                 name: 'updated_at',
                 render(data, type, row) {
                     return escapeHtml(data || row.created_at || '');
@@ -725,7 +726,7 @@ window.AdminPicker = AdminPicker;
             },
             {
                 data: 'account_code',
-                title: '怨꾩젙怨쇰ぉ',
+                title: '계정과목',
                 className: 'no-colvis',
                 visible: false,
                 defaultContent: '',
@@ -735,7 +736,7 @@ window.AdminPicker = AdminPicker;
             },
             {
                 data: 'linked_status',
-                title: '嫄곕옒?곌껐?щ?',
+                title: '거래연결여부',
                 className: 'no-colvis',
                 visible: false,
                 defaultContent: 'unlinked',
@@ -749,7 +750,7 @@ window.AdminPicker = AdminPicker;
             },
             {
                 data: null,
-                title: '愿由?,
+                title: '관리',
                 className: 'text-center no-colvis',
                 orderable: false,
                 searchable: false,
@@ -759,10 +760,10 @@ window.AdminPicker = AdminPicker;
                     return `
                         <button type="button"
                                 class="btn btn-outline-primary btn-sm btn-edit-voucher"
-                                data-id="${id}">?섏젙</button>
+                                data-id="${id}">수정</button>
                         <button type="button"
                                 class="btn btn-outline-danger btn-sm btn-delete-voucher"
-                                data-id="${id}">??젣</button>
+                                data-id="${id}">삭제</button>
                     `;
                 },
             },
@@ -784,7 +785,7 @@ window.AdminPicker = AdminPicker;
         const excelModalEl = document.getElementById('journalExcelModal');
 
         if (!excelModalEl || !window.bootstrap) {
-            notify('warning', '?꾪몴 ?묒? 愿由?紐⑤떖??李얠쓣 ???놁뒿?덈떎.');
+            notify('warning', '전표 엑셀 관리 모달을 찾을 수 없습니다.');
             return;
         }
 
@@ -798,7 +799,7 @@ window.AdminPicker = AdminPicker;
     function openTrashModal() {
         const trashModalEl = document.getElementById('journalTrashModal');
         if (!trashModalEl || !window.bootstrap) {
-            notify('warning', '?꾪몴 ?댁???紐⑤떖??李얠쓣 ???놁뒿?덈떎.');
+            notify('warning', '전표 휴지통 모달을 찾을 수 없습니다.');
             return;
         }
 
@@ -823,8 +824,8 @@ window.AdminPicker = AdminPicker;
                 <td>${escapeHtml(row.summary_text ?? '')}</td>
                 <td>${escapeHtml(row.deleted_at ?? '')}</td>
                 <td>
-                    <button class="btn btn-success btn-sm btn-restore" data-id="${escapeHtml(row.id ?? '')}">蹂듭썝</button>
-                    <button class="btn btn-danger btn-sm btn-purge" data-id="${escapeHtml(row.id ?? '')}">?꾩쟾 ??젣</button>
+                    <button class="btn btn-success btn-sm btn-restore" data-id="${escapeHtml(row.id ?? '')}">복원</button>
+                    <button class="btn btn-danger btn-sm btn-purge" data-id="${escapeHtml(row.id ?? '')}">완전 삭제</button>
                 </td>
             `;
         };
@@ -848,7 +849,7 @@ window.AdminPicker = AdminPicker;
         }
 
         const info = journalTable.page.info();
-        countEl.textContent = `珥?${info?.recordsDisplay ?? 0}嫄?;
+        countEl.textContent = `총 ${info?.recordsDisplay ?? 0}건`;
     }
 
     
@@ -912,21 +913,21 @@ window.AdminPicker = AdminPicker;
             columns: buildJournalColumns(),
             buttons: [
                 {
-                    text: '?묒?愿由?,
+                    text: '엑셀 관리',
                     className: 'btn btn-success btn-sm',
                     action: function () {
                         openExcelModal();
                     },
                 },
                 {
-                    text: '?댁???,
+                    text: '휴지통',
                     className: 'btn btn-danger btn-sm',
                     action: function () {
                         openTrashModal();
                     },
                 },
                 {
-                    text: '?덉쟾??,
+                    text: '새 전표',
                     className: 'btn btn-warning btn-sm',
                     action: function () {
                         void openCreateModal();
@@ -974,7 +975,7 @@ window.AdminPicker = AdminPicker;
             const json = await fetchJson(`${API.detail}?id=${encodeURIComponent(id)}`);
 
             if (!json.success || !json.data) {
-                notify('error', json.message || '?꾪몴 ?곸꽭 ?뺣낫瑜?遺덈윭?ㅼ? 紐삵뻽?듬땲??');
+                notify('error', json.message || '전표 상세 정보를 불러오지 못했습니다.');
                 return;
             }
 
@@ -1005,7 +1006,7 @@ window.AdminPicker = AdminPicker;
         } catch (error) {
             console.error('[ledger-journal] loadDetail failed', error);
             setModalTitle('create');
-            notify('error', '?꾪몴 ?곸꽭 ?뺣낫瑜?遺덈윭?ㅼ? 紐삵뻽?듬땲??');
+            notify('error', '전표 상세 정보를 불러오지 못했습니다.');
         }
     }
 
@@ -1020,11 +1021,11 @@ window.AdminPicker = AdminPicker;
         });
 
         if (!json.success) {
-            notify('error', json.message || '?꾪몴 ??μ뿉 ?ㅽ뙣?덉뒿?덈떎.');
+            notify('error', json.message || '전표 저장에 실패했습니다.');
             return;
         }
 
-        notify('success', '?꾪몴媛 ??λ릺?덉뒿?덈떎.');
+        notify('success', '전표가 저장되었습니다.');
         modal?.hide();
         reloadJournalTable();
     }
@@ -1039,11 +1040,11 @@ window.AdminPicker = AdminPicker;
         });
 
         if (!json.success) {
-            notify('error', json.message || '?꾪몴 ??젣???ㅽ뙣?덉뒿?덈떎.');
+            notify('error', json.message || '전표 삭제에 실패했습니다.');
             return;
         }
 
-        notify('success', '?꾪몴媛 ??젣?섏뿀?듬땲??');
+        notify('success', '전표가 삭제되었습니다.');
         modal?.hide();
         reloadJournalTable();
     }
@@ -1056,7 +1057,7 @@ window.AdminPicker = AdminPicker;
         if (!rows.length) {
             transactionSearchBody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="text-center text-muted py-4">?좏깮??嫄곕옒媛 ?놁뒿?덈떎.</td>
+                    <td colspan="5" class="text-center text-muted py-4">선택한 거래가 없습니다.</td>
                 </tr>
             `;
             return;
@@ -1070,7 +1071,7 @@ window.AdminPicker = AdminPicker;
                 <td class="text-end">${escapeHtml(formatAmountValue(row.total_amount || 0) || '0')}</td>
                 <td class="text-center">
                     <button type="button"
-                            class="btn btn-outline-primary btn-sm btn-pick-transaction">?좏깮</button>
+                            class="btn btn-outline-primary btn-sm btn-pick-transaction">선택</button>
                 </td>
             </tr>
         `).join('');
@@ -1083,7 +1084,7 @@ window.AdminPicker = AdminPicker;
 
         transactionSearchBody.innerHTML = `
             <tr>
-                <td colspan="5" class="text-center text-muted py-4">嫄곕옒瑜?遺덈윭?ㅻ뒗 以묒엯?덈떎.</td>
+                <td colspan="5" class="text-center text-muted py-4">거래를 불러오는 중입니다.</td>
             </tr>
         `;
 
@@ -1096,7 +1097,7 @@ window.AdminPicker = AdminPicker;
 
             const json = await fetchJson(`${API.transactionSearch}?${query.toString()}`);
             if (!json.success) {
-                throw new Error(json.message || '嫄곕옒 紐⑸줉??遺덈윭?ㅼ? 紐삵뻽?듬땲??');
+                throw new Error(json.message || '거래 목록을 불러오지 못했습니다.');
             }
 
             transactionRows = Array.isArray(json.data) ? json.data : [];
@@ -1106,7 +1107,7 @@ window.AdminPicker = AdminPicker;
             transactionRows = [];
             transactionSearchBody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="text-center text-danger py-4">嫄곕옒 紐⑸줉??遺덈윭?ㅼ? 紐삵뻽?듬땲??</td>
+                    <td colspan="5" class="text-center text-danger py-4">거래 목록을 불러오지 못했습니다.</td>
                 </tr>
             `;
         }
@@ -1183,14 +1184,14 @@ window.AdminPicker = AdminPicker;
                 return;
             }
 
-            if (deleteBtn?.dataset.id && window.confirm('?꾪몴瑜???젣?섏떆寃좎뒿?덇퉴?')) {
+            if (deleteBtn?.dataset.id && window.confirm('전표를 삭제하시겠습니까?')) {
                 void deleteVoucher(deleteBtn.dataset.id);
             }
         });
 
         selectTransactionBtn?.addEventListener('click', () => {
             if (!transactionModal) {
-                notify('warning', '嫄곕옒 ?좏깮 紐⑤떖??李얠쓣 ???놁뒿?덈떎.');
+                notify('warning', '거래 선택 모달을 찾을 수 없습니다.');
                 return;
             }
 
@@ -1235,9 +1236,13 @@ window.AdminPicker = AdminPicker;
         });
     }
 
-    function boot() {
+    async function boot() {
         initExcelDataset();
         setupTrashColumns();
+        await initCodeSelectControls(modalEl);
+        onCodeOptionsLoaded(() => {
+            journalTable?.rows().invalidate('data').draw(false);
+        });
         initJournalTable();
         bindDatePickerInput();
         bindEvents();
@@ -1249,6 +1254,5 @@ window.AdminPicker = AdminPicker;
         boot();
     }
 })();
-
 
 

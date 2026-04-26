@@ -37,6 +37,7 @@ export function SearchForm(config) {
     populateFirstSearchFields();
     populateDateOptions(dateOptions);
     bindPeriodButtons();
+    bindDatePicker();
 
     function applyInitialState() {
         bodyEl?.classList.remove('hidden');
@@ -157,6 +158,7 @@ export function SearchForm(config) {
 
                 closeAllTooltips();
             });
+
             document.addEventListener('pointerdown', function (e) {
                 const target = e.target;
                 if (target?.closest?.('.tooltip-container, .tooltip-trigger, .label-btn')) {
@@ -165,6 +167,7 @@ export function SearchForm(config) {
 
                 closeAllTooltips();
             });
+
             document.addEventListener('keydown', function (e) {
                 if (e.key === 'Escape') {
                     closeAllTooltips();
@@ -178,7 +181,6 @@ export function SearchForm(config) {
             e.preventDefault();
 
             const filters = collectFilters();
-
             if (filters === null) {
                 return;
             }
@@ -288,7 +290,7 @@ export function SearchForm(config) {
             if (!end) end = start;
 
             if (start > end) {
-                notifySearchError('시작일은 종료일보다 늦을 수 없습니다.');
+                notifySearchError('시작일은 종료일보다 클 수 없습니다.');
                 return null;
             }
 
@@ -433,11 +435,15 @@ export function SearchForm(config) {
         if (window.__searchFormPeriodBound) return;
         window.__searchFormPeriodBound = true;
 
-        window.setPeriod = function (type) {
+        window.setPeriod = function (type, sourceButton = null) {
             const activeEl = document.activeElement;
-            const btn = activeEl && activeEl.matches?.('[onclick*="setPeriod"]')
-                ? activeEl
-                : null;
+            const btn = sourceButton
+                || (activeEl && activeEl.matches?.('[onclick*="setPeriod"]')
+                    ? activeEl
+                    : null)
+                || window.event?.currentTarget
+                || window.event?.target?.closest?.('[onclick*="setPeriod"]')
+                || null;
 
             const form = btn?.closest('form') || document.querySelector('form[id$="SearchConditionsForm"]');
             if (!form) return;
@@ -487,6 +493,108 @@ export function SearchForm(config) {
             $form.find('[name="dateEnd"]').val(format(end));
             $form.trigger('submit');
         };
+    }
+
+    function bindDatePicker() {
+        const form = document.querySelector(formId);
+        if (!form || form.__searchDatePickerBound) return;
+        form.__searchDatePickerBound = true;
+
+        form.querySelectorAll('.admin-date').forEach((input) => {
+            input.addEventListener('input', () => {
+                input.value = normalizeDateValue(input.value);
+                normalizeDateRange(input);
+            });
+
+            input.addEventListener('blur', () => {
+                input.value = normalizeDateValue(input.value);
+                normalizeDateRange(input);
+            });
+        });
+
+        form.querySelectorAll('.date-icon').forEach((icon) => {
+            icon.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+
+                const wrap = icon.closest('.date-input, .date-input-wrap');
+                const input = wrap ? wrap.querySelector('input.admin-date, input[name="dateStart"], input[name="dateEnd"]') : null;
+                if (input) openDatePicker(input);
+            });
+        });
+    }
+
+    function openDatePicker(input) {
+        const picker = getSharedDatePicker();
+        if (!picker || !input) return;
+
+        picker.__target = input;
+
+        if (typeof picker.clearDate === 'function') {
+            picker.clearDate();
+        }
+
+        const value = normalizeDateValue(input.value);
+        if (value) {
+            const date = new Date(value);
+            if (!Number.isNaN(date.getTime()) && typeof picker.setDate === 'function') {
+                picker.setDate(date);
+            }
+        }
+
+        picker.open({ anchor: input });
+    }
+
+    function getSharedDatePicker() {
+        if (window.__searchFormDatePicker) {
+            return window.__searchFormDatePicker;
+        }
+
+        const container = document.getElementById('today-picker');
+        if (!container || !window.AdminPicker?.create) {
+            return null;
+        }
+
+        const picker = window.AdminPicker.create({
+            type: 'today',
+            container
+        });
+
+        picker.subscribe((_, date) => {
+            const input = picker.__target;
+            if (!input || !date) return;
+
+            input.value = formatDate(date);
+            normalizeDateRange(input);
+            picker.close();
+        });
+
+        window.__searchFormDatePicker = picker;
+        return picker;
+    }
+
+    function formatDate(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    function normalizeDateRange(input) {
+        const form = input.closest('form');
+        if (!form) return;
+
+        const start = form.querySelector('input[name="dateStart"]');
+        const end = form.querySelector('input[name="dateEnd"]');
+        if (!start || !end || !start.value || !end.value) return;
+
+        if (input.name === 'dateStart' && start.value > end.value) {
+            end.value = start.value;
+        }
+
+        if (input.name === 'dateEnd' && end.value < start.value) {
+            start.value = end.value;
+        }
     }
 
     function stripHtml(html) {

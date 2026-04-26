@@ -160,7 +160,7 @@ class ChartAccountService
             if (!$existing) {
                 return [
                     'success' => false,
-                    'message' => '怨꾩젙??李얠쓣 ???놁뒿?덈떎.',
+                    'message' => '계정??李얠쓣 ???놁뒿?덈떎.',
                 ];
             }
 
@@ -170,21 +170,21 @@ class ChartAccountService
             if ($exists && $exists['id'] !== $id) {
                 return [
                     'success' => false,
-                    'message' => '?대? 議댁옱?섎뒗 怨꾩젙肄붾뱶?낅땲??',
+                    'message' => '?? 존재?는 계정코드?니??',
                 ];
             }
 
             if (!empty($data['parent_id']) && $data['parent_id'] === $id) {
                 return [
                     'success' => false,
-                    'message' => '?먭린 ?먯떊???곸쐞 怨꾩젙?쇰줈 吏?뺥븷 ???놁뒿?덈떎.',
+                    'message' => '?기 ?신???위 계정?로 吏?뺥븷 ???놁뒿?덈떎.',
                 ];
             }
 
             if (!empty($data['parent_id']) && !$this->model->getById($data['parent_id'])) {
                 return [
                     'success' => false,
-                    'message' => '?곸쐞 怨꾩젙??李얠쓣 ???놁뒿?덈떎.',
+                    'message' => '?위 계정??李얠쓣 ???놁뒿?덈떎.',
                 ];
             }
 
@@ -197,7 +197,7 @@ class ChartAccountService
 
                 return [
                     'success' => false,
-                    'message' => '怨꾩젙 ?섏젙???ㅽ뙣?덉뒿?덈떎.',
+                    'message' => '계정 ?정???패?습?다.',
                 ];
             }
 
@@ -231,7 +231,7 @@ class ChartAccountService
 
             return [
                 'success' => false,
-                'message' => '怨꾩젙 ?섏젙 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.',
+                'message' => '계정 ?정 ??류 발생?습?다.',
             ];
         }
     }
@@ -242,7 +242,7 @@ class ChartAccountService
         if ($this->model->hasChildren($id)) {
             return [
                 'success' => false,
-                'message' => '?섏쐞 怨꾩젙??議댁옱?섏뿬 ??젣?????놁뒿?덈떎.',
+                'message' => '?위 계정??존재?여 ???????습?다.',
             ];
         }
 
@@ -266,7 +266,7 @@ class ChartAccountService
         if ($this->model->hasChildren($id)) {
             return [
                 'success' => false,
-                'message' => '?섏쐞 怨꾩젙??議댁옱?섏뿬 ?꾩쟾 ??젣?????놁뒿?덈떎.',
+                'message' => '?위 계정??존재?여 ?전 ???????습?다.',
             ];
         }
 
@@ -718,7 +718,7 @@ class ChartAccountService
     {
         $normalized = trim($accountGroup);
 
-        if (in_array($normalized, ['자산', '비용', '?먯궛', '鍮꾩슜'], true)) {
+        if (in_array($normalized, ['ڻ', '', '?산', '비용'], true)) {
             return 'debit';
         }
 

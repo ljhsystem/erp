@@ -10,14 +10,14 @@ class ClientModel
     // PDO 蹂닿?
     private PDO $db;
 
-    // ?앹꽦?????몃??먯꽌 PDO 二쇱엯 ?먮뒗 ?먮룞 ?곌껐
+    // ?앹꽦?????몃??먯꽌 PDO 주입 ?는 ?동 ?결
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
     /* -------------------------------------------------------------
-     * 嫄곕옒泥??꾩껜 紐⑸줉
+     * 嫄곕옒泥??체 紐⑸줉
      * ------------------------------------------------------------- */
     public function getList(array $filters = []): array
     {
@@ -55,7 +55,7 @@ class ClientModel
         $params = [];
 
         /* =========================================================
-         * ?뵦 ?꾩껜 而щ읆 留?(?꾨? ?ы븿)
+         * ? ?체 컬럼 留?(?꾨? ?ы븿)
          * ========================================================= */
         $fieldMap = [
 
@@ -95,7 +95,7 @@ class ClientModel
             'payment_term'      => ['col'=>'c.payment_term','type'=>'like'],
             'item_category'     => ['col'=>'c.item_category','type'=>'like'],
 
-            // 怨꾩쥖
+            // 계좌
             'bank_name'         => ['col'=>'c.bank_name','type'=>'like'],
             'account_number'    => ['col'=>'c.account_number','type'=>'like'],
             'account_holder'    => ['col'=>'c.account_holder','type'=>'like'],
@@ -129,7 +129,7 @@ class ClientModel
 
             if ($value === '' || $value === null) continue;
 
-            // ?뵦 ?꾩껜寃??
+            // ? ?체??
             if ($field === '') {
                 $globalSearch[] = $value;
                 continue;
@@ -170,7 +170,7 @@ class ClientModel
         }
 
         /* =========================================================
-         * ?뵦 ?꾩껜寃??(紐⑤뱺 ?띿뒪??而щ읆)
+         * ? ?체??(紐⑤뱺 ?띿뒪??而щ읆)
          * ========================================================= */
         if (!empty($globalSearch)) {
 

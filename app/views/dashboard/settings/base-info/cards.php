@@ -22,11 +22,9 @@
     $searchFieldOptions = '
       <option value="card_name">카드명</option>
       <option value="card_number">카드번호</option>
-      <option value="card_type">카드유형</option>
       <option value="client_name">카드사</option>
       <option value="account_name">결제계좌</option>
       <option value="is_active">상태</option>
-      <option value="currency">통화</option>
       <option value="note">비고</option>
     ';
 
@@ -86,9 +84,7 @@ $tableHead = '
   <th>카드명</th>
   <th>카드사</th>
   <th>카드번호</th>
-  <th>카드유형</th>
   <th>결제계좌</th>
-  <th>통화</th>
   <th>상태</th>
   <th>삭제일시</th>
   <th>삭제자</th>

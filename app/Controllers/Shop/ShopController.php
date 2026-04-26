@@ -35,7 +35,7 @@ class ShopController
 
     public function webIndex(): void
     {
-        $this->renderModule('쇼핑몰 대시보드', '쇼핑몰 주문, 결제, 정산 흐름을 관리합니다.');
+        $this->renderModule('대시보드', '쇼핑몰 주문, 결제, 정산 흐름을 관리합니다.');
     }
 
     public function webProducts(): void

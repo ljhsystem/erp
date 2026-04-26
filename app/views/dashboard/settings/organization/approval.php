@@ -3,7 +3,9 @@
 ?>
 
 <div class="approval-page" id="approvalPage">
-    <h5 class="fw-bold mb-3">결재템플릿 설정</h5>
+    <div class="page-header">
+        <h5 class="mb-1 fw-bold">결재템플릿 설정</h5>
+    </div>
 
     <div class="approval-row">
         <div class="approval-col-left">
@@ -17,19 +19,24 @@
                 </div>
 
                 <div class="card-body approval-card-body">
-                    <div class="approval-table-wrap">
-                        <table id="template-list-table" class="table table-bordered table-hover m-0">
-                            <thead>
-                                <tr>
-                                    <th>템플릿명</th>
-                                    <th>문서유형</th>
-                                    <th>설명</th>
-                                    <th>상태</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
+                    <table id="template-list-table" class="table table-bordered table-hover table-cross-highlight align-middle w-100">
+                        <thead>
+                            <tr>
+                                <th class="approval-reorder-col text-center no-colvis" style="width:44px"><i class="bi bi-arrows-move"></i></th>
+                                <th class="text-center" style="width:72px">순번</th>
+                                <th>템플릿명</th>
+                                <th>문서유형</th>
+                                <th>설명</th>
+                                <th class="text-center">상태</th>
+                                <th>템플릿키</th>
+                                <th>생성일시</th>
+                                <th>생성자</th>
+                                <th>수정일시</th>
+                                <th>수정자</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -46,25 +53,27 @@
                 </div>
 
                 <div class="card-body approval-card-body">
-                    <div class="approval-table-wrap">
-                        <table id="template-steps-table" class="table table-bordered table-hover m-0">
-                            <thead>
-                                <tr>
-                                    <th class="approval-reorder-col text-center" style="width:44px"><i class="bi bi-arrows-move"></i></th>
-                                    <th style="width:72px">순번</th>
-                                    <th>단계명</th>
-                                    <th>결재 역할</th>
-                                    <th>지정 결재자</th>
-                                    <th>상태</th>
-                                </tr>
-                            </thead>
-                            <tbody id="steps-sortable"></tbody>
-                        </table>
-                    </div>
+                    <table id="template-steps-table" class="table table-bordered table-hover table-cross-highlight align-middle w-100">
+                        <thead>
+                            <tr>
+                                <th class="approval-reorder-col text-center no-colvis" style="width:44px"><i class="bi bi-arrows-move"></i></th>
+                                <th class="text-center" style="width:72px">순번</th>
+                                <th>단계명</th>
+                                <th>결재 역할</th>
+                                <th>지정 결재자</th>
+                                <th class="text-center">상태</th>
+                                <th>생성일시</th>
+                                <th>생성자</th>
+                                <th>수정일시</th>
+                                <th>수정자</th>
+                            </tr>
+                        </thead>
+                        <tbody id="steps-sortable"></tbody>
+                    </table>
                 </div>
 
                 <div class="card-footer small text-muted">
-                    왼쪽 손잡이를 드래그해서 단계 순서를 변경할 수 있습니다.
+                    왼쪽 핸들을 드래그해서 단계 순서를 변경할 수 있습니다.
                 </div>
             </div>
         </div>

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // 경로: PROJECT_ROOT . '/app/views/home/index.php';
 use Core\Helpers\AssetHelper;
 use core\Helpers\ConfigHelper;

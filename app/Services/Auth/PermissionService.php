@@ -60,7 +60,7 @@ class PermissionService
         $data['id'] = UuidHelper::generate();
 
         // ⭐ 권한 코드 생성
-        $data['sort_no'] = null;
+        $data['sort_no'] = SequenceHelper::next('auth_permissions', 'sort_no');
         $data['created_by'] = ActorHelper::user();
         $data['updated_by'] = ActorHelper::user();
 

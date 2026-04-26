@@ -184,6 +184,7 @@ class ProfileService
             * ============================================================ */
             $currentProfile = $employee['profile_image'] ?? null;
             $currentCert    = $employee['certificate_file'] ?? null;
+            $deleteCertificate = ((string)($data['certificate_file_delete'] ?? '0') === '1');
 
             // 프로필 이미지
             if (!empty($files['profile_image']['name'])) {
@@ -206,7 +207,14 @@ class ProfileService
             }
 
             // 자격증 파일
-            if (!empty($files['certificate_file']['name'])) {
+            if ($deleteCertificate && empty($files['certificate_file']['name'])) {
+                if (!empty($currentCert)) {
+                    $deleteAfterCommit[] = $currentCert;
+                }
+
+                $profileData['certificate_file'] = null;
+                $profileData['certificate_name'] = null;
+            } elseif (!empty($files['certificate_file']['name'])) {
                 $upload = $this->fileService->uploadCertificate($files['certificate_file']);
 
                 if (empty($upload['success'])) {

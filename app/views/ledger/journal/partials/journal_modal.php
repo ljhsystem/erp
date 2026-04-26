@@ -47,11 +47,9 @@
                                 <label class="form-label" for="voucher_ref_type">타입</label>
                                 <select class="form-select form-select-sm"
                                         name="ref_type"
-                                        id="voucher_ref_type">
-                                    <option value="MANUAL">수동전표</option>
-                                    <option value="AUTO">자동전표</option>
-                                    <option value="ADJUST">조정전표</option>
-                                    <option value="CLOSING">결산전표</option>
+                                        id="voucher_ref_type"
+                                        data-code-group="REF_TYPE">
+                                    <option value="">선택</option>
                                 </select>
                             </div>
 

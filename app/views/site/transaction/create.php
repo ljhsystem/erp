@@ -156,19 +156,15 @@ $pageScripts = AssetHelper::module('/assets/js/site/transaction.js');
         <section class="site-transaction-subbar">
             <label class="site-transaction-field">
                 <span class="site-transaction-field-label">참조유형</span>
-                <select name="ref_type">
+                <select name="ref_type" data-code-group="REF_TYPE">
                     <option value="">선택</option>
-                    <?php foreach ($refTypeOptions as $value => $label): ?>
-                        <option value="<?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string) $label, ENT_QUOTES, 'UTF-8') ?></option>
-                    <?php endforeach; ?>
                 </select>
             </label>
 
             <label class="site-transaction-field">
                 <span class="site-transaction-field-label">기본 과세구분</span>
-                <select name="tax_type" data-role="header-tax-type">
-                    <option value="TAXABLE">과세</option>
-                    <option value="EXEMPT">면세</option>
+                <select name="tax_type" data-role="header-tax-type" data-code-group="TAX_TYPE">
+                    <option value="">선택</option>
                 </select>
             </label>
 
@@ -269,3 +265,5 @@ $pageScripts = AssetHelper::module('/assets/js/site/transaction.js');
 </main>
 
 <div id="transaction-date-picker" class="site-transaction-picker-layer is-hidden"></div>
+
+<?php include PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/code_modal.php'; ?>

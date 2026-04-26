@@ -79,7 +79,7 @@ class TransactionService
         if ($items === []) {
             return [
                 'success' => false,
-                'message' => '嫄곕옒 ?덈ぉ? 理쒖냼 1嫄??댁긽 ?꾩슂?⑸땲??',
+                'message' => '嫄곕옒 ?덈ぉ? 理쒖냼 1??상 ?요?⑸땲??',
             ];
         }
 

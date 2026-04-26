@@ -1,6 +1,6 @@
 <?php
 // ?롪퍔?δ빳? PROJECT_ROOT/app/Controllers/Dashboard/Settings/SystemController.php
-// ????類ｊ텠?????깆젧>??戮?츩??戮?맟??????筌뤾쑴?잏솻? ?筌뤾쑬??믨슈??? ?곌랜?삯뇡?筌먦끉?? ?筌???⑤베吏?API), ?筌???類λ룴???곗뿼?? ???逾?????? ??⑥щ턄??⑤벚而?? ??戮?츩??類ㅼŦ??API ???쳜?猿낆뿉??댁몠
+// ????類ｊ텠?????깆젧>??戮?츩??戮???????紐꾩?癰? ?紐꾨??꽴??? ?귣?釉?類ㅼ?? ????⑤베吏?API), ????類λ룴???곗뿼?? ???逾?????? ??⑥щ턄??⑤벚而?? ??戮?츩??類ㅼŦ??API ???쳜?猿낆뿉??댁몠
 namespace App\Controllers\Dashboard\Settings;
 
 use Core\DbPdo;
@@ -63,7 +63,7 @@ class SystemController
         try {
             $rows = $this->systemsettingService->getByCategory('SITE');
 
-            // JS???????⑤슢????ル역??key => value ?筌먐븍Ф???곌떠???
+            // JS???????⑤슢????ル역??key => value ?類κ묶???궰???
             $data = [];
             foreach ($rows as $key => $row) {
                 $data[$key] = $row['config_value'];
@@ -181,7 +181,7 @@ class SystemController
     }
 
     // ============================================================
-    // WEB: ?筌뤾쑬?????깆젧 ??븐뻼??
+    // WEB: ?紐꾨?????젟 ??얇??
     // URL: GET /dashboard/settings/system/session
     // permission: web.settings.system.session
     // controller: SystemController@webSession
@@ -192,7 +192,7 @@ class SystemController
     }
 
     // ============================================================
-    // API: ?筌뤾쑬?????깆젧 ?브퀗???
+    // API: ?紐꾨?????젟 ?곌???
     // URL: GET /api/settings/system/session/get
     // permission: api.settings.system.session.view
     // controller: SystemController@apiSessionGet
@@ -224,7 +224,7 @@ class SystemController
     }
 
     // ============================================================
-    // API: ?筌뤾쑬?????깆젧 ????
+    // API: ?紐꾨?????젟 ????
     // URL: POST /api/settings/system/session/save
     // permission: api.settings.system.session.edit
     // controller: SystemController@apiSessionSave
@@ -394,7 +394,7 @@ class SystemController
     }
 
     // ============================================================
-    // API: ?筌? API ???깆젧 ?브퀗???
+    // API: ?? API ???깆젧 ?브퀗???
     // URL: GET /api/settings/system/api/get
     // permission: api.settings.system.api.view
     // controller: SystemController@apiApiGet
@@ -426,7 +426,7 @@ class SystemController
     }
 
     // ============================================================
-    // API: ?筌? API ???깆젧 ????
+    // API: ?? API ???깆젧 ????
     // URL: POST /api/settings/system/api/save
     // permission: api.settings.system.api.edit
     // controller: SystemController@apiApiSave
@@ -458,14 +458,14 @@ class SystemController
             * ???API Key / Secret ???吏???諛댁뎽 (???堉?
             * ===================================================== */
 
-            // API Key?띠럾? ??怨몃さ嶺????吏???諛댁뎽
+            // API Key?쎛? ??곸몵嶺????吏???諛댁뎽
             if ($regenerateKey) {
                 $input['api_key'] = bin2hex(random_bytes(16)); // 32 chars
             } elseif (empty($input['api_key'])) {
                 $input['api_key'] = $currentKey;
             }
 
-            // API Secret????怨몃さ嶺????吏???諛댁뎽
+            // API Secret????곸몵嶺????吏???諛댁뎽
             if ($regenerateSecret) {
                 $input['api_secret'] = bin2hex(random_bytes(32)); // 64 chars
             } elseif (empty($input['api_secret'])) {
@@ -495,7 +495,7 @@ class SystemController
                 'success' => true,
                 'result'  => $result,
                 'data'    => [
-                    // ?熬곣뫁夷?筌뤾쑬????熬곣뫗???濡?듆 ?꾩룆?餓????????쀬벟 ?꾩룇瑗??(??ルㅎ臾?
+                    // ?袁⑥?紐꾨????袁⑹???? ?쏅?????????쓺 ?쏆??(??뤾?
                     'api_key'    => $input['api_key'],
                     'api_secret' => $input['api_secret'],
                 ]
@@ -511,7 +511,7 @@ class SystemController
     }
 
     /* ============================================================
-     * WEB: ?筌? ??類λ룴????⑤베吏????깆젧 ??븐뻼??
+     * WEB: ?? ??類λ룴????⑤베吏????깆젧 ??븐뻼??
      * URL: GET /dashboard/settings/system/external-services
      * permission: web.settings.system.external
      * ============================================================ */
@@ -521,7 +521,7 @@ class SystemController
     }
 
     /* ============================================================
-     * API: ?筌? ??類λ룴????⑤베吏????깆젧 ?브퀗???
+     * API: ?? ??類λ룴????⑤베吏????깆젧 ?브퀗???
      * URL: GET /api/settings/system/external-services/get
      * permission: api.settings.system.external.view
      * ============================================================ */
@@ -551,7 +551,7 @@ class SystemController
     }
 
     /* ============================================================
-     * API: ?筌? ??類λ룴????⑤베吏????깆젧 ????
+     * API: ?? ??類λ룴????⑤베吏????깆젧 ????
      * URL: POST /api/settings/system/external-services/save
      * permission: api.settings.system.external.edit
      * ============================================================ */
@@ -622,7 +622,7 @@ class SystemController
     }
 
     // ============================================================
-    // WEB: DB ?꾩룄??캆???븐뻼??
+    // WEB: DB ?쏄?????얇??
     // URL: GET /dashboard/settings/system/database
     // permission: web.settings.system.database
     // controller: SystemController@webDatabase
@@ -633,7 +633,7 @@ class SystemController
     }
 
     // ============================================================
-    // API: DB ?꾩룄??캆????덈뺄
+    // API: DB ?쏄??????뻬
     // URL: POST /api/settings/system/database/run
     // permission: api.settings.system.database.run
     // controller: SystemController@apiBackupRun
@@ -685,7 +685,7 @@ class SystemController
         }
     }
     // ============================================================
-    // API: DB ?꾩룄??캆????깆젧 ????
+    // API: DB ?쏄??????젟 ????
     // URL: POST /api/settings/system/database/save
     // permission: api.settings.system.database.edit
     // controller: SystemController@apiDatabaseSave
@@ -736,7 +736,7 @@ class SystemController
         }
     }
     // ============================================================
-    // API: DB ?꾩룄??캆???⑤객臾??筌먲퐢沅??브퀗???(?롪퍔?δ빳?嶺뚣끉裕??귥낯繹먮끏??
+    // API: DB ?쏄?????⑤객臾??筌먲퐢沅??브퀗???(?롪퍔?δ빳?嶺뚣끉裕??귥낯繹먮끏??
     // URL: GET /api/settings/system/database/info
     // permission: api.settings.system.database.view
     // controller: SystemController@apiBackupInfo
@@ -763,7 +763,7 @@ class SystemController
         }
     }
     // ============================================================
-    // API: DB ?꾩룄??캆??β돦裕???브퀗???
+    // API: DB ?쏄????≪???곌???
     // URL: GET /api/settings/system/database/log
     // permission: api.settings.system.database.view
     // controller: SystemController@apiBackupLog
@@ -774,9 +774,9 @@ class SystemController
             $dir = $this->backupService->getBackupDirectory();
             $logFile = rtrim($dir, '/') . '/backup_log.txt';
 
-            $text = '?β돦裕?????逾????怨룸????덈펲.';
+            $text = '?≪?????????곷????뼄.';
             if (is_file($logFile)) {
-                // ??????ｋ걠????????? 嶺뚮씭??嶺?20000?꾩룆???筌뤾퍔異???袁ⓥ뵛(??믨퀡由?춯??브퀗???
+                // ??????ｋ걠????????? 嶺뚮씭??嶺?20000?쏅???紐껋???ⓥ뵛(??믨퀡由?춯??브퀗???
                 $fp = fopen($logFile, 'rb');
                 if ($fp) {
                     $size = filesize($logFile);
@@ -803,7 +803,7 @@ class SystemController
     }
 
     // ============================================================
-    // API: DB ??怨멥돡??Replication) ??⑤객臾??브퀗???
+    // API: DB ??곸㉦??Replication) ??⑤객臾??브퀗???
     // URL: GET /api/settings/system/database/replication-status
     // permission: api.settings.system.database.view
     // controller: SystemController@apiDatabaseReplicationStatus
@@ -814,7 +814,7 @@ class SystemController
             $service = new DatabaseReplicationStatusService(DbPdo::conn());
             $status  = $service->check();
 
-            // ???JS??????꾩룆?餓???⑤베利꿨슖?data ??臾먮쫭 ??蹂ㅽ깴
+            // ???JS??????쏅????⑤베利꿨슖?data ??臾먮쫭 ??蹂ㅽ깴
             $this->respondJson([
                 'success'     => true,
                 'primary'     => $status['primary'] ?? null,
@@ -831,7 +831,7 @@ class SystemController
     }
 
     // ============================================================
-    // API: Secondary DB ??濡レ쭢/???吏??곌랜踰??
+    // API: Secondary DB ??롫짗/???吏??곌랜踰??
     // URL: POST /api/settings/system/database/restore-secondary
     // permission: api.settings.system.database.restore
     // controller: SystemController@apiRestoreSecondary
@@ -846,7 +846,7 @@ class SystemController
             $this->respondJson([
                 'success' => true,
                 'state' => 'running',
-                'message' => 'Secondary DB 癰귣벊???遺욧퍕???臾믩땾??됰뮸??덈뼄. ?袁⑥삋 癰귣벊???怨밴묶?癒?퐣 筌욊쑵六???????類ㅼ뵥??뤾쉭??'
+                'message' => 'Secondary DB 蹂듭???붿껌???묒닔??뒿??떎. ?⑥ 蹂듭???곹깭?? 吏꾪六???????類씤??꽭??'
             ], 202);
 
             if (function_exists('fastcgi_finish_request')) {
@@ -891,7 +891,7 @@ class SystemController
 
 
     // ============================================================
-    // WEB: ??戮?츩???β돦裕????븐뻼??
+    // WEB: ??戮????≪????얇??
     // URL: GET /dashboard/settings/system/logs
     // permission: web.settings.system.logs
     // controller: SystemController@webLogs
@@ -902,7 +902,7 @@ class SystemController
     }
 
     // ============================================================
-    // API: ?β돦裕????怨몃뮔 ?브퀗???
+    // API: ?≪????곸뒠 ?곌???
     // URL: POST /api/settings/system/logs/view
     // permission: api.settings.system.logs.view
     // controller: SystemController@apiLogView
@@ -924,7 +924,7 @@ class SystemController
                 throw new \Exception('Log file not found');
             }
 
-            // ???????紐꾩럸 ???? 嶺뚮씭??嶺?50KB嶺???袁ⓥ뵛
+            // ???????紐쎗 ???? 嶺뚮씭??嶺?50KB嶺???ⓥ뵛
             $maxBytes = 50 * 1024;
             $size = filesize($path);
 
@@ -959,7 +959,7 @@ class SystemController
 
 
     // ============================================================
-    // API: ?β돦裕?????逾?????
+    // API: ?≪??????????
     // URL: POST /api/settings/system/logs/delete
     // permission: api.settings.system.logs.delete
     // controller: SystemController@apiLogDelete
@@ -996,7 +996,7 @@ class SystemController
     }
 
     // ============================================================
-    // API: ?熬곣뫕???β돦裕??????
+    // API: ?袁⑷???≪??????
     // URL: POST /api/settings/system/logs/delete-all
     // permission: api.settings.system.logs.delete_all
     // controller: SystemController@apiLogDeleteAll
@@ -1030,7 +1030,7 @@ class SystemController
     }
 
     // ============================================================
-    // WEB: ?β돦裕?????逾????깅뮧?β돦裕녻キ?
+    // WEB: ?≪?????????뒲?≪뮆諭?
     // URL: GET /dashboard/settings/system/logs/download?file=xxx.log
     // permission: web.settings.system.logs.download
     // controller: SystemController@webLogDownload

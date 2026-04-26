@@ -56,7 +56,7 @@ class RoleService
 
         // ⭐ Service가 생성해야 하는 값들
         $data['id']         = UuidHelper::generate();
-        $data['sort_no']       = null;
+        $data['sort_no']       = SequenceHelper::next('auth_roles', 'sort_no');
         $data['created_by'] = ActorHelper::user();
 
         $res = $this->model->create($data);

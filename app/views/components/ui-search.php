@@ -9,10 +9,10 @@ $searchFieldOptions = $searchFieldOptions ?? '';
 
 $periodGuideTitle = $periodGuideTitle ?? '기간 조건 안내';
 $periodGuideItems = $periodGuideItems ?? [
-    '기간 기준(등록일자, 발생일자 등)을 선택한 뒤 날짜 범위를 지정하세요.',
-    '빠른 선택 버튼을 클릭하면 날짜가 자동으로 입력됩니다.',
-    '시작일과 종료일을 직접 입력해도 됩니다.',
-    '기간 설정 버튼으로 원하는 기간을 적용할 수 있습니다.'
+    '기간 기준을 선택한 뒤 시작일과 종료일을 지정해 조회할 수 있습니다.',
+    '오늘, 1개월, 3개월 같은 빠른 선택 버튼으로 기간을 바로 채울 수 있습니다.',
+    '시작일과 종료일은 직접 입력할 수 있습니다.',
+    '기간 설정 후 검색 버튼을 누르면 조건이 적용됩니다.',
 ];
 
 $searchGuideTitle = $searchGuideTitle ?? '검색어 안내';
@@ -20,7 +20,7 @@ $searchGuideItems = $searchGuideItems ?? [
     '검색어 여러 개는 쉼표(,)로 구분해서 입력할 수 있습니다.',
     '예시: 1, 3, 5',
     '조건 항목은 한 줄에 하나씩 검색할 수 있습니다.',
-    '검색 조건은 최대 5개까지 추가할 수 있습니다.'
+    '검색 조건은 최대 5개까지 추가할 수 있습니다.',
 ];
 
 $periodButtons = $periodButtons ?? [
@@ -86,7 +86,7 @@ $showSearchTooltip = $showSearchTooltip ?? true;
                     <?php foreach ($periodButtons as $btn): ?>
                         <button type="button"
                                 class="btn btn-outline-secondary btn-sm"
-                                onclick="setPeriod('<?= htmlspecialchars($btn['key'], ENT_QUOTES, 'UTF-8') ?>')">
+                                onclick="setPeriod('<?= htmlspecialchars($btn['key'], ENT_QUOTES, 'UTF-8') ?>', this)">
                             <?= htmlspecialchars($btn['label'], ENT_QUOTES, 'UTF-8') ?>
                         </button>
                     <?php endforeach; ?>

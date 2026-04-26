@@ -78,13 +78,11 @@ class CardController
             $payload = [
                 'id' => $_POST['id'] ?? null,
                 'card_name' => trim((string) ($_POST['card_name'] ?? '')),
-                'card_type' => $this->normalizeCardType((string) ($_POST['card_type'] ?? '')),
                 'card_number' => trim((string) ($_POST['card_number'] ?? '')),
                 'client_id' => $_POST['client_id'] ?? null,
                 'account_id' => $_POST['account_id'] ?? null,
                 'expiry_year' => trim((string) ($_POST['expiry_year'] ?? '')),
                 'expiry_month' => trim((string) ($_POST['expiry_month'] ?? '')),
-                'currency' => strtoupper(trim((string) ($_POST['currency'] ?? 'KRW'))),
                 'limit_amount' => isset($_POST['limit_amount']) ? (float) $_POST['limit_amount'] : 0.0,
                 'note' => trim((string) ($_POST['note'] ?? '')),
                 'memo' => trim((string) ($_POST['memo'] ?? '')),
@@ -94,14 +92,6 @@ class CardController
 
             if ($payload['card_name'] === '') {
                 $this->jsonResponse(['success' => false, 'message' => '카드명을 입력하세요.']);
-            }
-
-            if ($payload['card_type'] === '') {
-                $this->jsonResponse(['success' => false, 'message' => '카드유형을 선택하세요.']);
-            }
-
-            if ($payload['currency'] !== '' && !preg_match('/^[A-Z]{3}$/', $payload['currency'])) {
-                $this->jsonResponse(['success' => false, 'message' => '통화 코드는 3자리 영문으로 입력하세요.']);
             }
 
             if ($payload['card_number'] !== '' && !preg_match('/^[0-9-]+$/', $payload['card_number'])) {
@@ -338,18 +328,6 @@ class CardController
             echo '카드 엑셀 다운로드 중 오류가 발생했습니다: ' . $e->getMessage();
             exit;
         }
-    }
-
-    private function normalizeCardType(string $value): string
-    {
-        $normalized = strtolower(trim($value));
-
-        return match ($normalized) {
-            'corporate', '법인', '법인카드' => 'corporate',
-            'personal', '개인', '개인카드' => 'personal',
-            'virtual', '가상', '가상카드' => 'virtual',
-            default => $normalized,
-        };
     }
 
     private function jsonResponse(array $payload): void

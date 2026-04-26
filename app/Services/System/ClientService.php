@@ -2,9 +2,9 @@
 // 野껋럥以? PROJECT_ROOT . '/app/Services/System/ClientService.php'
 // ??살구:
 //  - 椰꾧퀡?믭㎗?Client) ?온????뺥돩??
-//  - UUID / sort_no ??밴쉐?? Service 筌?굞??
-//  - DB 筌ｌ꼶?? ClientModel
-//  - 筌뤴뫀諭?雅뚯눘???癒?カ LoggerFactory ?怨몄뒠
+//  - UUID / sort_no ??밴쉐?? Service ???
+//  - DB 泥섎?? ClientModel
+//  - 紐⑤?二쇱???? LoggerFactory ?곸슜
 namespace App\Services\System;
 
 use PDO;
@@ -42,7 +42,7 @@ class ClientService
 
 
     /* ============================================================
-     * ?袁⑷퍥 筌뤴뫖以?鈺곌퀬??
+     * ?⑷퍥 筌뤴뫖以?鈺곌퀬??
      * ============================================================ */
     public function getList(array $filters = []): array
     {
@@ -85,7 +85,7 @@ class ClientService
     }
 
     /* ============================================================
-     * ??ｊ탷 鈺곌퀬??(id 疫꿸퀣?)
+     * ??ｊ탷 鈺곌퀬??(id 湲곗?)
      * ============================================================ */
     public function getById(string $id): ?array
     {
@@ -129,7 +129,7 @@ class ClientService
 
 
     /* =========================================================
-    * 椰꾧퀡?믭㎗?野꺜??(Service - Select2 ????癰궰??
+    * 椰꾧퀡?믭㎗?野꺜??(Service - Select2 ????蹂??
     * ========================================================= */
     public function searchPicker(string $keyword, array $options = []): array
     {
@@ -157,7 +157,7 @@ class ClientService
                     $text .= ' (' . $row['business_number'] . ')';
                 }
 
-                // ?逾????텢筌???됱몵筌??곕떽?
+                // ????????쑝??붽?
                 if (!empty($row['company_name']) && $row['company_name'] !== $row['client_name']) {
                     $text .= ' / ' . $row['company_name'];
                 }
@@ -204,7 +204,7 @@ class ClientService
 
             $this->pdo->beginTransaction();
 
-            /* ?逾?normalize ?袁⑸퓠 ???????삋域밸챶? ?믪눘? ?⑥쥙??*/
+            /* ?逾?normalize ?⑸퓠 ???????삋域밸챶? ?믪눘? ?⑥쥙??*/
             $deleteBusiness = !empty($data['delete_business_certificate']);
             $deleteRrn      = !empty($data['delete_rrn_image']);
             $deleteBank     = !empty($data['delete_bank_file']);
@@ -214,7 +214,7 @@ class ClientService
             $data = $this->normalizeNullableClientFields($data);
 
             /* =========================================================
-            * ?逾?疫꿸퀣???怨쀬뵠???믪눘? 鈺곌퀬??(餓λ쵐??
+            * ??湲곗???곗씠???쇱? 議고??(以묒??
             * ========================================================= */
             $id   = trim((string)($data['id'] ?? ''));
             $mode = $id === '' ? 'CREATE' : 'UPDATE';
@@ -225,7 +225,7 @@ class ClientService
                 $before = $this->model->getById($id) ?? [];
 
                 if (!$before) {
-                    throw new \Exception('鈺곕똻???? ??낅뮉 椰꾧퀡?믭㎗?륁뿯??덈뼄.');
+                    throw new \Exception('수정할 거래처 정보를 찾을 수 없습니다.');
                 }
             }
 
@@ -241,7 +241,7 @@ class ClientService
             } else {
 
                 if (strpos($rrnInput, '*') !== false) {
-                    throw new \Exception('筌띾뜆??諛몃쭆 雅뚯눖?甕곕뜇??????館釉?????곷뮸??덈뼄.');
+                    throw new \Exception('마스킹된 주민등록번호는 저장할 수 없습니다.');
                 }
 
                 $rrnRaw = preg_replace('/\D+/', '', $rrnInput);
@@ -257,13 +257,13 @@ class ClientService
             }
 
             /* =========================================================
-            * ?逾?ID / 筌뤴뫀諭?野껉퀣??
+            * ?逾?ID / 紐⑤?寃곗??
             * ========================================================= */
             $id   = trim((string)($data['id'] ?? ''));
             $mode = $id === '' ? 'CREATE' : 'UPDATE';
 
             /* =========================================================
-            * ?逾?疫꿸퀣???怨쀬뵠???믪눘? 鈺곌퀬??(餓λ쵐??
+            * ??湲곗???곗씠???쇱? 議고??(以묒??
             * ========================================================= */
             $before = [];
 
@@ -271,7 +271,7 @@ class ClientService
                 $before = $this->model->getById($id) ?? [];
 
                 if (!$before) {
-                    throw new \Exception('鈺곕똻???? ??낅뮉 椰꾧퀡?믭㎗?륁뿯??덈뼄.');
+                    throw new \Exception('수정할 거래처 정보를 찾을 수 없습니다.');
                 }
             }
 
@@ -302,9 +302,7 @@ class ClientService
                 }
 
                 $data['rrn_image'] = null;
-            }
-
-            // ?逾????뵬??몄쎗筌ｋ똾寃?
+            // 업로드 오류 확인
             if (
                 isset($files['business_certificate']['error']) &&
                 $files['business_certificate']['error'] !== UPLOAD_ERR_NO_FILE &&
@@ -337,6 +335,7 @@ class ClientService
                     '통장사본'
                 ));
             }
+            }
 
 
             // ?逾???낆쨮??
@@ -360,7 +359,7 @@ class ClientService
                 }
             }
 
-            // ?逾?rrn_image ??낆쨮??筌ｌ꼶??
+            // ?逾?rrn_image ??줈??泥섎??
             if (!empty($files['rrn_image']['tmp_name'])) {
 
                 $oldPath = $before['rrn_image'] ?? null;
@@ -374,7 +373,7 @@ class ClientService
                 }
 
                 $data['rrn_image'] = $upload['db_path'];
-                $newRrnPath = $upload['db_path'];   // ?逾???由???節뚮선??筌띿쉶??
+                $newRrnPath = $upload['db_path'];   // ???????ｌ뼱??留욌??
 
                 if (!empty($oldPath)) {
                     $this->fileService->delete($oldPath);
@@ -401,7 +400,7 @@ class ClientService
                 }
             }
 
-            // ?逾?疫꿸퀣?????뵬 ?醫?
+            // ??湲곗????? ??
             if (
                 !array_key_exists('business_certificate', $data)
                 && !$deleteBusiness
@@ -426,7 +425,7 @@ class ClientService
             }
 
             /* =========================================================
-            * ?逾????????삋域???볤탢 (DB 癰귣똾??
+            * ?逾????????삋域???볤탢 (DB 蹂댄??
             * ========================================================= */
             unset($data['delete_business_certificate']);
             unset($data['delete_bank_file']);
@@ -435,7 +434,6 @@ class ClientService
             * UPDATE
             * ========================================================= */
             if ($id) {
-
                 $data['updated_by'] = $actor;
 
                 $updateData = $data;
@@ -449,13 +447,13 @@ class ClientService
                     return [
                         'success' => true,
                         'id'      => $id,
-                        'sort_no'    => $before['sort_no'] ?? null,
-                        'message' => '癰궰野껋럩沅????곸벉'
+                        'sort_no' => $before['sort_no'] ?? null,
+                        'message' => '변경사항이 없습니다.'
                     ];
                 }
 
                 if (!$this->model->updateById($id, $updateData)) {
-                    throw new \Exception('椰꾧퀡?믭㎗???륁젟 ??쎈솭');
+                    throw new \Exception('거래처 수정에 실패했습니다.');
                 }
 
                 $this->pdo->commit();
@@ -463,7 +461,7 @@ class ClientService
                 return [
                     'success' => true,
                     'id'      => $id,
-                    'sort_no'    => $before['sort_no'] ?? null
+                    'sort_no' => $before['sort_no'] ?? null
                 ];
             }
 
@@ -475,13 +473,12 @@ class ClientService
 
             $insertData = array_merge($data, [
                 'id'         => $newId,
-                'sort_no'       => $newSortNo,
+                'sort_no'    => $newSortNo,
                 'created_by' => $actor,
                 'updated_by' => $actor
             ]);
-
             if (!$this->model->create($insertData)) {
-                throw new \Exception('椰꾧퀡?믭㎗??源낆쨯 ??쎈솭');
+                throw new \Exception('거래처 등록에 실패했습니다.');
             }
 
             $this->pdo->commit();
@@ -498,7 +495,7 @@ class ClientService
                 $this->pdo->rollBack();
             }
 
-            // ?逾???낆쨮??뺤춸 ??랁?DB 獄쏆꼷????쎈솭?????뵬 ?類ｂ봺
+            // ?逾???낆쨮??뺤춸 ??랁?DB 諛섏????뙣????? ?類ｂ봺
             if (!empty($newBusinessPath)) {
                 $this->fileService->delete($newBusinessPath);
             }
@@ -547,7 +544,7 @@ class ClientService
                 $this->logger->warning('delete() not found', ['id' => $id]);
                 return [
                     'success' => false,
-                    'message' => '鈺곕똻???? ??낅뮉 椰꾧퀡?믭㎗?륁뿯??덈뼄.'
+                    'message' => '거래처 정보를 찾을 수 없습니다.'
                 ];
             }
 
@@ -560,7 +557,7 @@ class ClientService
 
                 return [
                     'success' => false,
-                    'message' => '椰꾧퀡?믭㎗???????쎈솭'
+                    'message' => '거래처 삭제에 실패했습니다.'
                 ];
             }
 
@@ -582,9 +579,8 @@ class ClientService
     }
 
     /* =========================================================
-    * ?????筌뤴뫖以?
-    * ========================================================= */
-    public function getTrashList(): array
+    * 휴지통 목록
+    * ========================================================= */    public function getTrashList(): array
     {
         $this->logger->info('getTrashList() called');
 
@@ -605,7 +601,7 @@ class ClientService
 
 
     /* =========================================================
-    癰귣벊??
+    蹂듭??
     ========================================================= */
 
     public function restore(string $id, string $actorType = 'USER'): array
@@ -623,7 +619,7 @@ class ClientService
         if (!$client) {
             return [
                 'success' => false,
-                'message' => '鈺곕똻???? ??낅뮉 椰꾧퀡?믭㎗?륁뿯??덈뼄.'
+                'message' => '거래처 정보를 찾을 수 없습니다.'
             ];
         }
 
@@ -638,11 +634,9 @@ class ClientService
 
 
 
-
     /* =========================================================
-    * ?醫뤾문 癰귣벊??
-    * ========================================================= */
-    public function restoreBulk(array $ids, string $actorType = 'USER'): array
+    * 선택 복원
+    * ========================================================= */    public function restoreBulk(array $ids, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
 
@@ -652,7 +646,7 @@ class ClientService
         ]);
 
         if (empty($ids)) {
-            return ['success' => false, 'message' => 'ID ??곸벉'];
+            return ['success' => false, 'message' => 'ID가 올바르지 않습니다.'];
         }
 
         $this->pdo->beginTransaction();
@@ -672,7 +666,7 @@ class ClientService
 
             return [
                 'success' => true,
-                'message' => "癰귣벊???袁⑥┷ ({$success}椰?"
+                'message' => "복원 완료 ({$success}건)"
             ];
 
         } catch (\Throwable $e) {
@@ -693,7 +687,7 @@ class ClientService
 
 
     /* =========================================================
-    * ?袁⑷퍥 癰귣벊??
+    * 전체 복원
     * ========================================================= */
     public function restoreAll(string $actorType = 'USER'): array
     {
@@ -722,7 +716,7 @@ class ClientService
 
             return [
                 'success' => true,
-                'message' => "?袁⑷퍥 癰귣벊???袁⑥┷ ({$success}椰?"
+                'message' => "전체 복원 완료 ({$success}건)"
             ];
 
         } catch (\Throwable $e) {
@@ -739,7 +733,7 @@ class ClientService
 
 
     /* =========================================================
-    * ?袁⑹읈????
+    * 완전 삭제
     * ========================================================= */
     public function purge(string $id, string $actorType = 'USER'): array
     {
@@ -756,17 +750,13 @@ class ClientService
         if (!$client) {
             return [
                 'success' => false,
-                'message' => '鈺곕똻???? ??낅뮉 椰꾧퀡?믭㎗?륁뿯??덈뼄.'
+                'message' => '거래처 정보를 찾을 수 없습니다.'
             ];
         }
 
         $this->pdo->beginTransaction();
 
         try {
-
-            /* =========================
-             * 1?るㅄ源????뵬 ????(???뼎)
-             * ========================= */
 
             if (!empty($client['business_certificate'])) {
 
@@ -793,14 +783,10 @@ class ClientService
                 ]);
             }
 
-            /* =========================
-             * 2?るㅄ源?DB ????
-             * ========================= */
-
             $ok = $this->model->hardDeleteById($id);
 
             if (!$ok) {
-                throw new \Exception('DB ??????쎈솭');
+                throw new \Exception('DB 삭제에 실패했습니다.');
             }
 
             $this->pdo->commit();
@@ -819,20 +805,20 @@ class ClientService
 
             return [
                 'success' => false,
-                'message' => '??????쎈솭'
+                'message' => '완전 삭제에 실패했습니다.'
             ];
         }
     }
 
     /* =========================================================
-    * ?醫뤾문 ?袁⑹읈????
+    * 선택 완전 삭제
     * ========================================================= */
     public function purgeBulk(array $ids, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
 
         if (empty($ids)) {
-            return ['success' => false, 'message' => 'ID ??곸벉'];
+            return ['success' => false, 'message' => 'ID가 올바르지 않습니다.'];
         }
 
         $this->pdo->beginTransaction();
@@ -843,18 +829,12 @@ class ClientService
 
             foreach ($ids as $id) {
 
-                /* =========================================================
-                 * 1?るㅄ源?疫꿸퀣???怨쀬뵠??鈺곌퀬??
-                 * ========================================================= */
                 $client = $this->model->getById($id);
 
                 if (!$client) {
                     continue;
                 }
 
-                /* =========================================================
-                 * 2?るㅄ源????뵬 ????
-                 * ========================================================= */
                 if (!empty($client['business_certificate'])) {
 
                     $this->fileService->delete($client['business_certificate']);
@@ -885,9 +865,6 @@ class ClientService
                     ]);
                 }
 
-                /* =========================================================
-                 * 3?るㅄ源?DB ????
-                 * ========================================================= */
                 $ok = $this->model->hardDeleteById($id);
 
                 if ($ok) $success++;
@@ -897,7 +874,7 @@ class ClientService
 
             return [
                 'success' => true,
-                'message' => "?????袁⑥┷ ({$success}椰?"
+                'message' => "완전 삭제 완료 ({$success}건)"
             ];
 
         } catch (\Throwable $e) {
@@ -916,7 +893,7 @@ class ClientService
     }
 
     /* =========================================================
-    * ?袁⑷퍥 ?袁⑹읈????
+    * 전체 완전 삭제
     * ========================================================= */
     public function purgeAll(string $actorType = 'USER'): array
     {
@@ -932,9 +909,6 @@ class ClientService
 
             foreach ($rows as $row) {
 
-                /* =========================================================
-                * 1?るㅄ源????뵬 ????
-                * ========================================================= */
                 if (!empty($row['business_certificate'])) {
 
                     $this->fileService->delete($row['business_certificate']);
@@ -963,9 +937,6 @@ class ClientService
                     ]);
                 }
 
-                /* =========================================================
-                * 2?るㅄ源?DB ????
-                * ========================================================= */
                 $ok = $this->model->hardDeleteById($row['id']);
 
                 if ($ok) $success++;
@@ -975,7 +946,7 @@ class ClientService
 
             return [
                 'success' => true,
-                'message' => "?袁⑷퍥 ?????袁⑥┷ ({$success}椰?"
+                'message' => "전체 완전 삭제 완료 ({$success}건)"
             ];
 
         } catch (\Throwable $e) {
@@ -995,9 +966,8 @@ class ClientService
 
 
     /* ============================================================
-    * ?꾨뗀諭???뽮퐣 癰궰野?(RowReorder)
-    * ============================================================ */
-    public function reorder(array $changes): bool
+    * 순서 변경(RowReorder)
+    * ============================================================ */    public function reorder(array $changes): bool
     {
         $this->logger->info('reorder() called', [
             'changes' => $changes
@@ -1013,21 +983,18 @@ class ClientService
                 $this->pdo->beginTransaction();
             }
 
-            /* 1?るㅄ源???낆젾揶?野꺜筌?*/
             foreach ($changes as $row) {
 
                 if (
                     empty($row['id']) ||
                     !isset($row['newSortNo'])
                 ) {
-                    throw new \Exception('reorder ?怨쀬뵠????살첒');
+                    throw new \Exception('reorder 데이터 오류');
                 }
             }
 
-            /* 2?るㅄ源?temp ??猷?(?겸뫖猷?獄쎻뫗?) */
             foreach ($changes as $row) {
 
-                // ?紐???곌석??띿쓺 (??? ?겸뫖猷???덇돌野?
                 $tempSortNo = (int)$row['newSortNo'] + 1000000;
 
                 $this->model->updateSortNo(
@@ -1036,7 +1003,6 @@ class ClientService
                 );
             }
 
-            /* 3?るㅄ源???쇱젫 ?꾨뗀諭??怨몄뒠 */
             foreach ($changes as $row) {
 
                 $this->model->updateSortNo(
@@ -1069,9 +1035,8 @@ class ClientService
     }
 
     /* ============================================================
-    * ??쀫탣????쇱뒲嚥≪뮆諭?
-    * ============================================================ */
-    public function downloadTemplate(): void
+    * 엑셀 양식 다운로드
+    * ============================================================ */    public function downloadTemplate(): void
     {
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
@@ -1142,6 +1107,7 @@ class ClientService
     public function downloadMigrationTemplate(): void { $this->downloadTemplate(); }
     public function saveFromMigrationExcelFile(string $filePath): array { return $this->saveFromExcelFile($filePath); }
     public function downloadMigrationExcel(): void { $this->downloadExcel(); }
+
     private function getClientMigrationHeaders(): array
     {
         return ['거래처명', '상호명', '등록일자', '사업자등록번호', '업태', '대표자명', '전화', '이메일', '주소', '메모'];
@@ -1172,6 +1138,7 @@ class ClientService
             'memo' => 'memo',
         ];
     }
+
     private function normalizeMigrationExcelDate(mixed $value): ?string
     {
         if ($value === null) {
@@ -1246,12 +1213,12 @@ class ClientService
     private function resolveUploadErrorMessage(int $errorCode, string $label): string
     {
         return match ($errorCode) {
-            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => "{$label} ???뵬 ??몄쎗????낆쨮????쀫립???λ뜃???됰뮸??덈뼄.",
-            UPLOAD_ERR_PARTIAL => "{$label} ???뵬 ??낆쨮??? 餓λ쵌而????쎈솭??됰뮸??덈뼄. ??쇰뻻 ??뺣즲??곻폒?紐꾩뒄.",
-            UPLOAD_ERR_NO_TMP_DIR => "{$label} ??낆쨮??뽰뒠 ?袁⑸뻻 ???묊몴?筌≪뼚? 筌륁궢六??щ빍??",
-            UPLOAD_ERR_CANT_WRITE => "{$label} ???뵬????뺤쒔?????館釉?쭪? 筌륁궢六??щ빍??",
-            UPLOAD_ERR_EXTENSION => "{$label} ???뵬 ??낆쨮??? ??뺤쒔 ?類ㅼ삢 筌뤴뫀諭????묐퉸 餓λ쵎???뤿???щ빍??",
-            default => "{$label} ???뵬 ??낆쨮??餓???살첒揶쎛 獄쏆뮇源??됰뮸??덈뼄.",
+            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => "{$label} 파일 크기가 업로드 허용 용량을 초과했습니다.",
+            UPLOAD_ERR_PARTIAL => "{$label} 파일이 일부만 업로드되었습니다. 다시 시도해주세요.",
+            UPLOAD_ERR_NO_TMP_DIR => "{$label} 업로드 임시 폴더를 찾을 수 없습니다.",
+            UPLOAD_ERR_CANT_WRITE => "{$label} 파일을 서버에 저장할 수 없습니다.",
+            UPLOAD_ERR_EXTENSION => "{$label} 파일 업로드가 서버 확장 모듈에 의해 중단되었습니다.",
+            default => "{$label} 업로드 중 오류가 발생했습니다.",
         };
     }
 }

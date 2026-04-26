@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // 경로: PROJECT_ROOT . '/app/views/_layout/_layout.php'
 use Core\Helpers\AssetHelper;
 // 1. 프로젝트 루트 상수 정의

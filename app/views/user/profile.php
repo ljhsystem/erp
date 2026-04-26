@@ -32,14 +32,14 @@ $pageScripts =
 
       <!-- 👤 프로필 헤더 -->
       <div class="d-flex align-items-center mb-4 profile-hero">
-        <div class="position-relative me-3 profile-avatar-wrap" style="width:90px;height:90px;">
+        <div class="position-relative me-3 profile-avatar-wrap">
           <img id="profile-image"
             src="/public/assets/img/default-avatar.png"
             class="rounded-circle border"
             style="width:100%;height:100%;object-fit:cover;">
           <button id="btn-change-image"
             class="btn btn-light btn-sm rounded-circle shadow-sm position-absolute"
-            style="bottom:0; right:0; width:28px; height:28px;">
+            type="button">
             <i class="bi bi-camera-fill text-primary"></i>
           </button>
           <input type="file" id="profile-image-input" accept="image/*" hidden>
@@ -49,11 +49,17 @@ $pageScripts =
           <h5 id="profile-username" class="fw-bold mb-1">-</h5>
           <div id="profile-email" class="text-muted small">-</div>
         </div>
+
+        <div class="form-check form-switch profile-hero-2fa">
+          <input class="form-check-input" type="checkbox" id="two_factor_enabled">
+          <label class="form-check-label ms-1" for="two_factor_enabled">2단계 인증</label>
+        </div>
       </div>
 
       <!-- 🔖 탭 -->
       <ul class="nav nav-tabs mb-3 profile-tabs">
         <li class="nav-item"><button class="nav-link active" data-tab="account">계정설정</button></li>
+        <li class="nav-item"><button class="nav-link" data-tab="certificate">자격증</button></li>
         <li class="nav-item"><button class="nav-link" data-tab="password">보안설정</button></li>
         <li class="nav-item"><button class="nav-link" data-tab="notify">알림설정</button></li>
         <li class="nav-item"><button class="nav-link" data-tab="external">외부 서비스</button></li>
@@ -99,50 +105,39 @@ $pageScripts =
           <input id="address_detail" class="form-control form-control-sm" placeholder="상세주소">
         </div>
 
-        <!-- 대표 자격증 -->
-        <div class="mt-3">
-          <label class="form-label">대표 자격증</label>
-          <div class="d-flex gap-3 align-items-start profile-cert-section">
-            <div class="text-center profile-cert-preview-box">
+        <button id="btn-save-account" class="btn btn-primary btn-sm w-100 mt-3">저장</button>
+      </div>
+
+      <!-- 대표 자격증 -->
+      <div id="tab-certificate" class="tab-section" style="display:none;">
+        <label class="form-label">대표 자격증</label>
+        <div class="d-flex gap-3 align-items-start profile-cert-section">
+          <div class="text-center profile-cert-preview-box">
+            <div class="profile-file-preview-box" id="profile_cert_box" data-label="업로드">
               <img id="profile_cert_preview"
                 src="/public/assets/img/placeholder-cert.png"
-                class="border rounded"
-                style="width:120px;height:120px;object-fit:contain;cursor:pointer;">
-              <div class="small text-muted mt-1">자격증 미리보기</div>
+                class="border rounded profile-file-preview-img">
+              <button type="button" id="certificate_file_delete_btn" class="btn btn-light border profile-file-delete-btn" style="display:none;"><i class="bi bi-x"></i></button>
             </div>
+          </div>
 
-            <div class="flex-fill profile-cert-fields">
-              <input id="certificate_name"
-                class="form-control form-control-sm mb-2"
-                placeholder="예: 건축기사, 방수기능사">
+          <div class="flex-fill profile-cert-fields">
+            <input id="certificate_name"
+              class="form-control form-control-sm"
+              placeholder="예: 건축기사, 방수기능사">
 
-              <input type="file"
-                id="certificate_file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                hidden>
-
-              <div class="d-flex gap-2 align-items-center">
-                <button type="button"
-                  id="certificate_file_btn"
-                  class="btn btn-outline-secondary btn-sm">
-                  파일 선택
-                </button>
-                <span id="certificate_file_label"
-                  class="small text-muted">선택된 파일 없음</span>
-              </div>
-            </div>
+            <input type="file"
+              id="certificate_file"
+              accept=".pdf,.jpg,.jpeg,.png"
+              hidden>
+            <input type="hidden"
+              id="certificate_file_delete"
+              name="certificate_file_delete"
+              value="0">
           </div>
         </div>
 
-        <!-- 2FA -->
-        <div class="d-flex justify-content-end mt-3 profile-switch-row">
-          <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" id="two_factor_enabled">
-            <label class="form-check-label ms-1">2단계 인증</label>
-          </div>
-        </div>
-
-        <button id="btn-save-account" class="btn btn-primary btn-sm w-100 mt-3">저장</button>
+        <button id="btn-save-certificate" class="btn btn-primary btn-sm w-100 mt-3">저장</button>
       </div>
 
       <!-- 🔐 비밀번호 변경 -->

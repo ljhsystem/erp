@@ -404,10 +404,57 @@ class ChartAccountModel
         $sql = "
             SELECT
                 a.*,
-                p.account_name AS parent_name
+                p.account_name AS parent_name,
+                CASE
+                    WHEN p1.employee_name IS NOT NULL
+                        THEN CONCAT('USER:', p1.employee_name)
+                    ELSE a.created_by
+                END AS created_by_name,
+                CASE
+                    WHEN p2.employee_name IS NOT NULL
+                        THEN CONCAT('USER:', p2.employee_name)
+                    ELSE a.updated_by
+                END AS updated_by_name,
+                CASE
+                    WHEN p3.employee_name IS NOT NULL
+                        THEN CONCAT('USER:', p3.employee_name)
+                    ELSE a.deleted_by
+                END AS deleted_by_name,
+                CASE
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM ledger_sub_accounts sa
+                        WHERE sa.account_id = a.id
+                    ) THEN 1
+                    ELSE 0
+                END AS has_sub_account
             FROM ledger_accounts a
             LEFT JOIN ledger_accounts p
                 ON a.parent_id = p.id
+            LEFT JOIN user_employees p1
+                ON p1.user_id = CASE
+                    WHEN a.created_by LIKE 'USER:%' THEN REPLACE(a.created_by, 'USER:', '')
+                    WHEN a.created_by LIKE 'SYSTEM:%' THEN REPLACE(a.created_by, 'SYSTEM:', '')
+                    WHEN a.created_by LIKE 'SYSTEM(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(a.created_by, '(', -1), ')', 1)
+                    WHEN a.created_by LIKE 'USER(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(a.created_by, '(', -1), ')', 1)
+                    ELSE NULL
+                END
+            LEFT JOIN user_employees p2
+                ON p2.user_id = CASE
+                    WHEN a.updated_by LIKE 'USER:%' THEN REPLACE(a.updated_by, 'USER:', '')
+                    WHEN a.updated_by LIKE 'SYSTEM:%' THEN REPLACE(a.updated_by, 'SYSTEM:', '')
+                    WHEN a.updated_by LIKE 'SYSTEM(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(a.updated_by, '(', -1), ')', 1)
+                    WHEN a.updated_by LIKE 'USER(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(a.updated_by, '(', -1), ')', 1)
+                    ELSE NULL
+                END
+            LEFT JOIN user_employees p3
+                ON p3.user_id = CASE
+                    WHEN a.deleted_by LIKE 'USER:%' THEN REPLACE(a.deleted_by, 'USER:', '')
+                    WHEN a.deleted_by LIKE 'SYSTEM:%' THEN REPLACE(a.deleted_by, 'SYSTEM:', '')
+                    WHEN a.deleted_by LIKE 'SYSTEM(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(a.deleted_by, '(', -1), ')', 1)
+                    WHEN a.deleted_by LIKE 'USER(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(a.deleted_by, '(', -1), ')', 1)
+                    ELSE NULL
+                END
             WHERE a.deleted_at IS NULL
         ";
 
@@ -428,7 +475,7 @@ class ChartAccountModel
                 if ($field === 'created_at' || $field === 'updated_at') {
                     $sql .= "
                         AND a.{$field} >= {$startKey}
-                        AND a.{$field} < DATE_ADD({$endKey}, INTERVAL 1 DAY)
+                        AND a.{$field} <= {$endKey}
                     ";
                     $params[$startKey] = $value['start'];
                     $params[$endKey] = $value['end'];
@@ -459,6 +506,16 @@ class ChartAccountModel
                     $params[$key] = "%{$value}%";
                     break;
 
+                case 'created_by_name':
+                    $sql .= " AND (p1.employee_name LIKE {$key} OR a.created_by LIKE {$key})";
+                    $params[$key] = "%{$value}%";
+                    break;
+
+                case 'updated_by_name':
+                    $sql .= " AND (p2.employee_name LIKE {$key} OR a.updated_by LIKE {$key})";
+                    $params[$key] = "%{$value}%";
+                    break;
+
                 case 'level':
                     $sql .= " AND a.level = {$key}";
                     $params[$key] = (int) $value;
@@ -466,6 +523,11 @@ class ChartAccountModel
 
                 case 'normal_balance':
                     $normalized = trim((string) $value);
+                    if ($normalized === '차변') {
+                        $normalized = 'debit';
+                    } elseif ($normalized === '대변') {
+                        $normalized = 'credit';
+                    }
                     if (in_array($normalized, ['차변', 'debit'], true)) {
                         $normalized = 'debit';
                     } elseif (in_array($normalized, ['대변', 'credit'], true)) {
@@ -480,6 +542,11 @@ class ChartAccountModel
                 case 'is_active':
                 case 'allow_sub_account':
                     $normalized = trim((string) $value);
+                    if (in_array($normalized, ['가능', '사용', '허용'], true)) {
+                        $normalized = '1';
+                    } elseif (in_array($normalized, ['불가', '미사용', '미허용'], true)) {
+                        $normalized = '0';
+                    }
                     if (in_array($normalized, ['가능', '사용', '허용', '1', 'true'], true)) {
                         $normalized = 1;
                     } elseif (in_array($normalized, ['불가', '미사용', '미허용', '0', 'false'], true)) {

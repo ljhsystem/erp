@@ -61,22 +61,23 @@
                   <label class="form-label">계좌구분</label>
                   <select name="account_type" class="form-select form-select-sm">
                     <option value="">선택</option>
-                    <option value="법인">법인</option>
-                    <option value="개인">개인</option>
-                    <option value="외화">외화</option>
-                    <option value="대출">대출</option>
+                    <option value="보통예금">보통예금</option>
+                    <option value="당좌예금">당좌예금</option>
+                    <option value="정기예금">정기예금</option>
+                    <option value="적금">적금</option>
+                    <option value="외화계좌">외화계좌</option>
                     <option value="기타">기타</option>
                   </select>
                 </div>
 
                 <div class="col-md-2">
                   <label class="form-label">통화</label>
-                  <input type="text"
-                         name="currency"
-                         data-format="currency"
-                         class="form-control form-control-sm"
-                         placeholder="KRW"
-                         value="KRW">
+                  <select name="currency"
+                          id="modal_account_currency"
+                          class="form-select form-select-sm"
+                          data-code-group="CURRENCY">
+                    <option value="">선택</option>
+                  </select>
                 </div>
 
                 <div class="col-md-4">

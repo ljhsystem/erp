@@ -43,7 +43,9 @@ class PermissionModel
                     'description'     => ['expr' => 'description', 'type' => 'like'],
                     'is_active'       => ['expr' => 'is_active', 'type' => 'exact'],
                     'created_at'      => ['expr' => 'created_at', 'type' => 'datetime'],
+                    'created_by'      => ['expr' => 'created_by', 'type' => 'like'],
                     'updated_at'      => ['expr' => 'updated_at', 'type' => 'datetime'],
+                    'updated_by'      => ['expr' => 'updated_by', 'type' => 'like'],
                 ];
 
                 $globalSearchValues = [];
@@ -128,7 +130,7 @@ class PermissionModel
 
                     $orParts = [];
                     foreach ($keywords as $keyword) {
-                        foreach (['permission_name', 'category', 'permission_key', 'sort_no', 'description'] as $expr) {
+                        foreach (['permission_name', 'category', 'permission_key', 'sort_no', 'description', 'created_by', 'updated_by'] as $expr) {
                             $orParts[] = "{$expr} LIKE ?";
                             $params[] = '%' . $keyword . '%';
                         }
@@ -140,7 +142,7 @@ class PermissionModel
                 }
             }
 
-            $sql .= " ORDER BY sort_no DESC";
+            $sql .= " ORDER BY sort_no ASC";
 
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
@@ -212,11 +214,11 @@ class PermissionModel
                 INSERT INTO auth_permissions (
                     id, sort_no, permission_key, permission_name,
                     description, category, is_active,
-                    created_at, created_by
+                    created_at, created_by, updated_at, updated_by
                 ) VALUES (
                     :id, :sort_no, :pkey, :pname,
                     :description, :category, :is_active,
-                    NOW(), :created_by
+                    NOW(), :created_by, NOW(), :updated_by
                 )
             ");
 
@@ -228,7 +230,8 @@ class PermissionModel
                 ':description' => $data['description'] ?? null,
                 ':category'    => $data['category'] ?? null,
                 ':is_active'   => $data['is_active'] ?? 1,
-                ':created_by'  => $data['created_by'] ?? null
+                ':created_by'  => $data['created_by'] ?? null,
+                ':updated_by'  => $data['updated_by'] ?? null
             ]);
 
         } catch (\Throwable $e) {            

@@ -52,7 +52,9 @@ class DepartmentModel
                 'description'  => ['expr' => 'd.description', 'type' => 'like'],
                 'is_active'    => ['expr' => 'd.is_active', 'type' => 'exact'],
                 'created_at'   => ['expr' => 'd.created_at', 'type' => 'datetime'],
+                'created_by'   => ['expr' => 'd.created_by', 'type' => 'like'],
                 'updated_at'   => ['expr' => 'd.updated_at', 'type' => 'datetime'],
+                'updated_by'   => ['expr' => 'd.updated_by', 'type' => 'like'],
             ];
 
             $globalSearchValues = [];
@@ -137,7 +139,7 @@ class DepartmentModel
 
                 $orParts = [];
                 foreach ($keywords as $keyword) {
-                    foreach (['d.sort_no', 'd.dept_name', 'p.employee_name', 'd.description'] as $expr) {
+                    foreach (['d.id', 'd.sort_no', 'd.dept_name', 'd.manager_id', 'p.employee_name', 'd.description', 'd.created_by', 'd.updated_by'] as $expr) {
                         $orParts[] = "{$expr} LIKE ?";
                         $params[] = '%' . $keyword . '%';
                     }
