@@ -13,6 +13,17 @@ class CodeController
         $this->service = new CodeService(DbPdo::conn());
     }
 
+    public function redirectBaseInfoApi(): void
+    {
+        $uri = $_SERVER['REQUEST_URI'] ?? '/api/settings/system/code/list';
+        $target = str_replace('/api/settings/base-info/code', '/api/settings/system/code', $uri);
+
+        if (!headers_sent()) {
+            header('Location: ' . $target, true, 307);
+        }
+        exit;
+    }
+
     public function apiList(): void
     {
         header('Content-Type: application/json; charset=UTF-8');

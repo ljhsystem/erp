@@ -1,4 +1,4 @@
-/* 📄 /public/assets/css/pages/ledger/account.css */
+﻿/* ?諭?/public/assets/css/pages/ledger/account.css */
 
 /* ==============================
    PAGE
@@ -27,46 +27,9 @@
     min-height:0;
     display:flex;
     flex-direction:column;
+    gap:14px;
 }
 
-/* ===== 테이블 박스 ===== */
-
-.table-box{
-    border:1px solid #ddd;
-    border-radius:8px;
-    background:#fff;
-    padding:15px;
-    margin-bottom:20px;
-  
-    overflow: visible;   /* ✅ 박스는 숨기지 말고 */
-  }
-
-.table-box table {
-    margin-bottom: 0;
-}
-
-.table-box thead th:first-child {
-    border-top-left-radius: 8px;
-}
-
-.table-box thead th:last-child {
-    border-top-right-radius: 8px;
-}
-.table-responsive {
-    overflow-x: auto;
-}
-.table-box .table-responsive{
-    border-radius:8px;
-    overflow-x:auto;
-    overflow-y:visible;
-  }
-
-.table-box table{ margin-bottom:0; }
-
-#account-table th{
-    background:#e9ecef;
-    font-weight:600;
-}
 /* ==============================
    HEADER
 ============================== */
@@ -113,7 +76,7 @@
 }
 
 /* =========================
-   DataTable 열표시 스크롤
+   DataTable ??꾨ご????쎄쾿嚥?
 ========================= */
 
 .dt-button-collection {
@@ -136,11 +99,7 @@
    TABLE
 ============================== */
 
-/* 선택된 행 강조 */
-.selected-row td{
-    background:#dcdcdc !important;
-}
-
+/* ?醫뤾문????揶쏅벡??*/
 .text-success-soft{
     color:#198754;
     font-weight:500;
@@ -165,16 +124,6 @@
     color:#6c757d;
 }
 
-#account-table{
-    background:#fff;
-}
-
-#account-table th{
-    background:#e9ecef;
-    font-weight:600;
-}
-
-
 /* ==============================
    MODAL
 ============================== */
@@ -185,8 +134,81 @@
 }
 
 .account-modal-body{
-    max-height:75vh;
+    max-height:calc(100vh - 190px);
     overflow-y:auto;
+    padding-right:18px;
+}
+
+#accountModal .modal-content{
+    max-height:calc(100vh - 48px);
+}
+
+#accountModal .modal-footer,
+#accountModal .modal-header{
+    flex-shrink:0;
+}
+
+#modal_subaccount_section{
+    border-color:#cfe0ff;
+    box-shadow:0 8px 18px rgba(20, 72, 138, .08);
+}
+
+#modal_subaccount_section .card-header{
+    background:#eef5ff;
+    color:#1d4f91;
+    border-bottom:1px solid #d6e6ff;
+}
+
+#modal_subaccount_section .btn-primary{
+    border-color:#2f72d6;
+    background:#2f72d6;
+}
+
+.modal-subaccount-table-wrap{
+    max-height:220px;
+    overflow:auto;
+    border:1px solid #e5edf8;
+    border-radius:8px;
+}
+
+#modal-subaccount-table th{
+    position:sticky;
+    top:0;
+    z-index:1;
+    background:#f3f7fc;
+    color:#44546a;
+    font-weight:700;
+}
+
+#modal-subaccount-table td{
+    background:#fff;
+}
+
+#modal-subaccount-table .btnEditSubAccount{
+    display:none;
+}
+
+#modal-subaccount-table .select2-container,
+#subaccount-table .select2-container{
+    width:100% !important;
+}
+
+#modal-subaccount-table .select2-container .select2-selection--single,
+#subaccount-table .select2-container .select2-selection--single{
+    min-height:32px;
+    border-color:#cfd6df;
+    border-radius:7px;
+}
+
+#modal-subaccount-table .select2-container .select2-selection__rendered,
+#subaccount-table .select2-container .select2-selection__rendered{
+    line-height:30px;
+    font-size:13px;
+}
+
+#modal-subaccount-table .select2-container .select2-selection__arrow,
+#subaccount-table .select2-container .select2-selection__arrow{
+    height:30px;
 }
 
 
@@ -207,225 +229,6 @@
     font-size:13px;
 }
 
-
-/* ==============================
-   ERP TOOLTIP
-============================== */
-
-.tooltip-container{
-    position:absolute;
-    top:28px;
-    left:0;
-    z-index:1000;
-    display:none;
-
-    width:320px;
-    padding:12px;
-
-    background:#fff8c6;
-    border:1px solid #d6c66f;
-    border-radius:6px;
-    box-shadow:0 3px 8px rgba(0,0,0,0.2);
-}
-
-.tooltip-container ul{
-    padding-left:18px;
-}
-
-.tooltip-trigger{
-    cursor:pointer;
-    margin-left:4px;
-}
-
-
-/* ===== 검색폼 전체 ===== */
-
-/* 검색폼 전체 가운데 */
-.search-form-container{
-    border:1px solid #ddd;
-    border-radius: 8px;      /* 모서리 둥글게 */
-    background:#f8f8f8;
-    padding:20px;
-    margin:0 0 20px 0;
-
-    width:100%;
-}
-
-.search-form-title{
-    font-weight:600;
-    margin-bottom:10px;
-    display:block;
-}
-
-
-
-/* ===== 기간 영역 ===== */
-
-/* 기간 영역 */
-.period-row{
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    flex-wrap:wrap;
-    gap:8px;
-    margin-bottom:10px;
-    width:100%;
-}
-
-.period-label-area{
-    width:90px;
-    font-weight:600;
-}
-
-.label-btn{
-    background:none;
-    border:none;
-    font-weight:600;
-    padding:0;
-}
-
-.date-type-select{
-    width:120px;
-}
-
-.period-quick-btns{
-    display:flex;
-    gap:5px;
-}
-
-.date-range{
-    display:flex;
-    align-items:center;
-    gap:5px;
-}
-
-
-
-/* ===== 검색어 ===== */
-
-/* 검색 영역 */
-.search-wrapper{
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    gap:10px;
-    flex-wrap:wrap;
-    width:100%;
-}
-
-.search-label-area{
-    width:90px;
-    font-weight:600;
-}
-
-/* 검색 조건 행 간격 */
-.search-condition{
-    display:flex;
-    gap:8px;
-    align-items:center;
-    margin-bottom:8px;
-}
-
-.search-condition:not(:last-child){
-    margin-bottom:8px;
-}
-
-.search-field{
-    width:150px;
-}
-
-.search-input{
-    width:350px;
-}
-
-/* ===== 검색 버튼 ===== */
-
-.search-btn-area{
-    display:flex;
-    justify-content:center;
-    margin-top:12px;
-}
-/* ===== 툴팁 ===== */
-
-.period-label-area,
-.search-label-area{
-    position:relative;
-    display:inline-flex;
-    align-items:center;
-    width:auto;
-}
-
-.tooltip-container{
-    position:absolute;
-    top:30px;
-    left:0;
-    background:#fff9c4;
-    border:1px solid #ddd;
-    padding:10px;
-    width:260px;
-    display:none;
-    z-index:999;
-}
-
-
-
-
-/* =========================
-   SEARCH INPUT HEIGHT FIX
-========================= */
-
-.period-row select,
-.period-row input,
-.period-row button,
-.search-wrapper select,
-.search-wrapper input,
-.search-wrapper button {
-
-    height:38px;
-    min-height:38px;
-
-    padding:6px 10px;
-
-    font-size:14px;
-
-    line-height:1.2;
-
-    box-sizing:border-box;
-}
-
-
-.search-wrapper input[type="date"]{
-    height:38px;
-}
-
-.period-quick-btns button{
-    height:38px;
-    padding:0 12px;
-}
-
-.search-wrapper select{
-    height:38px;
-}
-
-.search-wrapper input,
-.search-wrapper select{
-    border-radius:6px;
-}
-
-.period-row input[type="date"]{
-    height:38px;
-}
-
-.period-quick-btns button{
-    height:38px;
-    padding:0 12px;
-}
-
-
-.reorder-handle{
-    cursor:move;
-    text-align:center;
-}
 
 /* DataTables processing spinner overlay */
 
@@ -451,93 +254,6 @@
 
 
 
-/* 날짜 영역 */
-.date-range{
-    display:flex;
-    align-items:center;
-    gap:8px;
-}
-
-/* 날짜 input wrapper */
-.date-input{
-    position:relative;
-    width:140px;
-}
-
-/* input */
-.date-input input{
-    width:100%;
-    padding-right:32px;
-}
-
-/* 아이콘 */
-.date-icon{
-    position:absolute;
-    right:8px;
-    top:50%;
-    transform:translateY(-50%);
-    font-size:16px;
-    cursor:pointer;
-    opacity:0.7;
-}
-
-.date-icon:hover{
-    opacity:1;
-}
-
-/* ~ */
-.date-tilde{
-    font-weight:600;
-}
-
-
-
-/* 검색폼 열고닫기 */
-
-.search-form-container{
-    position:relative;
-    padding-top:14px;
-}
-
-/* 라인 */
-.search-form-container::before{
-    content:"";
-    position:absolute;
-    left:0;
-    right:0;
-    top:0;
-    border-top:0px solid #ddd;
-}
-
-/* 버튼 */
-.search-toggle-text{
-    position:absolute;
-    top:-9px;
-    right:60px;
-
-    background:#fff;
-    padding:0 8px;
-
-    font-size:12px;
-    color:#666;
-    cursor:pointer;
-}
-
-.search-toggle-text:hover{
-    color:#000;
-}
-
-/* 검색폼 숨김 */
-.search-form-body.hidden{
-    display:none;
-}
-
-/* 🔥 접혔을 때 */
-.search-form-container.collapsed{
-    padding:0;
-    height:0;
-    border-top:0px solid #ddd;
-}
 
 
 /* =========================
@@ -550,27 +266,6 @@
 
 .modal {
     z-index: 30010 !important;
-}
-
-.date-input-wrap{
-    position:relative;
-}
-
-.date-input-wrap input{
-    padding-right:40px;
-}
-
-.date-icon{
-    position:absolute;
-    right:10px;
-    top:50%;
-    transform:translateY(-50%);
-    cursor:pointer;
-    color:#666;
-}
-
-.date-icon:hover{
-    color:#0d6efd;
 }
 
 .tooltip{
@@ -592,7 +287,7 @@
 }
 
 /* =========================
-   통장 파일박스
+   ???삢 ???뵬獄쏅벡??
 ========================= */
 .file-upload-box{
     border:2px dashed #d0d5dd;
@@ -608,7 +303,7 @@
 }
 
 /* =========================
-   FILE LIST (사업자등록증)
+   FILE LIST (??毓?癒?쾻嚥≪빘弛?
 ========================= */
 
 .file-list{
@@ -702,31 +397,31 @@
 
 
 /* =========================
-   휴지통
+   ?????
 ========================= */
 
 #accountTrashModal .trash-layout{
     height:420px;
 }
 
-/* 좌측 리스트 */
+/* ?ル슣瑜??귐딅뮞??*/
 #accountTrashModal .trash-left{
     height:100%;
     overflow-y:auto;
 }
 
-/* 상세 열렸을 때 좌측 축소 */
+/* ?怨멸쉭 ??議?????ル슣瑜??곕벡??*/
 #accountTrashModal .trash-layout.open .trash-right{
     flex:0 0 420px;
 }
 
-/* 오른쪽 상세 */
+/* ??삘뀲筌??怨멸쉭 */
 #accountTrashModal .trash-right{
     background:#fafafa;
     border-left:1px solid #ddd;
 }
 
-/* 열림 */
+/* ????*/
 #accountTrashModal .trash-layout:not(.open) .trash-right{
     border-left:none;
 }
@@ -735,7 +430,7 @@
 
 
 
-/* 상세 */
+/* ?怨멸쉭 */
 #accountTrashModal #account-trash-detail{
     flex:1;
     overflow-y:auto;
@@ -743,7 +438,7 @@
     display:none;
 }
 
-/* 툴바 */
+/* ??而?*/
 #accountTrashModal .trash-toolbar{
     margin-bottom:10px;
 }
@@ -772,33 +467,7 @@
 
 
 /* =========================
-   TABLE CROSS HIGHLIGHT
-========================= */
-
-#account-table td,
-#account-table th{
-    transition: background .12s ease;
-}
-
-/* 행 강조 */
-#account-table tr.row-highlight td{
-    background:#f1f7ff;
-}
-
-/* 열 강조 */
-#account-table td.col-highlight,
-#account-table th.col-highlight{
-    background:#e9f2ff;
-}
-
-/* 교차 셀 강조 */
-#account-table tr.row-highlight td.col-highlight{
-    background:#c5dcff;   /* 원하는 색상 */
-}
-
-
-/* =========================
-   거래유형 카드 정렬
+   椰꾧퀡??醫륁굨 燁삳?諭??類ｌ졊
 ========================= */
 
 #accountModal .card-body .row{
@@ -830,7 +499,7 @@
 #accountModal .form-select{
     border:1px solid #cfd6df;
     border-radius:7px;
-    background-color:#ffffff;   /* 🔥 background → background-color */
+    background-color:#ffffff;   /* ?逾?background ??background-color */
     transition:all .15s ease;
 }
 
@@ -838,20 +507,20 @@
 #accountModal .form-control:hover,
 #accountModal .form-select:hover{
     border-color:#9fb7e3;
-    background-color:#f9fbff;   /* 🔥 동일하게 변경 */
+    background-color:#f9fbff;   /* ?逾???덉뵬??띿쓺 癰궰野?*/
 }
 
 /* focus */
 #accountModal .form-control:focus,
 #accountModal .form-select:focus{
     border-color:#4c8df6;
-    background-color:#ffffff;   /* 🔥 동일하게 변경 */
+    background-color:#ffffff;   /* ?逾???덉뵬??띿쓺 癰궰野?*/
     box-shadow:0 0 0 2px rgba(76,141,246,.15);
 }
 
 /* =========================
    INPUT ACTION BUTTON
-   (상태확인 / 주소검색)
+   (?怨밴묶?類ㅼ뵥 / 雅뚯눘?쇔칰???
 ========================= */
 #accountModal .input-group .btn{
     background:#f1f3f6;
@@ -869,7 +538,7 @@
     border-color:#b9c3d3;
 }
 
-/* 클릭 */
+/* ????*/
 #Modal .input-group .btn:active{
     background:#dfe6f1;
 }
@@ -877,7 +546,7 @@
 
 /* =========================
    ACCOUNT SPLIT LAYOUT
-   계정 70% / 보조계정 30%
+   ?④쑴??70% / 癰귣똻?쒏④쑴??30%
 ========================= */
 
 .account-split-layout{
@@ -888,14 +557,14 @@
     min-height:520px;
 }
 
-/* 좌측 계정 테이블 */
+/* ?ル슣瑜??④쑴?????뵠??*/
 
 .account-left-panel{
     flex:1 1 auto;
     min-width:0;
 }
 
-/* 우측 보조계정 */
+/* ?怨쀫? 癰귣똻?쒏④쑴??*/
 
 .account-right-panel{
     flex:0 0 26%;
@@ -911,7 +580,7 @@
 .account-split-layout.subaccount-open .account-left-panel{
     flex:1 1 74%;
 }
-/* 보조계정 박스 */
+/* 癰귣똻?쒏④쑴??獄쏅벡??*/
 
 .subaccount-box{
     border:1px solid #ddd;
@@ -924,7 +593,7 @@
     flex-direction:column;
 }
 
-/* 보조계정 헤더 */
+/* 癰귣똻?쒏④쑴????삳쐭 */
 
 .subaccount-header{
     display:flex;
@@ -933,14 +602,14 @@
     margin-bottom:10px;
 }
 
-/* 보조계정 테이블 영역 */
+/* 癰귣똻?쒏④쑴?????뵠???怨몃열 */
 
 .subaccount-table-wrap{
     flex:1;
     overflow:auto;
 }
 
-/* 보조계정 테이블 */
+/* 癰귣똻?쒏④쑴?????뵠??*/
 
 #subaccount-table{
     background:#fff;
@@ -953,7 +622,7 @@
 }
 
 /* =========================
-   보조계정 버튼 개선
+   癰귣똻?쒏④쑴??甕곌쑵??揶쏆뮇苑?
 ========================= */
 
 .sub-btn{
@@ -970,14 +639,14 @@
     color:#495057;
 }
 
-/* 🔥 추가 버튼 (미사용) */
+/* ?逾??곕떽? 甕곌쑵??(沃섎챷沅?? */
 .sub-btn.add{
     background:#ffffff;
     border-color:#c8e6c9;
     color:#2e7d32;
 }
 
-/* 🔥 수정 버튼 (사용중) */
+/* ?逾???륁젟 甕곌쑵??(???쒍빳? */
 .sub-btn.edit{
     background:#e3f2fd;
     border-color:#bbdefb;
@@ -1018,7 +687,7 @@
 
 
 /* =========================
-   반응형
+   獄쏆꼷???
 ========================= */
 
 @media (max-width:1200px){

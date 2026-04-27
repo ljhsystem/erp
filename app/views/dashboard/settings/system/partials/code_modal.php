@@ -1,5 +1,5 @@
 <?php
-// Path: PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/code_modal.php'
+// Path: PROJECT_ROOT . '/app/views/dashboard/settings/system/partials/code_modal.php'
 ?>
 
 <div class="modal fade" id="codeModal" tabindex="-1" aria-hidden="true">

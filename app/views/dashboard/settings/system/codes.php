@@ -1,5 +1,5 @@
 <?php
-// Path: PROJECT_ROOT . '/app/views/dashboard/settings/base-info/codes.php'
+// Path: PROJECT_ROOT . '/app/views/dashboard/settings/system/codes.php'
 ?>
 
 <div class="code-page" id="code-main">
@@ -21,7 +21,7 @@
 
         <?php
         $tableId = 'code-table';
-        $ajaxUrl = '/api/settings/base-info/code/list';
+        $ajaxUrl = '/api/settings/system/code/list';
         $columnsType = 'code';
         $enableButtons = true;
         $enableSearch = true;
@@ -57,9 +57,9 @@ include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
 ?>
 
 <?php
-$templateUrl = '/api/settings/base-info/code/template';
-$downloadUrl = '/api/settings/base-info/code/excel';
-$uploadUrl = '/api/settings/base-info/code/excel-upload';
+$templateUrl = '/api/settings/system/code/template';
+$downloadUrl = '/api/settings/system/code/excel';
+$uploadUrl = '/api/settings/system/code/excel-upload';
 
 $modalId = 'codeExcelModal';
 $formId = 'codeExcelForm';

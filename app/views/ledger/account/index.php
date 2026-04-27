@@ -31,7 +31,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/account.js');
 
         <div class="page-header">
             <h5 class="mb-1 fw-bold">
-                <i class="bi bi-journal-text me-2"></i>계정과목 관리
+                <i class="bi bi-journal-text me-2"></i>계정과목
             </h5>
             <span id="accountCount" class="text-primary page-count"></span>
         </div>
@@ -105,7 +105,8 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/account.js');
                                     <tr>
                                         <th width="60">순번</th>
                                         <th>보조계정명</th>
-                                        <th width="130">관리</th>
+                                        <th width="100">옵션</th>
+                                        <th width="150">관리</th>
                                     </tr>
                                 </thead>
                                 <tbody></tbody>
@@ -118,6 +119,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/account.js');
     </div>
 
     <?php include __DIR__ . '/partials/account_modal.php'; ?>
+    <?php include PROJECT_ROOT . '/app/views/dashboard/settings/system/partials/code_modal.php'; ?>
 
     <?php
     $templateUrl = '/api/ledger/account/template';

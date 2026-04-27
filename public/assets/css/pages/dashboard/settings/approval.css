@@ -56,48 +56,8 @@
     display: none !important;
 }
 
-.approval-page #template-list-table th.approval-reorder-col,
-.approval-page #template-list-table td.reorder-handle,
-.approval-page #template-steps-table th.approval-reorder-col,
-.approval-page #template-steps-table td.drag-handle {
-    width: 44px;
-    min-width: 44px;
-    max-width: 44px;
-}
-
-.approval-page .drag-handle,
-.approval-page .reorder-handle {
-    cursor: grab;
-    user-select: none;
-    color: #6c757d;
-    vertical-align: middle;
-}
-
-.approval-page .drag-handle:active,
-.approval-page .reorder-handle:active {
-    cursor: grabbing;
-}
-
-.approval-page .drag-handle i,
-.approval-page .reorder-handle i {
-    font-size: 1rem;
-    pointer-events: none;
-}
-
 .approval-page .step-sequence {
     font-weight: 600;
-}
-
-.approval-page #template-steps-table tbody tr.ui-sortable-helper {
-    background: #fff;
-    box-shadow: 0 8px 20px rgba(33, 37, 41, 0.14);
-}
-
-.approval-page #template-steps-table tbody tr.approval-step-placeholder > td {
-    height: 42px;
-    background: #eef4ff;
-    border-top: 2px dashed #8fb3ff;
-    border-bottom: 2px dashed #8fb3ff;
 }
 
 @media (max-width: 991.98px) {

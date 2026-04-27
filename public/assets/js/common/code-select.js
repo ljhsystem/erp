@@ -1,11 +1,11 @@
 // Path: PROJECT_ROOT . '/public/assets/js/common/code-select.js'
 
 const API = {
-    LIST: '/api/settings/base-info/code/list',
-    DETAIL: '/api/settings/base-info/code/detail',
-    GROUPS: '/api/settings/base-info/code/groups',
-    SAVE: '/api/settings/base-info/code/save',
-    DELETE: '/api/settings/base-info/code/delete'
+    LIST: '/api/settings/system/code/list',
+    DETAIL: '/api/settings/system/code/detail',
+    GROUPS: '/api/settings/system/code/groups',
+    SAVE: '/api/settings/system/code/save',
+    DELETE: '/api/settings/system/code/delete'
 };
 
 const QUICK_ADD_VALUE = '__CODE_QUICK_ADD__';
@@ -105,6 +105,7 @@ export async function refreshCodeSelect(selectId, codeGroup, selectedValue = '')
 
     select.value = currentValue;
     state.previousValues[select.id] = select.value || '';
+    enhanceSelect2(select);
     notifyOptionsLoaded();
 }
 
@@ -167,6 +168,29 @@ function bindCodeSelect(select, codeGroup) {
 
         state.previousValues[select.id] = select.value || '';
     });
+}
+
+function enhanceSelect2(select) {
+    if (!window.jQuery?.fn?.select2 || !select) return;
+
+    const $select = window.jQuery(select);
+    const modalParent = $select.closest('.modal');
+    const options = {
+        width: '100%',
+        dropdownAutoWidth: true,
+        placeholder: select.querySelector('option[value=""]')?.textContent || '선택',
+        language: 'ko'
+    };
+
+    if (modalParent.length) {
+        options.dropdownParent = modalParent;
+    }
+
+    if ($select.hasClass('select2-hidden-accessible')) {
+        $select.select2('destroy');
+    }
+
+    $select.select2(options);
 }
 
 async function fetchCodeOptions(codeGroup) {

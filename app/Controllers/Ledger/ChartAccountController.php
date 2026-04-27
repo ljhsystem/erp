@@ -102,11 +102,21 @@ class ChartAccountController
                 'account_group' => $_POST['account_group'] ?? null,
                 'normal_balance' => $_POST['normal_balance'] ?? 'debit',
                 'is_posting' => isset($_POST['is_posting']) ? (int) $_POST['is_posting'] : 1,
+                'allow_sub_account' => isset($_POST['allow_sub_account']) ? (int) $_POST['allow_sub_account'] : 0,
                 'note' => $_POST['note'] ?? null,
                 'memo' => $_POST['memo'] ?? null,
                 'is_active' => isset($_POST['is_active']) ? (int) $_POST['is_active'] : 1,
-                'sub_policies' => json_decode($_POST['sub_policies'] ?? '[]', true) ?? [],
+                'new_parent_code' => $_POST['new_parent_code'] ?? null,
+                'new_parent_name' => $_POST['new_parent_name'] ?? null,
             ];
+
+            if (array_key_exists('sub_policies', $_POST)) {
+                $payload['sub_policies'] = json_decode($_POST['sub_policies'] ?? '[]', true) ?? [];
+            }
+
+            if (array_key_exists('sub_accounts', $_POST)) {
+                $payload['sub_accounts'] = json_decode($_POST['sub_accounts'] ?? '[]', true) ?? [];
+            }
 
             if (empty($payload['account_code']) || empty($payload['account_name'])) {
                 echo json_encode([

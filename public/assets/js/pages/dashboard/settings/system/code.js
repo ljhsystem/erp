@@ -11,22 +11,22 @@ window.AdminPicker = AdminPicker;
     'use strict';
 
     const API = {
-        LIST: '/api/settings/base-info/code/list',
-        DETAIL: '/api/settings/base-info/code/detail',
-        GROUPS: '/api/settings/base-info/code/groups',
-        SAVE: '/api/settings/base-info/code/save',
-        DELETE: '/api/settings/base-info/code/delete',
-        TRASH: '/api/settings/base-info/code/trash',
-        RESTORE: '/api/settings/base-info/code/restore',
-        RESTORE_BULK: '/api/settings/base-info/code/restore-bulk',
-        RESTORE_ALL: '/api/settings/base-info/code/restore-all',
-        PURGE: '/api/settings/base-info/code/purge',
-        PURGE_BULK: '/api/settings/base-info/code/purge-bulk',
-        PURGE_ALL: '/api/settings/base-info/code/purge-all',
-        REORDER: '/api/settings/base-info/code/reorder',
-        EXCEL_UPLOAD: '/api/settings/base-info/code/excel-upload',
-        EXCEL_DOWNLOAD: '/api/settings/base-info/code/excel',
-        EXCEL_TEMPLATE: '/api/settings/base-info/code/template'
+        LIST: '/api/settings/system/code/list',
+        DETAIL: '/api/settings/system/code/detail',
+        GROUPS: '/api/settings/system/code/groups',
+        SAVE: '/api/settings/system/code/save',
+        DELETE: '/api/settings/system/code/delete',
+        TRASH: '/api/settings/system/code/trash',
+        RESTORE: '/api/settings/system/code/restore',
+        RESTORE_BULK: '/api/settings/system/code/restore-bulk',
+        RESTORE_ALL: '/api/settings/system/code/restore-all',
+        PURGE: '/api/settings/system/code/purge',
+        PURGE_BULK: '/api/settings/system/code/purge-bulk',
+        PURGE_ALL: '/api/settings/system/code/purge-all',
+        REORDER: '/api/settings/system/code/reorder',
+        EXCEL_UPLOAD: '/api/settings/system/code/excel-upload',
+        EXCEL_DOWNLOAD: '/api/settings/system/code/excel',
+        EXCEL_TEMPLATE: '/api/settings/system/code/template'
     };
 
     const CODE_COLUMN_MAP = {

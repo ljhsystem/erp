@@ -56,43 +56,81 @@ $link = static function (string $href, string $label, string $iconClass, string 
 
         <?php if ($section === 'ledger'): ?>
             <li><?= $link('/ledger', '대시보드', 'bi-journal-text') ?></li>
-            <li><?= $link('/ledger/transaction/create', '거래입력', 'bi-pencil-square') ?></li>
-            <li><?= $link('/ledger/transaction', '거래내역', 'bi-list') ?></li>
             <li>
                 <a href="#menu-ledger-basic" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-gear') ?><span>기초정보관리</span></a>
                 <ul id="menu-ledger-basic" class="collapse">
                     <li><?= $link('/ledger/accounts', '계정과목', 'bi-list-ul') ?></li>
-                    <li><?= $link('/ledger/description', '적요', 'bi-chat-left-text') ?></li>
-                    <li><?= $link('/ledger/voucher-types', '전표유형', 'bi-tags') ?></li>
+                    <li><?= $link('/ledger/sub-accounts', '보조계정', 'bi-diagram-2') ?></li>
+                    <li><?= $link('/ledger/opening-balances', '기초잔액', 'bi-cash-stack') ?></li>
                 </ul>
             </li>
             <li>
-                <a href="#menu-ledger-journal" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-pencil-square') ?><span>전표입력</span></a>
-                <ul id="menu-ledger-journal" class="collapse">
-                    <li><?= $link('/ledger/journal', '일반전표', 'bi-journal-richtext') ?></li>
-                    <li><?= $link('/ledger/input/tax_invoice', '세금계산서', 'bi-receipt-cutoff') ?></li>
-                    <li><?= $link('/ledger/card/corporate', '법인카드', 'bi-credit-card') ?></li>
-                    <li><?= $link('/ledger/card/personal', '경비정산', 'bi-wallet2') ?></li>
-                    <li><?= $link('/ledger/bank', '입출금거래', 'bi-bank') ?></li>
-                    <li><?= $link('/ledger/input/withholding', '원천징수', 'bi-percent') ?></li>
-                    <li><?= $link('/ledger/input/forex', '외화전표', 'bi-currency-dollar') ?></li>
-                    <li><?= $link('/ledger/journal/review', '전표검토', 'bi-search') ?></li>
+                <a href="#menu-ledger-data" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-database') ?><span>자료관리</span></a>
+                <ul id="menu-ledger-data" class="collapse">
+                    <li><?= $link('/ledger/data/upload', '자료업로드', 'bi-upload') ?></li>
+                    <li><?= $link('/ledger/data', '자료목록', 'bi-list-check') ?></li>
+                </ul>
+            </li>
+            <li>
+                <a href="#menu-ledger-transaction" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-receipt') ?><span>거래관리</span></a>
+                <ul id="menu-ledger-transaction" class="collapse">
+                    <li><?= $link('/ledger/transaction/create', '거래입력', 'bi-pencil-square') ?></li>
+                    <li><?= $link('/ledger/transaction', '거래내역', 'bi-list') ?></li>
+                </ul>
+            </li>
+            <li>
+                <a href="#menu-ledger-voucher" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-journal-richtext') ?><span>전표관리</span></a>
+                <ul id="menu-ledger-voucher" class="collapse">
+                    <li><?= $link('/ledger/journal', '전표입력', 'bi-pencil-square') ?></li>
+                    <li><?= $link('/ledger/vouchers', '전표조회', 'bi-search') ?></li>
+                    <li><?= $link('/ledger/vouchers/review', '전표검토/승인', 'bi-check2-square') ?></li>
                 </ul>
             </li>
             <li>
                 <a href="#menu-ledger-book" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-book') ?><span>장부관리</span></a>
                 <ul id="menu-ledger-book" class="collapse">
                     <li><?= $link('/ledger/book/journal', '분개장', 'bi-journal') ?></li>
-                    <li><?= $link('/ledger/book/general', '총계정원장', 'bi-bookmarks') ?></li>
                     <li><?= $link('/ledger/book/account', '계정별원장', 'bi-collection') ?></li>
+                    <li><?= $link('/ledger/book/general', '총계정원장', 'bi-bookmarks') ?></li>
                     <li><?= $link('/ledger/book/partner', '거래처원장', 'bi-people') ?></li>
-                    <li><?= $link('/ledger/book/project_account', '프로젝트계정별원장', 'bi-building') ?></li>
-                    <li><?= $link('/ledger/book/daily_monthly', '일계표', 'bi-calendar-week') ?></li>
-                    <li><?= $link('/ledger/book/purchase_sale', '매입매출장', 'bi-cash-coin') ?></li>
-                    <li><?= $link('/ledger/book/car_log', '차량운행기록부', 'bi-truck') ?></li>
+                    <li><?= $link('/ledger/book/project', '프로젝트원장', 'bi-building') ?></li>
+                    <li><?= $link('/ledger/book/daily', '일계표', 'bi-calendar-week') ?></li>
+                    <li><?= $link('/ledger/book/purchase-sales', '매입매출장', 'bi-cash-coin') ?></li>
+                    <li><?= $link('/ledger/book/vehicle-log', '차량운행기록부', 'bi-truck') ?></li>
                 </ul>
             </li>
-            <li><?= $link('/ledger/search', '전표검색', 'bi-search') ?></li>
+            <li>
+                <a href="#menu-ledger-financial" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-file-earmark-bar-graph') ?><span>재무제표</span></a>
+                <ul id="menu-ledger-financial" class="collapse">
+                    <li><?= $link('/ledger/financial/trial-balance', '시산표', 'bi-calculator') ?></li>
+                    <li><?= $link('/ledger/financial/income-statement', '손익계산서', 'bi-graph-up') ?></li>
+                    <li><?= $link('/ledger/financial/statement-position', '재무상태표', 'bi-file-spreadsheet') ?></li>
+                    <li><?= $link('/ledger/financial/product-cost', '상품원가명세서', 'bi-box-seam') ?></li>
+                    <li><?= $link('/ledger/financial/construction-cost', '공사원가명세서', 'bi-building-gear') ?></li>
+                    <li><?= $link('/ledger/financial/retained-earnings', '이익잉여금처분계산서', 'bi-pie-chart') ?></li>
+                </ul>
+            </li>
+            <li>
+                <a href="#menu-ledger-asset" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-archive') ?><span>자산관리</span></a>
+                <ul id="menu-ledger-asset" class="collapse">
+                    <li><?= $link('/ledger/assets/create', '자산등록', 'bi-plus-square') ?></li>
+                    <li><?= $link('/ledger/assets', '자산대장', 'bi-card-list') ?></li>
+                    <li><?= $link('/ledger/assets/depreciation', '감가상각', 'bi-graph-down') ?></li>
+                    <li><?= $link('/ledger/assets/transfer', '자산이동', 'bi-arrow-left-right') ?></li>
+                    <li><?= $link('/ledger/assets/disposal', '자산폐기', 'bi-trash3') ?></li>
+                </ul>
+            </li>
+            <li>
+                <a href="#menu-ledger-tax" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-receipt-cutoff') ?><span>세무회계(참고)</span></a>
+                <ul id="menu-ledger-tax" class="collapse">
+                    <li><?= $link('/ledger/tax/trial-balance', '세무 시산표', 'bi-calculator') ?></li>
+                    <li><?= $link('/ledger/tax/income-statement', '세무 손익계산서', 'bi-graph-up') ?></li>
+                    <li><?= $link('/ledger/tax/statement-position', '세무 재무상태표', 'bi-file-spreadsheet') ?></li>
+                    <li><?= $link('/ledger/tax/cost-statement', '세무 원가명세서', 'bi-file-earmark-text') ?></li>
+                    <li><?= $link('/ledger/tax/retained-earnings', '세무 이익잉여금', 'bi-pie-chart') ?></li>
+                    <li><?= $link('/ledger/tax/comparison', '비교/차이분석', 'bi-arrow-left-right') ?></li>
+                </ul>
+            </li>
         <?php elseif ($section === 'institution'): ?>
             <li><?= $link('/institution', '대시보드', 'bi-building') ?></li>
             <li><?= $link('/institution/tax_office', '세무서 / 국세청', 'bi-receipt') ?></li>

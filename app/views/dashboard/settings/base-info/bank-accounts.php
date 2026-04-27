@@ -127,7 +127,7 @@ include __DIR__ . '/partials/bank_account_modal.php';
 /* =========================================================
    기준정보 오리지널 모달
 ========================================================= */
-include __DIR__ . '/partials/code_modal.php';
+include PROJECT_ROOT . '/app/views/dashboard/settings/system/partials/code_modal.php';
 ?>
 
 

@@ -79,6 +79,79 @@ class ChartAccountService
         }
     }
 
+    private function resolveOrCreateParentAccount(array $data, ?string $actor, ?string $currentId = null): array
+    {
+        $newParentCode = trim((string) ($data['new_parent_code'] ?? ''));
+        if ($newParentCode === '') {
+            return [
+                'success' => true,
+                'parent_id' => $data['parent_id'] ?? null,
+            ];
+        }
+
+        if ($newParentCode === trim((string) ($data['account_code'] ?? ''))) {
+            return [
+                'success' => false,
+                'message' => '상위계정 코드는 현재 계정코드와 다르게 입력해야 합니다.',
+            ];
+        }
+
+        $existing = $this->model->getByAccountCode($newParentCode);
+        if ($existing) {
+            if ($currentId !== null && ($existing['id'] ?? null) === $currentId) {
+                return [
+                    'success' => false,
+                    'message' => '자기 자신은 상위계정으로 지정할 수 없습니다.',
+                ];
+            }
+
+            return [
+                'success' => true,
+                'parent_id' => $existing['id'],
+            ];
+        }
+
+        $newParentId = UuidHelper::generate();
+        $parentName = trim((string) ($data['new_parent_name'] ?? ''));
+        $accountGroup = trim((string) ($data['account_group'] ?? ''));
+
+        if ($accountGroup === '') {
+            return [
+                'success' => false,
+                'message' => '신규 상위계정 생성 시 계정구분은 필수입니다.',
+            ];
+        }
+
+        $created = $this->model->create([
+            'id' => $newParentId,
+            'account_code' => $newParentCode,
+            'account_name' => $parentName !== '' ? $parentName : $newParentCode,
+            'parent_id' => null,
+            'account_group' => $accountGroup,
+            'normal_balance' => $data['normal_balance'] ?? 'debit',
+            'level' => 1,
+            'is_posting' => 1,
+            'allow_sub_account' => (int) ($data['allow_sub_account'] ?? 0),
+            'note' => null,
+            'memo' => null,
+            'is_active' => 1,
+            'created_by' => $actor,
+            'updated_by' => $actor,
+        ]);
+
+        if (!$created) {
+            return [
+                'success' => false,
+                'message' => '신규 상위계정 생성에 실패했습니다.',
+            ];
+        }
+
+        return [
+            'success' => true,
+            'parent_id' => $newParentId,
+        ];
+    }
+
     public function create(array $data): array
     {
         try {
@@ -100,9 +173,16 @@ class ChartAccountService
 
             $this->pdo->beginTransaction();
 
+            $parentResult = $this->resolveOrCreateParentAccount($data, $actor);
+            if (!($parentResult['success'] ?? false)) {
+                $this->pdo->rollBack();
+                return $parentResult;
+            }
+            $data['parent_id'] = $parentResult['parent_id'] ?? ($data['parent_id'] ?? null);
+
             $data['id'] = UuidHelper::generate();
             $data['level'] = $this->resolveLevel($data['parent_id'] ?? null);
-            $data['allow_sub_account'] = 0;
+            $data['allow_sub_account'] = (int) ($data['allow_sub_account'] ?? 0);
             $data['created_by'] = $actor;
             $data['updated_by'] = $actor;
 
@@ -128,7 +208,18 @@ class ChartAccountService
                 }
             }
 
-            $this->syncLegacyAllowSubAccountFlag($data['id']);
+            if (array_key_exists('sub_accounts', $data)) {
+                $subAccountResult = $this->customSubAccountService->replaceForAccount(
+                    $data['id'],
+                    $data['sub_accounts'] ?? []
+                );
+
+                if (!$subAccountResult['success']) {
+                    $this->pdo->rollBack();
+                    return $subAccountResult;
+                }
+            }
+
             $this->pdo->commit();
 
             return [
@@ -190,6 +281,13 @@ class ChartAccountService
 
             $this->pdo->beginTransaction();
 
+            $parentResult = $this->resolveOrCreateParentAccount($data, $data['updated_by'], $id);
+            if (!($parentResult['success'] ?? false)) {
+                $this->pdo->rollBack();
+                return $parentResult;
+            }
+            $data['parent_id'] = $parentResult['parent_id'] ?? ($data['parent_id'] ?? null);
+
             $data['level'] = $this->resolveLevel($data['parent_id'] ?? null);
 
             if (!$this->model->update($id, $data)) {
@@ -214,7 +312,18 @@ class ChartAccountService
                 }
             }
 
-            $this->syncLegacyAllowSubAccountFlag($id);
+            if (array_key_exists('sub_accounts', $data)) {
+                $subAccountResult = $this->customSubAccountService->replaceForAccount(
+                    $id,
+                    $data['sub_accounts'] ?? []
+                );
+
+                if (!$subAccountResult['success']) {
+                    $this->pdo->rollBack();
+                    return $subAccountResult;
+                }
+            }
+
             $this->pdo->commit();
 
             return ['success' => true];
@@ -270,7 +379,30 @@ class ChartAccountService
             ];
         }
 
-        return ['success' => $this->model->hardDelete($id, $actor)];
+        $this->pdo->beginTransaction();
+
+        try {
+            $stmt = $this->pdo->prepare("DELETE FROM ledger_sub_accounts WHERE account_id = :account_id");
+            $stmt->execute([':account_id' => $id]);
+
+            $ok = $this->model->hardDelete($id, $actor);
+            if (!$ok) {
+                $this->pdo->rollBack();
+                return ['success' => false];
+            }
+
+            $this->pdo->commit();
+            return ['success' => true];
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
     }
 
     public function hasChildren(string $id): bool
@@ -662,6 +794,12 @@ class ChartAccountService
 
     public function hardDeleteAll(): void
     {
+        $this->pdo->exec("
+            DELETE sa
+            FROM ledger_sub_accounts sa
+            INNER JOIN ledger_accounts a ON a.id = sa.account_id
+            WHERE a.deleted_at IS NOT NULL
+        ");
         $this->pdo->exec("DELETE FROM ledger_accounts WHERE deleted_at IS NOT NULL");
     }
 

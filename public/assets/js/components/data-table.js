@@ -31,6 +31,13 @@ function applyColumnHeaderClasses(table, columns = []) {
     });
 }
 
+function isColumnVisibleInColvis(columns, index, node) {
+    const column = columns[index] || {};
+    const classes = tokenizeClasses(column.className, column.headerClassName);
+
+    return !classes.includes('no-colvis') && !node?.classList?.contains('no-colvis');
+}
+
 function scheduleAdjust(table, options = {}) {
     if (!table) return;
 
@@ -132,7 +139,7 @@ function bindCellSearchFill(table, tableSelector, options = {}) {
     $table.find('tbody')
         .off('click.dtCellSearchFill')
         .on('click.dtCellSearchFill', 'td', function (event) {
-            if (event.target.closest('a, button, input, select, textarea, .dropdown-menu, .reorder-handle')) {
+            if (event.target.closest('a, button, input, select, textarea, .dropdown-menu, .reorder-handle, .drag-handle')) {
                 return;
             }
 
@@ -174,7 +181,8 @@ export function createDataTable(config) {
         ajaxData = null,
         dataSrc = null,
         cellSearchFill = true,
-        searchTableId = null
+        searchTableId = null,
+        rowReorder = false
     } = config;
 
     const $ = window.jQuery;
@@ -211,10 +219,10 @@ export function createDataTable(config) {
         pageLength,
         lengthMenu: [10, 20, 30, 50, 100, 200, 300, 500, 1000],
 
-        rowReorder: {
+        rowReorder: rowReorder ? {
             selector: 'td.reorder-handle',
             dataSrc: 'sort_no'
-        },
+        } : false,
 
         scrollX: false,
         scrollCollapse: true,
@@ -234,7 +242,9 @@ export function createDataTable(config) {
                 className: 'btn btn-secondary btn-sm',
                 popoverTitle: 'Column visibility',
                 collectionLayout: 'fixed two-column',
-                columns: ':not(.no-colvis)'
+                columns: function (index, data, node) {
+                    return isColumnVisibleInColvis(tableColumns, index, node);
+                }
             },
             {
                 extend: 'copy',
@@ -288,13 +298,29 @@ export function createDataTable(config) {
         enabled: cellSearchFill
     });
 
+    bindTableHighlight(tableSelector, table);
+
     return table;
 }
 
 export function bindTableHighlight(tableSelector, tableInstance) {
     const $table = $(tableSelector);
+    $table.addClass('table-cross-highlight');
+    const $wrapper = $table.closest('.dataTables_wrapper');
 
-    $table.find('tbody').on('mouseenter', 'td', function () {
+    $table.find('tbody')
+        .off('click.dtTableHighlight')
+        .on('click.dtTableHighlight', 'tr', function (event) {
+        if (event.target.closest('a, button, input, select, textarea, .dropdown-menu, .reorder-handle, .drag-handle')) {
+            return;
+        }
+
+        setTableSelectedRow(tableSelector, this);
+    });
+
+    $table.find('tbody')
+        .off('mouseenter.dtTableHighlight')
+        .on('mouseenter.dtTableHighlight', 'td', function () {
         const cell = tableInstance.cell(this);
         const idx = cell.index();
 
@@ -302,8 +328,6 @@ export function bindTableHighlight(tableSelector, tableInstance) {
 
         const colIndex = idx.column;
         const visibleIndex = tableInstance.column(colIndex).index('visible');
-        const $wrapper = $table.closest('.dataTables_wrapper');
-
         $wrapper.find('tbody tr').removeClass('row-highlight');
         $(this).closest('tr').addClass('row-highlight');
 
@@ -322,10 +346,27 @@ export function bindTableHighlight(tableSelector, tableInstance) {
             .addClass('col-highlight');
     });
 
-    $table.find('tbody').on('mouseleave', function () {
+    $table.find('tbody')
+        .off('mouseleave.dtTableHighlight')
+        .on('mouseleave.dtTableHighlight', function () {
         const $wrapper = $table.closest('.dataTables_wrapper');
 
         $wrapper.find('tbody tr').removeClass('row-highlight');
         $wrapper.find('td, th').removeClass('col-highlight');
     });
+}
+
+export function setTableSelectedRow(tableSelector, row) {
+    const $table = $(tableSelector);
+    const $wrapper = $table.closest('.dataTables_wrapper');
+
+    $wrapper.find('tbody tr').removeClass('dt-row-selected table-active');
+
+    if (row) {
+        $(row).addClass('dt-row-selected');
+    }
+}
+
+export function clearTableSelectedRows(tableSelector) {
+    setTableSelectedRow(tableSelector, null);
 }

@@ -6,6 +6,10 @@
   --dt-header-bg: var(--color-primary-soft, rgba(13,110,253,.08));
   --dt-header-text: var(--color-text);
   --table-header-bg: color-mix(in srgb, var(--color-primary) 16%, white);
+  --dt-selected-row-bg: color-mix(in srgb, var(--table-header-bg) 28%, #dcdcdc);
+  --dt-cross-row-bg: color-mix(in srgb, var(--table-header-bg) 62%, white);
+  --dt-cross-col-bg: color-mix(in srgb, var(--table-header-bg) 50%, white);
+  --dt-cross-cell-bg: color-mix(in srgb, var(--color-primary) 26%, var(--table-header-bg));
   width: 100%;
   min-width: 0;
   position: relative;
@@ -103,7 +107,8 @@ table.dataTable thead th.sorting_desc::after {
 }
 
 table.dataTable thead th.no-sort,
-table.dataTable thead th.reorder-handle {
+table.dataTable thead th.reorder-handle,
+table.dataTable thead th.drag-handle {
   background-image: none !important;
   padding-right: var(--padding, 12px) !important;
 }
@@ -111,7 +116,9 @@ table.dataTable thead th.reorder-handle {
 table.dataTable thead th.no-sort::before,
 table.dataTable thead th.no-sort::after,
 table.dataTable thead th.reorder-handle::before,
-table.dataTable thead th.reorder-handle::after {
+table.dataTable thead th.reorder-handle::after,
+table.dataTable thead th.drag-handle::before,
+table.dataTable thead th.drag-handle::after {
   display: none !important;
   content: "" !important;
 }
@@ -286,25 +293,96 @@ table.table-cross-highlight th,
 
 table.table-cross-highlight tr.row-highlight > td,
 table.table-cross-highlight tr.row-highlight > th {
-  background-color: var(--cross-row-bg) !important;
+  background-color: var(--dt-cross-row-bg) !important;
 }
 
 table.table-cross-highlight td.col-highlight,
 table.table-cross-highlight th.col-highlight {
-  background-color: var(--cross-col-bg) !important;
+  background-color: var(--dt-cross-col-bg) !important;
 }
 
 table.table-cross-highlight tr.row-highlight > td.col-highlight,
 table.table-cross-highlight tr.row-highlight > th.col-highlight {
-  background-color: var(--cross-cell-bg) !important;
+  background-color: var(--dt-cross-cell-bg) !important;
 }
 
-td.reorder-handle {
+table.table-cross-highlight tbody tr.dt-row-selected > td,
+table.table-cross-highlight tbody tr.dt-row-selected > th,
+table.table-cross-highlight tbody tr.table-active > td,
+table.table-cross-highlight tbody tr.table-active > th,
+.dataTables_wrapper table.table-cross-highlight tbody tr.dt-row-selected > td,
+.dataTables_wrapper table.table-cross-highlight tbody tr.dt-row-selected > th,
+.dataTables_wrapper table.table-cross-highlight tbody tr.table-active > td,
+.dataTables_wrapper table.table-cross-highlight tbody tr.table-active > th {
+  background-color: var(--dt-selected-row-bg) !important;
+}
+
+table.table-cross-highlight tbody tr.dt-row-selected.row-highlight > td,
+table.table-cross-highlight tbody tr.table-active.row-highlight > td {
+  background-color: color-mix(in srgb, var(--dt-selected-row-bg) 58%, var(--dt-cross-row-bg)) !important;
+}
+
+table.table-cross-highlight tbody tr.dt-row-selected > td.col-highlight,
+table.table-cross-highlight tbody tr.table-active > td.col-highlight {
+  background-color: var(--dt-selected-row-bg) !important;
+}
+
+table.table-cross-highlight tbody tr.dt-row-selected.row-highlight > td.col-highlight,
+table.table-cross-highlight tbody tr.table-active.row-highlight > td.col-highlight {
+  background-color: var(--dt-cross-cell-bg) !important;
+}
+
+.dataTables_wrapper table.dataTable th.reorder-handle,
+.dataTables_wrapper table.dataTable td.reorder-handle,
+.dataTables_wrapper table.dataTable th.drag-handle,
+.dataTables_wrapper table.dataTable td.drag-handle {
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  color: #6c757d;
+  cursor: grab;
+  user-select: none;
+  vertical-align: middle;
+}
+
+.dataTables_wrapper table.dataTable th.reorder-handle i,
+.dataTables_wrapper table.dataTable td.reorder-handle i,
+.dataTables_wrapper table.dataTable th.drag-handle i,
+.dataTables_wrapper table.dataTable td.drag-handle i {
+  font-size: 1rem;
+  pointer-events: none;
+}
+
+td.reorder-handle,
+td.drag-handle {
   cursor: grab;
 }
 
-td.reorder-handle:active {
+td.reorder-handle:active,
+td.drag-handle:active {
   cursor: grabbing;
+}
+
+.dataTables_wrapper table.dataTable tbody tr.ui-sortable-helper,
+table.dt-rowReorder-float,
+div.dt-rowReorder-float {
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
+.dataTables_wrapper table.dataTable tbody tr.dt-row-reorder-placeholder > td {
+  height: 42px;
+  background: color-mix(in srgb, var(--table-header-bg) 44%, white);
+  border-top: 2px dashed color-mix(in srgb, var(--color-primary) 45%, var(--table-header-bg));
+  border-bottom: 2px dashed color-mix(in srgb, var(--color-primary) 45%, var(--table-header-bg));
+}
+
+table.dt-rowReorder-float,
+div.dt-rowReorder-float,
+tr.dt-rowReorder-moving {
+  outline: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
 }
 
 body.row-focus-soft .table:not(.table-cross-highlight) tbody tr:hover {
@@ -392,7 +470,8 @@ table.dataTable thead th.sorting_desc {
 }
 
 table.dataTable thead th.no-sort,
-table.dataTable thead th.reorder-handle {
+table.dataTable thead th.reorder-handle,
+table.dataTable thead th.drag-handle {
   padding-right: var(--padding, 12px) !important;
 }
 

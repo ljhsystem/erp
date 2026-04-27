@@ -5,6 +5,7 @@ namespace App\Controllers\Ledger;
 
 use App\Controllers\System\LayoutController;
 use Core\DbPdo;
+use Core\Router;
 
 class LedgerController
 {
@@ -44,14 +45,14 @@ class LedgerController
     public function webAccount(): void
     {
         $this->renderPage('/app/views/ledger/account/index.php', [
-            'pageTitle' => '계정과목 관리',
+            'pageTitle' => '계정과목',
         ]);
     }
 
     public function webJournal(): void
     {
         $this->renderPage('/app/views/ledger/journal/index.php', [
-            'pageTitle' => '일반전표',
+            'pageTitle' => '전표입력',
         ]);
     }
 
@@ -59,6 +60,14 @@ class LedgerController
     {
         $this->renderPage('/app/views/ledger/voucher/index.php', [
             'pageTitle' => '전표 관리',
+        ]);
+    }
+    public function webPlaceholder(): void
+    {
+        $meta = Router::currentRouteMeta();
+
+        $this->renderPage('/app/views/ledger/placeholder.php', [
+            'pageTitle' => $meta['name'] ?? '회계관리',
         ]);
     }
 }

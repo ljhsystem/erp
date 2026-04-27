@@ -200,11 +200,24 @@ class DashboardController
 
     public function settingsBaseInfoCodes(): void
     {
+        $this->redirect('/dashboard/settings/system/codes', 301);
+    }
+
+    public function settingsSystemCodes(): void
+    {
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '기준정보',
-            'cat' => 'base-info',
+            'cat' => 'system',
             'sub' => 'codes'
         ]);
+    }
+
+    private function redirect(string $url, int $status = 302): void
+    {
+        if (!headers_sent()) {
+            header('Location: ' . $url, true, $status);
+        }
+        exit;
     }
 
     public function settingsBaseInfoClients(): void

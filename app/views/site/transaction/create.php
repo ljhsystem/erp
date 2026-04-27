@@ -266,4 +266,4 @@ $pageScripts = AssetHelper::module('/assets/js/site/transaction.js');
 
 <div id="transaction-date-picker" class="site-transaction-picker-layer is-hidden"></div>
 
-<?php include PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/code_modal.php'; ?>
+<?php include PROJECT_ROOT . '/app/views/dashboard/settings/system/partials/code_modal.php'; ?>

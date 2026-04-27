@@ -69,6 +69,7 @@ $labels = [
             'site'              => '사이트정보',
             'session'           => '세션관리',
             'security'          => '보안정책',
+            'codes'             => '기준정보',
             'api'               => '외부연동(API)',
             'external_services' => '외부서비스연동',
             'storage'           => '파일저장소',
@@ -83,7 +84,6 @@ $labels['base-info']['subs'] = [
     'company' => '회사정보',
     'brand-logo' => '브랜드',
     'cover' => '커버이미지',
-    'codes' => '기준정보',
     'clients' => '거래처',
     'projects' => '프로젝트',
     'bank-accounts' => '계좌',
@@ -91,10 +91,19 @@ $labels['base-info']['subs'] = [
     'work-teams' => '팀',
 ];
 
-$baseInfoPermissionMap = [
+$systemPermissionMap = [
     'codes' => 'code.view',
+];
+
+$baseInfoPermissionMap = [
     'work-teams' => 'work_team.view',
 ];
+
+foreach ($systemPermissionMap as $subKey => $permissionKey) {
+    if (isset($labels['system']['subs'][$subKey]) && !$hasSettingsPermission($permissionKey)) {
+        unset($labels['system']['subs'][$subKey]);
+    }
+}
 
 foreach ($baseInfoPermissionMap as $subKey => $permissionKey) {
     if (isset($labels['base-info']['subs'][$subKey]) && !$hasSettingsPermission($permissionKey)) {
@@ -125,7 +134,7 @@ $pageStyles .=
     AssetHelper::css('/assets/css/pages/dashboard/settings/company.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/brand-logo.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/cover.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/code.css') .
+    AssetHelper::css('/assets/css/pages/dashboard/settings/system/code.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/client.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/project.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/bank.account.css') .
@@ -171,10 +180,6 @@ if ($cat === 'base-info' && $sub === 'cover') {
 }
 
 // 8-1-4) 기초정보관리 - 거래처
-if ($cat === 'base-info' && $sub === 'codes') {
-    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/base/code.js');
-}
-
 if ($cat === 'base-info' && $sub === 'clients') {
     $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/base/client.js');
 }
@@ -235,9 +240,7 @@ if ($cat === 'organization' && $sub === 'role_permissions') {
 
 // 8-2-7) 조직관리 - 결재
 if ($cat === 'organization' && $sub === 'approval') {
-    $pageScripts .=
-        AssetHelper::js('https://code.jquery.com/ui/1.13.2/jquery-ui.min.js') .
-        AssetHelper::module('/assets/js/pages/dashboard/settings/organization/approval.templates.js');
+    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/organization/approval.templates.js');
 }
 
 // 8-3-1) 시스템설정 - 사이트정보
@@ -253,6 +256,10 @@ if ($cat === 'system' && $sub === 'session') {
 // 8-3-3) 시스템설정 - 보안정책
 if ($cat === 'system' && $sub === 'security') {
     $pageScripts .= AssetHelper::js('/assets/js/pages/dashboard/settings/system/security.js');
+}
+
+if ($cat === 'system' && $sub === 'codes') {
+    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/system/code.js');
 }
 
 // 8-3-4) 시스템설정 - 외부연동(API)

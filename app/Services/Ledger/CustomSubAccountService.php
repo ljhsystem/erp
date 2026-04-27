@@ -4,6 +4,7 @@ namespace App\Services\Ledger;
 
 use App\Models\Ledger\ChartAccountModel;
 use App\Models\Ledger\SubChartAccountModel;
+use App\Models\System\CodeModel;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
@@ -11,9 +12,12 @@ use PDO;
 
 class CustomSubAccountService
 {
+    private const REF_TARGET_GROUP = 'REF_TARGET';
+
     private SubChartAccountModel $model;
     private ChartAccountModel $accountModel;
     private SubAccountPolicyService $policyService;
+    private CodeModel $codeModel;
     private $logger;
 
     public function __construct(private readonly PDO $pdo)
@@ -21,20 +25,14 @@ class CustomSubAccountService
         $this->model = new SubChartAccountModel($pdo);
         $this->accountModel = new ChartAccountModel($pdo);
         $this->policyService = new SubAccountPolicyService($pdo);
+        $this->codeModel = new CodeModel($pdo);
         $this->logger = LoggerFactory::getLogger('service-ledger.CustomSubAccountService');
     }
 
     public function getByAccountId(string $accountId): array
     {
         try {
-            $rows = $this->model->getByAccountId($accountId, 'custom');
-
-            $this->logger->info('getByAccountId returned', [
-                'account_id' => $accountId,
-                'count' => count($rows),
-            ]);
-
-            return $rows;
+            return $this->model->getByAccountId($accountId, 'custom');
         } catch (\Throwable $e) {
             $this->logger->error('getByAccountId failed', [
                 'account_id' => $accountId,
@@ -49,37 +47,28 @@ class CustomSubAccountService
     {
         try {
             $accountId = trim((string) ($data['account_id'] ?? ''));
-            $subName = trim((string) ($data['sub_name'] ?? ''));
+            $subCode = $this->normalizeSubCode($data['sub_code'] ?? '');
+            $codeRow = $this->resolveRefTarget($subCode);
+            $subName = (string) ($codeRow['code_name'] ?? $subCode);
 
-            if ($accountId === '' || $subName === '') {
-                return [
-                    'success' => false,
-                    'message' => '보조계정 생성 정보가 부족합니다.',
-                ];
+            if ($accountId === '') {
+                return ['success' => false, 'message' => '계정과목을 선택하세요.'];
             }
 
-            $exists = $this->model->findByAccountAndName($accountId, $subName, 'custom');
-            if ($exists) {
-                return [
-                    'success' => true,
-                    'id' => $exists['id'],
-                    'message' => '이미 존재하는 보조계정입니다.',
-                ];
+            if ($this->model->findByAccountAndSubCode($accountId, $subCode)) {
+                return ['success' => false, 'message' => '이미 추가된 보조계정입니다.'];
             }
-
-            $id = UuidHelper::generate();
-            $subCode = $this->model->getNextSubCode($accountId);
 
             $actor = ActorHelper::user();
+            $id = UuidHelper::generate();
 
             $ok = $this->model->create([
                 'id' => $id,
                 'account_id' => $accountId,
                 'sub_code' => $subCode,
                 'sub_name' => $subName,
-                'sub_type' => 'custom',
-                'ref_type' => null,
-                'ref_id' => null,
+                'custom_group_code' => self::REF_TARGET_GROUP,
+                'is_required' => !empty($data['is_required']) ? 1 : 0,
                 'note' => $data['note'] ?? null,
                 'memo' => $data['memo'] ?? null,
                 'created_by' => $actor,
@@ -87,36 +76,46 @@ class CustomSubAccountService
             ]);
 
             if (!$ok) {
-                return [
-                    'success' => false,
-                    'message' => '보조계정 저장에 실패했습니다.',
-                ];
+                return ['success' => false, 'message' => '보조계정 저장에 실패했습니다.'];
             }
 
             $this->accountModel->updateAllowSubAccount($accountId, 1);
 
-            return [
-                'success' => true,
-                'id' => $id,
-            ];
+            return ['success' => true, 'id' => $id];
         } catch (\Throwable $e) {
             $this->logger->error('create failed', [
                 'data' => $data,
                 'exception' => $e->getMessage(),
             ]);
 
-            return [
-                'success' => false,
-                'message' => $e->getMessage(),
-            ];
+            return ['success' => false, 'message' => $e->getMessage()];
         }
     }
 
     public function update(string $id, array $data): array
     {
         try {
-            $data['updated_by'] = ActorHelper::user();
-            $ok = $this->model->update($id, $data);
+            $current = $this->model->getById($id);
+            if (!$current) {
+                return ['success' => false, 'message' => '보조계정을 찾을 수 없습니다.'];
+            }
+
+            $subCode = $this->normalizeSubCode($data['sub_code'] ?? $current['sub_code'] ?? '');
+            $codeRow = $this->resolveRefTarget($subCode);
+
+            if ($this->model->findByAccountAndSubCode((string) $current['account_id'], $subCode, $id)) {
+                return ['success' => false, 'message' => '이미 추가된 보조계정입니다.'];
+            }
+
+            $ok = $this->model->update($id, [
+                'sub_code' => $subCode,
+                'sub_name' => (string) ($codeRow['code_name'] ?? $subCode),
+                'custom_group_code' => self::REF_TARGET_GROUP,
+                'is_required' => !empty($data['is_required']) ? 1 : 0,
+                'note' => $data['note'] ?? null,
+                'memo' => $data['memo'] ?? null,
+                'updated_by' => ActorHelper::user(),
+            ]);
 
             return ['success' => $ok];
         } catch (\Throwable $e) {
@@ -125,10 +124,7 @@ class CustomSubAccountService
                 'exception' => $e->getMessage(),
             ]);
 
-            return [
-                'success' => false,
-                'message' => $e->getMessage(),
-            ];
+            return ['success' => false, 'message' => $e->getMessage()];
         }
     }
 
@@ -137,18 +133,12 @@ class CustomSubAccountService
         try {
             $accountId = $this->model->getAccountIdById($id);
             if ($accountId === null) {
-                return [
-                    'success' => false,
-                    'message' => '대상을 찾을 수 없습니다.',
-                ];
+                return ['success' => false, 'message' => '대상을 찾을 수 없습니다.'];
             }
 
             $ok = $this->model->delete($id);
             if (!$ok) {
-                return [
-                    'success' => false,
-                    'message' => '보조계정 삭제에 실패했습니다.',
-                ];
+                return ['success' => false, 'message' => '보조계정 삭제에 실패했습니다.'];
             }
 
             $hasCustom = $this->model->countByAccountId($accountId, 'custom') > 0;
@@ -166,15 +156,100 @@ class CustomSubAccountService
                 'exception' => $e->getMessage(),
             ]);
 
-            return [
-                'success' => false,
-                'message' => $e->getMessage(),
-            ];
+            return ['success' => false, 'message' => $e->getMessage()];
         }
     }
 
     public function countByAccountId(string $accountId): int
     {
         return $this->model->countByAccountId($accountId, 'custom');
+    }
+
+    public function replaceForAccount(string $accountId, array $rows): array
+    {
+        try {
+            $actor = ActorHelper::user();
+            $normalized = [];
+            $seen = [];
+
+            foreach ($rows as $row) {
+                $subCode = $this->normalizeSubCode($row['sub_code'] ?? '');
+                if ($subCode === '') {
+                    continue;
+                }
+
+                if (isset($seen[$subCode])) {
+                    return ['success' => false, 'message' => '중복된 보조계정이 있습니다.'];
+                }
+                $seen[$subCode] = true;
+
+                $codeRow = $this->resolveRefTarget($subCode);
+                $normalized[] = [
+                    'sub_code' => $subCode,
+                    'sub_name' => (string) ($codeRow['code_name'] ?? $subCode),
+                    'is_required' => !empty($row['is_required']) ? 1 : 0,
+                    'note' => $row['note'] ?? null,
+                    'memo' => $row['memo'] ?? null,
+                ];
+            }
+
+            if (!$this->model->deleteByAccountId($accountId, 'custom')) {
+                return ['success' => false, 'message' => '기존 보조계정 정리에 실패했습니다.'];
+            }
+
+            foreach ($normalized as $row) {
+                $ok = $this->model->create([
+                    'id' => UuidHelper::generate(),
+                    'account_id' => $accountId,
+                    'sub_code' => $row['sub_code'],
+                    'sub_name' => $row['sub_name'],
+                    'custom_group_code' => self::REF_TARGET_GROUP,
+                    'is_required' => $row['is_required'],
+                    'note' => $row['note'],
+                    'memo' => $row['memo'],
+                    'created_by' => $actor,
+                    'updated_by' => $actor,
+                ]);
+
+                if (!$ok) {
+                    return ['success' => false, 'message' => '보조계정 저장에 실패했습니다.'];
+                }
+            }
+
+            $hasPolicies = $this->policyService->countByAccountId($accountId) > 0;
+            $this->accountModel->updateAllowSubAccount(
+                $accountId,
+                ($hasPolicies || count($normalized) > 0) ? 1 : 0
+            );
+
+            return ['success' => true];
+        } catch (\Throwable $e) {
+            $this->logger->error('replaceForAccount failed', [
+                'account_id' => $accountId,
+                'rows' => $rows,
+                'exception' => $e->getMessage(),
+            ]);
+
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    private function normalizeSubCode(mixed $value): string
+    {
+        return strtoupper(trim((string) $value));
+    }
+
+    private function resolveRefTarget(string $code): array
+    {
+        if ($code === '') {
+            throw new \InvalidArgumentException('보조계정명을 선택하세요.');
+        }
+
+        $row = $this->codeModel->getByGroupAndCode(self::REF_TARGET_GROUP, $code);
+        if (!$row || (int) ($row['is_active'] ?? 0) !== 1) {
+            throw new \InvalidArgumentException('REF_TARGET 기준정보에 등록된 보조계정만 사용할 수 있습니다.');
+        }
+
+        return $row;
     }
 }

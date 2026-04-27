@@ -96,6 +96,9 @@ $pageMap = [
     '/dashboard/settings/system/security' => [
         'items' => ['메인', '설정', '시스템설정', '보안정책'],
     ],
+    '/dashboard/settings/system/codes' => [
+        'items' => ['메인', '설정', '시스템설정', '기준정보'],
+    ],
     '/dashboard/settings/system/api' => [
         'items' => ['메인', '설정', '시스템설정', '외부연동(API)'],
     ],

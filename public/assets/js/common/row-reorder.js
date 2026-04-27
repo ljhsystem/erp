@@ -1,7 +1,6 @@
-// 경로: /assets/js/common/row-reorder.js
+// Path: /assets/js/common/row-reorder.js
 
-export function bindRowReorder(table, options){
-
+export function bindRowReorder(table, options = {}) {
     const {
         api,
         idField = 'id',
@@ -10,113 +9,195 @@ export function bindRowReorder(table, options){
         onSuccess = null,
         onError = null
     } = options;
-  
-    if(!table){
+
+    if (!table) {
         console.error('[RowReorder] table 없음');
         return;
     }
-  
-    if(!api){
+
+    if (!api) {
         console.error('[RowReorder] api 없음');
         return;
     }
-  
-    /* =========================
-       🔥 중복 바인딩 방지
-    ========================= */
-    table.off('row-reorder');
-  
-    table.on('row-reorder', function(e, diff){
-  
-        if(!diff || !diff.length) return;
-  
-        const changes = [];
-  
-        diff.forEach(d => {
-  
-            const rowData = table.row(d.node).data();
-            if(!rowData) return;
-  
+
+    const tableNode = table.table?.().node?.();
+    const tableSelector = tableNode?.id ? `#${tableNode.id}` : tableNode;
+
+    bindSortableRowReorder({
+        table,
+        tableSelector,
+        handle: '.reorder-handle',
+        api,
+        requestType: 'json',
+        mapRow({ rowData, index }) {
+            if (!rowData) return null;
+
             const item = {
                 id: rowData[idField],
-                [sortNoField]: d.newPosition + 1,
-                newSortNo: d.newPosition + 1
+                [sortNoField]: index + 1,
+                newSortNo: index + 1
             };
-  
-            if(extraData){
+
+            if (extraData) {
                 Object.assign(item, extraData(rowData));
             }
-  
-            changes.push(item);
-        });
-  
-        if(!changes.length) return;
-  
-        /* =========================
-           🔥 UI 깨짐 방지 (툴팁 제거)
-        ========================= */
-        cleanupUI();
-  
-        fetch(api, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ changes })
-        })
-        .then(res => res.json())
-        .then(json => {
-  
-            if(json.success){
-  
-                /* 🔥 redraw 이후도 대비 */
-                cleanupUI();
-  
-                if(onSuccess){
-                    onSuccess(json);
-                }
-  
-            }else{
-  
-                if(onError){
-                    onError(json);
-                }else{
-                    alert(json.message || '순서 저장 실패');
-                }
-            }
-  
-        })
-        .catch(err => {
-            console.error(err);
-  
-            if(onError){
-                onError(err);
-            }else{
-                alert('순서 저장 실패');
-            }
-        });
-  
+
+            return item;
+        },
+        updateRow({ row, index }) {
+            window.jQuery(row).find('td').eq(1).text(index + 1);
+        },
+        buildPayload(changes) {
+            return { changes };
+        },
+        onSuccess,
+        onError
     });
-  
-    /* =========================
-       🔥 redraw 대응 (핵심)
-    ========================= */
-    table.on('draw', function(){
-        cleanupUI();
+
+    table.off('draw.rowReorderCleanup').on('draw.rowReorderCleanup', cleanupUI);
+}
+
+export function bindSortableRowReorder(options = {}) {
+    const {
+        table,
+        tableSelector,
+        handle = '.drag-handle',
+        api,
+        isLocked = () => false,
+        lock = () => {},
+        unlock = () => {},
+        mapRow = null,
+        updateRow = null,
+        buildPayload = null,
+        onSuccess = null,
+        onError = null,
+        onComplete = null,
+        reload = null,
+        requestType = 'form'
+    } = options;
+
+    const $ = window.jQuery;
+    const $table = $(tableSelector);
+    const $sortable = $table.find('tbody');
+
+    if (!$sortable.length || isLocked()) return;
+
+    if (typeof $sortable.sortable !== 'function') {
+        console.error('[RowReorder] jQuery UI sortable is not available.');
+        return;
+    }
+
+    if (!api) {
+        console.error('[RowReorder] api 없음');
+        return;
+    }
+
+    if ($sortable.data('ui-sortable')) {
+        $sortable.sortable('destroy');
+    }
+
+    $sortable.sortable({
+        handle,
+        items: '> tr',
+        axis: 'y',
+        containment: 'parent',
+        tolerance: 'pointer',
+        forcePlaceholderSize: true,
+        placeholder: 'dt-row-reorder-placeholder',
+        start(_, ui) {
+            const colspan = Math.max(ui.item.children('td, th').length, 1);
+            ui.placeholder
+                .height(ui.item.outerHeight())
+                .html(`<td colspan="${colspan}"></td>`);
+            ui.item.addClass('dt-row-reorder-source');
+        },
+        helper(_, tr) {
+            const $originals = tr.children();
+            const $helper = tr.clone().addClass('dt-row-reorder-helper');
+
+            $helper.children().each(function (index) {
+                $(this).width($originals.eq(index).outerWidth());
+            });
+
+            return $helper;
+        },
+        stop() {
+            $sortable.find('.dt-row-reorder-source').removeClass('dt-row-reorder-source');
+            $sortable.find('.dt-row-reorder-placeholder').remove();
+
+            const rows = [];
+
+            $sortable.find('tr').each(function (index) {
+                const rowData = table?.row(this).data();
+                const mapped = typeof mapRow === 'function'
+                    ? mapRow({ row: this, rowData, index })
+                    : { id: rowData?.id || $(this).data('id'), sort_no: index + 1 };
+
+                if (!mapped?.id) return;
+
+                if (typeof updateRow === 'function') {
+                    updateRow({ row: this, rowData, index, mapped });
+                }
+
+                rows.push(mapped);
+            });
+
+            if (!rows.length) return;
+
+            lock();
+
+            const payload = typeof buildPayload === 'function'
+                ? buildPayload(rows)
+                : { changes: JSON.stringify(rows) };
+
+            const request = requestType === 'json'
+                ? fetch(api, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }).then((res) => res.json())
+                : $.post(api, payload);
+
+            Promise.resolve(request)
+                .then((res) => {
+                    if (!res?.success) {
+                        if (typeof onError === 'function') {
+                            onError(res);
+                        }
+                        return;
+                    }
+
+                    if (typeof onSuccess === 'function') {
+                        onSuccess(res);
+                    }
+                })
+                .catch((err) => {
+                    if (typeof onError === 'function') {
+                        onError(err);
+                    } else {
+                        console.error('[RowReorder] save failed:', err);
+                    }
+                })
+                .finally(() => {
+                    cleanupUI();
+                    setTimeout(() => {
+                        unlock();
+                        if (typeof reload === 'function') {
+                            reload();
+                        }
+                        if (typeof onComplete === 'function') {
+                            onComplete();
+                        }
+                    }, 120);
+                });
+        }
+    }).disableSelection();
+}
+
+function cleanupUI() {
+    document.querySelectorAll('.tooltip, .tooltip-container').forEach((el) => {
+        el.remove();
     });
-  
-  }
-  
-  
-  /* =========================
-     🔥 공통 UI 정리 함수
-  ========================= */
-  function cleanupUI(){
-  
-      /* tooltip 제거 */
-      document.querySelectorAll('.tooltip, .tooltip-container').forEach(el => {
-          el.remove();
-      });
-  
-      /* body에 남은 클래스 제거 */
-      document.body.classList.remove('tooltip-open');
-  
-  }
+
+    document.body.classList.remove('tooltip-open');
+}

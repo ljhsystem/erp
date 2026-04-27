@@ -1,5 +1,5 @@
-import { createDataTable, bindTableHighlight } from '/public/assets/js/components/data-table.js';
-import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
+import { createDataTable, setTableSelectedRow } from '/public/assets/js/components/data-table.js';
+import { bindSortableRowReorder } from '/public/assets/js/common/row-reorder.js';
 
 const API = {
     TEMPLATE_LIST: '/api/settings/organization/approval/template/list',
@@ -104,6 +104,7 @@ function initTemplateTable() {
         defaultOrder: [[1, 'asc']],
         pageLength: 10,
         cellSearchFill: false,
+        rowReorder: false,
         columns: [
             {
                 data: null,
@@ -140,15 +141,27 @@ function initTemplateTable() {
         }
     });
 
-    bindTableHighlight('#template-list-table', templateTable);
-    bindRowReorder(templateTable, {
+    bindSortableRowReorder({
+        table: templateTable,
+        tableSelector: '#template-list-table',
+        handle: '.reorder-handle',
         api: API.TEMPLATE_REORDER,
+        mapRow({ row, rowData, index }) {
+            const id = rowData?.id || $(row).data('id');
+            return id ? { id, sort_no: index + 1, newSortNo: index + 1 } : null;
+        },
+        updateRow({ row, index }) {
+            $(row).find('td').eq(1).text(index + 1);
+        },
+        buildPayload(rows) {
+            return { changes: JSON.stringify(rows) };
+        },
         onSuccess() {
             reloadTemplateTable();
             notify('success', '템플릿 순번이 저장되었습니다.');
         },
-        onError() {
-            notify('error', '템플릿 순번 저장에 실패했습니다.');
+        onError(res) {
+            notify('error', res?.message || '템플릿 순번 저장에 실패했습니다.');
             reloadTemplateTable();
         }
     });
@@ -166,6 +179,7 @@ function initStepTable() {
         defaultOrder: [[1, 'asc']],
         pageLength: 50,
         cellSearchFill: false,
+        rowReorder: false,
         ajaxData() {
             return { template_id: selectedTemplateId || '' };
         },
@@ -213,8 +227,6 @@ function initStepTable() {
         }
     });
 
-    bindTableHighlight('#template-steps-table', stepTable);
-
     stepTable.on('draw.dt xhr.dt', () => {
         updateStepCount();
         markSelectedStepRow();
@@ -240,8 +252,7 @@ function bindTemplateEvents() {
         selectedTemplateId = String(row.id || '');
         selectedStepId = '';
 
-        $('#template-list-table tbody tr').removeClass('table-active');
-        $(this).addClass('table-active');
+        setTableSelectedRow('#template-list-table', this);
 
         $('#btn-add-step').prop('disabled', false);
         $('#ap-selected-template-name').text(`[${row.template_name}]`);
@@ -277,8 +288,7 @@ function bindStepEvents() {
         if (!row) return;
 
         selectedStepId = String(row.id || '');
-        $('#template-steps-table tbody tr').removeClass('table-active');
-        $(this).addClass('table-active');
+        setTableSelectedRow('#template-steps-table', this);
     });
 
     $('#template-steps-table tbody').on('dblclick', 'tr', async function () {
@@ -582,11 +592,11 @@ function reloadStepTable() {
 function markSelectedTemplateRow() {
     if (!templateTable || !selectedTemplateId) return;
 
-    $('#template-list-table tbody tr').removeClass('table-active');
+    setTableSelectedRow('#template-list-table', null);
     templateTable.rows().every(function () {
         const row = this.data();
         if (String(row?.id || '') === String(selectedTemplateId)) {
-            $(this.node()).addClass('table-active');
+            setTableSelectedRow('#template-list-table', this.node());
             $('#ap-selected-template-name').text(`[${row.template_name}]`);
             $('#btn-add-step').prop('disabled', false);
         }
@@ -596,83 +606,51 @@ function markSelectedTemplateRow() {
 function markSelectedStepRow() {
     if (!stepTable || !selectedStepId) return;
 
-    $('#template-steps-table tbody tr').removeClass('table-active');
+    setTableSelectedRow('#template-steps-table', null);
     stepTable.rows().every(function () {
         const row = this.data();
         if (String(row?.id || '') === String(selectedStepId)) {
-            $(this.node()).addClass('table-active');
+            setTableSelectedRow('#template-steps-table', this.node());
         }
     });
 }
 
 function initSortable() {
-    const $sortable = $('#template-steps-table tbody');
-    if (!$sortable.length || isSorting) return;
-
-    if (typeof $sortable.sortable !== 'function') {
-        console.error('[approval] jQuery UI sortable is not available.');
-        return;
-    }
-
-    if ($sortable.data('ui-sortable')) {
-        $sortable.sortable('destroy');
-    }
-
-    $sortable.sortable({
+    bindSortableRowReorder({
+        table: stepTable,
+        tableSelector: '#template-steps-table',
         handle: '.drag-handle',
-        items: '> tr',
-        axis: 'y',
-        containment: 'parent',
-        tolerance: 'pointer',
-        placeholder: 'approval-step-placeholder',
-        helper(_, tr) {
-            const $originals = tr.children();
-            const $helper = tr.clone();
-
-            $helper.children().each(function (index) {
-                $(this).width($originals.eq(index).outerWidth());
-            });
-
-            return $helper;
-        },
-        stop() {
-            const updateList = [];
-
-            $('#template-steps-table tbody tr').each(function (index) {
-                const rowData = stepTable.row(this).data();
-                const id = rowData?.id || $(this).data('id');
-                if (!id) return;
-
-                $(this).attr('data-sort_no', index + 1);
-                $(this).find('.step-sequence').text(index + 1);
-                updateList.push({ id, sort_no: index + 1 });
-            });
-
-            if (!updateList.length) return;
-
+        api: API.STEP_SAVE,
+        isLocked: () => isSorting,
+        lock: () => {
             isSorting = true;
-            $.post(API.STEP_SAVE, {
+        },
+        unlock: () => {
+            isSorting = false;
+        },
+        mapRow({ row, rowData, index }) {
+            const id = rowData?.id || $(row).data('id');
+            return id ? { id, sort_no: index + 1 } : null;
+        },
+        updateRow({ row, index }) {
+            $(row).attr('data-sort_no', index + 1);
+            $(row).find('.step-sequence').text(index + 1);
+        },
+        buildPayload(rows) {
+            return {
                 reorder: 1,
                 template_id: selectedTemplateId,
-                steps: JSON.stringify(updateList)
-            })
-                .done((res) => {
-                    if (!res?.success) {
-                        notify('error', res?.message || '단계 순서 저장에 실패했습니다.');
-                        return;
-                    }
-
-                    notify('success', '단계 순번이 저장되었습니다.');
-                })
-                .fail(() => notify('error', '단계 순서 저장 중 오류가 발생했습니다.'))
-                .always(() => {
-                    setTimeout(() => {
-                        isSorting = false;
-                        reloadStepTable();
-                    }, 120);
-                });
-        }
-    }).disableSelection();
+                steps: JSON.stringify(rows)
+            };
+        },
+        onSuccess() {
+            notify('success', '단계 순번이 저장되었습니다.');
+        },
+        onError(res) {
+            notify('error', res?.message || '단계 순서 저장에 실패했습니다.');
+        },
+        reload: reloadStepTable
+    });
 }
 
 function bindLayoutEvents() {

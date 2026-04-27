@@ -209,165 +209,196 @@ $router->post('/api/settings/base-info/brand/updatestatus', 'BrandController@api
     'log'         => true,
 ]);
 
-$router->get('/api/settings/base-info/code/list', 'CodeController@apiList', [
+$router->get('/api/settings/system/code/list', 'CodeController@apiList', [
     'key'         => 'code.view',
     'name'        => '기준정보 목록 조회',
     'description' => '기준정보 목록 조회',
-    'category'    => '기초정보',
+    'category'    => '시스템설정',
     'auth'        => true,
     'permissions' => ['view'],
     'log'         => true,
 ]);
 
-$router->get('/api/settings/base-info/code/detail', 'CodeController@apiDetail', [
+$router->get('/api/settings/system/code/detail', 'CodeController@apiDetail', [
     'key'         => 'code.view',
     'name'        => '기준정보 상세 조회',
     'description' => '기준정보 상세 조회',
-    'category'    => '기초정보',
+    'category'    => '시스템설정',
     'auth'        => true,
     'permissions' => ['view'],
     'log'         => true,
 ]);
 
-$router->get('/api/settings/base-info/code/groups', 'CodeController@apiGroups', [
+$router->get('/api/settings/system/code/groups', 'CodeController@apiGroups', [
     'key'         => 'code.view',
     'name'        => '기준정보 그룹 조회',
     'description' => '기준정보 그룹 조회',
-    'category'    => '기초정보',
+    'category'    => '시스템설정',
     'auth'        => true,
     'permissions' => ['view'],
     'log'         => false,
 ]);
 
-$router->post('/api/settings/base-info/code/save', 'CodeController@apiSave', [
+$router->post('/api/settings/system/code/save', 'CodeController@apiSave', [
     'key'         => 'code.save',
     'name'        => '기준정보 저장',
     'description' => '기준정보 저장',
-    'category'    => '기초정보',
+    'category'    => '시스템설정',
     'auth'        => true,
     'permissions' => ['save'],
     'log'         => true,
 ]);
 
-$router->post('/api/settings/base-info/code/delete', 'CodeController@apiDelete', [
+$router->post('/api/settings/system/code/delete', 'CodeController@apiDelete', [
     'key'         => 'code.delete',
     'name'        => '기준정보 삭제',
     'description' => '기준정보 삭제',
-    'category'    => '기초정보',
+    'category'    => '시스템설정',
     'auth'        => true,
     'permissions' => ['delete'],
     'log'         => true,
 ]);
 
-$router->get('/api/settings/base-info/code/trash', 'CodeController@apiTrashList', [
+$router->get('/api/settings/system/code/trash', 'CodeController@apiTrashList', [
     'key'         => 'code.view',
     'name'        => '기준정보 휴지통 조회',
     'description' => '기준정보 휴지통 조회',
-    'category'    => '기초정보',
+    'category'    => '시스템설정',
     'auth'        => true,
     'permissions' => ['view'],
     'log'         => true,
 ]);
 
-$router->post('/api/settings/base-info/code/restore', 'CodeController@apiRestore', [
+$router->post('/api/settings/system/code/restore', 'CodeController@apiRestore', [
     'key'         => 'code.save',
     'name'        => '기준정보 복원',
     'description' => '기준정보 복원',
-    'category'    => '기초정보',
+    'category'    => '시스템설정',
     'auth'        => true,
     'permissions' => ['save'],
     'log'         => true,
 ]);
 
-$router->post('/api/settings/base-info/code/restore-bulk', 'CodeController@apiRestoreBulk', [
+$router->post('/api/settings/system/code/restore-bulk', 'CodeController@apiRestoreBulk', [
     'key'         => 'code.save',
     'name'        => '기준정보 일괄 복원',
     'description' => '기준정보 일괄 복원',
-    'category'    => '기초정보',
+    'category'    => '시스템설정',
     'auth'        => true,
     'permissions' => ['save'],
     'log'         => true,
 ]);
 
-$router->post('/api/settings/base-info/code/restore-all', 'CodeController@apiRestoreAll', [
+$router->post('/api/settings/system/code/restore-all', 'CodeController@apiRestoreAll', [
     'key'         => 'code.save',
     'name'        => '기준정보 전체 복원',
     'description' => '기준정보 전체 복원',
-    'category'    => '기초정보',
+    'category'    => '시스템설정',
     'auth'        => true,
     'permissions' => ['save'],
     'log'         => true,
 ]);
 
-$router->post('/api/settings/base-info/code/purge', 'CodeController@apiPurge', [
+$router->post('/api/settings/system/code/purge', 'CodeController@apiPurge', [
     'key'         => 'code.delete',
     'name'        => '기준정보 완전 삭제',
     'description' => '기준정보 완전 삭제',
-    'category'    => '기초정보',
+    'category'    => '시스템설정',
     'auth'        => true,
     'permissions' => ['delete'],
     'log'         => true,
 ]);
 
-$router->post('/api/settings/base-info/code/purge-bulk', 'CodeController@apiPurgeBulk', [
+$router->post('/api/settings/system/code/purge-bulk', 'CodeController@apiPurgeBulk', [
     'key'         => 'code.delete',
     'name'        => '기준정보 일괄 완전 삭제',
     'description' => '기준정보 일괄 완전 삭제',
-    'category'    => '기초정보',
+    'category'    => '시스템설정',
     'auth'        => true,
     'permissions' => ['delete'],
     'log'         => true,
 ]);
 
-$router->post('/api/settings/base-info/code/purge-all', 'CodeController@apiPurgeAll', [
+$router->post('/api/settings/system/code/purge-all', 'CodeController@apiPurgeAll', [
     'key'         => 'code.delete',
     'name'        => '기준정보 전체 완전 삭제',
     'description' => '기준정보 전체 완전 삭제',
-    'category'    => '기초정보',
+    'category'    => '시스템설정',
     'auth'        => true,
     'permissions' => ['delete'],
     'log'         => true,
 ]);
 
-$router->post('/api/settings/base-info/code/reorder', 'CodeController@apiReorder', [
+$router->post('/api/settings/system/code/reorder', 'CodeController@apiReorder', [
     'key'         => 'code.save',
     'name'        => '기준정보 순번 저장',
     'description' => '기준정보 순번 저장',
-    'category'    => '기초정보',
+    'category'    => '시스템설정',
     'auth'        => true,
     'permissions' => ['save'],
     'log'         => true,
 ]);
 
-$router->get('/api/settings/base-info/code/template', 'CodeController@apiDownloadTemplate', [
+$router->get('/api/settings/system/code/template', 'CodeController@apiDownloadTemplate', [
     'key'         => 'code.view',
     'name'        => '기준정보 양식 다운로드',
     'description' => '기준정보 양식 다운로드',
-    'category'    => '기초정보',
+    'category'    => '시스템설정',
     'auth'        => true,
     'permissions' => ['view'],
     'log'         => false,
 ]);
 
-$router->get('/api/settings/base-info/code/excel', 'CodeController@apiDownloadExcel', [
+$router->get('/api/settings/system/code/excel', 'CodeController@apiDownloadExcel', [
     'key'         => 'code.view',
     'name'        => '기준정보 엑셀 다운로드',
     'description' => '기준정보 엑셀 다운로드',
-    'category'    => '기초정보',
+    'category'    => '시스템설정',
     'auth'        => true,
     'permissions' => ['view'],
     'log'         => true,
 ]);
 
-$router->post('/api/settings/base-info/code/excel-upload', 'CodeController@apiExcelUpload', [
+$router->post('/api/settings/system/code/excel-upload', 'CodeController@apiExcelUpload', [
     'key'         => 'code.save',
     'name'        => '기준정보 엑셀 업로드',
     'description' => '기준정보 엑셀 업로드',
-    'category'    => '기초정보',
+    'category'    => '시스템설정',
     'auth'        => true,
     'permissions' => ['save'],
     'log'         => true,
 ]);
+
+$codeBaseInfoRedirectRoutes = [
+    ['get', '/api/settings/base-info/code/list', 'code.view', ['view'], true],
+    ['get', '/api/settings/base-info/code/detail', 'code.view', ['view'], true],
+    ['get', '/api/settings/base-info/code/groups', 'code.view', ['view'], false],
+    ['post', '/api/settings/base-info/code/save', 'code.save', ['save'], true],
+    ['post', '/api/settings/base-info/code/delete', 'code.delete', ['delete'], true],
+    ['get', '/api/settings/base-info/code/trash', 'code.view', ['view'], true],
+    ['post', '/api/settings/base-info/code/restore', 'code.save', ['save'], true],
+    ['post', '/api/settings/base-info/code/restore-bulk', 'code.save', ['save'], true],
+    ['post', '/api/settings/base-info/code/restore-all', 'code.save', ['save'], true],
+    ['post', '/api/settings/base-info/code/purge', 'code.delete', ['delete'], true],
+    ['post', '/api/settings/base-info/code/purge-bulk', 'code.delete', ['delete'], true],
+    ['post', '/api/settings/base-info/code/purge-all', 'code.delete', ['delete'], true],
+    ['post', '/api/settings/base-info/code/reorder', 'code.save', ['save'], true],
+    ['get', '/api/settings/base-info/code/template', 'code.view', ['view'], false],
+    ['get', '/api/settings/base-info/code/excel', 'code.view', ['view'], true],
+    ['post', '/api/settings/base-info/code/excel-upload', 'code.save', ['save'], true],
+];
+
+foreach ($codeBaseInfoRedirectRoutes as [$method, $path, $key, $permissions, $log]) {
+    $router->{$method}($path, 'CodeController@redirectBaseInfoApi', [
+        'key' => $key,
+        'name' => '기준정보 이전 경로 리다이렉트',
+        'description' => '기존 base-info 기준정보 API를 system 경로로 리다이렉트',
+        'category' => '시스템설정',
+        'auth' => true,
+        'permissions' => $permissions,
+        'log' => $log,
+    ]);
+}
 
 $router->get('/api/settings/base-info/cover/list', 'CoverController@apiList', [
     'key'         => 'api.settings.base-info.cover.list',
@@ -1971,6 +2002,26 @@ $router->get('/api/settings/system/database/replication-status', 'SystemControll
     'key'         => 'api.settings.system.database.replication',
     'name'        => '데이터백업 복제 상태 조회',
     'description' => '데이터백업 복제 상태 조회',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+$router->post('/api/settings/system/database/restore-secondary', 'SystemController@apiRestoreSecondary', [
+    'key'         => 'api.settings.system.database.restore',
+    'name'        => 'Secondary DB 복원 실행',
+    'description' => 'Secondary DB 복원 실행',
+    'category'    => '시스템설정',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->get('/api/settings/system/database/secondary-restore-info', 'SystemController@apiSecondaryRestoreInfo', [
+    'key'         => 'api.settings.system.database.view',
+    'name'        => 'Secondary DB 복원 정보 조회',
+    'description' => 'Secondary DB 복원 정보 조회',
     'category'    => '시스템설정',
     'auth'        => true,
     'permissions' => ['view'],

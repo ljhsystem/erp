@@ -53,7 +53,9 @@ class SubChartAccountController
         try {
             $payload = [
                 'account_id' => $_POST['account_id'] ?? null,
+                'sub_code' => $_POST['sub_code'] ?? null,
                 'sub_name' => $_POST['sub_name'] ?? null,
+                'is_required' => isset($_POST['is_required']) ? (int) $_POST['is_required'] : 0,
                 'note' => $_POST['note'] ?? null,
                 'memo' => $_POST['memo'] ?? null,
             ];
@@ -87,7 +89,9 @@ class SubChartAccountController
             }
 
             $payload = [
+                'sub_code' => $_POST['sub_code'] ?? null,
                 'sub_name' => $_POST['sub_name'] ?? null,
+                'is_required' => isset($_POST['is_required']) ? (int) $_POST['is_required'] : 0,
                 'note' => $_POST['note'] ?? null,
                 'memo' => $_POST['memo'] ?? null,
             ];

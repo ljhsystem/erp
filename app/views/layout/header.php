@@ -101,7 +101,6 @@ $ui = array_merge([
     <?= AssetHelper::css('https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css') ?>
     <?= AssetHelper::css('https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css') ?>
     <?= AssetHelper::css('https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css') ?>
-    <?= AssetHelper::css('https://cdn.datatables.net/rowreorder/1.4.1/css/rowReorder.dataTables.min.css') ?>
     <?= AssetHelper::css('https://cdn.datatables.net/fixedheader/3.4.0/css/fixedHeader.dataTables.min.css') ?>
     <?= AssetHelper::css('https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css') ?><!-- select2기능 -->
 
@@ -128,11 +127,11 @@ $ui = array_merge([
 
     <!-- JS -->
     <?= AssetHelper::js('https://code.jquery.com/jquery-3.7.1.min.js') ?>
+    <?= AssetHelper::js('https://code.jquery.com/ui/1.13.2/jquery-ui.min.js') ?>
     <?= AssetHelper::js('https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js') ?><!-- Bootstrap -->
     <?= AssetHelper::js('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js') ?><!-- 이미지지캡쳐기능 --><!-- 모달그대로캡쳐기능 --><!-- Utilities -->
     <?= AssetHelper::js('https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js') ?> <!-- DataTables Core -->
     <?= AssetHelper::js('https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js') ?><!-- DataTables Buttons -->
-    <?= AssetHelper::js('https://cdn.datatables.net/rowreorder/1.4.1/js/dataTables.rowReorder.min.js') ?>
     <?= AssetHelper::js('https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js') ?><!-- Buttons 확장 -->
     <?= AssetHelper::js('https://cdn.datatables.net/buttons/2.4.2/js/buttons.print.min.js') ?>
     <?= AssetHelper::js('https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js') ?><!-- 🔥 이게 없어서 터진 것 -->

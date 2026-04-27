@@ -884,6 +884,16 @@ $router->get('/dashboard/settings/system/security', 'DashboardController@setting
     'log' => true
 ]);
 
+$router->get('/dashboard/settings/system/codes', 'DashboardController@settingsSystemCodes', [
+    'key' => 'code.view',
+    'name' => '기준정보',
+    'description' => '기준정보 관리 화면 접근',
+    'category' => '시스템설정',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => true
+]);
+
 $router->get('/dashboard/settings/system/api', 'DashboardController@settingsSystemApi', [
     'key' => 'web.settings.system.api',
     'name' => '외부연동 API',
@@ -1076,12 +1086,12 @@ $router->get('/ledger/accounts', 'LedgerController@webAccount', [
  * ========================================================= */
 
 // ============================================================
-// 일반전표 (전표 입력)
+// 전표입력
 // ============================================================
 $router->get('/ledger/journal', 'LedgerController@webJournal', [
     'key'         => 'web.ledger.journal',
-    'name'        => '일반전표',
-    'description' => '회계관리 일반전표 입력 화면',
+    'name'        => '전표입력',
+    'description' => '회계관리 전표입력 화면',
     'category'    => '회계관리',
     'auth'        => true,
     'permissions' => ['view'],
@@ -1113,6 +1123,52 @@ $router->get('/ledger/transaction/create', 'TransactionController@webLedgerCreat
     'permissions' => ['view'],
     'log'         => false,
 ]);
+
+$ledgerPlaceholderRoutes = [
+    ['/ledger/sub-accounts', 'web.ledger.sub_accounts', '보조계정', '회계관리 보조계정 화면'],
+    ['/ledger/opening-balances', 'web.ledger.opening_balances', '기초잔액', '회계관리 기초잔액 화면'],
+    ['/ledger/data/upload', 'web.ledger.data.upload', '자료업로드', '회계관리 자료업로드 화면'],
+    ['/ledger/data', 'web.ledger.data.index', '자료목록', '회계관리 자료목록 화면'],
+    ['/ledger/vouchers', 'web.ledger.vouchers.index', '전표조회', '회계관리 전표조회 화면'],
+    ['/ledger/vouchers/review', 'web.ledger.vouchers.review', '전표검토/승인', '회계관리 전표검토/승인 화면'],
+    ['/ledger/book/journal', 'web.ledger.book.journal', '분개장', '회계관리 분개장 화면'],
+    ['/ledger/book/account', 'web.ledger.book.account', '계정별원장', '회계관리 계정별원장 화면'],
+    ['/ledger/book/general', 'web.ledger.book.general', '총계정원장', '회계관리 총계정원장 화면'],
+    ['/ledger/book/partner', 'web.ledger.book.partner', '거래처원장', '회계관리 거래처원장 화면'],
+    ['/ledger/book/project', 'web.ledger.book.project', '프로젝트원장', '회계관리 프로젝트원장 화면'],
+    ['/ledger/book/daily', 'web.ledger.book.daily', '일계표', '회계관리 일계표 화면'],
+    ['/ledger/book/purchase-sales', 'web.ledger.book.purchase_sales', '매입매출장', '회계관리 매입매출장 화면'],
+    ['/ledger/book/vehicle-log', 'web.ledger.book.vehicle_log', '차량운행기록부', '회계관리 차량운행기록부 화면'],
+    ['/ledger/financial/trial-balance', 'web.ledger.financial.trial_balance', '시산표', '회계관리 시산표 화면'],
+    ['/ledger/financial/income-statement', 'web.ledger.financial.income_statement', '손익계산서', '회계관리 손익계산서 화면'],
+    ['/ledger/financial/statement-position', 'web.ledger.financial.statement_position', '재무상태표', '회계관리 재무상태표 화면'],
+    ['/ledger/financial/product-cost', 'web.ledger.financial.product_cost', '상품원가명세서', '회계관리 상품원가명세서 화면'],
+    ['/ledger/financial/construction-cost', 'web.ledger.financial.construction_cost', '공사원가명세서', '회계관리 공사원가명세서 화면'],
+    ['/ledger/financial/retained-earnings', 'web.ledger.financial.retained_earnings', '이익잉여금처분계산서', '회계관리 이익잉여금처분계산서 화면'],
+    ['/ledger/assets/create', 'web.ledger.assets.create', '자산등록', '회계관리 자산등록 화면'],
+    ['/ledger/assets', 'web.ledger.assets.index', '자산대장', '회계관리 자산대장 화면'],
+    ['/ledger/assets/depreciation', 'web.ledger.assets.depreciation', '감가상각', '회계관리 감가상각 화면'],
+    ['/ledger/assets/transfer', 'web.ledger.assets.transfer', '자산이동', '회계관리 자산이동 화면'],
+    ['/ledger/assets/disposal', 'web.ledger.assets.disposal', '자산폐기', '회계관리 자산폐기 화면'],
+    ['/ledger/tax/trial-balance', 'web.ledger.tax.trial_balance', '세무 시산표', '회계관리 세무 시산표 화면'],
+    ['/ledger/tax/income-statement', 'web.ledger.tax.income_statement', '세무 손익계산서', '회계관리 세무 손익계산서 화면'],
+    ['/ledger/tax/statement-position', 'web.ledger.tax.statement_position', '세무 재무상태표', '회계관리 세무 재무상태표 화면'],
+    ['/ledger/tax/cost-statement', 'web.ledger.tax.cost_statement', '세무 원가명세서', '회계관리 세무 원가명세서 화면'],
+    ['/ledger/tax/retained-earnings', 'web.ledger.tax.retained_earnings', '세무 이익잉여금', '회계관리 세무 이익잉여금 화면'],
+    ['/ledger/tax/comparison', 'web.ledger.tax.comparison', '비교/차이분석', '회계관리 비교/차이분석 화면'],
+];
+
+foreach ($ledgerPlaceholderRoutes as [$path, $key, $name, $description]) {
+    $router->get($path, 'LedgerController@webPlaceholder', [
+        'key'         => $key,
+        'name'        => $name,
+        'description' => $description,
+        'category'    => '회계관리',
+        'auth'        => true,
+        'permissions' => ['view'],
+        'log'         => false,
+    ]);
+}
 
 
 

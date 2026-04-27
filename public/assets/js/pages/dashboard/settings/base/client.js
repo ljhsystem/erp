@@ -39,7 +39,7 @@ window.AdminPicker = AdminPicker;
         EXCEL_TEMPLATE: "/api/settings/base-info/client/template",
 
         SEARCH_PICKER: "/api/settings/base-info/client/search-picker",
-        CODE_OPTIONS: "/api/settings/base-info/code/list"
+        CODE_OPTIONS: "/api/settings/system/code/list"
     };
 
     // fetch(API.DETAIL + '?sort_no=' + sort_no);
