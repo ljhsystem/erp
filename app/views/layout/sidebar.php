@@ -60,8 +60,7 @@ $link = static function (string $href, string $label, string $iconClass, string 
                 <a href="#menu-ledger-basic" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-gear') ?><span>기초정보관리</span></a>
                 <ul id="menu-ledger-basic" class="collapse">
                     <li><?= $link('/ledger/accounts', '계정과목', 'bi-list-ul') ?></li>
-                    <li><?= $link('/ledger/sub-accounts', '보조계정', 'bi-diagram-2') ?></li>
-                    <li><?= $link('/ledger/opening-balances', '기초잔액', 'bi-cash-stack') ?></li>
+                    <li><?= $link('/ledger/opening-balances', '기초금액', 'bi-cash-stack') ?></li>
                 </ul>
             </li>
             <li>

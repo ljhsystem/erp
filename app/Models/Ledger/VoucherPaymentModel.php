@@ -10,6 +10,7 @@ class VoucherPaymentModel
     protected string $table = 'ledger_voucher_payments';
 
     private PDO $db;
+    private ?array $tableColumns = null;
 
     public function __construct(?PDO $pdo = null)
     {
@@ -79,6 +80,7 @@ class VoucherPaymentModel
     {
         $allowed = [
             'id',
+            'sort_no',
             'voucher_id',
             'payment_type',
             'payment_id',
@@ -86,6 +88,14 @@ class VoucherPaymentModel
             'created_at',
             'created_by',
         ];
+        if ($this->hasColumn('direction')) {
+            $allowed[] = 'direction';
+            $data['direction'] = strtoupper(trim((string) ($data['direction'] ?? $data['payment_direction'] ?? 'OUT'))) ?: 'OUT';
+        }
+        if ($this->hasColumn('payment_direction')) {
+            $allowed[] = 'payment_direction';
+            $data['payment_direction'] = strtoupper(trim((string) ($data['payment_direction'] ?? $data['direction'] ?? 'OUT'))) ?: 'OUT';
+        }
 
         $payload = $this->filterData($data, $allowed);
 
@@ -111,6 +121,7 @@ class VoucherPaymentModel
     public function update(string $id, array $data): bool
     {
         $allowed = [
+            'sort_no',
             'voucher_id',
             'payment_type',
             'payment_id',
@@ -118,6 +129,14 @@ class VoucherPaymentModel
             'created_at',
             'created_by',
         ];
+        if ($this->hasColumn('direction')) {
+            $allowed[] = 'direction';
+            $data['direction'] = strtoupper(trim((string) ($data['direction'] ?? $data['payment_direction'] ?? 'OUT'))) ?: 'OUT';
+        }
+        if ($this->hasColumn('payment_direction')) {
+            $allowed[] = 'payment_direction';
+            $data['payment_direction'] = strtoupper(trim((string) ($data['payment_direction'] ?? $data['direction'] ?? 'OUT'))) ?: 'OUT';
+        }
 
         $payload = $this->filterData($data, $allowed);
 
@@ -144,34 +163,6 @@ class VoucherPaymentModel
         return $stmt->execute($params);
     }
 
-    public function softDelete(string $id, ?string $actor = null): bool
-    {
-        $stmt = $this->db->prepare("
-            UPDATE {$this->table}
-            SET deleted_at = NOW(),
-                deleted_by = :deleted_by
-            WHERE id = :id
-              AND deleted_at IS NULL
-        ");
-
-        return $stmt->execute([
-            ':id' => $id,
-            ':deleted_by' => $actor,
-        ]);
-    }
-
-    public function restore(string $id): bool
-    {
-        $stmt = $this->db->prepare("
-            UPDATE {$this->table}
-            SET deleted_at = NULL,
-                deleted_by = NULL
-            WHERE id = :id
-        ");
-
-        return $stmt->execute([':id' => $id]);
-    }
-
     public function hardDelete(string $id): bool
     {
         $stmt = $this->db->prepare("
@@ -180,6 +171,16 @@ class VoucherPaymentModel
         ");
 
         return $stmt->execute([':id' => $id]);
+    }
+
+    public function purgeByVoucherId(string $voucherId): void
+    {
+        $stmt = $this->db->prepare("
+            DELETE FROM {$this->table}
+            WHERE voucher_id = :voucher_id
+        ");
+
+        $stmt->execute([':voucher_id' => $voucherId]);
     }
 
     private function filterData(array $data, array $allowed): array
@@ -204,5 +205,15 @@ class VoucherPaymentModel
         }
 
         return $params;
+    }
+
+    private function hasColumn(string $column): bool
+    {
+        if ($this->tableColumns === null) {
+            $stmt = $this->db->query("SHOW COLUMNS FROM {$this->table}");
+            $this->tableColumns = array_column($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], 'Field');
+        }
+
+        return in_array($column, $this->tableColumns, true);
     }
 }

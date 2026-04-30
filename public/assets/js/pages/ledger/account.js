@@ -4,7 +4,7 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import { createDataTable, clearTableSelectedRows, setTableSelectedRow } from '/public/assets/js/components/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
-import { initCodeSelectControls, getCodeName, onCodeOptionsLoaded } from '/public/assets/js/common/code-select.js';
+import { initCodeSelectControls, getCodeName, onCodeOptionsLoaded } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
 import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
 
@@ -178,10 +178,12 @@ window.AdminPicker = AdminPicker;
                     <table class="table table-sm table-bordered align-middle mb-0" id="modal-subaccount-table">
                         <thead class="table-light">
                             <tr>
-                                <th width="70" class="text-center">순번</th>
+                                <th width="60" class="text-center">순번</th>
                                 <th>보조계정명</th>
-                                <th width="110" class="text-center">옵션</th>
-                                <th width="90" class="text-center">삭제</th>
+                                <th width="100" class="text-center">옵션</th>
+                                <th width="150">비고</th>
+                                <th width="150">메모</th>
+                                <th width="80" class="text-center">관리</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -214,7 +216,7 @@ window.AdminPicker = AdminPicker;
                     action: openTrashModal
                 },
                 {
-                    text: '계정과목',
+                    text: '새 계정과목',
                     className: 'btn btn-warning btn-sm',
                     action: openCreateModal
                 }
@@ -501,6 +503,7 @@ window.AdminPicker = AdminPicker;
 
         if (openPanel) {
             document.querySelector('.account-split-layout')?.classList.add('subaccount-open');
+            adjustAccountTableLayout();
         }
 
         loadSubAccounts(currentAccountId);
@@ -911,7 +914,7 @@ window.AdminPicker = AdminPicker;
 
         if (target === 'modal') {
             syncModalDraftSubAccounts();
-            modalDraftSubAccounts.push({ sub_code: '', sub_name: '', is_required: 0, note: '', memo: '' });
+            modalDraftSubAccounts.push({ sub_code: '', sub_name: '', is_required: '', note: '', memo: '' });
             renderModalDraftSubAccounts();
             const selects = document.querySelectorAll('#modal-subaccount-table .modal-sub-code-select');
             selects[selects.length - 1]?.focus();
@@ -1031,7 +1034,17 @@ window.AdminPicker = AdminPicker;
                     ${renderSubAccountCodeSelect('modal-sub-code-select', row.sub_code || '', 'modal-sub-code-select', index)}
                 </td>
                 <td>
-                    ${renderRequiredSelect('modal-sub-required-select', row.is_required || 0)}
+                    ${renderRequiredSelect('modal-sub-required-select', row.is_required)}
+                </td>
+                <td>
+                    <input type="text"
+                           class="form-control form-control-sm modal-sub-note"
+                           value="${escapeHtml(row.note || '')}">
+                </td>
+                <td>
+                    <input type="text"
+                           class="form-control form-control-sm modal-sub-memo"
+                           value="${escapeHtml(row.memo || '')}">
                 </td>
                 <td class="text-center">
                     <button type="button"
@@ -1048,7 +1061,7 @@ window.AdminPicker = AdminPicker;
 
     function ensureModalDraftInput() {
         if (!modalDraftSubAccounts.length) {
-            modalDraftSubAccounts.push({ sub_code: '', sub_name: '', is_required: 0, note: '', memo: '' });
+            modalDraftSubAccounts.push({ sub_code: '', sub_name: '', is_required: '', note: '', memo: '' });
         }
     }
 
@@ -1058,13 +1071,14 @@ window.AdminPicker = AdminPicker;
 
         modalDraftSubAccounts = rows.map((row, index) => {
             const subCode = row.querySelector('.modal-sub-code-select')?.value?.trim() || '';
+            const requiredValue = row.querySelector('.modal-sub-required-select')?.value ?? '';
             return {
                 id: modalDraftSubAccounts[index]?.id || '',
                 sub_code: subCode,
                 sub_name: getSubAccountCodeName(subCode),
-                is_required: Number(row.querySelector('.modal-sub-required-select')?.value || 0),
-                note: modalDraftSubAccounts[index]?.note || '',
-                memo: modalDraftSubAccounts[index]?.memo || ''
+                is_required: requiredValue === '' ? '' : Number(requiredValue),
+                note: row.querySelector('.modal-sub-note')?.value?.trim() || '',
+                memo: row.querySelector('.modal-sub-memo')?.value?.trim() || ''
             };
         });
     }
@@ -1081,19 +1095,36 @@ window.AdminPicker = AdminPicker;
                 id: row.id || '',
                 sub_code: String(row.sub_code || '').trim(),
                 sub_name: getSubAccountCodeName(row.sub_code, row.sub_name),
-                is_required: Number(row.is_required || 0),
+                is_required: row.is_required,
                 note: row.note || '',
                 memo: row.memo || ''
-            }))
-            .filter((row) => row.sub_code !== '');
+            }));
 
         if (!rows.length) {
             notify('warning', '보조계정 사용 시 보조계정명을 선택하세요.');
             return null;
         }
 
+        const codeSelects = document.querySelectorAll('#modal-subaccount-table .modal-sub-code-select');
+        const requiredSelects = document.querySelectorAll('#modal-subaccount-table .modal-sub-required-select');
         const seen = new Set();
-        for (const row of rows) {
+        for (const [index, row] of rows.entries()) {
+            const rowNumber = index + 1;
+            const codeSelect = codeSelects[index];
+            const requiredSelect = requiredSelects[index];
+
+            if (!row.sub_code) {
+                notify('warning', `${rowNumber}번째 보조계정명을 선택해주세요.`);
+                codeSelect?.focus();
+                return null;
+            }
+
+            if (row.is_required !== 0 && row.is_required !== 1) {
+                notify('warning', `${rowNumber}번째 보조계정 옵션을 선택해주세요.`);
+                requiredSelect?.focus();
+                return null;
+            }
+
             if (seen.has(row.sub_code)) {
                 notify('warning', '보조계정은 중복 추가할 수 없습니다.');
                 return null;
@@ -1101,7 +1132,10 @@ window.AdminPicker = AdminPicker;
             seen.add(row.sub_code);
         }
 
-        return rows;
+        return rows.map((row) => ({
+            ...row,
+            is_required: Number(row.is_required)
+        }));
     }
 
 
@@ -1220,10 +1254,17 @@ window.AdminPicker = AdminPicker;
         $('#subaccountGuide').text('계정과목을 선택하면 해당 보조계정을 관리할 수 있습니다.');
         clearTableSelectedRows('#account-table');
         document.querySelector('.account-split-layout')?.classList.remove('subaccount-open');
+        adjustAccountTableLayout();
         const tbody = document.querySelector('#subaccount-table tbody');
         if (tbody) {
             tbody.innerHTML = '';
         }
+    }
+
+    function adjustAccountTableLayout() {
+        window.requestAnimationFrame(() => {
+            accountTable?.columns.adjust();
+        });
     }
 
     function renderTrashDetail(detailEl, data = {}) {
@@ -1264,18 +1305,20 @@ window.AdminPicker = AdminPicker;
                     data-code-group="${SUB_ACCOUNT_CODE_GROUP}"
                     data-index="${escapeHtml(index)}"
                     data-selected="${escapeHtml(selectedValue || '')}">
-                <option value="">선택하세요</option>
-                <option value="${escapeHtml(selectedValue || '')}" selected>${escapeHtml(getSubAccountCodeName(selectedValue, selectedValue))}</option>
+                <option value="" ${selectedValue ? '' : 'selected'}>선택(없음)</option>
+                ${selectedValue ? `<option value="${escapeHtml(selectedValue)}" selected>${escapeHtml(getSubAccountCodeName(selectedValue, selectedValue))}</option>` : ''}
             </select>
         `;
     }
 
     function renderRequiredSelect(className, selectedValue = 0) {
-        const value = Number(selectedValue || 0);
+        const hasValue = selectedValue === 0 || selectedValue === 1 || selectedValue === '0' || selectedValue === '1';
+        const value = hasValue ? Number(selectedValue) : '';
         return `
             <select class="form-select form-select-sm ${className}">
+                <option value="" ${value === '' ? 'selected' : ''}>선택하세요</option>
                 <option value="1" ${value === 1 ? 'selected' : ''}>필수</option>
-                <option value="0" ${value !== 1 ? 'selected' : ''}>선택</option>
+                <option value="0" ${value === 0 ? 'selected' : ''}>선택</option>
             </select>
         `;
     }
@@ -1285,9 +1328,22 @@ window.AdminPicker = AdminPicker;
         await initCodeSelectControls(root);
         selects.forEach((select) => {
             const selected = select.dataset.selected || select.value || '';
+            const emptyOption = select.querySelector('option[value=""]');
+            if (emptyOption) {
+                emptyOption.textContent = '선택(없음)';
+            } else {
+                select.insertAdjacentHTML('afterbegin', '<option value="">선택(없음)</option>');
+            }
+
             if (selected) {
                 select.value = selected;
                 select.dispatchEvent(new Event('change', { bubbles: true }));
+            } else {
+                select.value = '';
+            }
+
+            if (window.jQuery && window.jQuery(select).hasClass('select2-hidden-accessible')) {
+                window.jQuery(select).trigger('change.select2');
             }
         });
     }

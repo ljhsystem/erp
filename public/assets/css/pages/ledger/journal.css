@@ -1,9 +1,27 @@
 .journal-page .content-area {
     overflow: visible !important;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
 }
 
 .journal-page .journal-shell {
     padding-top: 0;
+}
+
+.journal-page .page-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.journal-page .page-count {
+    display: inline-flex;
+    align-items: center;
+    font-size: 1rem;
+    font-weight: 500;
+    line-height: 1;
 }
 
 .journal-page .journal-table th,
@@ -39,12 +57,17 @@
 }
 
 #journalModal .modal-dialog {
-    max-width: min(1120px, calc(100vw - 32px));
+    width: min(1180px, calc(100vw - 32px));
+    max-width: min(1180px, calc(100vw - 32px));
+    height: calc(100vh - 40px);
+    max-height: calc(100vh - 40px);
     margin: 20px auto;
+    display: flex;
 }
 
 #journalModal .modal-content {
-    height: min(90vh, 820px);
+    height: 100%;
+    max-height: calc(100vh - 40px);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -52,9 +75,11 @@
 
 #journalModal .journal-modal-form {
     flex: 1;
+    height: 100%;
     min-height: 0;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 #journalModal .modal-header {
@@ -70,11 +95,12 @@
 #journalModal .journal-modal-body {
     flex: 1 1 auto;
     min-height: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    overflow: hidden;
-    padding: 10px 16px;
+    display: block;
+    overflow-y: scroll !important;
+    overflow-x: hidden !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 12px 16px;
     background: #ffffff;
 }
 
@@ -89,43 +115,118 @@
     font-weight: 600;
 }
 
+#journalModal .form-section,
 #journalModal .journal-section {
-    background: #fff;
-    border: 1px solid #e6eaf0;
+    background: #ffffff;
+    border: 1px solid #e1e6ef;
     border-radius: 10px;
     min-width: 0;
+    padding: 0;
+    margin-bottom: 12px;
+    box-shadow: 0 3px 8px rgba(0,0,0,.04);
 }
 
+#journalModal .section-header,
 #journalModal .journal-section-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    margin-bottom: 8px;
+    margin: 0;
+    height: 30px;
+    min-height: 30px;
+    padding: 3px 8px;
+    color: #111827;
+    font-size: 13px;
+    font-weight: 600;
+    background: #c5c5c5;
+    border-bottom: 1px solid #e1e6ef;
+    border-radius: 10px 10px 0 0;
+}
+
+#journalModal .section-title {
+    display: inline-block;
+    line-height: 20px;
+}
+
+#journalModal .section-body {
+    min-width: 0;
+    padding: 10px;
 }
 
 #journalModal .journal-voucher-header {
     flex: 0 0 auto;
-    padding: 8px 10px;
 }
 
 #journalModal .journal-header-grid {
     display: grid;
-    grid-template-columns: 150px 150px 150px minmax(260px, 1fr);
+    grid-template-columns: 170px 190px 220px minmax(260px, .8fr);
     gap: 8px;
     align-items: end;
+}
+
+#journalModal .journal-voucher-no-field .form-control {
+    color: #4b5563;
+    font-weight: 400;
+    background: #f8fafc;
+}
+
+#journalModal .date-input {
+    width: 100%;
+}
+
+#journalModal .date-input .admin-date {
+    width: 100%;
 }
 
 #journalModal .journal-summary-text-field {
     min-width: 0;
 }
 
+#journalModal .summary-autocomplete-wrap {
+    position: relative;
+}
+
+#journalModal .summary-autocomplete-list {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 30060;
+    max-height: 220px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 4px 0;
+    background: #fff;
+    border: 1px solid #dbe3ef;
+    border-radius: 8px;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, .16);
+}
+
+#journalModal .summary-autocomplete-item {
+    display: block;
+    width: 100%;
+    padding: 7px 10px;
+    color: #111827;
+    font-size: 12px;
+    line-height: 1.3;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+}
+
+#journalModal .summary-autocomplete-item:hover,
+#journalModal .summary-autocomplete-item.active {
+    background: #e8eef7;
+}
+
 #journalModal .journal-lines-panel {
-    flex: 1 1 auto;
-    min-height: 220px;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
 }
 
 #journalModal .journal-lines-toolbar {
@@ -134,42 +235,104 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    padding: 7px 10px;
-    border-bottom: 1px solid #e6eaf0;
-    background: #fff;
+}
+
+#journalModal .section-header .btn,
+#journalModal .journal-lines-toolbar .btn {
+    height: 20px;
+    min-height: 20px;
+    padding: 0 6px !important;
+    font-size: 12px;
+    line-height: 1.15;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 #journalModal .journal-section-title {
-    color: #111827;
+    color: #374151;
     font-size: 14px;
-    font-weight: 700;
+    font-weight: 600;
     white-space: nowrap;
 }
 
 #journalModal .journal-lines-wrap {
-    flex: 1 1 auto;
-    min-height: 220px;
-    overflow-y: auto;
+    flex: 0 0 auto;
+    overflow: visible;
+}
+
+#journalModal .journal-lines-table-wrap {
     overflow-x: auto;
+    overflow-y: visible;
+    border: 1px solid #e5edf8;
+    border-radius: 8px;
+    background: #fff;
 }
 
 #journalModal #voucher-line-table {
-    min-width: 920px;
+    width: 100%;
     margin-bottom: 0;
+    min-width: 760px;
+    table-layout: fixed;
+}
+
+#journalModal #voucher-line-table .line-ref-cell {
+    display: none;
+}
+
+#journalModal #voucher-line-table.has-subaccounts {
+    min-width: 980px;
+}
+
+#journalModal #voucher-line-table.has-subaccounts .line-ref-cell {
+    display: table-cell;
 }
 
 #journalModal #voucher-line-table th,
 #journalModal #voucher-line-table td {
-    padding: 7px 9px;
+    padding: 5px 6px;
+    font-size: 12px;
     vertical-align: middle;
 }
 
 #journalModal #voucher-line-table thead th {
-    position: sticky;
-    top: 0;
-    z-index: 2;
     background: #f8fafc;
+    color: #44546a;
+    font-weight: 700;
+    white-space: nowrap;
 }
+
+#journalModal .journal-table-action-head {
+    padding: 3px 4px !important;
+    text-align: center;
+}
+
+#journalModal .journal-table-action-head .btn {
+    height: 20px;
+    min-height: 20px;
+    padding: 0 5px !important;
+    font-size: 11px;
+    line-height: 1.1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+}
+
+#journalModal #voucher-line-table th:nth-child(1),
+#journalModal #voucher-line-table td:nth-child(1) { width: 46px; }
+#journalModal #voucher-line-table th:nth-child(2),
+#journalModal #voucher-line-table td:nth-child(2) { width: 190px; }
+#journalModal #voucher-line-table th:nth-child(3),
+#journalModal #voucher-line-table td:nth-child(3) { width: 200px; }
+#journalModal #voucher-line-table th:nth-child(4),
+#journalModal #voucher-line-table td:nth-child(4),
+#journalModal #voucher-line-table th:nth-child(5),
+#journalModal #voucher-line-table td:nth-child(5) { width: 130px; }
+#journalModal #voucher-line-table th:nth-child(6),
+#journalModal #voucher-line-table td:nth-child(6) { width: 198px; }
+#journalModal #voucher-line-table th:nth-child(7),
+#journalModal #voucher-line-table td:nth-child(7) { width: 86px; }
 
 #journalModal .journal-summary {
     flex: 0 0 auto;
@@ -178,22 +341,343 @@
     justify-content: flex-end;
     gap: 8px;
     flex-wrap: nowrap;
-    padding: 7px 10px 8px;
-    border-top: 1px solid #e6eaf0;
-    background: #fafbfd;
+    padding: 10px 0 0;
+    margin-top: 10px;
+    border-top: 1px solid #e5e7eb;
 }
 
 #journalModal .journal-summary-item {
-    flex: 0 0 140px;
+    flex: 0 0 132px;
     min-width: 0;
 }
 
 #journalModal .journal-summary-item--status {
-    flex: 0 0 260px;
+    flex: 0 0 240px;
 }
 
 #journalModal .journal-summary .form-control {
     font-weight: 600;
+}
+
+#journalModal .input-amount,
+#journalModal #voucher_debit_total,
+#journalModal #voucher_credit_total {
+    text-align: right;
+}
+
+#journalModal .journal-summary .form-control,
+#journalModal #voucher_balance_status {
+    box-sizing: border-box;
+    height: var(--row-height, 38px) !important;
+    min-height: var(--row-height, 38px) !important;
+}
+
+.voucher-validation-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    height: 30px;
+    min-height: 30px;
+    padding: 0 10px;
+    border-radius: .375rem;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.voucher-validation-badge::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.voucher-validation-ok {
+    color: #146c43;
+    background: #e6f6eb;
+    border: 1px solid #b8dfc4;
+}
+
+.voucher-validation-error {
+    color: #b42318;
+    background: #fee4e2;
+    border: 1px solid #f5a9a3;
+}
+
+#journalModal #voucher_status_badge,
+#journalModal #voucher_balance_status {
+    width: 100%;
+}
+
+.voucher-flow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.voucher-status-timeline {
+    width: 100%;
+    min-width: 0;
+}
+
+.voucher-timeline {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, 170px);
+    justify-content: center;
+    align-items: start;
+    column-gap: 44px;
+    padding: 12px 8px 4px;
+}
+
+.voucher-timeline::before {
+    content: "";
+    position: absolute;
+    top: 20px;
+    left: calc(50% - 321px);
+    right: calc(50% - 321px);
+    height: 2px;
+    background: #e5e7eb;
+    border-radius: 999px;
+}
+
+.voucher-timeline-step {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+    text-align: center;
+}
+
+.voucher-timeline-step.done::after {
+    content: "";
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    width: 214px;
+    height: 2px;
+    background: #111827;
+    z-index: 1;
+}
+
+.voucher-timeline-step.done:last-child::after,
+.voucher-timeline-step.current::after {
+    display: none;
+}
+
+.voucher-timeline-node {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 2;
+    width: 16px;
+    height: 16px;
+    border: 0;
+    border-radius: 50%;
+    color: #fff;
+    background: #111827;
+    font-size: 10px;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.voucher-timeline-label {
+    margin-top: 8px;
+    color: #111827;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.voucher-timeline-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 4px;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.25;
+}
+
+.voucher-timeline-step.done .voucher-timeline-meta,
+.voucher-timeline-step.current .voucher-timeline-meta {
+    color: #111827;
+    font-weight: 600;
+}
+
+.voucher-timeline-draft.done .voucher-timeline-node,
+.voucher-timeline-confirmed.done .voucher-timeline-node,
+.voucher-timeline-posted.done .voucher-timeline-node,
+.voucher-timeline-closed.done .voucher-timeline-node,
+.voucher-timeline-draft.current .voucher-timeline-node,
+.voucher-timeline-confirmed.current .voucher-timeline-node,
+.voucher-timeline-posted.current .voucher-timeline-node,
+.voucher-timeline-closed.current .voucher-timeline-node {
+    background: #111827;
+}
+
+.voucher-timeline-draft.done .voucher-timeline-label,
+.voucher-timeline-confirmed.done .voucher-timeline-label,
+.voucher-timeline-posted.done .voucher-timeline-label,
+.voucher-timeline-closed.done .voucher-timeline-label,
+.voucher-timeline-draft.current .voucher-timeline-label,
+.voucher-timeline-confirmed.current .voucher-timeline-label,
+.voucher-timeline-posted.current .voucher-timeline-label,
+.voucher-timeline-closed.done .voucher-timeline-label,
+.voucher-timeline-closed.current .voucher-timeline-label {
+    color: #111827;
+}
+
+.voucher-timeline-step.pending .voucher-timeline-node {
+    background: #e5e7eb;
+}
+
+.voucher-timeline-step.pending .voucher-timeline-meta {
+    color: #9ca3af;
+}
+
+.voucher-timeline-step.pending .voucher-timeline-label {
+    color: #6b7280;
+}
+
+.voucher-flow-step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    padding: 5px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+    color: #fff;
+    background: #9ca3af;
+    border: 1px solid transparent;
+}
+
+.voucher-flow-step-draft.done,
+.voucher-flow-step-draft.current {
+    background: #facc15;
+    color: #422006;
+}
+
+.voucher-flow-step-confirmed.done,
+.voucher-flow-step-confirmed.current {
+    background: #3b82f6;
+}
+
+.voucher-flow-step-posted.done,
+.voucher-flow-step-posted.current {
+    background: #22c55e;
+}
+
+.voucher-flow-step-closed.done,
+.voucher-flow-step-closed.current {
+    background: #9ca3af;
+}
+
+.voucher-flow-step.pending {
+    color: #4b5563;
+    background: #e5e7eb;
+    border-color: #d1d5db;
+}
+
+.voucher-flow-check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    margin-right: 4px;
+    border-radius: 50%;
+    color: inherit;
+    background: rgba(255,255,255,.45);
+    font-size: 10px;
+    font-weight: 900;
+}
+
+.voucher-flow-arrow {
+    color: #9ca3af;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.voucher-flow-table {
+    gap: 3px;
+}
+
+.voucher-flow-table .voucher-flow-step {
+    min-height: 24px;
+    padding: 3px 6px;
+    font-size: 11px;
+}
+
+.voucher-flow-table .voucher-flow-arrow {
+    font-size: 10px;
+}
+
+.voucher-flow-table .voucher-flow-check {
+    width: 12px;
+    height: 12px;
+    margin-right: 3px;
+    font-size: 9px;
+}
+
+.current-step {
+    animation: none;
+}
+
+.voucher-timeline-node.current-step {
+    overflow: visible;
+    background: transparent !important;
+}
+
+.voucher-timeline-node.current-step::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #111827;
+    transform: translate(-50%, -50%);
+}
+
+.voucher-timeline-node.current-step::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #111827;
+    transform-origin: center;
+    animation: voucher-flow-pulse 2.8s infinite ease-out;
+}
+
+@keyframes voucher-flow-pulse {
+    0% {
+        opacity: .95;
+        transform: translate(-50%, -50%) scale(.44);
+    }
+    38% {
+        opacity: .72;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(2.15);
+    }
 }
 
 #journalModal .journal-transaction-summary {
@@ -225,9 +709,6 @@
 
 #journalModal .modal-footer {
     flex: 0 0 auto;
-    position: sticky;
-    bottom: 0;
-    z-index: 3;
     gap: 8px;
     padding: 9px 16px 12px;
     background: #fff;
@@ -240,19 +721,190 @@
 
 #journalModal .journal-transaction-panel {
     flex: 0 0 auto;
-    padding: 8px 10px;
+}
+
+#journalModal .journal-payment-panel {
+    flex: 0 0 auto;
+}
+
+#journalModal .journal-payments-wrap {
+    overflow-x: auto;
+    border: 1px solid #e5edf8;
+    border-radius: 8px;
+    background: #fff;
+}
+
+#journalModal #voucher-payment-table {
+    width: 100%;
+    min-width: 650px;
+    table-layout: fixed;
+}
+
+#journalModal #voucher-payment-table .payment-direction-cell {
+    display: none;
+}
+
+#journalModal #voucher-payment-table.has-account-payment {
+    min-width: 760px;
+}
+
+#journalModal #voucher-payment-table.has-account-payment .payment-direction-cell {
+    display: table-cell;
+}
+
+#journalModal #voucher-payment-table th,
+#journalModal #voucher-payment-table td {
+    padding: 5px 6px;
+    font-size: 12px;
+}
+
+#journalModal #voucher-payment-table th:nth-child(1),
+#journalModal #voucher-payment-table td:nth-child(1) { width: 46px; }
+#journalModal #voucher-payment-table th:nth-child(2),
+#journalModal #voucher-payment-table td:nth-child(2) { width: 112px; }
+#journalModal #voucher-payment-table th:nth-child(3),
+#journalModal #voucher-payment-table td:nth-child(3) { width: 88px; }
+#journalModal #voucher-payment-table th:nth-child(4),
+#journalModal #voucher-payment-table td:nth-child(4) { width: 240px; }
+#journalModal #voucher-payment-table th:nth-child(5),
+#journalModal #voucher-payment-table td:nth-child(5) { width: 180px; }
+#journalModal #voucher-payment-table th:nth-child(6),
+#journalModal #voucher-payment-table td:nth-child(6) { width: 92px; }
+
+#journalModal #voucher-payment-table .payment-id + .select2-container,
+#journalModal #voucher-payment-table .payment-id {
+    max-width: 240px;
+}
+ 
+#journalModal .form-control-sm,
+#journalModal .form-select-sm,
+#journalModal .select2-container .select2-selection--single {
+    min-height: 30px;
+    font-size: 12px;
+}
+
+#journalModal .select2-container {
+    width: 100% !important;
+}
+
+.select2-dropdown.journal-ref-type-dropdown {
+    min-width: 132px;
+    max-width: 180px;
+}
+
+.select2-dropdown.journal-ref-type-dropdown .select2-results__option {
+    padding: 7px 10px;
+    font-size: 12px;
+}
+
+#journalModal .select2-container .select2-selection--single .select2-selection__rendered {
+    line-height: 28px;
+    padding-left: 8px;
+    padding-right: 22px;
+    font-size: 12px;
+}
+
+#journalModal .select2-container .select2-selection--single .select2-selection__arrow {
+    height: 28px;
+}
+
+#journalModal .select2-dropdown,
+#journalModal .select2-results,
+#journalModal .select2-results__options {
+    overflow-x: hidden !important;
+}
+
+#journalModal .select2-results__option {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.select2-dropdown.code-select-dropdown {
+    overflow-x: hidden !important;
+}
+
+.select2-dropdown.code-select-dropdown .select2-results,
+.select2-dropdown.code-select-dropdown .select2-results__options {
+    overflow-x: hidden !important;
+}
+
+.select2-dropdown.code-select-dropdown .select2-results__option {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#journalModal .btn-sm {
+    padding: 3px 7px;
+    font-size: 12px;
+}
+
+#journalModal .journal-line-subaccount-grid {
+    display: grid;
+    gap: 4px;
+}
+
+#journalModal .journal-line-subaccount-field {
+    display: grid;
+    gap: 3px;
+    margin: 0;
+}
+
+#journalModal .journal-line-subaccount-field span {
+    color: #374151;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+#journalModal .journal-subaccount-empty {
+    display: inline-block;
+    color: #6b7280;
+    font-size: 12px;
+    line-height: 1.4;
 }
 
 #journalModal .journal-transaction-link {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-wrap: wrap;
+}
+
+#journalModal .journal-transaction-link .btn {
+    flex: 0 0 auto;
 }
 
 .journal-quick-create-option {
     display: block;
     font-weight: 700;
     color: #0d6efd;
+}
+
+/* 전표 화면 모달 레이어: backdrop < 전표 모달 < 기준정보/빠른등록 모달 < select2 */
+.modal-backdrop {
+    z-index: 30000 !important;
+}
+
+.modal.show,
+.modal#journalModal,
+.modal.show#journalModal {
+    z-index: 30010 !important;
+}
+
+.modal#journalQuickCreateModal,
+.modal.show#journalQuickCreateModal,
+.modal#codeQuickModal,
+.modal.show#codeQuickModal,
+.modal#codeModal,
+.modal.show#codeModal,
+[data-journal-detail-modal] .modal,
+[data-journal-detail-modal] .modal.show {
+    z-index: 30030 !important;
+}
+
+body.modal-open .select2-container--open {
+    z-index: 30050 !important;
 }
 
 .journal-transaction-search {
@@ -273,6 +925,14 @@
 }
 
 @media (max-width: 991.98px) {
+    #journalModal .journal-header-grid {
+        grid-template-columns: 170px 190px minmax(260px, 1fr);
+    }
+
+    #journalModal .journal-summary-text-field {
+        grid-column: span 3;
+    }
+
     #journalModal .journal-summary {
         flex-wrap: wrap;
     }
@@ -298,12 +958,16 @@
 
 @media (max-width: 767.98px) {
     #journalModal .modal-dialog {
+        width: calc(100vw - 16px);
         max-width: calc(100vw - 16px);
+        height: calc(100vh - 16px);
+        max-height: calc(100vh - 16px);
         margin: 8px auto;
     }
 
     #journalModal .modal-content {
-        height: min(90vh, calc(100vh - 16px));
+        height: 100%;
+        max-height: calc(100vh - 16px);
     }
 
     #journalModal .journal-modal-body {
@@ -313,6 +977,36 @@
     #journalModal .journal-header-grid,
     #journalModal .journal-note-grid {
         grid-template-columns: 1fr;
+    }
+
+    #journalModal .journal-summary-text-field {
+        grid-column: auto;
+    }
+
+    .voucher-timeline {
+        grid-template-columns: 1fr;
+        justify-content: stretch;
+        gap: 10px;
+        padding: 8px 0 0;
+    }
+
+    .voucher-timeline::before {
+        display: none;
+    }
+
+    .voucher-timeline-step.done::after {
+        display: none;
+    }
+
+    .voucher-timeline-step {
+        align-items: flex-start;
+        flex-direction: row;
+        gap: 10px;
+        text-align: left;
+    }
+
+    .voucher-timeline-label {
+        margin-top: 2px;
     }
 
     #journalModal .journal-summary {

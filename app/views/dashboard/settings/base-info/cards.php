@@ -98,6 +98,7 @@ include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
 
 <?php
 include __DIR__ . '/partials/card_modal.php';
+include __DIR__ . '/partials/client_modal.php';
 ?>
 
 <div class="picker-root">

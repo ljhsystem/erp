@@ -5,11 +5,12 @@ namespace App\Services\Ledger;
 use App\Models\Ledger\TransactionItemModel;
 use App\Models\Ledger\TransactionLinkModel;
 use App\Models\Ledger\TransactionModel;
+use App\Models\Ledger\VoucherLineRefModel;
 use App\Models\Ledger\VoucherLineModel;
 use App\Models\Ledger\VoucherModel;
 use App\Models\Ledger\VoucherPaymentModel;
 use Core\Helpers\ActorHelper;
-use Core\Helpers\RefTypeHelper;
+use Core\Helpers\SequenceHelper;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
 use PDO;
@@ -25,6 +26,7 @@ class TransactionService
     private TransactionLinkModel $transactionLinkModel;
     private VoucherModel $voucherModel;
     private VoucherLineModel $voucherLineModel;
+    private VoucherLineRefModel $voucherLineRefModel;
     private VoucherPaymentModel $voucherPaymentModel;
     private $logger;
 
@@ -35,6 +37,7 @@ class TransactionService
         $this->transactionLinkModel = new TransactionLinkModel($pdo);
         $this->voucherModel = new VoucherModel($pdo);
         $this->voucherLineModel = new VoucherLineModel($pdo);
+        $this->voucherLineRefModel = new VoucherLineRefModel($pdo);
         $this->voucherPaymentModel = new VoucherPaymentModel($pdo);
         $this->logger = LoggerFactory::getLogger('service-ledger.TransactionService');
     }
@@ -94,13 +97,13 @@ class TransactionService
             ];
 
             if (!$this->transactionModel->insert($transactionPayload)) {
-                throw new \RuntimeException('?轅몄뫅???????????얜∥???????곌숯???????????젩.');
+                throw new \RuntimeException('?饔낅챷維????????????쒋닪???????怨뚯댅?????????????');
             }
 
             foreach ($items as $index => $item) {
                 $itemName = trim((string) ($item['item_name'] ?? ''));
                 if ($itemName === '') {
-                    throw new \InvalidArgumentException(($index + 1) . '??????癲꾧퀗?답펺?щ퉲?壤????꺏???????룸??????????????낆젵.');
+                    throw new \InvalidArgumentException(($index + 1) . '???????꿸쑨???듯렭????鶯????爰???????猷???????????????놁졄.');
                 }
 
                 $itemPayload = [
@@ -128,7 +131,7 @@ class TransactionService
                 ];
 
                 if (!$this->transactionItemModel->insert($itemPayload)) {
-                    throw new \RuntimeException(($index + 1) . '???轅몄뫅?????????癲???????얜∥???????곌숯???????????젩.');
+                    throw new \RuntimeException(($index + 1) . '???饔낅챷維??????????????????쒋닪???????怨뚯댅?????????????');
                 }
             }
 
@@ -178,7 +181,7 @@ class TransactionService
             if (!$transaction) {
                 return [
                     'success' => false,
-                    'message' => '濾곌쑨??誘λご?嶺≪??????곷????뼄.',
+                    'message' => '癲꾧퀗???沃샩삠걫?癲モ돦??????怨????堉?',
                 ];
             }
 
@@ -189,18 +192,18 @@ class TransactionService
             $matchPayload = [
                 'voucher_date' => $data['voucher_date'] ?? ($transaction['transaction_date'] ?? date('Y-m-d')),
                 'summary_text' => trim((string) ($data['summary_text'] ?? '')),
-                'note' => $data['note'] ?? $null,
-                'memo' => $data['memo'] ?? $null,
+                'note' => $data['note'] ?? null,
+                'memo' => $data['memo'] ?? null,
                 'lines' => $lines,
                 'payments' => $payments,
             ];
 
             $updateData = [
-                'project_id' => $data['project_id'] ?? $transaction['project_id'] ?? $null,
-                'client_id' => $data['client_id'] ?? $transaction['client_id'] ?? $null,
-                'bank_account_id' => $data['bank_account_id'] ?? $transaction['bank_account_id'] ?? $null,
-                'card_id' => $data['card_id'] ?? $transaction['card_id'] ?? $null,
-                'item_summary' => $matchPayload['summary_text'] !== '' ? $matchPayload['summary_text'] : ($transaction['item_summary'] ?? $null),
+                'project_id' => $data['project_id'] ?? $transaction['project_id'] ?? null,
+                'client_id' => $data['client_id'] ?? $transaction['client_id'] ?? null,
+                'bank_account_id' => $data['bank_account_id'] ?? $transaction['bank_account_id'] ?? null,
+                'card_id' => $data['card_id'] ?? $transaction['card_id'] ?? null,
+                'item_summary' => $matchPayload['summary_text'] !== '' ? $matchPayload['summary_text'] : ($transaction['item_summary'] ?? null),
                 'note' => $matchPayload['note'],
                 'memo' => $this->encodeMatchPayload($matchPayload),
                 'match_status' => 'matched',
@@ -212,7 +215,7 @@ class TransactionService
             if (!$this->transactionModel->update($transactionId, $updateData)) {
                 return [
                     'success' => false,
-                    'message' => '濾곌쑨???嶺뚮씞?됭눧?????쒑굢????덉넮???곕????덈펲.',
+                    'message' => '癲꾧퀗????癲ル슢????닱??????묎덩?????됰꽡???怨?????덊렡.',
                 ];
             }
 
@@ -243,14 +246,14 @@ class TransactionService
             if (!$transaction) {
                 return [
                     'success' => false,
-                    'message' => '癲꾧퀗???沃샩삠걫?癲ル슓??젆???????⑤８?????덊렡.',
+                    'message' => '?꿸쑨????亦껋꺀?좉괴??꿔꺂????????????ㅿ폍??????딅젩.',
                 ];
             }
 
             if (!in_array($docStatus, $allowed, true)) {
                 return [
                     'success' => false,
-                    'message' => '???源낅츛??? ??? 癲ル슣鍮섌뜮?????ㅺ컼?????낇돲??',
+                    'message' => '???繹먮굝痢??? ??? ?꿔꺂?ｉ뜮?뚮쑏??????븐뻤??????뉖뤁??',
                 ];
             }
 
@@ -263,7 +266,7 @@ class TransactionService
             if (!$updated) {
                 return [
                     'success' => false,
-                    'message' => '嶺뚯빘鍮?????객???곌떠??롪퍔??굢?????넮????????펲.',
+                    'message' => '癲ル슣鍮섌뜮?????媛???怨뚮뼚??濡ろ뜑??援????????????????',
                 ];
             }
 
@@ -293,7 +296,7 @@ class TransactionService
             if ($this->resolveOperationStage() !== self::STAGE_OPERATIONAL) {
                 return [
                     'success' => false,
-                    'message' => '???⑤ ???????ｇ춯?濾곌??????옇?? ??곥????諛댁??????????????????펲.',
+                    'message' => '????????????節뉗땡?癲꾧퀗????????? ??怨????獄쏅똻????????????????????',
                 ];
             }
 
@@ -301,14 +304,14 @@ class TransactionService
             if (!$transaction) {
                 return [
                     'success' => false,
-                    'message' => '癲꾧퀗???沃샩삠걫?癲ル슓??젆???????⑤８?????덊렡.',
+                    'message' => '?꿸쑨????亦껋꺀?좉괴??꿔꺂????????????ㅿ폍??????딅젩.',
                 ];
             }
 
             if (($transaction['match_status'] ?? '') !== 'matched') {
                 return [
                     'success' => false,
-                    'message' => '癲ル슢????닱???ш끽維?????ㅺ컼???癲꾧퀗???沃?異???ш낄援?????獄쏅똻????????怨?????덊렡.',
+                    'message' => '?꿔꺂???????????썹땟??????븐뻤????꿸쑨????亦???????꾣뤃??????꾩룆????????????????딅젩.',
                 ];
             }
 
@@ -316,7 +319,7 @@ class TransactionService
             if ($existingLinks !== []) {
                 return [
                     'success' => false,
-                    'message' => '???? ???슡?????곥?붹뤆?? ???곗꽑 ??⑤? ??諛댁????????⑤８?????덊렡.',
+                    'message' => '???? ?????????怨?遺밸쨬?? ???怨쀪퐨 ???? ??獄쏅똻?????????ㅿ폍??????딅젩.',
                 ];
             }
 
@@ -324,18 +327,18 @@ class TransactionService
 
             $transactionItems = $this->transactionItemModel->getByTransactionId($transactionId);
             $matchPayload = $this->decodeMatchPayload((string) ($transaction['memo'] ?? ''));
-            if ($matchPayload === $null) {
+            if ($matchPayload === null) {
                 return [
                     'success' => false,
-                    'message' => '??ш낄援????獄쏅똻?????ш끽維???癲ル슢????닱??嶺뚮㉡?€쾮戮る쨬??쎛 ???⑤８?????덊렡.',
+                    'message' => '????꾣뤃?????꾩룆????????썹땟????꿔꺂????????癲ル슢???ъ쒜筌믡굥夷???쎛 ????ㅿ폍??????딅젩.',
                 ];
             }
 
-            $lines = $this->normalizeMatchedLines($matchPayload['lines'] ?? []);
+            $lines = $this->normalizeMatchedVoucherLines($matchPayload['lines'] ?? []);
             $payments = $this->normalizePayments($matchPayload['payments'] ?? []);
             $timestamp = date('Y-m-d H:i:s');
             $voucherId = UuidHelper::generate();
-            $voucherSortNo = null;
+            $voucherSortNo = SequenceHelper::next('ledger_vouchers', 'sort_no');
 
             $this->pdo->beginTransaction();
 
@@ -343,12 +346,12 @@ class TransactionService
                 'id' => $voucherId,
                 'sort_no' => $voucherSortNo,
                 'voucher_date' => $matchPayload['voucher_date'] ?? ($transaction['transaction_date'] ?? date('Y-m-d')),
-                'ref_type' => $this->resolveVoucherRefType($transaction),
-                'ref_id' => $this->resolveVoucherRefId($transaction),
+                'source_type' => $this->resolveVoucherSourceType($transaction),
+                'source_id' => $transaction['id'] ?? null,
                 'status' => 'posted',
-                'summary_text' => $matchPayload['summary_text'] ?? $transaction['item_summary'] ?? $transaction['description'] ?? '거래 전표',
-                'note' => $matchPayload['note'] ?? $transaction['note'] ?? $null,
-                'memo' => $this->buildVoucherMemo($matchPayload['memo'] ?? $null, $transactionItems),
+                'summary_text' => $matchPayload['summary_text'] ?? $transaction['item_summary'] ?? $transaction['description'] ?? '嫄곕옒 ?꾪몴',
+                'note' => $matchPayload['note'] ?? $transaction['note'] ?? null,
+                'memo' => $this->buildVoucherMemo($matchPayload['memo'] ?? null, $transactionItems),
                 'created_at' => $timestamp,
                 'created_by' => $actor,
                 'updated_at' => $timestamp,
@@ -356,16 +359,17 @@ class TransactionService
             ];
 
             if (!$this->voucherModel->insert($voucherPayload)) {
-                throw new \RuntimeException('??ш낄援??????밸쭬 ?????묎덩?????됰꽡???怨?????덊렡.');
+                throw new \RuntimeException('????꾣뤃??????諛몄? ?????臾롫뜦??????곌숯??????????딅젩.');
             }
 
             foreach ($lines as $index => $line) {
+                $lineId = UuidHelper::generate();
                 $linePayload = [
-                    'id' => UuidHelper::generate(),
-                    'sort_no' => null,
+                    'id' => $lineId,
+                    'sort_no' => SequenceHelper::next('ledger_voucher_lines', 'sort_no'),
                     'voucher_id' => $voucherId,
                     'line_no' => $index + 1,
-                    'account_code' => $line['account_code'],
+                    'account_id' => $line['account_id'],
                     'debit' => $line['debit'],
                     'credit' => $line['credit'],
                     'line_summary' => $line['line_summary'],
@@ -376,13 +380,16 @@ class TransactionService
                 ];
 
                 if (!$this->voucherLineModel->insert($linePayload)) {
-                    throw new \RuntimeException(($index + 1) . '????ш낄援????繹먮끏???????묎덩?????됰꽡???怨?????덊렡.');
+                    throw new \RuntimeException(($index + 1) . '번째 전표라인 저장에 실패했습니다.');
                 }
+
+                $this->voucherLineRefModel->bulkInsert($lineId, $line['refs'], $actor, $timestamp);
             }
 
             foreach ($payments as $payment) {
                 $paymentPayload = [
                     'id' => UuidHelper::generate(),
+                    'sort_no' => SequenceHelper::next('ledger_voucher_payments', 'sort_no'),
                     'voucher_id' => $voucherId,
                     'payment_type' => $payment['payment_type'],
                     'payment_id' => $payment['payment_id'],
@@ -392,7 +399,7 @@ class TransactionService
                 ];
 
                 if (!$this->voucherPaymentModel->insert($paymentPayload)) {
-                    throw new \RuntimeException('??곥???롪퍒????▲꺂???????묎덩?????됰꽡???怨?????덊렡.');
+                    throw new \RuntimeException('??怨???濡ろ뜏?????꿸틓???????臾롫뜦??????곌숯??????????딅젩.');
                 }
             }
 
@@ -403,8 +410,8 @@ class TransactionService
                 'voucher_id' => $voucherId,
                 'link_type' => 'MANUAL',
                 'is_active' => 1,
-                'note' => $null,
-                'memo' => $null,
+                'note' => null,
+                'memo' => null,
                 'created_at' => $timestamp,
                 'created_by' => $actor,
                 'updated_at' => $timestamp,
@@ -412,16 +419,16 @@ class TransactionService
             ];
 
             if ($this->transactionLinkModel->existsLink($transactionId, $voucherId)) {
-                throw new \RuntimeException('??? ?곌껐??嫄곕???꾪몴??땲??');
+                throw new \RuntimeException('??? ?怨뚭퍙??椰꾧퀡???袁るご?????');
             }
 
             try {
                 if (!$this->transactionLinkModel->insert($linkPayload)) {
-                    throw new \RuntimeException('癲꾧퀗??????ш낄援?????ㅼ뒦???????묎덩?????됰꽡???怨?????덊렡.');
+                    throw new \RuntimeException('?꿸쑨?????????꾣뤃??????쇰뮚???????臾롫뜦??????곌숯??????????딅젩.');
                 }
             } catch (PDOException $e) {
                 if (($e->getCode() ?? '') === '23000') {
-                    throw new \RuntimeException('??? ?곌껐??嫄곕???꾪몴??땲??', 0, $e);
+                    throw new \RuntimeException('??? ?怨뚭퍙??椰꾧퀡???袁るご?????', 0, $e);
                 }
                 throw $e;
             }
@@ -433,7 +440,7 @@ class TransactionService
                 'updated_at' => $timestamp,
                 'updated_by' => $actor,
             ])) {
-                throw new \RuntimeException('濾곌???????객???곌떠??롪퍔??굢?????넮????????펲.');
+                throw new \RuntimeException('癲꾧퀗???????媛???怨뚮뼚??濡ろ뜑??援????????????????');
             }
 
             $this->pdo->commit();
@@ -467,14 +474,14 @@ class TransactionService
         $totalAmount = (float) ($data['total_amount'] ?? 0);
 
         if ($supplyAmount <= 0 && $vatAmount <= 0 && $totalAmount <= 0) {
-            throw new \InvalidArgumentException('?轅몄뫅????????沅걔?????????????욱룏???????낆젵.');
+            throw new \InvalidArgumentException('?饔낅챷維????????亦낃콛???????????????깅즽????????놁졄.');
         }
     }
 
     private function normalizeMatchedLines(array $lines): array
     {
         if (!is_array($lines) || $lines === []) {
-            throw new \InvalidArgumentException('????袁ｋ쨨????嚥싲갭큔?????꿔꺂??????쒐춯誘↔데鸚????쎛 ?????욱룏???????낆젵.');
+            throw new \InvalidArgumentException('????熬곻퐢夷?????μ떜媛?걫?????轅붽틓???????먯땡沃섃넄?곈툣?????쎛 ??????깅즽????????놁졄.');
         }
 
         $normalized = [];
@@ -482,25 +489,43 @@ class TransactionService
         $creditSum = 0.0;
 
         foreach ($lines as $index => $line) {
-            $accountCode = trim((string) ($line['account_code'] ?? ''));
+            $accountId = trim((string) ($line['account_id'] ?? ''));
+            $refType = strtoupper(trim((string) ($line['ref_type'] ?? '')));
+            $refId = trim((string) ($line['ref_id'] ?? ''));
             $debit = (float) ($line['debit'] ?? 0);
             $credit = (float) ($line['credit'] ?? 0);
             $summary = trim((string) ($line['line_summary'] ?? ''));
 
-            if ($accountCode === '') {
-                throw new \InvalidArgumentException(($index + 1) . '????濚밸Ŧ????account_code???ル봿?? ?????욱룏???????낆젵.');
+            if ($accountId === '') {
+                throw new \InvalidArgumentException(($index + 1) . '????嚥싲갭큔????account_id????ル늉?? ??????깅즽????????놁졄.');
+            }
+
+            $this->assertExists('ledger_accounts', $accountId, '선택한 계정과목을 찾을 수 없습니다.');
+
+            if ($refType === '' && $refId !== '') {
+                throw new \InvalidArgumentException('보조계정 유형(ref_type)이 필요합니다.');
+            }
+
+            if ($refType !== '' && $refId === '') {
+                throw new \InvalidArgumentException('보조계정 대상(ref_id)이 필요합니다.');
+            }
+
+            if ($refType !== '') {
+                $this->validateRefTarget($refType, $refId);
             }
 
             if ($debit <= 0 && $credit <= 0) {
-                throw new \InvalidArgumentException(($index + 1) . '????嚥싲갭큔???????沅걔?????????????욱룏???????낆젵.');
+                throw new \InvalidArgumentException(($index + 1) . '?????μ떜媛?걫???????亦낃콛???????????????깅즽????????놁졄.');
             }
 
             if ($debit > 0 && $credit > 0) {
-                throw new \InvalidArgumentException(($index + 1) . '????濚밸Ŧ???? ?꿔꺂?볟젆?④낮釉?????????ㅼ뒧??????????덈Ъ???????⑤챷竊?????????욱룏???????낆젵.');
+                throw new \InvalidArgumentException(($index + 1) . '????嚥싲갭큔???? ?轅붽틓?蹂잛젂??ｋ궙???????????쇰뮛???????????댭????????ㅼ굣塋??????????깅즽????????놁졄.');
             }
 
             $normalized[] = [
-                'account_code' => $accountCode,
+                'account_id' => $accountId,
+                'ref_type' => $refType !== '' ? $refType : null,
+                'ref_id' => $refId !== '' ? $refId : null,
                 'debit' => $debit,
                 'credit' => $credit,
                 'line_summary' => $summary !== '' ? $summary : null,
@@ -511,7 +536,7 @@ class TransactionService
         }
 
         if (round($debitSum, 2) !== round($creditSum, 2)) {
-            throw new \InvalidArgumentException('?轅붽틓?蹂잛젂?④?? ????명??? ?????슢?? ????명??β???? ??濚밸Ŧ?얕留??? ???????????낆젵.');
+            throw new \InvalidArgumentException('?饔낅떽??癰귥옕????? ????紐??? ???????? ????紐??棺???? ??嚥싲갭큔??뺧쭕??? ????????????놁졄.');
         }
 
         return $normalized;
@@ -531,7 +556,7 @@ class TransactionService
             $amount = (float) ($payment['amount'] ?? 0);
 
             if ($paymentType === '' || $paymentId === '' || $amount <= 0) {
-                throw new \InvalidArgumentException(($index + 1) . '????β뼯援??????꿔꺂??????쒐춯誘↔데鸚????쎛 ????癲?? ???????????낆젵.');
+                throw new \InvalidArgumentException(($index + 1) . '????棺堉?뤃??????轅붽틓???????먯땡沃섃넄?곈툣?????쎛 ??????? ????????????놁졄.');
             }
 
             $normalized[] = [
@@ -549,6 +574,100 @@ class TransactionService
         return json_encode([
             'voucher_match' => $payload,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    private function normalizeMatchedVoucherLines(array $lines): array
+    {
+        if ($lines === []) {
+            throw new \InvalidArgumentException('전표 분개라인을 1건 이상 입력해주세요.');
+        }
+
+        $normalized = [];
+        $debitSum = 0.0;
+        $creditSum = 0.0;
+
+        foreach ($lines as $index => $line) {
+            $accountId = trim((string) ($line['account_id'] ?? ''));
+            $refs = $this->normalizeVoucherLineRefs($line);
+            $debit = (float) ($line['debit'] ?? 0);
+            $credit = (float) ($line['credit'] ?? 0);
+            $summary = trim((string) ($line['line_summary'] ?? ''));
+
+            if ($accountId === '') {
+                throw new \InvalidArgumentException(($index + 1) . '번째 라인의 account_id가 필요합니다.');
+            }
+
+            $this->assertExists('ledger_accounts', $accountId, '선택한 계정과목을 찾을 수 없습니다.');
+
+            foreach ($refs as $ref) {
+                $this->validateRefTarget($ref['ref_type'], $ref['ref_id']);
+            }
+
+            if ($debit <= 0 && $credit <= 0) {
+                throw new \InvalidArgumentException(($index + 1) . '번째 라인은 차변 또는 대변 금액이 필요합니다.');
+            }
+
+            if ($debit > 0 && $credit > 0) {
+                throw new \InvalidArgumentException(($index + 1) . '번째 라인은 차변 또는 대변 중 하나만 입력할 수 있습니다.');
+            }
+
+            $normalized[] = [
+                'account_id' => $accountId,
+                'refs' => $refs,
+                'debit' => $debit,
+                'credit' => $credit,
+                'line_summary' => $summary !== '' ? $summary : null,
+            ];
+
+            $debitSum += $debit;
+            $creditSum += $credit;
+        }
+
+        if (round($debitSum, 2) !== round($creditSum, 2)) {
+            throw new \InvalidArgumentException('차변 합계와 대변 합계가 일치해야 합니다.');
+        }
+
+        return $normalized;
+    }
+
+    private function normalizeVoucherLineRefs(array $line): array
+    {
+        $rawRefs = is_array($line['refs'] ?? null) ? $line['refs'] : [];
+
+        if ($rawRefs === [] && (trim((string) ($line['ref_type'] ?? '')) !== '' || trim((string) ($line['ref_id'] ?? '')) !== '')) {
+            $rawRefs[] = [
+                'ref_type' => $line['ref_type'] ?? '',
+                'ref_id' => $line['ref_id'] ?? '',
+            ];
+        }
+
+        $refs = [];
+        $seenTypes = [];
+
+        foreach ($rawRefs as $ref) {
+            $refType = strtoupper(trim((string) ($ref['ref_type'] ?? '')));
+            $refId = trim((string) ($ref['ref_id'] ?? ''));
+
+            if ($refType === '' && $refId === '') {
+                continue;
+            }
+
+            if ($refType === '' || $refId === '') {
+                throw new \InvalidArgumentException('보조계정은 ref_type/ref_id를 함께 전달해야 합니다.');
+            }
+
+            if (isset($seenTypes[$refType])) {
+                throw new \InvalidArgumentException('같은 보조계정 유형은 한 라인에 중복 저장할 수 없습니다.');
+            }
+
+            $seenTypes[$refType] = true;
+            $refs[] = [
+                'ref_type' => $refType,
+                'ref_id' => $refId,
+            ];
+        }
+
+        return $refs;
     }
 
     private function decodeMatchPayload(string $memo): ?array
@@ -594,37 +713,51 @@ class TransactionService
         return json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
-    private function resolveVoucherRefType(array $transaction): ?string
+    private function resolveVoucherSourceType(array $transaction): string
     {
-        $refType = strtoupper(trim((string) ($transaction['ref_type'] ?? '')));
-        if (RefTypeHelper::isValid($refType) && $refType !== '') {
-            return $refType;
-        }
+        $sourceType = strtoupper(trim((string) ($transaction['source_type'] ?? 'MANUAL')));
 
-        if (!empty($transaction['project_id'])) {
-            return 'PROJECT';
-        }
-
-        if (!empty($transaction['order_ref'])) {
-            return 'ORDER';
-        }
-
-        return null;
+        return in_array($sourceType, ['TAX', 'CARD', 'BANK', 'MANUAL'], true) ? $sourceType : 'MANUAL';
     }
 
-    private function resolveVoucherRefId(array $transaction): ?string
+    private function validateRefTarget(string $refType, string $refId): void
     {
-        $refType = strtoupper(trim((string) ($transaction['ref_type'] ?? '')));
-
-        return match ($refType) {
-            'PROJECT' => $transaction['project_id'] ?? null,
-            'ORDER' => $transaction['order_ref'] ?? null,
-            'EXPENSE', 'PAYMENT', 'TAX', 'CUSTOMS' => $transaction['id'] ?? null,
-            default => $transaction['project_id']
-                ?? $transaction['order_ref']
-                ?? $transaction['id']
-                ?? null,
+        $table = match ($refType) {
+            'ACCOUNT' => 'system_bank_accounts',
+            'CLIENT' => 'system_clients',
+            'PROJECT' => 'system_projects',
+            'EMPLOYEE' => 'user_employees',
+            'CARD' => 'system_cards',
+            'TRANSACTION' => 'ledger_transactions',
+            'VOUCHER' => 'ledger_vouchers',
+            'PAYMENT' => 'ledger_voucher_payments',
+            'CONTRACT' => null,
+            'ORDER' => null,
+            default => throw new \InvalidArgumentException('지원하지 않는 참조 유형입니다.'),
         };
+
+        if ($table === null) {
+            if ($refId === '') {
+                throw new \InvalidArgumentException('참조 ID가 필요합니다.');
+            }
+            return;
+        }
+
+        $this->assertExists($table, $refId, '선택한 참조 대상을 찾을 수 없습니다.');
+    }
+
+    private function assertExists(string $table, string $id, string $message): void
+    {
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $table)) {
+            throw new \InvalidArgumentException('Invalid table name.');
+        }
+
+        $stmt = $this->pdo->prepare("SELECT 1 FROM {$table} WHERE id = :id LIMIT 1");
+        $stmt->execute([':id' => $id]);
+
+        if (!$stmt->fetchColumn()) {
+            throw new \InvalidArgumentException($message);
+        }
     }
 
     private function resolveOperationStage(): string

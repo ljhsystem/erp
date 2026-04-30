@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/views/components/ui-modal-trash.php'
+// Path: PROJECT_ROOT . '/app/views/components/ui-modal-trash.php'
 // 공통 휴지통 모달
 
 $modalId      = $modalId      ?? 'trashModal';

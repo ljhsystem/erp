@@ -21,6 +21,11 @@ class LoginController
 
     public function webLoginPage()
     {
+        if ($this->authSessionService->isAuthenticated()) {
+            header('Location: /dashboard');
+            exit;
+        }
+
         $message = $this->authSessionService->pullFlash('login_message');
         $usernameValue = '';
 

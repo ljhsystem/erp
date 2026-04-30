@@ -4,6 +4,7 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import { createDataTable, bindTableHighlight } from '/public/assets/js/components/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
+import { openClientQuickCreate } from '/public/assets/js/pages/dashboard/settings/base/client.js';
 import { formatAmount, initNumberInputs, parseNumber } from '/public/assets/js/common/format.js';
 import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
@@ -826,6 +827,17 @@ window.AdminPicker = AdminPicker;
             minimumInputLength: 0,
             dropdownParent: modalParent,
             width: '100%',
+            templateResult(item) {
+                if (!item.id) return item.text;
+
+                if (item.isQuickCreate) {
+                    return window.jQuery(
+                        '<div class="select2-action-option"><span class="fw-semibold text-primary">+ 신규 거래처 추가</span></div>'
+                    );
+                }
+
+                return item.text;
+            },
             dataBuilder(params) {
                 return {
                     q: params.term || '',
@@ -833,15 +845,43 @@ window.AdminPicker = AdminPicker;
                     is_active: 1
                 };
             },
-            processResults(data) {
+            processResults(data, params) {
                 const rows = data?.results ?? data?.data ?? [];
+                const term = String(params?.term ?? '').trim();
 
                 return {
-                    results: rows.map(row => ({
-                        id: String(row.id ?? ''),
-                        text: row.text || row.client_name || row.company_name || ''
-                    })).filter(row => row.id !== '')
+                    results: [
+                        { id: '__none__', text: '선택(없음)', isNone: true },
+                        ...rows.map(row => ({
+                            id: String(row.id ?? ''),
+                            text: row.text || row.client_name || row.company_name || ''
+                        })).filter(row => row.id !== ''),
+                        {
+                            id: '__quick_client__',
+                            text: '+ 신규 거래처 추가',
+                            isQuickCreate: true,
+                            term
+                        }
+                    ]
                 };
+            }
+        });
+
+        const $client = window.jQuery('#cardClientSelect');
+        $client.off('select2:select.cardClient');
+        $client.on('select2:select.cardClient', function (e) {
+            const item = e.params?.data;
+            if (!item) return;
+
+            if (item.id === '__none__') {
+                window.jQuery(this).val(null).trigger('change');
+                return;
+            }
+
+            if (item.id === '__quick_client__') {
+                window.jQuery(this).val(null).trigger('change');
+                window.jQuery(this).select2('close');
+                openCardClientQuickCreate(item.term || '');
             }
         });
 
@@ -861,11 +901,38 @@ window.AdminPicker = AdminPicker;
                 const rows = data?.results ?? data?.data ?? [];
 
                 return {
-                    results: rows.map(row => ({
-                        id: String(row.id ?? ''),
-                        text: row.text || `${row.account_name || ''}${row.bank_name ? ` (${row.bank_name})` : ''}`
-                    })).filter(row => row.id !== '')
+                    results: [
+                        { id: '__none__', text: '선택(없음)', isNone: true },
+                        ...rows.map(row => ({
+                            id: String(row.id ?? ''),
+                            text: row.text || `${row.account_name || ''}${row.bank_name ? ` (${row.bank_name})` : ''}`
+                        })).filter(row => row.id !== '')
+                    ]
                 };
+            }
+        });
+
+        const $account = window.jQuery('#cardAccountSelect');
+        $account.off('select2:select.cardAccount');
+        $account.on('select2:select.cardAccount', function (e) {
+            const item = e.params?.data;
+            if (item?.id === '__none__') {
+                window.jQuery(this).val(null).trigger('change');
+            }
+        });
+    }
+
+    function openCardClientQuickCreate(defaultName = '') {
+        openClientQuickCreate({
+            select: document.getElementById('cardClientSelect'),
+            initialValues: {
+                client_name: defaultName
+            },
+            onSuccess() {
+                AppCore?.notify?.('success', '거래처가 등록되었습니다.');
+            },
+            getOptionText(values) {
+                return values.client_name || '';
             }
         });
     }

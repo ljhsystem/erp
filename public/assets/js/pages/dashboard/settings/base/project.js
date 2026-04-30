@@ -4,8 +4,8 @@ import { formatDateDisplay, formatAmount, unformatAmount } from '/public/assets/
 import { createDataTable, bindTableHighlight } from '/public/assets/js/components/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
-import { openQuickCreate } from '/public/assets/js/common/quick-create.js';
-import { initCodeSelectControls, getCodeName, onCodeOptionsLoaded } from '/public/assets/js/common/code-select.js';
+import { openClientQuickCreate } from '/public/assets/js/pages/dashboard/settings/base/client.js';
+import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
 import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
 
@@ -46,37 +46,46 @@ window.AdminPicker = AdminPicker;
     const PROJECT_COLUMN_MAP = {
         sort_no:                    { label: "순번", visible: true },
         project_name:               { label: "프로젝트명", visible: true },
-        construction_name:          { label: "공사명", visible: true },
-        linked_client_name:         { label: "거래처", visible: true },
-        client_name:                { label: "발주자명", visible: true },
+        construction_name:          { label: "공사명", visible: false },
         employee_name:              { label: "담당직원", visible: true },
-        site_agent:                 { label: "현장대리인", visible: false },
-        contract_type:              { label: "계약형태", visible: false },
-        director:                   { label: "소장", visible: false },
+
+        client_name:                { label: "발주자명", visible: false },
+        client_type:                { label: "발주자분류", visible: false },
+        bid_type:                   { label: "입찰방법", visible: false },
+        site_agent:                 { label: "현장대리인계", visible: false },
+
+        linked_client_name:         { label: "거래처", visible: true },
+        director:                   { label: "감독관/소장", visible: false },
         manager:                    { label: "실장", visible: false },
-        business_type:              { label: "업종", visible: false },
-        housing_type:               { label: "주력분야", visible: false },
+        contract_type:              { label: "계약형태", visible: false },
+        contract_work_type:         { label: "도급종류", visible: true },
+
+        housing_type:               { label: "공사유형", visible: false },
+        work_type:                  { label: "공종", visible: false },
+        work_subtype:               { label: "공종 세분류", visible: false },
+        business_type:              { label: "업종(대업종)", visible: false },
+        work_detail_type:           { label: "세부 공사종류(주력분야)", visible: true },
+
         site_region_city:           { label: "시도", visible: false },
         site_region_district:       { label: "시군구", visible: false },
         site_region_address:        { label: "주소", visible: false },
         site_region_address_detail: { label: "상세주소", visible: false },
-        work_type:                  { label: "공종", visible: true },
-        work_subtype:               { label: "공종 세분류", visible: false },
-        work_detail_type:           { label: "세부 공사종류", visible: false },
-        contract_work_type:         { label: "도급종류", visible: false },
-        bid_type:                   { label: "입찰형태", visible: false },
-        client_type:                { label: "발주자분류", visible: false },
-        permit_agency:              { label: "인허가기관", visible: false },
+
         permit_date:                { label: "인허가일자", visible: false },
         contract_date:              { label: "계약일자", visible: true },
         start_date:                 { label: "착공일자", visible: true },
         completion_date:            { label: "준공일자", visible: true },
         bid_notice_date:            { label: "입찰공고일", visible: false },
-        initial_contract_amount:    { label: "최초계약금액", visible: true },
+        initial_contract_amount:    { label: "최초계약금액", visible: false },
+
+        permit_agency:              { label: "인허가기관", visible: false },
         authorized_company_seal:    { label: "사용인감명", visible: false },
+
         note:                       { label: "비고", visible: true },
         memo:                       { label: "메모", visible: false },
-        is_active:                  { label: "상태", visible: true },
+
+        is_active:                  { label: "진행상황", visible: true },
+
         created_at:                 { label: "등록일시", visible: false },
         created_by_name:            { label: "등록자", visible: false },
         updated_at:                 { label: "수정일시", visible: false },
@@ -120,7 +129,23 @@ window.AdminPicker = AdminPicker;
     let todayPicker = null;
     let globalBound = false;
     let employeeSelect2Inited = false;
+    let siteAgentSelect2Inited = false;
     let clientSelect2Inited = false;
+
+    function disconnectProjectClientTypeCodeSelect(scope = document) {
+        const root = scope || document;
+        const select = root.querySelector?.('#modal_client_type') || document.getElementById('modal_client_type');
+        if (!select) return;
+
+        select.removeAttribute('data-code-group');
+
+        if (window.jQuery?.fn?.select2) {
+            const $select = window.jQuery(select);
+            if ($select.hasClass('select2-hidden-accessible')) {
+                $select.select2('destroy');
+            }
+        }
+    }
 
     /* ============================================================
        DOM READY
@@ -143,8 +168,10 @@ window.AdminPicker = AdminPicker;
         initAdminDatePicker();
 
         initExcelDataset(); // 엑셀 업로드 설정
+        disconnectProjectClientTypeCodeSelect(document.getElementById('projectModal'));
         await initCodeSelectControls(document.getElementById('projectModal'));
         onCodeOptionsLoaded(() => {
+            disconnectProjectClientTypeCodeSelect(document.getElementById('projectModal'));
             projectTable?.rows().invalidate('data').draw(false);
         });
 
@@ -534,6 +561,7 @@ window.AdminPicker = AdminPicker;
                     action: async function () {
                         const form = document.getElementById('project-edit-form');
                         if (form) form.reset();
+                        disconnectProjectClientTypeCodeSelect(document.getElementById('projectModal'));
                         await initCodeSelectControls(document.getElementById('projectModal'));
 
                         resetProjectModalSelect2();
@@ -627,6 +655,7 @@ window.AdminPicker = AdminPicker;
                 window.isNewProject = false;
                 document.getElementById('projectModalLabel').textContent = '프로젝트 정보 수정';
                 $('#btnDeleteProject').show();
+                disconnectProjectClientTypeCodeSelect(document.getElementById('projectModal'));
                 await initCodeSelectControls(document.getElementById('projectModal'));
 
                 projectModal.show();
@@ -756,6 +785,7 @@ window.AdminPicker = AdminPicker;
         Object.keys(data).forEach(key => {
             if(key === 'id') return;
             if(key === 'employee_id') return;
+            if(key === 'site_agent') return;
             if(key === 'client_id') return;
 
             const el = document.getElementById('modal_' + key);
@@ -782,6 +812,7 @@ window.AdminPicker = AdminPicker;
 
         setTimeout(() => {
             setProjectEmployeeSelect2(data);
+            setProjectSiteAgentSelect2(data);
             setProjectClientSelect2(data);
         }, 50);
     }
@@ -809,8 +840,12 @@ window.AdminPicker = AdminPicker;
                 className: columnClassName,
                 headerClassName: columnClassName,
                 defaultContent: "",
-                render: function(data){
+                render: function(data, type, row){
                     if(data === null || data === undefined) return "";
+
+                    if (field === 'site_agent') {
+                        return row?.site_agent_name || data;
+                    }
 
                     if ([
                         'permit_date',
@@ -832,10 +867,6 @@ window.AdminPicker = AdminPicker;
                             : '<span class="badge bg-secondary">완료</span>';
                     }
 
-                    if (field === 'client_type') {
-                        return getCodeName(field, data);
-                    }
-
                     return data;
                 }
             });
@@ -846,6 +877,7 @@ window.AdminPicker = AdminPicker;
 
     function initProjectModalSelect2() {
         initEmployeeSelect2();
+        initSiteAgentSelect2();
         initClientSelect2();
     }
 
@@ -896,6 +928,55 @@ window.AdminPicker = AdminPicker;
         });
 
         employeeSelect2Inited = true;
+    }
+
+    function initSiteAgentSelect2() {
+        const el = document.getElementById('modal_site_agent');
+        if (!el || siteAgentSelect2Inited) return;
+
+        const $el = window.jQuery(el);
+
+        if ($el.hasClass('select2-hidden-accessible')) {
+            $el.select2('destroy');
+        }
+
+        AdminPicker.select2Ajax(el, {
+            url: API.EMPLOYEE_SEARCH,
+            placeholder: '현장대리인 검색',
+            minimumInputLength: 0,
+            dropdownParent: window.jQuery('#projectModal'),
+            width: '100%',
+            dataBuilder(params) {
+                return {
+                    q: params.term || '',
+                    limit: 20
+                };
+            },
+            processResults(json) {
+                const rows = json?.results ?? json?.data ?? [];
+
+                return {
+                    results: [
+                        { id: '__none__', text: '선택(없음)', isNone: true },
+                        ...rows.map(row => ({
+                            id: String(row.id ?? ''),
+                            text: row.text ?? row.employee_name ?? row.username ?? row.id,
+                            raw: row
+                        })).filter(item => item.id !== '')
+                    ]
+                };
+            }
+        });
+
+        $el.off('select2:select.projectSiteAgent');
+        $el.on('select2:select.projectSiteAgent', function (e) {
+            const item = e.params?.data;
+            if (item?.id === '__none__') {
+                window.jQuery(this).val(null).trigger('change');
+            }
+        });
+
+        siteAgentSelect2Inited = true;
     }
 
     function initClientSelect2() {
@@ -983,11 +1064,17 @@ window.AdminPicker = AdminPicker;
 
     function resetProjectModalSelect2() {
         const $employee = window.jQuery('#modal_employee_id');
+        const $siteAgent = window.jQuery('#modal_site_agent');
         const $client   = window.jQuery('#modal_project_client_id');
 
         if ($employee.hasClass('select2-hidden-accessible')) {
             $employee.off('.projectEmployee');
             $employee.select2('destroy');
+        }
+
+        if ($siteAgent.hasClass('select2-hidden-accessible')) {
+            $siteAgent.off('.projectSiteAgent');
+            $siteAgent.select2('destroy');
         }
 
         if ($client.hasClass('select2-hidden-accessible')) {
@@ -996,10 +1083,15 @@ window.AdminPicker = AdminPicker;
         }
 
         const employeeEl = document.getElementById('modal_employee_id');
+        const siteAgentEl = document.getElementById('modal_site_agent');
         const clientEl   = document.getElementById('modal_project_client_id');
 
         if (employeeEl) {
             employeeEl.innerHTML = '<option value=""></option>';
+        }
+
+        if (siteAgentEl) {
+            siteAgentEl.innerHTML = '<option value=""></option>';
         }
 
         if (clientEl) {
@@ -1007,6 +1099,7 @@ window.AdminPicker = AdminPicker;
         }
 
         employeeSelect2Inited = false;
+        siteAgentSelect2Inited = false;
         clientSelect2Inited   = false;
     }
 
@@ -1025,6 +1118,25 @@ window.AdminPicker = AdminPicker;
         $el.find(`option[value="${employeeId}"]`).remove();
         $el.append(new Option(employeeText, employeeId, true, true));
         $el.val(employeeId).trigger('change');
+    }
+
+    function setProjectSiteAgentSelect2(data) {
+        const siteAgent = String(data.site_agent ?? '').trim();
+        const $el = $('#modal_site_agent');
+
+        if (!siteAgent) {
+            $el.val(null).trigger('change');
+            return;
+        }
+
+        const siteAgentText =
+            data.site_agent_name ??
+            data.site_agent_employee_name ??
+            siteAgent;
+
+        $el.find(`option[value="${siteAgent}"]`).remove();
+        $el.append(new Option(siteAgentText, siteAgent, true, true));
+        $el.val(siteAgent).trigger('change');
     }
 
     function setProjectClientSelect2(data) {
@@ -1047,8 +1159,7 @@ window.AdminPicker = AdminPicker;
     }
 
     function openProjectClientQuickCreate(defaultName = '') {
-        openQuickCreate({
-            type: 'client',
+        openClientQuickCreate({
             select: document.getElementById('modal_project_client_id'),
             initialValues: {
                 client_name: defaultName

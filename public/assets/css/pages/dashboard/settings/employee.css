@@ -447,7 +447,8 @@
 /* ?대┃ 媛???대?吏 */
 #edit_profile_preview,
 #edit_id_preview,
-#edit_cert_preview_img{
+#edit_cert_preview_img,
+#edit_bank_preview{
     cursor:pointer;
 }
 

@@ -16,6 +16,43 @@ function ensureSelect2($) {
     }
 }
 
+let modalCleanupBound = false;
+
+function bindModalCleanup() {
+    if (modalCleanupBound) {
+        return;
+    }
+
+    modalCleanupBound = true;
+
+    document.addEventListener('hide.bs.modal', (event) => {
+        closeSelect2InModal(event.target);
+    }, true);
+
+    document.addEventListener('hidden.bs.modal', (event) => {
+        closeSelect2InModal(event.target);
+    }, true);
+}
+
+function closeSelect2InModal(modal) {
+    if (!modal?.querySelectorAll) {
+        return;
+    }
+
+    const $ = window.jQuery || window.$;
+    if (!$?.fn?.select2) {
+        return;
+    }
+
+    modal.querySelectorAll('select.select2-hidden-accessible').forEach((select) => {
+        try {
+            $(select).select2('close');
+        } catch (error) {
+            console.warn('[picker.select2] Select2 닫기 실패', error);
+        }
+    });
+}
+
 function normalizeOptions(options = {}) {
     return {
         width: '100%',
@@ -60,6 +97,7 @@ function ensureEmptyOption(el, placeholder = '선택') {
 function createSelect2(target, options = {}) {
     const $ = ensureJQuery();
     ensureSelect2($);
+    bindModalCleanup();
 
     const el = typeof target === 'string'
         ? document.querySelector(target)

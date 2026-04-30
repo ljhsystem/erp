@@ -8,6 +8,7 @@ use PDO;
 class SubChartAccountModel
 {
     private PDO $db;
+    private ?array $tableColumns = null;
 
     public function __construct(?PDO $pdo = null)
     {
@@ -16,6 +17,10 @@ class SubChartAccountModel
 
     public function getByAccountId(string $accountId, ?string $subType = null): array
     {
+        $orderBy = $this->hasColumn('sub_name')
+            ? 'created_at ASC, sub_name ASC'
+            : 'created_at ASC, ref_type ASC';
+
         $sql = "
             SELECT *
             FROM ledger_sub_accounts
@@ -26,7 +31,7 @@ class SubChartAccountModel
             ':account_id' => $accountId,
         ];
 
-        $sql .= " ORDER BY created_at ASC, sub_name ASC";
+        $sql .= " ORDER BY {$orderBy}";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -35,71 +40,113 @@ class SubChartAccountModel
 
     public function create(array $data): bool
     {
-        $stmt = $this->db->prepare("
-            INSERT INTO ledger_sub_accounts (
-                id,
-                account_id,
-                sub_code,
-                sub_name,
-                custom_group_code,
-                is_required,
-                note,
-                memo,
-                created_by,
-                updated_by
-            ) VALUES (
-                :id,
-                :account_id,
-                :sub_code,
-                :sub_name,
-                :custom_group_code,
-                :is_required,
-                :note,
-                :memo,
-                :created_by,
-                :updated_by
-            )
-        ");
+        $fields = [
+            'id' => ':id',
+            'account_id' => ':account_id',
+            'note' => ':note',
+            'memo' => ':memo',
+            'created_by' => ':created_by',
+            'updated_by' => ':updated_by',
+        ];
 
-        return $stmt->execute([
+        $params = [
             ':id' => $data['id'],
             ':account_id' => $data['account_id'],
-            ':sub_code' => $data['sub_code'],
-            ':sub_name' => $data['sub_name'],
-            ':custom_group_code' => $data['custom_group_code'] ?? null,
-            ':is_required' => (int) ($data['is_required'] ?? 0),
             ':note' => $data['note'] ?? null,
             ':memo' => $data['memo'] ?? null,
             ':created_by' => $data['created_by'] ?? null,
             ':updated_by' => $data['updated_by'] ?? $data['created_by'] ?? null,
-        ]);
+        ];
+
+        if ($this->hasColumn('ref_type')) {
+            $fields['ref_type'] = ':ref_type';
+            $params[':ref_type'] = $data['ref_type'] ?? $data['sub_code'] ?? '';
+        }
+
+        if ($this->hasColumn('sub_code')) {
+            $fields['sub_code'] = ':sub_code';
+            $params[':sub_code'] = $data['sub_code'] ?? $data['ref_type'] ?? '';
+        }
+
+        if ($this->hasColumn('sub_name')) {
+            $fields['sub_name'] = ':sub_name';
+            $params[':sub_name'] = $data['sub_name'] ?? $data['ref_type'] ?? $data['sub_code'] ?? '';
+        }
+
+        if ($this->hasColumn('custom_group_code')) {
+            $fields['custom_group_code'] = ':custom_group_code';
+            $params[':custom_group_code'] = $data['custom_group_code'] ?? null;
+        }
+
+        if ($this->hasColumn('is_required')) {
+            $fields['is_required'] = ':is_required';
+            $params[':is_required'] = (int) ($data['is_required'] ?? 0);
+        }
+
+        $columns = implode(",\n                ", array_keys($fields));
+        $placeholders = implode(",\n                ", array_values($fields));
+
+        $stmt = $this->db->prepare("
+            INSERT INTO ledger_sub_accounts (
+                {$columns}
+            ) VALUES (
+                {$placeholders}
+            )
+        ");
+
+        return $stmt->execute($params);
     }
 
     public function update(string $id, array $data): bool
     {
-        $stmt = $this->db->prepare("
-            UPDATE ledger_sub_accounts
-            SET
-                sub_code = :sub_code,
-                sub_name = :sub_name,
-                custom_group_code = :custom_group_code,
-                is_required = :is_required,
-                note = :note,
-                memo = :memo,
-                updated_by = :updated_by
-            WHERE id = :id
-        ");
+        $sets = [
+            'note = :note',
+            'memo = :memo',
+            'updated_by = :updated_by',
+        ];
 
-        return $stmt->execute([
+        $params = [
             ':id' => $id,
-            ':sub_code' => $data['sub_code'] ?? '',
-            ':sub_name' => $data['sub_name'] ?? '',
-            ':custom_group_code' => $data['custom_group_code'] ?? null,
-            ':is_required' => (int) ($data['is_required'] ?? 0),
             ':note' => $data['note'] ?? null,
             ':memo' => $data['memo'] ?? null,
             ':updated_by' => $data['updated_by'] ?? null,
-        ]);
+        ];
+
+        if ($this->hasColumn('ref_type')) {
+            $sets[] = 'ref_type = :ref_type';
+            $params[':ref_type'] = $data['ref_type'] ?? $data['sub_code'] ?? '';
+        }
+
+        if ($this->hasColumn('sub_code')) {
+            $sets[] = 'sub_code = :sub_code';
+            $params[':sub_code'] = $data['sub_code'] ?? $data['ref_type'] ?? '';
+        }
+
+        if ($this->hasColumn('sub_name')) {
+            $sets[] = 'sub_name = :sub_name';
+            $params[':sub_name'] = $data['sub_name'] ?? $data['ref_type'] ?? $data['sub_code'] ?? '';
+        }
+
+        if ($this->hasColumn('custom_group_code')) {
+            $sets[] = 'custom_group_code = :custom_group_code';
+            $params[':custom_group_code'] = $data['custom_group_code'] ?? null;
+        }
+
+        if ($this->hasColumn('is_required')) {
+            $sets[] = 'is_required = :is_required';
+            $params[':is_required'] = (int) ($data['is_required'] ?? 0);
+        }
+
+        $setSql = implode(",\n                ", $sets);
+
+        $stmt = $this->db->prepare("
+            UPDATE ledger_sub_accounts
+            SET
+                {$setSql}
+            WHERE id = :id
+        ");
+
+        return $stmt->execute($params);
     }
 
     public function delete(string $id): bool
@@ -132,6 +179,10 @@ class SubChartAccountModel
 
     public function findByAccountAndName(string $accountId, string $subName, ?string $subType = null): ?array
     {
+        if (!$this->hasColumn('sub_name')) {
+            return $this->findByAccountAndSubCode($accountId, $subName);
+        }
+
         $sql = "
             SELECT id
             FROM ledger_sub_accounts
@@ -154,11 +205,13 @@ class SubChartAccountModel
 
     public function findByAccountAndSubCode(string $accountId, string $subCode, ?string $excludeId = null): ?array
     {
+        $targetColumn = $this->hasColumn('ref_type') ? 'ref_type' : 'sub_code';
+
         $sql = "
             SELECT id
             FROM ledger_sub_accounts
             WHERE account_id = :account_id
-              AND sub_code = :sub_code
+              AND {$targetColumn} = :sub_code
         ";
 
         $params = [
@@ -181,6 +234,10 @@ class SubChartAccountModel
 
     public function getNextSubCode(string $accountId): string
     {
+        if (!$this->hasColumn('sub_code')) {
+            return '';
+        }
+
         $stmt = $this->db->prepare("
             SELECT COALESCE(MAX(CAST(sub_code AS UNSIGNED)), 0) AS max_code
             FROM ledger_sub_accounts
@@ -246,5 +303,21 @@ class SubChartAccountModel
         ]);
 
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    private function hasColumn(string $column): bool
+    {
+        if ($this->tableColumns === null) {
+            $stmt = $this->db->query('SHOW COLUMNS FROM ledger_sub_accounts');
+            $this->tableColumns = [];
+
+            foreach (($stmt?->fetchAll(PDO::FETCH_ASSOC) ?: []) as $row) {
+                if (!empty($row['Field'])) {
+                    $this->tableColumns[$row['Field']] = true;
+                }
+            }
+        }
+
+        return isset($this->tableColumns[$column]);
     }
 }

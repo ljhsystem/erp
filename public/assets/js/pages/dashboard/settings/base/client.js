@@ -5,10 +5,372 @@ import { formatBizNumber, formatCorpNumber, formatMobile, formatPhone, onlyNumbe
 import { createDataTable, bindTableHighlight } from '/public/assets/js/components/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
-import { initCodeSelectControls, getCodeName, onCodeOptionsLoaded } from '/public/assets/js/common/code-select.js';
+import { initCodeSelectControls, getCodeName, onCodeOptionsLoaded } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
 import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
 window.AdminPicker = AdminPicker;
+
+const CLIENT_QUICK_API = '/api/settings/base-info/client/save';
+let clientQuickState = null;
+let clientQuickBound = false;
+let clientDetailQuickBound = false;
+
+function clientQuickNotify(type, message) {
+    if (window.AppCore?.notify) {
+        window.AppCore.notify(type, message);
+        return;
+    }
+
+    if (type === 'error') alert(message);
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+function setClientSelectValue(selectEl, value, text) {
+    if (!selectEl || !window.jQuery || !value) return;
+
+    const $select = window.jQuery(selectEl);
+    const normalizedValue = String(value);
+    $select.find(`option[value="${normalizedValue}"]`).remove();
+    $select.append(new Option(text || normalizedValue, normalizedValue, true, true));
+    $select.val(normalizedValue).trigger('change');
+}
+
+function setClientFormValue(form, name, value = '') {
+    const field = form.querySelector(`[name="${name}"]`);
+    if (!field) return;
+    field.value = value ?? '';
+}
+
+const CLIENT_OPTIONAL_CODE_SELECT_IDS = [
+    'modal_client_type',
+    'modal_trade_category',
+    'modal_tax_type',
+    'modal_payment_term',
+];
+const CLIENT_OPTIONAL_NONE_VALUE = '__none__';
+
+function applyClientOptionalCodeSelects(scope = document) {
+    const root = scope || document;
+
+    CLIENT_OPTIONAL_CODE_SELECT_IDS.forEach((id) => {
+        const select = root.querySelector?.(`#${id}`) || document.getElementById(id);
+        if (!select) return;
+
+        const currentValue = select.value === CLIENT_OPTIONAL_NONE_VALUE ? '' : select.value;
+        const existingNone = select.querySelector(`option[value="${CLIENT_OPTIONAL_NONE_VALUE}"]`);
+        if (existingNone) existingNone.remove();
+
+        let emptyOption = select.querySelector('option[value=""]');
+        if (!emptyOption) {
+            emptyOption = new Option('', '', false, false);
+            select.insertBefore(emptyOption, select.firstChild);
+        }
+        emptyOption.textContent = '';
+
+        const noneOption = new Option('선택(없음)', CLIENT_OPTIONAL_NONE_VALUE, false, false);
+        emptyOption.insertAdjacentElement('afterend', noneOption);
+        select.value = currentValue || '';
+
+        if (window.jQuery?.fn?.select2) {
+            const $select = window.jQuery(select);
+            const modalParent = $select.closest('.modal');
+
+            if ($select.hasClass('select2-hidden-accessible')) {
+                $select.select2('destroy');
+            }
+
+            $select.select2({
+                width: '100%',
+                dropdownAutoWidth: true,
+                placeholder: '선택',
+                language: 'ko',
+                dropdownParent: modalParent.length ? modalParent : window.jQuery(document.body),
+            });
+
+            $select
+                .off('select2:select.clientOptionalNone')
+                .on('select2:select.clientOptionalNone', function (event) {
+                    if (event.params?.data?.id === CLIENT_OPTIONAL_NONE_VALUE) {
+                        window.jQuery(this).val(null).trigger('change');
+                    }
+                });
+        }
+
+        select.removeEventListener('change', handleClientOptionalNoneChange);
+        select.addEventListener('change', handleClientOptionalNoneChange);
+    });
+}
+
+function handleClientOptionalNoneChange(event) {
+    const select = event.currentTarget;
+    if (select?.value === CLIENT_OPTIONAL_NONE_VALUE) {
+        select.value = '';
+        if (window.jQuery?.fn?.select2) {
+            window.jQuery(select).val(null).trigger('change.select2');
+        }
+    }
+}
+
+function closeClientModalSelect2() {
+    const modalEl = document.getElementById('clientModal');
+    if (!modalEl || !window.jQuery?.fn?.select2) return;
+
+    modalEl.querySelectorAll('select.select2-hidden-accessible').forEach((select) => {
+        window.jQuery(select).select2('close');
+    });
+}
+
+
+
+function validateClientSubTypeRules(form) {
+    const subType = String(form.querySelector('[name="client_type"]')?.value || '').trim();
+    const companyName = String(form.querySelector('[name="company_name"]')?.value || '').trim();
+    const businessNumber = String(form.querySelector('[name="business_number"]')?.value || '').replace(/[^0-9]/g, '');
+
+    if (subType === 'BUSINESS' && !companyName) {
+        clientQuickNotify('error', 'BUSINESS 거래처는 상호를 입력해야 합니다.');
+        return false;
+    }
+
+    if (subType === 'BUSINESS' && !businessNumber) {
+        clientQuickNotify('error', 'BUSINESS 거래처는 사업자등록번호를 입력해야 합니다.');
+        return false;
+    }
+
+    return true;
+}
+
+function applyClientSubTypeRules(scope = document) {
+    const root = scope || document;
+    const clientType = String(root.querySelector?.('[name="client_type"]')?.value || '').trim();
+    const businessNumber = root.querySelector?.('[name="business_number"]');
+    const companyName = root.querySelector?.('[name="company_name"]');
+
+    [businessNumber, companyName].forEach((field) => {
+        if (!field) return;
+        field.required = clientType === 'BUSINESS';
+    });
+}
+
+function getClientQuickValues(form) {
+    return Object.fromEntries(new FormData(form).entries());
+}
+
+function bindClientDetailFromQuickOnce() {
+    const form = document.getElementById('client-edit-form');
+    const modalEl = document.getElementById('clientModal');
+    if (!form || !modalEl || clientDetailQuickBound) return;
+
+    clientDetailQuickBound = true;
+
+    modalEl.addEventListener('hidden.bs.modal', () => {
+        clientQuickState = null;
+    });
+
+    form.addEventListener('submit', async (event) => {
+        if (!clientQuickState) return;
+
+        event.preventDefault();
+
+        const submitButton = form.querySelector('[type="submit"]');
+        if (submitButton) submitButton.disabled = true;
+
+        const formData = new FormData(form);
+        if (!formData.get('is_active')) formData.set('is_active', '1');
+        if (!validateClientSubTypeRules(form)) {
+            if (submitButton) submitButton.disabled = false;
+            return;
+        }
+
+        try {
+            const response = await fetch(CLIENT_QUICK_API, {
+                method: 'POST',
+                body: formData,
+            });
+            const json = await response.json();
+
+            if (!json.success) {
+                clientQuickNotify('error', json.message || '거래처 저장에 실패했습니다.');
+                return;
+            }
+
+            const values = Object.fromEntries(formData.entries());
+            const optionText = clientQuickState.getOptionText?.(values, json) || values.client_name || '';
+            setClientSelectValue(clientQuickState.select || clientQuickState.targetSelect, json.id ?? '', optionText);
+            clientQuickState.onSuccess?.(json, values);
+
+            bootstrap.Modal.getOrCreateInstance(modalEl, { focus: false }).hide();
+        } catch (error) {
+            clientQuickNotify('error', error.message || '거래처 저장 중 오류가 발생했습니다.');
+        } finally {
+            if (submitButton) submitButton.disabled = false;
+        }
+    });
+}
+
+function openClientDetailFromQuick(values = {}, options = {}) {
+    if (typeof options.openDetail === 'function') {
+        options.openDetail(values);
+        return;
+    }
+
+    const modalEl = document.getElementById('clientModal');
+    const form = document.getElementById('client-edit-form');
+    if (!modalEl || !form) {
+        clientQuickNotify('error', '거래처 상세 모달을 찾을 수 없습니다.');
+        return;
+    }
+
+    bindClientDetailFromQuickOnce();
+    clientQuickState = options;
+
+    form.reset();
+    setClientFormValue(form, 'id', '');
+    setClientFormValue(form, 'client_name', values.client_name || '');
+    setClientFormValue(form, 'company_name', values.company_name || '');
+    setClientFormValue(form, 'business_number', values.business_number || '');
+    setClientFormValue(form, 'ceo_name', values.ceo_name || '');
+    setClientFormValue(form, 'phone', values.phone || '');
+    setClientFormValue(form, 'is_active', '1');
+
+    const titleEl = document.getElementById('clientModalLabel');
+    if (titleEl) titleEl.textContent = '거래처 상세 등록';
+
+    const deleteButton = document.getElementById('btnDeleteClient');
+    if (deleteButton) deleteButton.style.display = 'none';
+
+    bootstrap.Modal.getOrCreateInstance(modalEl, { focus: false }).show();
+}
+
+function bindClientQuickModalOnce() {
+    const modalEl = document.getElementById('clientQuickModal');
+    const form = modalEl?.querySelector('[data-role="quick-create-form"]');
+    if (!modalEl || !form || clientQuickBound) return;
+
+    clientQuickBound = true;
+
+    const bodyEl = modalEl.querySelector('[data-role="quick-create-body"]');
+    const messageEl = modalEl.querySelector('[data-role="quick-create-message"]');
+    const submitButton = modalEl.querySelector('[data-role="quick-create-submit"]');
+    const detailButton = modalEl.querySelector('[data-role="quick-create-detail"]');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl, { focus: false });
+
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!clientQuickState) return;
+
+        if (messageEl) messageEl.textContent = '';
+        if (submitButton) submitButton.disabled = true;
+        if (detailButton) detailButton.disabled = true;
+
+        const formData = new FormData(form);
+        formData.set('is_active', formData.get('is_active') || '1');
+        if (!validateClientSubTypeRules(form)) {
+            if (submitButton) submitButton.disabled = false;
+            if (detailButton) detailButton.disabled = false;
+            return;
+        }
+
+        try {
+            const response = await fetch(CLIENT_QUICK_API, {
+                method: 'POST',
+                body: formData,
+            });
+            const json = await response.json();
+
+            if (!json.success) {
+                if (messageEl) messageEl.textContent = json.message || '거래처 저장에 실패했습니다.';
+                return;
+            }
+
+            const values = Object.fromEntries(formData.entries());
+            const optionText = clientQuickState.getOptionText?.(values, json) || values.client_name || '';
+            setClientSelectValue(clientQuickState.select || clientQuickState.targetSelect, json.id ?? '', optionText);
+            clientQuickState.onSuccess?.(json, values);
+            modal.hide();
+        } catch (error) {
+            if (messageEl) messageEl.textContent = error.message || '거래처 저장 중 오류가 발생했습니다.';
+        } finally {
+            if (submitButton) submitButton.disabled = false;
+            if (detailButton) detailButton.disabled = false;
+        }
+    });
+
+    detailButton?.addEventListener('click', () => {
+        if (!clientQuickState) return;
+        const values = getClientQuickValues(form);
+        modal.hide();
+        openClientDetailFromQuick(values, clientQuickState);
+    });
+
+    modalEl.addEventListener('hidden.bs.modal', () => {
+        form.reset();
+        if (bodyEl) bodyEl.innerHTML = '';
+        if (messageEl) messageEl.textContent = '';
+    });
+
+
+}
+
+export function openClientQuickCreate(options = {}) {
+    const modalEl = document.getElementById('clientQuickModal');
+    const form = modalEl?.querySelector('[data-role="quick-create-form"]');
+    const bodyEl = modalEl?.querySelector('[data-role="quick-create-body"]');
+    const titleEl = modalEl?.querySelector('[data-role="quick-create-title"]');
+    const detailButton = modalEl?.querySelector('[data-role="quick-create-detail"]');
+    if (!modalEl || !form || !bodyEl) {
+        clientQuickNotify('error', '거래처 빠른등록 모달을 찾을 수 없습니다.');
+        return;
+    }
+
+    bindClientQuickModalOnce();
+    clientQuickState = options;
+
+    const values = options.initialValues || {};
+    if (titleEl) titleEl.textContent = options.title || '거래처 빠른 등록';
+    bodyEl.innerHTML = `
+        <label class="form-label w-100">
+            <span class="fw-bold d-block mb-1">거래처명 (내부명)</span>
+            <input type="text" class="form-control form-control-sm" name="client_name" value="${String(values.client_name || '').replace(/"/g, '&quot;')}" required>
+        </label>
+        <label class="form-label w-100">
+            <span class="fw-bold d-block mb-1">상호 (사업자 기준)</span>
+            <input type="text" class="form-control form-control-sm" name="company_name" value="${String(values.company_name || '').replace(/"/g, '&quot;')}">
+        </label>
+        <label class="form-label w-100">
+            <span class="fw-bold d-block mb-1">사업자등록번호</span>
+            <input type="text" class="form-control form-control-sm" name="business_number" value="${String(values.business_number || '').replace(/"/g, '&quot;')}">
+        </label>
+        <label class="form-label w-100">
+            <span class="fw-bold d-block mb-1">대표자명</span>
+            <input type="text" class="form-control form-control-sm" name="ceo_name" value="${String(values.ceo_name || '').replace(/"/g, '&quot;')}">
+        </label>
+        <label class="form-label w-100">
+            <span class="fw-bold d-block mb-1">전화번호</span>
+            <input type="text" class="form-control form-control-sm" name="phone" value="${String(values.phone || '').replace(/"/g, '&quot;')}">
+        </label>
+    `;
+    applyClientSubTypeRules(form);
+    if (detailButton) detailButton.hidden = !document.getElementById('clientModal') && typeof options.openDetail !== 'function';
+
+    bootstrap.Modal.getOrCreateInstance(modalEl, { focus: false }).show();
+}
+
+export function initClientQuickCreateButtons(bindings = []) {
+    bindings.forEach((binding) => {
+        if (!binding?.button || binding.button.dataset.clientQuickCreateBound === 'true') return;
+        binding.button.dataset.clientQuickCreateBound = 'true';
+        binding.button.addEventListener('click', () => openClientQuickCreate(binding));
+    });
+}
 
 (() => {
     'use strict';
@@ -49,8 +411,8 @@ window.AdminPicker = AdminPicker;
 
     const CLIENT_COLUMN_MAP = {
         sort_no: { label: "순번", visible: true },
-        client_name: { label: "거래처명", visible: true },
-        company_name: { label: "상호", visible: true },
+        client_name: { label: "거래처명 (내부명)", visible: true },
+        company_name: { label: "상호 (사업자 기준)", visible: true },
         registration_date: { label: "등록일자", visible: true },
         business_number: { label: "사업자등록번호", visible: true },
         rrn: { label: "법인/주민등록번호", visible: false },
@@ -158,6 +520,10 @@ window.AdminPicker = AdminPicker;
    - 페이지 로딩 완료 후 초기화를 시작한다.
 ============================================================ */
 document.addEventListener('DOMContentLoaded', async () => {
+    if (!document.getElementById('client-table')) {
+        return;
+    }
+
     if (!window.jQuery) {
         console.error('jQuery not loaded');
         return;
@@ -185,7 +551,9 @@ async function initClientPage($){
     initBankFileUpload();     // 통장사본 업로드 UI
     initExcelDataset();       // 엑셀 파일 업로드
     await initCodeSelectControls(document.getElementById('clientModal'));  // 기준정보 select 옵션
+    applyClientOptionalCodeSelects(document.getElementById('clientModal'));
     onCodeOptionsLoaded(() => {
+        applyClientOptionalCodeSelects(document.getElementById('clientModal'));
         clientTable?.rows().invalidate('data').draw(false);
     });
     /* --------------------------------------------------------
@@ -261,7 +629,9 @@ async function initClientPage($){
         excelModal = new bootstrap.Modal(
             document.getElementById('clientExcelModal')   // 엑셀 모달
         );
+        modalEl.addEventListener('hide.bs.modal', closeClientModalSelect2);
         modalEl.addEventListener('hidden.bs.modal', () => {
+            closeClientModalSelect2();
             const help = document.getElementById('bizCertHelp');
             if(help) help.style.display = 'block';
             const form = document.getElementById('client-edit-form');
@@ -771,9 +1141,12 @@ async function initClientPage($){
                     className: "btn btn-warning btn-sm",
                     action: async function () {
                         await initCodeSelectControls(document.getElementById('clientModal'));
+                        applyClientOptionalCodeSelects(document.getElementById('clientModal'));
 
                         const form = document.getElementById('client-edit-form');
                         if (form) form.reset();
+                        renderCompanyNameHistory([]);
+                        applyClientSubTypeRules(form || document);
 
                         $('#modal_client_id').val('');
                         $('#btnDeleteClient').hide();
@@ -939,6 +1312,7 @@ async function initClientPage($){
                 if (bankInput) bankInput.value = '';
 
                 await initCodeSelectControls(document.getElementById('clientModal'));
+                applyClientOptionalCodeSelects(document.getElementById('clientModal'));
                 fillModal(data);
                 clientModal.show();
 
@@ -972,7 +1346,11 @@ async function initClientPage($){
             form.querySelectorAll('.admin-date').forEach(input => {
                 input.value = normalizeDateInputValue(input.value);
             });
+
             const formData = new FormData(form);
+            if (!validateClientSubTypeRules(form)) {
+                return;
+            }
 
             const rrnInput = document.getElementById('modal_rrn');
             if (rrnInput) {
@@ -1009,7 +1387,6 @@ async function initClientPage($){
                 if (btn) btn.disabled = false; // 다시 활성화
             });
         });
-
 
         $('#btnDeleteClient').on('click', function () {
             const id = $('#modal_client_id').val();
@@ -1089,8 +1466,16 @@ async function initClientPage($){
             }
 
             el.value = value;
+            if (
+                CLIENT_OPTIONAL_CODE_SELECT_IDS.includes(el.id)
+                && window.jQuery?.fn?.select2
+                && window.jQuery(el).hasClass('select2-hidden-accessible')
+            ) {
+                window.jQuery(el).val(value || null).trigger('change.select2');
+            }
 
         });
+        renderCompanyNameHistory(data.company_name_history || []);
         const list = document.getElementById('bizCertList');
         const help = document.getElementById('bizCertHelp');
         if(!list) return;
@@ -1279,6 +1664,27 @@ async function initClientPage($){
                 `;
             }
         }
+    }
+
+    function renderCompanyNameHistory(rows = []) {
+        const card = document.getElementById('clientCompanyHistoryCard');
+        const list = document.getElementById('clientCompanyHistoryList');
+        if (!card || !list) return;
+
+        const history = Array.isArray(rows) ? rows : [];
+        if (!history.length) {
+            card.classList.add('d-none');
+            list.innerHTML = '';
+            return;
+        }
+
+        card.classList.remove('d-none');
+        list.innerHTML = history.map((row) => `
+            <div class="d-flex justify-content-between gap-2 border-bottom py-1">
+                <span>${escapeHtml(row.old_company_name || '')} -> ${escapeHtml(row.new_company_name || '')}</span>
+                <span class="text-muted">${escapeHtml(row.changed_at || '')}</span>
+            </div>
+        `).join('');
     }
 
 

@@ -29,6 +29,7 @@ class EmployeeModel
                 p.id,
                 p.sort_no,
                 p.user_id,
+                p.client_id,
                 p.employee_name,
                 p.phone,
                 p.address,
@@ -61,6 +62,7 @@ class EmployeeModel
                 * ========================= */
                 d.dept_name AS department_name,
                 s.position_name,
+                c.client_name AS client_name,
 
                 /* =========================
                 * auth_users
@@ -164,6 +166,9 @@ class EmployeeModel
             LEFT JOIN user_positions s
                 ON p.position_id = s.id
 
+            LEFT JOIN system_clients c
+                ON p.client_id = c.id
+
             /* 직원 row 기준 */
             LEFT JOIN user_employees p1
                 ON p.created_by NOT LIKE 'SYSTEM:%'
@@ -206,6 +211,8 @@ class EmployeeModel
                 // 기본
                 'sort_no'              => ['expr' => 'p.sort_no', 'type' => 'exact'],
                 'employee_name'     => ['expr' => 'p.employee_name', 'type' => 'like'],
+                'client_id'         => ['expr' => 'p.client_id', 'type' => 'exact'],
+                'client_name'       => ['expr' => 'c.client_name', 'type' => 'like'],
 
                 // 사용자
                 'username'          => ['expr' => 'u.username', 'type' => 'like'],
@@ -347,6 +354,7 @@ class EmployeeModel
 
                 $searchableColumns = [
                     'p.employee_name',
+                    'c.client_name',
                     'u.username',
                     'u.email',
                     'd.dept_name',
@@ -427,6 +435,7 @@ class EmployeeModel
                 p.id,
                 p.sort_no,
                 p.user_id,
+                p.client_id,
                 p.employee_name,
                 p.phone,
                 p.address,
@@ -459,6 +468,7 @@ class EmployeeModel
                 * ========================= */
                 d.dept_name AS department_name,
                 s.position_name,
+                c.client_name AS client_name,
 
                 /* =========================
                 * auth_users
@@ -557,6 +567,9 @@ class EmployeeModel
                 ON p.department_id = d.id
             LEFT JOIN user_positions s
                 ON p.position_id = s.id
+
+            LEFT JOIN system_clients c
+                ON p.client_id = c.id
 
             /* 직원 row 기준 */
             LEFT JOIN user_employees p1
@@ -717,7 +730,7 @@ class EmployeeModel
     {
         $sql = "
             INSERT INTO user_employees (
-                id, sort_no, user_id, employee_name,
+                id, sort_no, user_id, client_id, employee_name,
                 phone, address, address_detail,
                 department_id, position_id,
                 doc_hire_date, real_hire_date,
@@ -732,7 +745,7 @@ class EmployeeModel
                 note, memo,
                 created_by, updated_by
             ) VALUES (
-                :id, :sort_no, :user_id, :employee_name,
+                :id, :sort_no, :user_id, :client_id, :employee_name,
                 :phone, :address, :address_detail,
                 :department_id, :position_id,
                 :doc_hire_date, :real_hire_date,
@@ -756,6 +769,7 @@ class EmployeeModel
             'id'               => $data['id'],
             'sort_no'             => $data['sort_no'] ?? null,
             'user_id'          => $data['user_id'],
+            'client_id'        => $data['client_id'] ?? null,
             'employee_name'    => $data['employee_name'],
 
             'phone'            => $data['phone'] ?? null,
@@ -806,6 +820,7 @@ class EmployeeModel
 
                 department_id = :department_id,
                 position_id = :position_id,
+                client_id = :client_id,
 
                 doc_hire_date = :doc_hire_date,
                 real_hire_date = :real_hire_date,
@@ -845,6 +860,7 @@ class EmployeeModel
 
             'department_id'    => $data['department_id'] ?? null,
             'position_id'      => $data['position_id'] ?? null,
+            'client_id'        => $data['client_id'] ?? null,
 
             'doc_hire_date'    => $data['doc_hire_date'] ?? null,
             'real_hire_date'   => $data['real_hire_date'] ?? null,

@@ -22,8 +22,13 @@ class VoucherModel
             SELECT
                 v.*,
                 v.voucher_no AS voucher_no,
-                v.ref_type AS type,
-                COALESCE(voucher_line_accounts.account_code, '') AS account_code,
+                v.source_type AS type,
+                COALESCE(voucher_line_accounts.account_label, '') AS account_label,
+                COALESCE(voucher_line_accounts.debit_total, 0) AS debit_total,
+                COALESCE(voucher_line_accounts.credit_total, 0) AS credit_total,
+                COALESCE(voucher_line_accounts.line_count, 0) AS line_count,
+                COALESCE(voucher_payments.payment_total, 0) AS payment_total,
+                COALESCE(voucher_payments.payment_count, 0) AS payment_count,
                 CASE
                     WHEN transaction_links.voucher_id IS NULL THEN 'unlinked'
                     ELSE 'linked'
@@ -31,13 +36,30 @@ class VoucherModel
             FROM {$this->table} v
             LEFT JOIN (
                 SELECT
-                    voucher_id,
-                    GROUP_CONCAT(DISTINCT account_code ORDER BY line_no SEPARATOR ', ') AS account_code
-                FROM ledger_voucher_lines
-                WHERE deleted_at IS NULL
-                GROUP BY voucher_id
+                    l.voucher_id,
+                    GROUP_CONCAT(
+                        DISTINCT CONCAT(a.account_code, ' ', a.account_name)
+                        ORDER BY l.line_no
+                        SEPARATOR ', '
+                    ) AS account_label,
+                    SUM(COALESCE(l.debit, 0)) AS debit_total,
+                    SUM(COALESCE(l.credit, 0)) AS credit_total,
+                    COUNT(l.id) AS line_count
+                FROM ledger_voucher_lines l
+                LEFT JOIN ledger_accounts a
+                    ON a.id = l.account_id
+                GROUP BY l.voucher_id
             ) voucher_line_accounts
                 ON voucher_line_accounts.voucher_id = v.id
+            LEFT JOIN (
+                SELECT
+                    p.voucher_id,
+                    SUM(COALESCE(p.amount, 0)) AS payment_total,
+                    COUNT(p.id) AS payment_count
+                FROM ledger_voucher_payments p
+                GROUP BY p.voucher_id
+            ) voucher_payments
+                ON voucher_payments.voucher_id = v.id
             LEFT JOIN (
                 SELECT voucher_id
                 FROM ledger_transaction_links
@@ -59,14 +81,14 @@ class VoucherModel
                 $params[':status'] = $filters['status'];
             }
 
-            if (!empty($filters['ref_type'])) {
-                $sql .= " AND v.ref_type = :ref_type";
-                $params[':ref_type'] = $filters['ref_type'];
+            if (!empty($filters['source_type'])) {
+                $sql .= " AND v.source_type = :source_type";
+                $params[':source_type'] = $this->normalizeSourceTypeFilter((string) $filters['source_type']);
             }
 
-            if (!empty($filters['ref_id'])) {
-                $sql .= " AND v.ref_id = :ref_id";
-                $params[':ref_id'] = $filters['ref_id'];
+            if (!empty($filters['source_id'])) {
+                $sql .= " AND v.source_id = :source_id";
+                $params[':source_id'] = $filters['source_id'];
             }
 
             if (!empty($filters['date_from'])) {
@@ -149,9 +171,9 @@ class VoucherModel
                     break;
 
                 case 'type':
-                case 'ref_type':
-                    $sql .= " AND v.ref_type = {$key}";
-                    $params[$key] = $this->normalizeTypeFilter($rawValue);
+                case 'source_type':
+                    $sql .= " AND v.source_type = {$key}";
+                    $params[$key] = $this->normalizeSourceTypeFilter($rawValue);
                     break;
 
                 case 'summary_text':
@@ -159,8 +181,38 @@ class VoucherModel
                     $params[$likeKey] = "%{$rawValue}%";
                     break;
 
-                case 'account_code':
-                    $sql .= " AND voucher_line_accounts.account_code LIKE {$likeKey}";
+                case 'account_label':
+                    $sql .= " AND voucher_line_accounts.account_label LIKE {$likeKey}";
+                    $params[$likeKey] = "%{$rawValue}%";
+                    break;
+
+                case 'source_id':
+                    $sql .= " AND v.source_id LIKE {$likeKey}";
+                    $params[$likeKey] = "%{$rawValue}%";
+                    break;
+
+                case 'debit_total':
+                    $sql .= " AND voucher_line_accounts.debit_total LIKE {$likeKey}";
+                    $params[$likeKey] = "%{$rawValue}%";
+                    break;
+
+                case 'credit_total':
+                    $sql .= " AND voucher_line_accounts.credit_total LIKE {$likeKey}";
+                    $params[$likeKey] = "%{$rawValue}%";
+                    break;
+
+                case 'payment_total':
+                    $sql .= " AND voucher_payments.payment_total LIKE {$likeKey}";
+                    $params[$likeKey] = "%{$rawValue}%";
+                    break;
+
+                case 'line_count':
+                    $sql .= " AND voucher_line_accounts.line_count LIKE {$likeKey}";
+                    $params[$likeKey] = "%{$rawValue}%";
+                    break;
+
+                case 'payment_count':
+                    $sql .= " AND voucher_payments.payment_count LIKE {$likeKey}";
                     $params[$likeKey] = "%{$rawValue}%";
                     break;
 
@@ -195,22 +247,23 @@ class VoucherModel
 
         return match ($normalized) {
             '임시', '임시저장', 'draft' => 'draft',
-            '확정', 'posted' => 'posted',
-            '마감', 'locked' => 'locked',
+            '확정', 'confirmed' => 'confirmed',
+            'posted' => 'posted',
+            '마감', 'closed' => 'closed',
             '삭제', 'deleted' => 'deleted',
             default => $value,
         };
     }
 
-    private function normalizeTypeFilter(string $value): string
+    private function normalizeSourceTypeFilter(string $value): string
     {
         $normalized = mb_strtoupper(trim($value), 'UTF-8');
 
         return match ($normalized) {
-            '수동전표' => 'MANUAL',
-            '자동전표' => 'AUTO',
-            '조정전표' => 'ADJUST',
-            '결산전표' => 'CLOSING',
+            '홈택스', 'TAX' => 'TAX',
+            '카드사', '카드', 'CARD' => 'CARD',
+            '은행', 'BANK' => 'BANK',
+            '수기입력', '수기', 'MANUAL' => 'MANUAL',
             default => $normalized,
         };
     }
@@ -227,14 +280,55 @@ class VoucherModel
     public function getById(string $id): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT *
-            FROM {$this->table}
-            WHERE id = :id
+            SELECT
+                v.*,
+                TRIM(BOTH ' / ' FROM CONCAT_WS(' / ', cd.dept_name, cp.position_name, ce.employee_name)) AS created_actor_label,
+                TRIM(BOTH ' / ' FROM CONCAT_WS(' / ', ud.dept_name, up.position_name, ue.employee_name)) AS updated_actor_label
+            FROM {$this->table} v
+            LEFT JOIN user_employees ce
+                ON v.created_by NOT LIKE 'SYSTEM:%'
+               AND ce.user_id = REPLACE(v.created_by, 'USER:', '')
+            LEFT JOIN user_departments cd
+                ON ce.department_id = cd.id
+            LEFT JOIN user_positions cp
+                ON ce.position_id = cp.id
+            LEFT JOIN user_employees ue
+                ON v.updated_by NOT LIKE 'SYSTEM:%'
+               AND ue.user_id = REPLACE(v.updated_by, 'USER:', '')
+            LEFT JOIN user_departments ud
+                ON ue.department_id = ud.id
+            LEFT JOIN user_positions up
+                ON ue.position_id = up.id
+            WHERE v.id = :id
             LIMIT 1
         ");
         $stmt->execute([':id' => $id]);
 
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function searchSummaryTexts(string $keyword, int $limit = 10): array
+    {
+        $limit = max(1, min($limit, 20));
+        $stmt = $this->db->prepare("
+            SELECT
+                TRIM(summary_text) AS summary_text,
+                COUNT(*) AS used_count,
+                MAX(created_at) AS last_used_at
+            FROM {$this->table}
+            WHERE deleted_at IS NULL
+              AND summary_text IS NOT NULL
+              AND TRIM(summary_text) <> ''
+              AND summary_text LIKE :keyword
+            GROUP BY TRIM(summary_text)
+            ORDER BY used_count DESC, last_used_at DESC
+            LIMIT {$limit}
+        ");
+        $stmt->execute([
+            ':keyword' => '%' . $keyword . '%',
+        ]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
     public function insert(array $data): bool
@@ -244,9 +338,10 @@ class VoucherModel
             'sort_no',
             'voucher_no',
             'voucher_date',
-            'ref_type',
-            'ref_id',
+            'source_type',
+            'source_id',
             'status',
+            'voucher_amount',
             'summary_text',
             'note',
             'memo',
@@ -284,9 +379,10 @@ class VoucherModel
         $allowed = [
             'voucher_date',
             'voucher_no',
-            'ref_type',
-            'ref_id',
+            'source_type',
+            'source_id',
             'status',
+            'voucher_amount',
             'summary_text',
             'note',
             'memo',

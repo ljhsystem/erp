@@ -115,7 +115,7 @@ $isAuthenticated = $authSessionService->isAuthenticated();
 error_log('Auth check: ' . ($isAuthenticated ? 'YES' : 'NO') . ' uri=' . $normalizedUri);
 
 if ($isAuthenticated && in_array($normalizedUri, ['/index', '/index.php'], true)) {
-    header('Location: /home');
+    header('Location: /dashboard');
     exit;
 }
 

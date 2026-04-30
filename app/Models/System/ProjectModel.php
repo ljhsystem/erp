@@ -24,6 +24,11 @@ class ProjectModel
                 c.client_name AS linked_client_name,
                 e.employee_name AS employee_name,
                 CASE
+                    WHEN se.employee_name IS NULL THEN NULL
+                    WHEN COALESCE(sau.is_active, 1) = 0 THEN CONCAT(se.employee_name, ' (비활성)')
+                    ELSE se.employee_name
+                END AS site_agent_name,
+                CASE
                     WHEN p.created_by LIKE 'SYSTEM:%' THEN p.created_by
                     WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
                     ELSE p.created_by
@@ -41,6 +46,8 @@ class ProjectModel
             FROM system_projects p
             LEFT JOIN system_clients c ON p.client_id = c.id
             LEFT JOIN user_employees e ON p.employee_id = e.id
+            LEFT JOIN user_employees se ON p.site_agent = se.id
+            LEFT JOIN auth_users sau ON se.user_id = sau.id
             LEFT JOIN user_employees p1
                 ON p.created_by NOT LIKE 'SYSTEM:%'
                AND p1.user_id = REPLACE(p.created_by, 'USER:', '')
@@ -255,6 +262,11 @@ class ProjectModel
 
                 c.client_name AS linked_client_name,
                 e.employee_name AS employee_name,
+                CASE
+                    WHEN se.employee_name IS NULL THEN NULL
+                    WHEN COALESCE(sau.is_active, 1) = 0 THEN CONCAT(se.employee_name, ' (비활성)')
+                    ELSE se.employee_name
+                END AS site_agent_name,
 
                 CASE
                     WHEN p.created_by LIKE 'SYSTEM:%' THEN p.created_by
@@ -281,6 +293,12 @@ class ProjectModel
 
             LEFT JOIN user_employees e
                 ON p.employee_id = e.id
+
+            LEFT JOIN user_employees se
+                ON p.site_agent = se.id
+
+            LEFT JOIN auth_users sau
+                ON se.user_id = sau.id
 
             LEFT JOIN user_employees p1
                 ON p.created_by NOT LIKE 'SYSTEM:%'

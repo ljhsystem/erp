@@ -79,8 +79,9 @@ $isActiveNav = static function (string $href) use ($currentPath): bool {
                 >--:--</span>
 
                 <a href="/profile" class="desktop-user-link">
-                    <i class="bi bi-person-workspace" aria-hidden="true"></i>
+                    <i class="bi bi-person-workspace user-icon" aria-hidden="true"></i>
                     <span class="user-name"><?= htmlspecialchars((string)$displayName, ENT_QUOTES, 'UTF-8') ?></span>
+                    <span class="user-hover-text"> <i class="bi bi-person"></i>PROFILE</span>
                 </a>
 
                 <span
@@ -92,9 +93,8 @@ $isActiveNav = static function (string $href) use ($currentPath): bool {
             </div>
 
             <div class="desktop-navbar-actions">
-                <button type="button" class="btn btn-outline-light btn-sm" onclick="extendSession()">연장</button>
-                <a href="/profile" class="btn btn-outline-light btn-sm">내정보</a>
-                <a href="/logout" class="btn btn-outline-light btn-sm" onclick="logoutWithPopupClose()">로그아웃</a>
+                <button type="button" class="desktop-navbar-action-button" onclick="extendSession()">연장</button>
+                <a href="/logout" class="desktop-navbar-action-button desktop-navbar-logout" onclick="logoutWithPopupClose()">로그아웃</a>
             </div>
         </div>
     </div>

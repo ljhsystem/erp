@@ -1,4 +1,4 @@
-// Path: PROJECT_ROOT . '/public/assets/js/common/code-select.js'
+// Path: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/system/code-select.js'
 
 const API = {
     LIST: '/api/settings/system/code/list',
@@ -19,8 +19,31 @@ const state = {
     quickModal: null,
     activeQuick: null,
     activeOriginal: null,
-    callbacks: new Set()
+    callbacks: new Set(),
+    modalCleanupBound: false
 };
+
+function bindCodeSelectModalCleanup() {
+    if (state.modalCleanupBound) return;
+
+    state.modalCleanupBound = true;
+
+    document.addEventListener('hide.bs.modal', (event) => {
+        closeCodeSelectsInModal(event.target);
+    }, true);
+
+    document.addEventListener('hidden.bs.modal', (event) => {
+        closeCodeSelectsInModal(event.target);
+    }, true);
+}
+
+function closeCodeSelectsInModal(modal) {
+    if (!modal?.querySelectorAll || !window.jQuery?.fn?.select2) return;
+
+    modal.querySelectorAll('select[data-code-group].select2-hidden-accessible').forEach((select) => {
+        window.jQuery(select).select2('close');
+    });
+}
 
 export function getCodeName(field, code) {
     const value = String(code ?? '').trim();
@@ -44,6 +67,7 @@ export function onCodeOptionsLoaded(callback) {
 }
 
 export async function initCodeSelectControls(root = document) {
+    bindCodeSelectModalCleanup();
     ensureQuickModal();
     bindOriginalCodeModal();
 
@@ -57,6 +81,7 @@ export async function initCodeSelectControls(root = document) {
 }
 
 export async function createCodeSelect({ selectId, codeGroup, selectedValue = '' }) {
+    bindCodeSelectModalCleanup();
     ensureQuickModal();
     bindOriginalCodeModal();
 
@@ -82,7 +107,15 @@ export async function refreshCodeSelect(selectId, codeGroup, selectedValue = '')
     const rows = await fetchCodeOptions(group);
     const currentValue = String(selectedValue ?? select.value ?? '').trim();
 
-    select.innerHTML = '<option value="">선택</option>';
+    const shouldRenderEmptyOption = select.dataset.emptyOption !== 'false';
+    const emptyLabel = select.dataset.emptyLabel || '선택';
+    select.innerHTML = '';
+    if (shouldRenderEmptyOption) {
+        const emptyOption = document.createElement('option');
+        emptyOption.value = '';
+        emptyOption.textContent = emptyLabel;
+        select.appendChild(emptyOption);
+    }
 
     rows.forEach((row) => {
         const option = document.createElement('option');
@@ -118,6 +151,7 @@ export async function openCodeQuickModal(args, legacyTargetSelectId = null) {
 
     const codeGroup = normalizeCodeGroup(params.codeGroup);
     const targetSelectId = params.targetSelectId || params.selectId || '';
+
     const select = targetSelectId ? document.getElementById(targetSelectId) : null;
 
     state.activeQuick = {
@@ -127,6 +161,9 @@ export async function openCodeQuickModal(args, legacyTargetSelectId = null) {
     };
 
     const modal = document.getElementById('codeQuickModal');
+    if (modal.parentElement !== document.body) {
+        document.body.appendChild(modal);
+    }
     modal.querySelector('[name="code_group"]').value = codeGroup;
     modal.querySelector('[name="code"]').value = '';
     modal.querySelector('[name="code_name"]').value = '';
@@ -159,15 +196,23 @@ function bindCodeSelect(select, codeGroup) {
     });
 
     select.addEventListener('change', () => {
-        if (select.value === QUICK_ADD_VALUE) {
-            const previousValue = state.previousValues[select.id] || '';
-            select.value = previousValue;
-            openCodeQuickModal({ codeGroup, targetSelectId: select.id });
+        if (handleQuickAddSelection(select, codeGroup)) {
             return;
         }
 
         state.previousValues[select.id] = select.value || '';
     });
+
+    if (window.jQuery?.fn?.select2) {
+        window.jQuery(select)
+            .off('select2:select.codeSelect')
+            .on('select2:select.codeSelect', (event) => {
+                const selectedId = String(event.params?.data?.id ?? '');
+                if (selectedId === QUICK_ADD_VALUE) {
+                    handleQuickAddSelection(select, codeGroup, true);
+                }
+            });
+    }
 }
 
 function enhanceSelect2(select) {
@@ -177,13 +222,15 @@ function enhanceSelect2(select) {
     const modalParent = $select.closest('.modal');
     const options = {
         width: '100%',
-        dropdownAutoWidth: true,
-        placeholder: select.querySelector('option[value=""]')?.textContent || '선택',
-        language: 'ko'
+        dropdownAutoWidth: false,
+        placeholder: select.querySelector('option[value=""]')?.textContent || undefined,
+        language: 'ko',
+        minimumResultsForSearch: Infinity,
+        dropdownCssClass: 'code-select-dropdown'
     };
 
     if (modalParent.length) {
-        options.dropdownParent = modalParent;
+        options.dropdownParent = modalParent.first();
     }
 
     if ($select.hasClass('select2-hidden-accessible')) {
@@ -191,6 +238,36 @@ function enhanceSelect2(select) {
     }
 
     $select.select2(options);
+}
+
+function handleQuickAddSelection(select, codeGroup, force = false) {
+    if (!select || (!force && select.value !== QUICK_ADD_VALUE)) {
+        return false;
+    }
+
+    if (select.dataset.codeQuickAddOpening === 'true') {
+        return true;
+    }
+
+    select.dataset.codeQuickAddOpening = 'true';
+
+    const previousValue = state.previousValues[select.id] || '';
+    restoreSelectValue(select, previousValue);
+
+    window.setTimeout(() => {
+        openCodeQuickModal({ codeGroup, targetSelectId: select.id });
+        delete select.dataset.codeQuickAddOpening;
+    }, 0);
+
+    return true;
+}
+
+function restoreSelectValue(select, value) {
+    select.value = value || '';
+
+    if (window.jQuery?.fn?.select2 && window.jQuery(select).hasClass('select2-hidden-accessible')) {
+        window.jQuery(select).val(value || '').trigger('change.select2');
+    }
 }
 
 async function fetchCodeOptions(codeGroup) {
@@ -243,7 +320,12 @@ async function fetchCodeGroups() {
 
 function ensureQuickModal() {
     if (document.getElementById('codeQuickModal')) {
-        state.quickModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('codeQuickModal'), { focus: false });
+        const modal = document.getElementById('codeQuickModal');
+        if (modal.parentElement !== document.body) {
+            document.body.appendChild(modal);
+        }
+        state.quickModal = bootstrap.Modal.getOrCreateInstance(modal, { focus: false });
+        bindQuickCodeModal(modal);
         return;
     }
 
@@ -319,6 +401,26 @@ function ensureQuickModal() {
     modal.querySelector('form').addEventListener('submit', saveQuickCode);
 }
 
+function bindQuickCodeModal(modal) {
+    if (!modal || modal.dataset.codeQuickBound === 'true') return;
+
+    modal.querySelector('[name="code"]')?.addEventListener('input', function () {
+        this.value = normalizeCode(this.value);
+    });
+
+    modal.querySelector('[data-role="detail"]')?.addEventListener('click', async () => {
+        if (!state.activeQuick?.codeGroup) return;
+        state.quickModal.hide();
+        await openOriginalCodeModal({
+            codeGroup: state.activeQuick.codeGroup,
+            targetSelectId: state.activeQuick.targetSelectId
+        });
+    });
+
+    modal.querySelector('form')?.addEventListener('submit', saveQuickCode);
+    modal.dataset.codeQuickBound = 'true';
+}
+
 function bindOriginalCodeModal() {
     const form = document.getElementById('codeForm');
     if (!form || form.dataset.codeSelectBound === 'true') return;
@@ -380,6 +482,10 @@ async function openOriginalCodeModal({ codeGroup, targetSelectId }) {
     if (!modalEl) {
         window.AppCore?.notify?.('warning', '기준정보 모달을 찾을 수 없습니다.');
         return;
+    }
+
+    if (modalEl.parentElement !== document.body) {
+        document.body.appendChild(modalEl);
     }
 
     const select = targetSelectId ? document.getElementById(targetSelectId) : null;

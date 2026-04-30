@@ -596,6 +596,66 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
         return $stmt->execute($params);
     }
 
+    public function insertCompanyNameHistory(string $clientId, string $oldCompanyName, string $newCompanyName, ?string $actor = null): bool
+    {
+        if (!$this->clientNameHistoryTableExists()) {
+            return true;
+        }
+
+        $stmt = $this->db->prepare("
+            INSERT INTO system_client_name_history (
+                id, client_id, old_company_name, new_company_name, changed_at, changed_by
+            ) VALUES (
+                :id, :client_id, :old_company_name, :new_company_name, NOW(), :changed_by
+            )
+        ");
+
+        return $stmt->execute([
+            'id' => \Core\Helpers\UuidHelper::generate(),
+            'client_id' => $clientId,
+            'old_company_name' => $oldCompanyName,
+            'new_company_name' => $newCompanyName,
+            'changed_by' => $actor,
+        ]);
+    }
+
+    public function getCompanyNameHistory(string $clientId): array
+    {
+        if (!$this->clientNameHistoryTableExists()) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT id, client_id, old_company_name, new_company_name, changed_at, changed_by
+            FROM system_client_name_history
+            WHERE client_id = :client_id
+            ORDER BY changed_at DESC
+        ");
+        $stmt->execute(['client_id' => $clientId]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    private function clientNameHistoryTableExists(): bool
+    {
+        static $exists = null;
+        if ($exists !== null) {
+            return $exists;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = DATABASE()
+              AND table_name = 'system_client_name_history'
+            LIMIT 1
+        ");
+        $stmt->execute();
+        $exists = (bool) $stmt->fetchColumn();
+
+        return $exists;
+    }
+
     /* -------------------------------------------------------------
     * 嫄곕옒泥???젣 (id 湲곗?)
     * ------------------------------------------------------------- */

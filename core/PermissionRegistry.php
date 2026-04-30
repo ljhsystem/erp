@@ -243,18 +243,22 @@ class PermissionRegistry
             return;
         }
 
+        $ids = array_column($changes, 'id');
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $tempOffset = max(count($rows), 1) + 1000000;
+
+        $temp = $pdo->prepare("
+            UPDATE auth_permissions
+            SET sort_no = sort_no + {$tempOffset},
+                updated_at = NOW(),
+                updated_by = ?
+            WHERE id IN ({$placeholders})
+        ");
+        $temp->execute(array_merge([$systemActor], $ids));
+
         foreach (array_chunk($changes, 200) as $chunk) {
             $ids = array_column($chunk, 'id');
             $placeholders = implode(',', array_fill(0, count($ids), '?'));
-
-            $temp = $pdo->prepare("
-                UPDATE auth_permissions
-                SET sort_no = sort_no + 1000000,
-                    updated_at = NOW(),
-                    updated_by = ?
-                WHERE id IN ({$placeholders})
-            ");
-            $temp->execute(array_merge([$systemActor], $ids));
 
             $caseParts = [];
             $params = [];

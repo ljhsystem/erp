@@ -88,17 +88,23 @@
 
             <div class="tab-pane fade" id="edit_tab_group">
               <div class="row g-3">
-                <div class="col-md-4">
+                <div class="col-md-3">
                   <label class="form-label">부서</label>
                   <select name="department_id" id="edit_department_select" class="form-select form-select-sm"></select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                   <label class="form-label">직책</label>
                   <select name="position_id" id="edit_position_select" class="form-select form-select-sm"></select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                   <label class="form-label">역할</label>
                   <select name="role_id" id="edit_role_select" class="form-select form-select-sm"></select>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">거래처(회계용)</label>
+                  <select name="client_id" id="edit_employee_client_select" class="form-select form-select-sm">
+                    <option value="">선택(없음)</option>
+                  </select>
                 </div>
               </div>
             </div>

@@ -178,6 +178,7 @@ class EmployeeController
 
                 'department_id' => $_POST['department_id'] ?? null,
                 'position_id'   => $_POST['position_id'] ?? null,
+                'client_id'     => $_POST['client_id'] ?? null,
 
                 // =========================
                 // 날짜

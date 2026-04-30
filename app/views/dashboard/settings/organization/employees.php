@@ -68,6 +68,13 @@
 include __DIR__ . '/partials/employee_modal.php';
 ?>
 
+<?php
+/* =========================================================
+   거래처 빠른등록 / 상세등록 모달
+========================================================= */
+include PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/client_modal.php';
+?>
+
 
 <?php
 /* =========================================================

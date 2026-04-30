@@ -311,7 +311,7 @@ class EmployeeService
 
             $fields = [
                 'employee_name', 'phone', 'address', 'address_detail',
-                'department_id', 'position_id',
+                'department_id', 'position_id', 'client_id',
                 'certificate_name', 'note', 'memo',
                 'doc_hire_date', 'real_hire_date',
                 'doc_retire_date', 'real_retire_date',

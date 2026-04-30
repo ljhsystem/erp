@@ -1125,8 +1125,7 @@ $router->get('/ledger/transaction/create', 'TransactionController@webLedgerCreat
 ]);
 
 $ledgerPlaceholderRoutes = [
-    ['/ledger/sub-accounts', 'web.ledger.sub_accounts', '보조계정', '회계관리 보조계정 화면'],
-    ['/ledger/opening-balances', 'web.ledger.opening_balances', '기초잔액', '회계관리 기초잔액 화면'],
+    ['/ledger/opening-balances', 'web.ledger.opening_balances', '기초금액', '회계관리 기초금액 화면'],
     ['/ledger/data/upload', 'web.ledger.data.upload', '자료업로드', '회계관리 자료업로드 화면'],
     ['/ledger/data', 'web.ledger.data.index', '자료목록', '회계관리 자료목록 화면'],
     ['/ledger/vouchers', 'web.ledger.vouchers.index', '전표조회', '회계관리 전표조회 화면'],

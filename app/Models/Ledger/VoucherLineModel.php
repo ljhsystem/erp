@@ -21,7 +21,7 @@ class VoucherLineModel
         $sql = "
             SELECT *
             FROM {$this->table}
-            WHERE deleted_at IS NULL
+            WHERE 1 = 1
         ";
 
         $params = [];
@@ -31,9 +31,9 @@ class VoucherLineModel
             $params[':voucher_id'] = $filters['voucher_id'];
         }
 
-        if (!empty($filters['account_code'])) {
-            $sql .= " AND account_code = :account_code";
-            $params[':account_code'] = $filters['account_code'];
+        if (!empty($filters['account_id'])) {
+            $sql .= " AND account_id = :account_id";
+            $params[':account_id'] = $filters['account_id'];
         }
 
         $sql .= " ORDER BY sort_no DESC, voucher_id ASC, line_no ASC";
@@ -60,11 +60,21 @@ class VoucherLineModel
     public function getByVoucherId(string $voucherId): array
     {
         $stmt = $this->db->prepare("
-            SELECT *
-            FROM {$this->table}
-            WHERE voucher_id = :voucher_id
-              AND deleted_at IS NULL
-            ORDER BY sort_no DESC, line_no ASC
+            SELECT
+                l.*,
+                COALESCE(a.id, l.account_id) AS account_id,
+                a.account_code,
+                a.account_name,
+                COALESCE(
+                    NULLIF(CONCAT(a.account_code, ' - ', a.account_name), ' - '),
+                    l.account_id
+                ) AS account_text
+            FROM {$this->table} l
+            LEFT JOIN ledger_accounts a
+                ON a.id = l.account_id
+                OR a.account_code = l.account_id
+            WHERE l.voucher_id = :voucher_id
+            ORDER BY l.line_no ASC, l.sort_no ASC
         ");
         $stmt->execute([':voucher_id' => $voucherId]);
 
@@ -78,7 +88,7 @@ class VoucherLineModel
             'sort_no',
             'voucher_id',
             'line_no',
-            'account_code',
+            'account_id',
             'debit',
             'credit',
             'line_summary',
@@ -86,13 +96,11 @@ class VoucherLineModel
             'created_by',
             'updated_at',
             'updated_by',
-            'deleted_at',
-            'deleted_by',
         ];
 
         $payload = $this->filterData($data, $allowed);
 
-        if (!isset($payload['id'], $payload['voucher_id'], $payload['line_no'], $payload['account_code'])) {
+        if (!isset($payload['id'], $payload['voucher_id'], $payload['line_no'], $payload['account_id'])) {
             return false;
         }
 
@@ -116,14 +124,12 @@ class VoucherLineModel
         $allowed = [
             'voucher_id',
             'line_no',
-            'account_code',
+            'account_id',
             'debit',
             'credit',
             'line_summary',
             'updated_at',
             'updated_by',
-            'deleted_at',
-            'deleted_by',
         ];
 
         $payload = $this->filterData($data, $allowed);
@@ -151,38 +157,6 @@ class VoucherLineModel
         return $stmt->execute($params);
     }
 
-    public function softDelete(string $id, ?string $actor = null): bool
-    {
-        $stmt = $this->db->prepare("
-            UPDATE {$this->table}
-            SET deleted_at = NOW(),
-                deleted_by = :deleted_by
-            WHERE id = :id
-              AND deleted_at IS NULL
-        ");
-
-        return $stmt->execute([
-            ':id' => $id,
-            ':deleted_by' => $actor,
-        ]);
-    }
-
-    public function restore(string $id, ?string $actor = null): bool
-    {
-        $stmt = $this->db->prepare("
-            UPDATE {$this->table}
-            SET deleted_at = NULL,
-                deleted_by = NULL,
-                updated_by = :updated_by
-            WHERE id = :id
-        ");
-
-        return $stmt->execute([
-            ':id' => $id,
-            ':updated_by' => $actor,
-        ]);
-    }
-
     public function hardDelete(string $id): bool
     {
         $stmt = $this->db->prepare("
@@ -191,38 +165,6 @@ class VoucherLineModel
         ");
 
         return $stmt->execute([':id' => $id]);
-    }
-
-    public function softDeleteByVoucherId(string $voucherId, ?string $actor = null): void
-    {
-        $stmt = $this->db->prepare("
-            UPDATE {$this->table}
-            SET deleted_at = NOW(),
-                deleted_by = :deleted_by
-            WHERE voucher_id = :voucher_id
-              AND deleted_at IS NULL
-        ");
-
-        $stmt->execute([
-            ':voucher_id' => $voucherId,
-            ':deleted_by' => $actor,
-        ]);
-    }
-
-    public function restoreByVoucherId(string $voucherId, ?string $actor = null): void
-    {
-        $stmt = $this->db->prepare("
-            UPDATE {$this->table}
-            SET deleted_at = NULL,
-                deleted_by = NULL,
-                updated_by = :updated_by
-            WHERE voucher_id = :voucher_id
-        ");
-
-        $stmt->execute([
-            ':voucher_id' => $voucherId,
-            ':updated_by' => $actor,
-        ]);
     }
 
     public function purgeByVoucherId(string $voucherId): void
@@ -237,7 +179,7 @@ class VoucherLineModel
 
     public function replace(string $voucherId, array $lines, ?string $actor = null): void
     {
-        $this->softDeleteByVoucherId($voucherId, $actor);
+        $this->purgeByVoucherId($voucherId);
 
         foreach ($lines as $line) {
             $line['voucher_id'] = $voucherId;

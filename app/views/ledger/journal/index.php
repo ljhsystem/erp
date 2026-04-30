@@ -9,7 +9,7 @@ if (!headers_sent()) {
     header('Expires: 0');
 }
 
-$pageTitle = '일반전표';
+$pageTitle = '전표입력';
 
 $layoutOptions = [
     'header' => true,
@@ -29,8 +29,8 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journal.js');
 <main class="journal-page" id="journal-main">
     <div class="container-fluid py-4 journal-shell">
         <div class="page-header">
-            <h5 class="mb-1 fw-bold">
-                <i class="bi bi-journal-check me-2"></i>일반전표
+            <h5 class="mb-0 fw-bold">
+                <i class="bi bi-journal-check me-2"></i>전표입력
             </h5>
             <span id="journalCount" class="text-primary journal-count page-count"></span>
         </div>
@@ -80,53 +80,37 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journal.js');
     </div>
 </main>
 
-<?php
-$templateUrl = '/api/ledger/voucher/template';
-$downloadUrl = '/api/ledger/voucher/download';
-$uploadUrl = '/api/ledger/voucher/excel-upload';
-
-$modalId = 'journalExcelModal';
-$formId = 'journalExcelForm';
-$modalTitle = '전표 엑셀 관리';
-
-$fileInputId = 'journalExcelFile';
-$spinnerId = 'journalExcelSpinner';
-
-$btnTemplateId = 'journalBtnDownloadTemplate';
-$btnDownloadAll = 'journalBtnDownloadAll';
-$uploadBtnId = 'journalBtnUploadExcel';
-
-include PROJECT_ROOT . '/app/views/components/ui-modal-excel.php';
-?>
+<?php include __DIR__ . '/partials/journal_modal.php'; ?>
 
 <?php
 $modalId = 'journalTrashModal';
 $type = 'journal';
 $modalTitle = '전표 휴지통';
-
 $tableId = 'journal-trash-table';
 $checkAllId = 'journalTrashCheckAll';
-
-$btnRestoreId = 'journalBtnRestoreSelected';
-$btnDeleteId = 'journalBtnDeleteSelected';
-$btnDeleteAll = 'journalBtnDeleteAll';
-
 $tableHead = '
     <th>전표번호</th>
     <th>전표일자</th>
-    <th>적요</th>
+    <th>상태</th>
+    <th>금액</th>
+    <th>전표 적요</th>
     <th>삭제일시</th>
-    <th>관리</th>
+    <th>삭제자</th>
+    <th width="150">관리</th>
 ';
-
-$emptyMessage = '삭제된 전표를 선택하세요.';
-
+$emptyMessage = '휴지통 전표를 선택하면 상세 정보가 표시됩니다.';
+$listUrl = '/api/ledger/voucher/trash';
+$restoreUrl = '/api/ledger/voucher/restore';
+$deleteUrl = '/api/ledger/voucher/purge';
+$deleteAllUrl = '/api/ledger/voucher/purge-all';
 include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
 ?>
 
-<?php include __DIR__ . '/partials/journal_modal.php'; ?>
-
 <?php include PROJECT_ROOT . '/app/views/dashboard/settings/system/partials/code_modal.php'; ?>
+
+<template id="journal-client-modal-template">
+    <?php include PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/client_modal.php'; ?>
+</template>
 
 <template id="journal-account-modal-template">
     <?php include PROJECT_ROOT . '/app/views/ledger/account/partials/account_modal.php'; ?>

@@ -2,7 +2,7 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import { createDataTable, bindTableHighlight } from '/public/assets/js/components/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
-import { openQuickCreate } from '/public/assets/js/common/quick-create.js';
+import { openClientQuickCreate } from '/public/assets/js/pages/dashboard/settings/base/client.js';
 import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
 
@@ -405,8 +405,7 @@ window.AdminPicker = AdminPicker;
     }
 
     function openWorkTeamClientQuickCreate(defaultName = '') {
-        openQuickCreate({
-            type: 'client',
+        openClientQuickCreate({
             select: document.getElementById('modal_work_team_team_leader_client_id'),
             initialValues: {
                 client_name: defaultName

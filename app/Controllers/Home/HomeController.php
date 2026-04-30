@@ -58,6 +58,7 @@ class HomeController
     // ============================================================
     public function webRoot()
     {
+        $this->redirectAuthenticatedUser();
         header("Location: /home");
         exit;
     }    
@@ -70,7 +71,18 @@ class HomeController
     // ============================================================
     public function webIndex()
     {
+        $this->redirectAuthenticatedUser();
         include PROJECT_ROOT . '/app/views/home/index.php';
+    }
+
+    private function redirectAuthenticatedUser(): void
+    {
+        if (!$this->authSessionService->isAuthenticated()) {
+            return;
+        }
+
+        header('Location: /dashboard');
+        exit;
     }
 
     // ============================================================

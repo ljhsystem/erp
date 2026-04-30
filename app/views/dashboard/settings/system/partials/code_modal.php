@@ -81,3 +81,53 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="codeQuickModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-md">
+        <div class="modal-content">
+            <form id="codeQuickForm">
+                <div class="modal-header">
+                    <h5 class="modal-title">기준정보 빠른 추가</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label">코드그룹</label>
+                            <input type="text" class="form-control form-control-sm" name="code_group" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">사용여부</label>
+                            <select class="form-select form-select-sm" name="is_active">
+                                <option value="1">사용</option>
+                                <option value="0">미사용</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">코드 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm text-uppercase" name="code" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">코드명 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" name="code_name" required>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">비고</label>
+                            <input type="text" class="form-control form-control-sm" name="note">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">메모</label>
+                            <textarea class="form-control form-control-sm" name="memo" rows="3"></textarea>
+                        </div>
+                    </div>
+                    <div class="small text-danger mt-2" data-role="message"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-role="detail">상세정보</button>
+                    <button type="submit" class="btn btn-success btn-sm">저장</button>
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

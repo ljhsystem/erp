@@ -1574,6 +1574,9 @@ export function createJournalBasicInfoBridge({ notify }) {
     quickModalEl.addEventListener('hidden.bs.modal', resetQuickModal);
 
     return {
+        bindDateInputs(modalEl) {
+            bindModalDateInputs(modalEl);
+        },
         openQuickCreate(type, context = {}) {
             const config = configs[type];
             if (!config) {

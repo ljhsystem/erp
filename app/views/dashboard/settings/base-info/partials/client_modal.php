@@ -17,8 +17,8 @@
             <div class="card-header py-1 px-2">기본 정보</div>
             <div class="card-body py-2">
               <div class="row g-2">
-                <div class="col-md-4">
-                  <label class="form-label">거래처명 *</label>
+                <div class="col-md-6">
+                  <label class="form-label">거래처명 (내부명) *</label>
                   <input type="text"
                          name="client_name"
                          id="modal_client_name"
@@ -26,13 +26,16 @@
                          required>
                 </div>
 
-                <div class="col-md-4">
-                  <label class="form-label">상호</label>
+                <div class="col-md-6">
+                  <label class="form-label">상호 (사업자 기준)</label>
                   <input type="text"
                          name="company_name"
                          id="modal_company_name"
                          class="form-control form-control-sm">
                 </div>
+
+              </div>
+              <div class="row g-2">
 
                 <div class="col-md-4">
                   <label class="form-label">등록일자</label>
@@ -46,11 +49,6 @@
                     <span class="date-icon"><i class="bi bi-calendar3"></i></span>
                   </div>
                 </div>
-
-
-              </div>
-              <div class="row g-2">
-
                 <div class="col-md-4">
                   <label class="form-label">거래처등급</label>
                   <select name="client_grade"
@@ -77,6 +75,13 @@
 
               </div>
 
+            </div>
+          </div>
+
+          <div class="card mb-3 d-none" id="clientCompanyHistoryCard">
+            <div class="card-header py-1 px-2">상호 변경 이력</div>
+            <div class="card-body py-2">
+              <div id="clientCompanyHistoryList" class="small text-muted"></div>
             </div>
           </div>
 
@@ -120,7 +125,7 @@
                           id="modal_client_type"
                           class="form-select form-select-sm"
                           data-code-group="CLIENT_TYPE">
-                    <option value="">선택</option>
+                    <option value=""></option>
                   </select>
                 </div>
               </div>
@@ -316,21 +321,21 @@
                     <div class="col-md-4">
                       <label class="form-label">거래구분</label>
                       <select name="trade_category" id="modal_trade_category" class="form-select form-select-sm" data-code-group="TRADE_CATEGORY">
-                        <option value="">선택</option>
+                        <option value=""></option>
                       </select>
                     </div>
 
                     <div class="col-md-4">
                       <label class="form-label">과세구분</label>
                       <select name="tax_type" id="modal_tax_type" class="form-select form-select-sm" data-code-group="TAX_TYPE">
-                        <option value="">선택</option>
+                        <option value=""></option>
                       </select>
                     </div>
 
                     <div class="col-md-4">
                       <label class="form-label">결제조건</label>
                       <select name="payment_term" id="modal_payment_term" class="form-select form-select-sm" data-code-group="PAYMENT_TERM">
-                        <option value="">선택</option>
+                        <option value=""></option>
                       </select>
                     </div>
                   </div>
@@ -390,6 +395,26 @@
           <button type="button" id="btnDeleteClient" class="btn btn-danger btn-sm" style="display:none;">삭제</button>
           <button type="submit" id="btnSaveClient" name="client_save" class="btn btn-success btn-sm">저장</button>
           <button type="button" id="btnCloseClient" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="clientQuickModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form data-role="quick-create-form">
+        <div class="modal-header">
+          <h5 class="modal-title" data-role="quick-create-title">거래처 빠른 등록</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+        </div>
+        <div class="modal-body" data-role="quick-create-body"></div>
+        <div class="modal-footer">
+          <div class="me-auto text-danger small" data-role="quick-create-message"></div>
+          <button type="button" class="btn btn-outline-primary btn-sm" data-role="quick-create-detail">상세입력</button>
+          <button type="submit" class="btn btn-success btn-sm" data-role="quick-create-submit">저장</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
         </div>
       </form>
     </div>

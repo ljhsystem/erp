@@ -114,6 +114,7 @@ class ClientService
             $this->logger->info('rrn decrypted', [
                 'value' => $rrn ?? null
             ]);
+            $row['company_name_history'] = $this->model->getCompanyNameHistory($id);
             return $row;
         } catch (\Throwable $e) {
 
@@ -454,6 +455,12 @@ class ClientService
 
                 if (!$this->model->updateById($id, $updateData)) {
                     throw new \Exception('거래처 수정에 실패했습니다.');
+                }
+
+                $oldCompanyName = trim((string)($before['company_name'] ?? ''));
+                $newCompanyName = trim((string)($updateData['company_name'] ?? ''));
+                if ($oldCompanyName !== $newCompanyName) {
+                    $this->model->insertCompanyNameHistory($id, $oldCompanyName, $newCompanyName, $actor);
                 }
 
                 $this->pdo->commit();
@@ -1209,6 +1216,8 @@ class ClientService
 
         return $data;
     }
+
+
 
     private function resolveUploadErrorMessage(int $errorCode, string $label): string
     {

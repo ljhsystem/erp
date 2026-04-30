@@ -1,7 +1,105 @@
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import { bindNumberInput, formatNumber, parseNumber } from '/public/assets/js/common/format.js';
-import { initQuickCreateButtons } from '/public/assets/js/common/quick-create.js';
-import { initCodeSelectControls } from '/public/assets/js/common/code-select.js';
+import { initClientQuickCreateButtons } from '/public/assets/js/pages/dashboard/settings/base/client.js';
+import { initCodeSelectControls } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+
+function ensureProjectQuickModal() {
+    let modal = document.getElementById('transactionProjectQuickModal');
+    if (modal) return modal;
+
+    modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.id = 'transactionProjectQuickModal';
+    modal.tabIndex = -1;
+    modal.setAttribute('aria-hidden', 'true');
+    modal.innerHTML = `
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form data-role="project-quick-form">
+                    <div class="modal-header">
+                        <h5 class="modal-title">프로젝트 빠른 등록</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                    </div>
+                    <div class="modal-body">
+                        <label class="form-label w-100">
+                            <span class="fw-bold d-block mb-1">프로젝트명</span>
+                            <input type="text" class="form-control form-control-sm" name="project_name" required>
+                        </label>
+                        <label class="form-label w-100">
+                            <span class="fw-bold d-block mb-1">공사명</span>
+                            <input type="text" class="form-control form-control-sm" name="construction_name">
+                        </label>
+                        <div class="text-danger small" data-role="project-quick-message"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
+                        <button type="submit" class="btn btn-success btn-sm">저장</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    return modal;
+}
+
+function setPickerValue(selectEl, value, text) {
+    if (!selectEl || !window.jQuery || !value) return;
+    const $select = window.jQuery(selectEl);
+    const normalizedValue = String(value);
+    $select.find(`option[value="${normalizedValue}"]`).remove();
+    $select.append(new Option(text || normalizedValue, normalizedValue, true, true));
+    $select.val(normalizedValue).trigger('change');
+}
+
+function bindProjectQuickCreateButton(button, options = {}) {
+    if (!button || button.dataset.projectQuickCreateBound === 'true') return;
+
+    button.dataset.projectQuickCreateBound = 'true';
+    button.addEventListener('click', () => {
+        const modalEl = ensureProjectQuickModal();
+        const form = modalEl.querySelector('[data-role="project-quick-form"]');
+        const message = modalEl.querySelector('[data-role="project-quick-message"]');
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl, { focus: false });
+
+        form.reset();
+        if (message) message.textContent = '';
+
+        form.onsubmit = async (event) => {
+            event.preventDefault();
+            const submitButton = form.querySelector('[type="submit"]');
+            if (submitButton) submitButton.disabled = true;
+
+            const formData = new FormData(form);
+            const payload = options.getPayload?.() || {};
+            Object.entries(payload).forEach(([key, value]) => formData.set(key, value ?? ''));
+
+            try {
+                const response = await fetch('/api/settings/base-info/project/save', {
+                    method: 'POST',
+                    body: formData,
+                });
+                const json = await response.json();
+
+                if (!json.success) {
+                    if (message) message.textContent = json.message || '프로젝트 저장에 실패했습니다.';
+                    return;
+                }
+
+                const values = Object.fromEntries(formData.entries());
+                setPickerValue(options.targetSelect, json.id ?? '', values.project_name || '');
+                window.AppCore?.notify?.('success', '프로젝트가 등록되었습니다.');
+                modal.hide();
+            } catch (error) {
+                if (message) message.textContent = error.message || '프로젝트 저장 중 오류가 발생했습니다.';
+            } finally {
+                if (submitButton) submitButton.disabled = false;
+            }
+        };
+
+        modal.show();
+    });
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     const page = document.querySelector('[data-transaction-page]');
@@ -468,21 +566,19 @@ async function initTransactionCreate(page) {
 
     await initCodeSelectControls(page);
 
-    initQuickCreateButtons([
+    initClientQuickCreateButtons([
         {
             button: quickCreateClientButton,
-            type: 'client',
             targetSelect: clientPicker,
         },
-        {
-            button: quickCreateProjectButton,
-            type: 'project',
-            targetSelect: projectPicker,
-            getPayload: () => ({
-                client_id: clientPicker?.value || '',
-            }),
-        },
     ]);
+
+    bindProjectQuickCreateButton(quickCreateProjectButton, {
+        targetSelect: projectPicker,
+        getPayload: () => ({
+            client_id: clientPicker?.value || '',
+        }),
+    });
 
     bindNumberInput(headerVatInput);
     headerVatInput.addEventListener('blur', calculateSummary);

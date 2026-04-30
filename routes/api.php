@@ -369,30 +369,30 @@ $router->post('/api/settings/system/code/excel-upload', 'CodeController@apiExcel
     'log'         => true,
 ]);
 
-$codeBaseInfoRedirectRoutes = [
-    ['get', '/api/settings/base-info/code/list', 'code.view', ['view'], true],
-    ['get', '/api/settings/base-info/code/detail', 'code.view', ['view'], true],
-    ['get', '/api/settings/base-info/code/groups', 'code.view', ['view'], false],
-    ['post', '/api/settings/base-info/code/save', 'code.save', ['save'], true],
-    ['post', '/api/settings/base-info/code/delete', 'code.delete', ['delete'], true],
-    ['get', '/api/settings/base-info/code/trash', 'code.view', ['view'], true],
-    ['post', '/api/settings/base-info/code/restore', 'code.save', ['save'], true],
-    ['post', '/api/settings/base-info/code/restore-bulk', 'code.save', ['save'], true],
-    ['post', '/api/settings/base-info/code/restore-all', 'code.save', ['save'], true],
-    ['post', '/api/settings/base-info/code/purge', 'code.delete', ['delete'], true],
-    ['post', '/api/settings/base-info/code/purge-bulk', 'code.delete', ['delete'], true],
-    ['post', '/api/settings/base-info/code/purge-all', 'code.delete', ['delete'], true],
-    ['post', '/api/settings/base-info/code/reorder', 'code.save', ['save'], true],
-    ['get', '/api/settings/base-info/code/template', 'code.view', ['view'], false],
-    ['get', '/api/settings/base-info/code/excel', 'code.view', ['view'], true],
-    ['post', '/api/settings/base-info/code/excel-upload', 'code.save', ['save'], true],
+$codeBaseInfoCompatRoutes = [
+    ['get', '/api/settings/base-info/code/list', 'CodeController@apiList', 'code.view', ['view'], true],
+    ['get', '/api/settings/base-info/code/detail', 'CodeController@apiDetail', 'code.view', ['view'], true],
+    ['get', '/api/settings/base-info/code/groups', 'CodeController@apiGroups', 'code.view', ['view'], false],
+    ['post', '/api/settings/base-info/code/save', 'CodeController@apiSave', 'code.save', ['save'], true],
+    ['post', '/api/settings/base-info/code/delete', 'CodeController@apiDelete', 'code.delete', ['delete'], true],
+    ['get', '/api/settings/base-info/code/trash', 'CodeController@apiTrashList', 'code.view', ['view'], true],
+    ['post', '/api/settings/base-info/code/restore', 'CodeController@apiRestore', 'code.save', ['save'], true],
+    ['post', '/api/settings/base-info/code/restore-bulk', 'CodeController@apiRestoreBulk', 'code.save', ['save'], true],
+    ['post', '/api/settings/base-info/code/restore-all', 'CodeController@apiRestoreAll', 'code.save', ['save'], true],
+    ['post', '/api/settings/base-info/code/purge', 'CodeController@apiPurge', 'code.delete', ['delete'], true],
+    ['post', '/api/settings/base-info/code/purge-bulk', 'CodeController@apiPurgeBulk', 'code.delete', ['delete'], true],
+    ['post', '/api/settings/base-info/code/purge-all', 'CodeController@apiPurgeAll', 'code.delete', ['delete'], true],
+    ['post', '/api/settings/base-info/code/reorder', 'CodeController@apiReorder', 'code.save', ['save'], true],
+    ['get', '/api/settings/base-info/code/template', 'CodeController@apiDownloadTemplate', 'code.view', ['view'], false],
+    ['get', '/api/settings/base-info/code/excel', 'CodeController@apiDownloadExcel', 'code.view', ['view'], true],
+    ['post', '/api/settings/base-info/code/excel-upload', 'CodeController@apiExcelUpload', 'code.save', ['save'], true],
 ];
 
-foreach ($codeBaseInfoRedirectRoutes as [$method, $path, $key, $permissions, $log]) {
-    $router->{$method}($path, 'CodeController@redirectBaseInfoApi', [
+foreach ($codeBaseInfoCompatRoutes as [$method, $path, $action, $key, $permissions, $log]) {
+    $router->{$method}($path, $action, [
         'key' => $key,
-        'name' => '기준정보 이전 경로 리다이렉트',
-        'description' => '기존 base-info 기준정보 API를 system 경로로 리다이렉트',
+        'name' => '기준정보 이전 경로 호환',
+        'description' => '기존 base-info 기준정보 API 호환',
         'category' => '시스템설정',
         'auth' => true,
         'permissions' => $permissions,
@@ -2594,6 +2594,16 @@ $router->get('/api/ledger/sub-account/list', 'SubChartAccountController@apiList'
     'log'         => false,
 ]);
 
+$router->get('/api/account/sub-accounts', 'SubChartAccountController@apiList', [
+    'key'         => 'api.account.sub_accounts.list',
+    'name'        => '계정별 보조계정 정책 조회',
+    'description' => '전표 입력 계정별 보조계정 정책 조회',
+    'category'    => '회계관리',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
 $router->post('/api/ledger/sub-account/save', 'SubChartAccountController@apiSave', [
     'key'         => 'api.ledger.sub_account.save',
     'name'        => '보조계정 저장',
@@ -2644,20 +2654,40 @@ $router->get('/api/ledger/voucher/detail', 'VoucherController@apiDetail', [
     'log'         => true,
 ]);
 
-$router->get('/api/ledger/voucher/trash', 'VoucherController@apiTrashList', [
-    'key'         => 'api.ledger.voucher.trash',
-    'name'        => '일반전표 휴지통 조회',
-    'description' => '일반전표 휴지통 조회',
+$router->get('/api/ledger/voucher/summary-search', 'VoucherController@apiSummarySearch', [
+    'key'         => 'api.ledger.voucher.summary_search',
+    'name'        => '일반전표 적요 자동완성 검색',
+    'description' => '기존 전표 적요 자동완성 후보 검색',
     'category'    => '회계관리',
     'auth'        => true,
     'permissions' => ['view'],
-    'log'         => true,
+    'log'         => false,
 ]);
 
 $router->post('/api/ledger/voucher/save', 'VoucherController@apiSave', [
     'key'         => 'api.ledger.voucher.save',
     'name'        => '일반전표 저장',
     'description' => '일반전표 저장',
+    'category'    => '회계관리',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/voucher/reorder', 'VoucherController@apiReorder', [
+    'key'         => 'api.ledger.voucher.reorder',
+    'name'        => '일반전표 정렬 저장',
+    'description' => '일반전표 정렬 저장',
+    'category'    => '회계관리',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/voucher/status', 'VoucherController@apiUpdateStatus', [
+    'key'         => 'api.ledger.voucher.status',
+    'name'        => '일반전표 상태 변경',
+    'description' => '일반전표 상태 변경',
     'category'    => '회계관리',
     'auth'        => true,
     'permissions' => ['save'],
@@ -2691,6 +2721,16 @@ $router->post('/api/ledger/voucher/delete', 'VoucherController@apiDelete', [
     'log'         => true,
 ]);
 
+$router->get('/api/ledger/voucher/trash', 'VoucherController@apiTrashList', [
+    'key'         => 'api.ledger.voucher.trash',
+    'name'        => '일반전표 휴지통 조회',
+    'description' => '일반전표 휴지통 조회',
+    'category'    => '회계관리',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
 $router->post('/api/ledger/voucher/restore', 'VoucherController@apiRestore', [
     'key'         => 'api.ledger.voucher.restore',
     'name'        => '일반전표 복원',
@@ -2701,10 +2741,50 @@ $router->post('/api/ledger/voucher/restore', 'VoucherController@apiRestore', [
     'log'         => true,
 ]);
 
+$router->post('/api/ledger/voucher/restore-bulk', 'VoucherController@apiRestoreBulk', [
+    'key'         => 'api.ledger.voucher.restore_bulk',
+    'name'        => '일반전표 선택 복원',
+    'description' => '일반전표 선택 복원',
+    'category'    => '회계관리',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/voucher/restore-all', 'VoucherController@apiRestoreAll', [
+    'key'         => 'api.ledger.voucher.restore_all',
+    'name'        => '일반전표 전체 복원',
+    'description' => '일반전표 전체 복원',
+    'category'    => '회계관리',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
 $router->post('/api/ledger/voucher/purge', 'VoucherController@apiPurge', [
     'key'         => 'api.ledger.voucher.purge',
-    'name'        => '일반전표 완전 삭제',
-    'description' => '일반전표 완전 삭제',
+    'name'        => '일반전표 영구삭제',
+    'description' => '일반전표 영구삭제',
+    'category'    => '회계관리',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/voucher/purge-bulk', 'VoucherController@apiPurgeBulk', [
+    'key'         => 'api.ledger.voucher.purge_bulk',
+    'name'        => '일반전표 선택 영구삭제',
+    'description' => '일반전표 선택 영구삭제',
+    'category'    => '회계관리',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/voucher/purge-all', 'VoucherController@apiPurgeAll', [
+    'key'         => 'api.ledger.voucher.purge_all',
+    'name'        => '일반전표 전체 영구삭제',
+    'description' => '일반전표 전체 영구삭제',
     'category'    => '회계관리',
     'auth'        => true,
     'permissions' => ['delete'],

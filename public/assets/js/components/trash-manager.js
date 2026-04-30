@@ -1,4 +1,4 @@
-// 경로: /assets/js/components/trash-manager.js
+// 寃쎈줈: /assets/js/components/trash-manager.js
 (() => {
     "use strict";
 
@@ -7,7 +7,7 @@
     const trashCacheMap = new Map();
 
     /* =========================
-     * 1. 모달 열릴 때 초기화 + 로딩
+     * 1. 紐⑤떖 ?대┫ ??珥덇린??+ 濡쒕뵫
      ========================= */
     document.addEventListener('shown.bs.modal', function (e) {
 
@@ -32,7 +32,7 @@
     });
 
     /* =========================
-     * 2. 휴지통 버튼 클릭 → preload
+     * 2. ?댁???踰꾪듉 ?대┃ ??preload
      ========================= */
     document.addEventListener('click', function(e){
 
@@ -47,7 +47,7 @@
 
 
     /* =========================
-    * 3. 행 클릭 → 상세 열기 / 외부 클릭 → 닫기
+    * 3. ???대┃ ???곸꽭 ?닿린 / ?몃? ?대┃ ???リ린
     ========================= */
     document.addEventListener('click', function (e) {
 
@@ -64,15 +64,15 @@
         const btn = e.target.closest('button');
         const cb  = e.target.closest('.trash-check, .trash-check-all');
 
-        /* 버튼 / 체크박스 클릭 → 무시 */
+        /* 踰꾪듉 / 泥댄겕諛뺤뒪 ?대┃ ??臾댁떆 */
         if (btn || cb) return;
 
-        /* 🔥 1. 상세패널 클릭 → 닫지 않음 */
+        /* ?뵦 1. ?곸꽭?⑤꼸 ?대┃ ???レ? ?딆쓬 */
         if (e.target.closest('.trash-detail')) {
             return;
         }
 
-        /* 🔥 2. 행 클릭 → 열기 */
+        /* ?뵦 2. ???대┃ ???닿린 */
         if (row && row.closest('.trash-table')) {
 
             table.querySelectorAll('tbody tr')
@@ -104,13 +104,13 @@
             return;
         }
 
-        /* 🔥 3. 그 외 영역 클릭 → 닫기 */
+        /* ?뵦 3. 洹????곸뿭 ?대┃ ???リ린 */
         layout.classList.remove('open');
         detail.style.display = 'none';
     });
 
     /* =========================
-     * 4. ESC → 상세 닫기
+     * 4. ESC ???곸꽭 ?リ린
      ========================= */
     document.addEventListener('keydown', function (e) {
 
@@ -127,7 +127,7 @@
     });
 
     /* =========================
-     * 5. 복원 / 삭제 / 벌크
+     * 5. 蹂듭썝 / ??젣 / 踰뚰겕
      ========================= */
     document.addEventListener('click', async function (e) {
 
@@ -138,7 +138,7 @@
         const deleteUrl    = modal.dataset.deleteUrl;
         const deleteAllUrl = modal.dataset.deleteAllUrl;
 
-        /* 단일 복원 */
+        /* ?⑥씪 蹂듭썝 */
         const restoreBtn = e.target.closest('.btn-restore');
         if (restoreBtn) {
 
@@ -164,7 +164,7 @@
             return;
         }
 
-        /* 단일 삭제 */
+        /* ?⑥씪 ??젣 */
         const deleteBtn = e.target.closest('.btn-purge');
         if (deleteBtn) {
 
@@ -172,7 +172,7 @@
             e.stopPropagation();
 
             const id = deleteBtn.dataset.id;
-            if (!id || !confirm('삭제하시겠습니까?')) return;
+            if (!id || !confirm('영구삭제하시겠습니까?')) return;
 
             const res = await fetch(deleteUrl, {
                 method: 'POST',
@@ -183,19 +183,19 @@
             const json = await res.json();
 
             if (json.success) {
-                AppCore?.notify('success', '삭제 완료');
+                AppCore?.notify('success', '영구삭제 완료');
                 triggerChange(modal);
             }
 
             return;
         }
 
-        /* 선택 복원 */
+        /* ?좏깮 蹂듭썝 */
         if (e.target.closest('.btn-restore-selected')) {
 
             const ids = getSelectedIds(modal, 'restore');
-            if (!ids.length) return AppCore?.notify('warning', '선택 없음');
-            if (!confirm('선택 복원하시겠습니까?')) return;
+            if (!ids.length) return AppCore?.notify('warning', '선택된 항목이 없습니다.');
+            if (!confirm('선택 항목을 복원하시겠습니까?')) return;
 
             const res = await fetch(restoreUrl + '-bulk', {
                 method: 'POST',
@@ -213,12 +213,12 @@
             return;
         }
 
-        /* 선택 삭제 */
+        /* ?좏깮 ??젣 */
         if (e.target.closest('.btn-delete-selected')) {
 
             const ids = getSelectedIds(modal, 'delete');
-            if (!ids.length) return AppCore?.notify('warning', '선택 없음');
-            if (!confirm('선택 삭제하시겠습니까?')) return;
+            if (!ids.length) return AppCore?.notify('warning', '선택된 항목이 없습니다.');
+            if (!confirm('선택 항목을 영구삭제하시겠습니까?')) return;
 
             const res = await fetch(deleteUrl + '-bulk', {
                 method: 'POST',
@@ -229,16 +229,16 @@
             const json = await res.json();
 
             if (json.success) {
-                AppCore?.notify('success', '선택 삭제 완료');
+                AppCore?.notify('success', '선택 영구삭제 완료');
                 triggerChange(modal);
             }
 
             return;
         }
-        /* 전체 복원 */
+        /* ?꾩껜 蹂듭썝 */
         if (e.target.closest('.btn-restore-all')) {
 
-            if (!confirm('전체 복원하시겠습니까?')) return;
+            if (!confirm('전체 항목을 복원하시겠습니까?')) return;
 
             const restoreAllUrl = restoreUrl + '-all';
 
@@ -255,16 +255,16 @@
 
             return;
         }
-        /* 전체 삭제 */
+        /* ?꾩껜 ??젣 */
         if (e.target.closest('.btn-delete-all')) {
 
-            if (!confirm('전체 삭제하시겠습니까?')) return;
+            if (!confirm('전체 항목을 영구삭제하시겠습니까?')) return;
 
             const res = await fetch(deleteAllUrl, { method: 'POST' });
             const json = await res.json();
 
             if (json.success) {
-                AppCore?.notify('success', '전체 삭제 완료');
+                AppCore?.notify('success', '전체 영구삭제 완료');
                 triggerChange(modal);
             }
 
@@ -273,7 +273,7 @@
     });
 
     /* =========================
-     * 6. 체크 전체 선택
+     * 6. 泥댄겕 ?꾩껜 ?좏깮
      ========================= */
     document.addEventListener('change', function (e) {
 
@@ -288,7 +288,7 @@
     });
 
     /* =========================
-     * 7. 변경 이벤트 (캐시만 처리)
+     * 7. 蹂寃??대깽??(罹먯떆留?泥섎━)
      ========================= */
     document.addEventListener('trash:changed', (e) => {
 
@@ -297,7 +297,7 @@
     });
 
     /* =========================
-     * 공통 함수
+     * 怨듯넻 ?⑥닔
      ========================= */
 
     function triggerChange(modal){

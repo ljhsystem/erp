@@ -171,6 +171,11 @@
     border-radius:8px;
 }
 
+#modal-subaccount-table{
+    min-width:760px;
+    table-layout:fixed;
+}
+
 #modal-subaccount-table th{
     position:sticky;
     top:0;
@@ -182,6 +187,12 @@
 
 #modal-subaccount-table td{
     background:#fff;
+}
+
+#modal-subaccount-table .form-control-sm,
+#modal-subaccount-table .form-select-sm{
+    min-height:32px;
+    font-size:13px;
 }
 
 #modal-subaccount-table .btnEditSubAccount{
@@ -550,27 +561,33 @@
 ========================= */
 
 .account-split-layout{
-    display:flex;
+    display:grid;
+    grid-template-columns:minmax(0, 1fr);
     gap:15px;
     align-items:stretch;
     width:100%;
     min-height:520px;
+    min-width:0;
 }
 
 /* ?ル슣瑜??④쑴?????뵠??*/
 
 .account-left-panel{
-    flex:1 1 auto;
     min-width:0;
+    max-width:100%;
 }
 
 /* ?怨쀫? 癰귣똻?쒏④쑴??*/
 
 .account-right-panel{
-    flex:0 0 26%;
-    min-width:360px;
-    max-width:480px;
+    width:100%;
+    min-width:460px;
+    max-width:560px;
     display:none;
+}
+
+.account-split-layout.subaccount-open{
+    grid-template-columns:minmax(0, 1fr) clamp(460px, 34vw, 560px);
 }
 
 .account-split-layout.subaccount-open .account-right-panel{
@@ -578,7 +595,28 @@
 }
 
 .account-split-layout.subaccount-open .account-left-panel{
-    flex:1 1 74%;
+    min-width:0;
+}
+
+.account-left-panel .table-box{
+    max-width:100%;
+    min-width:0;
+    overflow:visible;
+    -webkit-overflow-scrolling:touch;
+}
+
+.account-main .dataTables_wrapper,
+.account-main .dataTables_scroll,
+.account-main .dataTables_scrollBody{
+    overflow:visible !important;
+}
+
+.account-left-panel #account-table{
+    min-width:930px;
+}
+
+.account-split-layout.subaccount-open .account-left-panel #account-table{
+    min-width:900px;
 }
 /* 癰귣똻?쒏④쑴??獄쏅벡??*/
 
@@ -607,6 +645,7 @@
 .subaccount-table-wrap{
     flex:1;
     overflow:auto;
+    max-width:100%;
 }
 
 /* 癰귣똻?쒏④쑴?????뵠??*/
@@ -614,11 +653,52 @@
 #subaccount-table{
     background:#fff;
     margin-bottom:0;
+    min-width:100%;
+    table-layout:fixed;
 }
 
 #subaccount-table th{
     background:#e9ecef;
     font-weight:600;
+    white-space:nowrap;
+}
+
+#subaccount-table th:nth-child(1),
+#subaccount-table td:nth-child(1){
+    width:60px;
+}
+
+#subaccount-table th:nth-child(3),
+#subaccount-table td:nth-child(3){
+    width:112px;
+}
+
+#subaccount-table th:nth-child(4),
+#subaccount-table td:nth-child(4){
+    width:104px;
+}
+
+#subaccount-table td{
+    vertical-align:middle;
+}
+
+#subaccount-table .sub-new-required-select,
+#subaccount-table .sub-edit-required-select{
+    min-width:86px;
+}
+
+#subaccount-table td:nth-child(4){
+    white-space:normal;
+}
+
+#subaccount-table td:nth-child(4) .btn{
+    display:block;
+    width:64px;
+    max-width:100%;
+    padding:4px 7px;
+    margin:2px auto;
+    font-size:12px;
+    line-height:1.2;
 }
 
 /* =========================
@@ -693,12 +773,16 @@
 @media (max-width:1200px){
 
     .account-split-layout{
-        flex-direction:column;
+        grid-template-columns:minmax(0, 1fr);
+    }
+
+    .account-split-layout.subaccount-open{
+        grid-template-columns:minmax(0, 1fr);
     }
 
     .account-left-panel,
     .account-right-panel{
-        flex:0 0 100%;
+        min-width:0;
         max-width:100%;
     }
 
