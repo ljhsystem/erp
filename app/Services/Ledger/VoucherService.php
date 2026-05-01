@@ -850,13 +850,10 @@ class VoucherService
 
         $ok = $this->transactionLinkModel->insert([
             'id' => UuidHelper::generate(),
-            'sort_no' => null,
             'transaction_id' => $transactionId,
             'voucher_id' => $voucherId,
             'link_type' => 'MANUAL',
             'is_active' => 1,
-            'note' => null,
-            'memo' => null,
             'created_at' => $timestamp,
             'created_by' => $actor,
             'updated_at' => $timestamp,

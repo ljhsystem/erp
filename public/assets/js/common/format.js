@@ -64,6 +64,20 @@ export function formatDateDisplay(val) {
     return value;
 }
 
+export function formatDateInputValue(val) {
+    const digits = onlyNumber(val).slice(0, 8);
+
+    if (digits.length <= 4) {
+        return digits;
+    }
+
+    if (digits.length <= 6) {
+        return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+    }
+
+    return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
+}
+
 export function formatAmount(val) {
     const num = Number(
         String(val ?? '')

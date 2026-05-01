@@ -46,7 +46,7 @@ class TransactionLinkModel
             $params[':is_active'] = (int) $filters['is_active'];
         }
 
-        $sql .= " ORDER BY sort_no DESC, created_at DESC";
+        $sql .= " ORDER BY created_at DESC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -74,7 +74,7 @@ class TransactionLinkModel
             FROM {$this->table}
             WHERE transaction_id = :transaction_id
               AND deleted_at IS NULL
-            ORDER BY sort_no DESC, created_at ASC
+            ORDER BY created_at ASC
         ");
         $stmt->execute([':transaction_id' => $transactionId]);
 
@@ -88,7 +88,7 @@ class TransactionLinkModel
             FROM {$this->table}
             WHERE voucher_id = :voucher_id
               AND deleted_at IS NULL
-            ORDER BY sort_no DESC, created_at ASC
+            ORDER BY created_at ASC
         ");
         $stmt->execute([':voucher_id' => $voucherId]);
 
@@ -116,13 +116,11 @@ class TransactionLinkModel
     {
         $allowed = [
             'id',
-            'sort_no',
             'transaction_id',
             'voucher_id',
+            'match_amount',
             'link_type',
             'is_active',
-            'note',
-            'memo',
             'created_at',
             'created_by',
             'updated_at',
@@ -157,10 +155,9 @@ class TransactionLinkModel
         $allowed = [
             'transaction_id',
             'voucher_id',
+            'match_amount',
             'link_type',
             'is_active',
-            'note',
-            'memo',
             'updated_at',
             'updated_by',
             'deleted_at',

@@ -1099,12 +1099,12 @@ $router->get('/ledger/journal', 'LedgerController@webJournal', [
 ]);
 
 // ============================================================
-// 거래내역
+// 거래입력 단일 페이지(기존 거래내역 호환 경로)
 // ============================================================
 $router->get('/ledger/transaction', 'TransactionController@webLedgerTransaction', [
     'key'         => 'web.ledger.transaction.index',
-    'name'        => '거래내역',
-    'description' => '회계관리 거래내역 화면',
+    'name'        => '거래입력',
+    'description' => '회계관리 거래입력 단일 화면',
     'category'    => '회계관리',
     'auth'        => true,
     'permissions' => ['view'],
@@ -1210,8 +1210,8 @@ $router->get('/institution', 'InstitutionController@webIndex', [
 // ============================================================
 $router->get('/site/entry', 'TransactionController@webTransaction', [
     'key'         => 'web.site.entry.index',
-    'name'        => '현장입력내역',
-    'description' => '현장 입력 데이터 목록 화면',
+    'name'        => '거래입력',
+    'description' => '거래입력 단일 화면',
     'category'    => '현장관리',
     'auth'        => true,
     'permissions' => ['view'],
@@ -1223,8 +1223,8 @@ $router->get('/site/entry', 'TransactionController@webTransaction', [
 // ============================================================
 $router->get('/site/entry/create', 'TransactionController@webCreate', [
     'key'         => 'web.site.entry.create',
-    'name'        => '현장입력',
-    'description' => '현장 입력 데이터 등록 화면',
+    'name'        => '거래입력',
+    'description' => '거래입력 단일 화면',
     'category'    => '현장관리',
     'auth'        => true,
     'permissions' => ['view'],

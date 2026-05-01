@@ -2664,6 +2664,16 @@ $router->get('/api/ledger/voucher/summary-search', 'VoucherController@apiSummary
     'log'         => false,
 ]);
 
+$router->get('/api/ledger/voucher/transaction-search', 'VoucherController@apiTransactionSearch', [
+    'key'         => 'api.ledger.voucher.transaction_search',
+    'name'        => '전표 거래 연결 검색',
+    'description' => '전표 입력 화면에서 연결할 거래를 검색',
+    'category'    => '회계관리',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
 $router->post('/api/ledger/voucher/save', 'VoucherController@apiSave', [
     'key'         => 'api.ledger.voucher.save',
     'name'        => '일반전표 저장',
@@ -2814,6 +2824,16 @@ $router->get('/api/ledger/transaction/list', 'TransactionController@apiList', [
     'log'         => false,
 ]);
 
+$router->post('/api/ledger/transaction/reorder', 'TransactionController@apiReorder', [
+    'key'         => 'api.ledger.transaction.reorder',
+    'name'        => '거래 정렬 저장',
+    'description' => '거래 정렬 저장',
+    'category'    => '회계관리',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
 // ============================================================
 // 거래 상세 조회
 // ============================================================
@@ -2830,6 +2850,16 @@ $router->get('/api/ledger/transaction/detail', 'TransactionController@apiDetail'
 // ============================================================
 // 거래 저장
 // ============================================================
+$router->get('/api/ledger/transaction/file', 'TransactionController@apiFile', [
+    'key'         => 'api.ledger.transaction.file',
+    'name'        => '거래 첨부 파일 확인',
+    'description' => '거래 첨부 파일 확인',
+    'category'    => '회계관리',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
 $router->post('/api/ledger/transaction/save', 'TransactionController@apiSave', [
     'key'         => 'api.ledger.transaction.save',
     'name'        => '거래 저장',
@@ -2850,5 +2880,105 @@ $router->post('/api/ledger/transaction/create-voucher', 'TransactionController@a
     'category'    => '회계관리',
     'auth'        => true,
     'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/transaction/link-voucher', 'TransactionController@apiLinkVoucher', [
+    'key'         => 'api.ledger.transaction.link_voucher',
+    'name'        => '거래 전표 연결',
+    'description' => '거래에 기존 전표 연결',
+    'category'    => '회계관리',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/transaction/unlink-voucher', 'TransactionController@apiUnlinkVoucher', [
+    'key'         => 'api.ledger.transaction.unlink_voucher',
+    'name'        => '거래 전표 연결 해제',
+    'description' => '거래에 연결된 전표 연결 해제',
+    'category'    => '회계관리',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/transaction/delete', 'TransactionController@apiDelete', [
+    'key'         => 'api.ledger.transaction.delete',
+    'name'        => '거래 삭제',
+    'description' => '거래 삭제 및 전표 연결 해제',
+    'category'    => '회계관리',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+$router->get('/api/ledger/transaction/trash', 'TransactionController@apiTrashList', [
+    'key'         => 'api.ledger.transaction.trash',
+    'name'        => '거래 휴지통 조회',
+    'description' => '삭제된 거래 조회',
+    'category'    => '회계관리',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/transaction/restore', 'TransactionController@apiRestore', [
+    'key'         => 'api.ledger.transaction.restore',
+    'name'        => '거래 복원',
+    'description' => '삭제된 거래 복원',
+    'category'    => '회계관리',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/transaction/restore-bulk', 'TransactionController@apiRestoreBulk', [
+    'key'         => 'api.ledger.transaction.restore_bulk',
+    'name'        => '거래 선택 복원',
+    'description' => '삭제된 거래 선택 복원',
+    'category'    => '회계관리',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/transaction/restore-all', 'TransactionController@apiRestoreAll', [
+    'key'         => 'api.ledger.transaction.restore_all',
+    'name'        => '거래 전체 복원',
+    'description' => '삭제된 거래 전체 복원',
+    'category'    => '회계관리',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/transaction/purge', 'TransactionController@apiPurge', [
+    'key'         => 'api.ledger.transaction.purge',
+    'name'        => '거래 영구 삭제',
+    'description' => '삭제된 거래 영구 삭제',
+    'category'    => '회계관리',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/transaction/purge-bulk', 'TransactionController@apiPurgeBulk', [
+    'key'         => 'api.ledger.transaction.purge_bulk',
+    'name'        => '거래 선택 영구 삭제',
+    'description' => '삭제된 거래 선택 영구 삭제',
+    'category'    => '회계관리',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/transaction/purge-all', 'TransactionController@apiPurgeAll', [
+    'key'         => 'api.ledger.transaction.purge_all',
+    'name'        => '거래 전체 영구 삭제',
+    'description' => '삭제된 거래 전체 영구 삭제',
+    'category'    => '회계관리',
+    'auth'        => true,
+    'permissions' => ['delete'],
     'log'         => true,
 ]);

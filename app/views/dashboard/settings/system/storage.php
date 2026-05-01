@@ -26,6 +26,87 @@ function check_dir_status(string $dir): array
 }
 ?>
 
+<style>
+    #storage-settings-wrapper .file-policy-table-wrap {
+        overflow-x: auto;
+    }
+
+    #storage-settings-wrapper .file-policy-table {
+        width: 100%;
+        table-layout: fixed;
+    }
+
+    #storage-settings-wrapper .file-policy-table th,
+    #storage-settings-wrapper .file-policy-table td {
+        vertical-align: middle;
+    }
+
+    #storage-settings-wrapper .policy-col-name {
+        width: 9%;
+    }
+
+    #storage-settings-wrapper .policy-col-bucket {
+        width: 12%;
+    }
+
+    #storage-settings-wrapper .policy-col-ext {
+        width: 11%;
+    }
+
+    #storage-settings-wrapper .policy-col-mime {
+        width: 21%;
+    }
+
+    #storage-settings-wrapper .policy-col-description {
+        width: 18%;
+    }
+
+    #storage-settings-wrapper .policy-col-size {
+        width: 7%;
+    }
+
+    #storage-settings-wrapper .policy-col-status {
+        width: 5%;
+    }
+
+    #storage-settings-wrapper .policy-col-actions {
+        width: 17%;
+    }
+
+    #storage-settings-wrapper .policy-description-cell {
+        line-height: 1.45;
+        white-space: normal;
+        word-break: keep-all;
+    }
+
+    #storage-settings-wrapper .policy-actions-cell {
+        padding-left: 6px;
+        padding-right: 6px;
+        white-space: nowrap;
+    }
+
+    #storage-settings-wrapper .policy-action-buttons {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 4px;
+        width: 100%;
+    }
+
+    #storage-settings-wrapper .policy-action-buttons .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 0;
+        width: 100%;
+        min-height: 34px;
+        padding: 6px 3px;
+        font-size: 12px;
+        line-height: 1.15;
+        text-align: center;
+        white-space: nowrap;
+    }
+</style>
+
 <div id="storage-settings-wrapper" class="storage-settings col-12 mx-auto">
     <h4 class="fw-bold mb-4 text-dark">
         <i class="bi bi-hdd-stack me-2"></i>파일저장소 관리
@@ -143,8 +224,18 @@ function check_dir_status(string $dir): array
                 <i class="bi bi-plus-circle me-1"></i>정책 추가
             </button>
         </div>
-        <div class="card-body p-0">
-            <table class="table table-bordered table-sm align-middle mb-0">
+        <div class="card-body p-0 file-policy-table-wrap">
+            <table class="table table-bordered table-sm align-middle mb-0 file-policy-table">
+                <colgroup>
+                    <col class="policy-col-name">
+                    <col class="policy-col-bucket">
+                    <col class="policy-col-ext">
+                    <col class="policy-col-mime">
+                    <col class="policy-col-description">
+                    <col class="policy-col-size">
+                    <col class="policy-col-status">
+                    <col class="policy-col-actions">
+                </colgroup>
                 <thead class="table-light">
                     <tr>
                         <th>정책명</th>

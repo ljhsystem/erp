@@ -111,15 +111,13 @@ function openSharedDatePicker(input) {
 
 function bindModalDateInputs(modalEl) {
     modalEl.querySelectorAll('.admin-date').forEach((input) => {
-        if (input.dataset.datePickerBound === 'true') {
+        if (input.dataset.dateInputFormatBound === 'true') {
             return;
         }
 
-        input.dataset.datePickerBound = 'true';
-        input.addEventListener('click', (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            openSharedDatePicker(input);
+        input.dataset.dateInputFormatBound = 'true';
+        input.addEventListener('input', () => {
+            input.value = formatDateInputValue(input.value);
         });
     });
 
@@ -138,6 +136,20 @@ function bindModalDateInputs(modalEl) {
             openSharedDatePicker(input);
         });
     });
+}
+
+function formatDateInputValue(value) {
+    const digits = onlyNumber(value).slice(0, 8);
+
+    if (digits.length <= 4) {
+        return digits;
+    }
+
+    if (digits.length <= 6) {
+        return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+    }
+
+    return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
 }
 
 function setSelect2SingleValue(selectEl, value, text = '') {

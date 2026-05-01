@@ -33,14 +33,9 @@ class TransactionModel
 
         $params = [];
 
-        if (!empty($filters['source_type'])) {
-            $sql .= " AND t.source_type = :source_type";
-            $params[':source_type'] = $filters['source_type'];
-        }
-
-        if (!empty($filters['work_unit'])) {
-            $sql .= " AND t.work_unit = :work_unit";
-            $params[':work_unit'] = $filters['work_unit'];
+        if (!empty($filters['business_unit'])) {
+            $sql .= " AND t.business_unit = :business_unit";
+            $params[':business_unit'] = $filters['business_unit'];
         }
 
         if (!empty($filters['transaction_type'])) {
@@ -53,19 +48,14 @@ class TransactionModel
             $params[':status'] = $filters['status'];
         }
 
-        if (!empty($filters['doc_status'])) {
-            $sql .= " AND t.doc_status = :doc_status";
-            $params[':doc_status'] = $filters['doc_status'];
-        }
-
         if (!empty($filters['match_status'])) {
             $sql .= " AND t.match_status = :match_status";
             $params[':match_status'] = $filters['match_status'];
         }
 
-        if (!empty($filters['acct_status'])) {
-            $sql .= " AND t.acct_status = :acct_status";
-            $params[':acct_status'] = $filters['acct_status'];
+        if (!empty($filters['tax_type'])) {
+            $sql .= " AND t.tax_type = :tax_type";
+            $params[':tax_type'] = $filters['tax_type'];
         }
 
         if (!empty($filters['project_id'])) {
@@ -88,7 +78,63 @@ class TransactionModel
             $params[':date_to'] = $filters['date_to'];
         }
 
-        $sql .= " ORDER BY t.sort_no DESC, t.transaction_date DESC, t.created_at DESC";
+        if (!empty($filters['updated_from'])) {
+            $sql .= " AND t.updated_at >= :updated_from";
+            $params[':updated_from'] = $filters['updated_from'];
+        }
+
+        if (!empty($filters['updated_to'])) {
+            $sql .= " AND t.updated_at <= :updated_to";
+            $params[':updated_to'] = $filters['updated_to'];
+        }
+
+        if (!empty($filters['search_conditions']) && is_array($filters['search_conditions'])) {
+            $fieldMap = [
+                'sort_no' => 't.sort_no',
+                'business_unit' => 't.business_unit',
+                'transaction_type' => 't.transaction_type',
+                'transaction_date' => 't.transaction_date',
+                'project_id' => 't.project_id',
+                'project_name' => 'sp.project_name',
+                'client_id' => 't.client_id',
+                'client_name' => 'sc.client_name',
+                'tax_type' => 't.tax_type',
+                'supply_amount' => 't.supply_amount',
+                'vat_amount' => 't.vat_amount',
+                'total_amount' => 't.total_amount',
+                'description' => 't.description',
+                'currency' => 't.currency',
+                'exchange_rate' => 't.exchange_rate',
+                'status' => 't.status',
+                'match_status' => 't.match_status',
+                'note' => 't.note',
+                'memo' => 't.memo',
+                'created_at' => 't.created_at',
+                'created_by' => 't.created_by',
+                'updated_at' => 't.updated_at',
+                'updated_by' => 't.updated_by',
+                'deleted_at' => 't.deleted_at',
+                'deleted_by' => 't.deleted_by',
+            ];
+
+            foreach ($filters['search_conditions'] as $index => $condition) {
+                if (!is_array($condition)) {
+                    continue;
+                }
+
+                $field = (string) ($condition['field'] ?? '');
+                $value = trim((string) ($condition['value'] ?? ''));
+                if ($value === '' || !isset($fieldMap[$field])) {
+                    continue;
+                }
+
+                $param = ':search_' . $index;
+                $sql .= " AND {$fieldMap[$field]} LIKE {$param}";
+                $params[$param] = '%' . $value . '%';
+            }
+        }
+
+        $sql .= " ORDER BY t.sort_no ASC, t.transaction_date ASC, t.created_at ASC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -102,8 +148,9 @@ class TransactionModel
             SELECT *
             FROM {$this->table}
             WHERE deleted_at IS NULL
-              AND acct_status = 'unposted'
-            ORDER BY sort_no DESC, transaction_date DESC, created_at DESC
+              AND status = 'draft'
+              AND match_status = 'none'
+            ORDER BY sort_no ASC, transaction_date ASC, created_at ASC
         ");
         $stmt->execute();
 
@@ -135,37 +182,20 @@ class TransactionModel
         $allowed = [
             'id',
             'sort_no',
-            'work_unit',
-            'source_type',
-            'transaction_type',
             'transaction_date',
-            'project_id',
+            'business_unit',
+            'transaction_type',
             'client_id',
-            'bank_account_id',
-            'card_id',
-            'employee_id',
-            'order_ref',
-            'document_type',
-            'document_no',
-            'ref_type',
+            'project_id',
+            'currency',
+            'exchange_rate',
             'tax_type',
-            'item_summary',
-            'description',
-            'specification',
-            'unit_name',
-            'quantity',
-            'unit_price',
             'supply_amount',
             'vat_amount',
             'total_amount',
-            'currency',
-            'exchange_rate',
+            'description',
             'status',
-            'doc_status',
             'match_status',
-            'acct_status',
-            'is_active',
-            'evidence_file_path',
             'note',
             'memo',
             'created_at',
@@ -178,7 +208,7 @@ class TransactionModel
 
         $payload = $this->filterData($data, $allowed);
 
-        if (!isset($payload['id'], $payload['source_type'], $payload['transaction_type'], $payload['transaction_date'])) {
+        if (!isset($payload['id'], $payload['business_unit'], $payload['transaction_type'], $payload['transaction_date'])) {
             return false;
         }
 
@@ -200,37 +230,20 @@ class TransactionModel
     public function update(string $id, array $data): bool
     {
         $allowed = [
-            'source_type',
-            'work_unit',
+            'business_unit',
             'transaction_type',
             'transaction_date',
-            'project_id',
             'client_id',
-            'bank_account_id',
-            'card_id',
-            'employee_id',
-            'order_ref',
-            'document_type',
-            'document_no',
-            'ref_type',
+            'project_id',
+            'currency',
+            'exchange_rate',
             'tax_type',
-            'item_summary',
-            'description',
-            'specification',
-            'unit_name',
-            'quantity',
-            'unit_price',
             'supply_amount',
             'vat_amount',
             'total_amount',
-            'currency',
-            'exchange_rate',
+            'description',
             'status',
-            'doc_status',
             'match_status',
-            'acct_status',
-            'is_active',
-            'evidence_file_path',
             'note',
             'memo',
             'updated_at',
@@ -268,8 +281,7 @@ class TransactionModel
     {
         $stmt = $this->db->prepare("
             UPDATE {$this->table}
-            SET is_active = 0,
-                deleted_at = NOW()
+            SET deleted_at = NOW()
             WHERE id = :id
               AND deleted_at IS NULL
         ");
@@ -281,8 +293,7 @@ class TransactionModel
     {
         $stmt = $this->db->prepare("
             UPDATE {$this->table}
-            SET is_active = 1,
-                deleted_at = NULL,
+            SET deleted_at = NULL,
                 deleted_by = NULL
             WHERE id = :id
         ");
@@ -298,6 +309,20 @@ class TransactionModel
         ");
 
         return $stmt->execute([':id' => $id]);
+    }
+
+    public function updateSortNo(string $id, string|int $newSortNo): bool
+    {
+        $stmt = $this->db->prepare("
+            UPDATE {$this->table}
+            SET sort_no = :sort_no
+            WHERE id = :id
+        ");
+
+        return $stmt->execute([
+            ':sort_no' => (int) $newSortNo,
+            ':id' => $id,
+        ]);
     }
 
     private function filterData(array $data, array $allowed): array

@@ -258,17 +258,19 @@
                 <td><code>${escapeHtml(policy.bucket || '-')}</code></td>
                 <td>${escapeHtml(policy.allowed_ext || '-')}</td>
                 <td>${policy.allowed_mime ? `<small>${escapeHtml(policy.allowed_mime)}</small>` : '<span class="text-muted">자동</span>'}</td>
-                <td>${policy.description ? `<small>${escapeHtml(policy.description)}</small>` : '<span class="text-muted">-</span>'}</td>
+                <td class="policy-description-cell">${policy.description ? `<small>${escapeHtml(policy.description)}</small>` : '<span class="text-muted">-</span>'}</td>
                 <td class="text-center">${escapeHtml(String(policy.max_size_mb ?? '-'))}</td>
                 <td class="text-center">
                     <span class="badge ${active ? 'bg-success' : 'bg-secondary'}">${active ? '활성' : '비활성'}</span>
                 </td>
-                <td class="text-center">
-                    <button class="btn btn-sm btn-outline-secondary btn-edit" type="button" data-id="${escapeHtml(policy.id)}">수정</button>
-                    <button class="btn btn-sm btn-outline-warning btn-toggle" type="button" data-id="${escapeHtml(policy.id)}" data-active="${active ? '1' : '0'}">
-                        ${active ? '비활성' : '활성'}
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger btn-delete" type="button" data-id="${escapeHtml(policy.id)}">삭제</button>
+                <td class="text-center policy-actions-cell">
+                    <div class="policy-action-buttons">
+                        <button class="btn btn-sm btn-outline-secondary btn-edit" type="button" data-id="${escapeHtml(policy.id)}">수정</button>
+                        <button class="btn btn-sm btn-outline-warning btn-toggle" type="button" data-id="${escapeHtml(policy.id)}" data-active="${active ? '1' : '0'}">
+                            ${active ? '비활성' : '활성'}
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger btn-delete" type="button" data-id="${escapeHtml(policy.id)}">삭제</button>
+                    </div>
                 </td>
             </tr>
         `;

@@ -156,6 +156,18 @@ class VoucherController
         });
     }
 
+    public function apiCreateTransaction(): void
+    {
+        $this->jsonResponse(function (): array {
+            http_response_code(400);
+
+            return [
+                'success' => false,
+                'message' => '전표에서 거래를 생성할 수 없습니다. 거래입력 화면에서 전표를 생성하거나 연결해 주세요.',
+            ];
+        });
+    }
+
     public function apiSummarySearch(): void
     {
         $this->jsonResponse(function (): array {

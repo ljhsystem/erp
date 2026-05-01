@@ -67,18 +67,19 @@ function storage_bucket_map(): array
 {
     return [
         // Public
-        'public://profile'       => PUBLIC_UPLOADS . '/profile',
-        'public://covers'        => PUBLIC_UPLOADS . '/covers',
-        'public://business_cert' => PUBLIC_UPLOADS . '/business_cert',
-        'public://documents'     => PUBLIC_UPLOADS . '/documents',
-        'public://brand'         => PUBLIC_UPLOADS . '/brand',
+        'public://profile'           => PUBLIC_UPLOADS . '/profile',
+        'public://covers'            => PUBLIC_UPLOADS . '/covers',
+        'public://business_cert'     => PUBLIC_UPLOADS . '/business_cert',
+        'public://documents'         => PUBLIC_UPLOADS . '/documents',
+        'public://brand'             => PUBLIC_UPLOADS . '/brand',
 
         // Private
-        'private://certificate'  => STORAGE_UPLOADS . '/certificate',
-        'private://id_doc'       => STORAGE_UPLOADS . '/id_doc',
-        'private://raw'          => STORAGE_UPLOADS . '/raw',
-        'private://bank_file'    => STORAGE_UPLOADS . '/bank_file',
-        'private://card_file'    => STORAGE_UPLOADS . '/card_file',
+        'private://certificate'      => STORAGE_UPLOADS . '/certificate',
+        'private://id_doc'           => STORAGE_UPLOADS . '/id_doc',
+        'private://raw'              => STORAGE_UPLOADS . '/raw',
+        'private://bank_file'        => STORAGE_UPLOADS . '/bank_file',
+        'private://card_file'        => STORAGE_UPLOADS . '/card_file',
+        'private://transaction_file' => STORAGE_UPLOADS . '/transaction_file',
     ];
 }
 

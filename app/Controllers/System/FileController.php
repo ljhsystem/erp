@@ -55,6 +55,7 @@ class FileController
             'private://certificate/',
             'private://bank_file/',
             'private://card_file/',
+            'private://transaction_file',
             'public://profile/',
             'public://documents/',
             'public://business_cert/',

@@ -74,7 +74,6 @@ $link = static function (string $href, string $label, string $iconClass, string 
                 <a href="#menu-ledger-transaction" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-receipt') ?><span>거래관리</span></a>
                 <ul id="menu-ledger-transaction" class="collapse">
                     <li><?= $link('/ledger/transaction/create', '거래입력', 'bi-pencil-square') ?></li>
-                    <li><?= $link('/ledger/transaction', '거래내역', 'bi-list') ?></li>
                 </ul>
             </li>
             <li>
@@ -150,8 +149,7 @@ $link = static function (string $href, string $label, string $iconClass, string 
             <li><?= $link('/site/guarantee', '보증/보험관리', 'bi-shield-lock') ?></li>
             <li><?= $link('/site/progress', '기성예정내역', 'bi-list-task') ?></li>
             <li><?= $link('/site/construction_progress', '시공기성예정내역', 'bi-hammer') ?></li>
-            <li><?= $link('/site/transaction/create', '거래입력', 'bi-pencil-square') ?></li>
-            <li><?= $link('/site/transaction', '거래내역', 'bi-list') ?></li>
+            <li><?= $link('/site/entry/create', '거래입력', 'bi-pencil-square') ?></li>
             <li><?= $link('/site/safety', '안전관리', 'bi-cone-striped') ?></li>
         <?php elseif ($section === 'shop'): ?>
             <li><?= $link('/shop', '대시보드', 'bi-bag') ?></li>

@@ -7,7 +7,7 @@ use PDO;
 
 class TransactionItemModel
 {
-    protected string $table = 'ledger_transaction_items';
+    protected string $table = 'ledger_transaction_lines';
 
     private PDO $db;
 
@@ -36,12 +36,7 @@ class TransactionItemModel
             $params[':tax_type'] = $filters['tax_type'];
         }
 
-        if (isset($filters['is_active']) && $filters['is_active'] !== '') {
-            $sql .= " AND is_active = :is_active";
-            $params[':is_active'] = (int) $filters['is_active'];
-        }
-
-        $sql .= " ORDER BY sort_no DESC, transaction_id ASC, line_no ASC";
+        $sql .= " ORDER BY transaction_id ASC, sort_no ASC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -69,7 +64,7 @@ class TransactionItemModel
             FROM {$this->table}
             WHERE transaction_id = :transaction_id
               AND deleted_at IS NULL
-            ORDER BY sort_no DESC, line_no ASC
+            ORDER BY sort_no ASC, created_at ASC
         ");
         $stmt->execute([':transaction_id' => $transactionId]);
 
@@ -82,20 +77,19 @@ class TransactionItemModel
             'id',
             'sort_no',
             'transaction_id',
-            'line_no',
+            'item_date',
             'item_name',
             'specification',
             'unit_name',
             'quantity',
             'unit_price',
+            'foreign_unit_price',
+            'foreign_amount',
             'supply_amount',
             'vat_amount',
             'total_amount',
             'tax_type',
             'description',
-            'is_active',
-            'note',
-            'memo',
             'created_at',
             'created_by',
             'updated_at',
@@ -106,7 +100,7 @@ class TransactionItemModel
 
         $payload = $this->filterData($data, $allowed);
 
-        if (!isset($payload['id'], $payload['transaction_id'], $payload['line_no'], $payload['item_name'])) {
+        if (!isset($payload['id'], $payload['transaction_id'], $payload['sort_no'], $payload['item_date'], $payload['item_name'])) {
             return false;
         }
 
@@ -129,20 +123,20 @@ class TransactionItemModel
     {
         $allowed = [
             'transaction_id',
-            'line_no',
+            'sort_no',
+            'item_date',
             'item_name',
             'specification',
             'unit_name',
             'quantity',
             'unit_price',
+            'foreign_unit_price',
+            'foreign_amount',
             'supply_amount',
             'vat_amount',
             'total_amount',
             'tax_type',
             'description',
-            'is_active',
-            'note',
-            'memo',
             'updated_at',
             'updated_by',
             'deleted_at',
@@ -178,8 +172,7 @@ class TransactionItemModel
     {
         $stmt = $this->db->prepare("
             UPDATE {$this->table}
-            SET is_active = 0,
-                deleted_at = NOW()
+            SET deleted_at = NOW()
             WHERE id = :id
               AND deleted_at IS NULL
         ");
@@ -191,8 +184,7 @@ class TransactionItemModel
     {
         $stmt = $this->db->prepare("
             UPDATE {$this->table}
-            SET is_active = 1,
-                deleted_at = NULL,
+            SET deleted_at = NULL,
                 deleted_by = NULL
             WHERE id = :id
         ");

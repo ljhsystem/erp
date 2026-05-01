@@ -17,14 +17,23 @@
 
         trigger(){
 
-            if(this.handlers.length > 0){
+            for(let i = this.handlers.length - 1; i >= 0; i -= 1){
 
-                const top = this.handlers[this.handlers.length - 1];
+                const top = this.handlers[i];
 
-                if(top){
-                    top();
-                    return true;
+                if(!top){
+                    this.handlers.splice(i, 1);
+                    continue;
                 }
+
+                const result = top();
+
+                if(result === false){
+                    this.handlers.splice(i, 1);
+                    continue;
+                }
+
+                return true;
             }
 
             return false;
@@ -50,6 +59,19 @@
         const openModal = getTopVisibleModal();
     
         if(openModal){
+            const beforeCloseEvent = new CustomEvent('esc:modal-before-close', {
+                cancelable: true,
+                detail: { modal: openModal }
+            });
+            openModal.dispatchEvent(beforeCloseEvent);
+
+            if(beforeCloseEvent.defaultPrevented){
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                return;
+            }
+
             bootstrap.Modal.getOrCreateInstance(openModal, { focus: false })?.hide();
             e.preventDefault();
             e.stopPropagation();

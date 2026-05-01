@@ -32,13 +32,13 @@ HTML;
         <article class="site-dashboard-card">
             <h3>거래내역</h3>
             <p>현장 직원이 입력한 거래 데이터를 조회하고 수정할 수 있습니다.</p>
-            <a class="site-dashboard-link" href="/site/transaction">거래내역 열기</a>
+            <a class="site-dashboard-link" href="/site/entry/create">거래입력 열기</a>
         </article>
 
         <article class="site-dashboard-card">
             <h3>거래입력</h3>
             <p>신규 거래를 등록하고 항목별 금액을 저장할 수 있습니다.</p>
-            <a class="site-dashboard-link" href="/site/transaction/create">거래 입력하기</a>
+            <a class="site-dashboard-link" href="/site/entry/create">거래 입력하기</a>
         </article>
 
         <article class="site-dashboard-card">
