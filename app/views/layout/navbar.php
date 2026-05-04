@@ -78,6 +78,25 @@ $isActiveNav = static function (string $href) use ($currentPath): bool {
                     aria-controls="mini-calendar"
                 >--:--</span>
 
+                <div class="nav-notification">
+                    <button type="button"
+                            class="notification-icon"
+                            id="notificationBell"
+                            aria-label="알림"
+                            aria-expanded="false">
+                        <span aria-hidden="true">🔔</span>
+                        <span class="badge d-none" id="notificationCount">0</span>
+                    </button>
+
+                    <div class="notification-dropdown d-none" id="notificationDropdown">
+                        <div class="notification-header">알림</div>
+                        <div class="notification-list" id="notificationList"></div>
+                        <div class="notification-footer">
+                            <button type="button" id="markAllReadBtn">모두 읽음</button>
+                        </div>
+                    </div>
+                </div>
+
                 <a href="/profile" class="desktop-user-link">
                     <i class="bi bi-person-workspace user-icon" aria-hidden="true"></i>
                     <span class="user-name"><?= htmlspecialchars((string)$displayName, ENT_QUOTES, 'UTF-8') ?></span>

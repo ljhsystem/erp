@@ -24,16 +24,20 @@ window.AdminPicker = AdminPicker;
     const balanceStatusEl = document.getElementById('voucher_balance_status');
     const voucherStatusEl = document.getElementById('voucher_status');
     const voucherStatusBadgeEl = document.getElementById('voucher_status_badge');
+    const rejectPanelEl = document.getElementById('journalRejectPanel');
+    const rejectReasonEl = document.getElementById('journalRejectReason');
     const voucherNoDisplayEl = document.getElementById('voucher_no_display');
     const voucherDateEl = document.getElementById('voucher_date');
     const voucherSourceTypeEl = document.getElementById('voucher_source_type');
     const voucherSourceIdEl = document.getElementById('voucher_source_id');
+    const voucherSourceTransactionInfoEl = document.getElementById('voucher_source_transaction_info');
     const summaryTextEl = document.getElementById('voucher_summary_text');
     const summarySuggestionsEl = document.getElementById('voucher_summary_suggestions');
     const modalTitleEl = document.getElementById('journalModalLabel');
     const modalDeleteBtn = document.getElementById('btnDeleteVoucherInModal');
-    const modalAdvanceStatusBtn = document.getElementById('btnAdvanceVoucherStatus');
     const modalSaveBtn = document.getElementById('btnSaveVoucher');
+    const modalRequestReviewBtn = document.getElementById('btnRequestVoucherReview');
+    const modalCancelReviewBtn = document.getElementById('btnCancelVoucherReview');
     const addPaymentBtn = document.getElementById('btnAddVoucherPayment');
     const paymentBody = document.getElementById('voucher-payment-body');
     const transactionModalEl = document.getElementById('journalTransactionSearchModal');
@@ -44,6 +48,7 @@ window.AdminPicker = AdminPicker;
     const selectTransactionBtn = document.getElementById('btnSelectTransaction');
     const clearTransactionLinkBtn = document.getElementById('btnClearTransactionLink');
     const searchTransactionBtn = document.getElementById('btnSearchTransaction');
+    const transactionNoticeEl = document.getElementById('journalTransactionNotice');
 
     if (!tableBody || !journalTableEl || !form || !modalEl || !lineBody || !voucherDateEl) {
         return;
@@ -66,9 +71,11 @@ window.AdminPicker = AdminPicker;
         list: '/api/ledger/voucher/list',
         detail: '/api/ledger/voucher/detail',
         save: '/api/ledger/voucher/save',
-        status: '/api/ledger/voucher/status',
+        linkTransaction: '/api/ledger/voucher/link-transaction',
         summarySearch: '/api/ledger/voucher/summary-search',
         remove: '/api/ledger/voucher/delete',
+        confirm: '/api/ledger/voucher/confirm',
+        cancelReview: '/api/ledger/voucher/cancel-review',
         transactionSearch: '/api/ledger/voucher/transaction-search',
         accountList: '/api/ledger/account/list',
         trash: '/api/ledger/voucher/trash',
@@ -86,30 +93,27 @@ window.AdminPicker = AdminPicker;
 
     const STATUS_LABELS = {
         draft: '임시저장',
-        confirmed: '확정',
-        posted: '전기',
+        confirmed: '검토요청',
+        reviewed: '검토완료',
+        posted: '승인',
         closed: '마감',
         deleted: '삭제',
     };
 
     const STATUS_STEPS = [
         { value: 'draft', label: '임시저장' },
-        { value: 'confirmed', label: '확정' },
-        { value: 'posted', label: '전기' },
+        { value: 'confirmed', label: '검토요청' },
+        { value: 'reviewed', label: '검토완료' },
+        { value: 'posted', label: '승인' },
         { value: 'closed', label: '마감' },
     ];
-
-    const NEXT_STATUS = {
-        draft: { value: 'confirmed', label: '확정' },
-        confirmed: { value: 'posted', label: '전기' },
-        posted: { value: 'closed', label: '마감' },
-    };
 
     const SOURCE_TYPE_LABELS = {
         TAX: '홈택스',
         CARD: '카드사',
         BANK: '은행',
         MANUAL: '수기입력',
+        TRANSACTION: '거래',
     };
 
     const TYPE_LABELS = {
@@ -202,7 +206,27 @@ window.AdminPicker = AdminPicker;
 
     async function fetchJson(url, options = {}) {
         const response = await fetch(url, options);
-        return response.json();
+        const text = await response.text();
+        let json = {};
+
+        try {
+            json = text ? JSON.parse(text) : {};
+        } catch (error) {
+            return {
+                success: false,
+                message: '서버 응답을 해석하지 못했습니다.',
+            };
+        }
+
+        if (!response.ok) {
+            return {
+                ...json,
+                success: false,
+                message: json.message || '요청 처리에 실패했습니다.',
+            };
+        }
+
+        return json;
     }
 
     function formatDate(date) {
@@ -398,9 +422,13 @@ window.AdminPicker = AdminPicker;
         const modeClass = mode ? ` voucher-flow-${mode}` : '';
         const shouldPulse = mode !== 'table';
         const steps = STATUS_STEPS.map((step, index) => {
+            const isFinal = (key === 'posted' && step.value === 'posted')
+                || (key === 'closed' && step.value === 'closed');
             const currentClass = shouldPulse ? 'current current-step' : 'current';
-            const stateClass = index < currentIndex ? 'done' : (index === currentIndex ? currentClass : 'pending');
-            const check = index < currentIndex ? '<span class="voucher-flow-check">✓</span>' : '';
+            const stateClass = isFinal
+                ? `done final ${step.value}-final`
+                : (index < currentIndex ? 'done' : (index === currentIndex ? currentClass : 'pending'));
+            const check = index < currentIndex || isFinal ? '<span class="voucher-flow-check">✓</span>' : '';
 
             return `
                 <span class="voucher-flow-step voucher-flow-step-${step.value} ${stateClass}">
@@ -412,6 +440,50 @@ window.AdminPicker = AdminPicker;
         return `<div class="voucher-flow${modeClass}">${steps}</div>`;
     }
 
+    function getJournalStatusDisplay(row = {}) {
+        const status = String(row.status || 'draft').toLowerCase();
+        const rejectReason = String(row.reject_reason || '').trim();
+
+        if (status === 'draft' && rejectReason !== '') {
+            return {
+                key: 'rejected',
+                label: '반려됨',
+                tooltip: rejectReason,
+            };
+        }
+
+        if (status === 'draft') {
+            return { key: 'draft', label: '임시저장', tooltip: '' };
+        }
+
+        if (status === 'confirmed') {
+            return { key: 'confirmed', label: '검토요청', tooltip: '' };
+        }
+
+        if (status === 'reviewed') {
+            return { key: 'reviewed', label: '검토완료', tooltip: '' };
+        }
+
+        if (status === 'posted') {
+            return { key: 'posted', label: '승인완료', tooltip: '' };
+        }
+
+        if (status === 'closed') {
+            return { key: 'closed', label: '마감', tooltip: '' };
+        }
+
+        return { key: status || 'draft', label: translateStatus(status), tooltip: '' };
+    }
+
+    function renderJournalStatusBadge(row = {}) {
+        const state = getJournalStatusDisplay(row);
+        const tooltip = state.tooltip
+            ? ` title="${escapeHtml(state.tooltip)}"`
+            : '';
+
+        return `<span class="journal-status-badge journal-status-${escapeHtml(state.key)}"${tooltip}>${escapeHtml(state.label)}</span>`;
+    }
+
     function renderModalStatusTimeline(status, meta = {}) {
         const key = String(status || 'draft').toLowerCase();
         const currentIndex = Math.max(STATUS_STEPS.findIndex((step) => step.value === key), 0);
@@ -421,9 +493,15 @@ window.AdminPicker = AdminPicker;
             || formatActorName(meta.updated_by_name || meta.updated_by || meta.created_by_name || meta.created_by || '');
 
         const steps = STATUS_STEPS.map((step, index) => {
-            const stateClass = index < currentIndex ? 'done' : (index === currentIndex ? 'current' : 'pending');
-            const nodeClass = index === currentIndex ? 'voucher-timeline-node current-step' : 'voucher-timeline-node';
-            const icon = index < currentIndex
+            const isFinal = (key === 'posted' && step.value === 'posted')
+                || (key === 'closed' && step.value === 'closed');
+            const stateClass = isFinal
+                ? `done final ${step.value}-final`
+                : (index < currentIndex ? 'done' : (index === currentIndex ? 'current' : 'pending'));
+            const nodeClass = index === currentIndex && !isFinal
+                ? 'voucher-timeline-node current-step'
+                : 'voucher-timeline-node';
+            const icon = index < currentIndex || isFinal
                 ? '✓'
                 : '';
             const detail = index <= currentIndex
@@ -454,17 +532,14 @@ window.AdminPicker = AdminPicker;
         voucherStatusBadgeEl.innerHTML = renderStatusFlow(status, 'modal', meta);
     }
 
-    function updateStatusActionButton(status = 'draft') {
-        if (!modalAdvanceStatusBtn) {
-            return;
-        }
+    function setRejectReason(status = 'draft', reason = '') {
+        const shouldShow = String(status || '').toLowerCase() === 'draft'
+            && String(reason || '').trim() !== '';
 
-        const id = document.getElementById('journal_id')?.value || '';
-        const next = NEXT_STATUS[String(status || '').toLowerCase()];
-        modalAdvanceStatusBtn.classList.toggle('d-none', !id || !next);
-        modalAdvanceStatusBtn.disabled = !id || !next;
-        modalAdvanceStatusBtn.textContent = next ? next.label : '';
-        modalAdvanceStatusBtn.dataset.nextStatus = next?.value || '';
+        rejectPanelEl?.classList.toggle('d-none', !shouldShow);
+        if (rejectReasonEl) {
+            rejectReasonEl.textContent = shouldShow ? String(reason).trim() : '';
+        }
     }
 
     function translateType(value) {
@@ -479,6 +554,73 @@ window.AdminPicker = AdminPicker;
 
     function translateLinkedStatus(value) {
         return LINKED_STATUS_LABELS[value] || value || '미연결';
+    }
+
+    function renderJournalLinkedStatus(row = {}) {
+        const hasTransaction = String(row.transaction_id || '').trim() !== ''
+            || String(row.linked_status || '').toLowerCase() === 'linked';
+        const matchStatus = String(row.match_status || '').toLowerCase();
+
+        if (!hasTransaction) {
+            return '<span class="journal-link-badge journal-link-unlinked">⚠ 미연결</span>';
+        }
+
+        if (matchStatus === 'matched') {
+            return '<span class="journal-link-badge journal-link-matched">✔ 매칭완료</span>';
+        }
+
+        return '<span class="journal-link-badge journal-link-linked">✔ 연결됨</span>';
+    }
+
+    function isSystemMemo(value) {
+        const text = String(value || '').trim();
+        if (text === '' || !text.startsWith('{')) {
+            return false;
+        }
+
+        try {
+            const decoded = JSON.parse(text);
+            return !!decoded
+                && typeof decoded === 'object'
+                && (
+                    Object.prototype.hasOwnProperty.call(decoded, 'created_from_transaction')
+                    || Object.prototype.hasOwnProperty.call(decoded, 'transaction_items')
+                    || Object.prototype.hasOwnProperty.call(decoded, 'voucher_match')
+                );
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function displayMemo(value) {
+        return isSystemMemo(value) ? '' : String(value || '');
+    }
+
+    function buildSourceTransactionSummary(row = null, fallbackId = '') {
+        if (!row) {
+            return fallbackId ? `원본 거래: ${fallbackId}` : '';
+        }
+
+        const sortNo = row.sort_no ? `#${row.sort_no}` : (row.id || fallbackId || '');
+        const date = row.transaction_date || '-';
+        const description = row.description || row.client_name || '';
+
+        return ['원본 거래:', sortNo, date, description].filter(Boolean).join(' ');
+    }
+
+    function setSourceTransactionInfo(voucher = {}) {
+        if (!voucherSourceTransactionInfoEl) {
+            return;
+        }
+
+        const sourceType = String(voucher.source_type || '').toUpperCase();
+        const sourceId = String(voucher.source_id || '').trim();
+        const text = sourceType === 'TRANSACTION'
+            ? buildSourceTransactionSummary(voucher.source_transaction || null, sourceId)
+            : '';
+
+        voucherSourceTransactionInfoEl.textContent = text;
+        voucherSourceTransactionInfoEl.classList.toggle('d-none', text === '');
     }
 
     function buildTransactionSummary(row = null) {
@@ -522,9 +664,13 @@ window.AdminPicker = AdminPicker;
         const normalizedStatus = String(status || 'draft').toLowerCase();
         const isDraft = normalizedStatus === 'draft';
         const isConfirmed = normalizedStatus === 'confirmed';
+        const isPosted = normalizedStatus === 'posted';
+        const isClosed = normalizedStatus === 'closed';
         const isLocked = ['posted', 'closed', 'deleted'].includes(normalizedStatus);
         const canEditHeader = isDraft;
         const canEditLines = isDraft;
+        const canLinkTransaction = isDraft || isPosted || isClosed;
+        const canClearTransaction = isDraft || isPosted;
 
         voucherDateEl.disabled = !canEditHeader;
         document.getElementById('voucher_summary_text').disabled = !canEditHeader;
@@ -540,11 +686,16 @@ window.AdminPicker = AdminPicker;
 
         addLineBtn.disabled = !canEditLines;
         addPaymentBtn.disabled = !canEditLines;
-        selectTransactionBtn.disabled = !canEditLines;
-        clearTransactionLinkBtn.disabled = !canEditLines;
         modalSaveBtn.disabled = !isDraft;
+        if (modalRequestReviewBtn) {
+            modalRequestReviewBtn.disabled = !isDraft;
+            modalRequestReviewBtn.classList.toggle('d-none', !isDraft);
+        }
+        if (modalCancelReviewBtn) {
+            modalCancelReviewBtn.disabled = !isConfirmed;
+            modalCancelReviewBtn.classList.toggle('d-none', !isConfirmed);
+        }
         modalDeleteBtn.disabled = !isDraft;
-        updateStatusActionButton(normalizedStatus);
 
         [lineBody, paymentBody].forEach((body) => {
             body?.querySelectorAll('input, select, textarea, button').forEach((el) => {
@@ -552,8 +703,19 @@ window.AdminPicker = AdminPicker;
             });
         });
 
+        selectTransactionBtn.disabled = !canLinkTransaction;
+        clearTransactionLinkBtn.disabled = !canClearTransaction;
+
         if (isConfirmed) {
-            setValidationBadge('ok', '확정 전표입니다. 분개라인 수정은 제한됩니다.');
+            setValidationBadge('ok', '검토요청 전표입니다. 분개라인 수정은 제한됩니다.');
+        }
+
+        if (transactionNoticeEl) {
+            const message = isPosted
+                ? '거래 연결은 가능하지만 회계에는 영향이 없습니다.'
+                : (isClosed ? '마감 상태입니다. 거래 연결은 가능하지만 연결해제는 할 수 없습니다.' : '');
+            transactionNoticeEl.textContent = message;
+            transactionNoticeEl.classList.toggle('d-none', message === '');
         }
     }
 
@@ -1138,7 +1300,9 @@ window.AdminPicker = AdminPicker;
         voucherDateEl.value = formatDate(new Date());
         voucherStatusEl.value = 'draft';
         setStatusFlow('draft');
+        setRejectReason('draft', '');
         setVoucherSource('MANUAL', '');
+        setSourceTransactionInfo({});
         setLinkedTransaction(null);
         lineBody.innerHTML = emptyLineRow();
         if (paymentBody) {
@@ -1150,11 +1314,26 @@ window.AdminPicker = AdminPicker;
         calculateTotals();
     }
 
+    function ensureSourceTypeOption(sourceType) {
+        const normalizedType = String(sourceType || '').trim().toUpperCase();
+        if (!voucherSourceTypeEl || normalizedType === '') {
+            return;
+        }
+
+        if (!Array.from(voucherSourceTypeEl.options).some((option) => option.value === normalizedType)) {
+            const option = document.createElement('option');
+            option.value = normalizedType;
+            option.textContent = translateSourceType(normalizedType);
+            voucherSourceTypeEl.appendChild(option);
+        }
+    }
+
     function setVoucherSource(sourceType = 'MANUAL', sourceId = '') {
         const normalizedType = String(sourceType || 'MANUAL').trim().toUpperCase() || 'MANUAL';
         const normalizedId = String(sourceId || '').trim();
 
         if (voucherSourceTypeEl) {
+            ensureSourceTypeOption(normalizedType);
             voucherSourceTypeEl.value = normalizedType;
             if (window.jQuery?.fn?.select2) {
                 window.jQuery(voucherSourceTypeEl).val(normalizedType).trigger('change.select2');
@@ -1400,16 +1579,9 @@ window.AdminPicker = AdminPicker;
     function buildJournalColumns() {
         return [
             {
-                title: '<i class="bi bi-arrows-move"></i>',
-                className: 'reorder-handle no-colvis text-center',
-                orderable: false,
-                searchable: false,
-                defaultContent: '<i class="bi bi-list"></i>',
-            },
-            {
                 data: 'sort_no',
-                title: '순서',
-                className: 'text-center journal-sort-no-cell',
+                title: '순번',
+                className: 'text-center journal-sort-no-cell reorder-handle',
                 render(data, type, row) {
                     const sortNo = getVoucherSortNo(row);
 
@@ -1437,10 +1609,27 @@ window.AdminPicker = AdminPicker;
             },
             {
                 data: 'status',
-                title: '상태',
+                title: '전표상태',
                 defaultContent: '',
-                render(data) {
-                    return renderStatusFlow(data, 'table');
+                render(data, type, row) {
+                    if (type === 'sort' || type === 'type') {
+                        return String(data || 'draft').toLowerCase();
+                    }
+
+                    return renderJournalStatusBadge(row);
+                },
+            },
+            {
+                data: 'transaction_id',
+                title: '거래연결',
+                className: 'text-center',
+                defaultContent: '',
+                render(data, type, row) {
+                    if (type === 'sort' || type === 'type') {
+                        return String(row.match_status || row.linked_status || data || 'unlinked');
+                    }
+
+                    return renderJournalLinkedStatus(row);
                 },
             },
             {
@@ -1462,7 +1651,7 @@ window.AdminPicker = AdminPicker;
             },
             {
                 data: 'debit_total',
-                title: '금액 (차변합계)',
+                title: '금액(차변합계)',
                 className: 'text-end',
                 defaultContent: 0,
                 render(data) {
@@ -1511,7 +1700,7 @@ window.AdminPicker = AdminPicker;
             },
             {
                 data: 'summary_text',
-                title: '전표 적요',
+                title: '전표적요',
                 className: 'journal-summary-cell',
                 defaultContent: '',
                 render(data) {
@@ -1532,7 +1721,7 @@ window.AdminPicker = AdminPicker;
                 visible: false,
                 defaultContent: '',
                 render(data) {
-                    return escapeHtml(data || '');
+                    return escapeHtml(displayMemo(data));
                 },
             },
             {
@@ -1799,10 +1988,12 @@ window.AdminPicker = AdminPicker;
             voucherDateEl.value = data.voucher_date || '';
             voucherStatusEl.value = data.status || 'draft';
             setStatusFlow(data.status || 'draft', data);
+            setRejectReason(data.status || 'draft', data.reject_reason || '');
             setVoucherSource(data.source_type || 'MANUAL', data.source_id || '');
             document.getElementById('voucher_summary_text').value = data.summary_text || '';
             document.getElementById('voucher_note').value = data.note || '';
-            document.getElementById('voucher_memo').value = data.memo || '';
+            document.getElementById('voucher_memo').value = displayMemo(data.memo);
+            setSourceTransactionInfo(data);
             setLinkedTransaction(data.linked_transaction || null);
 
             lineBody.innerHTML = emptyLineRow();
@@ -1833,7 +2024,11 @@ window.AdminPicker = AdminPicker;
         }
     }
 
-    async function saveVoucher() {
+    async function saveVoucher(options = {}) {
+        const closeModal = options.closeModal !== false;
+        const shouldReload = options.reload !== false;
+        const shouldNotify = options.notify !== false;
+        const successMessage = options.successMessage || '전표가 저장되었습니다.';
         const formData = new FormData(form);
         formData.delete('ref_type');
         formData.delete('ref_id');
@@ -1848,46 +2043,121 @@ window.AdminPicker = AdminPicker;
 
         if (!json.success) {
             notify('error', json.message || '전표 저장에 실패했습니다.');
-            return;
+            return null;
         }
 
-        notify('success', '전표가 저장되었습니다.');
-        modal?.hide();
-        reloadJournalTable();
+        const idInput = form.querySelector('[name="id"]');
+        if (json.data?.id && idInput) {
+            idInput.value = json.data.id;
+        }
+
+        if (shouldNotify) {
+            notify('success', successMessage);
+        }
+        if (closeModal) {
+            modal?.hide();
+        }
+        if (shouldReload) {
+            reloadJournalTable();
+        }
+        return json.data || null;
     }
 
-    async function advanceVoucherStatus() {
-        const id = document.getElementById('journal_id')?.value || '';
-        const nextStatus = modalAdvanceStatusBtn?.dataset.nextStatus || '';
+    async function requestVoucherReview() {
+        try {
+            calculateTotals();
 
-        if (!id || !nextStatus) {
-            return;
+            if (!validateBeforeSave()) {
+                return;
+            }
+
+            const saved = await saveVoucher({
+                closeModal: false,
+                reload: false,
+                notify: false,
+                successMessage: '전표가 임시저장되었습니다.',
+            });
+            if (!saved) {
+                return;
+            }
+
+            const voucherId = saved?.id || form.querySelector('[name="id"]')?.value || '';
+            if (!voucherId) {
+                notify('error', '검토요청할 전표 ID를 확인할 수 없습니다.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('id', voucherId);
+
+            const json = await fetchJson(API.confirm, {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!json.success) {
+                notify('error', json.message || '검토요청 처리에 실패했습니다.');
+                return;
+            }
+
+            notify('success', '검토요청 처리되었습니다.');
+            modal?.hide();
+            reloadJournalTable();
+        } catch (error) {
+            console.error('[ledger-journal] request review failed', error);
+            notify('error', error.message || '검토요청 처리에 실패했습니다.');
         }
+    }
 
-        if (!window.confirm(`전표 상태를 ${translateStatus(nextStatus)} 상태로 변경하시겠습니까?`)) {
-            return;
+    async function saveTransactionLinkOnly() {
+        const voucherId = form.querySelector('[name="id"]')?.value || '';
+        if (!voucherId) {
+            notify('error', '거래를 연결할 전표 ID를 확인할 수 없습니다.');
+            return null;
         }
 
         const formData = new FormData();
-        formData.set('id', id);
-        formData.set('status', nextStatus);
+        formData.append('id', voucherId);
+        formData.append('linked_transaction_id', linkedTransactionIdEl?.value || '');
 
-        const json = await fetchJson(API.status, {
+        const json = await fetchJson(API.linkTransaction, {
             method: 'POST',
             body: formData,
         });
 
         if (!json.success) {
-            notify('error', json.message || '전표 상태 변경에 실패했습니다.');
+            notify('error', json.message || '거래 연결 저장에 실패했습니다.');
+            return null;
+        }
+
+        notify('success', '거래 연결이 저장되었습니다.');
+        reloadJournalTable();
+        return json.data || null;
+    }
+
+    async function cancelVoucherReview() {
+        const voucherId = form.querySelector('[name="id"]')?.value || '';
+        if (!voucherId) {
+            notify('error', '검토요청 취소할 전표 ID를 확인할 수 없습니다.');
             return;
         }
 
-        const status = json.data?.status || nextStatus;
-        voucherStatusEl.value = status;
-        setStatusFlow(status, json.data || {});
-        setModalEditability(status);
+        const formData = new FormData();
+        formData.append('id', voucherId);
+
+        const json = await fetchJson(API.cancelReview, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!json.success) {
+            notify('error', json.message || '검토요청 취소에 실패했습니다.');
+            return;
+        }
+
+        notify('success', '검토요청이 취소되었습니다.');
         reloadJournalTable();
-        notify('success', json.message || '전표 상태가 변경되었습니다.');
+        await loadDetail(voucherId);
     }
 
     async function deleteVoucher(id) {
@@ -2054,11 +2324,25 @@ window.AdminPicker = AdminPicker;
             event.preventDefault();
             calculateTotals();
 
+            const currentStatus = String(voucherStatusEl?.value || 'draft').toLowerCase();
+            if (['posted', 'closed'].includes(currentStatus)) {
+                void saveTransactionLinkOnly();
+                return;
+            }
+
             if (!validateBeforeSave()) {
                 return;
             }
 
             void saveVoucher();
+        });
+
+        modalRequestReviewBtn?.addEventListener('click', () => {
+            void requestVoucherReview();
+        });
+
+        modalCancelReviewBtn?.addEventListener('click', () => {
+            void cancelVoucherReview();
         });
 
         lineBody.addEventListener('click', (event) => {
@@ -2160,10 +2444,6 @@ window.AdminPicker = AdminPicker;
             if (id && window.confirm('전표를 삭제하시겠습니까?')) {
                 void deleteVoucher(id);
             }
-        });
-
-        modalAdvanceStatusBtn?.addEventListener('click', () => {
-            void advanceVoucherStatus();
         });
 
         selectTransactionBtn?.addEventListener('click', () => {

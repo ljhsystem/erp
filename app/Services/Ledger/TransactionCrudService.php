@@ -167,6 +167,20 @@ class TransactionCrudService
         ]);
     }
 
+    public function recalculateMatchStatus(string $transactionId, string $actor): void
+    {
+        $activeCount = $this->transactionLinkModel->countActiveByTransactionId($transactionId);
+        $matchStatus = $activeCount > 0 ? 'matched' : 'none';
+
+        if (!$this->transactionModel->update($transactionId, [
+            'match_status' => $matchStatus,
+            'updated_at' => date('Y-m-d H:i:s'),
+            'updated_by' => $actor,
+        ])) {
+            throw new \RuntimeException('嫄곕옒 ?곌껐 ?곹깭 媛깆떊???ㅽ뙣?덉뒿?덈떎.');
+        }
+    }
+
     public function reorder(array $changes): bool
     {
         if ($changes === []) {
@@ -217,11 +231,15 @@ class TransactionCrudService
                 UPDATE ledger_transaction_links
                 SET is_active = 0,
                     deleted_at = NOW(),
-                    deleted_by = :deleted_by
+                    deleted_by = :deleted_by,
+                    updated_at = NOW(),
+                    updated_by = :updated_by
                 WHERE transaction_id = :transaction_id
+                  AND is_active = 1
                   AND deleted_at IS NULL
             ")->execute([
                 ':deleted_by' => $actor,
+                ':updated_by' => $actor,
                 ':transaction_id' => $transactionId,
             ]);
 
@@ -412,6 +430,7 @@ class TransactionCrudService
 
     private function normalizeTransactionStatus(mixed $value): string
     {
+        // TODO: ledger_transactions.status DEFAULT 'active' differs from the code values draft/approved/rejected; add a DB migration.
         $status = strtolower(trim((string) ($value ?? 'draft')));
         return in_array($status, ['draft', 'approved', 'rejected'], true) ? $status : 'draft';
     }

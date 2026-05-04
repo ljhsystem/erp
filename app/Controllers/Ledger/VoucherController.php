@@ -8,9 +8,11 @@ use App\Models\Ledger\VoucherLineRefModel;
 use App\Models\Ledger\VoucherLineModel;
 use App\Models\Ledger\VoucherModel;
 use App\Models\Ledger\VoucherPaymentModel;
+use App\Services\Ledger\TransactionCrudService;
 use App\Services\Ledger\VoucherService;
 use App\Services\Ledger\VoucherValidationException;
 use Core\DbPdo;
+use Core\Helpers\ActorHelper;
 use PDO;
 
 class VoucherController
@@ -23,6 +25,7 @@ class VoucherController
     private VoucherPaymentModel $voucherPaymentModel;
     private TransactionLinkModel $transactionLinkModel;
     private TransactionModel $transactionModel;
+    private TransactionCrudService $transactionCrudService;
 
     public function __construct()
     {
@@ -34,6 +37,7 @@ class VoucherController
         $this->voucherPaymentModel = new VoucherPaymentModel($this->pdo);
         $this->transactionLinkModel = new TransactionLinkModel($this->pdo);
         $this->transactionModel = new TransactionModel($this->pdo);
+        $this->transactionCrudService = new TransactionCrudService($this->pdo);
     }
 
     public function apiList(): void
@@ -42,6 +46,12 @@ class VoucherController
             $filters = [];
             if (!empty($_GET['filters'])) {
                 $filters = json_decode((string) $_GET['filters'], true) ?? [];
+            }
+            foreach (['status', 'date_from', 'date_to', 'keyword'] as $key) {
+                $value = trim((string) ($_GET[$key] ?? ''));
+                if ($value !== '') {
+                    $filters[$key] = $value;
+                }
             }
 
             return [
@@ -104,6 +114,17 @@ class VoucherController
             }
             unset($line);
             $voucher['payments'] = $this->voucherPaymentModel->getByVoucherId($id);
+            $voucher['reversal_voucher'] = $this->voucherModel->findActiveReversalOf($id);
+            $voucher['original_voucher'] = !empty($voucher['reversal_of'])
+                ? $this->voucherModel->getById((string) $voucher['reversal_of'])
+                : null;
+            $voucher['source_transaction'] = null;
+            if (strtoupper((string) ($voucher['source_type'] ?? '')) === 'TRANSACTION') {
+                $sourceTransactionId = trim((string) ($voucher['source_id'] ?? ''));
+                if ($sourceTransactionId !== '') {
+                    $voucher['source_transaction'] = $this->transactionModel->getById($sourceTransactionId);
+                }
+            }
             $voucher['linked_transaction'] = null;
 
             foreach ($this->transactionLinkModel->getByVoucherId($id) as $link) {
@@ -123,6 +144,129 @@ class VoucherController
                 'message' => '조회 완료',
                 'data' => $voucher,
             ];
+        });
+    }
+
+    public function apiSearch(): void
+    {
+        $this->jsonResponse(function (): array {
+            $keyword = trim((string) ($_GET['keyword'] ?? $_GET['q'] ?? ''));
+            $dateFrom = trim((string) ($_GET['date_from'] ?? ''));
+            $dateTo = trim((string) ($_GET['date_to'] ?? ''));
+            $clientId = trim((string) ($_GET['client_id'] ?? ''));
+            $minAmount = trim((string) ($_GET['min_amount'] ?? ''));
+            $maxAmount = trim((string) ($_GET['max_amount'] ?? ''));
+            $allowedStatuses = ['draft', 'confirmed', 'reviewed'];
+            $requestedStatuses = $_GET['status'] ?? $allowedStatuses;
+            if (!is_array($requestedStatuses)) {
+                $requestedStatuses = [$requestedStatuses];
+            }
+            $statuses = array_values(array_intersect(
+                $allowedStatuses,
+                array_map(static fn($status): string => strtolower(trim((string) $status)), $requestedStatuses)
+            ));
+            if ($statuses === []) {
+                $statuses = $allowedStatuses;
+            }
+            $params = [];
+            $statusPlaceholders = [];
+            foreach ($statuses as $index => $status) {
+                $key = ":status{$index}";
+                $statusPlaceholders[] = $key;
+                $params[$key] = $status;
+            }
+
+            $sql = "
+                SELECT
+                    v.id,
+                    v.voucher_no,
+                    v.voucher_date,
+                    COALESCE(linked_clients.client_name, source_clients.client_name, '') AS client_name,
+                    COALESCE(v.summary_text, '') AS summary_text,
+                    COALESCE(line_totals.amount, 0) AS amount,
+                    v.status
+                FROM ledger_vouchers v
+                LEFT JOIN (
+                    SELECT
+                        l.voucher_id,
+                        MAX(t.client_id) AS client_id,
+                        MAX(sc.client_name) AS client_name
+                    FROM ledger_transaction_links l
+                    INNER JOIN ledger_transactions t
+                        ON t.id = l.transaction_id
+                       AND t.deleted_at IS NULL
+                    LEFT JOIN system_clients sc
+                        ON sc.id = t.client_id
+                    WHERE l.deleted_at IS NULL
+                      AND l.is_active = 1
+                    GROUP BY l.voucher_id
+                ) linked_clients
+                    ON linked_clients.voucher_id = v.id
+                LEFT JOIN system_clients source_clients
+                    ON source_clients.id = v.source_id
+                   AND v.source_type = 'CLIENT'
+                LEFT JOIN (
+                    SELECT
+                        voucher_id,
+                        SUM(COALESCE(debit, 0)) AS amount
+                    FROM ledger_voucher_lines
+                    WHERE deleted_at IS NULL
+                    GROUP BY voucher_id
+                ) line_totals
+                    ON line_totals.voucher_id = v.id
+                WHERE v.deleted_at IS NULL
+                  AND v.status IN (" . implode(', ', $statusPlaceholders) . ")
+            ";
+
+            if ($keyword !== '') {
+                $sql .= "
+                  AND (
+                      v.voucher_no LIKE :keyword
+                      OR COALESCE(linked_clients.client_name, source_clients.client_name, '') LIKE :keyword
+                      OR v.summary_text LIKE :keyword
+                  )
+                ";
+                $params[':keyword'] = "%{$keyword}%";
+            }
+
+            if ($dateFrom !== '') {
+                $sql .= " AND v.voucher_date >= :date_from";
+                $params[':date_from'] = $dateFrom;
+            }
+
+            if ($dateTo !== '') {
+                $sql .= " AND v.voucher_date <= :date_to";
+                $params[':date_to'] = $dateTo;
+            }
+
+            if ($clientId !== '') {
+                $sql .= " AND COALESCE(linked_clients.client_id, source_clients.id, '') = :client_id";
+                $params[':client_id'] = $clientId;
+            }
+
+            if ($minAmount !== '') {
+                $sql .= " AND COALESCE(line_totals.amount, 0) >= :min_amount";
+                $params[':min_amount'] = (float) $minAmount;
+            }
+
+            if ($maxAmount !== '') {
+                $sql .= " AND COALESCE(line_totals.amount, 0) <= :max_amount";
+                $params[':max_amount'] = (float) $maxAmount;
+            }
+
+            $sql .= "
+                ORDER BY v.voucher_date DESC, v.voucher_no DESC
+                LIMIT 100
+            ";
+
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute($params);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+            return array_map(static function (array $row): array {
+                $row['amount'] = (float) ($row['amount'] ?? 0);
+                return $row;
+            }, $rows);
         });
     }
 
@@ -200,15 +344,127 @@ class VoucherController
     public function apiUpdateStatus(): void
     {
         $this->jsonResponse(function (): array {
-            $id = trim((string) ($_POST['id'] ?? ''));
-            $status = trim((string) ($_POST['status'] ?? ''));
+            throw new \RuntimeException('전표 상태 변경은 전표검토/승인 화면에서만 처리할 수 있습니다.');
+        });
+    }
 
-            $result = $this->service->updateStatus($id, $status);
+    public function apiConfirm(): void
+    {
+        $this->jsonResponse(function (): array {
+            $id = $this->requestVoucherId();
+            $result = $this->service->confirm($id);
             $voucher = $this->voucherModel->getById($id) ?: [];
 
             return [
                 'success' => true,
-                'message' => '상태 변경 완료',
+                'message' => '검토요청 처리되었습니다.',
+                'data' => array_merge($voucher, $result),
+            ];
+        });
+    }
+
+    public function apiCancelReview(): void
+    {
+        $this->jsonResponse(function (): array {
+            $id = $this->requestVoucherId();
+            $result = $this->service->cancelReview($id);
+            $voucher = $this->voucherModel->getById($id) ?: [];
+
+            return [
+                'success' => true,
+                'message' => '검토요청이 취소되었습니다.',
+                'data' => array_merge($voucher, $result),
+            ];
+        });
+    }
+
+    public function apiCompleteReview(): void
+    {
+        $this->jsonResponse(function (): array {
+            $id = $this->requestVoucherId();
+            $result = $this->service->completeReview($id);
+            $voucher = $this->voucherModel->getById($id) ?: [];
+
+            return [
+                'success' => true,
+                'message' => '검토완료 처리되었습니다.',
+                'data' => array_merge($voucher, $result),
+            ];
+        });
+    }
+
+    public function apiCancelCompleteReview(): void
+    {
+        $this->jsonResponse(function (): array {
+            $id = $this->requestVoucherId();
+            $result = $this->service->cancelCompleteReview($id);
+            $voucher = $this->voucherModel->getById($id) ?: [];
+
+            return [
+                'success' => true,
+                'message' => '검토완료가 취소되었습니다.',
+                'data' => array_merge($voucher, $result),
+            ];
+        });
+    }
+
+    public function apiPost(): void
+    {
+        $this->jsonResponse(function (): array {
+            $id = $this->requestVoucherId();
+            $result = $this->service->post($id);
+            $voucher = $this->voucherModel->getById($id) ?: [];
+
+            return [
+                'success' => true,
+                'message' => '승인 처리되었습니다.',
+                'data' => array_merge($voucher, $result),
+            ];
+        });
+    }
+
+    public function apiReverse(): void
+    {
+        $this->jsonResponse(function (): array {
+            $id = $this->requestVoucherId();
+            $result = $this->service->createReversalVoucher($id, ActorHelper::user());
+            $voucher = $this->voucherModel->getById((string) ($result['id'] ?? '')) ?: [];
+
+            return [
+                'success' => true,
+                'message' => '취소전표가 생성되었습니다.',
+                'data' => array_merge($voucher, $result),
+            ];
+        });
+    }
+
+    public function apiLinkTransaction(): void
+    {
+        $this->jsonResponse(function (): array {
+            $id = $this->requestVoucherId();
+            $transactionId = $this->requestValue('linked_transaction_id');
+            $result = $this->service->updateTransactionLinkOnly($id, $transactionId, ActorHelper::user());
+            $voucher = $this->voucherModel->getById($id) ?: [];
+
+            return [
+                'success' => true,
+                'message' => '거래 연결이 저장되었습니다.',
+                'data' => array_merge($voucher, $result),
+            ];
+        });
+    }
+
+    public function apiReject(): void
+    {
+        $this->jsonResponse(function (): array {
+            $id = $this->requestVoucherId();
+            $reason = $this->requestValue('reason');
+            $result = $this->service->reject($id, $reason);
+            $voucher = $this->voucherModel->getById($id) ?: [];
+
+            return [
+                'success' => true,
+                'message' => '반려 처리되었습니다.',
                 'data' => array_merge($voucher, $result),
             ];
         });
@@ -420,20 +676,38 @@ class VoucherController
         exit;
     }
 
+    private function requestVoucherId(): string
+    {
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($input)) {
+            $input = [];
+        }
+
+        $id = trim((string) ($_POST['id'] ?? $input['id'] ?? $_GET['id'] ?? ''));
+        if ($id === '') {
+            throw new \RuntimeException('전표 ID가 없습니다.');
+        }
+
+        return $id;
+    }
+
+    private function requestValue(string $key): string
+    {
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($input)) {
+            $input = [];
+        }
+
+        return trim((string) ($_POST[$key] ?? $input[$key] ?? $_GET[$key] ?? ''));
+    }
+
     private function restoreVoucherById(string $id): void
     {
         if ($id === '') {
             return;
         }
 
-        $this->pdo->prepare("
-            UPDATE ledger_transaction_links
-            SET is_active = 1,
-                deleted_at = NULL,
-                deleted_by = NULL
-            WHERE voucher_id = :voucher_id
-        ")->execute([':voucher_id' => $id]);
-
+        // Links are intentionally not auto-restored here. Reconnect vouchers explicitly from the transaction or voucher UI.
         $this->voucherModel->restore($id, null);
     }
 
@@ -443,10 +717,19 @@ class VoucherController
             return;
         }
 
-        $this->pdo->prepare("
-            DELETE FROM ledger_transaction_links
-            WHERE voucher_id = :voucher_id
-        ")->execute([':voucher_id' => $id]);
+        $actor = ActorHelper::user();
+        $transactionIds = array_values(array_unique(array_filter(array_map(
+            static fn(array $link): string => trim((string) ($link['transaction_id'] ?? '')),
+            $this->transactionLinkModel->getList([
+                'voucher_id' => $id,
+                'is_active' => 1,
+            ])
+        ))));
+
+        foreach ($transactionIds as $transactionId) {
+            $this->transactionLinkModel->softDeleteByTransactionAndVoucher($transactionId, $id, $actor);
+            $this->transactionCrudService->recalculateMatchStatus($transactionId, $actor);
+        }
 
         if (!$this->voucherModel->hardDelete($id)) {
             throw new \RuntimeException('전표 완전 삭제에 실패했습니다.');

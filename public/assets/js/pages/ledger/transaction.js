@@ -14,6 +14,7 @@ import {
     openCodeQuickModal,
 } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
 import { openClientQuickCreate } from '/public/assets/js/pages/dashboard/settings/base/client.js';
+import { openVoucherModal } from '/public/assets/js/pages/ledger/voucherSelectModal.js';
 import '/public/assets/js/components/trash-manager.js';
 
 (() => {
@@ -31,8 +32,8 @@ import '/public/assets/js/components/trash-manager.js';
     const voucherStatusEl = document.getElementById('transactionVoucherStatus');
     const transactionStatusBadgeEl = document.getElementById('transactionStatusBadge');
     const voucherSummaryEl = document.getElementById('transaction_voucher_summary');
-    const voucherIdInput = document.getElementById('transaction_voucher_id');
     const createVoucherBtn = document.getElementById('btnCreateTransactionVoucher');
+    const selectVoucherBtn = document.getElementById('btnSelectTransactionVoucher');
     const linkVoucherBtn = document.getElementById('btnLinkTransactionVoucher');
     const unlinkVoucherBtn = document.getElementById('btnUnlinkTransactionVoucher');
     const transactionDateEl = document.getElementById('transaction_date');
@@ -69,6 +70,8 @@ import '/public/assets/js/components/trash-manager.js';
     let allowModalClose = false;
     let floatingLineHeaderEl = null;
     let lineHeaderFrame = null;
+    let selectedVoucherId = '';
+    let selectedVoucherLabel = '';
     let fileDropzoneEmptyText = '파일을 드래그해서 첨부하세요';
 
     if (pickerLayerEl && pickerLayerEl.parentElement !== document.body) {
@@ -796,7 +799,7 @@ import '/public/assets/js/components/trash-manager.js';
                     return renderMatchStatus(data);
                 },
             },
-            textColumn('status', '상태', { visible: true, className: 'text-center', render: renderTransactionStatus }),
+            textColumn('status', '전표상태', { visible: true, className: 'text-center', render: renderTransactionStatus }),
             textColumn('note', '비고'),
             textColumn('memo', '메모'),
             textColumn('created_at', '생성일시'),
@@ -1932,6 +1935,28 @@ import '/public/assets/js/components/trash-manager.js';
         }[status] || status;
     }
 
+    function clearVoucherSelection() {
+        selectedVoucherId = '';
+        selectedVoucherLabel = '';
+    }
+
+    function handleVoucherSelected(voucher) {
+        selectedVoucherId = String(voucher?.id || '');
+        selectedVoucherLabel = [voucher?.voucher_no, voucher?.client_name, voucher?.summary_text]
+            .filter(Boolean)
+            .join(' / ');
+        if (voucherSummaryEl && selectedVoucherId) {
+            voucherSummaryEl.innerHTML = `
+                <div class="transaction-voucher-item">
+                    <strong>선택됨</strong>
+                    <span>${escapeHtml(voucher?.voucher_no || selectedVoucherId)}</span>
+                    <span>${escapeHtml(voucher?.voucher_date || '')}</span>
+                    <span>${escapeHtml(voucher?.summary_text || '')}</span>
+                </div>
+            `;
+        }
+    }
+
     function renderVoucherState(transaction = {}) {
         const links = Array.isArray(transaction.linked_vouchers) ? transaction.linked_vouchers : [];
         const savedId = String(transaction.id || document.getElementById('transaction_id')?.value || '').trim();
@@ -2029,7 +2054,8 @@ import '/public/assets/js/components/trash-manager.js';
             })),
             fileRowOrder: fileRowOrder.slice(),
             deleteFileIds,
-            voucher_id: String(voucherIdInput?.value || ''),
+            selectedVoucherId: String(selectedVoucherId || ''),
+            selectedVoucherLabel: String(selectedVoucherLabel || ''),
         });
     }
 
@@ -2069,20 +2095,20 @@ import '/public/assets/js/components/trash-manager.js';
 
     async function linkVoucherToCurrentTransaction() {
         const transactionId = document.getElementById('transaction_id')?.value || '';
-        const voucherId = voucherIdInput?.value?.trim() || '';
+        const voucherId = selectedVoucherId;
         if (!transactionId || !voucherId) {
-            notify('warning', '거래 저장 후 연결할 전표 ID를 입력해 주세요.');
+            notify('warning', '거래 저장 후 연결할 전표를 선택해 주세요.');
             return;
         }
 
         const json = await postTransactionAction(API.linkVoucher, { transaction_id: transactionId, voucher_id: voucherId });
+        clearVoucherSelection();
         notify('success', json.message || '전표가 연결되었습니다.');
     }
 
     async function unlinkVoucherFromCurrentTransaction() {
         const transactionId = document.getElementById('transaction_id')?.value || '';
-        const voucherId = voucherIdInput?.value?.trim()
-            || voucherSummaryEl?.querySelector('.linked-voucher-id')?.value
+        const voucherId = voucherSummaryEl?.querySelector('.linked-voucher-id')?.value
             || '';
         if (!transactionId) {
             notify('warning', '거래를 먼저 저장해 주세요.');
@@ -2119,6 +2145,7 @@ import '/public/assets/js/components/trash-manager.js';
         setLines([blankLine()]);
         renderFiles([]);
         renderVoucherState({});
+        clearVoucherSelection();
         syncConditionalPanels();
         setTransactionModalEditable(true);
     }
@@ -2349,6 +2376,12 @@ import '/public/assets/js/components/trash-manager.js';
         });
 
         createVoucherBtn?.addEventListener('click', () => void createVoucherForCurrentTransaction());
+        selectVoucherBtn?.addEventListener('click', () => {
+            openVoucherModal({
+                selectedVoucherId,
+                onConfirm: handleVoucherSelected,
+            });
+        });
         linkVoucherBtn?.addEventListener('click', () => void linkVoucherToCurrentTransaction());
         unlinkVoucherBtn?.addEventListener('click', () => void unlinkVoucherFromCurrentTransaction());
         unitCodeSelectEl?.addEventListener('change', applyPendingUnitSelection);

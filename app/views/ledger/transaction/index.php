@@ -59,7 +59,7 @@ $pageScripts = AssetHelper::js('https://cdn.jsdelivr.net/npm/handsontable@14.6.1
                 <option value="supply_amount">공급가</option>
                 <option value="vat_amount">부가세</option>
                 <option value="total_amount">총금액</option>
-                <option value="status">상태</option>
+                <option value="status">전표상태</option>
                 <option value="match_status">전표연결</option>
                 <option value="note">비고</option>
                 <option value="memo">메모</option>
@@ -104,6 +104,7 @@ $pageScripts = AssetHelper::js('https://cdn.jsdelivr.net/npm/handsontable@14.6.1
 </main>
 
 <?php include __DIR__ . '/partials/transaction_modal.php'; ?>
+<?php include __DIR__ . '/partials/voucher_select_modal.php'; ?>
 <?php include PROJECT_ROOT . '/app/views/dashboard/settings/system/partials/code_modal.php'; ?>
 <?php include PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/client_modal.php'; ?>
 

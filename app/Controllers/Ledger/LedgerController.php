@@ -56,12 +56,34 @@ class LedgerController
         ]);
     }
 
-    public function webVoucher(): void
+    public function webVoucherReview(): void
     {
-        $this->renderPage('/app/views/ledger/voucher/index.php', [
-            'pageTitle' => '전표 관리',
+        $this->renderPage('/app/views/ledger/voucher/review.php', [
+            'pageTitle' => '전표검토/승인',
         ]);
     }
+
+    public function webDataUpload(): void
+    {
+        $this->renderPage('/app/views/ledger/data/upload.php', [
+            'pageTitle' => '자료 업로드',
+        ]);
+    }
+
+    public function webDataIndex(): void
+    {
+        $this->renderPage('/app/views/ledger/data/index.php', [
+            'pageTitle' => '자료목록',
+        ]);
+    }
+
+    public function webDataFormat(): void
+    {
+        $this->renderPage('/app/views/ledger/data/format.php', [
+            'pageTitle' => '양식관리',
+        ]);
+    }
+
     public function webPlaceholder(): void
     {
         $meta = Router::currentRouteMeta();

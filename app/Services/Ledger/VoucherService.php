@@ -8,6 +8,8 @@ use App\Models\Ledger\VoucherLineRefModel;
 use App\Models\Ledger\VoucherLineModel;
 use App\Models\Ledger\VoucherModel;
 use App\Models\Ledger\VoucherPaymentModel;
+use App\Services\Auth\AuthSessionService;
+use App\Services\System\NotificationService;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\RefTypeHelper;
 use Core\Helpers\SequenceHelper;
@@ -29,8 +31,8 @@ class VoucherValidationException extends \RuntimeException
 
 class VoucherService
 {
-    private const STATUS_VALUES = ['draft', 'confirmed', 'posted', 'closed', 'deleted'];
-    private const SOURCE_TYPE_VALUES = ['TAX', 'CARD', 'BANK', 'MANUAL'];
+    private const STATUS_VALUES = ['draft', 'confirmed', 'reviewed', 'posted', 'closed', 'deleted'];
+    private const SOURCE_TYPE_VALUES = ['TAX', 'CARD', 'BANK', 'MANUAL', 'TRANSACTION'];
     private const EDITABLE_STATUS_VALUES = ['draft'];
 
     private VoucherModel $voucherModel;
@@ -39,6 +41,8 @@ class VoucherService
     private VoucherPaymentModel $voucherPaymentModel;
     private TransactionLinkModel $transactionLinkModel;
     private TransactionModel $transactionModel;
+    private TransactionCrudService $transactionCrudService;
+    private NotificationService $notificationService;
 
     public function __construct(private readonly PDO $pdo)
     {
@@ -48,6 +52,8 @@ class VoucherService
         $this->voucherPaymentModel = new VoucherPaymentModel($pdo);
         $this->transactionLinkModel = new TransactionLinkModel($pdo);
         $this->transactionModel = new TransactionModel($pdo);
+        $this->transactionCrudService = new TransactionCrudService($pdo);
+        $this->notificationService = new NotificationService($pdo);
     }
 
     public function save(array $data): array
@@ -55,7 +61,7 @@ class VoucherService
         $actor = ActorHelper::user();
         $voucherId = trim((string) ($data['id'] ?? ''));
         $voucherDate = trim((string) ($data['voucher_date'] ?? ''));
-        $status = trim((string) ($data['status'] ?? 'draft'));
+        $status = 'draft';
         $linkedTransactionId = trim((string) ($data['linked_transaction_id'] ?? ''));
         $lines = is_array($data['lines'] ?? null) ? $data['lines'] : [];
         $payments = is_array($data['payments'] ?? null) ? $data['payments'] : [];
@@ -95,6 +101,7 @@ class VoucherService
                     'summary_text' => $this->resolveSummaryText($data, $normalizedLines),
                     'note' => $this->nullableString($data['note'] ?? null),
                     'memo' => $this->nullableString($data['memo'] ?? null),
+                    'reject_reason' => null,
                     'created_at' => $timestamp,
                     'created_by' => $actor,
                     'updated_at' => $timestamp,
@@ -120,6 +127,7 @@ class VoucherService
                     'summary_text' => $this->resolveSummaryText($data, $normalizedLines),
                     'note' => $this->nullableString($data['note'] ?? null),
                     'memo' => $this->nullableString($data['memo'] ?? null),
+                    'reject_reason' => null,
                     'updated_at' => $timestamp,
                     'updated_by' => $actor,
                 ];
@@ -261,17 +269,25 @@ class VoucherService
 
             $this->deleteVoucherChildren($voucherId);
 
+            $linkedTransactionIds = $this->getActiveTransactionIdsByVoucherId($voucherId);
+
             $this->pdo->prepare("
                 UPDATE ledger_transaction_links
                 SET is_active = 0,
                     deleted_at = NOW(),
-                    deleted_by = :deleted_by
+                    deleted_by = :deleted_by,
+                    updated_at = NOW(),
+                    updated_by = :updated_by
                 WHERE voucher_id = :voucher_id
+                  AND is_active = 1
                   AND deleted_at IS NULL
             ")->execute([
                 ':voucher_id' => $voucherId,
                 ':deleted_by' => $actor,
+                ':updated_by' => $actor,
             ]);
+
+            $this->recalculateTransactionMatchStatuses($linkedTransactionIds, $actor);
 
             if (!$this->voucherModel->softDelete($voucherId, $actor)) {
                 throw new \RuntimeException('전표 삭제에 실패했습니다.');
@@ -319,7 +335,8 @@ class VoucherService
         $currentStatus = (string) ($voucher['status'] ?? '');
         $allowedNext = [
             'draft' => 'confirmed',
-            'confirmed' => 'posted',
+            'confirmed' => 'reviewed',
+            'reviewed' => 'posted',
             'posted' => 'closed',
         ];
 
@@ -350,6 +367,339 @@ class VoucherService
             'success' => true,
             'id' => $voucherId,
             'status' => $nextStatus,
+        ];
+    }
+
+    public function confirm(string $voucherId): array
+    {
+        $voucherId = trim($voucherId);
+        if ($voucherId === '') {
+            throw new \RuntimeException('전표 ID가 없습니다.');
+        }
+
+        $voucher = $this->voucherModel->getById($voucherId);
+        if (!$voucher || !empty($voucher['deleted_at'])) {
+            throw new \RuntimeException('전표를 찾을 수 없습니다.');
+        }
+
+        if ((string) ($voucher['status'] ?? '') === 'confirmed') {
+            return [
+                'success' => true,
+                'id' => $voucherId,
+                'status' => 'confirmed',
+            ];
+        }
+
+        return $this->updateStatus($voucherId, 'confirmed');
+    }
+
+    public function cancelReview(string $voucherId): array
+    {
+        $voucherId = trim($voucherId);
+        if ($voucherId === '') {
+            throw new \RuntimeException('전표 ID가 없습니다.');
+        }
+
+        $voucher = $this->voucherModel->getById($voucherId);
+        if (!$voucher || !empty($voucher['deleted_at'])) {
+            throw new \RuntimeException('전표를 찾을 수 없습니다.');
+        }
+
+        $currentStatus = (string) ($voucher['status'] ?? '');
+        if ($currentStatus !== 'confirmed') {
+            throw new \RuntimeException('검토요청 상태의 전표만 취소할 수 있습니다.');
+        }
+
+        $updated = $this->voucherModel->update($voucherId, [
+            'status' => 'draft',
+            'reject_reason' => null,
+            'updated_at' => date('Y-m-d H:i:s'),
+            'updated_by' => ActorHelper::user(),
+        ]);
+
+        if (!$updated) {
+            throw new \RuntimeException('검토요청 취소에 실패했습니다.');
+        }
+
+        return [
+            'success' => true,
+            'id' => $voucherId,
+            'status' => 'draft',
+        ];
+    }
+
+    public function completeReview(string $voucherId): array
+    {
+        $voucherId = trim($voucherId);
+        if ($voucherId === '') {
+            throw new \RuntimeException('전표 ID가 없습니다.');
+        }
+
+        $voucher = $this->voucherModel->getById($voucherId);
+        if (!$voucher || !empty($voucher['deleted_at'])) {
+            throw new \RuntimeException('전표를 찾을 수 없습니다.');
+        }
+
+        if ((string) ($voucher['status'] ?? '') === 'reviewed') {
+            return [
+                'success' => true,
+                'id' => $voucherId,
+                'status' => 'reviewed',
+            ];
+        }
+
+        return $this->updateStatus($voucherId, 'reviewed');
+    }
+
+    public function cancelCompleteReview(string $voucherId): array
+    {
+        $voucherId = trim($voucherId);
+        if ($voucherId === '') {
+            throw new \RuntimeException('전표 ID가 없습니다.');
+        }
+
+        $voucher = $this->voucherModel->getById($voucherId);
+        if (!$voucher || !empty($voucher['deleted_at'])) {
+            throw new \RuntimeException('전표를 찾을 수 없습니다.');
+        }
+
+        $currentStatus = (string) ($voucher['status'] ?? '');
+        if ($currentStatus !== 'reviewed') {
+            throw new \RuntimeException('검토완료 상태의 전표만 취소할 수 있습니다.');
+        }
+
+        $updated = $this->voucherModel->update($voucherId, [
+            'status' => 'confirmed',
+            'updated_at' => date('Y-m-d H:i:s'),
+            'updated_by' => ActorHelper::user(),
+        ]);
+
+        if (!$updated) {
+            throw new \RuntimeException('검토완료 취소에 실패했습니다.');
+        }
+
+        return [
+            'success' => true,
+            'id' => $voucherId,
+            'status' => 'confirmed',
+        ];
+    }
+
+    public function post(string $voucherId): array
+    {
+        $result = $this->updateStatus($voucherId, 'posted');
+        $this->createVoucherNotification($voucherId, 'approve', '전표 승인', '승인');
+
+        return $result;
+    }
+
+    public function createReversalVoucher(string $voucherId, string $actorId): array
+    {
+        $voucherId = trim($voucherId);
+        $actor = trim($actorId) !== '' ? trim($actorId) : ActorHelper::user();
+        if ($voucherId === '') {
+            throw new \RuntimeException('전표 ID가 없습니다.');
+        }
+
+        $original = $this->voucherModel->getById($voucherId);
+        if (!$original || !empty($original['deleted_at'])) {
+            throw new \RuntimeException('원본 전표를 찾을 수 없습니다.');
+        }
+
+        if ((string) ($original['status'] ?? '') !== 'posted') {
+            throw new \RuntimeException('승인된 전표만 취소전표를 생성할 수 있습니다.');
+        }
+
+        if ((int) ($original['is_reversal'] ?? 0) === 1) {
+            throw new \RuntimeException('취소전표는 다시 취소전표로 처리할 수 없습니다.');
+        }
+
+        if ($this->voucherModel->findActiveReversalOf($voucherId)) {
+            throw new \RuntimeException('이미 취소전표가 생성된 전표입니다.');
+        }
+
+        $lines = $this->voucherLineModel->getByVoucherId($voucherId);
+        if ($lines === []) {
+            throw new \RuntimeException('원본 전표의 분개라인이 없습니다.');
+        }
+
+        $lineRefs = $this->voucherLineRefModel->getGroupedByVoucherLineIds(array_column($lines, 'id'));
+        $payments = $this->voucherPaymentModel->getByVoucherId($voucherId);
+        $timestamp = date('Y-m-d H:i:s');
+        $voucherDate = date('Y-m-d');
+        $newVoucherId = UuidHelper::generate();
+        $newVoucherNo = $this->nextVoucherNo($voucherDate);
+        $originalNo = trim((string) ($original['voucher_no'] ?? ''));
+
+        try {
+            $this->pdo->beginTransaction();
+
+            $saved = $this->voucherModel->insert([
+                'id' => $newVoucherId,
+                'sort_no' => SequenceHelper::next('ledger_vouchers', 'sort_no'),
+                'voucher_no' => $newVoucherNo,
+                'voucher_date' => $voucherDate,
+                'source_type' => 'MANUAL',
+                'source_id' => null,
+                'status' => 'draft',
+                'summary_text' => '취소전표' . ($originalNo !== '' ? " ({$originalNo})" : ''),
+                'note' => $this->nullableString($original['note'] ?? null),
+                'memo' => $this->nullableString($original['memo'] ?? null),
+                'reject_reason' => null,
+                'is_reversal' => 1,
+                'reversal_of' => $voucherId,
+                'created_at' => $timestamp,
+                'created_by' => $actor,
+                'updated_at' => $timestamp,
+                'updated_by' => $actor,
+            ]);
+
+            if (!$saved) {
+                throw new \RuntimeException('취소전표 저장에 실패했습니다.');
+            }
+
+            foreach ($lines as $index => $line) {
+                $newLineId = UuidHelper::generate();
+                $ok = $this->voucherLineModel->insert([
+                    'id' => $newLineId,
+                    'sort_no' => SequenceHelper::next('ledger_voucher_lines', 'sort_no'),
+                    'voucher_id' => $newVoucherId,
+                    'line_no' => (int) ($line['line_no'] ?? ($index + 1)),
+                    'account_id' => (string) ($line['account_id'] ?? ''),
+                    'debit' => number_format((float) ($line['credit'] ?? 0), 2, '.', ''),
+                    'credit' => number_format((float) ($line['debit'] ?? 0), 2, '.', ''),
+                    'line_summary' => (string) ($line['line_summary'] ?? ''),
+                    'created_at' => $timestamp,
+                    'created_by' => $actor,
+                    'updated_at' => $timestamp,
+                    'updated_by' => $actor,
+                ]);
+
+                if (!$ok) {
+                    throw new \RuntimeException('취소전표 분개라인 저장에 실패했습니다.');
+                }
+
+                $this->voucherLineRefModel->bulkInsert($newLineId, $lineRefs[$line['id']] ?? [], $actor, $timestamp);
+            }
+
+            foreach ($payments as $payment) {
+                $direction = strtoupper(trim((string) ($payment['direction'] ?? $payment['payment_direction'] ?? 'OUT')));
+                $reverseDirection = $direction === 'OUT' ? 'IN' : ($direction === 'IN' ? 'OUT' : $direction);
+
+                $ok = $this->voucherPaymentModel->insert([
+                    'id' => UuidHelper::generate(),
+                    'sort_no' => SequenceHelper::next('ledger_voucher_payments', 'sort_no'),
+                    'voucher_id' => $newVoucherId,
+                    'direction' => $reverseDirection,
+                    'payment_direction' => $reverseDirection,
+                    'payment_type' => (string) ($payment['payment_type'] ?? ''),
+                    'payment_id' => (string) ($payment['payment_id'] ?? ''),
+                    'amount' => number_format((float) ($payment['amount'] ?? 0), 2, '.', ''),
+                    'created_at' => $timestamp,
+                    'created_by' => $actor,
+                ]);
+
+                if (!$ok) {
+                    throw new \RuntimeException('취소전표 결제정보 저장에 실패했습니다.');
+                }
+            }
+
+            $this->pdo->commit();
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $e;
+        }
+
+        $this->createVoucherNotification($newVoucherId, 'reverse', '전표 취소', '취소');
+
+        return [
+            'success' => true,
+            'id' => $newVoucherId,
+            'voucher_id' => $newVoucherId,
+            'voucher_no' => $newVoucherNo,
+            'status' => 'draft',
+            'is_reversal' => 1,
+            'reversal_of' => $voucherId,
+        ];
+    }
+
+    public function updateTransactionLinkOnly(string $voucherId, string $transactionId, string $actor): array
+    {
+        $voucherId = trim($voucherId);
+        $transactionId = trim($transactionId);
+        $actor = trim($actor) !== '' ? trim($actor) : ActorHelper::user();
+        if ($voucherId === '') {
+            throw new \RuntimeException('전표 ID가 없습니다.');
+        }
+
+        $voucher = $this->voucherModel->getById($voucherId);
+        if (!$voucher || !empty($voucher['deleted_at'])) {
+            throw new \RuntimeException('전표를 찾을 수 없습니다.');
+        }
+
+        $status = (string) ($voucher['status'] ?? '');
+        if (!in_array($status, ['draft', 'posted', 'closed'], true)) {
+            throw new \RuntimeException('해당 상태에서는 거래 연결을 변경할 수 없습니다.');
+        }
+
+        if ($status === 'closed' && $transactionId === '') {
+            throw new \RuntimeException('마감 상태에서는 거래 연결해제가 허용되지 않습니다.');
+        }
+
+        if ($transactionId !== '' && !$this->transactionModel->getById($transactionId)) {
+            throw new \RuntimeException('선택한 거래를 찾을 수 없습니다.');
+        }
+
+        $this->replaceManualTransactionLink($voucherId, $transactionId, $actor, date('Y-m-d H:i:s'));
+
+        return [
+            'success' => true,
+            'id' => $voucherId,
+            'status' => $status,
+            'linked_transaction_id' => $transactionId,
+        ];
+    }
+
+    public function reject(string $voucherId, string $reason): array
+    {
+        $voucherId = trim($voucherId);
+        $reason = trim($reason);
+        if ($voucherId === '') {
+            throw new \RuntimeException('전표 ID가 없습니다.');
+        }
+        if ($reason === '') {
+            throw new \RuntimeException('반려 사유를 입력해 주세요.');
+        }
+
+        $voucher = $this->voucherModel->getById($voucherId);
+        if (!$voucher || !empty($voucher['deleted_at'])) {
+            throw new \RuntimeException('전표를 찾을 수 없습니다.');
+        }
+
+        $currentStatus = (string) ($voucher['status'] ?? '');
+        if ($currentStatus !== 'confirmed') {
+            throw new \RuntimeException('해당 상태의 전표는 반려할 수 없습니다.');
+        }
+
+        $updated = $this->voucherModel->update($voucherId, [
+            'status' => 'draft',
+            'reject_reason' => $reason,
+            'updated_at' => date('Y-m-d H:i:s'),
+            'updated_by' => ActorHelper::user(),
+        ]);
+
+        if (!$updated) {
+            throw new \RuntimeException('전표 반려 처리에 실패했습니다.');
+        }
+
+        $this->createVoucherNotification($voucherId, 'reject', '전표 반려', '반려');
+
+        return [
+            'success' => true,
+            'id' => $voucherId,
+            'status' => 'draft',
         ];
     }
 
@@ -827,41 +1177,111 @@ class VoucherService
         string $actor,
         string $timestamp
     ): void {
+        $affectedTransactionIds = $this->getManualTransactionIdsByVoucherId($voucherId);
+
         $stmt = $this->pdo->prepare("
-            DELETE FROM ledger_transaction_links
+            UPDATE ledger_transaction_links
+            SET is_active = 0,
+                deleted_at = NOW(),
+                deleted_by = :deleted_by,
+                updated_at = NOW(),
+                updated_by = :updated_by
             WHERE voucher_id = :voucher_id
               AND link_type = 'MANUAL'
-        ");
-        $stmt->execute([':voucher_id' => $voucherId]);
-
-        if ($transactionId === '') {
-            return;
-        }
-
-        $stmt = $this->pdo->prepare("
-            DELETE FROM ledger_transaction_links
-            WHERE voucher_id = :voucher_id
-              AND transaction_id = :transaction_id
+              AND is_active = 1
+              AND deleted_at IS NULL
         ");
         $stmt->execute([
             ':voucher_id' => $voucherId,
-            ':transaction_id' => $transactionId,
+            ':deleted_by' => $actor,
+            ':updated_by' => $actor,
         ]);
 
-        $ok = $this->transactionLinkModel->insert([
-            'id' => UuidHelper::generate(),
-            'transaction_id' => $transactionId,
-            'voucher_id' => $voucherId,
-            'link_type' => 'MANUAL',
-            'is_active' => 1,
-            'created_at' => $timestamp,
-            'created_by' => $actor,
-            'updated_at' => $timestamp,
-            'updated_by' => $actor,
-        ]);
+        if ($transactionId === '') {
+            $this->recalculateTransactionMatchStatuses($affectedTransactionIds, $actor);
+            return;
+        }
+
+        $ok = $this->transactionLinkModel->insertOrRestore($transactionId, $voucherId, null, 'MANUAL', $actor);
 
         if (!$ok) {
             throw new \RuntimeException('거래 연결 저장에 실패했습니다.');
+        }
+        $affectedTransactionIds[] = $transactionId;
+        $this->recalculateTransactionMatchStatuses($affectedTransactionIds, $actor);
+    }
+
+    private function getActiveTransactionIdsByVoucherId(string $voucherId): array
+    {
+        return $this->extractTransactionIds($this->transactionLinkModel->getList([
+            'voucher_id' => $voucherId,
+            'is_active' => 1,
+        ]));
+    }
+
+    private function getManualTransactionIdsByVoucherId(string $voucherId): array
+    {
+        return $this->extractTransactionIds($this->transactionLinkModel->getList([
+            'voucher_id' => $voucherId,
+            'link_type' => 'MANUAL',
+            'is_active' => 1,
+        ]));
+    }
+
+    private function extractTransactionIds(array $links): array
+    {
+        return array_values(array_unique(array_filter(array_map(
+            static fn(array $link): string => trim((string) ($link['transaction_id'] ?? '')),
+            $links
+        ))));
+    }
+
+    private function recalculateTransactionMatchStatuses(array $transactionIds, string $actor): void
+    {
+        foreach (array_values(array_unique(array_filter($transactionIds))) as $transactionId) {
+            $this->transactionCrudService->recalculateMatchStatus((string) $transactionId, $actor);
+        }
+    }
+
+    private function createVoucherNotification(
+        string $voucherId,
+        string $actionType,
+        string $title,
+        string $actionLabel
+    ): void {
+        try {
+            $authSession = new AuthSessionService();
+            $currentUser = $authSession->getCurrentUser() ?? [];
+            $actorUserId = (string) ($currentUser['id'] ?? '');
+            $actorName = trim((string) ($currentUser['employee_name'] ?? ''))
+                ?: trim((string) ($currentUser['username'] ?? ''))
+                ?: '사용자';
+
+            $recipientIds = $this->notificationService->getAdminUserIds();
+            if ($recipientIds === [] && $actorUserId !== '') {
+                $recipientIds = [$actorUserId];
+            }
+
+            $voucher = $this->voucherModel->getById($voucherId) ?: [];
+            $voucherNo = trim((string) ($voucher['voucher_no'] ?? ''));
+            $targetText = $voucherNo !== '' ? " {$voucherNo}" : '';
+            $message = $actionType === 'reverse'
+                ? '전표가 취소되었습니다.'
+                : "{$actorName}이 전표{$targetText}를 {$actionLabel}했습니다.";
+
+            foreach (array_values(array_unique($recipientIds)) as $recipientUserId) {
+                $this->notificationService->createNotification([
+                    'recipient_user_id' => $recipientUserId,
+                    'actor_user_id' => $actorUserId !== '' ? $actorUserId : null,
+                    'action_type' => $actionType,
+                    'ref_table' => 'ledger_vouchers',
+                    'ref_id' => $voucherId,
+                    'title' => $title,
+                    'message' => $message,
+                ]);
+            }
+        } catch (\Throwable) {
+            // 알림 생성 실패가 전표 승인/반려 처리를 막지 않도록 한다.
         }
     }
 

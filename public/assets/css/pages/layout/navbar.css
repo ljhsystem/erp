@@ -172,11 +172,13 @@
   align-items: center;
   gap: max(8px, calc(var(--gap) - 2px));
   min-width: 0;
-  padding: max(5px, calc(var(--padding) - 5px)) max(10px, calc(var(--padding) + 2px));
+  height: calc(var(--header-height, 44px) - 12px);
+  padding: 0 max(10px, calc(var(--padding) + 2px));
   border-radius: 999px;
   background: color-mix(in srgb, var(--navbar-surface-soft, rgba(255,255,255,.12)) 78%, transparent);
   backdrop-filter: blur(10px);
   font-size: calc(var(--font-size) - 1px);
+  line-height: 1;
 }
 
 .desktop-user-link {
@@ -186,7 +188,7 @@
   justify-content: center;
   gap: 0.35rem;
   min-width: 82px;
-  height: 30px;
+  height: calc(var(--header-height, 44px) - 16px);
   padding: 0 0.7rem;
   border-radius: 999px;
   color: #fff;
@@ -251,8 +253,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: calc(var(--row-height) - 2px);
-  padding: max(5px, calc(var(--padding) - 5px)) max(10px, calc(var(--padding) + 1px));
+  height: calc(var(--header-height, 44px) - 12px);
+  min-height: 0;
+  padding: 0 max(10px, calc(var(--padding) + 1px));
   border: 1px solid rgba(255, 255, 255, 0.45);
   border-radius: 999px;
   background: transparent;

@@ -252,34 +252,19 @@ class TransactionController
             $this->assertVoucherLinkEditable($voucher);
 
             $actor = ActorHelper::user();
-            $timestamp = date('Y-m-d H:i:s');
 
             $this->pdo->beginTransaction();
-            $this->pdo->prepare("
-                DELETE FROM ledger_transaction_links
-                WHERE transaction_id = :transaction_id
-                  AND voucher_id = :voucher_id
-            ")->execute([
-                ':transaction_id' => $transactionId,
-                ':voucher_id' => $voucherId,
-            ]);
-
-            if (!$this->transactionLinkModel->insert([
-                'id' => UuidHelper::generate(),
-                'transaction_id' => $transactionId,
-                'voucher_id' => $voucherId,
-                'match_amount' => $transaction['total_amount'] ?? null,
-                'link_type' => 'MANUAL',
-                'is_active' => 1,
-                'created_at' => $timestamp,
-                'created_by' => $actor,
-                'updated_at' => $timestamp,
-                'updated_by' => $actor,
-            ])) {
+            if (!$this->transactionLinkModel->insertOrRestore(
+                $transactionId,
+                $voucherId,
+                $transaction['total_amount'] ?? null,
+                'MANUAL',
+                $actor
+            )) {
                 throw new \RuntimeException('전표 연결 저장에 실패했습니다.');
             }
 
-            $this->service->updateLinkStatus($transactionId, 'matched', $actor);
+            $this->service->recalculateMatchStatus($transactionId, $actor);
             $this->pdo->commit();
 
             return [
@@ -313,28 +298,16 @@ class TransactionController
             }
 
             $actor = ActorHelper::user();
-            $sql = "
-                UPDATE ledger_transaction_links
-                SET is_active = 0,
-                    deleted_at = NOW(),
-                    deleted_by = :deleted_by
-                WHERE transaction_id = :transaction_id
-                  AND deleted_at IS NULL
-            ";
-            $params = [
-                ':deleted_by' => $actor,
-                ':transaction_id' => $transactionId,
-            ];
-
-            if ($voucherId !== '') {
-                $sql .= " AND voucher_id = :voucher_id";
-                $params[':voucher_id'] = $voucherId;
-            }
-
             $this->pdo->beginTransaction();
-            $this->pdo->prepare($sql)->execute($params);
-            $remaining = $this->transactionLinkModel->getByTransactionId($transactionId);
-            $this->service->updateLinkStatus($transactionId, $remaining === [] ? 'none' : 'matched', $actor);
+            foreach ($links as $link) {
+                $linkedVoucherId = (string) ($link['voucher_id'] ?? '');
+                if ($linkedVoucherId === '' || ($voucherId !== '' && $linkedVoucherId !== $voucherId)) {
+                    continue;
+                }
+
+                $this->transactionLinkModel->softDeleteByTransactionAndVoucher($transactionId, $linkedVoucherId, $actor);
+            }
+            $this->service->recalculateMatchStatus($transactionId, $actor);
             $this->pdo->commit();
 
             return [
@@ -553,7 +526,18 @@ class TransactionController
             $this->pdo->beginTransaction();
 
             $deleteItems = $this->pdo->prepare("DELETE FROM ledger_transaction_lines WHERE transaction_id = :id");
-            $deleteLinks = $this->pdo->prepare("DELETE FROM ledger_transaction_links WHERE transaction_id = :id");
+            $softDeleteLinks = $this->pdo->prepare("
+                UPDATE ledger_transaction_links
+                SET is_active = 0,
+                    deleted_at = NOW(),
+                    deleted_by = :deleted_by,
+                    updated_at = NOW(),
+                    updated_by = :updated_by
+                WHERE transaction_id = :id
+                  AND is_active = 1
+                  AND deleted_at IS NULL
+            ");
+            $actor = ActorHelper::user();
 
             foreach ($ids as $id) {
                 foreach ($this->transactionFileModel->getByTransactionId($id) as $file) {
@@ -563,7 +547,11 @@ class TransactionController
                 }
 
                 $deleteItems->execute([':id' => $id]);
-                $deleteLinks->execute([':id' => $id]);
+                $softDeleteLinks->execute([
+                    ':id' => $id,
+                    ':deleted_by' => $actor,
+                    ':updated_by' => $actor,
+                ]);
                 $this->transactionModel->hardDelete($id);
             }
 
@@ -647,17 +635,11 @@ class TransactionController
             'sort_no' => SequenceHelper::next('ledger_vouchers', 'sort_no'),
             'voucher_no' => $voucherNo,
             'voucher_date' => $voucherDate,
-            'source_type' => 'MANUAL',
+            'source_type' => 'TRANSACTION',
             'source_id' => $transactionId,
             'status' => 'draft',
             'summary_text' => $transaction['description'] ?: ($firstItemName ?: null),
             'note' => $transaction['note'] ?? null,
-            'memo' => json_encode([
-                'created_from_transaction' => [
-                    'transaction_id' => $transactionId,
-                    'total_amount' => $totalAmount,
-                ],
-            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'created_at' => $timestamp,
             'created_by' => $actor,
             'updated_at' => $timestamp,
@@ -666,22 +648,17 @@ class TransactionController
             throw new \RuntimeException('전표 생성에 실패했습니다.');
         }
 
-        if (!$this->transactionLinkModel->insert([
-            'id' => UuidHelper::generate(),
-            'transaction_id' => $transactionId,
-            'voucher_id' => $voucherId,
-            'match_amount' => $transaction['total_amount'] ?? $totalAmount,
-            'link_type' => 'AUTO',
-            'is_active' => 1,
-            'created_at' => $timestamp,
-            'created_by' => $actor,
-            'updated_at' => $timestamp,
-            'updated_by' => $actor,
-        ])) {
+        if (!$this->transactionLinkModel->insertOrRestore(
+            $transactionId,
+            $voucherId,
+            $transaction['total_amount'] ?? $totalAmount,
+            'AUTO',
+            $actor
+        )) {
             throw new \RuntimeException('전표 연결 저장에 실패했습니다.');
         }
 
-        $this->service->updateLinkStatus($transactionId, 'matched', $actor);
+        $this->service->recalculateMatchStatus($transactionId, $actor);
         $this->pdo->commit();
 
         return [

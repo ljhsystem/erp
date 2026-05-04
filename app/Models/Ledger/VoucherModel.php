@@ -29,6 +29,12 @@ class VoucherModel
                 COALESCE(voucher_line_accounts.line_count, 0) AS line_count,
                 COALESCE(voucher_payments.payment_total, 0) AS payment_total,
                 COALESCE(voucher_payments.payment_count, 0) AS payment_count,
+                transaction_links.transaction_id,
+                transaction_links.match_status,
+                COALESCE(linked_clients.client_name, source_clients.client_name, '') AS client_name,
+                reversal_vouchers.id AS reversal_voucher_id,
+                reversal_vouchers.voucher_no AS reversal_voucher_no,
+                original_vouchers.voucher_no AS original_voucher_no,
                 CASE
                     WHEN transaction_links.voucher_id IS NULL THEN 'unlinked'
                     ELSE 'linked'
@@ -61,13 +67,47 @@ class VoucherModel
             ) voucher_payments
                 ON voucher_payments.voucher_id = v.id
             LEFT JOIN (
-                SELECT voucher_id
-                FROM ledger_transaction_links
-                WHERE deleted_at IS NULL
-                  AND is_active = 1
-                GROUP BY voucher_id
+                SELECT
+                    l.voucher_id,
+                    MIN(l.transaction_id) AS transaction_id,
+                    CASE
+                        WHEN SUM(CASE WHEN t.match_status = 'matched' THEN 1 ELSE 0 END) > 0 THEN 'matched'
+                        WHEN COUNT(t.id) > 0 THEN MIN(t.match_status)
+                        ELSE NULL
+                    END AS match_status
+                FROM ledger_transaction_links l
+                LEFT JOIN ledger_transactions t
+                    ON t.id = l.transaction_id
+                   AND t.deleted_at IS NULL
+                WHERE l.deleted_at IS NULL
+                  AND l.is_active = 1
+                GROUP BY l.voucher_id
             ) transaction_links
                 ON transaction_links.voucher_id = v.id
+            LEFT JOIN (
+                SELECT
+                    l.voucher_id,
+                    MAX(sc.client_name) AS client_name
+                FROM ledger_transaction_links l
+                INNER JOIN ledger_transactions t
+                    ON t.id = l.transaction_id
+                   AND t.deleted_at IS NULL
+                LEFT JOIN system_clients sc
+                    ON sc.id = t.client_id
+                WHERE l.deleted_at IS NULL
+                  AND l.is_active = 1
+                GROUP BY l.voucher_id
+            ) linked_clients
+                ON linked_clients.voucher_id = v.id
+            LEFT JOIN system_clients source_clients
+                ON source_clients.id = v.source_id
+               AND v.source_type = 'CLIENT'
+            LEFT JOIN {$this->table} reversal_vouchers
+                ON reversal_vouchers.reversal_of = v.id
+               AND reversal_vouchers.is_reversal = 1
+               AND reversal_vouchers.deleted_at IS NULL
+            LEFT JOIN {$this->table} original_vouchers
+                ON original_vouchers.id = v.reversal_of
             WHERE v.deleted_at IS NULL
         ";
 
@@ -99,6 +139,15 @@ class VoucherModel
             if (!empty($filters['date_to'])) {
                 $sql .= " AND v.voucher_date <= :date_to";
                 $params[':date_to'] = $filters['date_to'];
+            }
+
+            if (!empty($filters['keyword'])) {
+                $sql .= " AND (
+                    v.voucher_no LIKE :keyword
+                    OR v.summary_text LIKE :keyword
+                    OR COALESCE(linked_clients.client_name, source_clients.client_name, '') LIKE :keyword
+                )";
+                $params[':keyword'] = '%' . $filters['keyword'] . '%';
             }
         }
 
@@ -264,6 +313,7 @@ class VoucherModel
             '카드사', '카드', 'CARD' => 'CARD',
             '은행', 'BANK' => 'BANK',
             '수기입력', '수기', 'MANUAL' => 'MANUAL',
+            '거래', 'TRANSACTION' => 'TRANSACTION',
             default => $normalized,
         };
     }
@@ -345,6 +395,10 @@ class VoucherModel
             'summary_text',
             'note',
             'memo',
+            'reject_reason',
+            'is_reversal',
+            'reversal_of',
+            'need_transaction',
             'created_at',
             'created_by',
             'updated_at',
@@ -386,6 +440,10 @@ class VoucherModel
             'summary_text',
             'note',
             'memo',
+            'reject_reason',
+            'is_reversal',
+            'reversal_of',
+            'need_transaction',
             'updated_at',
             'updated_by',
             'deleted_at',
@@ -482,6 +540,22 @@ class VoucherModel
     public function create(array $data): bool
     {
         return $this->insert($data);
+    }
+
+    public function findActiveReversalOf(string $voucherId): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT *
+            FROM {$this->table}
+            WHERE reversal_of = :voucher_id
+              AND is_reversal = 1
+              AND deleted_at IS NULL
+            ORDER BY created_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute([':voucher_id' => $voucherId]);
+
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
     public function purge(string $id): bool

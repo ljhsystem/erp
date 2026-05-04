@@ -206,7 +206,7 @@
 
                             <div class="transaction-voucher-actions">
                                 <button type="button" class="btn btn-outline-success btn-sm" id="btnCreateTransactionVoucher">전표 생성</button>
-                                <input type="text" class="form-control form-control-sm" id="transaction_voucher_id" placeholder="기존 전표 ID">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnSelectTransactionVoucher">전표 선택</button>
                                 <button type="button" class="btn btn-outline-primary btn-sm" id="btnLinkTransactionVoucher">전표 연결</button>
                                 <button type="button" class="btn btn-outline-danger btn-sm" id="btnUnlinkTransactionVoucher">연결 해제</button>
                             </div>

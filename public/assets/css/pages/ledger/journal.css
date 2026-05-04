@@ -41,6 +41,98 @@
     text-align: center !important;
 }
 
+.journal-page .journal-status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 64px;
+    height: 24px;
+    padding: 0 9px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.journal-page .journal-status-rejected {
+    color: #842029;
+    background: #f8d7da;
+    border-color: #f1aeb5;
+}
+
+.journal-page .journal-status-draft {
+    color: #4b5563;
+    background: #f3f4f6;
+    border-color: #d1d5db;
+}
+
+.journal-page .journal-status-confirmed {
+    color: #0b5ed7;
+    background: #e7f1ff;
+    border-color: #9ec5fe;
+}
+
+.journal-page .journal-status-reviewed {
+    color: #6f42c1;
+    background: #f1e7ff;
+    border-color: #d6b8ff;
+}
+
+.journal-page .journal-status-posted {
+    color: #146c43;
+    background: #d1e7dd;
+    border-color: #a3cfbb;
+}
+
+.journal-page .journal-status-closed {
+    color: #383d41;
+    background: #e2e3e5;
+    border-color: #c6c8ca;
+}
+
+.journal-page .journal-link-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 64px;
+    height: 24px;
+    padding: 0 9px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.journal-page .journal-link-unlinked {
+    color: #64748b;
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+}
+
+.journal-page .journal-link-linked {
+    color: #0b5ed7;
+    background: #e7f1ff;
+    border-color: #9ec5fe;
+}
+
+.journal-page .journal-link-matched {
+    color: #146c43;
+    background: #d1e7dd;
+    border-color: #a3cfbb;
+}
+
+.journal-page .journal-source-origin {
+    margin-top: 4px;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
 .journal-page .date-icon {
     cursor: pointer;
     pointer-events: auto;
@@ -152,6 +244,25 @@
 #journalModal .section-body {
     min-width: 0;
     padding: 10px;
+}
+
+#journalModal .journal-reject-panel {
+    border-color: #f3b7bd;
+    background: #fff6f7;
+}
+
+#journalModal .journal-reject-panel .journal-section-head {
+    color: #842029;
+    background: #f8d7da;
+    border-bottom-color: #f1aeb5;
+}
+
+#journalModal .journal-reject-reason {
+    white-space: pre-wrap;
+    color: #842029;
+    font-size: 13px;
+    line-height: 1.5;
+    font-weight: 600;
 }
 
 #journalModal .journal-voucher-header {
@@ -428,10 +539,10 @@
 .voucher-timeline {
     position: relative;
     display: grid;
-    grid-template-columns: repeat(4, 170px);
+    grid-template-columns: repeat(5, minmax(120px, 1fr));
     justify-content: center;
     align-items: start;
-    column-gap: 44px;
+    column-gap: 22px;
     padding: 12px 8px 4px;
 }
 
@@ -439,8 +550,8 @@
     content: "";
     position: absolute;
     top: 20px;
-    left: calc(50% - 321px);
-    right: calc(50% - 321px);
+    left: calc((100% - 4 * 22px) / 10 + 8px);
+    right: calc((100% - 4 * 22px) / 10 + 8px);
     height: 2px;
     background: #e5e7eb;
     border-radius: 999px;
@@ -461,7 +572,7 @@
     position: absolute;
     top: 8px;
     left: 50%;
-    width: 214px;
+    width: calc(100% + 22px);
     height: 2px;
     background: #111827;
     z-index: 1;
@@ -512,12 +623,20 @@
     font-weight: 600;
 }
 
+.voucher-timeline-step.final .voucher-timeline-meta,
+.voucher-timeline-step.final .voucher-timeline-label {
+    color: #166534;
+    font-weight: 800;
+}
+
 .voucher-timeline-draft.done .voucher-timeline-node,
 .voucher-timeline-confirmed.done .voucher-timeline-node,
+.voucher-timeline-reviewed.done .voucher-timeline-node,
 .voucher-timeline-posted.done .voucher-timeline-node,
 .voucher-timeline-closed.done .voucher-timeline-node,
 .voucher-timeline-draft.current .voucher-timeline-node,
 .voucher-timeline-confirmed.current .voucher-timeline-node,
+.voucher-timeline-reviewed.current .voucher-timeline-node,
 .voucher-timeline-posted.current .voucher-timeline-node,
 .voucher-timeline-closed.current .voucher-timeline-node {
     background: #111827;
@@ -525,10 +644,12 @@
 
 .voucher-timeline-draft.done .voucher-timeline-label,
 .voucher-timeline-confirmed.done .voucher-timeline-label,
+.voucher-timeline-reviewed.done .voucher-timeline-label,
 .voucher-timeline-posted.done .voucher-timeline-label,
 .voucher-timeline-closed.done .voucher-timeline-label,
 .voucher-timeline-draft.current .voucher-timeline-label,
 .voucher-timeline-confirmed.current .voucher-timeline-label,
+.voucher-timeline-reviewed.current .voucher-timeline-label,
 .voucher-timeline-posted.current .voucher-timeline-label,
 .voucher-timeline-closed.done .voucher-timeline-label,
 .voucher-timeline-closed.current .voucher-timeline-label {
@@ -545,6 +666,29 @@
 
 .voucher-timeline-step.pending .voucher-timeline-label {
     color: #6b7280;
+}
+
+.voucher-timeline-step.final .voucher-timeline-node {
+    color: #ffffff;
+    background: #16a34a !important;
+    box-shadow: 0 0 0 4px rgba(22, 163, 74, .16);
+    animation: none !important;
+}
+
+.voucher-timeline-step.closed-final .voucher-timeline-node {
+    background: #475569 !important;
+    box-shadow: 0 0 0 4px rgba(71, 85, 105, .16);
+}
+
+.voucher-timeline-step.closed-final .voucher-timeline-meta,
+.voucher-timeline-step.closed-final .voucher-timeline-label {
+    color: #334155;
+}
+
+.voucher-timeline-step.final .voucher-timeline-node::before,
+.voucher-timeline-step.final .voucher-timeline-node::after {
+    display: none !important;
+    animation: none !important;
 }
 
 .voucher-flow-step {
@@ -574,6 +718,11 @@
     background: #3b82f6;
 }
 
+.voucher-flow-step-reviewed.done,
+.voucher-flow-step-reviewed.current {
+    background: #8b5cf6;
+}
+
 .voucher-flow-step-posted.done,
 .voucher-flow-step-posted.current {
     background: #22c55e;
@@ -588,6 +737,19 @@
     color: #4b5563;
     background: #e5e7eb;
     border-color: #d1d5db;
+}
+
+.voucher-flow-step.final {
+    color: #ffffff;
+    background: #16a34a;
+    border-color: #15803d;
+    font-weight: 800;
+    animation: none !important;
+}
+
+.voucher-flow-step.closed-final {
+    background: #475569;
+    border-color: #334155;
 }
 
 .voucher-flow-check {
@@ -692,6 +854,17 @@
     background: #f8fafc;
     border: 1px solid #dbe3ef;
     border-radius: 8px;
+}
+
+#journalModal .journal-transaction-notice {
+    flex-basis: 100%;
+    color: #0f5132;
+    background: #d1e7dd;
+    border: 1px solid #badbcc;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 12px;
+    font-weight: 700;
 }
 
 #journalModal .journal-note-grid {

@@ -196,7 +196,7 @@ class BankAccountModel
             $sql .= ")";
         }
 
-        $sql .= " ORDER BY a.sort_no DESC";
+        $sql .= " ORDER BY a.sort_no ASC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);

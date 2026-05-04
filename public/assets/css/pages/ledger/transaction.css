@@ -775,9 +775,10 @@
 
 #transactionModal .transaction-voucher-actions {
     display: grid;
-    grid-template-columns: auto minmax(180px, 1fr) auto auto;
+    grid-template-columns: repeat(4, max-content);
     gap: 8px;
     align-items: center;
+    justify-content: end;
 }
 
 #transactionModal .form-control-sm,
@@ -1051,6 +1052,169 @@ body.modal-open .select2-container--open {
     #transactionModal .transaction-voucher-layout,
     #transactionModal .transaction-voucher-actions {
         grid-template-columns: 1fr;
+    }
+}
+
+#voucherSelectModal .voucher-select-dialog {
+    max-width: min(1180px, calc(100vw - 28px));
+}
+
+#voucherSelectModal .voucher-select-body {
+    display: grid;
+    gap: 12px;
+}
+
+#voucherSelectModal .voucher-select-filter {
+    display: grid;
+    grid-template-columns: minmax(190px, 1.1fr) minmax(120px, 0.6fr) minmax(130px, 0.7fr) minmax(170px, 0.9fr) minmax(220px, 1.2fr) auto;
+    gap: 8px;
+    align-items: end;
+}
+
+#voucherSelectModal .voucher-select-field {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    min-width: 0;
+    font-size: 12px;
+    color: #475569;
+}
+
+#voucherSelectModal .voucher-select-date-range,
+#voucherSelectModal .voucher-select-amount-range {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px;
+}
+
+#voucherSelectModal .voucher-select-filter-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+#voucherSelectModal .voucher-select-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 0.45fr);
+    gap: 12px;
+    min-height: 420px;
+}
+
+#voucherSelectModal .voucher-select-list-wrap {
+    min-width: 0;
+    max-height: 460px;
+    overflow: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+}
+
+#voucherSelectModal .voucher-select-table {
+    margin: 0;
+    font-size: 12px;
+}
+
+#voucherSelectModal .voucher-select-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #f8fafc;
+    color: #334155;
+    white-space: nowrap;
+}
+
+#voucherSelectModal .voucher-select-table tbody tr {
+    cursor: pointer;
+}
+
+#voucherSelectModal .voucher-select-table tbody tr.is-selected {
+    --bs-table-bg: #eff6ff;
+    --bs-table-hover-bg: #dbeafe;
+}
+
+#voucherSelectModal .voucher-select-table tbody tr.is-disabled {
+    color: #94a3b8;
+    cursor: not-allowed;
+}
+
+#voucherSelectModal .voucher-select-table td {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#voucherSelectModal .voucher-select-detail {
+    min-width: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #f8fafc;
+    overflow: hidden;
+}
+
+#voucherSelectModal .voucher-select-detail-title {
+    padding: 9px 10px;
+    border-bottom: 1px solid #e2e8f0;
+    font-weight: 700;
+    color: #334155;
+}
+
+#voucherSelectModal .voucher-select-detail-summary {
+    padding: 8px 10px;
+    border-bottom: 1px solid #e2e8f0;
+    color: #475569;
+    font-size: 12px;
+}
+
+#voucherSelectModal .voucher-select-lines {
+    display: grid;
+    gap: 6px;
+    max-height: 390px;
+    padding: 10px;
+    overflow-y: auto;
+}
+
+#voucherSelectModal .voucher-select-line {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+    padding: 7px 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: #fff;
+    font-size: 12px;
+}
+
+#voucherSelectModal .voucher-select-line-main,
+#voucherSelectModal .voucher-select-line-sub {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#voucherSelectModal .voucher-select-line-main {
+    color: #334155;
+    font-weight: 600;
+}
+
+#voucherSelectModal .voucher-select-line-sub {
+    color: #64748b;
+}
+
+#voucherSelectModal .voucher-select-line-amount {
+    text-align: right;
+    color: #334155;
+    white-space: nowrap;
+}
+
+@media (max-width: 992px) {
+    #voucherSelectModal .voucher-select-filter,
+    #voucherSelectModal .voucher-select-layout {
+        grid-template-columns: 1fr;
+    }
+
+    #voucherSelectModal .voucher-select-filter-actions {
+        justify-content: flex-start;
     }
 }
 

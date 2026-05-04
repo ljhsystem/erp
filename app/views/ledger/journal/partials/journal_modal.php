@@ -27,6 +27,16 @@
                         </div>
                     </section>
 
+                    <section class="form-section journal-section journal-reject-panel d-none" id="journalRejectPanel" aria-label="반려 사유">
+                        <div class="section-header journal-section-head">
+                            <span class="section-title journal-section-title">반려됨</span>
+                        </div>
+
+                        <div class="section-body">
+                            <div class="journal-reject-reason" id="journalRejectReason"></div>
+                        </div>
+                    </section>
+
                     <section class="form-section journal-section journal-voucher-header" aria-label="전표개요">
                         <div class="section-header journal-section-head">
                             <span class="section-title journal-section-title">전표개요</span>
@@ -69,7 +79,9 @@
                                         data-empty-option="false"
                                         required>
                                     <option value="MANUAL" selected>수기입력</option>
+                                    <option value="TRANSACTION">거래</option>
                                 </select>
+                                <div class="journal-source-origin d-none" id="voucher_source_transaction_info"></div>
                             </div>
 
                             <div class="journal-form-field journal-summary-text-field">
@@ -228,6 +240,8 @@
                                     id="btnClearTransactionLink">연결 해제</button>
                             <div class="journal-transaction-summary"
                                  id="linked_transaction_summary">연결된 거래가 없습니다.</div>
+                            <div class="journal-transaction-notice d-none"
+                                 id="journalTransactionNotice"></div>
                         </div>
                                             </div>
                     </section>
@@ -237,10 +251,13 @@
                     <button type="button"
                             class="btn btn-danger btn-sm d-none"
                             id="btnDeleteVoucherInModal">삭제</button>
-                    <button type="button"
-                            class="btn btn-primary btn-sm d-none"
-                            id="btnAdvanceVoucherStatus">확정</button>
                     <button type="submit" class="btn btn-success btn-sm" id="btnSaveVoucher">저장</button>
+                    <button type="button"
+                            class="btn btn-primary btn-sm"
+                            id="btnRequestVoucherReview">검토요청</button>
+                    <button type="button"
+                            class="btn btn-outline-warning btn-sm d-none"
+                            id="btnCancelVoucherReview">검토요청 취소</button>
                     <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
                 </div>
 

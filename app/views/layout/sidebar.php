@@ -67,6 +67,7 @@ $link = static function (string $href, string $label, string $iconClass, string 
                 <a href="#menu-ledger-data" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-database') ?><span>자료관리</span></a>
                 <ul id="menu-ledger-data" class="collapse">
                     <li><?= $link('/ledger/data/upload', '자료업로드', 'bi-upload') ?></li>
+                    <li><?= $link('/ledger/data/format', '양식관리', 'bi-table') ?></li>
                     <li><?= $link('/ledger/data', '자료목록', 'bi-list-check') ?></li>
                 </ul>
             </li>
@@ -80,7 +81,6 @@ $link = static function (string $href, string $label, string $iconClass, string 
                 <a href="#menu-ledger-voucher" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-journal-richtext') ?><span>전표관리</span></a>
                 <ul id="menu-ledger-voucher" class="collapse">
                     <li><?= $link('/ledger/journal', '전표입력', 'bi-pencil-square') ?></li>
-                    <li><?= $link('/ledger/vouchers', '전표조회', 'bi-search') ?></li>
                     <li><?= $link('/ledger/vouchers/review', '전표검토/승인', 'bi-check2-square') ?></li>
                 </ul>
             </li>
