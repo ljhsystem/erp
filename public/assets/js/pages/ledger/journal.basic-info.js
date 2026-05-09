@@ -939,9 +939,9 @@ function ensureQuickCreateConfigs() {
                     }
 
                     if (parentNameField) {
-                        parentNameField.value = row.account_name
-                            ? `${row.account_code} - ${row.account_name}`
-                            : (row.account_code ?? '');
+                        parentNameField.value = row.full_path
+                            ? `[${row.full_path}]`
+                            : (row.account_name ?? row.account_code ?? '');
                     }
 
                     parentPicker.close();
@@ -1305,6 +1305,27 @@ export function createJournalBasicInfoBridge({ notify }) {
         : (_type, message) => window.alert(message);
 
     const configs = ensureQuickCreateConfigs();
+    if (configs.account) {
+        configs.account.quickTitle = '계정과목 빠른 등록';
+        configs.account.quickFields = [
+            { name: 'account_code', label: '계정코드', required: true, placeholder: '계정코드를 입력하세요' },
+            { name: 'account_name', label: '계정과목명', required: true, placeholder: '계정과목명을 입력하세요' },
+            {
+                name: 'account_group',
+                label: '계정구분',
+                type: 'select',
+                required: true,
+                options: [
+                    { value: '', label: '선택' },
+                    { value: '자산', label: '자산' },
+                    { value: '부채', label: '부채' },
+                    { value: '자본', label: '자본' },
+                    { value: '수익', label: '수익' },
+                    { value: '비용', label: '비용' },
+                ],
+            },
+        ];
+    }
     const quickModalEl = ensureQuickCreateModal();
     const quickModal = new bootstrap.Modal(quickModalEl, { focus: false });
     const quickForm = quickModalEl.querySelector('[data-role="quick-create-form"]');

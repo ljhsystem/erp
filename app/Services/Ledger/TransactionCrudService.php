@@ -36,7 +36,6 @@ class TransactionCrudService
         $allowedKeys = [
             'business_unit',
             'transaction_type',
-            'tax_type',
             'status',
             'match_status',
             'project_id',
@@ -88,7 +87,6 @@ class TransactionCrudService
             'project_name',
             'client_id',
             'client_name',
-            'tax_type',
             'supply_amount',
             'vat_amount',
             'total_amount',
@@ -227,6 +225,8 @@ class TransactionCrudService
         try {
             $this->pdo->beginTransaction();
 
+            $this->assertTransactionDeleteAllowed($transactionId);
+
             $this->pdo->prepare("
                 UPDATE ledger_transaction_links
                 SET is_active = 0,
@@ -253,6 +253,8 @@ class TransactionCrudService
                 throw new \RuntimeException('거래 삭제에 실패했습니다.');
             }
 
+            $this->restoreSeedRowsForDeletedTransaction($transactionId, $actor);
+
             $this->pdo->commit();
 
             return [
@@ -271,6 +273,46 @@ class TransactionCrudService
         }
     }
 
+    private function restoreSeedRowsForDeletedTransaction(string $transactionId, string $actor): void
+    {
+        $stmt = $this->pdo->prepare("
+            UPDATE ledger_data_seed_rows
+            SET process_status = 'READY',
+                transaction_id = NULL,
+                processed_at = NULL,
+                error_message = NULL,
+                updated_at = NOW(),
+                updated_by = :actor
+            WHERE transaction_id = :transaction_id
+              AND process_status = 'PROCESSED'
+        ");
+        $stmt->execute([
+            ':transaction_id' => $transactionId,
+            ':actor' => $actor,
+        ]);
+    }
+
+    private function assertTransactionDeleteAllowed(string $transactionId): void
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT v.status, v.voucher_no
+            FROM ledger_transaction_links l
+            INNER JOIN ledger_vouchers v
+                ON v.id = l.voucher_id
+               AND v.deleted_at IS NULL
+            WHERE l.transaction_id = :transaction_id
+              AND l.is_active = 1
+              AND l.deleted_at IS NULL
+              AND v.status IN ('posted', 'closed', 'confirmed')
+            LIMIT 1
+        ");
+        $stmt->execute([':transaction_id' => $transactionId]);
+        $voucher = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        if ($voucher) {
+            throw new \RuntimeException('확정/승인된 전표가 연결된 거래는 삭제할 수 없습니다.');
+        }
+    }
+
     public function save(array $data, array $files = []): array
     {
         $actor = ActorHelper::user();
@@ -278,14 +320,14 @@ class TransactionCrudService
         $transactionId = trim((string) ($data['id'] ?? ''));
         $items = $this->normalizeItems($data['items'] ?? [], $data);
 
-        if ($items === []) {
+        $lineTotals = $this->calculateTotals($items);
+        $totals = $this->resolveTransactionTotals($data, $lineTotals);
+        if (abs((float) $totals['total_amount']) <= 0) {
             return [
                 'success' => false,
-                'message' => '거래 항목은 최소 1개 이상 필요합니다.',
+                'message' => '거래헤더 금액을 입력해 주세요.',
             ];
         }
-
-        $totals = $this->calculateTotals($items);
         $transactionPayload = $this->buildTransactionPayload($data, $actor, $timestamp, $totals);
 
         try {
@@ -357,11 +399,12 @@ class TransactionCrudService
             'transaction_date' => $transactionDate,
             'business_unit' => $businessUnit,
             'transaction_type' => $transactionType,
+            'transaction_direction' => $this->nullable($data['transaction_direction'] ?? null),
+            'import_type' => $this->nullable($data['import_type'] ?? $data['source_type'] ?? null),
             'client_id' => $this->nullable($data['client_id'] ?? null),
             'project_id' => $this->nullable($data['project_id'] ?? null),
             'currency' => trim((string) ($data['currency'] ?? 'KRW')) ?: 'KRW',
             'exchange_rate' => $this->numericOrNull($data['exchange_rate'] ?? null),
-            'tax_type' => $this->normalizeTaxType($data['tax_type'] ?? null),
             'supply_amount' => $totals['supply_amount'],
             'vat_amount' => $totals['vat_amount'],
             'total_amount' => $totals['total_amount'],
@@ -445,6 +488,26 @@ class TransactionCrudService
             $supplyAmount += (float) ($item['supply_amount'] ?? 0);
             $vatAmount += (float) ($item['vat_amount'] ?? 0);
             $totalAmount += (float) ($item['total_amount'] ?? 0);
+        }
+
+        return [
+            'supply_amount' => round($supplyAmount, 2),
+            'vat_amount' => round($vatAmount, 2),
+            'total_amount' => round($totalAmount, 2),
+        ];
+    }
+
+    private function resolveTransactionTotals(array $data, array $lineTotals): array
+    {
+        if (abs((float) ($lineTotals['total_amount'] ?? 0)) > 0) {
+            return $lineTotals;
+        }
+
+        $supplyAmount = (float) ($this->numericOrNull($data['supply_amount'] ?? null) ?? 0);
+        $vatAmount = (float) ($this->numericOrNull($data['vat_amount'] ?? null) ?? 0);
+        $totalAmount = (float) ($this->numericOrNull($data['total_amount'] ?? null) ?? 0);
+        if (abs($totalAmount) <= 0 && (abs($supplyAmount) > 0 || abs($vatAmount) > 0)) {
+            $totalAmount = $supplyAmount + $vatAmount;
         }
 
         return [
@@ -607,17 +670,38 @@ class TransactionCrudService
             $unitPrice = $usesForeignAmount && $quantity > 0
                 ? round(((float) $foreignAmount * $exchangeRate) / $quantity, 2)
                 : (float) ($this->numericOrNull($item['unit_price'] ?? 0) ?? 0);
-            $taxType = $this->normalizeTaxType($item['tax_type'] ?? ($data['tax_type'] ?? 'TAXABLE')) ?? 'EXEMPT';
+            $taxType = $this->normalizeTaxType($item['tax_type'] ?? null)
+                ?? ($usesForeignAmount ? 'ZERO' : 'TAXABLE');
             $itemDate = trim((string) ($item['item_date'] ?? ($data['transaction_date'] ?? date('Y-m-d'))));
             if ($itemDate === '') {
                 $itemDate = date('Y-m-d');
             }
+
+            $givenSupplyAmount = $this->numericOrNull($item['supply_amount'] ?? null);
+            $givenVatAmount = $this->numericOrNull($item['vat_amount'] ?? null);
+            $givenTotalAmount = $this->numericOrNull($item['total_amount'] ?? null);
 
             $supplyAmount = $usesForeignAmount
                 ? round((float) $foreignAmount * $exchangeRate, 2)
                 : round($quantity * $unitPrice, 2);
             $vatAmount = $taxType === 'TAXABLE' ? round($supplyAmount * 0.1, 2) : 0.0;
             $totalAmount = round($supplyAmount + $vatAmount, 2);
+
+            if ($givenSupplyAmount !== null || $givenVatAmount !== null || $givenTotalAmount !== null) {
+                $supplyAmount = round((float) ($givenSupplyAmount ?? (
+                    $givenTotalAmount !== null ? ((float) $givenTotalAmount - (float) ($givenVatAmount ?? 0)) : $supplyAmount
+                )), 2);
+                $vatAmount = round((float) ($givenVatAmount ?? (
+                    $givenTotalAmount !== null ? ((float) $givenTotalAmount - $supplyAmount) : ($taxType === 'TAXABLE' ? round($supplyAmount * 0.1, 2) : 0)
+                )), 2);
+                $totalAmount = round((float) ($givenTotalAmount ?? ($supplyAmount + $vatAmount)), 2);
+                if ($quantity <= 0) {
+                    $quantity = 1.0;
+                }
+                if ($unitPrice <= 0 && $quantity > 0) {
+                    $unitPrice = round($supplyAmount / $quantity, 2);
+                }
+            }
 
             $rows[] = [
                 'item_date' => $itemDate,

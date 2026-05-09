@@ -1,0 +1,2 @@
+-- Deprecated no-op.
+-- Legacy upload staging tables were removed.

@@ -120,7 +120,7 @@
                 </div>
 
                 <div class="col-md-4">
-                  <label class="form-label">거래유형</label>
+                  <label class="form-label">거래처구분</label>
                   <select name="client_type"
                           id="modal_client_type"
                           class="form-select form-select-sm"
@@ -320,7 +320,7 @@
 
                     <div class="col-md-4">
                       <label class="form-label">거래구분</label>
-                      <select name="trade_category" id="modal_trade_category" class="form-select form-select-sm" data-code-group="TRADE_CATEGORY">
+                      <select name="trade_category" id="modal_trade_category" class="form-select form-select-sm" data-code-group="TRANSACTION_DIRECTION">
                         <option value=""></option>
                       </select>
                     </div>
@@ -361,7 +361,15 @@
               </div>
 
               <div class="row g-2 mt-1">
-                <div class="col-md-12">
+                <div class="col-md-4">
+                  <label class="form-label">기본계정과목</label>
+                  <select name="default_account_id"
+                          id="modal_default_account_id"
+                          class="form-select form-select-sm js-default-account-select">
+                    <option value=""></option>
+                  </select>
+                </div>
+                <div class="col-md-8">
                   <label class="form-label">취급품목</label>
                   <input type="text"
                          name="item_category"

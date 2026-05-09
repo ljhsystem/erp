@@ -42,7 +42,15 @@ import '/public/assets/js/components/trash-manager.js';
     const projectSelectEl = document.getElementById('project_id');
     const currencySelectEl = document.getElementById('currency');
     const exchangeRateEl = document.getElementById('exchange_rate');
+    const headerSupplyAmountEl = document.getElementById('transaction_supply_amount');
+    const headerVatAmountEl = document.getElementById('transaction_vat_amount');
+    const headerTotalAmountEl = document.getElementById('transaction_total_amount');
     const modalBodyEl = modalEl?.querySelector('.transaction-modal-body');
+    const voucherWizardEl = document.getElementById('transactionVoucherWizardModal');
+    const voucherWizardLineBody = document.getElementById('voucherWizardLineBody');
+    const voucherWizardBalanceText = document.getElementById('voucherWizardBalanceText');
+    const saveVoucherWizardBtn = document.getElementById('btnSaveVoucherWizard');
+    const addVoucherWizardLineBtn = document.getElementById('btnAddVoucherWizardLine');
 
     if (!form || !modalEl || !hotEl) {
         return;
@@ -70,6 +78,13 @@ import '/public/assets/js/components/trash-manager.js';
     let allowModalClose = false;
     let floatingLineHeaderEl = null;
     let lineHeaderFrame = null;
+    let voucherWizardModal = null;
+    let voucherWizardState = {
+        transactionId: '',
+        accounts: [],
+        transaction: {},
+        originalLines: [],
+    };
     let selectedVoucherId = '';
     let selectedVoucherLabel = '';
     let fileDropzoneEmptyText = '파일을 드래그해서 첨부하세요';
@@ -89,6 +104,7 @@ import '/public/assets/js/components/trash-manager.js';
         purgeAll: '/api/ledger/transaction/purge-all',
         reorder: '/api/ledger/transaction/reorder',
         createVoucher: '/api/ledger/transaction/create-voucher',
+        recommendVoucher: '/api/ledger/transaction/recommend-voucher',
         linkVoucher: '/api/ledger/transaction/link-voucher',
         unlinkVoucher: '/api/ledger/transaction/unlink-voucher',
         clientSearch: '/api/settings/base-info/client/search-picker',
@@ -518,7 +534,9 @@ import '/public/assets/js/components/trash-manager.js';
 
         (lineHot.getSourceData() || []).forEach((row, index) => {
             if (!row) return;
-            setLineCellValue(index, 'tax_type', taxTypeLabelFromCode('ZERO'), 'foreign-tax');
+            if (!String(row.tax_type || '').trim()) {
+                setLineCellValue(index, 'tax_type', taxTypeLabelFromCode('ZERO'), 'foreign-tax');
+            }
         });
     }
 
@@ -589,6 +607,33 @@ import '/public/assets/js/components/trash-manager.js';
 
     function formatAmount(value) {
         return new Intl.NumberFormat('ko-KR').format(Math.round(numberValue(value)));
+    }
+
+    function setHeaderAmountValues(data = {}) {
+        if (headerSupplyAmountEl) {
+            headerSupplyAmountEl.value = data.supply_amount === undefined || data.supply_amount === null ? '' : formatNumber(data.supply_amount);
+        }
+        if (headerVatAmountEl) {
+            headerVatAmountEl.value = data.vat_amount === undefined || data.vat_amount === null ? '' : formatNumber(data.vat_amount);
+        }
+        syncHeaderTotalAmount();
+        if (headerTotalAmountEl && data.total_amount !== undefined && data.total_amount !== null) {
+            headerTotalAmountEl.value = formatNumber(data.total_amount);
+        }
+    }
+
+    function syncHeaderTotalAmount() {
+        if (!headerTotalAmountEl) return;
+        const total = parseNumber(headerSupplyAmountEl?.value || '') + parseNumber(headerVatAmountEl?.value || '');
+        headerTotalAmountEl.value = total > 0 ? formatNumber(total) : '';
+    }
+
+    function normalizeHeaderAmountFormData(formData) {
+        syncHeaderTotalAmount();
+        ['supply_amount', 'vat_amount', 'total_amount'].forEach((name) => {
+            const raw = String(formData.get(name) ?? '').trim();
+            formData.set(name, raw === '' ? '' : String(parseNumber(raw)));
+        });
     }
 
     function lineMoveRenderer(instance, td) {
@@ -776,7 +821,6 @@ import '/public/assets/js/components/trash-manager.js';
             },
             textColumn('currency', '통화'),
             textColumn('exchange_rate', '환율', { className: 'text-end' }),
-            textColumn('tax_type', '과세구분'),
             amountColumn('supply_amount', '공급가'),
             amountColumn('vat_amount', '부가세'),
             amountColumn('total_amount', '총금액', true),
@@ -799,7 +843,7 @@ import '/public/assets/js/components/trash-manager.js';
                     return renderMatchStatus(data);
                 },
             },
-            textColumn('status', '전표상태', { visible: true, className: 'text-center', render: renderTransactionStatus }),
+            textColumn('status', '거래상태', { visible: true, className: 'text-center', render: renderTransactionStatus }),
             textColumn('note', '비고'),
             textColumn('memo', '메모'),
             textColumn('created_at', '생성일시'),
@@ -989,7 +1033,7 @@ import '/public/assets/js/components/trash-manager.js';
         const supply = foreignMode
             ? Math.round(foreignAmount * exchangeRate)
             : Math.round(quantity * unitPrice);
-        const taxType = foreignMode ? 'ZERO' : normalizeTaxTypeCode(row.tax_type || 'TAXABLE');
+        const taxType = normalizeTaxTypeCode(row.tax_type || defaultLineTaxTypeCode());
         const vat = taxType === 'TAXABLE' ? Math.round(supply * 0.1) : 0;
 
         row.quantity = quantity;
@@ -1039,6 +1083,13 @@ import '/public/assets/js/components/trash-manager.js';
         document.getElementById('transaction_supply_total').value = formatAmount(supply);
         document.getElementById('transaction_vat_total').value = formatAmount(vat);
         document.getElementById('transaction_grand_total').value = formatAmount(total);
+        if (total > 0) {
+            setHeaderAmountValues({
+                supply_amount: supply,
+                vat_amount: vat,
+                total_amount: total,
+            });
+        }
     }
 
     function refreshLineHotDimensions() {
@@ -1142,7 +1193,7 @@ import '/public/assets/js/components/trash-manager.js';
             columns: getLineColumns(),
             colHeaders: getLineColumns().map((column) => column.title),
             rowHeaders: false,
-            minRows: 1,
+            minRows: 0,
             stretchH: 'all',
             width: '100%',
             height: 'auto',
@@ -1254,6 +1305,7 @@ import '/public/assets/js/components/trash-manager.js';
                 unbindLineDateEscHandler();
             },
             afterRemoveRow() {
+                updateLineEmptyState();
                 calculateTotals();
                 refreshLineHotDimensions();
             },
@@ -1269,6 +1321,11 @@ import '/public/assets/js/components/trash-manager.js';
 
         bindLineDragEvents();
         bindLineActionEvents();
+        updateLineEmptyState();
+    }
+
+    function updateLineEmptyState() {
+        hotEl.classList.toggle('is-empty', (lineHot?.countRows() || 0) === 0);
     }
 
     function bindLineActionEvents() {
@@ -1408,18 +1465,29 @@ import '/public/assets/js/components/trash-manager.js';
 
     function setLines(items = []) {
         initLineHot();
-        const rows = (Array.isArray(items) && items.length ? items : [blankLine()]).map((item) => calculateLine(normalizeLine(item)));
+        const rows = (Array.isArray(items) ? items : []).map((item) => calculateLine(normalizeLine(item)));
         lineHot?.loadData(rows);
+        updateLineEmptyState();
         calculateTotals();
         refreshLineHotDimensions();
     }
 
     function addLine() {
         initLineHot();
+        if (lineHot.countRows() === 0) {
+            lineHot.loadData([blankLine()]);
+            updateLineEmptyState();
+            lineHot?.selectCell(0, 1);
+            calculateTotals();
+            refreshLineHotDimensions();
+            return;
+        }
+
         lineHot?.alter('insert_row_below', Math.max(lineHot.countRows() - 1, 0), 1);
         const rowIndex = Math.max(lineHot.countRows() - 1, 0);
         Object.entries(blankLine()).forEach(([key, value]) => lineHot.setSourceDataAtCell(rowIndex, key, value));
         lineHot?.selectCell(rowIndex, 1);
+        updateLineEmptyState();
         calculateTotals();
         refreshLineHotDimensions();
     }
@@ -1427,9 +1495,7 @@ import '/public/assets/js/components/trash-manager.js';
     function removeLineAt(rowIndex) {
         if (!lineHot) return;
         lineHot.alter('remove_row', rowIndex, 1);
-        if (lineHot.countRows() === 0) {
-            setLines([blankLine()]);
-        }
+        updateLineEmptyState();
         calculateTotals();
         refreshLineHotDimensions();
     }
@@ -1449,7 +1515,7 @@ import '/public/assets/js/components/trash-manager.js';
                 unit_price: row.unit_price,
                 foreign_unit_price: usesForeignCurrency() ? row.foreign_unit_price : '',
                 foreign_amount: usesForeignCurrency() ? row.foreign_amount : '',
-                tax_type: normalizeTaxTypeCode(row.tax_type || 'TAXABLE') || 'TAXABLE',
+                tax_type: normalizeTaxTypeCode(row.tax_type || defaultLineTaxTypeCode()) || defaultLineTaxTypeCode(),
                 description: String(row.description || '').trim(),
             }));
     }
@@ -2012,6 +2078,9 @@ import '/public/assets/js/components/trash-manager.js';
             'description',
             'currency',
             'exchange_rate',
+            'supply_amount',
+            'vat_amount',
+            'total_amount',
             'note',
             'memo',
         ];
@@ -2082,7 +2151,196 @@ import '/public/assets/js/components/trash-manager.js';
         return json;
     }
 
+    async function loadVoucherWizardAccounts() {
+        if (voucherWizardState.accounts.length > 0) return voucherWizardState.accounts;
+        const json = await fetchJson('/api/ledger/account/list');
+        voucherWizardState.accounts = Array.isArray(json.data) ? json.data.filter((row) => {
+            const postable = String(row.is_postable ?? row.is_posting ?? '').toUpperCase();
+            return postable === 'Y' || postable === '1' || row.is_posting === 1;
+        }) : [];
+        return voucherWizardState.accounts;
+    }
+
+    function accountOptions(selectedId = '') {
+        const selected = String(selectedId || '');
+        return ['<option value="">계정 선택</option>'].concat(voucherWizardState.accounts.map((account) => {
+            const id = String(account.id || '');
+            const label = `${account.account_code || ''} ${account.account_name || ''}`.trim();
+            return `<option value="${escapeHtml(id)}" ${id === selected ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+        })).join('');
+    }
+
+    function sourceLabel(source = '') {
+        return {
+            CLIENT_DEFAULT: '거래처 기본계정',
+            JOURNAL_RULE: '분개규칙',
+            RECENT_PATTERN: '최근사용패턴',
+            VAT_RULE: 'VAT RULE',
+        }[source] || source || '-';
+    }
+
+    function confidenceBadge(confidence) {
+        const value = Number(confidence || 0);
+        const cls = value >= 90 ? 'text-bg-success' : (value >= 70 ? 'text-bg-warning' : 'text-bg-danger');
+        return `<span class="badge ${cls}">${value}%</span>`;
+    }
+
+    function setVoucherWizardHeader(transaction = {}) {
+        const set = (id, value) => {
+            const el = document.getElementById(id);
+            if (el) el.value = value ?? '';
+        };
+        set('voucherWizardClientName', transaction.client_name || '');
+        set('voucherWizardProjectName', transaction.project_name || '');
+        set('voucherWizardTransactionType', transaction.transaction_type || '');
+        set('voucherWizardTransactionDirection', transaction.transaction_direction || '');
+        set('voucherWizardSupplyAmount', formatNumber(transaction.supply_amount || 0));
+        set('voucherWizardVatAmount', formatNumber(transaction.vat_amount || 0));
+        set('voucherWizardTotalAmount', formatNumber(transaction.total_amount || 0));
+        set('voucherWizardDescription', transaction.description || '');
+    }
+
+    function voucherWizardLineTemplate(line = {}) {
+        const lineType = String(line.line_type || 'DEBIT').toUpperCase();
+        const amount = formatNumber(line.amount || 0);
+        const source = String(line.source || '');
+        const confidence = Number(line.confidence || 0);
+        const reason = line.reason || sourceLabel(source);
+        const original = encodeURIComponent(JSON.stringify({
+            line_type: lineType,
+            account_id: line.account_id || '',
+            amount: String(Number(line.amount || 0).toFixed(2)),
+        }));
+
+        return `
+            <tr data-original="${original}">
+                <td><select class="form-select form-select-sm voucher-wizard-line-type"><option value="DEBIT" ${lineType === 'DEBIT' ? 'selected' : ''}>차변</option><option value="CREDIT" ${lineType === 'CREDIT' ? 'selected' : ''}>대변</option></select></td>
+                <td><select class="form-select form-select-sm voucher-wizard-account">${accountOptions(line.account_id || '')}</select></td>
+                <td><input type="text" class="form-control form-control-sm voucher-wizard-sub-account" value="${escapeHtml(line.sub_account_name || '')}"></td>
+                <td><input type="text" class="form-control form-control-sm voucher-wizard-client" value="${escapeHtml(voucherWizardState.transaction.client_name || '')}"></td>
+                <td><input type="text" class="form-control form-control-sm voucher-wizard-project" value="${escapeHtml(voucherWizardState.transaction.project_name || '')}"></td>
+                <td><input type="text" class="form-control form-control-sm text-end voucher-wizard-amount" value="${escapeHtml(amount)}"></td>
+                <td><span class="voucher-wizard-source" data-source="${escapeHtml(source)}" data-reason="${escapeHtml(reason)}" data-rule-id="${escapeHtml(line.journal_rule_id || '')}">${escapeHtml(reason)}</span></td>
+                <td class="text-center" data-confidence="${confidence}">${confidenceBadge(confidence)}</td>
+                <td class="text-center"><button type="button" class="btn btn-outline-danger btn-sm btn-remove-voucher-wizard-line">-삭제</button></td>
+            </tr>
+        `;
+    }
+
+    function renderVoucherWizardLines(lines = []) {
+        if (!voucherWizardLineBody) return;
+        voucherWizardState.originalLines = lines.map((line) => ({ ...line }));
+        voucherWizardLineBody.innerHTML = lines.map(voucherWizardLineTemplate).join('');
+        updateVoucherWizardBalance();
+    }
+
+    function collectVoucherWizardLines() {
+        if (!voucherWizardLineBody) return [];
+        return Array.from(voucherWizardLineBody.querySelectorAll('tr')).map((row) => {
+            const lineType = row.querySelector('.voucher-wizard-line-type')?.value || '';
+            const accountId = row.querySelector('.voucher-wizard-account')?.value || '';
+            const amount = parseNumber(row.querySelector('.voucher-wizard-amount')?.value || '0');
+            const sourceEl = row.querySelector('.voucher-wizard-source');
+            const currentKey = JSON.stringify({ line_type: lineType, account_id: accountId, amount: String(Number(amount || 0).toFixed(2)) });
+            let originalKey = '';
+            let original = {};
+            try {
+                original = JSON.parse(decodeURIComponent(row.dataset.original || ''));
+                originalKey = JSON.stringify(original);
+            } catch (_error) {
+                originalKey = '';
+                original = {};
+            }
+            return {
+                line_type: lineType,
+                account_id: accountId,
+                amount,
+                recommended_line_type: original.line_type || lineType,
+                recommended_account_id: original.account_id || accountId,
+                recommended_amount: original.amount || amount,
+                sub_account_name: row.querySelector('.voucher-wizard-sub-account')?.value || '',
+                client_name: row.querySelector('.voucher-wizard-client')?.value || '',
+                project_name: row.querySelector('.voucher-wizard-project')?.value || '',
+                client_id: voucherWizardState.transaction.client_id || '',
+                project_id: voucherWizardState.transaction.project_id || '',
+                source: sourceEl?.dataset.source || '',
+                reason: sourceEl?.dataset.reason || '',
+                journal_rule_id: sourceEl?.dataset.ruleId || '',
+                confidence: Number(row.querySelector('[data-confidence]')?.dataset.confidence || 0),
+                line_summary: document.getElementById('voucherWizardDescription')?.value || '',
+                is_user_modified: currentKey !== originalKey,
+            };
+        }).filter((line) => line.account_id && line.amount > 0 && ['DEBIT', 'CREDIT'].includes(line.line_type));
+    }
+
+    function voucherWizardTotals() {
+        return collectVoucherWizardLines().reduce((totals, line) => {
+            if (line.line_type === 'DEBIT') totals.debit += line.amount;
+            if (line.line_type === 'CREDIT') totals.credit += line.amount;
+            return totals;
+        }, { debit: 0, credit: 0 });
+    }
+
+    function updateVoucherWizardBalance() {
+        const totals = voucherWizardTotals();
+        const diff = Math.round((totals.debit - totals.credit) * 100) / 100;
+        const balanced = totals.debit > 0 && totals.credit > 0 && diff === 0;
+        if (voucherWizardBalanceText) {
+            voucherWizardBalanceText.className = `transaction-voucher-balance ${balanced ? 'is-balanced' : 'is-unbalanced'}`;
+            voucherWizardBalanceText.textContent = `차변 ${formatNumber(totals.debit)} / 대변 ${formatNumber(totals.credit)} / 차이 ${formatNumber(Math.abs(diff))}`;
+        }
+        if (saveVoucherWizardBtn) saveVoucherWizardBtn.disabled = !balanced;
+    }
+
+    async function openVoucherWizard() {
+        const id = document.getElementById('transaction_id')?.value || '';
+        if (!id) {
+            notify('warning', '거래 저장 후 전표를 생성할 수 있습니다.');
+            return;
+        }
+        await loadVoucherWizardAccounts();
+        const json = await fetchJson(`${API.recommendVoucher}?transaction_id=${encodeURIComponent(id)}`);
+        voucherWizardState.transactionId = id;
+        voucherWizardState.transaction = json.transaction || {};
+        setVoucherWizardHeader(voucherWizardState.transaction);
+        renderVoucherWizardLines(json.recommendation?.recommendations || []);
+        voucherWizardModal = bootstrap.Modal.getOrCreateInstance(voucherWizardEl, { focus: false });
+        document.querySelectorAll('.modal-backdrop.show').forEach((backdrop) => {
+            backdrop.classList.add('transaction-voucher-wizard-backdrop');
+        });
+        voucherWizardModal.show();
+    }
+
+    async function saveVoucherWizard() {
+        const totals = voucherWizardTotals();
+        if (Math.round(totals.debit * 100) !== Math.round(totals.credit * 100)) {
+            notify('warning', '차변합과 대변합이 일치해야 저장할 수 있습니다.');
+            return;
+        }
+        const json = await fetchJson(API.createVoucher, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                transaction_id: voucherWizardState.transactionId,
+                header: {
+                    transaction_date: document.getElementById('transaction_date')?.value || '',
+                    description: document.getElementById('voucherWizardDescription')?.value || '',
+                },
+                lines: collectVoucherWizardLines(),
+            }),
+        });
+        if (json.data) {
+            document.getElementById('transaction_match_status').value = json.data.match_status || 'matched';
+            renderVoucherState(json.data);
+        }
+        voucherWizardModal?.hide();
+        reloadTable();
+        notify('success', json.message || 'draft 전표가 저장되었습니다.');
+    }
+
     async function createVoucherForCurrentTransaction() {
+        await openVoucherWizard();
+        return;
         const id = document.getElementById('transaction_id')?.value || '';
         if (!id) {
             notify('warning', '거래 저장 후 전표를 생성할 수 있습니다.');
@@ -2129,6 +2387,7 @@ import '/public/assets/js/components/trash-manager.js';
         setTransactionTypeValue('');
         setCurrencyValue('');
         if (exchangeRateEl) exchangeRateEl.value = '';
+        setHeaderAmountValues({});
         document.getElementById('transaction_status').value = 'draft';
         document.getElementById('transaction_match_status').value = 'none';
         updateTransactionStatusBadge('draft');
@@ -2170,6 +2429,7 @@ import '/public/assets/js/components/trash-manager.js';
         setTransactionTypeValue(data.transaction_type || '');
         setCurrencyValue(data.currency || '');
         if (exchangeRateEl) exchangeRateEl.value = data.exchange_rate ? formatNumber(data.exchange_rate) : '';
+        setHeaderAmountValues(data);
         setClientSelectValue(data.client_id || '', data.client_name || data.client_id || '');
         setProjectSelectValue(data.project_id || '', data.project_name || data.project_id || '');
         document.getElementById('transaction_description').value = data.description || '';
@@ -2205,13 +2465,14 @@ import '/public/assets/js/components/trash-manager.js';
 
     async function saveTransaction() {
         const lines = collectLines();
-        if (lines.length === 0) {
-            notify('warning', '거래내역을 1개 이상 입력해 주세요.');
-            return;
-        }
-
         const formData = new FormData(form);
         formData.set('items', JSON.stringify(lines));
+        formData.delete('tax_type');
+        normalizeHeaderAmountFormData(formData);
+        if (parseNumber(formData.get('total_amount') || '') <= 0) {
+            notify('warning', '거래헤더 금액을 입력해 주세요.');
+            return;
+        }
         if (usesForeignCurrency()) {
             const rawExchangeRate = String(exchangeRateEl?.value || '').trim();
             if (parseNumber(rawExchangeRate) <= 0) {
@@ -2269,6 +2530,10 @@ import '/public/assets/js/components/trash-manager.js';
         fileToggle?.addEventListener('change', syncConditionalPanels);
         exchangeRateEl?.addEventListener('change', calculateTotals);
         exchangeRateEl?.addEventListener('input', calculateTotals);
+        headerSupplyAmountEl?.addEventListener('input', syncHeaderTotalAmount);
+        headerSupplyAmountEl?.addEventListener('change', syncHeaderTotalAmount);
+        headerVatAmountEl?.addEventListener('input', syncHeaderTotalAmount);
+        headerVatAmountEl?.addEventListener('change', syncHeaderTotalAmount);
         fileInput?.addEventListener('change', () => assignPendingFiles(fileInput.files));
 
         fileDropzoneEl?.addEventListener('click', () => {
@@ -2376,6 +2641,26 @@ import '/public/assets/js/components/trash-manager.js';
         });
 
         createVoucherBtn?.addEventListener('click', () => void createVoucherForCurrentTransaction());
+        addVoucherWizardLineBtn?.addEventListener('click', () => {
+            if (!voucherWizardLineBody) return;
+            voucherWizardLineBody.insertAdjacentHTML('beforeend', voucherWizardLineTemplate({
+                line_type: 'DEBIT',
+                amount: 0,
+                source: 'USER',
+                confidence: 0,
+                reason: '사용자 추가',
+            }));
+            updateVoucherWizardBalance();
+        });
+        saveVoucherWizardBtn?.addEventListener('click', () => void saveVoucherWizard().catch((error) => notify('error', error.message)));
+        voucherWizardLineBody?.addEventListener('input', updateVoucherWizardBalance);
+        voucherWizardLineBody?.addEventListener('change', updateVoucherWizardBalance);
+        voucherWizardLineBody?.addEventListener('click', (event) => {
+            const button = event.target.closest('.btn-remove-voucher-wizard-line');
+            if (!button) return;
+            button.closest('tr')?.remove();
+            updateVoucherWizardBalance();
+        });
         selectVoucherBtn?.addEventListener('click', () => {
             openVoucherModal({
                 selectedVoucherId,
@@ -2431,7 +2716,7 @@ import '/public/assets/js/components/trash-manager.js';
         initProjectSelect();
         bindFileReorderEvents();
         void loadTransactionFilePolicy();
-        bindNumberInput(exchangeRateEl);
+        modalEl.querySelectorAll('.number-input').forEach((input) => bindNumberInput(input));
         void initUnitCodeOptions();
         void initCodeSelectControls(document.getElementById('clientModal'));
         await initCodeSelectControls(modalEl);

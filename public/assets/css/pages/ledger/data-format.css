@@ -1,0 +1,80 @@
+.ledger-data-format-page .format-column-table-wrap {
+    overflow: visible;
+}
+
+.ledger-data-format-page .format-column-table tbody tr {
+    transition: background-color .16s ease, box-shadow .16s ease, opacity .16s ease;
+}
+
+.ledger-data-format-page .format-column-table thead th {
+    position: sticky !important;
+    top: var(--format-column-sticky-top, 0px);
+    z-index: 120;
+    background: var(--table-header-bg, #f8f9fa);
+    box-shadow: inset 0 -1px 0 var(--color-border, #dee2e6);
+}
+
+.ledger-data-format-page .format-order-cell {
+    white-space: nowrap;
+}
+
+.ledger-data-format-page .column-drag-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    margin-right: 8px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    color: #6c757d;
+    background: #fff;
+    cursor: grab;
+    vertical-align: middle;
+}
+
+.ledger-data-format-page .column-drag-handle:active {
+    cursor: grabbing;
+}
+
+.ledger-data-format-page .column-order-label {
+    display: inline-block;
+    min-width: 18px;
+    font-weight: 600;
+    color: #495057;
+    text-align: right;
+}
+
+.ledger-data-format-page .format-column-dragging {
+    opacity: .72;
+    background: #f8fbff;
+    box-shadow: inset 0 0 0 2px #4dabf7;
+}
+
+.ledger-data-format-page .format-column-helper {
+    background: #fff;
+    border: 1px solid #74c0fc;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, .16);
+}
+
+.ledger-data-format-page .format-column-placeholder td {
+    height: 42px;
+    background: #e7f5ff;
+    border: 2px dashed #339af0;
+}
+
+.ledger-data-format-page .remove-column-btn {
+    min-width: 52px;
+}
+
+.ledger-data-format-page .format-select-btn {
+    text-decoration: none;
+}
+
+.ledger-data-format-page .format-select-btn:hover {
+    text-decoration: none;
+}
+
+.ledger-data-format-page .list-group-item.active .format-list-delete-btn:not(:disabled) {
+    background: #fff;
+}

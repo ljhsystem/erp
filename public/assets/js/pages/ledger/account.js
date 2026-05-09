@@ -1,10 +1,11 @@
 // Path: PROJECT_ROOT . '/public/assets/js/pages/ledger/account.js'
 
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
-import { createDataTable, clearTableSelectedRows, setTableSelectedRow } from '/public/assets/js/components/data-table.js';
+import { createDataTable, setTableSelectedRow } from '/public/assets/js/components/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
-import { initCodeSelectControls, getCodeName, onCodeOptionsLoaded } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+import { formatNumber } from '/public/assets/js/common/format.js';
+import { initCodeSelectControls, getCodeName } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
 import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
 
@@ -18,6 +19,7 @@ window.AdminPicker = AdminPicker;
         DETAIL: '/api/ledger/account/detail',
         SAVE: '/api/ledger/account/save',
         DELETE: '/api/ledger/account/soft-delete',
+        STATUS: '/api/ledger/account/status',
         REORDER: '/api/ledger/account/reorder',
         TRASH: '/api/ledger/account/trash',
         RESTORE: '/api/ledger/account/restore',
@@ -26,11 +28,34 @@ window.AdminPicker = AdminPicker;
         EXCEL_TEMPLATE: '/api/ledger/account/template',
         EXCEL_DOWNLOAD: '/api/ledger/account/excel',
         EXCEL_UPLOAD: '/api/ledger/account/excel-upload',
-        SUB_LIST: '/api/ledger/sub-account/list',
-        SUB_SAVE: '/api/ledger/sub-account/save',
-        SUB_UPDATE: '/api/ledger/sub-account/update',
-        SUB_DELETE: '/api/ledger/sub-account/delete'
+        SUB_LIST: '/api/ledger/sub-account/list'
     };
+
+    async function fetchJson(url, options = {}) {
+        const response = await fetch(url, {
+            credentials: 'same-origin',
+            headers: {
+                Accept: 'application/json',
+                ...(options.headers || {})
+            },
+            ...options
+        });
+
+        const text = await response.text();
+        let json = null;
+
+        try {
+            json = text ? JSON.parse(text) : null;
+        } catch (error) {
+            throw new Error(`JSON 응답을 해석할 수 없습니다. ${text.slice(0, 200)}`);
+        }
+
+        if (!response.ok) {
+            throw new Error(json?.message || `요청에 실패했습니다. (${response.status})`);
+        }
+
+        return json;
+    }
 
     const ACCOUNT_COLUMN_MAP = {
         sort_no: { label: '순번', visible: true, className: 'text-center' },
@@ -58,12 +83,10 @@ window.AdminPicker = AdminPicker;
         has_sub_account: { label: '보조계정등록', visible: false, className: 'text-center' },
         id: { label: 'ID', visible: false, headerClassName: 'no-colvis' }
     };
-
     const DATE_OPTIONS = [
         { value: 'created_at', label: '생성일자' },
         { value: 'updated_at', label: '수정일자' }
     ];
-
     const NEW_PARENT_ACCOUNT_VALUE = '__new_parent_account__';
     const SUB_ACCOUNT_CODE_GROUP = 'REF_TARGET';
     const SUB_ACCOUNT_SELECT_NAME = 'ledger_sub_ref_target';
@@ -71,15 +94,16 @@ window.AdminPicker = AdminPicker;
     let accountTable = null;
     let accountModal = null;
     let excelModal = null;
-    let currentAccountId = '';
     let parentAccounts = [];
-    let currentSubPolicies = [];
     let modalDraftSubAccounts = [];
+    let accountFormInitialSnapshot = '';
+    let skipAccountCloseConfirm = false;
+    let accountModalInitializing = false;
 
     window.TrashColumns = window.TrashColumns || {};
     window.TrashColumns.account = function (row = {}) {
         return `
-            <td>${escapeHtml(row.account_code ?? '')}</td>
+            <td>${escapeHtml(formatAccountCodeDisplay(row.account_code ?? ''))}</td>
             <td>${escapeHtml(row.account_name ?? '')}</td>
             <td>${escapeHtml(row.account_group ?? '')}</td>
             <td>${escapeHtml(row.deleted_at ?? '')}</td>
@@ -90,16 +114,13 @@ window.AdminPicker = AdminPicker;
             </td>
         `;
     };
-
     document.addEventListener('DOMContentLoaded', () => {
         initModals();
         initExcelDataset();
+        initAccountCodeFormat();
         initDataTable();
         bindEvents();
         initCodeSelectControls(document);
-        onCodeOptionsLoaded(() => {
-            refreshSubAccountLabels();
-        });
     });
 
     document.addEventListener('trash:changed', (event) => {
@@ -134,7 +155,24 @@ window.AdminPicker = AdminPicker;
         const modalEl = document.getElementById('accountModal');
         if (modalEl) {
             ensureModalSubAccountSection(modalEl);
-            accountModal = bootstrap.Modal.getOrCreateInstance(modalEl, { focus: false });
+            accountModal = bootstrap.Modal.getOrCreateInstance(modalEl, { focus: false, keyboard: false });
+            document.addEventListener('keydown', handleAccountModalEscapeCapture, true);
+            modalEl.addEventListener('shown.bs.modal', () => {
+                initParentAccountSelect2();
+                setParentSelect2Visible(!isParentAccountInputMode());
+                window.setTimeout(() => {
+                    if ($('#modal_allow_sub_account').val() === '1' && $('#modal_account_id').val()) {
+                        return;
+                    }
+                    markAccountFormClean();
+                    accountModalInitializing = false;
+                }, 0);
+            });
+            modalEl.addEventListener('hide.bs.modal', (event) => {
+                if (!confirmAccountModalClose()) {
+                    event.preventDefault();
+                }
+            });
             modalEl.addEventListener('hidden.bs.modal', resetAccountForm);
         }
 
@@ -154,6 +192,25 @@ window.AdminPicker = AdminPicker;
         form.dataset.uploadUrl = API.EXCEL_UPLOAD;
     }
 
+    function initAccountCodeFormat() {
+        [
+            document.getElementById('modal_account_code'),
+            document.getElementById('modal_new_parent_code')
+        ].forEach((input) => {
+            if (!input || input.dataset.accountCodeFormatBound === 'true') return;
+
+            input.addEventListener('input', () => {
+                input.value = formatAccountCodeInput(input.value);
+            });
+
+            input.addEventListener('blur', () => {
+                input.value = formatAccountCodeDisplay(input.value);
+            });
+
+            input.dataset.accountCodeFormatBound = 'true';
+        });
+    }
+
     function ensureModalSubAccountSection(modalEl) {
         if (document.getElementById('modal_subaccount_section')) return;
 
@@ -167,23 +224,18 @@ window.AdminPicker = AdminPicker;
         section.innerHTML = `
             <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
                 <span>보조계정</span>
-                <button type="button"
-                        class="btn btn-primary btn-sm"
-                        id="btnAddSubAccountModal">
-                    + 추가
-                </button>
             </div>
             <div class="card-body py-2">
                 <div class="table-responsive modal-subaccount-table-wrap">
                     <table class="table table-sm table-bordered align-middle mb-0" id="modal-subaccount-table">
                         <thead class="table-light">
                             <tr>
-                                <th width="60" class="text-center">순번</th>
-                                <th>보조계정명</th>
-                                <th width="100" class="text-center">옵션</th>
-                                <th width="150">비고</th>
-                                <th width="150">메모</th>
-                                <th width="80" class="text-center">관리</th>
+                                <th width="56" class="text-center">순번</th>
+                                <th width="190">보조계정명</th>
+                                <th width="150" class="text-center">옵션</th>
+                                <th width="90" class="text-center">
+                                    <button type="button" class="sub-add-action" id="btnAddSubAccountModal">+ 추가</button>
+                                </th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -194,7 +246,6 @@ window.AdminPicker = AdminPicker;
 
         accountGroupCard.insertAdjacentElement('afterend', section);
     }
-
     function initDataTable() {
         accountTable = createDataTable({
             tableSelector: '#account-table',
@@ -205,26 +256,13 @@ window.AdminPicker = AdminPicker;
             autoWidth: false,
             searchTableId: 'ledgerAccount',
             buttons: [
-                {
-                    text: '엑셀 관리',
-                    className: 'btn btn-success btn-sm',
-                    action: () => excelModal?.show()
-                },
-                {
-                    text: '휴지통',
-                    className: 'btn btn-danger btn-sm',
-                    action: openTrashModal
-                },
-                {
-                    text: '새 계정과목',
-                    className: 'btn btn-warning btn-sm',
-                    action: openCreateModal
-                }
+                { text: '엑셀 관리', className: 'btn btn-success btn-sm', action: () => excelModal?.show() },
+                { text: '휴지통', className: 'btn btn-danger btn-sm', action: openTrashModal },
+                { text: '새 계정과목', className: 'btn btn-warning btn-sm', action: openCreateModal }
             ]
         });
 
         window.accountTable = accountTable;
-
         if (!accountTable) return;
 
         SearchForm({
@@ -254,9 +292,9 @@ window.AdminPicker = AdminPicker;
 
         accountTable.on('init.dt draw.dt xhr.dt', () => {
             updateCount(accountTable.page.info()?.recordsDisplay ?? 0);
+            applyAccountTreeRowStyles();
         });
     }
-
     function buildColumns() {
         const columns = [{
             data: null,
@@ -277,36 +315,31 @@ window.AdminPicker = AdminPicker;
                 headerClassName: config.headerClassName || '',
                 defaultContent: '',
                 render(value, type, row) {
+                    if (type === 'sort' || type === 'type') return row?.tree_sort || value || '';
                     if (type !== 'display') return value ?? '';
-
-                if (field === 'normal_balance') {
-                    return value === 'credit' ? '대변' : '차변';
-                }
-
-                    if (field === 'is_posting') {
-                        return Number(value) === 1
-                            ? '<span class="badge bg-success">가능</span>'
-                            : '<span class="badge bg-secondary">불가</span>';
-                    }
+                    if (field === 'normal_balance') return value === 'credit' ? '대변' : '차변';
+                    if (field === 'account_code') return escapeHtml(formatAccountCodeDisplay(value ?? ''));
+                    if (field === 'account_name') return renderAccountTreeCell(row, value);
+                    if (field === 'is_posting') return renderPostableBadge(row);
 
                     if (field === 'allow_sub_account') {
-                        const hasSubAccount = Number(row?.has_sub_account) === 1;
-                        const buttonClass = hasSubAccount ? 'edit' : 'add';
-                        const buttonText = hasSubAccount ? '수정' : '추가';
-
-                        return `
-                            <button type="button"
-                                    class="sub-btn ${buttonClass} btn-sub-account-panel"
-                                    data-id="${escapeHtml(row?.id || '')}">
-                                ${buttonText}
-                            </button>
-                        `;
+                        return Number(value) === 1
+                            ? '<span class="badge bg-primary">사용</span>'
+                            : '<span class="badge bg-secondary">미사용</span>';
                     }
 
                     if (field === 'is_active') {
-                        return Number(value) === 1
-                            ? '<span class="badge bg-success">사용</span>'
-                            : '<span class="badge bg-secondary">미사용</span>';
+                        const active = Number(value) === 1;
+                        return `
+                            <div class="form-check form-switch account-table-status-switch">
+                                <input type="checkbox"
+                                       class="form-check-input account-status-toggle"
+                                       role="switch"
+                                       data-id="${escapeHtml(row?.id || '')}"
+                                       ${active ? 'checked' : ''}>
+                                <span class="account-status-toggle-label">${active ? '사용' : '미사용'}</span>
+                            </div>
+                        `;
                     }
 
                     return escapeHtml(value ?? '');
@@ -316,28 +349,119 @@ window.AdminPicker = AdminPicker;
 
         return columns;
     }
+    function normalizeAccountCodeValue(value) {
+        return String(value ?? '').replace(/,/g, '').trim();
+    }
+
+    function isNumericAccountCode(value) {
+        return /^\d+$/.test(normalizeAccountCodeValue(value));
+    }
+
+    function formatAccountCodeDisplay(value) {
+        const normalized = normalizeAccountCodeValue(value);
+        if (!normalized || !isNumericAccountCode(normalized)) {
+            return normalized;
+        }
+
+        return formatNumber(normalized);
+    }
+
+    function formatAccountCodeInput(value) {
+        const raw = String(value ?? '').trim();
+        const withoutCommas = normalizeAccountCodeValue(raw);
+
+        if (withoutCommas === '') {
+            return '';
+        }
+
+        if (!/^\d+$/.test(withoutCommas)) {
+            return withoutCommas.toUpperCase();
+        }
+
+        return formatAccountCodeDisplay(withoutCommas.slice(0, 6));
+    }
+
+    function getAccountLevel(row = {}) {
+        const level = Number(row.account_level ?? row.level ?? 1);
+        return Number.isFinite(level) && level > 0 ? level : 1;
+    }
+
+    function isPostableAccount(row = {}) {
+        const postable = String(row.is_postable ?? '').toUpperCase();
+        if (postable === 'Y') return true;
+        if (postable === 'N') return false;
+        return Number(row.is_posting ?? 0) === 1;
+    }
+
+    function getTreeClass(level) {
+        if (level <= 1) return 'tree-level-1';
+        if (level === 2) return 'tree-level-2';
+        if (level === 3) return 'tree-level-3';
+        return 'tree-level-leaf';
+    }
+
+    function renderPostableBadge(row = {}) {
+        if (isPostableAccount(row)) {
+            return '<span class="account-postable-badge is-postable"><i class="bi bi-pencil-square"></i> 전표</span>';
+        }
+        return '<span class="account-postable-badge is-group"><i class="bi bi-folder2"></i> 그룹</span>';
+    }
+    function renderAccountTreeCell(row = {}, value = '') {
+        const level = getAccountLevel(row);
+        const depth = Math.max(level - 1, 0);
+        const padding = Math.min(depth * 20, 240);
+        const isPostable = isPostableAccount(row);
+        const branch = level > 1 ? '<span class="account-tree-branch">&#9492;</span>' : '';
+        const icon = isPostable
+            ? '<i class="bi bi-file-earmark-text account-tree-icon is-postable"></i>'
+            : '<i class="bi bi-folder2-open account-tree-icon is-group"></i>';
+        const badge = isPostable
+            ? '<span class="account-tree-chip is-postable">전표입력</span>'
+            : '<span class="account-tree-chip is-group">그룹계정</span>';
+
+        return `
+            <div class="account-tree-cell ${getTreeClass(level)}" style="padding-left:${padding}px" title="${escapeHtml(row.full_path || value || '')}">
+                ${branch}
+                ${icon}
+                <span class="account-tree-title">${escapeHtml(value ?? '')}</span>
+                ${badge}
+            </div>
+        `;
+    }
+    function applyAccountTreeRowStyles() {
+        if (!accountTable) return;
+
+        accountTable.rows({ page: 'current' }).every(function () {
+            const rowData = this.data() || {};
+            const node = this.node();
+            if (!node) return;
+
+            const level = getAccountLevel(rowData);
+            const isPostable = isPostableAccount(rowData);
+            node.classList.remove(
+                'account-row-level-1',
+                'account-row-level-2',
+                'account-row-level-3',
+                'account-row-leaf',
+                'account-row-group',
+                'account-row-postable'
+            );
+            node.classList.add(`account-row-level-${Math.min(level, 3)}`);
+            node.classList.add(isPostable ? 'account-row-postable' : 'account-row-group');
+            if (level >= 4) {
+                node.classList.add('account-row-leaf');
+            }
+        });
+    }
 
     function bindEvents() {
-        $(document)
-            .off('keydown.accountSubPanel')
-            .on('keydown.accountSubPanel', function (event) {
-                if (event.key !== 'Escape') return;
-                if (event.target.closest('.modal.show')) return;
-                if (event.target.closest('.sub-new-row')) return;
-                if (event.target.closest('.sub-edit-row')) return;
-                if (!document.querySelector('.account-split-layout.subaccount-open')) return;
-
-                event.preventDefault();
-                clearSubAccountPanel();
-            });
-
         $('#account-table tbody')
             .off('click.accountSelect')
             .on('click.accountSelect', 'tr', function () {
                 const row = accountTable?.row(this).data();
                 if (!row) return;
 
-                selectAccountRow(row, this, false);
+                selectAccountRow(this);
             })
             .off('dblclick.accountEdit')
             .on('dblclick.accountEdit', 'tr', function () {
@@ -346,18 +470,11 @@ window.AdminPicker = AdminPicker;
             });
 
         $('#account-table tbody')
-            .off('click.subAccountPanel')
-            .on('click.subAccountPanel', '.btn-sub-account-panel', function (event) {
-                event.preventDefault();
+            .off('click.accountStatusToggle change.accountStatusToggle')
+            .on('click.accountStatusToggle', '.account-status-toggle', function (event) {
                 event.stopPropagation();
-                event.stopImmediatePropagation();
-
-                const tr = this.closest('tr');
-                const row = accountTable?.row(tr).data();
-                if (!row) return;
-
-                selectAccountRow(row, tr, true);
-            });
+            })
+            .on('change.accountStatusToggle', '.account-status-toggle', updateAccountStatusInline);
 
         $('#account-edit-form')
             .off('submit.accountSave')
@@ -373,75 +490,38 @@ window.AdminPicker = AdminPicker;
                 syncParentAccountInputs(this);
             });
 
+        $('#modal_is_active_toggle')
+            .off('change.accountStatus')
+            .on('change.accountStatus', function () {
+                setAccountStatusToggle(this.checked ? 1 : 0);
+            });
+
+        $('#modal_is_posting_toggle')
+            .off('change.accountPosting')
+            .on('change.accountPosting', function () {
+                setPostingToggle(this.checked ? 1 : 0);
+            });
+
+        $('#modal_allow_sub_account_toggle')
+            .off('change.subAccountStatus')
+            .on('change.subAccountStatus', function () {
+                setSubAccountToggle(this.checked ? 1 : 0);
+                updateModalSubAccountSection();
+            });
+
         $('#btnBackParentAccountSelect')
             .off('click.accountParentBack')
             .on('click.accountParentBack', () => {
                 showParentAccountSelect('');
             });
 
-        $('#btnAddSubPolicy')
-            .off('click.subPolicyAdd')
-            .on('click.subPolicyAdd', () => {
-                currentSubPolicies.push({
-                    policy_type: 'custom',
-                    is_required: 0,
-                    allow_multiple: 0,
-                    custom_group_code: ''
-                });
-                renderSubPolicyRows();
-                updateAllowSubAccountDisplay();
-            });
-
-        $('#sub-policy-tbody')
-            .off('click.subPolicyRemove')
-            .on('click.subPolicyRemove', '.btn-remove-policy', function () {
-                currentSubPolicies.splice(Number(this.dataset.index), 1);
-                renderSubPolicyRows();
-                updateAllowSubAccountDisplay();
-            })
-            .off('change.subPolicyInput')
-            .on('change.subPolicyInput input.subPolicyInput', 'select,input', syncSubPolicyRows);
-
-            $('#btnAddSubAccount')
-                .off('click.subAdd')
-                .on('click.subAdd', () => addSubAccount('panel'));
-
         $('#btnAddSubAccountModal')
             .off('click.subAddModal')
-            .on('click.subAddModal', () => addSubAccount('modal'));
-
-        $('#btnCloseSubPanel')
-            .off('click.subClose')
-            .on('click.subClose', clearSubAccountPanel);
-
-        $('#subaccount-table tbody')
-            .off('click.subDelete')
-            .on('click.subDelete', '.btnDeleteSubAccount', function () {
-                deleteSubAccount(this.dataset.id);
-            })
-            .off('click.subEdit')
-            .on('click.subEdit', '.btnEditSubAccount', function () {
-                editSubAccountInline(this);
-            });
+            .on('click.subAddModal', addSubAccount);
 
         $('#modal_allow_sub_account')
             .off('change.subAccountManage')
             .on('change.subAccountManage', updateModalSubAccountSection);
-
-        $('#btnSubAccountManage')
-            .off('click.subAccountManage')
-            .on('click.subAccountManage', () => {
-                const accountId = $('#modal_account_id').val();
-
-                if (!accountId) {
-                    notify('warning', '계정과목을 선택해야 보조계정을 관리할 수 있습니다.');
-                    return;
-                }
-
-                currentAccountId = accountId;
-                loadSubAccounts(currentAccountId, 'modal');
-                updateModalSubAccountSection();
-            });
 
         $('#modal-subaccount-table tbody')
             .off('click.subDeleteModal')
@@ -457,11 +537,102 @@ window.AdminPicker = AdminPicker;
             });
     }
 
-    function updateSubAccountManageButton() {
-        const enabled = $('#modal_allow_sub_account').val() === '1';
-        const hasAccountId = Boolean($('#modal_account_id').val());
+    function handleAccountModalEscape(event) {
+        const modalEl = document.getElementById('accountModal');
+        if (!modalEl?.classList.contains('show')) return false;
 
-        $('#btnSubAccountManage').prop('disabled', !enabled || !hasAccountId);
+        if (window.jQuery && window.jQuery('.select2-container--open').length > 0) {
+            window.jQuery('select.select2-hidden-accessible').select2('close');
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            return true;
+        }
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        accountModal?.hide();
+        return true;
+    }
+
+    function handleAccountModalEscapeCapture(event) {
+        if (event.key !== 'Escape') return;
+        handleAccountModalEscape(event);
+    }
+
+    function getAccountFormSnapshot() {
+        if (document.getElementById('accountModal')?.classList.contains('show')) {
+            syncModalDraftSubAccounts();
+        }
+
+        const allowSubAccount = $('#modal_allow_sub_account').val() === '1';
+        const payload = {
+            id: String($('#modal_account_id').val() || '').trim(),
+            account_code: normalizeAccountCodeValue($('#modal_account_code').val()),
+            account_name: String($('#modal_account_name').val() || '').trim(),
+            parent_id: isParentAccountInputMode() ? '' : String($('#modal_parent_id').val() || '').trim(),
+            new_parent_code: isParentAccountInputMode() ? normalizeAccountCodeValue($('#modal_new_parent_code').val()) : '',
+            new_parent_name: isParentAccountInputMode() ? String($('#modal_new_parent_name').val() || '').trim() : '',
+            account_group: String($('#modal_account_group').val() || '').trim(),
+            normal_balance: String($('input[name="normal_balance"]:checked').val() || 'debit').trim(),
+            allow_sub_account: allowSubAccount ? '1' : '0',
+            is_posting: String($('#modal_is_posting').val() || '0').trim(),
+            is_active: String($('#modal_is_active').val() || '0').trim(),
+            note: String($('#modal_note').val() || '').trim(),
+            memo: String($('#modal_memo').val() || '').trim(),
+            sub_accounts: allowSubAccount
+                ? modalDraftSubAccounts
+                    .map((row) => ({
+                        id: String(row.id || ''),
+                        sub_code: String(row.sub_code || '').trim(),
+                        is_required: String(row.is_required ?? '')
+                    }))
+                    .filter((row) => row.sub_code !== '' || row.is_required !== '')
+                : []
+        };
+
+        return JSON.stringify(payload);
+    }
+
+    function markAccountFormClean() {
+        accountFormInitialSnapshot = getAccountFormSnapshot();
+    }
+
+    function isAccountFormDirty() {
+        return getAccountFormSnapshot() !== accountFormInitialSnapshot;
+    }
+
+    function confirmAccountModalClose() {
+        if (skipAccountCloseConfirm) {
+            skipAccountCloseConfirm = false;
+            return true;
+        }
+        if (accountModalInitializing) {
+            markAccountFormClean();
+            accountModalInitializing = false;
+            return true;
+        }
+        if (!isAccountFormDirty()) return true;
+        return confirm('변경된 내용이나 입력 중인 내용이 있습니다. 닫으시겠습니까?');
+    }
+    function setAccountStatusToggle(value) {
+        const active = Number(value) === 1;
+        $('#modal_is_active').val(active ? '1' : '0');
+        $('#modal_is_active_toggle').prop('checked', active);
+        $('#modal_is_active_label').text(active ? '사용' : '미사용');
+    }
+
+    function setPostingToggle(value) {
+        const enabled = Number(value) === 1;
+        $('#modal_is_posting').val(enabled ? '1' : '0');
+        $('#modal_is_posting_toggle').prop('checked', enabled);
+        $('#modal_is_posting_label').text(enabled ? '가능' : '불가');
+    }
+
+    function setSubAccountToggle(value) {
+        const enabled = Number(value) === 1;
+        $('#modal_allow_sub_account').val(enabled ? '1' : '0');
+        $('#modal_allow_sub_account_toggle').prop('checked', enabled);
+        $('#modal_allow_sub_account_label').text(enabled ? '사용' : '미사용');
     }
 
     function updateModalSubAccountSection() {
@@ -475,7 +646,7 @@ window.AdminPicker = AdminPicker;
 
         const accountId = $('#modal_account_id').val();
         if (accountId) {
-            loadSubAccounts(accountId, 'modal');
+            loadSubAccounts(accountId);
             return;
         }
 
@@ -494,22 +665,68 @@ window.AdminPicker = AdminPicker;
         bootstrap.Modal.getOrCreateInstance(modalEl).show();
     }
 
-    function selectAccountRow(row, tr, openPanel = true) {
-        currentAccountId = row.id || '';
+    function selectAccountRow(tr) {
         setTableSelectedRow('#account-table', tr);
+    }
 
-        $('#btnAddSubAccount').prop('disabled', !currentAccountId);
-        $('#subaccountGuide').text(`${row.account_code || ''} ${row.account_name || ''}`);
+    async function updateAccountStatusInline(event) {
+        const input = event.currentTarget;
+        const id = input.dataset.id || '';
+        const nextValue = input.checked ? 1 : 0;
+        const previousValue = nextValue === 1 ? 0 : 1;
+        const label = input.closest('.account-table-status-switch')?.querySelector('.account-status-toggle-label');
 
-        if (openPanel) {
-            document.querySelector('.account-split-layout')?.classList.add('subaccount-open');
-            adjustAccountTableLayout();
+        if (!id) {
+            input.checked = previousValue === 1;
+            notify('error', '계정 ID를 찾을 수 없습니다.');
+            return;
         }
 
-        loadSubAccounts(currentAccountId);
+        input.disabled = true;
+        if (label) label.textContent = nextValue === 1 ? '사용' : '미사용';
+
+        try {
+            const res = await $.post(API.STATUS, { id, is_active: nextValue });
+            if (!res?.success) {
+                input.checked = previousValue === 1;
+                if (label) label.textContent = previousValue === 1 ? '사용' : '미사용';
+                notify('error', res?.message || '상태 변경에 실패했습니다.');
+                return;
+            }
+
+            const tr = input.closest('tr');
+            const row = accountTable?.row(tr);
+            const rowData = row?.data();
+            if (rowData) {
+                rowData.is_active = nextValue;
+                row.data(rowData).invalidate();
+            }
+
+            const updatedIds = Array.isArray(res.updated_ids) ? res.updated_ids.map(String) : [];
+            if (updatedIds.length > 1) {
+                accountTable?.rows().every(function () {
+                    const data = this.data();
+                    if (data && updatedIds.includes(String(data.id || ''))) {
+                        data.is_active = nextValue;
+                        this.data(data).invalidate();
+                    }
+                });
+                accountTable?.draw(false);
+            }
+
+            notify('success', '상태가 변경되었습니다.');
+        } catch (err) {
+            console.error('[ledger-account] status update failed:', err);
+            input.checked = previousValue === 1;
+            if (label) label.textContent = previousValue === 1 ? '사용' : '미사용';
+            notify('error', '상태 변경 중 오류가 발생했습니다.');
+        } finally {
+            input.disabled = false;
+        }
     }
 
     function openCreateModal() {
+        accountModalInitializing = true;
         resetAccountForm();
         loadParentAccounts();
         $('#accountModalLabel').text('계정과목 등록');
@@ -522,10 +739,12 @@ window.AdminPicker = AdminPicker;
         if (!id) return;
 
         try {
+            accountModalInitializing = true;
             await loadParentAccounts();
             const json = await fetchJson(`${API.DETAIL}?id=${encodeURIComponent(id)}`);
             if (!json.success) {
-            notify('error', json.message || '계정과목 상세 조회에 실패했습니다.');
+                accountModalInitializing = false;
+                notify('error', json.message || '계정과목 상세 조회에 실패했습니다.');
                 return;
             }
 
@@ -534,28 +753,31 @@ window.AdminPicker = AdminPicker;
             $('#btnDeleteAccount').show();
             accountModal?.show();
         } catch (err) {
+            accountModalInitializing = false;
             console.error('[ledger-account] detail failed:', err);
             notify('error', '계정과목 상세 조회 중 오류가 발생했습니다.');
         }
+    }
+    function setNormalBalance(value) {
+        const normalized = value === 'credit' ? 'credit' : 'debit';
+        $(`input[name="normal_balance"][value="${normalized}"]`).prop('checked', true);
     }
 
     function fillAccountForm(data = {}) {
         resetAccountForm();
 
         $('#modal_account_id').val(data.id || '');
-        $('#modal_sort_no').val(data.sort_no || '');
-        $('#modal_account_code').val(data.account_code || '');
+        $('#modal_account_code').val(formatAccountCodeDisplay(data.account_code || ''));
         $('#modal_account_name').val(data.account_name || '');
         setModalParentAccount(data.parent_id || '');
         $('#modal_account_group').val(data.account_group || '');
-        $('#modal_normal_balance').val(data.normal_balance || 'debit');
-        $('#modal_is_posting').val(String(data.is_posting ?? 1));
-        $('#modal_is_active').val(String(data.is_active ?? 1));
-        $('#modal_allow_sub_account').val(String(data.allow_sub_account ?? 0));
+        setNormalBalance(data.normal_balance || 'debit');
+        setPostingToggle(data.is_posting ?? 1);
+        setAccountStatusToggle(data.is_active ?? 1);
+        setSubAccountToggle(data.allow_sub_account ?? 0);
         $('#modal_note').val(data.note || '');
         $('#modal_memo').val(data.memo || '');
 
-        updateSubAccountManageButton();
         updateModalSubAccountSection();
     }
 
@@ -564,18 +786,16 @@ window.AdminPicker = AdminPicker;
         form?.reset();
 
         $('#modal_account_id').val('');
-        $('#modal_sort_no').val('');
         showParentAccountSelect('');
         $('#modal_new_parent_code').val('');
         $('#modal_new_parent_name').val('');
-        $('#modal_allow_sub_account').val('0');
-        $('#modal_normal_balance').val('debit');
-        $('#modal_is_posting').val('1');
-        $('#modal_is_active').val('1');
+        setSubAccountToggle(0);
+        setNormalBalance('debit');
+        setPostingToggle(1);
+        setAccountStatusToggle(1);
         $('#btnDeleteAccount').hide();
         modalDraftSubAccounts = [];
 
-        updateSubAccountManageButton();
         updateModalSubAccountSection();
     }
 
@@ -584,6 +804,8 @@ window.AdminPicker = AdminPicker;
 
         const form = event.currentTarget;
         const fd = new FormData(form);
+        fd.set('account_code', normalizeAccountCodeValue(fd.get('account_code')));
+        fd.set('new_parent_code', normalizeAccountCodeValue(fd.get('new_parent_code')));
 
         if (!String(fd.get('account_code') || '').trim() || !String(fd.get('account_name') || '').trim()) {
             notify('warning', '계정코드와 계정과목명은 필수입니다.');
@@ -591,25 +813,16 @@ window.AdminPicker = AdminPicker;
         }
 
         if (isParentAccountInputMode() && !String(fd.get('new_parent_code') || '').trim()) {
-            notify('warning', '자식 상위계정 코드는 필수입니다.');
+            notify('warning', '신규 상위계정 코드는 필수입니다.');
             return;
         }
 
         const subAccountRows = collectModalSubAccountRows();
-        if (subAccountRows === null) {
-            return;
-        }
+        if (subAccountRows === null) return;
         fd.set('sub_accounts', JSON.stringify(subAccountRows));
 
         try {
-            const res = await $.ajax({
-                url: API.SAVE,
-                type: 'POST',
-                data: fd,
-                processData: false,
-                contentType: false
-            });
-
+            const res = await $.ajax({ url: API.SAVE, type: 'POST', data: fd, processData: false, contentType: false });
             if (!res?.success) {
                 notify('error', res?.message || '저장에 실패했습니다.');
                 return;
@@ -617,6 +830,7 @@ window.AdminPicker = AdminPicker;
 
             notify('success', '저장되었습니다.');
             modalDraftSubAccounts = [];
+            skipAccountCloseConfirm = true;
             accountModal?.hide();
             accountTable?.ajax.reload(null, false);
         } catch (err) {
@@ -638,6 +852,7 @@ window.AdminPicker = AdminPicker;
             }
 
             notify('success', '삭제되었습니다.');
+            skipAccountCloseConfirm = true;
             accountModal?.hide();
             accountTable?.ajax.reload(null, false);
         } catch (err) {
@@ -645,7 +860,6 @@ window.AdminPicker = AdminPicker;
             notify('error', '삭제 중 오류가 발생했습니다.');
         }
     }
-
     async function loadParentAccounts() {
         try {
             const json = await fetchJson(`${API.LIST}?_=${Date.now()}`);
@@ -684,7 +898,6 @@ window.AdminPicker = AdminPicker;
 
         const currentValue = select.value;
         const currentAccount = document.getElementById('modal_account_id')?.value || '';
-
         select.innerHTML = '';
 
         const empty = document.createElement('option');
@@ -697,20 +910,20 @@ window.AdminPicker = AdminPicker;
             .forEach((account) => {
                 const option = document.createElement('option');
                 option.value = account.id;
-                option.textContent = `${account.account_code || ''} ${account.account_name || ''}`.trim();
+                option.textContent = `${formatAccountCodeDisplay(account.account_code || '')} ${account.account_name || ''}`.trim();
                 select.appendChild(option);
             });
 
         const create = document.createElement('option');
         create.value = NEW_PARENT_ACCOUNT_VALUE;
-        create.textContent = '+ 자식 상위계정 생성';
+        create.textContent = '+ 신규 상위계정 생성';
         select.appendChild(create);
 
-        select.value = Array.from(select.options).some((option) => option.value === currentValue)
-            ? currentValue
-            : '';
+        select.value = Array.from(select.options).some((option) => option.value === currentValue) ? currentValue : '';
+        if (window.jQuery && window.jQuery(select).hasClass('select2-hidden-accessible')) {
+            window.jQuery(select).trigger('change.select2');
+        }
     }
-
     function setModalParentAccount(value) {
         renderParentAccountOptions();
 
@@ -755,6 +968,7 @@ window.AdminPicker = AdminPicker;
             select.disabled = false;
             select.value = value;
         }
+        setParentSelect2Visible(true);
         if (codeInput) {
             codeInput.disabled = true;
             codeInput.required = false;
@@ -778,6 +992,7 @@ window.AdminPicker = AdminPicker;
             select.disabled = true;
             select.value = '';
         }
+        setParentSelect2Visible(false);
         if (inputWrap) inputWrap.classList.remove('d-none');
         if (codeInput) {
             codeInput.disabled = false;
@@ -790,71 +1005,44 @@ window.AdminPicker = AdminPicker;
         }
     }
 
+    function initParentAccountSelect2() {
+        const select = document.getElementById('modal_parent_id');
+        const modalEl = document.getElementById('accountModal');
+        if (!select || !window.jQuery || !window.jQuery.fn?.select2) return;
+
+        const $select = window.jQuery(select);
+        if ($select.hasClass('select2-hidden-accessible')) return;
+
+        $select.select2({
+            dropdownParent: modalEl ? window.jQuery(modalEl) : window.jQuery(document.body),
+            width: '100%',
+            placeholder: '상위계정 검색',
+            allowClear: true,
+            language: { noResults: () => '검색 결과가 없습니다' }
+        });
+
+        $select.on('select2:select select2:clear', () => {
+            window.jQuery(select).trigger('change');
+        });
+    }
     function isParentAccountInputMode() {
         const inputWrap = document.getElementById('modal_parent_account_input_wrap');
         return Boolean(inputWrap && !inputWrap.classList.contains('d-none'));
     }
 
-    function renderSubPolicyRows() {
-        const tbody = document.getElementById('sub-policy-tbody');
-        if (!tbody) return;
-
-        if (!currentSubPolicies.length) {
-            tbody.innerHTML = '<tr class="sub-policy-empty"><td colspan="5" class="text-center text-muted">등록된 보조계정 항목이 없습니다.</td></tr>';
-            $('#modal_sub_policies').val('[]');
-            return;
-        }
-
-        tbody.innerHTML = currentSubPolicies.map((policy, index) => `
-            <tr data-index="${index}">
-                <td>
-                    <select class="form-select form-select-sm policy-type">
-                        <option value="partner" ${policy.policy_type === 'partner' ? 'selected' : ''}>거래처</option>
-                        <option value="project" ${policy.policy_type === 'project' ? 'selected' : ''}>프로젝트</option>
-                        <option value="custom" ${policy.policy_type === 'custom' ? 'selected' : ''}>사용자정의</option>
-                    </select>
-                </td>
-                <td class="text-center"><input type="checkbox" class="form-check-input policy-required" ${Number(policy.is_required) === 1 ? 'checked' : ''}></td>
-                <td class="text-center"><input type="checkbox" class="form-check-input policy-multiple" ${Number(policy.allow_multiple) === 1 ? 'checked' : ''}></td>
-                <td><input type="text" class="form-control form-control-sm policy-custom-code" value="${escapeHtml(policy.custom_group_code || '')}"></td>
-                <td class="text-center">
-                    <button type="button" class="btn btn-outline-danger btn-sm btn-remove-policy" data-index="${index}">삭제</button>
-                </td>
-            </tr>
-        `).join('');
-
-        syncSubPolicyRows();
+    function setParentSelect2Visible(visible) {
+        const select = document.getElementById('modal_parent_id');
+        const container = select?.nextElementSibling;
+        if (!container?.classList?.contains('select2-container')) return;
+        container.classList.toggle('d-none', !visible);
     }
 
-    function syncSubPolicyRows() {
-        currentSubPolicies = Array.from(document.querySelectorAll('#sub-policy-tbody tr[data-index]')).map((row) => ({
-            policy_type: row.querySelector('.policy-type')?.value || 'custom',
-            is_required: row.querySelector('.policy-required')?.checked ? 1 : 0,
-            allow_multiple: row.querySelector('.policy-multiple')?.checked ? 1 : 0,
-            custom_group_code: row.querySelector('.policy-custom-code')?.value?.trim() || ''
-        }));
-
-        $('#modal_sub_policies').val(JSON.stringify(currentSubPolicies));
-        updateAllowSubAccountDisplay();
-    }
-
-    function updateAllowSubAccountDisplay() {
-        const enabled = currentSubPolicies.length > 0 ? 1 : 0;
-        $('#modal_allow_sub_account').val(String(enabled));
-        $('#modal_allow_sub_account_label').val(enabled ? '사용' : '미사용');
-    }
-
-    async function loadSubAccounts(accountId, target = 'panel') {
-
-        const tableSelector = target === 'modal'
-            ? '#modal-subaccount-table'
-            : '#subaccount-table';
-
-        const tbody = document.querySelector(`${tableSelector} tbody`);
+    async function loadSubAccounts(accountId) {
+        const tbody = document.querySelector('#modal-subaccount-table tbody');
         if (!tbody) return;
 
         if (!accountId) {
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">계정과목을 선택하세요</td></tr>';
+            renderModalDraftSubAccounts();
             return;
         }
 
@@ -864,159 +1052,31 @@ window.AdminPicker = AdminPicker;
             const json = await fetchJson(`${API.SUB_LIST}?account_id=${encodeURIComponent(accountId)}`);
             const rows = Array.isArray(json?.data) ? json.data : [];
 
-            if (target === 'modal') {
-                modalDraftSubAccounts = rows.map((row) => ({
-                    id: row.id || '',
-                    sub_code: row.sub_code || '',
-                    sub_name: row.sub_name || '',
-                    is_required: Number(row.is_required ?? 0),
-                    note: row.note || '',
-                    memo: row.memo || ''
-                }));
-                ensureModalDraftInput();
-                renderModalDraftSubAccounts();
-                return;
+            modalDraftSubAccounts = rows.map((row) => ({
+                id: row.id || '',
+                sub_code: row.sub_code || '',
+                sub_name: row.sub_name || '',
+                is_required: Number(row.is_required ?? 0),
+            }));
+            ensureModalDraftInput();
+            renderModalDraftSubAccounts();
+            if (accountModalInitializing) {
+                markAccountFormClean();
+                accountModalInitializing = false;
             }
-
-            if (!rows.length) {
-                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">등록된 보조계정이 없습니다.</td></tr>';
-                return;
-            }
-
-            tbody.innerHTML = rows.map((row, index) => `
-                <tr>
-                    <td class="text-center">${index + 1}</td>
-                    <td data-sub-code="${escapeHtml(row.sub_code || '')}">${escapeHtml(resolveSubAccountName(row))}</td>
-                    <td class="text-center">${Number(row.is_required ?? 0) === 1 ? '필수' : '선택'}</td>
-                    <td class="text-center">
-                        <button type="button" class="btn btn-outline-secondary btn-sm btnEditSubAccount"
-                            data-id="${escapeHtml(row.id || '')}"
-                            data-code="${escapeHtml(row.sub_code || '')}"
-                            data-name="${escapeHtml(row.sub_name || '')}"
-                            data-required="${Number(row.is_required ?? 0) === 1 ? '1' : '0'}"
-                            data-note="${escapeHtml(row.note || '')}"
-                            data-memo="${escapeHtml(row.memo || '')}">수정</button>
-                        <button type="button" class="btn btn-outline-danger btn-sm btnDeleteSubAccount" data-id="${escapeHtml(row.id || '')}">삭제</button>
-                    </td>
-                </tr>
-            `).join('');
         } catch (err) {
             console.error('[ledger-account] sub list failed:', err);
             tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">보조계정을 불러오지 못했습니다.</td></tr>';
         }
     }
 
-
-    function addSubAccount(target = 'panel') {
-        const targetAccountId = target === 'modal'
-            ? ($('#modal_account_id').val() || '')
-            : currentAccountId;
-
-        if (target === 'modal') {
-            syncModalDraftSubAccounts();
-            modalDraftSubAccounts.push({ sub_code: '', sub_name: '', is_required: '', note: '', memo: '' });
-            renderModalDraftSubAccounts();
-            const selects = document.querySelectorAll('#modal-subaccount-table .modal-sub-code-select');
-            selects[selects.length - 1]?.focus();
-            return;
-        }
-
-        if (!targetAccountId) {
-            notify('warning', '계정과목을 먼저 선택하세요');
-            return;
-        }
-
-        const tbody = document.querySelector('#subaccount-table tbody');
-        if (!tbody) return;
-
-        const existingRow = tbody.querySelector('.sub-new-row');
-        if (existingRow) {
-            existingRow.querySelector('.sub-new-code-select')?.focus();
-            return;
-        }
-
-        if (tbody.querySelector('td[colspan]')) {
-            tbody.innerHTML = '';
-        }
-
-        const tr = document.createElement('tr');
-        tr.className = 'sub-new-row';
-        tr.innerHTML = `
-        <td class="text-center">추가</td>
-        <td>${renderSubAccountCodeSelect('sub-new-code-select')}</td>
-        <td>${renderRequiredSelect('sub-new-required-select', 0)}</td>
-        <td class="text-center">
-            <button type="button" class="btn btn-success btn-sm btnSubNewSave">저장</button>
-            <button type="button" class="btn btn-secondary btn-sm btnSubNewCancel">취소</button>
-        </td>
-        `;
-
-        tbody.prepend(tr);
-        initSubAccountCodeSelects(tr).then(() => tr.querySelector('.sub-new-code-select')?.focus());
-
-        const saveNew = async () => {
-            const select = tr.querySelector('.sub-new-code-select');
-            const subCode = select?.value?.trim() || '';
-            const isRequired = Number(tr.querySelector('.sub-new-required-select')?.value || 0);
-            const subName = getSubAccountCodeName(subCode);
-
-            if (!subCode) {
-                notify('warning', '보조계정명을 선택하세요');
-                select?.focus();
-                return;
-            }
-
-            if (hasDuplicateSubCode(subCode, { tableSelector: '#subaccount-table' })) {
-                notify('warning', '이미 추가된 보조계정입니다');
-                select?.focus();
-                return;
-            }
-
-            tr.querySelectorAll('select,button').forEach((el) => { el.disabled = true; });
-
-            try {
-                const res = await $.post(API.SUB_SAVE, {
-                    account_id: targetAccountId,
-                    sub_code: subCode,
-                    sub_name: subName,
-                    is_required: isRequired
-                });
-
-                if (!res?.success) {
-                    notify('error', res?.message || '보조계정 저장에 실패했습니다.');
-                    tr.querySelectorAll('select,button').forEach((el) => { el.disabled = false; });
-                    select?.focus();
-                    return;
-                }
-
-                notify('success', '보조계정이 저장되었습니다.');
-                loadSubAccounts(targetAccountId, target);
-                accountTable?.ajax.reload(null, false);
-            } catch (err) {
-                console.error('[ledger-account] sub save failed:', err);
-                notify('error', '보조계정 저장 중 오류가 발생했습니다.');
-                tr.querySelectorAll('select,button').forEach((el) => { el.disabled = false; });
-                select?.focus();
-            }
-        };
-
-        tr.querySelector('.btnSubNewSave')?.addEventListener('click', saveNew);
-        tr.querySelector('.btnSubNewCancel')?.addEventListener('click', () => {
-            tr.remove();
-            restoreEmptySubAccountRow(target);
-        });
+    function addSubAccount() {
+        syncModalDraftSubAccounts();
+        modalDraftSubAccounts.push({ sub_code: '', sub_name: '', is_required: '' });
+        renderModalDraftSubAccounts();
+        const selects = document.querySelectorAll('#modal-subaccount-table .modal-sub-code-select');
+        selects[selects.length - 1]?.focus();
     }
-
-    function restoreEmptySubAccountRow(target = 'panel') {
-        const tableSelector = target === 'modal'
-            ? '#modal-subaccount-table'
-            : '#subaccount-table';
-        const tbody = document.querySelector(`${tableSelector} tbody`);
-        if (!tbody || tbody.children.length > 0) return;
-
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">등록된 보조계정이 없습니다.</td></tr>';
-    }
-
 
 
 
@@ -1036,21 +1096,11 @@ window.AdminPicker = AdminPicker;
                 <td>
                     ${renderRequiredSelect('modal-sub-required-select', row.is_required)}
                 </td>
-                <td>
-                    <input type="text"
-                           class="form-control form-control-sm modal-sub-note"
-                           value="${escapeHtml(row.note || '')}">
-                </td>
-                <td>
-                    <input type="text"
-                           class="form-control form-control-sm modal-sub-memo"
-                           value="${escapeHtml(row.memo || '')}">
-                </td>
                 <td class="text-center">
                     <button type="button"
-                            class="btn btn-outline-danger btn-sm btnDeleteSubAccount"
+                            class="sub-delete-action btnDeleteSubAccount"
                             data-draft-index="${index}">
-                        삭제
+                        - 삭제
                     </button>
                 </td>
             </tr>
@@ -1058,10 +1108,9 @@ window.AdminPicker = AdminPicker;
 
         initSubAccountCodeSelects(tbody);
     }
-
     function ensureModalDraftInput() {
         if (!modalDraftSubAccounts.length) {
-            modalDraftSubAccounts.push({ sub_code: '', sub_name: '', is_required: '', note: '', memo: '' });
+            modalDraftSubAccounts.push({ sub_code: '', sub_name: '', is_required: '' });
         }
     }
 
@@ -1077,8 +1126,6 @@ window.AdminPicker = AdminPicker;
                 sub_code: subCode,
                 sub_name: getSubAccountCodeName(subCode),
                 is_required: requiredValue === '' ? '' : Number(requiredValue),
-                note: row.querySelector('.modal-sub-note')?.value?.trim() || '',
-                memo: row.querySelector('.modal-sub-memo')?.value?.trim() || ''
             };
         });
     }
@@ -1096,12 +1143,12 @@ window.AdminPicker = AdminPicker;
                 sub_code: String(row.sub_code || '').trim(),
                 sub_name: getSubAccountCodeName(row.sub_code, row.sub_name),
                 is_required: row.is_required,
-                note: row.note || '',
-                memo: row.memo || ''
-            }));
+            }))
+            .filter((row) => row.sub_code !== '');
 
         if (!rows.length) {
-            notify('warning', '보조계정 사용 시 보조계정명을 선택하세요.');
+            notify('warning', '보조계정 사용 시 보조계정명을 1개 이상 선택해주세요.');
+            document.querySelector('#modal-subaccount-table .modal-sub-code-select')?.focus();
             return null;
         }
 
@@ -1138,135 +1185,6 @@ window.AdminPicker = AdminPicker;
         }));
     }
 
-
-    function editSubAccountInline(button) {
-        const tr = button?.closest('tr');
-        const id = button?.dataset?.id || '';
-        const code = button?.dataset?.code || '';
-        const note = button?.dataset?.note || '';
-        const memo = button?.dataset?.memo || '';
-        const required = Number(button?.dataset?.required || 0);
-        if (!id || !tr) return;
-
-        const tbody = tr.closest('tbody');
-        const existingRow = tbody?.querySelector('.sub-edit-row');
-        if (existingRow && existingRow !== tr) {
-            existingRow.querySelector('.sub-edit-code-select')?.focus();
-            return;
-        }
-
-        const originalHtml = tr.innerHTML;
-        tr.classList.add('sub-edit-row');
-        tr.innerHTML = `
-            <td class="text-center">수정</td>
-            <td>${renderSubAccountCodeSelect('sub-edit-code-select', code)}</td>
-            <td>${renderRequiredSelect('sub-edit-required-select', required)}</td>
-            <td class="text-center">
-                <button type="button" class="btn btn-success btn-sm btnSubEditSave">저장</button>
-                <button type="button" class="btn btn-secondary btn-sm btnSubEditCancel">취소</button>
-            </td>
-        `;
-
-        initSubAccountCodeSelects(tr).then(() => tr.querySelector('.sub-edit-code-select')?.focus());
-
-        const cancelEdit = () => {
-            tr.classList.remove('sub-edit-row');
-            tr.innerHTML = originalHtml;
-        };
-
-        const saveEdit = async () => {
-            const select = tr.querySelector('.sub-edit-code-select');
-            const subCode = select?.value?.trim() || '';
-            const isRequired = Number(tr.querySelector('.sub-edit-required-select')?.value || 0);
-
-            if (!subCode) {
-                notify('warning', '보조계정명을 선택하세요');
-                select?.focus();
-                return;
-            }
-
-            if (hasDuplicateSubCode(subCode, { tableSelector: '#subaccount-table', excludeId: id })) {
-                notify('warning', '이미 추가된 보조계정입니다');
-                select?.focus();
-                return;
-            }
-
-            tr.querySelectorAll('select,button').forEach((el) => { el.disabled = true; });
-
-            try {
-                const res = await $.post(API.SUB_UPDATE, {
-                    id,
-                    sub_code: subCode,
-                    sub_name: getSubAccountCodeName(subCode),
-                    is_required: isRequired,
-                    note: note || '',
-                    memo: memo || ''
-                });
-
-                if (!res?.success) {
-                    notify('error', res?.message || '보조계정 수정에 실패했습니다.');
-                    tr.querySelectorAll('select,button').forEach((el) => { el.disabled = false; });
-                    select?.focus();
-                    return;
-                }
-
-                notify('success', '보조계정이 수정되었습니다.');
-                loadSubAccounts(currentAccountId, 'panel');
-                accountTable?.ajax.reload(null, false);
-            } catch (err) {
-                console.error('[ledger-account] sub update failed:', err);
-                notify('error', '보조계정 수정 중 오류가 발생했습니다.');
-                tr.querySelectorAll('select,button').forEach((el) => { el.disabled = false; });
-                select?.focus();
-            }
-        };
-
-        tr.querySelector('.btnSubEditSave')?.addEventListener('click', saveEdit);
-        tr.querySelector('.btnSubEditCancel')?.addEventListener('click', cancelEdit);
-    }
-
-    async function deleteSubAccount(id, target = 'panel') {
-        const targetAccountId = target === 'modal'
-            ? ($('#modal_account_id').val() || currentAccountId)
-            : currentAccountId;
-        if (!id) return;
-        if (!confirm('보조계정을 삭제하시겠습니까?')) return;
-
-        try {
-            const res = await $.post(API.SUB_DELETE, { id });
-            if (!res?.success) {
-                notify('error', res?.message || '보조계정 삭제에 실패했습니다.');
-                return;
-            }
-
-            notify('success', '보조계정이 삭제되었습니다.');
-            loadSubAccounts(targetAccountId, target);
-            accountTable?.ajax.reload(null, false);
-        } catch (err) {
-            console.error('[ledger-account] sub delete failed:', err);
-            notify('error', '보조계정 삭제 중 오류가 발생했습니다.');
-        }
-    }
-
-    function clearSubAccountPanel() {
-        currentAccountId = '';
-        $('#btnAddSubAccount').prop('disabled', true);
-        $('#subaccountGuide').text('계정과목을 선택하면 해당 보조계정을 관리할 수 있습니다.');
-        clearTableSelectedRows('#account-table');
-        document.querySelector('.account-split-layout')?.classList.remove('subaccount-open');
-        adjustAccountTableLayout();
-        const tbody = document.querySelector('#subaccount-table tbody');
-        if (tbody) {
-            tbody.innerHTML = '';
-        }
-    }
-
-    function adjustAccountTableLayout() {
-        window.requestAnimationFrame(() => {
-            accountTable?.columns.adjust();
-        });
-    }
-
     function renderTrashDetail(detailEl, data = {}) {
         detailEl.innerHTML = `
             <h5 class="mb-3">${escapeHtml(data.account_name ?? '')}</h5>
@@ -1291,12 +1209,10 @@ window.AdminPicker = AdminPicker;
             </table>
         `;
     }
-
     function updateCount(count) {
         const el = document.getElementById('accountCount');
         if (el) el.textContent = `총 ${count ?? 0}건`;
     }
-
     function renderSubAccountCodeSelect(className, selectedValue = '', extraClass = '', index = '') {
         const selectClass = [className, extraClass].filter(Boolean).join(' ');
         return `
@@ -1347,45 +1263,10 @@ window.AdminPicker = AdminPicker;
             }
         });
     }
-
     function getSubAccountCodeName(code, fallback = '') {
         const value = String(code || '').trim();
         if (!value) return '';
         return getCodeName(SUB_ACCOUNT_SELECT_NAME, value) || fallback || value;
-    }
-
-    function resolveSubAccountName(row = {}) {
-        return getSubAccountCodeName(row.sub_code, row.sub_name || row.sub_code || '');
-    }
-
-    function hasDuplicateSubCode(subCode, { tableSelector, excludeId = '' } = {}) {
-        const value = String(subCode || '').trim();
-        if (!value || !tableSelector) return false;
-
-        return Array.from(document.querySelectorAll(`${tableSelector} .btnEditSubAccount`))
-            .some((button) => {
-                if (excludeId && String(button.dataset.id || '') === String(excludeId)) {
-                    return false;
-                }
-                return String(button.dataset.code || '').trim() === value;
-            });
-    }
-
-    function refreshSubAccountLabels() {
-        document.querySelectorAll('#subaccount-table td[data-sub-code]').forEach((cell) => {
-            const code = cell.dataset.subCode || '';
-            if (code) {
-                cell.textContent = getSubAccountCodeName(code, cell.textContent);
-            }
-        });
-    }
-
-    async function fetchJson(url, options = {}) {
-        const res = await fetch(url, {
-            credentials: 'include',
-            ...options
-        });
-        return res.json();
     }
 
     function notify(type, message) {

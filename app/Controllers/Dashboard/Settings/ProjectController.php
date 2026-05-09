@@ -135,6 +135,30 @@ class ProjectController
         exit;
     }
 
+    public function apiDistinctValues(): void
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+
+        try {
+            $field = trim((string)($_GET['field'] ?? ''));
+            $keyword = trim((string)($_GET['q'] ?? ''));
+            $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 20;
+
+            echo json_encode([
+                'success' => true,
+                'data' => $this->service->distinctValues($field, $keyword, $limit),
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            echo json_encode([
+                'success' => false,
+                'data' => [],
+                'message' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE);
+        }
+
+        exit;
+    }
+
 
     /* ============================================================
     * API: ?꾨줈?앺듃 ???(?좉퇋 + ?섏젙)
@@ -162,6 +186,7 @@ class ProjectController
 
                 'site_agent' => $_POST['site_agent'] ?? null,
                 'contract_type' => $_POST['contract_type'] ?? null,
+                'contract_method' => $_POST['contract_method'] ?? null,
                 'director' => $_POST['director'] ?? null,
                 'manager' => $_POST['manager'] ?? null,
 

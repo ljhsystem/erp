@@ -18,25 +18,66 @@ class VoucherModel
 
     public function getList(array $filters = []): array
     {
+        $storedTransactionIdExpr = $this->hasColumn('transaction_id') ? 'v.transaction_id' : 'NULL';
+        $hasSeedRows = $this->hasTable('ledger_data_seed_rows');
+        $importTypeExpr = $hasSeedRows
+            ? "COALESCE(linked_seed.source_type, source_seed_by_tx.source_type)"
+            : 'NULL';
+        $seedJoinSql = $hasSeedRows ? "
+            LEFT JOIN (
+                SELECT
+                    l.voucher_id,
+                    MIN(sr.source_type) AS source_type
+                FROM ledger_transaction_links l
+                INNER JOIN ledger_data_seed_rows sr
+                    ON sr.transaction_id = l.transaction_id
+                   AND sr.deleted_at IS NULL
+                WHERE l.deleted_at IS NULL
+                  AND l.is_active = 1
+                GROUP BY l.voucher_id
+            ) linked_seed
+                ON linked_seed.voucher_id = v.id
+            LEFT JOIN (
+                SELECT
+                    transaction_id,
+                    MIN(source_type) AS source_type
+                FROM ledger_data_seed_rows
+                WHERE deleted_at IS NULL
+                  AND transaction_id IS NOT NULL
+                GROUP BY transaction_id
+            ) source_seed_by_tx
+                ON source_seed_by_tx.transaction_id = {$storedTransactionIdExpr}
+        " : "";
+
         $sql = "
             SELECT
                 v.*,
                 v.voucher_no AS voucher_no,
-                v.source_type AS type,
+                'VOUCHER' AS type,
+                CASE
+                    WHEN v.status IN ('posted', 'closed') THEN 'POSTED'
+                    WHEN COALESCE(voucher_line_accounts.line_count, 0) = 0 THEN 'EMPTY'
+                    WHEN ROUND(COALESCE(voucher_line_accounts.debit_total, 0), 2) <> ROUND(COALESCE(voucher_line_accounts.credit_total, 0), 2)
+                         OR COALESCE(voucher_line_accounts.debit_total, 0) <= 0
+                         OR COALESCE(voucher_line_accounts.credit_total, 0) <= 0
+                         OR COALESCE(voucher_line_accounts.missing_account_count, 0) > 0 THEN 'UNBALANCED'
+                    ELSE 'READY'
+                END AS journal_status,
                 COALESCE(voucher_line_accounts.account_label, '') AS account_label,
                 COALESCE(voucher_line_accounts.debit_total, 0) AS debit_total,
                 COALESCE(voucher_line_accounts.credit_total, 0) AS credit_total,
                 COALESCE(voucher_line_accounts.line_count, 0) AS line_count,
                 COALESCE(voucher_payments.payment_total, 0) AS payment_total,
                 COALESCE(voucher_payments.payment_count, 0) AS payment_count,
-                transaction_links.transaction_id,
+                COALESCE({$storedTransactionIdExpr}, transaction_links.transaction_id) AS transaction_id,
                 transaction_links.match_status,
-                COALESCE(linked_clients.client_name, source_clients.client_name, '') AS client_name,
+                {$importTypeExpr} AS import_type,
+                COALESCE(linked_clients.client_name, '') AS client_name,
                 reversal_vouchers.id AS reversal_voucher_id,
                 reversal_vouchers.voucher_no AS reversal_voucher_no,
                 original_vouchers.voucher_no AS original_voucher_no,
                 CASE
-                    WHEN transaction_links.voucher_id IS NULL THEN 'unlinked'
+                    WHEN COALESCE({$storedTransactionIdExpr}, transaction_links.transaction_id) IS NULL THEN 'unlinked'
                     ELSE 'linked'
                 END AS linked_status
             FROM {$this->table} v
@@ -50,10 +91,12 @@ class VoucherModel
                     ) AS account_label,
                     SUM(COALESCE(l.debit, 0)) AS debit_total,
                     SUM(COALESCE(l.credit, 0)) AS credit_total,
-                    COUNT(l.id) AS line_count
+                    COUNT(l.id) AS line_count,
+                    SUM(CASE WHEN a.id IS NULL THEN 1 ELSE 0 END) AS missing_account_count
                 FROM ledger_voucher_lines l
                 LEFT JOIN ledger_accounts a
-                    ON a.id = l.account_id
+                    ON (a.id = l.account_id OR a.account_code = l.account_id)
+                   AND a.deleted_at IS NULL
                 GROUP BY l.voucher_id
             ) voucher_line_accounts
                 ON voucher_line_accounts.voucher_id = v.id
@@ -99,9 +142,7 @@ class VoucherModel
                 GROUP BY l.voucher_id
             ) linked_clients
                 ON linked_clients.voucher_id = v.id
-            LEFT JOIN system_clients source_clients
-                ON source_clients.id = v.source_id
-               AND v.source_type = 'CLIENT'
+            {$seedJoinSql}
             LEFT JOIN {$this->table} reversal_vouchers
                 ON reversal_vouchers.reversal_of = v.id
                AND reversal_vouchers.is_reversal = 1
@@ -121,16 +162,6 @@ class VoucherModel
                 $params[':status'] = $filters['status'];
             }
 
-            if (!empty($filters['source_type'])) {
-                $sql .= " AND v.source_type = :source_type";
-                $params[':source_type'] = $this->normalizeSourceTypeFilter((string) $filters['source_type']);
-            }
-
-            if (!empty($filters['source_id'])) {
-                $sql .= " AND v.source_id = :source_id";
-                $params[':source_id'] = $filters['source_id'];
-            }
-
             if (!empty($filters['date_from'])) {
                 $sql .= " AND v.voucher_date >= :date_from";
                 $params[':date_from'] = $filters['date_from'];
@@ -145,7 +176,7 @@ class VoucherModel
                 $sql .= " AND (
                     v.voucher_no LIKE :keyword
                     OR v.summary_text LIKE :keyword
-                    OR COALESCE(linked_clients.client_name, source_clients.client_name, '') LIKE :keyword
+                    OR COALESCE(linked_clients.client_name, '') LIKE :keyword
                 )";
                 $params[':keyword'] = '%' . $filters['keyword'] . '%';
             }
@@ -219,10 +250,22 @@ class VoucherModel
                     $params[$key] = $this->normalizeStatusFilter($rawValue);
                     break;
 
+                case 'journal_status':
+                    $sql .= " AND (CASE
+                        WHEN v.status IN ('posted', 'closed') THEN 'POSTED'
+                        WHEN COALESCE(voucher_line_accounts.line_count, 0) = 0 THEN 'EMPTY'
+                        WHEN ROUND(COALESCE(voucher_line_accounts.debit_total, 0), 2) <> ROUND(COALESCE(voucher_line_accounts.credit_total, 0), 2)
+                             OR COALESCE(voucher_line_accounts.debit_total, 0) <= 0
+                             OR COALESCE(voucher_line_accounts.credit_total, 0) <= 0
+                             OR COALESCE(voucher_line_accounts.missing_account_count, 0) > 0 THEN 'UNBALANCED'
+                        ELSE 'READY'
+                    END) = {$key}";
+                    $params[$key] = $this->normalizeJournalStatusFilter($rawValue);
+                    break;
+
                 case 'type':
-                case 'source_type':
-                    $sql .= " AND v.source_type = {$key}";
-                    $params[$key] = $this->normalizeSourceTypeFilter($rawValue);
+                    $sql .= " AND 'VOUCHER' = {$key}";
+                    $params[$key] = strtoupper($rawValue);
                     break;
 
                 case 'summary_text':
@@ -232,11 +275,6 @@ class VoucherModel
 
                 case 'account_label':
                     $sql .= " AND voucher_line_accounts.account_label LIKE {$likeKey}";
-                    $params[$likeKey] = "%{$rawValue}%";
-                    break;
-
-                case 'source_id':
-                    $sql .= " AND v.source_id LIKE {$likeKey}";
                     $params[$likeKey] = "%{$rawValue}%";
                     break;
 
@@ -284,8 +322,71 @@ class VoucherModel
 
         $sql .= " ORDER BY v.sort_no ASC, v.voucher_date ASC, v.created_at ASC";
 
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($params);
+        try {
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+
+            return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (\Throwable $e) {
+            error_log('[VoucherModel] getList failed: ' . $e->getMessage());
+            return $this->getListFallback();
+        }
+    }
+
+    private function getListFallback(): array
+    {
+        $storedTransactionIdExpr = $this->hasColumn('transaction_id') ? 'v.transaction_id' : 'NULL';
+        $stmt = $this->db->query("
+            SELECT
+                v.*,
+                v.voucher_no AS voucher_no,
+                'VOUCHER' AS type,
+                CASE
+                    WHEN v.status IN ('posted', 'closed') THEN 'POSTED'
+                    WHEN COALESCE(voucher_line_accounts.line_count, 0) = 0 THEN 'EMPTY'
+                    WHEN ROUND(COALESCE(voucher_line_accounts.debit_total, 0), 2) <> ROUND(COALESCE(voucher_line_accounts.credit_total, 0), 2)
+                         OR COALESCE(voucher_line_accounts.debit_total, 0) <= 0
+                         OR COALESCE(voucher_line_accounts.credit_total, 0) <= 0
+                         OR COALESCE(voucher_line_accounts.missing_account_count, 0) > 0 THEN 'UNBALANCED'
+                    ELSE 'READY'
+                END AS journal_status,
+                COALESCE(voucher_line_accounts.account_label, '') AS account_label,
+                COALESCE(voucher_line_accounts.debit_total, 0) AS debit_total,
+                COALESCE(voucher_line_accounts.credit_total, 0) AS credit_total,
+                COALESCE(voucher_line_accounts.line_count, 0) AS line_count,
+                0 AS payment_total,
+                0 AS payment_count,
+                {$storedTransactionIdExpr} AS transaction_id,
+                NULL AS match_status,
+                NULL AS import_type,
+                '' AS client_name,
+                NULL AS reversal_voucher_id,
+                NULL AS reversal_voucher_no,
+                NULL AS original_voucher_no,
+                'unlinked' AS linked_status
+            FROM {$this->table} v
+            LEFT JOIN (
+                SELECT
+                    l.voucher_id,
+                    GROUP_CONCAT(
+                        DISTINCT CONCAT(a.account_code, ' ', a.account_name)
+                        ORDER BY l.line_no
+                        SEPARATOR ', '
+                    ) AS account_label,
+                    SUM(COALESCE(l.debit, 0)) AS debit_total,
+                    SUM(COALESCE(l.credit, 0)) AS credit_total,
+                    COUNT(l.id) AS line_count,
+                    SUM(CASE WHEN a.id IS NULL THEN 1 ELSE 0 END) AS missing_account_count
+                FROM ledger_voucher_lines l
+                LEFT JOIN ledger_accounts a
+                    ON (a.id = l.account_id OR a.account_code = l.account_id)
+                   AND a.deleted_at IS NULL
+                GROUP BY l.voucher_id
+            ) voucher_line_accounts
+                ON voucher_line_accounts.voucher_id = v.id
+            WHERE v.deleted_at IS NULL
+            ORDER BY v.sort_no ASC, v.voucher_date ASC, v.created_at ASC
+        ");
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
@@ -304,14 +405,29 @@ class VoucherModel
         };
     }
 
+    private function normalizeJournalStatusFilter(string $value): string
+    {
+        $normalized = mb_strtolower(trim($value), 'UTF-8');
+
+        return match ($normalized) {
+            '분개없음', '미분개', 'empty' => 'EMPTY',
+            '차대불일치', '불일치', 'unbalanced' => 'UNBALANCED',
+            '분개완료', 'ready' => 'READY',
+            '승인완료', 'posted' => 'POSTED',
+            default => strtoupper($value),
+        };
+    }
+
     private function normalizeSourceTypeFilter(string $value): string
     {
         $normalized = mb_strtoupper(trim($value), 'UTF-8');
 
         return match ($normalized) {
-            '홈택스', 'TAX' => 'TAX',
-            '카드사', '카드', 'CARD' => 'CARD',
+            '홈택스', 'HOMETAX', 'TAX' => 'TAX',
+            '카드사', 'CARD_COMPANY', '카드', 'CARD' => 'CARD',
             '은행', 'BANK' => 'BANK',
+            '쇼핑몰', 'SHOPPING' => 'SHOPPING',
+            '수입', '무역', '수입/무역', 'TRADE', 'IMPORT' => 'TRADE',
             '수기입력', '수기', 'MANUAL' => 'MANUAL',
             '거래', 'TRANSACTION' => 'TRANSACTION',
             default => $normalized,
@@ -388,9 +504,8 @@ class VoucherModel
             'sort_no',
             'voucher_no',
             'voucher_date',
-            'source_type',
-            'source_id',
             'status',
+            'journal_status',
             'voucher_amount',
             'summary_text',
             'note',
@@ -433,9 +548,8 @@ class VoucherModel
         $allowed = [
             'voucher_date',
             'voucher_no',
-            'source_type',
-            'source_id',
             'status',
+            'journal_status',
             'voucher_amount',
             'summary_text',
             'note',
@@ -574,6 +688,42 @@ class VoucherModel
         }
 
         return $payload;
+    }
+
+    private function hasColumn(string $column): bool
+    {
+        static $columns = null;
+
+        if ($columns === null) {
+            try {
+                $stmt = $this->db->query("SHOW COLUMNS FROM {$this->table}");
+                $columns = array_flip(array_map(
+                    static fn(array $row): string => (string) ($row['Field'] ?? ''),
+                    $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []
+                ));
+            } catch (\Throwable) {
+                $columns = [];
+            }
+        }
+
+        return isset($columns[$column]);
+    }
+
+    private function hasTable(string $table): bool
+    {
+        static $tables = [];
+
+        if (!array_key_exists($table, $tables)) {
+            try {
+                $stmt = $this->db->prepare('SHOW TABLES LIKE :table_name');
+                $stmt->execute([':table_name' => $table]);
+                $tables[$table] = (bool) $stmt->fetchColumn();
+            } catch (\Throwable) {
+                $tables[$table] = false;
+            }
+        }
+
+        return $tables[$table];
     }
 
     private function bindParams(array $data): array

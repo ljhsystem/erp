@@ -33,9 +33,8 @@ export function createAccountPicker({ container }) {
               const div = document.createElement('div');
 
               div.className = 'picker-item';
-              div.innerHTML = `
-                  ${row.account_code} - ${row.account_name}
-              `;
+              const path = row.full_path || row.account_name || '';
+              div.textContent = `[${path}]`;
 
               div.onclick = () => {
                   subscribers.forEach(fn => fn('select', row));

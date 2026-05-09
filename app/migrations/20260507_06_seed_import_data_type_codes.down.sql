@@ -1,0 +1,4 @@
+DELETE FROM `system_codes`
+WHERE `code_group` = 'IMPORT_TYPE'
+  AND `code` IN ('TAX_INVOICE', 'CASH_RECEIPT', 'CARD_APPROVAL', 'BANK_TRANSACTION', 'SHOPPING_ORDER', 'IMPORT_INVOICE')
+  AND `created_by` = 'SYSTEM';

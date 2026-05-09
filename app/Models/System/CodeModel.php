@@ -51,6 +51,7 @@ class CodeModel
         $fieldMap = [
             'sort_no' => ['col' => 'c.sort_no', 'type' => 'exact'],
             'code_group' => ['col' => 'c.code_group', 'type' => 'exact'],
+            'group_name' => ['col' => 'c.group_name', 'type' => 'like'],
             'code' => ['col' => 'c.code', 'type' => 'like'],
             'code_name' => ['col' => 'c.code_name', 'type' => 'like'],
             'note' => ['col' => 'c.note', 'type' => 'like'],
@@ -113,6 +114,8 @@ class CodeModel
 
         if (!empty($globalSearch)) {
             $searchCols = [
+                'c.code_group',
+                'c.group_name',
                 'c.code',
                 'c.code_name',
                 'c.note',
@@ -137,7 +140,7 @@ class CodeModel
             $sql .= implode(' OR ', $groups) . ")";
         }
 
-        $sql .= " ORDER BY c.code_group ASC, c.sort_no ASC, c.code_name ASC";
+        $sql .= " ORDER BY c.group_name ASC, c.code_group ASC, c.sort_no ASC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -186,19 +189,19 @@ class CodeModel
     public function getGroups(): array
     {
         $stmt = $this->db->prepare("
-            SELECT DISTINCT UPPER(TRIM(code_group)) AS code_group
+            SELECT
+                UPPER(TRIM(code_group)) AS code_group,
+                MIN(TRIM(group_name)) AS group_name
             FROM system_codes
             WHERE deleted_at IS NULL
               AND code_group IS NOT NULL
               AND TRIM(code_group) <> ''
-            ORDER BY code_group ASC
+            GROUP BY UPPER(TRIM(code_group))
+            ORDER BY group_name ASC, code_group ASC
         ");
         $stmt->execute();
 
-        return array_values(array_filter(array_map(
-            static fn(array $row): string => (string)($row['code_group'] ?? ''),
-            $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []
-        )));
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
     public function getByGroup(string $codeGroup, bool $activeOnly = true): array
@@ -225,7 +228,7 @@ class CodeModel
     public function getOptionsByGroup(string $codeGroup): array
     {
         $stmt = $this->db->prepare("
-            SELECT code, code_name
+            SELECT code, code_name, group_name, note, memo
             FROM system_codes
             WHERE code_group = :code_group
               AND is_active = 1
@@ -280,14 +283,40 @@ class CodeModel
         return (int)$stmt->fetchColumn() > 0;
     }
 
+    public function getGroupNameByCodeGroup(string $codeGroup, ?string $excludeId = null): ?string
+    {
+        $sql = "
+            SELECT group_name
+            FROM system_codes
+            WHERE code_group = :code_group
+              AND deleted_at IS NULL
+              AND TRIM(group_name) <> ''
+        ";
+
+        $params = [':code_group' => $codeGroup];
+
+        if ($excludeId !== null && $excludeId !== '') {
+            $sql .= " AND id <> :exclude_id";
+            $params[':exclude_id'] = $excludeId;
+        }
+
+        $sql .= " ORDER BY updated_at DESC, created_at DESC LIMIT 1";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+
+        $value = $stmt->fetchColumn();
+        return $value === false ? null : trim((string)$value);
+    }
+
     public function create(array $data): bool
     {
         $sql = "
             INSERT INTO system_codes (
-                id, sort_no, code_group, code, code_name, note, memo,
+                id, sort_no, code_group, group_name, code, code_name, note, memo,
                 is_active, created_by, updated_by, extra_data
             ) VALUES (
-                :id, :sort_no, :code_group, :code, :code_name, :note, :memo,
+                :id, :sort_no, :code_group, :group_name, :code, :code_name, :note, :memo,
                 :is_active, :created_by, :updated_by, :extra_data
             )
         ";
@@ -298,6 +327,7 @@ class CodeModel
             ':id' => $data['id'],
             ':sort_no' => (int)($data['sort_no'] ?? 0),
             ':code_group' => trim((string)($data['code_group'] ?? '')),
+            ':group_name' => trim((string)($data['group_name'] ?? '')),
             ':code' => trim((string)($data['code'] ?? '')),
             ':code_name' => trim((string)($data['code_name'] ?? '')),
             ':note' => $data['note'] ?? null,
@@ -315,6 +345,7 @@ class CodeModel
             UPDATE system_codes SET
                 sort_no = :sort_no,
                 code_group = :code_group,
+                group_name = :group_name,
                 code = :code,
                 code_name = :code_name,
                 note = :note,
@@ -331,6 +362,7 @@ class CodeModel
             ':id' => $id,
             ':sort_no' => (int)($data['sort_no'] ?? 0),
             ':code_group' => trim((string)($data['code_group'] ?? '')),
+            ':group_name' => trim((string)($data['group_name'] ?? '')),
             ':code' => trim((string)($data['code'] ?? '')),
             ':code_name' => trim((string)($data['code_name'] ?? '')),
             ':note' => $data['note'] ?? null,
@@ -338,6 +370,23 @@ class CodeModel
             ':is_active' => (int)($data['is_active'] ?? 1),
             ':updated_by' => $data['updated_by'] ?? null,
             ':extra_data' => $data['extra_data'] ?? null,
+        ]);
+    }
+
+    public function updateGroupNameByCodeGroup(string $codeGroup, string $groupName, string $actor): bool
+    {
+        $stmt = $this->db->prepare("
+            UPDATE system_codes
+            SET group_name = :group_name,
+                updated_by = :updated_by
+            WHERE code_group = :code_group
+              AND deleted_at IS NULL
+        ");
+
+        return $stmt->execute([
+            ':code_group' => $codeGroup,
+            ':group_name' => $groupName,
+            ':updated_by' => $actor,
         ]);
     }
 

@@ -1,5 +1,7 @@
 // Path: /assets/js/components/search-form.js
 
+import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
+
 export function SearchForm(config) {
     const {
         table,
@@ -550,12 +552,20 @@ export function SearchForm(config) {
             return window.__searchFormDatePicker;
         }
 
-        const container = document.getElementById('today-picker');
-        if (!container || !window.AdminPicker?.create) {
+        let container = document.getElementById('today-picker');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'today-picker';
+            container.className = 'picker is-hidden';
+            document.body.appendChild(container);
+        }
+
+        const pickerFactory = window.AdminPicker || AdminPicker;
+        if (!pickerFactory?.create) {
             return null;
         }
 
-        const picker = window.AdminPicker.create({
+        const picker = pickerFactory.create({
             type: 'today',
             container
         });

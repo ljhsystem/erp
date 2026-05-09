@@ -125,6 +125,30 @@
     border-color: #a3cfbb;
 }
 
+.journal-page .journal-status-empty {
+    color: #64748b;
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
+
+.journal-page .journal-status-unbalanced {
+    color: #b42318;
+    background: #fee4e2;
+    border-color: #fda29b;
+}
+
+.journal-page .journal-status-ready {
+    color: #146c43;
+    background: #d1e7dd;
+    border-color: #a3cfbb;
+}
+
+.journal-page .journal-status-posted {
+    color: #6f42c1;
+    background: #ede7f6;
+    border-color: #d6c6f2;
+}
+
 .journal-page .journal-source-origin {
     margin-top: 4px;
     color: #475569;
@@ -1044,6 +1068,14 @@
     flex-wrap: wrap;
 }
 
+#journalModal .journal-link-meta-grid {
+    display: grid;
+    grid-template-columns: minmax(160px, 220px) minmax(180px, 260px);
+    gap: 8px;
+    align-items: end;
+    flex: 1 1 100%;
+}
+
 #journalModal .journal-transaction-link .btn {
     flex: 0 0 auto;
 }
@@ -1203,6 +1235,11 @@ body.modal-open .select2-container--open {
     #journalModal .journal-transaction-link {
         align-items: stretch;
         flex-direction: column;
+    }
+
+    #journalModal .journal-link-meta-grid {
+        grid-template-columns: 1fr;
+        width: 100%;
     }
 
     #journalModal .modal-footer {

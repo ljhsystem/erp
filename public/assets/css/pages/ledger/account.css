@@ -1,4 +1,4 @@
-﻿/* ?諭?/public/assets/css/pages/ledger/account.css */
+/* ?諭?/public/assets/css/pages/ledger/account.css */
 
 /* ==============================
    PAGE
@@ -99,6 +99,146 @@
    TABLE
 ============================== */
 
+#account-table tbody tr.account-row-level-1 td{
+    background:#eef3f8;
+    border-top:2px solid #72839a;
+    border-bottom:1px solid #c7d2de;
+}
+
+#account-table tbody tr.account-row-level-2 td{
+    background:#f5f8fb;
+    border-top:1px solid #d9e2ec;
+}
+
+#account-table tbody tr.account-row-level-3.account-row-group td{
+    background:#fbfcfe;
+}
+
+#account-table tbody tr.account-row-postable td{
+    background:#ffffff;
+}
+
+#account-table tbody tr.account-row-leaf td{
+    color:#202833;
+}
+
+#account-table tbody tr.account-row-group td{
+    color:#344054;
+}
+
+.account-tree-cell{
+    position:relative;
+    display:flex;
+    align-items:center;
+    gap:7px;
+    min-height:32px;
+    white-space:nowrap;
+}
+
+.account-tree-cell::before{
+    content:"";
+    position:absolute;
+    left:calc(var(--tree-guide-left, 0px) + 4px);
+    top:0;
+    bottom:0;
+    border-left:1px solid transparent;
+}
+
+.account-tree-branch{
+    display:inline-flex;
+    width:14px;
+    color:#98a2b3;
+    font-weight:700;
+    flex:0 0 14px;
+}
+
+.account-tree-icon{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:18px;
+    color:#667085;
+    flex:0 0 18px;
+}
+
+.account-tree-icon.is-group{
+    color:#566a83;
+}
+
+.account-tree-icon.is-postable{
+    color:#198754;
+}
+
+.account-tree-title{
+    min-width:0;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+
+.account-tree-cell.tree-level-1{
+    font-size:15px;
+    font-weight:800;
+    color:#182230;
+}
+
+.account-tree-cell.tree-level-2{
+    font-size:14px;
+    font-weight:700;
+    color:#24364b;
+}
+
+.account-tree-cell.tree-level-3{
+    font-size:13px;
+    font-weight:600;
+    color:#344054;
+}
+
+.account-tree-cell.tree-level-leaf{
+    font-size:13px;
+    font-weight:400;
+    color:#1f2937;
+}
+
+.account-tree-chip,
+.account-postable-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    border-radius:999px;
+    border:1px solid transparent;
+    padding:2px 7px;
+    font-size:11px;
+    font-weight:700;
+    line-height:1.25;
+    flex:0 0 auto;
+}
+
+.account-tree-chip.is-group,
+.account-postable-badge.is-group{
+    background:#eef2f6;
+    border-color:#d5dde7;
+    color:#526170;
+}
+
+.account-tree-chip.is-postable,
+.account-postable-badge.is-postable{
+    background:#eaf7ef;
+    border-color:#bfe6cc;
+    color:#197647;
+}
+
+.account-tree-cell.tree-level-1 .account-tree-chip{
+    background:#dfe8f2;
+    border-color:#c4d2e1;
+    color:#33465f;
+}
+
+.account-tree-cell.tree-level-2 .account-tree-chip{
+    background:#edf4fb;
+    border-color:#d7e5f2;
+    color:#40566f;
+}
+
 /* ?醫뤾문????揶쏅벡??*/
 .text-success-soft{
     color:#198754;
@@ -165,8 +305,7 @@
 }
 
 .modal-subaccount-table-wrap{
-    max-height:220px;
-    overflow:auto;
+    overflow:visible;
     border:1px solid #e5edf8;
     border-radius:8px;
 }
@@ -174,6 +313,83 @@
 #modal-subaccount-table{
     min-width:760px;
     table-layout:fixed;
+}
+
+.account-status-switch{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    min-height:31px;
+    padding-left:2.6em;
+}
+
+.account-setting-switches{
+    align-items:flex-start;
+}
+
+.account-toggle-field{
+    min-width:150px;
+    text-align:right;
+}
+
+.account-toggle-field .form-label{
+    display:block;
+    margin-bottom:4px;
+}
+
+.account-radio-group{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    width:100%;
+}
+
+.account-radio-group .btn{
+    flex:1 1 0;
+    min-width:0;
+    font-weight:700;
+}
+
+.account-status-switch .form-check-input{
+    width:2.5em;
+    height:1.25em;
+    margin-left:-2.6em;
+    cursor:pointer;
+}
+
+.account-status-switch .form-check-label{
+    font-size:13px;
+    font-weight:700;
+    color:#344054;
+    cursor:pointer;
+}
+
+.account-table-status-switch{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    min-width:86px;
+    margin:0;
+}
+
+.account-table-status-switch .form-check-input{
+    width:2.4em;
+    height:1.2em;
+    margin:0;
+    cursor:pointer;
+}
+
+.account-table-status-switch .form-check-input:disabled{
+    cursor:wait;
+    opacity:.65;
+}
+
+.account-status-toggle-label{
+    min-width:38px;
+    font-size:12px;
+    font-weight:700;
+    color:#475569;
 }
 
 #modal-subaccount-table th{
@@ -189,6 +405,26 @@
     background:#fff;
 }
 
+#modal-subaccount-table th:nth-child(1),
+#modal-subaccount-table td:nth-child(1){
+    width:56px;
+}
+
+#modal-subaccount-table th:nth-child(2),
+#modal-subaccount-table td:nth-child(2){
+    width:190px;
+}
+
+#modal-subaccount-table th:nth-child(3),
+#modal-subaccount-table td:nth-child(3){
+    width:150px;
+}
+
+#modal-subaccount-table th:nth-child(4),
+#modal-subaccount-table td:nth-child(4){
+    width:90px;
+}
+
 #modal-subaccount-table .form-control-sm,
 #modal-subaccount-table .form-select-sm{
     min-height:32px;
@@ -199,26 +435,96 @@
     display:none;
 }
 
-#modal-subaccount-table .select2-container,
-#subaccount-table .select2-container{
+.sub-delete-action{
+    appearance:none;
+    border:0;
+    background:transparent;
+    color:#dc3545;
+    font-size:13px;
+    font-weight:700;
+    line-height:1.2;
+    padding:2px 0;
+    cursor:pointer;
+}
+
+.sub-delete-action:hover,
+.sub-delete-action:focus{
+    color:#b02a37;
+    text-decoration:underline;
+}
+
+.sub-add-action{
+    appearance:none;
+    border:0;
+    background:transparent;
+    color:#0d6efd;
+    font-size:13px;
+    font-weight:800;
+    line-height:1.2;
+    padding:2px 0;
+    cursor:pointer;
+}
+
+.sub-add-action:hover,
+.sub-add-action:focus{
+    color:#0a58ca;
+    text-decoration:underline;
+}
+
+#modal-subaccount-table .modal-sub-required-select{
+    min-width:126px;
+}
+
+#modal-subaccount-table .select2-container{
     width:100% !important;
 }
 
-#modal-subaccount-table .select2-container .select2-selection--single,
-#subaccount-table .select2-container .select2-selection--single{
+#modal_parent_id + .select2-container{
+    width:100% !important;
+}
+
+#modal_parent_id + .select2-container .select2-selection--single{
+    min-height:31px;
+}
+
+.account-parent-option{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    min-height:26px;
+    line-height:1.25;
+}
+
+.account-parent-code{
+    flex:0 0 auto;
+    font-size:11px;
+    font-weight:700;
+    color:#475569;
+    background:#f1f5f9;
+    border:1px solid #e2e8f0;
+    border-radius:4px;
+    padding:1px 5px;
+}
+
+.account-parent-name{
+    min-width:0;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+
+#modal-subaccount-table .select2-container .select2-selection--single{
     min-height:32px;
     border-color:#cfd6df;
     border-radius:7px;
 }
 
-#modal-subaccount-table .select2-container .select2-selection__rendered,
-#subaccount-table .select2-container .select2-selection__rendered{
+#modal-subaccount-table .select2-container .select2-selection__rendered{
     line-height:30px;
     font-size:13px;
 }
 
-#modal-subaccount-table .select2-container .select2-selection__arrow,
-#subaccount-table .select2-container .select2-selection__arrow{
+#modal-subaccount-table .select2-container .select2-selection__arrow{
     height:30px;
 }
 
@@ -555,201 +861,17 @@
 }
 
 
-/* =========================
-   ACCOUNT SPLIT LAYOUT
-   ?④쑴??70% / 癰귣똻?쒏④쑴??30%
-========================= */
-
-.account-split-layout{
-    display:grid;
-    grid-template-columns:minmax(0, 1fr);
-    gap:15px;
-    align-items:stretch;
-    width:100%;
-    min-height:520px;
-    min-width:0;
-}
-
-/* ?ル슣瑜??④쑴?????뵠??*/
-
-.account-left-panel{
-    min-width:0;
-    max-width:100%;
-}
-
-/* ?怨쀫? 癰귣똻?쒏④쑴??*/
-
-.account-right-panel{
-    width:100%;
-    min-width:460px;
-    max-width:560px;
-    display:none;
-}
-
-.account-split-layout.subaccount-open{
-    grid-template-columns:minmax(0, 1fr) clamp(460px, 34vw, 560px);
-}
-
-.account-split-layout.subaccount-open .account-right-panel{
-    display:block;
-}
-
-.account-split-layout.subaccount-open .account-left-panel{
-    min-width:0;
-}
-
-.account-left-panel .table-box{
-    max-width:100%;
-    min-width:0;
-    overflow:visible;
-    -webkit-overflow-scrolling:touch;
-}
-
 .account-main .dataTables_wrapper,
 .account-main .dataTables_scroll,
 .account-main .dataTables_scrollBody{
     overflow:visible !important;
 }
 
-.account-left-panel #account-table{
+#account-table{
+    display:table;
+    visibility:visible;
+    width:100% !important;
     min-width:930px;
-}
-
-.account-split-layout.subaccount-open .account-left-panel #account-table{
-    min-width:900px;
-}
-/* 癰귣똻?쒏④쑴??獄쏅벡??*/
-
-.subaccount-box{
-    border:1px solid #ddd;
-    border-radius:8px;
-    background:#fff;
-    padding:12px;
-
-    height:100%;
-    display:flex;
-    flex-direction:column;
-}
-
-/* 癰귣똻?쒏④쑴????삳쐭 */
-
-.subaccount-header{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    margin-bottom:10px;
-}
-
-/* 癰귣똻?쒏④쑴?????뵠???怨몃열 */
-
-.subaccount-table-wrap{
-    flex:1;
-    overflow:auto;
-    max-width:100%;
-}
-
-/* 癰귣똻?쒏④쑴?????뵠??*/
-
-#subaccount-table{
-    background:#fff;
-    margin-bottom:0;
-    min-width:100%;
-    table-layout:fixed;
-}
-
-#subaccount-table th{
-    background:#e9ecef;
-    font-weight:600;
-    white-space:nowrap;
-}
-
-#subaccount-table th:nth-child(1),
-#subaccount-table td:nth-child(1){
-    width:60px;
-}
-
-#subaccount-table th:nth-child(3),
-#subaccount-table td:nth-child(3){
-    width:112px;
-}
-
-#subaccount-table th:nth-child(4),
-#subaccount-table td:nth-child(4){
-    width:104px;
-}
-
-#subaccount-table td{
-    vertical-align:middle;
-}
-
-#subaccount-table .sub-new-required-select,
-#subaccount-table .sub-edit-required-select{
-    min-width:86px;
-}
-
-#subaccount-table td:nth-child(4){
-    white-space:normal;
-}
-
-#subaccount-table td:nth-child(4) .btn{
-    display:block;
-    width:64px;
-    max-width:100%;
-    padding:4px 7px;
-    margin:2px auto;
-    font-size:12px;
-    line-height:1.2;
-}
-
-/* =========================
-   癰귣똻?쒏④쑴??甕곌쑵??揶쏆뮇苑?
-========================= */
-
-.sub-btn{
-    font-size:12px;
-    padding:2px 8px;
-    margin-left:6px;
-    border-radius:6px;
-    cursor:pointer;
-    font-weight:500;
-    transition:all 0.15s ease;
-
-    border:1px solid #e5e7eb;
-    background:#f9fafb;
-    color:#495057;
-}
-
-/* ?逾??곕떽? 甕곌쑵??(沃섎챷沅?? */
-.sub-btn.add{
-    background:#ffffff;
-    border-color:#c8e6c9;
-    color:#2e7d32;
-}
-
-/* ?逾???륁젟 甕곌쑵??(???쒍빳? */
-.sub-btn.edit{
-    background:#e3f2fd;
-    border-color:#bbdefb;
-    color:#1565c0;
-}
-
-/* hover */
-.sub-btn:hover{
-    filter:brightness(0.95);
-}
-
-
-
-
-#btnCloseSubPanel{
-    width:28px;
-    height:28px;
-    padding:0;
-    font-size:16px;
-    line-height:1;
-    display:flex;
-    align-items:center;
-    justify-content:center;
 }
 
 
@@ -770,20 +892,3 @@
    獄쏆꼷???
 ========================= */
 
-@media (max-width:1200px){
-
-    .account-split-layout{
-        grid-template-columns:minmax(0, 1fr);
-    }
-
-    .account-split-layout.subaccount-open{
-        grid-template-columns:minmax(0, 1fr);
-    }
-
-    .account-left-panel,
-    .account-right-panel{
-        min-width:0;
-        max-width:100%;
-    }
-
-}

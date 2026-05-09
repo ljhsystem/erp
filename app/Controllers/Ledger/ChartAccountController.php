@@ -100,12 +100,17 @@ class ChartAccountController
                 'account_name' => $_POST['account_name'] ?? null,
                 'parent_id' => !empty($_POST['parent_id']) ? $_POST['parent_id'] : null,
                 'account_group' => $_POST['account_group'] ?? null,
+                'account_category' => $_POST['account_category'] ?? ($_POST['account_group'] ?? null),
                 'normal_balance' => $_POST['normal_balance'] ?? 'debit',
                 'is_posting' => isset($_POST['is_posting']) ? (int) $_POST['is_posting'] : 1,
+                'is_postable' => isset($_POST['is_postable'])
+                    ? (string) $_POST['is_postable']
+                    : (isset($_POST['is_posting']) && (int) $_POST['is_posting'] === 1 ? 'Y' : 'N'),
                 'allow_sub_account' => isset($_POST['allow_sub_account']) ? (int) $_POST['allow_sub_account'] : 0,
                 'note' => $_POST['note'] ?? null,
                 'memo' => $_POST['memo'] ?? null,
                 'is_active' => isset($_POST['is_active']) ? (int) $_POST['is_active'] : 1,
+                'status' => isset($_POST['is_active']) && (int) $_POST['is_active'] === 0 ? 'inactive' : 'active',
                 'new_parent_code' => $_POST['new_parent_code'] ?? null,
                 'new_parent_name' => $_POST['new_parent_name'] ?? null,
             ];
@@ -140,6 +145,36 @@ class ChartAccountController
                 'success' => false,
                 'message' => $e->getMessage(),
             ], JSON_UNESCAPED_UNICODE);
+        }
+
+        exit;
+    }
+
+    public function apiStatus(): void
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+
+        try {
+            $id = trim((string) ($_POST['id'] ?? ''));
+            $isActive = isset($_POST['is_active']) ? (int) $_POST['is_active'] : 0;
+
+            if ($id === '') {
+                echo json_encode([
+                    'success' => false,
+                    'message' => '계정 ID는 필수입니다.',
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            echo json_encode(
+                $this->service->updateStatus($id, $isActive === 1 ? 1 : 0),
+                JSON_UNESCAPED_UNICODE
+            );
+        } catch (\Throwable $e) {
+            echo json_encode([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         }
 
         exit;
@@ -352,7 +387,7 @@ class ChartAccountController
                 $sheet->setCellValue('G' . $row, ((int) ($account['is_active'] ?? 0)) === 1 ? '사용' : '미사용');
                 $sheet->setCellValue('H' . $row, $account['note'] ?? '');
                 $sheet->setCellValue('I' . $row, $account['memo'] ?? '');
-                $sheet->setCellValue('J' . $row, '');
+                $sheet->setCellValue('J' . $row, $account['sub_account_names'] ?? '');
                 $row++;
             }
 
@@ -390,7 +425,7 @@ class ChartAccountController
                 $sheet->setCellValue('F' . $row, ($acc['normal_balance'] ?? '') === 'debit' ? '차변' : '대변');
                 $sheet->setCellValue('G' . $row, ($acc['is_posting'] ?? 0) ? '가능' : '불가');
                 $sheet->setCellValue('H' . $row, ($acc['is_active'] ?? 0) ? '사용' : '미사용');
-                $sheet->setCellValue('I' . $row, ($acc['allow_sub_account'] ?? 0) ? '사용' : '미사용');
+                $sheet->setCellValue('I' . $row, $acc['sub_account_names'] ?? (($acc['allow_sub_account'] ?? 0) ? '사용' : '미사용'));
                 $sheet->setCellValue('J' . $row, $acc['note'] ?? '');
                 $sheet->setCellValue('K' . $row, $acc['memo'] ?? '');
                 $row++;
@@ -599,32 +634,45 @@ class ChartAccountController
     {
         header('Content-Type: application/json; charset=UTF-8');
 
-        $id = $_GET['id'] ?? null;
-        $code = $_GET['code'] ?? null;
-        if (!$id && !$code) {
-            echo json_encode(['success' => false], JSON_UNESCAPED_UNICODE);
-            exit;
-        }
+        try {
+            $id = $_GET['id'] ?? null;
+            $code = $_GET['code'] ?? null;
+            if (!$id && !$code) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => '계정코드 또는 ID는 필수입니다.',
+                ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+                exit;
+            }
 
-        if ($id) {
-            $basic = $this->service->getById($id);
-            $code = $basic['account_code'] ?? null;
-        }
+            if ($id) {
+                $basic = $this->service->getById($id);
+                $code = $basic['account_code'] ?? null;
+            }
 
-        $row = $code ? $this->service->getDetailByAccountCode($code) : null;
+            $row = $code ? $this->service->getDetailByAccountCode($code) : null;
 
-        if (!$row) {
+            if (!$row) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => '계정을 찾을 수 없습니다.',
+                ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+                exit;
+            }
+
+            echo json_encode([
+                'success' => true,
+                'data' => $row,
+            ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => '계정을 찾을 수 없습니다.',
-            ], JSON_UNESCAPED_UNICODE);
-            exit;
+                'message' => '계정과목 상세 조회 중 오류가 발생했습니다.',
+                'error' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         }
 
-        echo json_encode([
-            'success' => true,
-            'data' => $row,
-        ], JSON_UNESCAPED_UNICODE);
+        exit;
     }
 
     public function apiRestoreBulk(): void

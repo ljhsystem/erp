@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Controllers/Ledger/LedgerController.php'
 
 namespace App\Controllers\Ledger;
 
@@ -11,14 +10,14 @@ class LedgerController
 {
     private LayoutController $layout;
 
-    public function __construct()
+    public function __construct(?\PDO $pdo = null)
     {
-        $this->layout = new LayoutController(DbPdo::conn());
+        $this->layout = new LayoutController($pdo ?? DbPdo::conn());
     }
 
     private function renderPage(string $viewPath, array $params = []): void
     {
-        if (!empty($params)) {
+        if ($params !== []) {
             extract($params, EXTR_SKIP);
         }
 
@@ -49,6 +48,13 @@ class LedgerController
         ]);
     }
 
+    public function webJournalRules(): void
+    {
+        $this->renderPage('/app/views/ledger/journal_rules/index.php', [
+            'pageTitle' => '분개규칙',
+        ]);
+    }
+
     public function webJournal(): void
     {
         $this->renderPage('/app/views/ledger/journal/index.php', [
@@ -66,7 +72,7 @@ class LedgerController
     public function webDataUpload(): void
     {
         $this->renderPage('/app/views/ledger/data/upload.php', [
-            'pageTitle' => '자료 업로드',
+            'pageTitle' => '자료업로드',
         ]);
     }
 
@@ -87,9 +93,10 @@ class LedgerController
     public function webPlaceholder(): void
     {
         $meta = Router::currentRouteMeta();
+        $title = $meta['page_title'] ?? $meta['menu_label'] ?? $meta['name'] ?? '회계관리';
 
         $this->renderPage('/app/views/ledger/placeholder.php', [
-            'pageTitle' => $meta['name'] ?? '회계관리',
+            'pageTitle' => $title,
         ]);
     }
 }

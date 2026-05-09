@@ -171,6 +171,11 @@ class ChartAccountService
                 ];
             }
 
+            $validation = $this->validateParent(null, $data['parent_id'] ?? null);
+            if (!($validation['success'] ?? false)) {
+                return $validation;
+            }
+
             $this->pdo->beginTransaction();
 
             $parentResult = $this->resolveOrCreateParentAccount($data, $actor);
@@ -182,7 +187,16 @@ class ChartAccountService
 
             $data['id'] = UuidHelper::generate();
             $data['level'] = $this->resolveLevel($data['parent_id'] ?? null);
+            $data['account_level'] = $data['level'];
+            $data['is_postable'] = $this->normalizePostable($data['is_postable'] ?? $data['is_posting'] ?? 1);
+            $data['is_posting'] = $data['is_postable'] === 'Y' ? 1 : 0;
+            $data['status'] = ((int) ($data['is_active'] ?? 1)) === 1 ? 'active' : 'inactive';
             $data['allow_sub_account'] = (int) ($data['allow_sub_account'] ?? 0);
+            $subAccountValidation = $this->validateRequiredSubAccounts($data);
+            if (!($subAccountValidation['success'] ?? false)) {
+                $this->pdo->rollBack();
+                return $subAccountValidation;
+            }
             $data['created_by'] = $actor;
             $data['updated_by'] = $actor;
 
@@ -220,6 +234,9 @@ class ChartAccountService
                 }
             }
 
+            $this->model->refreshHierarchyMetadata();
+            $this->model->refreshPostableFlags();
+
             $this->pdo->commit();
 
             return [
@@ -251,7 +268,7 @@ class ChartAccountService
             if (!$existing) {
                 return [
                     'success' => false,
-                    'message' => '계정??李얠쓣 ???놁뒿?덈떎.',
+                    'message' => '계정을 찾을 수 없습니다.',
                 ];
             }
 
@@ -261,21 +278,33 @@ class ChartAccountService
             if ($exists && $exists['id'] !== $id) {
                 return [
                     'success' => false,
-                    'message' => '?? 존재?는 계정코드?니??',
+                    'message' => '이미 존재하는 계정코드입니다.',
                 ];
             }
 
             if (!empty($data['parent_id']) && $data['parent_id'] === $id) {
                 return [
                     'success' => false,
-                    'message' => '?기 ?신???위 계정?로 吏?뺥븷 ???놁뒿?덈떎.',
+                    'message' => '자기 자신을 상위계정으로 지정할 수 없습니다.',
                 ];
             }
 
             if (!empty($data['parent_id']) && !$this->model->getById($data['parent_id'])) {
                 return [
                     'success' => false,
-                    'message' => '?위 계정??李얠쓣 ???놁뒿?덈떎.',
+                    'message' => '상위 계정을 찾을 수 없습니다.',
+                ];
+            }
+
+            $validation = $this->validateParent($id, $data['parent_id'] ?? null);
+            if (!($validation['success'] ?? false)) {
+                return $validation;
+            }
+
+            if ($this->normalizePostable($data['is_postable'] ?? $data['is_posting'] ?? 1) === 'Y' && $this->model->hasChildren($id)) {
+                return [
+                    'success' => false,
+                    'message' => '자식 계정이 있는 그룹계정은 전표입력 가능으로 설정할 수 없습니다.',
                 ];
             }
 
@@ -289,13 +318,23 @@ class ChartAccountService
             $data['parent_id'] = $parentResult['parent_id'] ?? ($data['parent_id'] ?? null);
 
             $data['level'] = $this->resolveLevel($data['parent_id'] ?? null);
+            $data['account_level'] = $data['level'];
+            $data['is_postable'] = $this->normalizePostable($data['is_postable'] ?? $data['is_posting'] ?? 1);
+            $data['is_posting'] = $data['is_postable'] === 'Y' ? 1 : 0;
+            $data['status'] = ((int) ($data['is_active'] ?? 1)) === 1 ? 'active' : 'inactive';
+            $data['allow_sub_account'] = (int) ($data['allow_sub_account'] ?? 0);
+            $subAccountValidation = $this->validateRequiredSubAccounts($data);
+            if (!($subAccountValidation['success'] ?? false)) {
+                $this->pdo->rollBack();
+                return $subAccountValidation;
+            }
 
             if (!$this->model->update($id, $data)) {
                 $this->pdo->rollBack();
 
                 return [
                     'success' => false,
-                    'message' => '계정 ?정???패?습?다.',
+                    'message' => '계정 수정에 실패했습니다.',
                 ];
             }
 
@@ -324,6 +363,9 @@ class ChartAccountService
                 }
             }
 
+            $this->model->refreshHierarchyMetadata();
+            $this->model->refreshPostableFlags();
+
             $this->pdo->commit();
 
             return ['success' => true];
@@ -340,28 +382,106 @@ class ChartAccountService
 
             return [
                 'success' => false,
-                'message' => '계정 ?정 ??류 발생?습?다.',
+                'message' => '계정 수정 오류가 발생했습니다.',
+            ];
+        }
+    }
+
+    public function updateStatus(string $id, int $isActive): array
+    {
+        try {
+            if (!$this->model->getById($id)) {
+                return [
+                    'success' => false,
+                    'message' => '계정을 찾을 수 없습니다.',
+                ];
+            }
+
+            $normalized = $isActive === 1 ? 1 : 0;
+            $ids = $this->model->getDescendantIds($id, true);
+            if (empty($ids)) {
+                $ids = [$id];
+            }
+
+            if (!$this->model->updateStatus($ids, $normalized, ActorHelper::user())) {
+                return [
+                    'success' => false,
+                    'message' => '상태 변경에 실패했습니다.',
+                ];
+            }
+
+            return [
+                'success' => true,
+                'is_active' => $normalized,
+                'updated_ids' => $ids,
+            ];
+        } catch (\Throwable $e) {
+            $this->logger->error('updateStatus failed', [
+                'id' => $id,
+                'is_active' => $isActive,
+                'exception' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => '상태 변경 중 오류가 발생했습니다. ' . $e->getMessage(),
             ];
         }
     }
 
     public function softDelete(string $id): array
     {
-        $actor = ActorHelper::user();
-        if ($this->model->hasChildren($id)) {
+        try {
+            $actor = $this->currentActor();
+            if ($this->model->hasChildren($id)) {
+                return [
+                    'success' => false,
+                    'message' => '하위 계정이 존재하여 삭제할 수 없습니다.',
+                ];
+            }
+
+            if ($this->model->hasVoucherUsage($id)) {
+                return [
+                    'success' => false,
+                    'message' => '전표에서 사용 중인 계정은 삭제할 수 없습니다.',
+                ];
+            }
+
+            $success = $this->model->softDelete($id, $actor);
+            if (!$success) {
+                return [
+                    'success' => false,
+                    'message' => '삭제할 계정을 찾을 수 없습니다.',
+                ];
+            }
+
+            $this->model->refreshHierarchyMetadata();
+            $this->model->refreshPostableFlags();
+
+            return ['success' => true];
+        } catch (\Throwable $e) {
+            $this->logger->error('softDelete failed', [
+                'id' => $id,
+                'exception' => $e->getMessage(),
+            ]);
+
             return [
                 'success' => false,
-                'message' => '?위 계정??존재?여 ???????습?다.',
+                'message' => '계정과목 삭제 중 오류가 발생했습니다.',
             ];
         }
-
-        return ['success' => $this->model->softDelete($id, $actor)];
     }
 
     public function restore(string $id): array
     {
-        $actor = ActorHelper::user();
-        return ['success' => $this->model->restore($id, $actor)];
+        $actor = $this->currentActor();
+        $success = $this->model->restore($id, $actor);
+        if ($success) {
+            $this->model->refreshHierarchyMetadata();
+            $this->model->refreshPostableFlags();
+        }
+
+        return ['success' => $success];
     }
 
     public function getTrashList(): array
@@ -371,11 +491,18 @@ class ChartAccountService
 
     public function hardDelete(string $id): array
     {
-        $actor = ActorHelper::user();
+        $actor = $this->currentActor();
         if ($this->model->hasChildren($id)) {
             return [
                 'success' => false,
-                'message' => '?위 계정??존재?여 ?전 ???????습?다.',
+                'message' => '하위 계정이 존재하여 완전 삭제할 수 없습니다.',
+            ];
+        }
+
+        if ($this->model->hasVoucherUsage($id)) {
+            return [
+                'success' => false,
+                'message' => '전표에서 사용 중인 계정은 완전 삭제할 수 없습니다.',
             ];
         }
 
@@ -392,6 +519,8 @@ class ChartAccountService
             }
 
             $this->pdo->commit();
+            $this->model->refreshHierarchyMetadata();
+            $this->model->refreshPostableFlags();
             return ['success' => true];
         } catch (\Throwable $e) {
             if ($this->pdo->inTransaction()) {
@@ -408,6 +537,15 @@ class ChartAccountService
     public function hasChildren(string $id): bool
     {
         return $this->model->hasChildren($id);
+    }
+
+    private function currentActor(): string
+    {
+        try {
+            return ActorHelper::user();
+        } catch (\Throwable) {
+            return ActorHelper::system('LEDGER_ACCOUNT');
+        }
     }
 
     public function getTreeStructured(): array
@@ -435,6 +573,11 @@ class ChartAccountService
     public function findByCode(string $code): ?array
     {
         return $this->model->findByCode($code);
+    }
+
+    public function sumDescendantVoucherLines(string $id): array
+    {
+        return $this->model->sumDescendantVoucherLines($id);
     }
 
     public function createSubAccount(array $data): array
@@ -745,6 +888,8 @@ class ChartAccountService
                 (int) $row['newSortNo']
             );
         }
+
+        $this->model->refreshHierarchyMetadata();
     }
 
     public function getDetailByAccountCode(string $accountCode): ?array
@@ -755,10 +900,11 @@ class ChartAccountService
             return null;
         }
 
-        $row['sub_policies'] = $this->policyService->getByAccountId($row['id']);
+        $hasSubAccounts = $this->customSubAccountService->countByAccountId($row['id']) > 0;
+        $row['sub_policies'] = [];
         $row['allow_sub_account_computed'] = (
-            count($row['sub_policies']) > 0
-            || $this->customSubAccountService->countByAccountId($row['id']) > 0
+            (int) ($row['allow_sub_account'] ?? 0) === 1
+            || $hasSubAccounts
         ) ? 1 : 0;
 
         return $row;
@@ -771,25 +917,35 @@ class ChartAccountService
         }
 
         $in = implode(',', array_fill(0, count($ids), '?'));
+        $statusSet = $this->accountColumnExists('status') ? "status = 'active'," : '';
 
         $stmt = $this->pdo->prepare("
             UPDATE ledger_accounts
             SET deleted_at = NULL,
-                deleted_by = NULL
+                deleted_by = NULL,
+                {$statusSet}
+                is_active = 1
             WHERE id IN ($in)
         ");
 
         $stmt->execute($ids);
+        $this->model->refreshHierarchyMetadata();
+        $this->model->refreshPostableFlags();
     }
 
     public function restoreAll(): void
     {
+        $statusSet = $this->accountColumnExists('status') ? "status = 'active'," : '';
         $this->pdo->exec("
             UPDATE ledger_accounts
             SET deleted_at = NULL,
-                deleted_by = NULL
+                deleted_by = NULL,
+                {$statusSet}
+                is_active = 1
             WHERE deleted_at IS NOT NULL
         ");
+        $this->model->refreshHierarchyMetadata();
+        $this->model->refreshPostableFlags();
     }
 
     public function hardDeleteAll(): void
@@ -801,6 +957,49 @@ class ChartAccountService
             WHERE a.deleted_at IS NOT NULL
         ");
         $this->pdo->exec("DELETE FROM ledger_accounts WHERE deleted_at IS NOT NULL");
+        $this->model->refreshHierarchyMetadata();
+        $this->model->refreshPostableFlags();
+    }
+
+    private function validateParent(?string $id, ?string $parentId): array
+    {
+        if (!$parentId) {
+            return ['success' => true];
+        }
+
+        if ($id !== null && $parentId === $id) {
+            return [
+                'success' => false,
+                'message' => '자기 자신을 상위계정으로 지정할 수 없습니다.',
+            ];
+        }
+
+        if (!$this->model->getById($parentId)) {
+            return [
+                'success' => false,
+                'message' => '상위 계정을 찾을 수 없습니다.',
+            ];
+        }
+
+        if ($id !== null && $this->model->isDescendantOf($parentId, $id)) {
+            return [
+                'success' => false,
+                'message' => '하위 계정을 상위계정으로 지정할 수 없습니다.',
+            ];
+        }
+
+        return ['success' => true];
+    }
+
+    private function normalizePostable(mixed $value): string
+    {
+        $normalized = strtoupper(trim((string) $value));
+
+        if (in_array($normalized, ['Y', 'YES', 'TRUE', '1', '가능', '사용'], true)) {
+            return 'Y';
+        }
+
+        return 'N';
     }
 
     private function resolveLevel(?string $parentId): int
@@ -811,7 +1010,7 @@ class ChartAccountService
 
         $parent = $this->model->getById($parentId);
 
-        return $parent ? ((int) $parent['level'] + 1) : 1;
+        return $parent ? ((int) ($parent['account_level'] ?? $parent['level'] ?? 0) + 1) : 1;
     }
 
     private function syncLegacyAllowSubAccountFlag(string $accountId): void
@@ -927,5 +1126,44 @@ class ChartAccountService
         }
 
         return $default;
+    }
+
+    private function validateRequiredSubAccounts(array $data): array
+    {
+        if ((int) ($data['allow_sub_account'] ?? 0) !== 1) {
+            return ['success' => true];
+        }
+
+        $rows = $data['sub_accounts'] ?? [];
+        if (!is_array($rows)) {
+            $rows = [];
+        }
+
+        $selectedRows = array_values(array_filter($rows, static function ($row): bool {
+            return is_array($row) && trim((string) ($row['sub_code'] ?? '')) !== '';
+        }));
+
+        if (count($selectedRows) === 0) {
+            return [
+                'success' => false,
+                'message' => '보조계정 사용 시 보조계정명을 1개 이상 선택해주세요.',
+            ];
+        }
+
+        return ['success' => true];
+    }
+
+    private function accountColumnExists(string $column): bool
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT COUNT(*)
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'ledger_accounts'
+              AND COLUMN_NAME = :column
+        ");
+        $stmt->execute([':column' => $column]);
+
+        return (int) $stmt->fetchColumn() > 0;
     }
 }

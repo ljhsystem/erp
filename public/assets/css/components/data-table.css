@@ -444,23 +444,40 @@ body[data-density] .dataTables_wrapper .dt-button {
 
 body.table-density-compact table.dataTable thead th,
 body.table-density-compact table.dataTable tbody td {
-  padding: 8px !important;
-  min-height: 34px;
-  font-size: 14px !important;
+  padding: 6px 8px !important;
+  min-height: 32px;
+  font-size: 13px !important;
+}
+
+.dataTables_wrapper.dt-density-compact table.dataTable thead th,
+.dataTables_wrapper.dt-density-compact table.dataTable tbody td {
+  padding: 6px 8px !important;
+  min-height: 32px;
+  font-size: 13px !important;
+  line-height: 1.25;
+}
+
+.dataTables_wrapper.dt-density-compact .dataTables_filter input,
+.dataTables_wrapper.dt-density-compact .dataTables_length select,
+.dataTables_wrapper.dt-density-compact .dt-button,
+.dataTables_wrapper.dt-density-compact .dt-button.btn,
+.dataTables_wrapper.dt-density-compact .dt-buttons .btn {
+  --dt-control-height: 32px;
+  --dt-control-font-size: 13px;
 }
 
 body.table-density-normal table.dataTable thead th,
 body.table-density-normal table.dataTable tbody td {
-  padding: 12px !important;
-  min-height: 42px;
-  font-size: 16px !important;
+  padding: 8px 10px !important;
+  min-height: 36px;
+  font-size: 14px !important;
 }
 
 body.table-density-comfortable table.dataTable thead th,
 body.table-density-comfortable table.dataTable tbody td {
-  padding: 16px !important;
-  min-height: 50px;
-  font-size: 18px !important;
+  padding: 10px 12px !important;
+  min-height: 42px;
+  font-size: 15px !important;
 }
 
 table.dataTable thead th.sorting,

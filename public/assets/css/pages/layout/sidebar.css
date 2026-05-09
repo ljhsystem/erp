@@ -122,11 +122,16 @@ body.is-sidebar-collapsed .main-content {
 .sidebar .nav .nav-link.toggle[aria-expanded="true"]::after { transform: translateY(-50%) rotate(45deg); }
 .sidebar .nav .nav-link.toggle { background: transparent; color: #555 !important; }
 .sidebar .nav .nav-link.toggle i { color: #fff; }
-.sidebar .nav .nav-link.toggle[aria-expanded="true"] { background: var(--color-primary); color: #fff !important; box-shadow: none; font-weight: 600; border-radius: 8px; }
+.sidebar .nav .nav-link.toggle[aria-expanded="true"] { background: color-mix(in srgb, var(--color-primary) 8%, var(--color-sidebar-bg)); color: #555 !important; box-shadow: none; font-weight: 600; border-radius: 8px; }
 .sidebar .nav .nav-link.toggle[aria-expanded="true"] i { color: #fff; }
-.sidebar .nav .nav-link.toggle.selected { background: var(--color-primary) !important; color: #fff !important; font-weight: 600; border-radius: 8px; }
+.sidebar .nav .nav-link.toggle.selected { background: color-mix(in srgb, var(--color-primary) 8%, var(--color-sidebar-bg)) !important; color: #555 !important; font-weight: 600; border-radius: 8px; }
 .sidebar .nav .nav-link.toggle.selected i { color: #fff; }
-.sidebar .nav .nav-link.toggle.selected::after { border-color: #fff; }
+.sidebar .nav .nav-link.toggle.selected::after { border-color: var(--color-text-muted); }
+.sidebar .nav > li.is-expanded > .nav-link.toggle { background: color-mix(in srgb, var(--color-primary) 8%, var(--color-sidebar-bg)); color: #555 !important; }
+.sidebar .nav > li.is-expanded > .nav-link.toggle[aria-expanded="true"],
+.sidebar .nav > li.is-expanded > .nav-link.toggle.selected { background: color-mix(in srgb, var(--color-primary) 8%, var(--color-sidebar-bg)) !important; color: #555 !important; }
+.sidebar .nav > li.is-expanded > .nav-link.toggle[aria-expanded="true"]::after,
+.sidebar .nav > li.is-expanded > .nav-link.toggle.selected::after { border-color: var(--color-text-muted); }
 .sidebar ul,
 .sidebar ul.collapse {list-style: none !important; border-left: 1px solid var(--color-sidebar-border); padding-left: var(--sidebar-nest-indent, 10px); margin-left: 6px; background: transparent; border-radius: 6px; overflow: hidden; transition: height .25s ease; transform: translateZ(0); will-change: height;}
 .sidebar ul.collapse li {list-style: none !important;margin: 2px 0;padding: 0 0 0 max(4px, calc(var(--sidebar-nest-indent, 10px) - 2px));position: relative;display: block;transform:translateZ(0);}

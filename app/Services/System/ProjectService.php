@@ -158,6 +158,11 @@ class ProjectService
         }
     }
 
+    public function distinctValues(string $field, string $keyword = '', int $limit = 20): array
+    {
+        return $this->model->distinctValues($field, $keyword, $limit);
+    }
+
 
     /* ============================================================
      * ????(?좉퇋 + ??젙 ????)
@@ -958,6 +963,7 @@ class ProjectService
             'employee_id',
             'site_agent',
             'contract_type',
+            'contract_method',
             'director',
             'manager',
             'business_type',

@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/views/layout/breadcrumb.php'
 
 use Core\Router;
 
@@ -10,175 +9,59 @@ if (!function_exists('e')) {
     }
 }
 
-if (!function_exists('breadcrumb_is_broken_text')) {
-    function breadcrumb_is_broken_text(string $value): bool
-    {
-        return $value === '' || (bool) preg_match('/[?占]/u', $value);
-    }
-}
-
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$path = rtrim($path, '/') ?: '/';
 $meta = Router::currentBreadcrumbMeta();
 
 $pageMap = [
-    '/dashboard' => [
-        'items' => ['메인', '대시보드'],
-    ],
-    '/dashboard/report' => [
-        'items' => ['메인', '통합 보고서'],
-    ],
-    '/dashboard/activity' => [
-        'items' => ['메인', '최근 활동'],
-    ],
-    '/dashboard/notifications' => [
-        'items' => ['메인', '공지사항'],
-    ],
-    '/dashboard/kpi' => [
-    'items' => ['메인', '실적 현황'],
-    ],
-    '/dashboard/calendar' => [
-    'items' => ['메인', '일정/캘린더'],
-    ],
-    '/dashboard/settings' => [
-        'items' => ['메인', '설정', '기초정보관리', '회사정보'],
-    ],
-    '/dashboard/settings/base-info/company' => [
-        'items' => ['메인', '설정', '기초정보관리', '회사정보'],
-    ],
-    '/dashboard/settings/base-info/brand' => [
-        'items' => ['메인', '설정', '기초정보관리', '브랜드'],
-    ],
-    '/dashboard/settings/base-info/cover' => [
-        'items' => ['메인', '설정', '기초정보관리', '커버이미지'],
-    ],
-    '/dashboard/settings/base-info/codes' => [
-        'items' => ['메인', '설정', '기초정보관리', '기준정보'],
-    ],
-    '/dashboard/settings/base-info/clients' => [
-        'items' => ['메인', '설정', '기초정보관리', '거래처'],
-    ],
-    '/dashboard/settings/base-info/projects' => [
-        'items' => ['메인', '설정', '기초정보관리', '프로젝트'],
-    ],
-    '/dashboard/settings/base-info/bank-accounts' => [
-        'items' => ['메인', '설정', '기초정보관리', '계좌'],
-    ],
-    '/dashboard/settings/base-info/cards' => [
-        'items' => ['메인', '설정', '기초정보관리', '카드'],
-    ],
-    '/dashboard/settings/base-info/work-teams' => [
-        'items' => ['메인', '설정', '기초정보관리', '팀'],
-    ],
-    '/dashboard/settings/organization/employees' => [
-        'items' => ['메인', '설정', '조직관리', '직원'],
-    ],
-    '/dashboard/settings/organization/departments' => [
-        'items' => ['메인', '설정', '조직관리', '부서'],
-    ],
-    '/dashboard/settings/organization/positions' => [
-        'items' => ['메인', '설정', '조직관리', '직책'],
-    ],
-    '/dashboard/settings/organization/roles' => [
-        'items' => ['메인', '설정', '조직관리', '역할'],
-    ],
-    '/dashboard/settings/organization/role_permissions' => [
-        'items' => ['메인', '설정', '조직관리', '권한부여'],
-    ],
-    '/dashboard/settings/organization/approval' => [
-        'items' => ['메인', '설정', '조직관리', '결재템플릿'],
-    ],
-    '/dashboard/settings/system/site' => [
-        'items' => ['메인', '설정', '시스템설정', '사이트정보'],
-    ],
-    '/dashboard/settings/system/session' => [
-        'items' => ['메인', '설정', '시스템설정', '세션관리'],
-    ],
-    '/dashboard/settings/system/security' => [
-        'items' => ['메인', '설정', '시스템설정', '보안정책'],
-    ],
-    '/dashboard/settings/system/codes' => [
-        'items' => ['메인', '설정', '시스템설정', '기준정보'],
-    ],
-    '/dashboard/settings/system/api' => [
-        'items' => ['메인', '설정', '시스템설정', '외부연동(API)'],
-    ],
-    '/dashboard/settings/system/external_services' => [
-        'items' => ['메인', '설정', '시스템설정', '외부서비스연동'],
-    ],
-    '/dashboard/settings/system/storage' => [
-        'items' => ['메인', '설정', '시스템설정', '파일저장소'],
-    ],
-    '/dashboard/settings/system/databasebackup' => [
-        'items' => ['메인', '설정', '시스템설정', '데이터백업'],
-    ],
-    '/dashboard/settings/system/logs' => [
-        'items' => ['메인', '설정', '시스템설정', '시스템로그'],
-    ],
+    '/dashboard' => ['items' => ['메인', '대시보드']],
+    '/dashboard/report' => ['items' => ['메인', '통합 보고서']],
+    '/dashboard/activity' => ['items' => ['메인', '최근 활동']],
+    '/dashboard/notifications' => ['items' => ['메인', '공지사항']],
+    '/dashboard/kpi' => ['items' => ['메인', '실적 현황']],
+    '/dashboard/calendar' => ['items' => ['메인', '일정/캘린더']],
+    '/dashboard/settings/system/codes' => ['items' => ['메인', '설정', '시스템설정', '기준정보']],
 
-    '/document' => [
-        'items' => ['내부문서', '대시보드'],
-    ],
-    '/approval' => [
-        'items' => ['전자결재', '대시보드'],
-    ],
-    '/ledger' => [
-        'items' => ['회계관리', '대시보드'],
-    ],
-    '/ledger/accounts' => [
-        'items' => ['회계관리', '기초정보관리', '계정과목'],
-    ],
-    '/ledger/journal' => [
-        'items' => ['회계관리', '전표입력', '일반전표'],
-    ],
-    '/institution' => [
-        'items' => ['대외기관업무', '대시보드'],
-    ],
-    '/site' => [
-        'items' => ['현장관리', '대시보드'],
-    ],
-    '/shop' => [
-        'items' => ['쇼핑몰관리', '대시보드'],
-    ],
-    '/notice' => [
-        'items' => ['공지/회의', '대시보드'],
-    ],
-    '/sitemap' => [
-        'items' => ['사이트정보', '사이트맵'],
-    ],
-    '/profile' => [
-        'items' => ['사용자정보', '프로필'],
-    ],
+    '/ledger' => ['items' => ['회계관리', '대시보드']],
+    '/ledger/settings/accounts' => ['items' => ['회계관리', '기초정보관리', '계정과목']],
+    '/ledger/accounts' => ['items' => ['회계관리', '기초정보관리', '계정과목']],
+    '/ledger/settings/journal-rules' => ['items' => ['회계관리', '기초정보관리', '분개규칙']],
+    '/ledger/settings/opening-balances' => ['items' => ['회계관리', '기초정보관리', '기초금액']],
+    '/ledger/opening-balances' => ['items' => ['회계관리', '기초정보관리', '기초금액']],
+    '/ledger/data/formats' => ['items' => ['회계관리', '자료관리', '양식관리']],
+    '/ledger/data/format' => ['items' => ['회계관리', '자료관리', '양식관리']],
+    '/ledger/data/upload' => ['items' => ['회계관리', '자료관리', '자료업로드']],
+    '/ledger/data/list' => ['items' => ['회계관리', '자료관리', '자료목록']],
+    '/ledger/data' => ['items' => ['회계관리', '자료관리', '자료목록']],
+    '/ledger/transactions/input' => ['items' => ['회계관리', '거래관리', '거래입력']],
+    '/ledger/transactions' => ['items' => ['회계관리', '거래관리', '거래입력']],
+    '/ledger/transactions/create' => ['items' => ['회계관리', '거래관리', '거래입력']],
+    '/ledger/transaction' => ['items' => ['회계관리', '거래관리', '거래입력']],
+    '/ledger/transaction/create' => ['items' => ['회계관리', '거래관리', '거래입력']],
+    '/ledger/vouchers/input' => ['items' => ['회계관리', '전표관리', '전표입력']],
+    '/ledger/journal' => ['items' => ['회계관리', '전표관리', '전표입력']],
+    '/ledger/vouchers/review' => ['items' => ['회계관리', '전표관리', '전표검토/승인']],
+
+    '/document' => ['items' => ['문서관리', '대시보드']],
+    '/approval' => ['items' => ['전자결재', '대시보드']],
+    '/institution' => ['items' => ['대관기관업무', '대시보드']],
+    '/site' => ['items' => ['현장관리', '대시보드']],
+    '/shop' => ['items' => ['쇼핑몰관리', '대시보드']],
+    '/notice' => ['items' => ['공지/회의', '대시보드']],
+    '/sitemap' => ['items' => ['사이트정보', '사이트맵']],
+    '/profile' => ['items' => ['사용자정보', '프로필']],
 ];
 
 $current = $pageMap[$path] ?? [];
 
-
-/* =========================
-   🔥 핵심: items 우선
-========================= */
 if (!empty($current['items'])) {
     $items = $current['items'];
 } else {
-
-    $fallback = [
-        'category' => '기타',
-        'group' => '',
-        'name' => '페이지',
-    ];
-
-    $category = $meta['category'] ?? $fallback['category'];
-    $group    = $meta['group'] ?? $fallback['group'];
-    $name     = $meta['name'] ?? $fallback['name'];
-
     $items = array_values(array_filter([
-        $category,
-        $group,
-        $name
-    ], fn($v) => trim((string)$v) !== ''));
-
-    if (empty($items)) {
-        $items = ['기타', '페이지'];
-    }
+        $meta['category'] ?? '기타',
+        $meta['group'] ?? '',
+        $meta['name'] ?? '페이지',
+    ], fn($value) => trim((string) $value) !== ''));
 }
 ?>
 

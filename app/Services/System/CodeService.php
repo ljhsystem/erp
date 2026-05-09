@@ -106,6 +106,8 @@ class CodeService
                     throw new \Exception('기준정보 수정에 실패했습니다.');
                 }
 
+                $this->model->updateGroupNameByCodeGroup($data['code_group'], $data['group_name'], $actor);
+
                 $this->pdo->commit();
 
                 return [
@@ -130,6 +132,8 @@ class CodeService
             if (!$this->model->create($insertData)) {
                 throw new \Exception('기준정보 등록에 실패했습니다.');
             }
+
+            $this->model->updateGroupNameByCodeGroup($data['code_group'], $data['group_name'], $actor);
 
             $this->pdo->commit();
 
@@ -278,6 +282,7 @@ class CodeService
     private function normalize(array $data): array
     {
         $data['code_group'] = strtoupper(preg_replace('/\s+/', '', trim((string)($data['code_group'] ?? ''))));
+        $data['group_name'] = trim((string)($data['group_name'] ?? ''));
         $data['code'] = strtoupper(trim((string)($data['code'] ?? '')));
         $data['code_name'] = trim((string)($data['code_name'] ?? ''));
         $data['note'] = $this->blankToNull($data['note'] ?? null);
@@ -290,6 +295,10 @@ class CodeService
 
         if ($data['code_group'] === '' || !preg_match('/^[A-Z_]+$/', $data['code_group'])) {
             throw new \InvalidArgumentException('코드그룹은 영문 대문자와 _만 사용할 수 있습니다.');
+        }
+
+        if ($data['group_name'] === '') {
+            throw new \InvalidArgumentException('그룹명은 필수입니다.');
         }
 
         return $data;
@@ -311,13 +320,13 @@ class CodeService
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('기준정보 업로드');
 
-        $headers = ['코드그룹', '코드', '코드명', '비고', '메모', '사용여부', '추가속성'];
-        $sample = ['CLIENT_TYPE', 'SUPPLIER', '매입처', '거래유형 예시', '관리자 메모', '1', '{}'];
+        $headers = ['코드그룹', '그룹명', '코드', '코드명', '비고', '메모', '사용여부', '추가속성'];
+        $sample = ['CLIENT_TYPE', '거래처구분', 'SUPPLIER', '매입처', '거래처구분 예시', '관리자 메모', '1', '{}'];
 
         $sheet->fromArray($headers, null, 'A1');
         $sheet->fromArray([$sample], null, 'A2');
 
-        foreach (range('A', 'G') as $col) {
+        foreach (range('A', 'H') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
@@ -353,6 +362,7 @@ class CodeService
 
                 $payload = [
                     'code_group' => trim((string)($row[$map['코드그룹'] ?? -1] ?? '')),
+                    'group_name' => trim((string)($row[$map['그룹명'] ?? -1] ?? '')),
                     'code' => trim((string)($row[$map['코드'] ?? -1] ?? '')),
                     'code_name' => trim((string)($row[$map['코드명'] ?? -1] ?? '')),
                     'note' => trim((string)($row[$map['비고'] ?? -1] ?? ($row[$map['설명'] ?? -1] ?? ''))),
@@ -361,7 +371,7 @@ class CodeService
                     'extra_data' => trim((string)($row[$map['추가속성'] ?? -1] ?? '')),
                 ];
 
-                if ($payload['code_group'] === '' || $payload['code'] === '' || $payload['code_name'] === '') {
+                if ($payload['code_group'] === '' || $payload['group_name'] === '' || $payload['code'] === '' || $payload['code_name'] === '') {
                     continue;
                 }
 
@@ -386,13 +396,14 @@ class CodeService
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('기준정보 목록');
 
-        $sheet->fromArray(['순번', '코드그룹', '코드', '코드명', '비고', '메모', '사용여부', '추가속성'], null, 'A1');
+        $sheet->fromArray(['순번', '코드그룹', '그룹명', '코드', '코드명', '비고', '메모', '사용여부', '추가속성'], null, 'A1');
 
         $rowNo = 2;
         foreach ($rows as $row) {
             $sheet->fromArray([[
                 $row['sort_no'] ?? '',
                 $row['code_group'] ?? '',
+                $row['group_name'] ?? '',
                 $row['code'] ?? '',
                 $row['code_name'] ?? '',
                 $row['note'] ?? '',
@@ -403,7 +414,7 @@ class CodeService
             $rowNo++;
         }
 
-        foreach (range('A', 'H') as $col) {
+        foreach (range('A', 'I') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 

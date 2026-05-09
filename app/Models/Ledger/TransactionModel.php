@@ -53,11 +53,6 @@ class TransactionModel
             $params[':match_status'] = $filters['match_status'];
         }
 
-        if (!empty($filters['tax_type'])) {
-            $sql .= " AND t.tax_type = :tax_type";
-            $params[':tax_type'] = $filters['tax_type'];
-        }
-
         if (!empty($filters['project_id'])) {
             $sql .= " AND t.project_id = :project_id";
             $params[':project_id'] = $filters['project_id'];
@@ -93,12 +88,13 @@ class TransactionModel
                 'sort_no' => 't.sort_no',
                 'business_unit' => 't.business_unit',
                 'transaction_type' => 't.transaction_type',
+                'transaction_direction' => 't.transaction_direction',
+                'import_type' => 't.import_type',
                 'transaction_date' => 't.transaction_date',
                 'project_id' => 't.project_id',
                 'project_name' => 'sp.project_name',
                 'client_id' => 't.client_id',
                 'client_name' => 'sc.client_name',
-                'tax_type' => 't.tax_type',
                 'supply_amount' => 't.supply_amount',
                 'vat_amount' => 't.vat_amount',
                 'total_amount' => 't.total_amount',
@@ -139,7 +135,7 @@ class TransactionModel
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        return $this->stripHeaderTaxTypeRows($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
     }
 
     public function getUnpostedList(): array
@@ -154,7 +150,7 @@ class TransactionModel
         ");
         $stmt->execute();
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        return $this->stripHeaderTaxTypeRows($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
     }
 
     public function getById(string $id): ?array
@@ -174,7 +170,12 @@ class TransactionModel
         ");
         $stmt->execute([':id' => $id]);
 
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        if ($row !== null) {
+            unset($row['tax_type']);
+        }
+
+        return $row;
     }
 
     public function insert(array $data): bool
@@ -185,11 +186,12 @@ class TransactionModel
             'transaction_date',
             'business_unit',
             'transaction_type',
+            'transaction_direction',
+            'import_type',
             'client_id',
             'project_id',
             'currency',
             'exchange_rate',
-            'tax_type',
             'supply_amount',
             'vat_amount',
             'total_amount',
@@ -232,12 +234,13 @@ class TransactionModel
         $allowed = [
             'business_unit',
             'transaction_type',
+            'transaction_direction',
+            'import_type',
             'transaction_date',
             'client_id',
             'project_id',
             'currency',
             'exchange_rate',
-            'tax_type',
             'supply_amount',
             'vat_amount',
             'total_amount',
@@ -347,5 +350,15 @@ class TransactionModel
         }
 
         return $params;
+    }
+
+    private function stripHeaderTaxTypeRows(array $rows): array
+    {
+        foreach ($rows as &$row) {
+            unset($row['tax_type']);
+        }
+        unset($row);
+
+        return $rows;
     }
 }

@@ -13,6 +13,8 @@
 
         if(!sidebar) return;
 
+        applyRouteContext(sidebar);
+
         /* ===============================
            SIDEBAR ACCORDION MENU
         =============================== */
@@ -38,24 +40,15 @@
             opened.forEach(function(el){
 
                 if(el !== menu){
-
-                    el.classList.remove('show');
-
-                    const toggle = sidebar.querySelector('[href="#'+el.id+'"]');
-
-                    if(toggle){
-                        toggle.setAttribute('aria-expanded','false');
-                    }
+                    setMenuOpen(sidebar, el, false);
                 }
 
             });
 
             if(isOpen){
-                menu.classList.remove('show');
-                link.setAttribute('aria-expanded','false');
+                setMenuOpen(sidebar, menu, false);
             }else{
-                menu.classList.add('show');
-                link.setAttribute('aria-expanded','true');
+                setMenuOpen(sidebar, menu, true);
             }
 
         });
@@ -92,6 +85,123 @@
         });
 
     });
+
+    function normalizePath(value){
+        let path = String(value || '/').split('?')[0].split('#')[0].trim();
+        if(!path.startsWith('/')) path = '/' + path;
+        if(path.length > 1) path = path.replace(/\/+$/, '');
+        return path || '/';
+    }
+
+    function linkPath(link){
+        const href = link.getAttribute('href') || '';
+        if(href === '' || href.startsWith('#')) return '';
+
+        try {
+            return normalizePath(new URL(href, window.location.origin).pathname);
+        } catch (error) {
+            return normalizePath(href);
+        }
+    }
+
+    function pathMatches(hrefPath, currentPath){
+        if(!hrefPath) return false;
+        if(currentPath === hrefPath) return true;
+        return hrefPath !== '/' && currentPath.startsWith(hrefPath + '/');
+    }
+
+    function routeMenuId(currentPath){
+        const groups = [
+            ['/ledger/settings', 'menu-ledger-basic'],
+            ['/ledger/accounts', 'menu-ledger-basic'],
+            ['/ledger/opening-balances', 'menu-ledger-basic'],
+            ['/ledger/data', 'menu-ledger-data'],
+            ['/ledger/transactions', 'menu-ledger-transaction'],
+            ['/ledger/transaction', 'menu-ledger-transaction'],
+            ['/ledger/vouchers/input', 'menu-ledger-voucher'],
+            ['/ledger/journal', 'menu-ledger-voucher'],
+            ['/ledger/vouchers', 'menu-ledger-voucher'],
+            ['/ledger/book', 'menu-ledger-book'],
+            ['/ledger/financial', 'menu-ledger-financial'],
+            ['/ledger/assets', 'menu-ledger-asset'],
+            ['/ledger/tax', 'menu-ledger-tax'],
+            ['/site', null],
+        ];
+
+        let matched = null;
+        groups.forEach(([prefix, menuId]) => {
+            const normalized = normalizePath(prefix);
+            if(pathMatches(normalized, currentPath) && (!matched || normalized.length > matched.prefix.length)){
+                matched = { prefix: normalized, menuId };
+            }
+        });
+
+        return matched ? matched.menuId : null;
+    }
+
+    function canonicalLedgerPath(path){
+        const aliases = {
+            '/ledger/accounts': '/ledger/settings/accounts',
+            '/ledger/opening-balances': '/ledger/settings/opening-balances',
+            '/ledger/data/format': '/ledger/data/formats',
+            '/ledger/data': '/ledger/data/list',
+            '/ledger/transactions': '/ledger/transactions/input',
+            '/ledger/transactions/create': '/ledger/transactions/input',
+            '/ledger/transaction': '/ledger/transactions/input',
+            '/ledger/transaction/create': '/ledger/transactions/input',
+            '/ledger/journal': '/ledger/vouchers/input',
+        };
+
+        return aliases[path] || path;
+    }
+
+    function findBestActiveLink(sidebar, currentPath){
+        let best = null;
+
+        sidebar.querySelectorAll('.nav-link:not(.toggle)[href]').forEach((link) => {
+            const hrefPath = linkPath(link);
+            if(!pathMatches(hrefPath, currentPath)) return;
+            if(!best || hrefPath.length > best.path.length){
+                best = { link, path: hrefPath };
+            }
+        });
+
+        return best ? best.link : null;
+    }
+
+    function setMenuOpen(sidebar, menu, open){
+        if(!menu) return;
+
+        menu.classList.toggle('show', open);
+        menu.closest('li')?.classList.toggle('is-expanded', open);
+
+        const toggle = sidebar.querySelector('[href="#' + menu.id + '"]');
+        if(toggle){
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            toggle.classList.remove('selected');
+        }
+    }
+
+    function applyRouteContext(sidebar){
+        const currentPath = canonicalLedgerPath(normalizePath(sidebar.dataset.currentPath || window.location.pathname));
+        const activeLink = findBestActiveLink(sidebar, currentPath);
+        const routeMenu = routeMenuId(currentPath);
+        const activeMenu = activeLink?.closest('.collapse') || (routeMenu ? sidebar.querySelector('#' + routeMenu) : null);
+
+        sidebar.querySelectorAll('.nav-link.active').forEach((link) => {
+            link.classList.remove('active');
+            link.removeAttribute('aria-current');
+        });
+
+        if(activeLink){
+            activeLink.classList.add('active');
+            activeLink.setAttribute('aria-current', 'page');
+        }
+
+        sidebar.querySelectorAll('.collapse').forEach((menu) => {
+            setMenuOpen(sidebar, menu, menu === activeMenu);
+        });
+    }
 
     function startLayoutSync(){
 

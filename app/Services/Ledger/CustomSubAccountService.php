@@ -73,8 +73,6 @@ class CustomSubAccountService
                 'sub_name' => $subName,
                 'custom_group_code' => self::REF_TARGET_GROUP,
                 'is_required' => !empty($data['is_required']) ? 1 : 0,
-                'note' => $data['note'] ?? null,
-                'memo' => $data['memo'] ?? null,
                 'created_by' => $actor,
                 'updated_by' => $actor,
             ]);
@@ -120,8 +118,6 @@ class CustomSubAccountService
                 'sub_name' => (string) ($codeRow['code_name'] ?? $subCode),
                 'custom_group_code' => self::REF_TARGET_GROUP,
                 'is_required' => !empty($data['is_required']) ? 1 : 0,
-                'note' => $data['note'] ?? null,
-                'memo' => $data['memo'] ?? null,
                 'updated_by' => ActorHelper::user(),
             ]);
 
@@ -196,8 +192,6 @@ class CustomSubAccountService
                     'sub_code' => $subCode,
                     'sub_name' => (string) ($codeRow['code_name'] ?? $subCode),
                     'is_required' => !empty($row['is_required']) ? 1 : 0,
-                    'note' => $row['note'] ?? null,
-                    'memo' => $row['memo'] ?? null,
                 ];
             }
 
@@ -214,8 +208,6 @@ class CustomSubAccountService
                     'sub_name' => $row['sub_name'],
                     'custom_group_code' => self::REF_TARGET_GROUP,
                     'is_required' => $row['is_required'],
-                    'note' => $row['note'],
-                    'memo' => $row['memo'],
                     'created_by' => $actor,
                     'updated_by' => $actor,
                 ]);

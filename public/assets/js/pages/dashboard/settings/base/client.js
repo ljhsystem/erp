@@ -56,6 +56,8 @@ const CLIENT_OPTIONAL_CODE_SELECT_IDS = [
     'modal_payment_term',
 ];
 const CLIENT_OPTIONAL_NONE_VALUE = '__none__';
+const DEFAULT_ACCOUNT_NONE_VALUE = '__default_account_none__';
+const DEFAULT_ACCOUNT_ADD_VALUE = '__add_account__';
 
 function applyClientOptionalCodeSelects(scope = document) {
     const root = scope || document;
@@ -401,6 +403,7 @@ export function initClientQuickCreateButtons(bindings = []) {
         EXCEL_TEMPLATE: "/api/settings/base-info/client/template",
 
         SEARCH_PICKER: "/api/settings/base-info/client/search-picker",
+        ACCOUNTS: "/api/ledger/account/list",
         CODE_OPTIONS: "/api/settings/system/code/list"
     };
 
@@ -434,9 +437,10 @@ export function initClientQuickCreateButtons(bindings = []) {
         account_holder: { label: "예금주", visible: false },
         bank_file: { label: "통장사본", visible: false },
         trade_category: { label: "거래구분", visible: false },
+        default_account_text: { label: "기본계정과목", visible: false },
         item_category: { label: "취급품목", visible: false },
         client_category: { label: "거래처분류", visible: false },
-        client_type: { label: "거래유형", visible: false },
+        client_type: { label: "거래처구분", visible: false },
         tax_type: { label: "과세구분", visible: false },
         payment_term: { label: "결제조건", visible: false },
         client_grade: { label: "거래처등급", visible: false },
@@ -485,6 +489,7 @@ export function initClientQuickCreateButtons(bindings = []) {
         account_holder: '120px',
         bank_file: '120px',
         trade_category: '120px',
+        default_account_text: '180px',
         item_category: '140px',
         client_category: '140px',
         client_type: '120px',
@@ -513,6 +518,7 @@ export function initClientQuickCreateButtons(bindings = []) {
     let todayPicker = null;
     let rrnVisible = false;
     let globalBound = false;
+    let defaultAccountRows = [];
 
 
 /* ============================================================
@@ -552,6 +558,7 @@ async function initClientPage($){
     initExcelDataset();       // 엑셀 파일 업로드
     await initCodeSelectControls(document.getElementById('clientModal'));  // 기준정보 select 옵션
     applyClientOptionalCodeSelects(document.getElementById('clientModal'));
+    await initDefaultAccountSelect();
     onCodeOptionsLoaded(() => {
         applyClientOptionalCodeSelects(document.getElementById('clientModal'));
         clientTable?.rows().invalidate('data').draw(false);
@@ -1145,6 +1152,7 @@ async function initClientPage($){
 
                         const form = document.getElementById('client-edit-form');
                         if (form) form.reset();
+                        await initDefaultAccountSelect();
                         renderCompanyNameHistory([]);
                         applyClientSubTypeRules(form || document);
 
@@ -1313,6 +1321,7 @@ async function initClientPage($){
 
                 await initCodeSelectControls(document.getElementById('clientModal'));
                 applyClientOptionalCodeSelects(document.getElementById('clientModal'));
+                await initDefaultAccountSelect(data.default_account_id || '');
                 fillModal(data);
                 clientModal.show();
 
@@ -1348,6 +1357,9 @@ async function initClientPage($){
             });
 
             const formData = new FormData(form);
+            if (formData.get('default_account_id') === DEFAULT_ACCOUNT_NONE_VALUE) {
+                formData.set('default_account_id', '');
+            }
             if (!validateClientSubTypeRules(form)) {
                 return;
             }
@@ -1467,7 +1479,7 @@ async function initClientPage($){
 
             el.value = value;
             if (
-                CLIENT_OPTIONAL_CODE_SELECT_IDS.includes(el.id)
+                (CLIENT_OPTIONAL_CODE_SELECT_IDS.includes(el.id) || el.id === 'modal_default_account_id')
                 && window.jQuery?.fn?.select2
                 && window.jQuery(el).hasClass('select2-hidden-accessible')
             ) {
@@ -1753,6 +1765,70 @@ async function initClientPage($){
         });
 
         return columns;
+    }
+
+    async function initDefaultAccountSelect(selectedValue = '') {
+        const select = document.getElementById('modal_default_account_id');
+        if (!select) return;
+
+        if (!defaultAccountRows.length) {
+            try {
+                const response = await fetch(API.ACCOUNTS, { cache: 'no-store' });
+                const json = await response.json();
+                defaultAccountRows = (json.data || []).filter((row) => (
+                    Number(row.is_active ?? 1) === 1
+                    && Number(row.is_posting ?? 1) === 1
+                ));
+            } catch (error) {
+                console.error('[client] default account load failed', error);
+                defaultAccountRows = [];
+            }
+        }
+
+        const value = String(selectedValue || select.value || '').trim();
+        select.innerHTML = '<option value="">계정과목 선택</option>'
+            + `<option value="${DEFAULT_ACCOUNT_NONE_VALUE}">선택(없음)</option>`
+            + defaultAccountRows.map((row) => {
+            const text = row.full_path ? `[${row.full_path}]` : [row.account_code, row.account_name].filter(Boolean).join(' - ');
+            return `<option value="${escapeHtml(row.id || '')}">${escapeHtml(text || row.id || '')}</option>`;
+        }).join('') + `<option value="${DEFAULT_ACCOUNT_ADD_VALUE}">+ 계정추가</option>`;
+        select.value = value;
+        select.dataset.previousValue = value;
+        bindDefaultAccountSelect(select);
+
+        if (window.jQuery?.fn?.select2) {
+            const $select = window.jQuery(select);
+            if ($select.hasClass('select2-hidden-accessible')) {
+                $select.select2('destroy');
+            }
+            $select.select2({
+                dropdownParent: window.jQuery('#clientModal'),
+                width: '100%',
+                allowClear: true,
+                placeholder: '계정과목 선택',
+                language: 'ko',
+            });
+            $select.val(value || null).trigger('change.select2');
+        }
+    }
+
+    function bindDefaultAccountSelect(select) {
+        if (!select || select.dataset.defaultAccountBound === '1') return;
+        select.dataset.defaultAccountBound = '1';
+
+        select.addEventListener('change', () => {
+            if (select.value !== DEFAULT_ACCOUNT_ADD_VALUE) {
+                select.dataset.previousValue = select.value || '';
+                return;
+            }
+
+            const previousValue = select.dataset.previousValue || '';
+            select.value = previousValue;
+            if (window.jQuery?.fn?.select2 && window.jQuery(select).hasClass('select2-hidden-accessible')) {
+                window.jQuery(select).val(previousValue || null).trigger('change.select2');
+            }
+            window.open('/ledger/settings/accounts', '_blank', 'noopener');
+        });
     }
 
     /* ============================================================

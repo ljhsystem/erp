@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/views/ledger/account/index.php'
+// Path: PROJECT_ROOT . '/app/views/ledger/account/index.php'
 
 use Core\Helpers\AssetHelper;
 
@@ -57,64 +57,16 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/account.js');
             include PROJECT_ROOT . '/app/views/components/ui-search.php';
             ?>
 
-            <div class="account-split-layout">
-                <section class="account-left-panel">
-                    <?php
-                    $tableId = 'account-table';
-                    $ajaxUrl = '/api/ledger/account/list';
-                    $columnsType = 'ledgerAccount';
-                    $enableButtons = true;
-                    $enableSearch = true;
-                    $enablePaging = true;
-                    $enableReorder = true;
-                    include PROJECT_ROOT . '/app/views/components/ui-table.php';
-                    ?>
-                </section>
-
-                <aside class="account-right-panel">
-                    <div class="subaccount-box h-100">
-                        <div class="subaccount-header d-flex justify-content-between align-items-start">
-                            <div>
-                                <h6 class="fw-bold mb-0">보조계정</h6>
-                                <div id="subaccountGuide" class="text-muted small mt-1">
-                                    계정과목을 선택하면 연결된 보조계정을 관리할 수 있습니다.
-                                </div>
-                            </div>
-
-                            <div class="d-flex align-items-center gap-2">
-                                <button id="btnAddSubAccount"
-                                        class="btn btn-sm btn-primary"
-                                        type="button"
-                                        disabled>
-                                    보조계정 추가
-                                </button>
-
-                                <button id="btnCloseSubPanel"
-                                        class="btn btn-sm btn-outline-secondary"
-                                        type="button"
-                                        title="닫기">
-                                    ×
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="table-responsive subaccount-table-wrap">
-                            <table class="table table-sm table-bordered align-middle"
-                                   id="subaccount-table">
-                                <thead>
-                                    <tr>
-                                        <th width="60">순번</th>
-                                        <th>보조계정명</th>
-                                        <th width="100">옵션</th>
-                                        <th width="150">관리</th>
-                                    </tr>
-                                </thead>
-                                <tbody></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </aside>
-            </div>
+            <?php
+            $tableId = 'account-table';
+            $ajaxUrl = '/api/ledger/account/list';
+            $columnsType = 'ledgerAccount';
+            $enableButtons = true;
+            $enableSearch = true;
+            $enablePaging = true;
+            $enableReorder = true;
+            include PROJECT_ROOT . '/app/views/components/ui-table.php';
+            ?>
         </div>
     </div>
 

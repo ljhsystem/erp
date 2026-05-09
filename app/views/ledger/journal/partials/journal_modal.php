@@ -69,20 +69,7 @@
                                 </div>
                             </div>
 
-                            <div class="journal-form-field">
-                                <input type="hidden" name="source_id" id="voucher_source_id">
-                                <label class="form-label" for="voucher_source_type">자료출처</label>
-                                <select class="form-select form-select-sm"
-                                        name="source_type"
-                                        id="voucher_source_type"
-                                        data-code-group="SOURCE_TYPE"
-                                        data-empty-option="false"
-                                        required>
-                                    <option value="MANUAL" selected>수기입력</option>
-                                    <option value="TRANSACTION">거래</option>
-                                </select>
-                                <div class="journal-source-origin d-none" id="voucher_source_transaction_info"></div>
-                            </div>
+                            <input type="hidden" name="transaction_id" id="voucher_transaction_id">
 
                             <div class="journal-form-field journal-summary-text-field">
                                 <label class="form-label" for="voucher_summary_text">전표 적요</label>
@@ -229,6 +216,32 @@
 
                         <div class="section-body">
                         <div class="journal-transaction-link">
+                            <div class="journal-link-meta-grid d-none">
+                                <div class="journal-form-field">
+                                    <label class="form-label" for="voucher_source_type">자료출처</label>
+                                    <select class="form-select form-select-sm"
+                                            data-removed-name="source_type"
+                                            id="voucher_source_type"
+                                            data-code-group="SOURCE_TYPE"
+                                            data-empty-option="false"
+                                            disabled
+                                            required>
+                                        <option value="MANUAL" selected>수기입력</option>
+                                        <option value="TAX">홈택스</option>
+                                        <option value="CARD">카드사</option>
+                                    </select>
+                                </div>
+                                <div class="journal-form-field">
+                                    <label class="form-label" for="voucher_import_type">자료유형</label>
+                                    <select class="form-select form-select-sm"
+                                            data-removed-name="import_type"
+                                            id="voucher_import_type"
+                                            data-code-group="IMPORT_TYPE"
+                                            data-empty-label="선택">
+                                        <option value="">선택</option>
+                                    </select>
+                                </div>
+                            </div>
                             <input type="hidden"
                                    name="linked_transaction_id"
                                    id="linked_transaction_id">
@@ -240,6 +253,7 @@
                                     id="btnClearTransactionLink">연결 해제</button>
                             <div class="journal-transaction-summary"
                                  id="linked_transaction_summary">연결된 거래가 없습니다.</div>
+                            <div class="journal-source-origin d-none" id="voucher_source_transaction_info"></div>
                             <div class="journal-transaction-notice d-none"
                                  id="journalTransactionNotice"></div>
                         </div>

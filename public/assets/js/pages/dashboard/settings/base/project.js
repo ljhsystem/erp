@@ -5,7 +5,7 @@ import { createDataTable, bindTableHighlight } from '/public/assets/js/component
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { openClientQuickCreate } from '/public/assets/js/pages/dashboard/settings/base/client.js';
-import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+import { initCodeSelectControls, getCodeName, onCodeOptionsLoaded } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
 import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
 
@@ -38,7 +38,8 @@ window.AdminPicker = AdminPicker;
 
         EMPLOYEE_SEARCH: "/api/settings/organization/employee/search-picker",
         CLIENT_SEARCH: "/api/settings/base-info/client/search-picker",
-        CLIENT_SAVE: "/api/settings/base-info/client/save"
+        CLIENT_SAVE: "/api/settings/base-info/client/save",
+        PROJECT_VALUE_SEARCH: "/api/settings/base-info/project/distinct-values"
     };
     /* =========================
        프로젝트 컬럼 한글 매핑
@@ -55,10 +56,11 @@ window.AdminPicker = AdminPicker;
         site_agent:                 { label: "현장대리인계", visible: false },
 
         linked_client_name:         { label: "거래처", visible: true },
+        contract_type:              { label: "도급종류", visible: true },
+        contract_method:            { label: "계약방식", visible: true },
         director:                   { label: "감독관/소장", visible: false },
         manager:                    { label: "실장", visible: false },
-        contract_type:              { label: "계약형태", visible: false },
-        contract_work_type:         { label: "도급종류", visible: true },
+        contract_work_type:         { label: "도급종류(기존)", visible: false },
 
         housing_type:               { label: "공사유형", visible: false },
         work_type:                  { label: "공종", visible: false },
@@ -177,6 +179,7 @@ window.AdminPicker = AdminPicker;
 
         initDataTable($);
         initExternal();
+        initProjectValueInputs();
 
         bindRowReorder(projectTable, {
             api: API.REORDER,
@@ -208,6 +211,63 @@ window.AdminPicker = AdminPicker;
         form.dataset.downloadUrl = API.EXCEL_DOWNLOAD;
         form.dataset.uploadUrl   = API.EXCEL_UPLOAD;
     }
+
+    function initProjectValueInputs() {
+        document.querySelectorAll('.js-project-value-input[data-field][list]').forEach((input) => {
+            if (input.dataset.projectValueBound === '1') return;
+
+            input.dataset.projectValueBound = '1';
+            let timer = null;
+
+            const scheduleLoad = () => {
+                window.clearTimeout(timer);
+                timer = window.setTimeout(() => {
+                    refreshProjectValueOptions(input);
+                }, 180);
+            };
+
+            input.addEventListener('input', scheduleLoad);
+            input.addEventListener('focus', () => refreshProjectValueOptions(input));
+        });
+    }
+
+    async function refreshProjectValueOptions(input) {
+        const field = input.dataset.field || '';
+        const listId = input.getAttribute('list');
+        const list = listId ? document.getElementById(listId) : null;
+
+        if (!field || !list) return;
+
+        const params = new URLSearchParams({
+            field,
+            q: input.value || '',
+            limit: '20'
+        });
+
+        try {
+            const response = await fetch(`${API.PROJECT_VALUE_SEARCH}?${params.toString()}`, {
+                cache: 'no-store',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+            const json = await response.json();
+            const rows = Array.isArray(json?.data) ? json.data : [];
+
+            list.innerHTML = '';
+            rows.forEach((row) => {
+                const value = String(row?.value ?? row?.text ?? row?.id ?? '').trim();
+                if (!value) return;
+
+                const option = document.createElement('option');
+                option.value = value;
+                list.appendChild(option);
+            });
+        } catch (error) {
+            console.error('[project] value autocomplete failed', error);
+        }
+    }
+
     function initModal(){
         const modalEl = document.getElementById('projectModal');
         if (!modalEl) return;
@@ -808,6 +868,13 @@ window.AdminPicker = AdminPicker;
             }
 
             el.value = value;
+            if (
+                ['contract_method', 'housing_type', 'contract_type', 'work_type'].includes(key)
+                && window.jQuery?.fn?.select2
+                && window.jQuery(el).hasClass('select2-hidden-accessible')
+            ) {
+                window.jQuery(el).val(value || null).trigger('change.select2');
+            }
         });
 
         setTimeout(() => {
@@ -859,6 +926,10 @@ window.AdminPicker = AdminPicker;
 
                     if (field === 'initial_contract_amount') {
                         return formatAmount(data);
+                    }
+
+                    if (['contract_method', 'housing_type', 'contract_type', 'work_type'].includes(field)) {
+                        return getCodeName(field, data);
                     }
 
                     if (field === 'is_active') {

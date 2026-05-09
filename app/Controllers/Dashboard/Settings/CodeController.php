@@ -109,6 +109,7 @@ class CodeController
             'id' => $_POST['id'] ?? null,
             'sort_no' => $_POST['sort_no'] ?? null,
             'code_group' => trim((string)($_POST['code_group'] ?? '')),
+            'group_name' => trim((string)($_POST['group_name'] ?? '')),
             'code' => trim((string)($_POST['code'] ?? '')),
             'code_name' => trim((string)($_POST['code_name'] ?? '')),
             'note' => $_POST['note'] ?? null,
@@ -119,6 +120,11 @@ class CodeController
 
         if ($payload['code_group'] === '') {
             echo json_encode(['success' => false, 'message' => '분류 정보가 올바르지 않습니다.'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        if ($payload['group_name'] === '') {
+            echo json_encode(['success' => false, 'message' => '그룹명은 필수입니다.'], JSON_UNESCAPED_UNICODE);
             exit;
         }
 

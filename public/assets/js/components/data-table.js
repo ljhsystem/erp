@@ -38,6 +38,36 @@ function isColumnVisibleInColvis(columns, index, node) {
     return !classes.includes('no-colvis') && !node?.classList?.contains('no-colvis');
 }
 
+function ensureTableHeader(tableSelector, columns = []) {
+    const table = document.querySelector(tableSelector);
+    if (!table || !Array.isArray(columns) || columns.length === 0) {
+        return;
+    }
+
+    let thead = table.querySelector('thead');
+    if (!thead) {
+        thead = document.createElement('thead');
+        table.insertBefore(thead, table.firstChild);
+    }
+
+    let row = thead.querySelector('tr');
+    if (!row) {
+        row = document.createElement('tr');
+        thead.appendChild(row);
+    }
+
+    const headers = row.querySelectorAll('th');
+    if (headers.length === columns.length) {
+        return;
+    }
+
+    row.innerHTML = columns.map((column) => {
+        const classes = tokenizeClasses(column.className, column.headerClassName);
+        const classAttr = classes.length ? ` class="${classes.join(' ')}"` : '';
+        return `<th${classAttr}>${column.title ?? ''}</th>`;
+    }).join('');
+}
+
 function scheduleAdjust(table, options = {}) {
     if (!table) return;
 
@@ -72,6 +102,32 @@ function scheduleAdjust(table, options = {}) {
             console.error('[data-table] scheduleAdjust failed:', err);
         }
     });
+}
+
+function findScrollParent(node) {
+    let current = node?.parentElement || null;
+    while (current && current !== document.body && current !== document.documentElement) {
+        const style = window.getComputedStyle(current);
+        if (/(auto|scroll)/.test(style.overflowY || '')) {
+            return current;
+        }
+        current = current.parentElement;
+    }
+
+    return null;
+}
+
+function updateStickyHeaderOffset(table) {
+    const wrapper = table?.table?.().container?.();
+    if (!wrapper) return;
+
+    const nav = document.querySelector('.top-nav.fixed-top, .top-nav');
+    const navBottom = nav ? nav.getBoundingClientRect().bottom : 0;
+    const scrollParent = findScrollParent(wrapper);
+    const scrollTop = scrollParent ? scrollParent.getBoundingClientRect().top : 0;
+    const offset = Math.max(0, Math.ceil(navBottom - scrollTop));
+
+    wrapper.style.setProperty('--dt-sticky-top', `${offset}px`);
 }
 
 function toCamelCase(value) {
@@ -182,14 +238,18 @@ export function createDataTable(config) {
         dataSrc = null,
         cellSearchFill = true,
         searchTableId = null,
-        rowReorder = false
+        rowReorder = false,
+        initialData = null,
+        density = null
     } = config;
 
     const $ = window.jQuery;
     const tableColumns = Array.isArray(columns) ? columns : [];
+    ensureTableHeader(tableSelector, tableColumns);
 
-    const table = $(tableSelector).DataTable({
-        ajax: {
+    const dataTableConfig = {
+        ...(api ? {
+            ajax: {
             url: api,
             type: 'GET',
             cache: false,
@@ -212,7 +272,10 @@ export function createDataTable(config) {
 
                 return json.data ?? [];
             }
-        },
+            },
+        } : {
+            data: Array.isArray(initialData) ? initialData : [],
+        }),
 
         columns: tableColumns,
         order: defaultOrder,
@@ -271,11 +334,20 @@ export function createDataTable(config) {
             const api = this.api();
 
             applyColumnHeaderClasses(api, tableColumns);
+            updateStickyHeaderOffset(api);
             api.columns.adjust();
         }
-    });
+    };
+
+    const table = $(tableSelector).DataTable(dataTableConfig);
+    updateStickyHeaderOffset(table);
+
+    if (density) {
+        table.table().container()?.classList.add(`dt-density-${density}`);
+    }
 
     table.on('xhr.dt draw.dt', function () {
+        updateStickyHeaderOffset(table);
         const info = table.page.info();
         const el = document.querySelector(`${tableSelector}_wrapper .dataTables_info`);
         if (el) {
@@ -287,11 +359,14 @@ export function createDataTable(config) {
     });
 
     table.on('column-visibility.dt responsive-resize.dt', function () {
+        updateStickyHeaderOffset(table);
         applyColumnHeaderClasses(table, tableColumns);
         scheduleAdjust(table, {
             draw: false
         });
     });
+
+    window.addEventListener('resize', () => updateStickyHeaderOffset(table), { passive: true });
 
     bindCellSearchFill(table, tableSelector, {
         tableId: searchTableId,

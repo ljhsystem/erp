@@ -74,8 +74,8 @@ $modules = [
         'summary' => '계정과목, 전표입력, 장부/결산 기반 영역',
         'items' => [
             ['name' => '회계 대시보드', 'url' => '/ledger', 'status' => 'ui_only'],
-            ['name' => '계정과목', 'url' => '/ledger/accounts', 'status' => 'ui_only'],
-            ['name' => '전표입력', 'url' => '/ledger/journal', 'status' => 'ui_only'],
+            ['name' => '계정과목', 'url' => '/ledger/settings/accounts', 'status' => 'ui_only'],
+            ['name' => '전표입력', 'url' => '/ledger/vouchers/input', 'status' => 'ui_only'],
             ['name' => '전표 검색', 'url' => '/ledger/search', 'status' => 'empty'],
             ['name' => '관리 부가 메뉴', 'url' => '/ledger', 'status' => 'ui_only'],
         ],

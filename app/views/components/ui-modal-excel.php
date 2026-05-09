@@ -19,21 +19,21 @@ $uploadUrl   = $uploadUrl ?? '';
 ?>
 
 <div class="modal fade"
-     id="<?= htmlspecialchars($modalId, ENT_QUOTES) ?>"
+     id="<?= htmlspecialchars($modalId, ENT_QUOTES, 'UTF-8') ?>"
      tabindex="-1"
      aria-hidden="true">
 
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
 
-      <form id="<?= htmlspecialchars($formId, ENT_QUOTES) ?>"
+      <form id="<?= htmlspecialchars($formId, ENT_QUOTES, 'UTF-8') ?>"
             enctype="multipart/form-data"
-            data-template-url="<?= htmlspecialchars($templateUrl, ENT_QUOTES) ?>"
-            data-download-url="<?= htmlspecialchars($downloadUrl, ENT_QUOTES) ?>"
-            data-upload-url="<?= htmlspecialchars($uploadUrl, ENT_QUOTES) ?>">
+            data-template-url="<?= htmlspecialchars($templateUrl, ENT_QUOTES, 'UTF-8') ?>"
+            data-download-url="<?= htmlspecialchars($downloadUrl, ENT_QUOTES, 'UTF-8') ?>"
+            data-upload-url="<?= htmlspecialchars($uploadUrl, ENT_QUOTES, 'UTF-8') ?>">
 
         <div class="modal-header">
-          <h5 class="modal-title"><?= htmlspecialchars($modalTitle, ENT_QUOTES) ?></h5>
+          <h5 class="modal-title"><?= htmlspecialchars($modalTitle, ENT_QUOTES, 'UTF-8') ?></h5>
           <button type="button"
                   class="btn-close"
                   data-bs-dismiss="modal"
@@ -44,19 +44,19 @@ $uploadUrl   = $uploadUrl ?? '';
           <div class="d-flex align-items-center gap-2 mb-3">
             <button type="button"
                     class="btn btn-outline-secondary btn-sm btn-template-download"
-                    id="<?= htmlspecialchars($btnTemplateId, ENT_QUOTES) ?>">
+                    id="<?= htmlspecialchars($btnTemplateId, ENT_QUOTES, 'UTF-8') ?>">
               양식 다운로드
             </button>
 
             <button type="button"
                     class="btn btn-outline-primary btn-sm btn-download-all"
-                    id="<?= htmlspecialchars($btnDownloadAll, ENT_QUOTES) ?>">
+                    id="<?= htmlspecialchars($btnDownloadAll, ENT_QUOTES, 'UTF-8') ?>">
               전체 다운로드
             </button>
 
             <input type="file"
-                   name="<?= htmlspecialchars($fileInputName, ENT_QUOTES) ?>"
-                   id="<?= htmlspecialchars($fileInputId, ENT_QUOTES) ?>"
+                   name="<?= htmlspecialchars($fileInputName, ENT_QUOTES, 'UTF-8') ?>"
+                   id="<?= htmlspecialchars($fileInputId, ENT_QUOTES, 'UTF-8') ?>"
                    class="form-control form-control-sm"
                    accept=".xlsx,.xls">
           </div>
@@ -66,7 +66,7 @@ $uploadUrl   = $uploadUrl ?? '';
           </small>
 
           <div class="excel-spinner text-center mt-2"
-               id="<?= htmlspecialchars($spinnerId, ENT_QUOTES) ?>"
+               id="<?= htmlspecialchars($spinnerId, ENT_QUOTES, 'UTF-8') ?>"
                style="display:none;">
             <div class="spinner-border text-primary"></div>
             <div class="mt-1" style="font-size:.9em;">
@@ -78,7 +78,7 @@ $uploadUrl   = $uploadUrl ?? '';
         <div class="modal-footer">
           <button type="button"
                   class="btn btn-success btn-sm btn-upload-excel"
-                  id="<?= htmlspecialchars($uploadBtnId, ENT_QUOTES) ?>">
+                  id="<?= htmlspecialchars($uploadBtnId, ENT_QUOTES, 'UTF-8') ?>">
             업로드
           </button>
 

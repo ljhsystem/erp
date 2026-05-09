@@ -259,6 +259,11 @@
     grid-template-columns: minmax(190px, 0.55fr) 200px 220px;
 }
 
+#transactionModal .transaction-modal-grid-amounts {
+    grid-template-columns: repeat(3, minmax(140px, 180px));
+    justify-content: end;
+}
+
 #transactionModal .transaction-modal-grid-note {
     grid-template-columns: minmax(220px, 1fr) minmax(300px, 2fr);
 }
@@ -489,6 +494,28 @@
     overflow: visible;
 }
 
+#transactionModal .transaction-line-hot {
+    position: relative;
+    min-height: 58px;
+}
+
+#transactionModal .transaction-line-hot.is-empty::after {
+    content: "내역 없음";
+    position: absolute;
+    top: 30px;
+    left: 0;
+    right: 0;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #64748b;
+    font-size: 12px;
+    border-top: 1px solid #dbe3ee;
+    background: #ffffff;
+    pointer-events: none;
+}
+
 #transactionModal .transaction-line-hot,
 #transactionModal .transaction-line-hot > .handsontable,
 #transactionModal .transaction-line-hot .ht_master,
@@ -693,8 +720,8 @@
 
 #transactionModal .transaction-summary-grid {
     display: grid;
-    gap: 2px;
-    width: min(230px, 100%);
+    gap: 4px;
+    width: min(320px, 100%);
     padding: 0;
     border: 0;
     border-radius: 0;
@@ -704,11 +731,10 @@
 
 #transactionModal .transaction-summary-row {
     display: grid;
-    grid-template-columns: 84px minmax(100px, 1fr);
+    grid-template-columns: minmax(150px, max-content) minmax(110px, 1fr);
     align-items: center;
-    gap: 10px;
-    height: 18px;
-    min-height: 18px;
+    gap: 14px;
+    min-height: 22px;
     padding: 0;
     border: 0;
     border-radius: 0;
@@ -720,17 +746,18 @@
     font-size: 12px;
     font-weight: 800;
     line-height: 18px;
+    white-space: nowrap;
 }
 
 #transactionModal .transaction-summary-row input {
     width: 100%;
-    height: 18px !important;
-    min-height: 18px !important;
+    height: 20px !important;
+    min-height: 20px !important;
     padding: 0 !important;
     margin: 0;
     color: #111827;
     font-size: 13px;
-    line-height: 18px !important;
+    line-height: 20px !important;
     text-align: right;
     border: 0;
     border-radius: 0;
@@ -846,6 +873,19 @@
 .modal#transactionModal,
 .modal.show#transactionModal {
     z-index: 30010 !important;
+}
+
+.modal#transactionVoucherWizardModal,
+.modal.show#transactionVoucherWizardModal {
+    z-index: 30040 !important;
+}
+
+body:has(#transactionVoucherWizardModal.show) .modal-backdrop.show:last-of-type {
+    z-index: 30035 !important;
+}
+
+.modal-backdrop.transaction-voucher-wizard-backdrop {
+    z-index: 30005 !important;
 }
 
 .modal#codeQuickModal,
@@ -1045,6 +1085,7 @@ body.modal-open .select2-container--open {
 @media (max-width: 1180px) {
     #transactionModal .transaction-modal-grid-main,
     #transactionModal .transaction-modal-grid-summary,
+    #transactionModal .transaction-modal-grid-amounts,
     #transactionModal .transaction-modal-grid-note {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -1207,6 +1248,72 @@ body.modal-open .select2-container--open {
     white-space: nowrap;
 }
 
+#transactionVoucherWizardModal .modal-body {
+    background: #f8fafc;
+}
+
+#transactionVoucherWizardModal .transaction-voucher-wizard-dialog {
+    width: min(1320px, calc(100vw - 32px));
+    max-width: min(1320px, calc(100vw - 32px));
+}
+
+#transactionVoucherWizardModal .transaction-voucher-wizard {
+    max-height: calc(100vh - 56px);
+}
+
+.transaction-voucher-wizard-section {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 14px;
+}
+
+.transaction-voucher-wizard-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 12px;
+}
+
+.transaction-voucher-header-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(160px, 1fr));
+    gap: 10px 12px;
+}
+
+.transaction-voucher-line-table {
+    min-width: 1180px;
+    background: #fff;
+}
+
+.transaction-voucher-line-table th {
+    background: #f1f5f9;
+    color: #111827;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.transaction-voucher-balance {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.transaction-voucher-balance.is-balanced {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.transaction-voucher-balance.is-unbalanced {
+    background: #fef3c7;
+    color: #92400e;
+}
+
 @media (max-width: 992px) {
     #voucherSelectModal .voucher-select-filter,
     #voucherSelectModal .voucher-select-layout {
@@ -1215,6 +1322,10 @@ body.modal-open .select2-container--open {
 
     #voucherSelectModal .voucher-select-filter-actions {
         justify-content: flex-start;
+    }
+
+    .transaction-voucher-header-grid {
+        grid-template-columns: repeat(2, minmax(160px, 1fr));
     }
 }
 
@@ -1238,11 +1349,16 @@ body.modal-open .select2-container--open {
 
     #transactionModal .transaction-modal-grid-main,
     #transactionModal .transaction-modal-grid-summary,
+    #transactionModal .transaction-modal-grid-amounts,
     #transactionModal .transaction-modal-grid-note {
         grid-template-columns: 1fr;
     }
 
     #transactionModal .transaction-summary-row {
-        grid-template-columns: 84px minmax(100px, 1fr);
+        grid-template-columns: minmax(140px, max-content) minmax(100px, 1fr);
+    }
+
+    .transaction-voucher-header-grid {
+        grid-template-columns: 1fr;
     }
 }

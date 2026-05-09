@@ -45,10 +45,11 @@ class TransactionService
     public function createTransaction(array $data): array
     {
         $actor = ActorHelper::user();
-        $items = is_array($data['items'] ?? null) ? $data['items'] : [];
+        $items = $this->normalizeTransactionItems(is_array($data['items'] ?? null) ? $data['items'] : [], $data);
+        $totals = $this->resolveTransactionTotals($data, $this->calculateTransactionLineTotals($items));
 
         try {
-            $this->validateTransactionAmounts($data);
+            $this->validateTransactionAmounts($totals);
 
             $this->pdo->beginTransaction();
 
@@ -61,13 +62,17 @@ class TransactionService
                 'sort_no' => SequenceHelper::next('ledger_transactions', 'sort_no'),
                 'business_unit' => $data['business_unit'] ?? 'HQ',
                 'transaction_type' => $data['transaction_type'] ?? 'ETC',
+                'transaction_direction' => $data['transaction_direction'] ?? null,
+                'import_type' => $data['import_type'] ?? $data['source_type'] ?? null,
                 'transaction_date' => $data['transaction_date'] ?? date('Y-m-d'),
                 'client_id' => $data['client_id'] ?? null,
                 'project_id' => $data['project_id'] ?? null,
                 'currency' => $data['currency'] ?? 'KRW',
                 'exchange_rate' => $data['exchange_rate'] ?? null,
                 'order_ref' => $data['order_ref'] ?? null,
-                'tax_type' => $data['tax_type'] ?? null,
+                'supply_amount' => $totals['supply_amount'],
+                'vat_amount' => $totals['vat_amount'],
+                'total_amount' => $totals['total_amount'],
                 'description' => $data['description'] ?? null,
                 'status' => 'draft',
                 'match_status' => 'none',
@@ -432,9 +437,103 @@ class TransactionService
         $vatAmount = (float) ($data['vat_amount'] ?? 0);
         $totalAmount = (float) ($data['total_amount'] ?? 0);
 
-        if ($supplyAmount <= 0 && $vatAmount <= 0 && $totalAmount <= 0) {
+        if (abs($supplyAmount) <= 0 && abs($vatAmount) <= 0 && abs($totalAmount) <= 0) {
             throw new \InvalidArgumentException('?耀붾굝梨루땟????????雅?굛肄???????????????源낆┰?????????곸죩.');
         }
+    }
+
+    private function normalizeTransactionItems(array $items, array $data): array
+    {
+        $rows = [];
+        $exchangeRate = (float) ($data['exchange_rate'] ?? 0);
+
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $quantity = (float) ($item['quantity'] ?? 0);
+            $foreignUnitPrice = $this->numericOrNull($item['foreign_unit_price'] ?? null);
+            $foreignAmount = $this->numericOrNull($item['foreign_amount'] ?? null);
+            $usesForeignAmount = $exchangeRate > 0 && ($foreignUnitPrice !== null || $foreignAmount !== null);
+            if ($usesForeignAmount && $foreignAmount === null) {
+                $foreignAmount = round($quantity * (float) $foreignUnitPrice, 2);
+            }
+
+            $unitPrice = $usesForeignAmount && $quantity > 0
+                ? round(((float) $foreignAmount * $exchangeRate) / $quantity, 2)
+                : (float) ($item['unit_price'] ?? 0);
+            $taxType = $this->normalizeTaxType($item['tax_type'] ?? null)
+                ?? ($usesForeignAmount ? 'ZERO' : 'TAXABLE');
+            $supplyAmount = $usesForeignAmount
+                ? round((float) $foreignAmount * $exchangeRate, 2)
+                : round($quantity * $unitPrice, 2);
+            $vatAmount = $taxType === 'TAXABLE' ? round($supplyAmount * 0.1, 2) : 0.0;
+
+            $item['quantity'] = $quantity;
+            $item['unit_price'] = $unitPrice;
+            $item['foreign_unit_price'] = $usesForeignAmount ? (float) ($foreignUnitPrice ?? 0) : null;
+            $item['foreign_amount'] = $usesForeignAmount ? (float) ($foreignAmount ?? 0) : null;
+            $item['supply_amount'] = $supplyAmount;
+            $item['vat_amount'] = $vatAmount;
+            $item['total_amount'] = round($supplyAmount + $vatAmount, 2);
+            $item['tax_type'] = $taxType;
+            $rows[] = $item;
+        }
+
+        return $rows;
+    }
+
+    private function calculateTransactionLineTotals(array $items): array
+    {
+        $totals = [
+            'supply_amount' => 0.0,
+            'vat_amount' => 0.0,
+            'total_amount' => 0.0,
+        ];
+
+        foreach ($items as $item) {
+            $totals['supply_amount'] += (float) ($item['supply_amount'] ?? 0);
+            $totals['vat_amount'] += (float) ($item['vat_amount'] ?? 0);
+            $totals['total_amount'] += (float) ($item['total_amount'] ?? 0);
+        }
+
+        return array_map(static fn (float $amount): float => round($amount, 2), $totals);
+    }
+
+    private function resolveTransactionTotals(array $data, array $lineTotals): array
+    {
+        if (abs((float) ($lineTotals['total_amount'] ?? 0)) > 0) {
+            return $lineTotals;
+        }
+
+        $supplyAmount = (float) ($this->numericOrNull($data['supply_amount'] ?? null) ?? 0);
+        $vatAmount = (float) ($this->numericOrNull($data['vat_amount'] ?? null) ?? 0);
+        $totalAmount = (float) ($this->numericOrNull($data['total_amount'] ?? null) ?? 0);
+        if (abs($totalAmount) <= 0 && (abs($supplyAmount) > 0 || abs($vatAmount) > 0)) {
+            $totalAmount = $supplyAmount + $vatAmount;
+        }
+
+        return [
+            'supply_amount' => round($supplyAmount, 2),
+            'vat_amount' => round($vatAmount, 2),
+            'total_amount' => round($totalAmount, 2),
+        ];
+    }
+
+    private function normalizeTaxType(mixed $value): ?string
+    {
+        $taxType = strtoupper(trim((string) ($value ?? '')));
+        return preg_match('/^[A-Z0-9_]+$/', $taxType) ? $taxType : null;
+    }
+
+    private function numericOrNull(mixed $value): float|int|null
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return is_numeric($value) ? $value + 0 : null;
     }
 
     private function normalizeMatchedLines(array $lines): array

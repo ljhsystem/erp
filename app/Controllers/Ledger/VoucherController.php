@@ -119,22 +119,24 @@ class VoucherController
                 ? $this->voucherModel->getById((string) $voucher['reversal_of'])
                 : null;
             $voucher['source_transaction'] = null;
-            if (strtoupper((string) ($voucher['source_type'] ?? '')) === 'TRANSACTION') {
-                $sourceTransactionId = trim((string) ($voucher['source_id'] ?? ''));
-                if ($sourceTransactionId !== '') {
-                    $voucher['source_transaction'] = $this->transactionModel->getById($sourceTransactionId);
-                }
-            }
             $voucher['linked_transaction'] = null;
+            $voucher['transaction_id'] = null;
+            $voucher['import_type'] = null;
+            $voucher['source_type'] = null;
+            $voucher['seed_source'] = null;
 
             foreach ($this->transactionLinkModel->getByVoucherId($id) as $link) {
-                if (($link['link_type'] ?? '') !== 'MANUAL') {
-                    continue;
-                }
-
                 $transactionId = trim((string) ($link['transaction_id'] ?? ''));
                 if ($transactionId !== '') {
                     $voucher['linked_transaction'] = $this->transactionModel->getById($transactionId);
+                    $voucher['transaction_id'] = $transactionId;
+                    $voucher['import_type'] = $this->transactionImportType($transactionId);
+                    $voucher['seed_source'] = $this->transactionSeedSource($transactionId);
+                    $voucher['source_type'] = $this->voucherSourceTypeFromImportType((string) ($voucher['import_type'] ?? ''), 'MANUAL');
+                    if (is_array($voucher['linked_transaction'])) {
+                        $voucher['linked_transaction']['import_type'] = $voucher['import_type'];
+                        $voucher['linked_transaction']['seed_source'] = $voucher['seed_source'];
+                    }
                 }
                 break;
             }
@@ -181,7 +183,7 @@ class VoucherController
                     v.id,
                     v.voucher_no,
                     v.voucher_date,
-                    COALESCE(linked_clients.client_name, source_clients.client_name, '') AS client_name,
+                    COALESCE(linked_clients.client_name, '') AS client_name,
                     COALESCE(v.summary_text, '') AS summary_text,
                     COALESCE(line_totals.amount, 0) AS amount,
                     v.status
@@ -202,9 +204,6 @@ class VoucherController
                     GROUP BY l.voucher_id
                 ) linked_clients
                     ON linked_clients.voucher_id = v.id
-                LEFT JOIN system_clients source_clients
-                    ON source_clients.id = v.source_id
-                   AND v.source_type = 'CLIENT'
                 LEFT JOIN (
                     SELECT
                         voucher_id,
@@ -222,7 +221,7 @@ class VoucherController
                 $sql .= "
                   AND (
                       v.voucher_no LIKE :keyword
-                      OR COALESCE(linked_clients.client_name, source_clients.client_name, '') LIKE :keyword
+                      OR COALESCE(linked_clients.client_name, '') LIKE :keyword
                       OR v.summary_text LIKE :keyword
                   )
                 ";
@@ -240,7 +239,7 @@ class VoucherController
             }
 
             if ($clientId !== '') {
-                $sql .= " AND COALESCE(linked_clients.client_id, source_clients.id, '') = :client_id";
+                $sql .= " AND COALESCE(linked_clients.client_id, '') = :client_id";
                 $params[':client_id'] = $clientId;
             }
 
@@ -275,6 +274,12 @@ class VoucherController
         $this->jsonResponse(function (): array {
             $query = trim((string) ($_GET['q'] ?? ''));
             $rows = $this->transactionModel->getList([]);
+            foreach ($rows as &$row) {
+                $transactionId = (string) ($row['id'] ?? '');
+                $row['import_type'] = $this->transactionImportType($transactionId);
+                $row['seed_source'] = $this->transactionSeedSource($transactionId);
+            }
+            unset($row);
 
             if ($query !== '') {
                 $rows = array_values(array_filter($rows, static function (array $row) use ($query): bool {
@@ -443,7 +448,8 @@ class VoucherController
         $this->jsonResponse(function (): array {
             $id = $this->requestVoucherId();
             $transactionId = $this->requestValue('linked_transaction_id');
-            $result = $this->service->updateTransactionLinkOnly($id, $transactionId, ActorHelper::user());
+            $importType = $this->requestValue('import_type');
+            $result = $this->service->updateTransactionLinkOnly($id, $transactionId, ActorHelper::user(), null, $importType);
             $voucher = $this->voucherModel->getById($id) ?: [];
 
             return [
@@ -660,6 +666,7 @@ class VoucherController
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
+            error_log('[VoucherController] API error uri=' . ($_SERVER['REQUEST_URI'] ?? '') . ' message=' . $e->getMessage());
 
             $payload = [
                 'success' => false,
@@ -699,6 +706,75 @@ class VoucherController
         }
 
         return trim((string) ($_POST[$key] ?? $input[$key] ?? $_GET[$key] ?? ''));
+    }
+
+    private function transactionImportType(string $transactionId): ?string
+    {
+        if ($transactionId === '' || !$this->tableExists('ledger_data_seed_rows')) {
+            return null;
+        }
+
+        $stmt = $this->pdo->prepare("
+            SELECT source_type
+            FROM ledger_data_seed_rows
+            WHERE transaction_id = :transaction_id
+              AND deleted_at IS NULL
+            ORDER BY processed_at DESC, updated_at DESC, created_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute([':transaction_id' => $transactionId]);
+        $sourceType = trim((string) ($stmt->fetchColumn() ?: ''));
+
+        return $sourceType !== '' ? $sourceType : null;
+    }
+
+    private function transactionSeedSource(string $transactionId): ?array
+    {
+        if ($transactionId === '' || !$this->tableExists('ledger_data_seed_rows')) {
+            return null;
+        }
+
+        $stmt = $this->pdo->prepare("
+            SELECT id, row_no, source_type, source_key, processed_at, created_at
+            FROM ledger_data_seed_rows
+            WHERE transaction_id = :transaction_id
+              AND deleted_at IS NULL
+            ORDER BY processed_at DESC, updated_at DESC, created_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute([':transaction_id' => $transactionId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+        return $row ?: null;
+    }
+
+    private function voucherSourceTypeFromImportType(string $importType, string $fallback = 'MANUAL'): string
+    {
+        return match (strtoupper(trim($importType))) {
+            'TAX_INVOICE', 'CASH_RECEIPT' => 'TAX',
+            'CARD_APPROVAL' => 'CARD',
+            'BANK_TRANSACTION' => 'BANK',
+            'SHOPPING_ORDER' => 'SHOPPING',
+            'IMPORT_INVOICE' => 'TRADE',
+            default => strtoupper(trim($fallback)) ?: 'MANUAL',
+        };
+    }
+
+    private function tableExists(string $table): bool
+    {
+        static $cache = [];
+
+        if (!array_key_exists($table, $cache)) {
+            try {
+                $stmt = $this->pdo->prepare('SHOW TABLES LIKE :table_name');
+                $stmt->execute([':table_name' => $table]);
+                $cache[$table] = (bool) $stmt->fetchColumn();
+            } catch (\Throwable) {
+                $cache[$table] = false;
+            }
+        }
+
+        return $cache[$table];
     }
 
     private function restoreVoucherById(string $id): void

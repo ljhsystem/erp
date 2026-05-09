@@ -24,6 +24,9 @@ class ClientModel
         $sql = "
             SELECT
                 c.*,
+                da.account_code AS default_account_code,
+                da.account_name AS default_account_name,
+                NULLIF(CONCAT(COALESCE(da.account_code, ''), ' - ', COALESCE(da.account_name, '')), ' - ') AS default_account_text,
                 CASE
                     WHEN c.created_by LIKE 'SYSTEM:%' THEN c.created_by
                     WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
@@ -49,6 +52,9 @@ class ClientModel
             LEFT JOIN user_employees p3
                 ON c.deleted_by NOT LIKE 'SYSTEM:%'
                AND p3.user_id = REPLACE(c.deleted_by, 'USER:', '')
+            LEFT JOIN ledger_accounts da
+                ON da.id = c.default_account_id
+               AND da.deleted_at IS NULL
             WHERE c.deleted_at IS NULL
         ";
 
@@ -91,6 +97,7 @@ class ClientModel
             'client_type'       => ['col'=>'c.client_type','type'=>'like'],
             'client_category'   => ['col'=>'c.client_category','type'=>'like'],
             'trade_category'    => ['col'=>'c.trade_category','type'=>'like'],
+            'default_account_text' => ['col'=>"CONCAT(COALESCE(da.account_code, ''), ' ', COALESCE(da.account_name, ''))",'type'=>'like'],
             'tax_type'          => ['col'=>'c.tax_type','type'=>'like'],
             'payment_term'      => ['col'=>'c.payment_term','type'=>'like'],
             'item_category'     => ['col'=>'c.item_category','type'=>'like'],
@@ -183,8 +190,10 @@ class ClientModel
                 'c.address','c.address_detail',
                 'c.business_type','c.business_category',
                 'c.bank_name','c.account_number',
-                'c.account_holder',
-                'c.note','c.memo'
+                 'c.account_holder',
+                 'da.account_code',
+                 'da.account_name',
+                 'c.note','c.memo'
             ];
 
             $sql .= " AND (";
@@ -234,6 +243,10 @@ class ClientModel
             SELECT
                 c.*,
 
+            da.account_code AS default_account_code,
+            da.account_name AS default_account_name,
+            NULLIF(CONCAT(COALESCE(da.account_code, ''), ' - ', COALESCE(da.account_name, '')), ' - ') AS default_account_text,
+
             CASE
                 WHEN c.created_by LIKE 'SYSTEM:%' THEN c.created_by
                 WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
@@ -265,6 +278,10 @@ class ClientModel
             LEFT JOIN user_employees p3
                 ON c.deleted_by NOT LIKE 'SYSTEM:%'
             AND p3.user_id = REPLACE(c.deleted_by, 'USER:', '')
+
+            LEFT JOIN ledger_accounts da
+                ON da.id = c.default_account_id
+               AND da.deleted_at IS NULL
 
             WHERE c.id = :id
             LIMIT 1
@@ -326,9 +343,17 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
             c.phone,
             c.email,
             c.client_type,
+            c.default_account_id,
+            da.account_code AS default_account_code,
+            da.account_name AS default_account_name,
+            NULLIF(CONCAT(COALESCE(da.account_code, ''), ' - ', COALESCE(da.account_name, '')), ' - ') AS default_account_text,
             c.is_active
 
         FROM system_clients c
+
+        LEFT JOIN ledger_accounts da
+            ON da.id = c.default_account_id
+           AND da.deleted_at IS NULL
 
         WHERE c.deleted_at IS NULL
     ";
@@ -398,6 +423,7 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
             account_holder,
             bank_file,
             trade_category,
+            default_account_id,
             item_category,
             client_category, client_type, tax_type, payment_term, client_grade,
             note, memo, is_active,
@@ -416,6 +442,7 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
             :account_holder,
             :bank_file,
             :trade_category,
+            :default_account_id,
             :item_category,
             :client_category, :client_type, :tax_type, :payment_term, :client_grade,
             :note, :memo, :is_active,
@@ -461,6 +488,7 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
             'bank_file' => $data['bank_file'] ?? null,
 
             'trade_category' => $data['trade_category'] ?? null,
+            'default_account_id' => $data['default_account_id'] ?? null,
 
             'item_category' => $data['item_category'] ?? null,
 
@@ -521,6 +549,7 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
                 bank_file = :bank_file,
 
                 trade_category = :trade_category,
+                default_account_id = :default_account_id,
 
                 client_type = :client_type,
                 tax_type = :tax_type,
@@ -576,6 +605,7 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
             'bank_file' => $data['bank_file'] ?? null,
 
             'trade_category' => $data['trade_category'] ?? null,
+            'default_account_id' => $data['default_account_id'] ?? null,
 
             'client_type' => $data['client_type'] ?? null,
             'tax_type' => $data['tax_type'] ?? null,
@@ -666,16 +696,17 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
             SET
                 is_active = 0,
                 deleted_at = NOW(),
-                deleted_by = :actor,
-                updated_by = :actor
+                deleted_by = :deleted_by,
+                updated_by = :updated_by
             WHERE id = :id
         ";
 
         $stmt = $this->db->prepare($sql);
 
         $stmt->execute([
-            ':id'    => $id,
-            ':actor' => $actor
+            ':id' => $id,
+            ':deleted_by' => $actor,
+            ':updated_by' => $actor,
         ]);
 
         return $stmt->rowCount() > 0;

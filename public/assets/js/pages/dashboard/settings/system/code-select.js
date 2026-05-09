@@ -5,10 +5,11 @@ const API = {
     DETAIL: '/api/settings/system/code/detail',
     GROUPS: '/api/settings/system/code/groups',
     SAVE: '/api/settings/system/code/save',
-    DELETE: '/api/settings/system/code/delete'
+    DELETE: '/api/settings/system/code/delete',
 };
 
 const QUICK_ADD_VALUE = '__CODE_QUICK_ADD__';
+const NONE_OPTION_VALUE = '__CODE_NONE__';
 const NEW_CODE_GROUP_VALUE = '__new_code_group__';
 
 const state = {
@@ -16,34 +17,13 @@ const state = {
     fieldGroups: {},
     previousValues: {},
     codeGroups: [],
+    codeGroupNames: {},
     quickModal: null,
     activeQuick: null,
     activeOriginal: null,
     callbacks: new Set(),
-    modalCleanupBound: false
+    modalCleanupBound: false,
 };
-
-function bindCodeSelectModalCleanup() {
-    if (state.modalCleanupBound) return;
-
-    state.modalCleanupBound = true;
-
-    document.addEventListener('hide.bs.modal', (event) => {
-        closeCodeSelectsInModal(event.target);
-    }, true);
-
-    document.addEventListener('hidden.bs.modal', (event) => {
-        closeCodeSelectsInModal(event.target);
-    }, true);
-}
-
-function closeCodeSelectsInModal(modal) {
-    if (!modal?.querySelectorAll || !window.jQuery?.fn?.select2) return;
-
-    modal.querySelectorAll('select[data-code-group].select2-hidden-accessible').forEach((select) => {
-        window.jQuery(select).select2('close');
-    });
-}
 
 export function getCodeName(field, code) {
     const value = String(code ?? '').trim();
@@ -76,7 +56,7 @@ export async function initCodeSelectControls(root = document) {
     await Promise.all(selects.map((select) => createCodeSelect({
         selectId: ensureSelectId(select),
         codeGroup: select.dataset.codeGroup,
-        selectedValue: select.value
+        selectedValue: select.value,
     })));
 }
 
@@ -96,25 +76,30 @@ export async function createCodeSelect({ selectId, codeGroup, selectedValue = ''
     }
 
     bindCodeSelect(select, group);
-    await refreshCodeSelect(selectId, group, selectedValue || select.value);
+    await refreshCodeSelect(select, group, selectedValue || select.value);
 }
 
-export async function refreshCodeSelect(selectId, codeGroup, selectedValue = '') {
-    const select = typeof selectId === 'string' ? document.getElementById(selectId) : selectId;
+export async function refreshCodeSelect(selectOrId, codeGroup, selectedValue = '') {
+    const select = typeof selectOrId === 'string' ? document.getElementById(selectOrId) : selectOrId;
     const group = normalizeCodeGroup(codeGroup || select?.dataset?.codeGroup);
     if (!select || !group) return;
 
     const rows = await fetchCodeOptions(group);
     const currentValue = String(selectedValue ?? select.value ?? '').trim();
 
-    const shouldRenderEmptyOption = select.dataset.emptyOption !== 'false';
-    const emptyLabel = select.dataset.emptyLabel || '선택';
     select.innerHTML = '';
-    if (shouldRenderEmptyOption) {
+    if (select.dataset.emptyOption !== 'false') {
         const emptyOption = document.createElement('option');
         emptyOption.value = '';
-        emptyOption.textContent = emptyLabel;
+        emptyOption.textContent = select.dataset.emptyLabel || '선택';
         select.appendChild(emptyOption);
+    }
+
+    if (select.dataset.noneOptionLabel) {
+        const noneOption = document.createElement('option');
+        noneOption.value = NONE_OPTION_VALUE;
+        noneOption.textContent = select.dataset.noneOptionLabel;
+        select.appendChild(noneOption);
     }
 
     rows.forEach((row) => {
@@ -151,29 +136,56 @@ export async function openCodeQuickModal(args, legacyTargetSelectId = null) {
 
     const codeGroup = normalizeCodeGroup(params.codeGroup);
     const targetSelectId = params.targetSelectId || params.selectId || '';
-
     const select = targetSelectId ? document.getElementById(targetSelectId) : null;
 
     state.activeQuick = {
         codeGroup,
         targetSelectId,
-        select
+        select,
     };
 
     const modal = document.getElementById('codeQuickModal');
+    if (!modal) return;
+
     if (modal.parentElement !== document.body) {
         document.body.appendChild(modal);
     }
-    modal.querySelector('[name="code_group"]').value = codeGroup;
-    modal.querySelector('[name="code"]').value = '';
-    modal.querySelector('[name="code_name"]').value = '';
-    modal.querySelector('[name="note"]').value = '';
-    modal.querySelector('[name="memo"]').value = '';
-    modal.querySelector('[name="is_active"]').value = '1';
-    modal.querySelector('[data-role="message"]').textContent = '';
 
+    const groupName = await getGroupNameForCodeGroup(codeGroup);
+
+    setFormValue(modal, '[name="code_group"]', codeGroup);
+    setFormValue(modal, '[name="group_name"]', groupName);
+    setFormValue(modal, '[name="code"]', '');
+    setFormValue(modal, '[name="code_name"]', '');
+    setFormValue(modal, '[name="note"]', '');
+    setFormValue(modal, '[name="memo"]', '');
+    setFormValue(modal, '[name="is_active"]', '1');
+    setText(modal, '[data-role="message"]', '');
+
+    state.quickModal = bootstrap.Modal.getOrCreateInstance(modal, { focus: false });
     state.quickModal.show();
     setTimeout(() => modal.querySelector('[name="code"]')?.focus(), 150);
+}
+
+function bindCodeSelectModalCleanup() {
+    if (state.modalCleanupBound) return;
+    state.modalCleanupBound = true;
+
+    document.addEventListener('hide.bs.modal', (event) => {
+        closeCodeSelectsInModal(event.target);
+    }, true);
+
+    document.addEventListener('hidden.bs.modal', (event) => {
+        closeCodeSelectsInModal(event.target);
+    }, true);
+}
+
+function closeCodeSelectsInModal(modal) {
+    if (!modal?.querySelectorAll || !window.jQuery?.fn?.select2) return;
+
+    modal.querySelectorAll('select[data-code-group].select2-hidden-accessible').forEach((select) => {
+        window.jQuery(select).select2('close');
+    });
 }
 
 function ensureSelectId(select) {
@@ -196,10 +208,8 @@ function bindCodeSelect(select, codeGroup) {
     });
 
     select.addEventListener('change', () => {
-        if (handleQuickAddSelection(select, codeGroup)) {
-            return;
-        }
-
+        if (handleNoneSelection(select)) return;
+        if (handleQuickAddSelection(select, codeGroup)) return;
         state.previousValues[select.id] = select.value || '';
     });
 
@@ -208,6 +218,11 @@ function bindCodeSelect(select, codeGroup) {
             .off('select2:select.codeSelect')
             .on('select2:select.codeSelect', (event) => {
                 const selectedId = String(event.params?.data?.id ?? '');
+                if (selectedId === NONE_OPTION_VALUE) {
+                    handleNoneSelection(select, true);
+                    return;
+                }
+
                 if (selectedId === QUICK_ADD_VALUE) {
                     handleQuickAddSelection(select, codeGroup, true);
                 }
@@ -226,7 +241,7 @@ function enhanceSelect2(select) {
         placeholder: select.querySelector('option[value=""]')?.textContent || undefined,
         language: 'ko',
         minimumResultsForSearch: Infinity,
-        dropdownCssClass: 'code-select-dropdown'
+        dropdownCssClass: 'code-select-dropdown',
     };
 
     if (modalParent.length) {
@@ -240,6 +255,16 @@ function enhanceSelect2(select) {
     $select.select2(options);
 }
 
+function handleNoneSelection(select, force = false) {
+    if (!select || (!force && select.value !== NONE_OPTION_VALUE)) {
+        return false;
+    }
+
+    restoreSelectValue(select, '');
+    state.previousValues[select.id] = '';
+    return true;
+}
+
 function handleQuickAddSelection(select, codeGroup, force = false) {
     if (!select || (!force && select.value !== QUICK_ADD_VALUE)) {
         return false;
@@ -250,7 +275,6 @@ function handleQuickAddSelection(select, codeGroup, force = false) {
     }
 
     select.dataset.codeQuickAddOpening = 'true';
-
     const previousValue = state.previousValues[select.id] || '';
     restoreSelectValue(select, previousValue);
 
@@ -282,9 +306,16 @@ async function fetchCodeOptions(codeGroup) {
         .map((row) => ({
             id: String(row.id ?? '').trim(),
             code: String(row.code ?? '').trim(),
-            code_name: String(row.code_name ?? row.code ?? '').trim()
+            code_name: String(row.code_name ?? row.code ?? '').trim(),
+            group_name: String(row.group_name ?? '').trim(),
+            is_active: Number(row.is_active ?? 1),
         }))
-        .filter((row) => row.code);
+        .filter((row) => row.code && row.is_active === 1);
+
+    const groupName = state.options[group].find((row) => row.group_name)?.group_name || '';
+    if (groupName) {
+        state.codeGroupNames[group] = groupName;
+    }
 
     return state.options[group];
 }
@@ -311,6 +342,14 @@ async function fetchCodeGroups() {
             .map((row) => normalizeCodeGroup(row.code_group ?? row))
             .filter(Boolean)
             .sort();
+
+        rows.forEach((row) => {
+            const codeGroup = normalizeCodeGroup(row?.code_group ?? row);
+            const groupName = String(row?.group_name || '').trim();
+            if (codeGroup && groupName) {
+                state.codeGroupNames[codeGroup] = groupName;
+            }
+        });
     } catch (error) {
         state.codeGroups = Object.keys(state.options).sort();
     }
@@ -319,86 +358,74 @@ async function fetchCodeGroups() {
 }
 
 function ensureQuickModal() {
-    if (document.getElementById('codeQuickModal')) {
-        const modal = document.getElementById('codeQuickModal');
-        if (modal.parentElement !== document.body) {
-            document.body.appendChild(modal);
-        }
-        state.quickModal = bootstrap.Modal.getOrCreateInstance(modal, { focus: false });
-        bindQuickCodeModal(modal);
-        return;
+    let modal = document.getElementById('codeQuickModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.className = 'modal fade';
+        modal.id = 'codeQuickModal';
+        modal.tabIndex = -1;
+        modal.innerHTML = `
+            <div class="modal-dialog modal-md">
+                <div class="modal-content">
+                    <form id="codeQuickForm">
+                        <div class="modal-header">
+                            <h5 class="modal-title">기준정보 빠른 추가</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label">코드그룹</label>
+                                    <input type="text" class="form-control form-control-sm" name="code_group" readonly>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">그룹명</label>
+                                    <input type="text" class="form-control form-control-sm" name="group_name">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">사용여부</label>
+                                    <select class="form-select form-select-sm" name="is_active">
+                                        <option value="1">사용</option>
+                                        <option value="0">미사용</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">코드 <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control form-control-sm text-uppercase" name="code" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">코드명 <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control form-control-sm" name="code_name" required>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">비고</label>
+                                    <input type="text" class="form-control form-control-sm" name="note">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">메모</label>
+                                    <textarea class="form-control form-control-sm" name="memo" rows="3"></textarea>
+                                </div>
+                            </div>
+                            <div class="small text-danger mt-2" data-role="message"></div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-role="detail">상세정보</button>
+                            <button type="submit" class="btn btn-success btn-sm">저장</button>
+                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
     }
 
-    const modal = document.createElement('div');
-    modal.className = 'modal fade';
-    modal.id = 'codeQuickModal';
-    modal.tabIndex = -1;
-    modal.innerHTML = `
-        <div class="modal-dialog modal-md">
-            <div class="modal-content">
-                <form id="codeQuickForm">
-                    <div class="modal-header">
-                        <h5 class="modal-title">기준정보 빠른 추가</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="row g-2">
-                            <div class="col-md-6">
-                                <label class="form-label">코드그룹</label>
-                                <input type="text" class="form-control form-control-sm" name="code_group" readonly>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">사용여부</label>
-                                <select class="form-select form-select-sm" name="is_active">
-                                    <option value="1">사용</option>
-                                    <option value="0">미사용</option>
-                                </select>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">코드 <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control form-control-sm text-uppercase" name="code" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">코드명 <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control form-control-sm" name="code_name" required>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">비고</label>
-                                <input type="text" class="form-control form-control-sm" name="note">
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">메모</label>
-                                <textarea class="form-control form-control-sm" name="memo" rows="3"></textarea>
-                            </div>
-                        </div>
-                        <div class="small text-danger mt-2" data-role="message"></div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-outline-secondary btn-sm" data-role="detail">세부정보</button>
-                        <button type="submit" class="btn btn-success btn-sm">저장</button>
-                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-    state.quickModal = new bootstrap.Modal(modal, { focus: false });
+    if (modal.parentElement !== document.body) {
+        document.body.appendChild(modal);
+    }
 
-    modal.querySelector('[name="code"]').addEventListener('input', function () {
-        this.value = normalizeCode(this.value);
-    });
-
-    modal.querySelector('[data-role="detail"]').addEventListener('click', async () => {
-        if (!state.activeQuick?.codeGroup) return;
-        state.quickModal.hide();
-        await openOriginalCodeModal({
-            codeGroup: state.activeQuick.codeGroup,
-            targetSelectId: state.activeQuick.targetSelectId
-        });
-    });
-
-    modal.querySelector('form').addEventListener('submit', saveQuickCode);
+    state.quickModal = bootstrap.Modal.getOrCreateInstance(modal, { focus: false });
+    bindQuickCodeModal(modal);
 }
 
 function bindQuickCodeModal(modal) {
@@ -413,7 +440,8 @@ function bindQuickCodeModal(modal) {
         state.quickModal.hide();
         await openOriginalCodeModal({
             codeGroup: state.activeQuick.codeGroup,
-            targetSelectId: state.activeQuick.targetSelectId
+            targetSelectId: state.activeQuick.targetSelectId,
+            createNew: true,
         });
     });
 
@@ -423,10 +451,11 @@ function bindQuickCodeModal(modal) {
 
 function bindOriginalCodeModal() {
     const form = document.getElementById('codeForm');
-    if (!form || form.dataset.codeSelectBound === 'true') return;
+    const modalEl = document.getElementById('codeModal');
+    if (!form || !modalEl || form.dataset.codeSelectBound === 'true') return;
 
     form.dataset.codeSelectBound = 'true';
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('codeModal'), { focus: false });
+    bootstrap.Modal.getOrCreateInstance(modalEl, { focus: false });
 
     form.addEventListener('submit', saveOriginalCode);
     document.getElementById('btnDeleteCode')?.addEventListener('click', deleteOriginalCode);
@@ -436,10 +465,13 @@ function bindOriginalCodeModal() {
     document.getElementById('modal_code_group')?.addEventListener('change', function () {
         if (this.value === NEW_CODE_GROUP_VALUE) {
             showOriginalGroupInput('');
+            return;
         }
+        syncOriginalGroupName(this.value);
     });
     document.getElementById('modal_code_group_input')?.addEventListener('input', function () {
         this.value = normalizeCodeGroup(this.value);
+        syncOriginalGroupName(this.value);
     });
     document.getElementById('btnBackCodeGroupSelect')?.addEventListener('click', () => {
         showOriginalGroupSelect(state.activeOriginal?.codeGroup || '');
@@ -455,6 +487,12 @@ async function saveQuickCode(event) {
     const formData = new FormData(form);
     formData.set('code', normalizeCode(formData.get('code')));
     formData.set('code_group', normalizeCodeGroup(formData.get('code_group')));
+    formData.set('group_name', String(formData.get('group_name') || '').trim());
+
+    if (!formData.get('group_name')) {
+        message.textContent = '그룹명을 확인할 수 없습니다.';
+        return;
+    }
 
     submit.disabled = true;
     message.textContent = '';
@@ -470,12 +508,14 @@ async function saveQuickCode(event) {
         await refreshActiveSelect(state.activeQuick, code);
         state.quickModal.hide();
         window.AppCore?.notify?.('success', '기준정보가 추가되었습니다.');
+    } catch (error) {
+        message.textContent = error.message || '저장 중 오류가 발생했습니다.';
     } finally {
         submit.disabled = false;
     }
 }
 
-async function openOriginalCodeModal({ codeGroup, targetSelectId }) {
+async function openOriginalCodeModal({ codeGroup, targetSelectId, createNew = false }) {
     bindOriginalCodeModal();
 
     const modalEl = document.getElementById('codeModal');
@@ -489,7 +529,7 @@ async function openOriginalCodeModal({ codeGroup, targetSelectId }) {
     }
 
     const select = targetSelectId ? document.getElementById(targetSelectId) : null;
-    const selectedCode = select?.value || '';
+    const selectedCode = createNew ? '' : (select?.value || '');
     const group = normalizeCodeGroup(codeGroup);
     const rows = await fetchCodeRows(group);
     const currentRow = rows.find((row) => String(row.code || '') === selectedCode);
@@ -499,18 +539,18 @@ async function openOriginalCodeModal({ codeGroup, targetSelectId }) {
         codeGroup: group,
         targetSelectId,
         select,
-        selectedCode
+        selectedCode,
     };
 
     await renderOriginalGroupOptions(group);
 
     if (detail) {
         fillOriginalCodeForm(detail);
-        document.getElementById('codeModalLabel').textContent = '기준정보 수정';
+        setText(document, '#codeModalLabel', '기준정보 수정');
         document.getElementById('btnDeleteCode').style.display = '';
     } else {
         resetOriginalCodeForm(group);
-        document.getElementById('codeModalLabel').textContent = '기준정보 등록';
+        setText(document, '#codeModalLabel', '기준정보 등록');
         document.getElementById('btnDeleteCode').style.display = 'none';
     }
 
@@ -528,7 +568,7 @@ async function renderOriginalGroupOptions(selectedGroup = '') {
     merged.forEach((group) => {
         const option = document.createElement('option');
         option.value = group;
-        option.textContent = group;
+        option.textContent = state.codeGroupNames[group] ? `${state.codeGroupNames[group]} (${group})` : group;
         select.appendChild(option);
     });
 
@@ -539,7 +579,7 @@ async function renderOriginalGroupOptions(selectedGroup = '') {
 
     const newOption = document.createElement('option');
     newOption.value = NEW_CODE_GROUP_VALUE;
-    newOption.textContent = '+ 신규코드생성';
+    newOption.textContent = '+ 신규 코드그룹';
     select.appendChild(newOption);
 
     showOriginalGroupSelect(selectedGroup);
@@ -551,6 +591,7 @@ function resetOriginalCodeForm(codeGroup = '') {
 
     setValue('modal_code_id', '');
     setValue('modal_code_code', '');
+    setValue('modal_code_group_name', getCachedGroupName(codeGroup));
     setValue('modal_code_code_name', '');
     setValue('modal_code_note', '');
     setValue('modal_code_memo', '');
@@ -562,8 +603,13 @@ function resetOriginalCodeForm(codeGroup = '') {
 function fillOriginalCodeForm(data = {}) {
     resetOriginalCodeForm(data.code_group || state.activeOriginal?.codeGroup || '');
 
+    if (data.code_group && data.group_name) {
+        state.codeGroupNames[normalizeCodeGroup(data.code_group)] = String(data.group_name).trim();
+    }
+
     setValue('modal_code_id', data.id || '');
     setValue('modal_code_code', data.code || '');
+    setValue('modal_code_group_name', data.group_name || getCachedGroupName(data.code_group || state.activeOriginal?.codeGroup || ''));
     setValue('modal_code_code_name', data.code_name || '');
     setValue('modal_code_note', data.note || '');
     setValue('modal_code_memo', data.memo || '');
@@ -583,6 +629,7 @@ function showOriginalGroupSelect(value = '') {
         select.value = normalizeCodeGroup(value);
     }
     if (input) input.value = '';
+    syncOriginalGroupName(value);
 }
 
 function showOriginalGroupInput(value = '') {
@@ -596,6 +643,36 @@ function showOriginalGroupInput(value = '') {
         input.value = normalizeCodeGroup(value);
         input.focus();
     }
+    syncOriginalGroupName(value);
+}
+
+function getCachedGroupName(codeGroup) {
+    return state.codeGroupNames[normalizeCodeGroup(codeGroup)] || '';
+}
+
+async function getGroupNameForCodeGroup(codeGroup) {
+    const group = normalizeCodeGroup(codeGroup);
+    if (!group) return '';
+
+    if (state.codeGroupNames[group]) {
+        return state.codeGroupNames[group];
+    }
+
+    const rows = await fetchCodeRows(group);
+    const groupName = String(rows.find((row) => row.group_name)?.group_name || '').trim();
+    if (groupName) {
+        state.codeGroupNames[group] = groupName;
+    }
+
+    return groupName;
+}
+
+function syncOriginalGroupName(codeGroup) {
+    const input = document.getElementById('modal_code_group_name');
+    if (!input) return;
+
+    const groupName = getCachedGroupName(codeGroup);
+    input.value = groupName;
 }
 
 function getOriginalCodeGroupValue() {
@@ -614,12 +691,13 @@ async function saveOriginalCode(event) {
     const submit = form.querySelector('[type="submit"]');
     const formData = new FormData(form);
     const codeGroup = normalizeCodeGroup(getOriginalCodeGroupValue());
+    const groupName = String(formData.get('group_name') || '').trim();
     const code = normalizeCode(formData.get('code'));
     const codeName = String(formData.get('code_name') || '').trim();
     const extraData = String(formData.get('extra_data') || '').trim();
 
-    if (!codeGroup || !code || !codeName) {
-        window.AppCore?.notify?.('warning', '코드그룹, 코드, 코드명은 필수입니다.');
+    if (!codeGroup || !groupName || !code || !codeName) {
+        window.AppCore?.notify?.('warning', '코드그룹, 그룹명, 코드, 코드명은 필수입니다.');
         return;
     }
 
@@ -633,6 +711,7 @@ async function saveOriginalCode(event) {
     }
 
     formData.set('code_group', codeGroup);
+    formData.set('group_name', groupName);
     formData.set('code', code);
 
     if (submit) submit.disabled = true;
@@ -675,23 +754,41 @@ async function refreshActiveSelect(active, selectedCode = '') {
     const codeGroup = normalizeCodeGroup(active?.codeGroup || select?.dataset?.codeGroup);
     if (!select || !codeGroup) return;
 
-    await refreshCodeSelect(select.id, codeGroup, selectedCode);
+    await refreshCodeSelect(select, codeGroup, selectedCode);
     select.value = selectedCode;
     state.previousValues[select.id] = selectedCode;
     select.dispatchEvent(new Event('change', { bubbles: true }));
+
+    if (window.jQuery?.fn?.select2 && window.jQuery(select).hasClass('select2-hidden-accessible')) {
+        window.jQuery(select).val(selectedCode).trigger('change.select2');
+    }
 }
 
 async function postForm(url, formData) {
     const response = await fetch(url, {
         method: 'POST',
-        body: formData
+        body: formData,
     });
-    return response.json();
+    const json = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(json.message || `요청에 실패했습니다. (${response.status})`);
+    }
+    return json;
 }
 
 function setValue(id, value) {
     const el = document.getElementById(id);
     if (el) el.value = value ?? '';
+}
+
+function setFormValue(root, selector, value) {
+    const el = root.querySelector(selector);
+    if (el) el.value = value ?? '';
+}
+
+function setText(root, selector, value) {
+    const el = root.querySelector(selector);
+    if (el) el.textContent = value ?? '';
 }
 
 function notifyOptionsLoaded() {

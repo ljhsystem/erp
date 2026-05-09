@@ -29,7 +29,9 @@ window.AdminPicker = AdminPicker;
     const voucherNoDisplayEl = document.getElementById('voucher_no_display');
     const voucherDateEl = document.getElementById('voucher_date');
     const voucherSourceTypeEl = document.getElementById('voucher_source_type');
+    const voucherImportTypeEl = document.getElementById('voucher_import_type');
     const voucherSourceIdEl = document.getElementById('voucher_source_id');
+    const voucherTransactionIdEl = document.getElementById('voucher_transaction_id');
     const voucherSourceTransactionInfoEl = document.getElementById('voucher_source_transaction_info');
     const summaryTextEl = document.getElementById('voucher_summary_text');
     const summarySuggestionsEl = document.getElementById('voucher_summary_suggestions');
@@ -114,6 +116,7 @@ window.AdminPicker = AdminPicker;
         BANK: '은행',
         MANUAL: '수기입력',
         TRANSACTION: '거래',
+        SYSTEM: '시스템',
     };
 
     const TYPE_LABELS = {
@@ -158,6 +161,7 @@ window.AdminPicker = AdminPicker;
     let summaryAutocompleteItems = [];
     let summaryAutocompleteActiveIndex = -1;
     let summaryAutocompleteAbort = null;
+    let importTypeRows = [];
 
     function escapeHtml(value) {
         return String(value ?? '')
@@ -552,6 +556,149 @@ window.AdminPicker = AdminPicker;
         return SOURCE_TYPE_LABELS[key] || value || '-';
     }
 
+    function importTypeLabel(value) {
+        const labels = {
+            TAX_INVOICE: '세금계산서',
+            CASH_RECEIPT: '현금영수증',
+            CARD_APPROVAL: '카드',
+            BANK_TRANSACTION: '입출금',
+            SHOPPING_ORDER: '주문',
+            IMPORT_INVOICE: '수입인보이스',
+        };
+        const key = String(value || '').toUpperCase();
+        return labels[key] || value || '-';
+    }
+
+    function importSourceLabel(value) {
+        const key = String(value || '').toUpperCase();
+        if (['TAX_INVOICE', 'CASH_RECEIPT'].includes(key)) return '홈택스';
+        if (key === 'CARD_APPROVAL') return '카드사';
+        if (key === 'BANK_TRANSACTION') return '은행';
+        if (key === 'SHOPPING_ORDER') return '쇼핑몰';
+        if (key === 'IMPORT_INVOICE') return '수입/무역';
+        return value ? translateSourceType(value) : '-';
+    }
+
+    function sourceTypeFromImportType(value, fallback = 'MANUAL') {
+        const key = String(value || '').toUpperCase();
+        const normalizedFallback = String(fallback || 'MANUAL').toUpperCase();
+        if (['TAX_INVOICE', 'CASH_RECEIPT'].includes(key)) return 'TAX';
+        if (key === 'CARD_APPROVAL') return 'CARD';
+        if (key === 'BANK_TRANSACTION') return 'BANK';
+        if (key === 'SHOPPING_ORDER') return 'SHOPPING';
+        if (key === 'IMPORT_INVOICE') return 'TRADE';
+        return normalizedFallback;
+    }
+
+    function normalizeSourceTypeForImport(value) {
+        const source = String(value || '').toUpperCase();
+        if (['HOMETAX', 'TAX'].includes(source)) return 'TAX';
+        if (['CARD_COMPANY', 'CARD'].includes(source)) return 'CARD';
+        if (['BANK', 'BANK_ACCOUNT'].includes(source)) return 'BANK';
+        if (['SHOPPING', 'SHOPPING_MALL'].includes(source)) return 'SHOPPING';
+        if (['TRADE', 'TRADE_IMPORT', 'IMPORT'].includes(source)) return 'TRADE';
+        if (['MANUAL', 'SYSTEM'].includes(source)) return source;
+        return source;
+    }
+
+    function parseImportTypeSource(row = {}) {
+        const candidates = [
+            row.source_type,
+            row.parent_code,
+            row.parent,
+            row.parent_code_value,
+            row.extra_json,
+            row.extra,
+            row.metadata,
+            row.meta_json,
+            row.memo,
+            row.note,
+        ];
+
+        for (const candidate of candidates) {
+            if (!candidate) continue;
+            if (typeof candidate === 'object') {
+                const value = candidate.source_type || candidate.source || candidate.parent_source_type;
+                if (value) return normalizeSourceTypeForImport(value);
+                continue;
+            }
+
+            const text = String(candidate).trim();
+            if (!text) continue;
+            if (text.startsWith('{')) {
+                try {
+                    const decoded = JSON.parse(text);
+                    const value = decoded?.source_type || decoded?.source || decoded?.parent_source_type;
+                    if (value) return normalizeSourceTypeForImport(value);
+                } catch (error) {
+                    // Ignore free-text notes.
+                }
+            }
+        }
+
+        return '';
+    }
+
+    function fallbackImportSourceType(importType) {
+        const key = String(importType || '').toUpperCase();
+        if (['TAX_INVOICE', 'CASH_RECEIPT'].includes(key)) return 'TAX';
+        if (key === 'CARD_APPROVAL') return 'CARD';
+        if (key === 'BANK_TRANSACTION') return 'BANK';
+        if (key === 'SHOPPING_ORDER') return 'SHOPPING';
+        if (key === 'IMPORT_INVOICE') return 'TRADE';
+        return '';
+    }
+
+    function importTypeSourceType(row = {}) {
+        return parseImportTypeSource(row) || fallbackImportSourceType(row.code || row.value || row.import_type);
+    }
+
+    function importTypeMatchesSource(rowOrCode, sourceType) {
+        const key = typeof rowOrCode === 'string'
+            ? String(rowOrCode || '').toUpperCase()
+            : String(rowOrCode?.code || rowOrCode?.value || rowOrCode?.import_type || '').toUpperCase();
+        const source = String(sourceType || '').toUpperCase();
+        if (!key || !source) return true;
+        if (key.startsWith('__')) return true;
+        const normalizedSource = normalizeSourceTypeForImport(source);
+        if (normalizedSource === 'TRANSACTION') {
+            return true;
+        }
+        if (['MANUAL', 'SYSTEM'].includes(normalizedSource)) {
+            return false;
+        }
+        const childSource = typeof rowOrCode === 'string'
+            ? fallbackImportSourceType(key)
+            : importTypeSourceType(rowOrCode);
+        return childSource === normalizedSource;
+    }
+
+    function initSourceTypeSelect2() {
+        if (!voucherSourceTypeEl || !window.jQuery?.fn?.select2) {
+            return;
+        }
+
+        const $select = window.jQuery(voucherSourceTypeEl);
+        if (!$select.hasClass('select2-hidden-accessible')) {
+            $select.select2({
+                dropdownParent: window.jQuery(modalEl),
+                width: '100%',
+                minimumResultsForSearch: Infinity,
+            });
+        }
+    }
+
+    function renderImportOrigin(row = {}) {
+        const importType = String(row.import_type || '').trim();
+        if (importType !== '') {
+            return `${importSourceLabel(importType)} / ${importTypeLabel(importType)}`;
+        }
+        if (String(row.source_type || '').toUpperCase() === 'TRANSACTION') {
+            return '-';
+        }
+        return translateSourceType(row.source_type);
+    }
+
     function translateLinkedStatus(value) {
         return LINKED_STATUS_LABELS[value] || value || '미연결';
     }
@@ -570,6 +717,18 @@ window.AdminPicker = AdminPicker;
         }
 
         return '<span class="journal-link-badge journal-link-linked">✔ 연결됨</span>';
+    }
+
+    function renderJournalStatusState(value) {
+        const key = String(value || 'EMPTY').toUpperCase();
+        const map = {
+            EMPTY: ['분개없음', 'journal-status-empty'],
+            UNBALANCED: ['차대불일치', 'journal-status-unbalanced'],
+            READY: ['분개완료', 'journal-status-ready'],
+            POSTED: ['승인완료', 'journal-status-posted'],
+        };
+        const [label, className] = map[key] || [value || '-', 'journal-status-empty'];
+        return `<span class="journal-link-badge ${className}">${escapeHtml(label)}</span>`;
     }
 
     function isSystemMemo(value) {
@@ -608,31 +767,55 @@ window.AdminPicker = AdminPicker;
         return ['원본 거래:', sortNo, date, description].filter(Boolean).join(' ');
     }
 
+    function buildLinkedTransactionSummary(row = null) {
+        if (!row) {
+            return '연결거래: 없음';
+        }
+
+        const sortNo = row.sort_no ? `TX-${row.sort_no}` : (row.transaction_no || row.id || '');
+        const date = row.transaction_date || '';
+        const description = row.description || row.client_name || '';
+
+        return ['연결거래:', sortNo, date, description].filter(Boolean).join(' ');
+    }
+
+    function buildOriginalSourceSummary(voucher = {}) {
+        const transaction = voucher.source_transaction || voucher.linked_transaction || null;
+        const importType = String(voucher.import_type || '').trim();
+        const seed = voucher.seed_source || transaction?.seed_source || null;
+
+        if (seed) {
+            const seedNo = seed.row_no || seed.id || '';
+            return seedNo ? `원본자료: Seed #${seedNo}` : '원본자료: Seed';
+        }
+
+        if (false) {
+            if (sourceType === 'TRANSACTION') {
+                return buildSourceTransactionSummary(transaction || null, sourceId);
+            }
+            return `원본자료: ${sourceId}`;
+        }
+
+        if (transaction && importType !== '') {
+            return `원본자료: Seed ${importTypeLabel(importType)}`;
+        }
+
+        return '원본자료: 없음';
+    }
+
     function setSourceTransactionInfo(voucher = {}) {
         if (!voucherSourceTransactionInfoEl) {
             return;
         }
 
-        const sourceType = String(voucher.source_type || '').toUpperCase();
-        const sourceId = String(voucher.source_id || '').trim();
-        const text = sourceType === 'TRANSACTION'
-            ? buildSourceTransactionSummary(voucher.source_transaction || null, sourceId)
-            : '';
+        const text = buildOriginalSourceSummary(voucher);
 
         voucherSourceTransactionInfoEl.textContent = text;
-        voucherSourceTransactionInfoEl.classList.toggle('d-none', text === '');
+        voucherSourceTransactionInfoEl.classList.remove('d-none');
     }
 
     function buildTransactionSummary(row = null) {
-        if (!row) {
-            return '연결된 거래가 없습니다.';
-        }
-
-        const date = row.transaction_date || '-';
-        const client = row.client_name || row.client_id || '-';
-        const amount = formatAmountValue(row.total_amount || 0) || '0';
-
-        return `${date} / ${client} / ${amount}`;
+        return buildLinkedTransactionSummary(row);
     }
 
     function setLinkedTransaction(row = null) {
@@ -641,10 +824,25 @@ window.AdminPicker = AdminPicker;
         }
 
         linkedTransactionIdEl.value = row?.id || '';
+        if (voucherTransactionIdEl) {
+            voucherTransactionIdEl.value = row?.id || '';
+        }
         linkedTransactionSummaryEl.textContent = buildTransactionSummary(row);
         linkedTransactionSummaryEl.title = row
             ? `${buildTransactionSummary(row)}${row.item_summary ? ` / ${row.item_summary}` : ''}`
             : '';
+
+        if (row?.id) {
+            const importType = row.import_type || '';
+            setSourceTransactionInfo({
+                import_type: importType,
+                source_transaction: row,
+                linked_transaction: row,
+                seed_source: row.seed_source || null,
+            });
+        } else {
+            setSourceTransactionInfo({});
+        }
     }
 
     function setModalTitle(mode = 'create') {
@@ -679,9 +877,16 @@ window.AdminPicker = AdminPicker;
         if (!canEditHeader) {
             closeSummaryAutocomplete();
         }
-        voucherSourceTypeEl.disabled = !isDraft;
+        voucherSourceTypeEl.disabled = !canLinkTransaction;
         if (voucherSourceTypeEl && window.jQuery?.fn?.select2) {
             window.jQuery(voucherSourceTypeEl).trigger('change.select2');
+        }
+        if (voucherImportTypeEl) {
+            voucherImportTypeEl.disabled = !canLinkTransaction;
+            if (window.jQuery?.fn?.select2) {
+                window.jQuery(voucherImportTypeEl).trigger('change.select2');
+            }
+            void refreshImportTypeOptions(voucherImportTypeEl.value || '', { autoSelectSingle: false });
         }
 
         addLineBtn.disabled = !canEditLines;
@@ -769,16 +974,22 @@ window.AdminPicker = AdminPicker;
         accountPickerByCode.clear();
 
         const mappedRows = rows
+            .filter((row) => (
+                Number(row.is_active ?? 1) === 1
+                && String(row.is_postable ?? (Number(row.is_posting ?? 1) === 1 ? 'Y' : 'N')).toUpperCase() === 'Y'
+            ))
             .map((row) => {
                 const accountId = String(row.id ?? row.account_id ?? row.value ?? '').trim();
                 const accountCode = String(row.account_code ?? '').trim();
                 const accountName = String(row.account_name ?? row.name ?? '').trim();
+                const accountPath = String(row.full_path ?? '').trim();
 
                 return {
                     id: accountId,
-                    text: accountCode && accountName ? `${accountCode} - ${accountName}` : accountCode,
+                    text: accountPath ? `[${accountPath}]` : (accountCode && accountName ? `${accountCode} - ${accountName}` : accountCode),
                     account_code: accountCode,
                     account_name: accountName,
+                    full_path: accountPath,
                 };
             })
             .filter((item) => item.id !== '');
@@ -1302,8 +1513,8 @@ window.AdminPicker = AdminPicker;
         setStatusFlow('draft');
         setRejectReason('draft', '');
         setVoucherSource('MANUAL', '');
-        setSourceTransactionInfo({});
         setLinkedTransaction(null);
+        setSourceTransactionInfo({});
         lineBody.innerHTML = emptyLineRow();
         if (paymentBody) {
             paymentBody.innerHTML = emptyPaymentRow();
@@ -1328,8 +1539,107 @@ window.AdminPicker = AdminPicker;
         }
     }
 
-    function setVoucherSource(sourceType = 'MANUAL', sourceId = '') {
-        const normalizedType = String(sourceType || 'MANUAL').trim().toUpperCase() || 'MANUAL';
+    async function loadImportTypeRows() {
+        if (importTypeRows.length > 0) {
+            return importTypeRows;
+        }
+
+        try {
+            const rows = await fetchJson('/api/settings/system/code/list?code_group=IMPORT_TYPE');
+            importTypeRows = Array.isArray(rows) ? rows : (Array.isArray(rows?.data) ? rows.data : []);
+        } catch (error) {
+            console.error('[ledger-journal] import type options failed', error);
+            importTypeRows = [];
+        }
+
+        return importTypeRows;
+    }
+
+    function rebuildImportTypeOptions(selectedValue = '', { autoSelectSingle = true } = {}) {
+        if (!voucherImportTypeEl) {
+            return;
+        }
+
+        const sourceType = String(voucherSourceTypeEl?.value || 'MANUAL').toUpperCase();
+        const rows = importTypeRows.filter((row) => importTypeMatchesSource(row, sourceType));
+        const sourceLocked = Boolean(voucherSourceTypeEl?.disabled);
+
+        voucherImportTypeEl.innerHTML = '';
+        const emptyOption = document.createElement('option');
+        emptyOption.value = '';
+        emptyOption.textContent = voucherImportTypeEl.dataset.emptyLabel || '선택';
+        voucherImportTypeEl.appendChild(emptyOption);
+
+        rows.forEach((row) => {
+            const option = document.createElement('option');
+            option.value = row.code || row.value || '';
+            option.textContent = row.code_name || row.name || row.label || row.code || '';
+            voucherImportTypeEl.appendChild(option);
+        });
+
+        if (rows.length > 0) {
+            const separator = document.createElement('option');
+            separator.disabled = true;
+            separator.textContent = '──────────';
+            voucherImportTypeEl.appendChild(separator);
+        }
+
+        const addOption = document.createElement('option');
+        addOption.value = '__CODE_QUICK_ADD__';
+        addOption.textContent = '+ 기준추가';
+        voucherImportTypeEl.appendChild(addOption);
+
+        const normalizedSelected = String(selectedValue || '').toUpperCase();
+        if (normalizedSelected && rows.some((row) => String(row.code || '').toUpperCase() === normalizedSelected)) {
+            voucherImportTypeEl.value = normalizedSelected;
+        } else if (autoSelectSingle && rows.length === 1) {
+            voucherImportTypeEl.value = rows[0].code || '';
+        } else {
+            voucherImportTypeEl.value = '';
+        }
+
+        voucherImportTypeEl.disabled = sourceLocked || rows.length === 0;
+
+        if (window.jQuery?.fn?.select2) {
+            const $select = window.jQuery(voucherImportTypeEl);
+            if ($select.hasClass('select2-hidden-accessible')) {
+                $select.select2('destroy');
+            }
+            $select.select2({
+                dropdownParent: window.jQuery(modalEl),
+                width: '100%',
+            });
+            $select.trigger('change.select2');
+        }
+    }
+
+    async function refreshImportTypeOptions(selectedValue = '', options = {}) {
+        await loadImportTypeRows();
+        rebuildImportTypeOptions(selectedValue, options);
+    }
+
+    function setVoucherImportType(importType = '') {
+        const normalizedImportType = String(importType || '').trim().toUpperCase();
+        if (!voucherImportTypeEl) {
+            return;
+        }
+
+        if (normalizedImportType && !importTypeRows.some((row) => String(row.code || '').toUpperCase() === normalizedImportType)) {
+            const option = document.createElement('option');
+            option.value = normalizedImportType;
+            option.textContent = importTypeLabel(normalizedImportType);
+            voucherImportTypeEl.appendChild(option);
+        }
+
+        void refreshImportTypeOptions(normalizedImportType, { autoSelectSingle: false });
+    }
+
+    function setVoucherSource(sourceType = 'MANUAL', sourceId = '', importType = '') {
+        const normalizedImportType = String(importType || '').trim().toUpperCase();
+        const requestedType = String(sourceType || 'MANUAL').toUpperCase();
+        const normalizedType = requestedType === 'TRANSACTION'
+            ? 'TRANSACTION'
+            : (sourceTypeFromImportType(normalizedImportType, requestedType) || 'MANUAL');
         const normalizedId = String(sourceId || '').trim();
 
         if (voucherSourceTypeEl) {
@@ -1342,6 +1652,7 @@ window.AdminPicker = AdminPicker;
         if (voucherSourceIdEl) {
             voucherSourceIdEl.value = normalizedId;
         }
+        setVoucherImportType(normalizedImportType);
     }
 
     function collectLines() {
@@ -1482,10 +1793,10 @@ window.AdminPicker = AdminPicker;
             .filter((payment) => payment.payment_type || payment.payment_id || Number(payment.amount) > 0);
     }
 
-    function validateBeforeSave() {
+    function validateBeforeSave({ requireJournalReady = false } = {}) {
         const lines = collectLines();
 
-        if (lines.length === 0) {
+        if (requireJournalReady && lines.length === 0) {
             notify('warning', '분개 라인을 1개 이상 입력해주세요.');
             return false;
         }
@@ -1546,7 +1857,7 @@ window.AdminPicker = AdminPicker;
             creditTotal += Number.isFinite(credit) ? credit : 0;
         }
 
-        if (debitTotal !== creditTotal) {
+        if (requireJournalReady && debitTotal !== creditTotal) {
             notify('warning', '차변 합계와 대변 합계가 일치해야 합니다.');
             return false;
         }
@@ -1633,11 +1944,23 @@ window.AdminPicker = AdminPicker;
                 },
             },
             {
-                data: 'source_type',
+                data: 'journal_status',
+                title: '분개상태',
+                className: 'text-center',
+                defaultContent: 'EMPTY',
+                render(data, type) {
+                    if (type === 'sort' || type === 'type') {
+                        return String(data || 'EMPTY').toUpperCase();
+                    }
+                    return renderJournalStatusState(data);
+                },
+            },
+            {
+                data: null,
                 title: '자료출처',
                 defaultContent: '',
-                render(data) {
-                    return escapeHtml(translateSourceType(data));
+                render(_data, _type, row) {
+                    return escapeHtml(renderImportOrigin(row));
                 },
             },
             {
@@ -1666,6 +1989,19 @@ window.AdminPicker = AdminPicker;
                 defaultContent: 0,
                 render(data) {
                     return escapeHtml(formatAmountValue(data || 0) || '0');
+                },
+            },
+            {
+                data: null,
+                title: '차액',
+                className: 'text-end',
+                defaultContent: 0,
+                render(_data, type, row) {
+                    const diff = Number(row.debit_total || 0) - Number(row.credit_total || 0);
+                    if (type === 'sort' || type === 'type') {
+                        return diff;
+                    }
+                    return escapeHtml(formatAmountValue(diff) || '0');
                 },
             },
             {
@@ -1989,12 +2325,14 @@ window.AdminPicker = AdminPicker;
             voucherStatusEl.value = data.status || 'draft';
             setStatusFlow(data.status || 'draft', data);
             setRejectReason(data.status || 'draft', data.reject_reason || '');
-            setVoucherSource(data.source_type || 'MANUAL', data.source_id || '');
+            if (voucherTransactionIdEl) {
+                voucherTransactionIdEl.value = data.transaction_id || '';
+            }
             document.getElementById('voucher_summary_text').value = data.summary_text || '';
             document.getElementById('voucher_note').value = data.note || '';
             document.getElementById('voucher_memo').value = displayMemo(data.memo);
             setSourceTransactionInfo(data);
-            setLinkedTransaction(data.linked_transaction || null);
+            setLinkedTransaction(data.linked_transaction || data.source_transaction || null);
 
             lineBody.innerHTML = emptyLineRow();
             if (Array.isArray(data.lines) && data.lines.length > 0) {
@@ -2035,6 +2373,7 @@ window.AdminPicker = AdminPicker;
         formData.set('lines', JSON.stringify(collectLines()));
         formData.set('payments', JSON.stringify(collectPayments()));
         formData.set('linked_transaction_id', linkedTransactionIdEl?.value || '');
+        formData.set('transaction_id', voucherTransactionIdEl?.value || linkedTransactionIdEl?.value || '');
 
         const json = await fetchJson(API.save, {
             method: 'POST',
@@ -2067,7 +2406,7 @@ window.AdminPicker = AdminPicker;
         try {
             calculateTotals();
 
-            if (!validateBeforeSave()) {
+            if (!validateBeforeSave({ requireJournalReady: true })) {
                 return;
             }
 
@@ -2119,6 +2458,7 @@ window.AdminPicker = AdminPicker;
         const formData = new FormData();
         formData.append('id', voucherId);
         formData.append('linked_transaction_id', linkedTransactionIdEl?.value || '');
+        formData.append('transaction_id', voucherTransactionIdEl?.value || linkedTransactionIdEl?.value || '');
 
         const json = await fetchJson(API.linkTransaction, {
             method: 'POST',
@@ -2254,6 +2594,26 @@ window.AdminPicker = AdminPicker;
 
         voucherDateEl.addEventListener('input', () => {
             voucherDateEl.value = formatDateInputValue(voucherDateEl.value);
+        });
+
+        voucherSourceTypeEl?.addEventListener('change', () => {
+            void refreshImportTypeOptions('', { autoSelectSingle: true });
+        });
+
+        voucherImportTypeEl?.addEventListener('change', () => {
+            const importType = voucherImportTypeEl.value || '';
+            if (String(importType).startsWith('__')) {
+                return;
+            }
+            if (importType && voucherSourceTypeEl && String(voucherSourceTypeEl.value || '').toUpperCase() !== 'TRANSACTION') {
+                const sourceType = sourceTypeFromImportType(importType, voucherSourceTypeEl.value || 'MANUAL');
+                ensureSourceTypeOption(sourceType);
+                voucherSourceTypeEl.value = sourceType;
+                if (window.jQuery?.fn?.select2) {
+                    window.jQuery(voucherSourceTypeEl).val(sourceType).trigger('change.select2');
+                }
+                void refreshImportTypeOptions(importType, { autoSelectSingle: false });
+            }
         });
 
         summaryTextEl?.addEventListener('input', () => {
@@ -2462,6 +2822,9 @@ window.AdminPicker = AdminPicker;
 
         clearTransactionLinkBtn?.addEventListener('click', () => {
             setLinkedTransaction(null);
+            if (form.querySelector('[name="id"]')?.value) {
+                void saveTransactionLinkOnly();
+            }
         });
 
         searchTransactionBtn?.addEventListener('click', () => {
@@ -2490,6 +2853,9 @@ window.AdminPicker = AdminPicker;
 
             setLinkedTransaction(row);
             transactionModal?.hide();
+            if (form.querySelector('[name="id"]')?.value) {
+                void saveTransactionLinkOnly();
+            }
         });
     }
 
@@ -2536,8 +2902,13 @@ window.AdminPicker = AdminPicker;
 
     async function boot() {
         await initCodeSelectControls(modalEl);
+        initSourceTypeSelect2();
+        await loadImportTypeRows();
+        rebuildImportTypeOptions('', { autoSelectSingle: false });
         basicInfoBridge.bindDateInputs(modalEl);
         onCodeOptionsLoaded(() => {
+            importTypeRows = [];
+            void refreshImportTypeOptions(voucherImportTypeEl?.value || '', { autoSelectSingle: false });
             journalTable?.rows().invalidate('data').draw(false);
         });
         initJournalTable();

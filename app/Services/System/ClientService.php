@@ -1195,6 +1195,7 @@ class ClientService
             'account_number',
             'account_holder',
             'trade_category',
+            'default_account_id',
             'item_category',
             'client_category',
             'client_type',

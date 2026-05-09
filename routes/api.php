@@ -721,6 +721,16 @@ $router->get('/api/settings/base-info/project/search-picker', 'ProjectController
     'log'         => false,
 ]);
 
+$router->get('/api/settings/base-info/project/distinct-values', 'ProjectController@apiDistinctValues', [
+    'key'         => 'api.settings.base-info.project.distinct-values',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
 $router->post('/api/settings/base-info/project/save', 'ProjectController@apiSave', [
     'key'         => 'api.settings.base-info.project.save',
     'name' => 'route',
@@ -1948,6 +1958,76 @@ $router->post('/api/import/format/delete', 'ImportController@apiFormatDelete', [
     'log' => true,
 ]);
 
+$router->get('/api/import/formats/trash', 'ImportController@apiFormatTrashList', [
+    'key' => 'api.import.formats.trash',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
+]);
+
+$router->post('/api/import/formats/restore', 'ImportController@apiFormatRestore', [
+    'key' => 'api.import.formats.restore',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
+$router->post('/api/import/formats/restore-bulk', 'ImportController@apiFormatRestore', [
+    'key' => 'api.import.formats.restore_bulk',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
+$router->post('/api/import/formats/restore-all', 'ImportController@apiFormatRestoreAll', [
+    'key' => 'api.import.formats.restore_all',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
+$router->post('/api/import/formats/purge', 'ImportController@apiFormatPurge', [
+    'key' => 'api.import.formats.purge',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['delete'],
+    'log' => true,
+]);
+
+$router->post('/api/import/formats/purge-bulk', 'ImportController@apiFormatPurge', [
+    'key' => 'api.import.formats.purge_bulk',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['delete'],
+    'log' => true,
+]);
+
+$router->post('/api/import/formats/purge-all', 'ImportController@apiFormatPurgeAll', [
+    'key' => 'api.import.formats.purge_all',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['delete'],
+    'log' => true,
+]);
+
 $router->post('/api/import/format/copy', 'ImportController@apiFormatCopy', [
     'key' => 'api.import.format.copy',
     'name' => 'route',
@@ -1968,8 +2048,38 @@ $router->post('/api/import/preview', 'ImportController@apiPreview', [
     'log' => false,
 ]);
 
+$router->post('/api/import/seed-upload', 'ImportController@apiSeedUpload', [
+    'key' => 'api.import.seed_upload',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
 $router->get('/api/import/batches', 'ImportController@apiUploadBatches', [
     'key' => 'api.import.batches',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
+]);
+
+$router->get('/api/import/seed-rows', 'ImportController@apiSeedRows', [
+    'key' => 'api.import.seed_rows',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
+]);
+
+$router->get('/api/import/seed-rows/trash', 'ImportController@apiSeedRowsTrash', [
+    'key' => 'api.import.seed_rows.trash',
     'name' => 'route',
     'description' => 'route',
     'category' => 'system',
@@ -1986,6 +2096,106 @@ $router->get('/api/import/batch/rows', 'ImportController@apiUploadBatchRows', [
     'auth' => true,
     'permissions' => ['view'],
     'log' => false,
+]);
+
+$router->post('/api/import/seed-row/save', 'ImportController@apiSeedRowSave', [
+    'key' => 'api.import.seed_row.save',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
+$router->post('/api/import/seed-rows/status', 'ImportController@apiSeedRowsStatus', [
+    'key' => 'api.import.seed_rows.status',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
+$router->post('/api/import/seed-rows/delete', 'ImportController@apiSeedRowsDelete', [
+    'key' => 'api.import.seed_rows.delete',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['delete'],
+    'log' => true,
+]);
+
+$router->post('/api/import/seed-rows/restore', 'ImportController@apiSeedRowsRestore', [
+    'key' => 'api.import.seed_rows.restore',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
+$router->post('/api/import/seed-rows/restore-bulk', 'ImportController@apiSeedRowsRestore', [
+    'key' => 'api.import.seed_rows.restore_bulk',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
+$router->post('/api/import/seed-rows/restore-all', 'ImportController@apiSeedRowsRestoreAll', [
+    'key' => 'api.import.seed_rows.restore_all',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
+$router->post('/api/import/seed-rows/purge', 'ImportController@apiSeedRowsPurge', [
+    'key' => 'api.import.seed_rows.purge',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['delete'],
+    'log' => true,
+]);
+
+$router->post('/api/import/seed-rows/purge-bulk', 'ImportController@apiSeedRowsPurge', [
+    'key' => 'api.import.seed_rows.purge_bulk',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['delete'],
+    'log' => true,
+]);
+
+$router->post('/api/import/seed-rows/purge-all', 'ImportController@apiSeedRowsPurgeAll', [
+    'key' => 'api.import.seed_rows.purge_all',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['delete'],
+    'log' => true,
+]);
+
+$router->post('/api/import/batch/delete', 'ImportController@apiUploadBatchDelete', [
+    'key' => 'api.import.batch.delete',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['delete'],
+    'log' => true,
 ]);
 
 $router->post('/api/import/create-transactions', 'ImportController@apiCreateTransactions', [
@@ -2581,6 +2791,16 @@ $router->post('/api/ledger/account/save', 'ChartAccountController@apiSave', [
     'log'         => true,
 ]);
 
+$router->post('/api/ledger/account/status', 'ChartAccountController@apiStatus', [
+    'key'         => 'api.ledger.account.status',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
 $router->post('/api/ledger/account/soft-delete', 'ChartAccountController@apiSoftDelete', [
     'key'         => 'api.ledger.account.soft_delete',
     'name' => 'route',
@@ -2725,6 +2945,166 @@ $router->get('/api/ledger/account/posting', 'ChartAccountController@apiPosting',
     'auth'        => true,
     'permissions' => ['view'],
     'log'         => false,
+]);
+
+$router->get('/api/ledger/journal-rules/list', 'JournalRuleController@apiList', [
+    'key'         => 'api.ledger.journal_rules.list',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+$router->get('/api/ledger/journal-rules/detail', 'JournalRuleController@apiDetail', [
+    'key'         => 'api.ledger.journal_rules.detail',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/journal-rules/save', 'JournalRuleController@apiSave', [
+    'key'         => 'api.ledger.journal_rules.save',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/journal-rules/status', 'JournalRuleController@apiStatus', [
+    'key'         => 'api.ledger.journal_rules.status',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/journal-rules/reorder', 'JournalRuleController@apiReorder', [
+    'key'         => 'api.ledger.journal_rules.reorder',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/journal-rules/delete', 'JournalRuleController@apiDelete', [
+    'key'         => 'api.ledger.journal_rules.delete',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+$router->get('/api/ledger/journal-rules/trash', 'JournalRuleController@apiTrashList', [
+    'key'         => 'api.ledger.journal_rules.trash',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => true,
+]);
+
+$router->get('/api/ledger/journal-rules/template', 'JournalRuleController@apiTemplate', [
+    'key'         => 'api.ledger.journal_rules.template',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
+$router->get('/api/ledger/journal-rules/excel', 'JournalRuleController@apiDownloadExcel', [
+    'key'         => 'api.ledger.journal_rules.excel',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
+$router->post('/api/ledger/journal-rules/excel-upload', 'JournalRuleController@apiExcelUpload', [
+    'key'         => 'api.ledger.journal_rules.excel_upload',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/journal-rules/restore', 'JournalRuleController@apiRestore', [
+    'key'         => 'api.ledger.journal_rules.restore',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/journal-rules/restore-bulk', 'JournalRuleController@apiRestoreBulk', [
+    'key'         => 'api.ledger.journal_rules.restore_bulk',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/journal-rules/restore-all', 'JournalRuleController@apiRestoreAll', [
+    'key'         => 'api.ledger.journal_rules.restore_all',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/journal-rules/purge', 'JournalRuleController@apiPurge', [
+    'key'         => 'api.ledger.journal_rules.purge',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/journal-rules/purge-bulk', 'JournalRuleController@apiPurgeBulk', [
+    'key'         => 'api.ledger.journal_rules.purge_bulk',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/journal-rules/purge-all', 'JournalRuleController@apiPurgeAll', [
+    'key'         => 'api.ledger.journal_rules.purge_all',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['delete'],
+    'log'         => true,
 ]);
 
 $router->get('/api/ledger/sub-account/list', 'SubChartAccountController@apiList', [
@@ -3112,6 +3492,16 @@ $router->post('/api/ledger/transaction/create-voucher', 'TransactionController@a
     'category' => 'system',
     'auth'        => true,
     'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->get('/api/ledger/transaction/recommend-voucher', 'TransactionController@apiRecommendVoucher', [
+    'key'         => 'api.ledger.transaction.recommend_voucher',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['view'],
     'log'         => true,
 ]);
 

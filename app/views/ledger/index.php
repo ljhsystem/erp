@@ -49,7 +49,7 @@ $pageScripts =
         <div class="card h-100">
         <div class="card-body py-2">
             <h6 class="mb-2">📋 미확정 전표</h6>
-            <p class="mb-0 small">총 5건 <a href="/ledger/input/general" class="link-primary">→ 바로가기</a></p>
+            <p class="mb-0 small">총 5건 <a href="/ledger/vouchers/input" class="link-primary">→ 바로가기</a></p>
         </div>
         </div>
     </div>

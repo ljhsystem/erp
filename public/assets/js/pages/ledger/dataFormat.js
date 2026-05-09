@@ -1,3 +1,5 @@
+import '/public/assets/js/components/trash-manager.js';
+
 (() => {
     const API = {
         fields: '/api/import/fields',
@@ -6,15 +8,29 @@
         save: '/api/import/format/save',
         remove: '/api/import/format/delete',
         copy: '/api/import/format/copy',
+        importTypes: '/api/settings/system/code/list?code_group=IMPORT_TYPE',
     };
 
-    const DATA_TYPES = {
-        TAX_INVOICE: '세금계산서',
-        CASH_RECEIPT: '현금영수증',
-        CARD_PURCHASE: '카드(매입)',
-        CARD_SALE: '카드(매출)',
-        BANK: '입출',
-        ETC: '기타',
+    const text = {
+        requestFailed: '\uC694\uCCAD \uCC98\uB9AC\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.',
+        dataTypeSelect: '\uC790\uB8CC\uC720\uD615\uC744 \uC120\uD0DD\uD558\uC138\uC694',
+        choose: '\uC120\uD0DD',
+        orderChange: '\uC21C\uC11C \uBCC0\uACBD',
+        excelColumnName: '\uC5D1\uC140 \uCEEC\uB7FC\uBA85',
+        remove: '-\uC0AD\uC81C',
+        emptyType: '\uC790\uB8CC\uC720\uD615\uC744 \uC120\uD0DD\uD558\uC138\uC694.',
+        noFormats: '\uC120\uD0DD\uD55C \uC790\uB8CC\uC720\uD615\uC758 \uC591\uC2DD\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.',
+        createFirst: '\uC591\uC2DD \uCD94\uAC00\uB97C \uB20C\uB7EC \uC0AC\uC6A9\uC790 \uC591\uC2DD\uC744 \uB9CC\uB4E4\uC5B4\uC8FC\uC138\uC694.',
+        defaultFormat: '\uAE30\uBCF8\uC591\uC2DD',
+        cannotDeleteDefault: '\uAE30\uBCF8 \uC591\uC2DD\uC740 \uC0AD\uC81C\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.',
+        selectDeleteTarget: '\uC0AD\uC81C\uD560 \uC591\uC2DD\uC744 \uC120\uD0DD\uD558\uC138\uC694.',
+        confirmDelete: '\uC815\uB9D0 \uC0AD\uC81C\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?',
+        deleted: '\uC591\uC2DD\uC774 \uC0AD\uC81C\uB418\uC5C8\uC2B5\uB2C8\uB2E4.',
+        saved: '\uC591\uC2DD\uC774 \uC800\uC7A5\uB418\uC5C8\uC2B5\uB2C8\uB2E4.',
+        copied: '\uC591\uC2DD\uC774 \uBCF5\uC0AC\uB418\uC5C8\uC2B5\uB2C8\uB2E4.',
+        copyTarget: '\uBCF5\uC0AC\uD560 \uC591\uC2DD\uC744 \uC120\uD0DD\uD558\uC138\uC694.',
+        enterFormatName: '\uC591\uC2DD\uBA85\uC744 \uC785\uB825\uD558\uC138\uC694.',
+        duplicateField: '\uC2DC\uC2A4\uD15C \uD544\uB4DC\uB294 \uC911\uBCF5 \uC120\uD0DD\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4',
     };
 
     const formatTypeFilterEl = document.getElementById('formatTypeFilter');
@@ -24,7 +40,9 @@
     const formatDataTypeEl = document.getElementById('formatDataType');
     const formatIsDefaultEl = document.getElementById('formatIsDefault');
     const columnBodyEl = document.getElementById('formatColumnBody');
+    const formatColumnTableEl = document.getElementById('formatColumnTable');
     const newFormatBtn = document.getElementById('newFormatBtn');
+    const formatTrashBtn = document.getElementById('formatTrashBtn');
     const addColumnBtn = document.getElementById('addColumnBtn');
     const saveFormatBtn = document.getElementById('saveFormatBtn');
     const deleteFormatBtn = document.getElementById('deleteFormatBtn');
@@ -37,8 +55,50 @@
         ? bootstrap.Modal.getOrCreateInstance(newFormatModalEl)
         : null;
 
+    let dataTypes = [];
     let systemFields = [];
     let formats = [];
+    let activeFormatId = '';
+
+    document.addEventListener('trash:changed', (event) => {
+        if (event.detail?.type === 'dataFormat') {
+            void loadFormats(activeFormatId).catch((error) => notify('error', error.message));
+        }
+    });
+
+    document.addEventListener('trash:detail-render', (event) => {
+        if (event.detail?.type !== 'dataFormat') return;
+        const row = event.detail.data || {};
+        const detailEl = event.detail.modal?.querySelector('.trash-detail');
+        if (!detailEl) return;
+
+        detailEl.innerHTML = `
+            <div class="small">
+                <dl class="row mb-0">
+                    <dt class="col-4">\uC591\uC2DD\uBA85</dt><dd class="col-8">${escapeHtml(row.format_name || '-')}</dd>
+                    <dt class="col-4">\uC790\uB8CC\uC720\uD615</dt><dd class="col-8">${escapeHtml(typeLabel(row.data_type) || row.data_type || '-')}</dd>
+                    <dt class="col-4">\uAE30\uBCF8\uC591\uC2DD</dt><dd class="col-8">${Number(row.is_default || 0) === 1 ? '\uC608' : '\uC544\uB2C8\uC624'}</dd>
+                    <dt class="col-4">\uC0AD\uC81C\uC77C\uC2DC</dt><dd class="col-8">${escapeHtml(row.deleted_at || '-')}</dd>
+                    <dt class="col-4">\uC0AD\uC81C\uC790</dt><dd class="col-8">${escapeHtml(row.deleted_by || '-')}</dd>
+                </dl>
+            </div>
+        `;
+    });
+
+    window.TrashColumns = window.TrashColumns || {};
+    window.TrashColumns.dataFormat = function (row = {}) {
+        return `
+            <td>${escapeHtml(row.format_name || '')}</td>
+            <td>${escapeHtml(typeLabel(row.data_type) || row.data_type || '')}</td>
+            <td>${Number(row.is_default || 0) === 1 ? '\uC608' : ''}</td>
+            <td>${escapeHtml(row.deleted_at || '')}</td>
+            <td>${escapeHtml(row.deleted_by || '')}</td>
+            <td class="text-center">
+                <button type="button" class="btn btn-success btn-sm btn-restore" data-id="${escapeHtml(row.id || '')}">\uBCF5\uC6D0</button>
+                <button type="button" class="btn btn-danger btn-sm btn-purge" data-id="${escapeHtml(row.id || '')}">\uC601\uAD6C\uC0AD\uC81C</button>
+            </td>
+        `;
+    };
 
     function escapeHtml(value) {
         return String(value ?? '')
@@ -50,10 +110,10 @@
     }
 
     async function fetchJson(url, options = {}) {
-        const res = await fetch(url, options);
+        const res = await fetch(url, { cache: 'no-store', ...options });
         const json = await res.json().catch(() => ({}));
         if (!res.ok || json.success === false) {
-            throw new Error(json.message || '요청 처리에 실패했습니다.');
+            throw new Error(json.message || text.requestFailed);
         }
         return json;
     }
@@ -63,119 +123,318 @@
             window.AppCore.notify(type, message);
             return;
         }
-        if (type === 'error' || type === 'warning') alert(message);
+        console[type === 'error' ? 'error' : 'log'](message);
+    }
+
+    function normalizeTypeRows(rows) {
+        return rows
+            .map((row) => ({
+                code: String(row.code ?? row.value ?? '').trim(),
+                code_name: String(row.code_name ?? row.label ?? row.code ?? row.value ?? '').trim(),
+                is_active: Number(row.is_active ?? 1),
+            }))
+            .filter((row) => row.code && row.is_active === 1);
+    }
+
+    async function loadDataTypes() {
+        const json = await fetchJson(API.importTypes);
+        const rows = Array.isArray(json) ? json : (json.data || []);
+        dataTypes = normalizeTypeRows(rows);
+        renderDataTypeSelects();
+    }
+
+    function renderDataTypeSelects() {
+        [formatTypeFilterEl, formatDataTypeEl, newFormatDataTypeEl].forEach((select) => {
+            if (!select) return;
+
+            const previous = select.value;
+            const emptyLabel = select.dataset.emptyLabel || text.dataTypeSelect;
+            select.innerHTML = `<option value="">${escapeHtml(emptyLabel)}</option>` + dataTypes.map((type) => `
+                <option value="${escapeHtml(type.code)}">${escapeHtml(type.code_name)} (${escapeHtml(type.code)})</option>
+            `).join('');
+
+            select.value = dataTypes.some((type) => type.code === previous) ? previous : '';
+            enhanceDataTypeSelect(select);
+        });
+    }
+
+    function enhanceDataTypeSelect(select) {
+        if (!window.jQuery?.fn?.select2 || !select) return;
+
+        const $select = window.jQuery(select);
+        const modalParent = $select.closest('.modal');
+        if ($select.hasClass('select2-hidden-accessible')) {
+            $select.select2('destroy');
+        }
+
+        $select.select2({
+            width: '100%',
+            language: 'ko',
+            placeholder: select.dataset.emptyLabel || text.dataTypeSelect,
+            minimumResultsForSearch: 0,
+            allowClear: true,
+            dropdownParent: modalParent.length ? modalParent.first() : window.jQuery(document.body),
+        });
+
+        if (select === formatTypeFilterEl) {
+            $select
+                .off('change.dataFormatType select2:select.dataFormatType select2:clear.dataFormatType')
+                .on('change.dataFormatType select2:select.dataFormatType select2:clear.dataFormatType', () => {
+                    void loadFormats().catch((error) => notify('error', error.message));
+                });
+        }
     }
 
     function currentType() {
-        return formatTypeFilterEl?.value || 'TAX_INVOICE';
+        return getSelectValue(formatTypeFilterEl);
     }
 
     function typeLabel(type) {
-        return DATA_TYPES[type] || type || '';
+        const value = String(type || '').trim();
+        return dataTypes.find((row) => row.code === value)?.code_name || value;
     }
 
     function fieldOptions(selected = '') {
-        return systemFields.map((field) => `
-            <option value="${escapeHtml(field.value)}" ${field.value === selected ? 'selected' : ''}>
-                ${escapeHtml(field.label)} (${escapeHtml(field.value)})
-            </option>
+        const grouped = systemFields.reduce((groups, field) => {
+            const group = field.group || 'Import';
+            if (!groups.has(group)) groups.set(group, []);
+            groups.get(group).push(field);
+            return groups;
+        }, new Map());
+
+        return `
+            <option value="" ${selected === '' ? 'selected' : ''}>${text.choose}</option>
+        ` + Array.from(grouped.entries()).map(([group, fields]) => `
+            <optgroup label="${escapeHtml(group)}">
+                ${fields.map((field) => `
+                    <option value="${escapeHtml(field.value)}" ${field.value === selected ? 'selected' : ''}>
+                        ${escapeHtml(field.label)} (${escapeHtml(field.value)})
+                    </option>
+                `).join('')}
+            </optgroup>
         `).join('');
     }
 
     function columnRow(column = {}, index = 0) {
+        const order = Number(column.column_order || index + 1);
+        const excelColumnIndex = Number(column.excel_column_index || order);
         return `
-            <tr>
-                <td><input type="number" class="form-control form-control-sm column-order" min="1" value="${escapeHtml(column.column_order || index + 1)}"></td>
-                <td><input type="text" class="form-control form-control-sm excel-column-name" value="${escapeHtml(column.excel_column_name || '')}" placeholder="엑셀 컬럼명"></td>
-                <td><select class="form-select form-select-sm system-field-name">${fieldOptions(column.system_field_name || '')}</select></td>
-                <td class="text-center"><input type="checkbox" class="form-check-input is-required" ${Number(column.is_required || 0) === 1 ? 'checked' : ''}></td>
-                <td class="text-center"><button type="button" class="btn btn-outline-danger btn-sm remove-column-btn">삭제</button></td>
+            <tr class="format-column-row">
+                <td class="format-order-cell">
+                    <span class="column-drag-handle" title="${text.orderChange}">
+                        <i class="bi bi-grip-vertical"></i>
+                    </span>
+                    <span class="column-order-label">${order}</span>
+                    <input type="hidden" class="column-order" value="${order}">
+                    <input type="hidden" class="excel-column-index" value="${excelColumnIndex}">
+                </td>
+                <td>
+                    <input type="text" class="form-control form-control-sm excel-column-name" value="${escapeHtml(column.excel_column_name || '')}" placeholder="${text.excelColumnName}">
+                </td>
+                <td>
+                    <select class="form-select form-select-sm system-field-name">${fieldOptions(column.system_field_name || '')}</select>
+                </td>
+                <td class="text-center">
+                    <input type="checkbox" class="form-check-input is-required" ${Number(column.is_required || 0) === 1 ? 'checked' : ''}>
+                </td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-link btn-sm p-0 text-danger text-decoration-none remove-column-btn">${text.remove}</button>
+                </td>
             </tr>
         `;
     }
 
-    function defaultColumnsFor(type = 'TAX_INVOICE') {
-        if (type === 'BANK') {
-            return [
-                { excel_column_name: '거래일자', system_field_name: 'transaction_date', column_order: 1, is_required: 1 },
-                { excel_column_name: '사업자등록번호', system_field_name: 'business_number', column_order: 2 },
-                { excel_column_name: '상호', system_field_name: 'company_name', column_order: 3 },
-                { excel_column_name: '적요', system_field_name: 'description', column_order: 4, is_required: 1 },
-                { excel_column_name: '금액', system_field_name: 'total_amount', column_order: 5, is_required: 1 },
-                { excel_column_name: '비고', system_field_name: 'note', column_order: 6 },
-                { excel_column_name: '메모', system_field_name: 'memo', column_order: 7 },
-            ];
+    function renumberColumns() {
+        columnBodyEl?.querySelectorAll('tr').forEach((row, index) => {
+            const order = index + 1;
+            row.querySelector('.column-order-label').textContent = String(order);
+            row.querySelector('.column-order').value = String(order);
+            row.querySelector('.excel-column-index').value = String(order);
+        });
+    }
+
+    function syncSystemFieldOptions() {
+        const rows = Array.from(columnBodyEl?.querySelectorAll('tr') || []);
+        const selectedValues = rows
+            .map((row) => row.querySelector('.system-field-name')?.value || '')
+            .filter(Boolean);
+
+        rows.forEach((row) => {
+            const select = row.querySelector('.system-field-name');
+            if (!select) return;
+            const current = select.value;
+            select.querySelectorAll('option').forEach((option) => {
+                option.disabled = option.value !== '' && option.value !== current && selectedValues.includes(option.value);
+            });
+        });
+    }
+
+    function initColumnSortable() {
+        const $ = window.jQuery;
+        if (!$ || typeof $.fn.sortable !== 'function' || !columnBodyEl) return;
+
+        const $body = $(columnBodyEl);
+        if ($body.data('ui-sortable')) {
+            $body.sortable('destroy');
         }
 
-        if (type === 'CARD_PURCHASE' || type === 'CARD_SALE' || type === 'CASH_RECEIPT') {
-            return [
-                { excel_column_name: '거래일자', system_field_name: 'transaction_date', column_order: 1, is_required: 1 },
-                { excel_column_name: '사업자등록번호', system_field_name: 'business_number', column_order: 2 },
-                { excel_column_name: '상호', system_field_name: 'company_name', column_order: 3 },
-                { excel_column_name: '적요', system_field_name: 'description', column_order: 4, is_required: 1 },
-                { excel_column_name: '공급가액', system_field_name: 'supply_amount', column_order: 5 },
-                { excel_column_name: '부가세', system_field_name: 'vat_amount', column_order: 6 },
-                { excel_column_name: '합계금액', system_field_name: 'total_amount', column_order: 7, is_required: 1 },
-                { excel_column_name: '비고', system_field_name: 'note', column_order: 8 },
-                { excel_column_name: '메모', system_field_name: 'memo', column_order: 9 },
-            ];
-        }
+        $body.sortable({
+            handle: '.column-drag-handle',
+            items: '> tr',
+            axis: 'y',
+            tolerance: 'pointer',
+            forcePlaceholderSize: true,
+            placeholder: 'format-column-placeholder',
+            start(_, ui) {
+                const colspan = Math.max(ui.item.children('td, th').length, 1);
+                ui.placeholder.height(ui.item.outerHeight()).html(`<td colspan="${colspan}"></td>`);
+                ui.item.addClass('format-column-dragging');
+            },
+            helper(_, tr) {
+                const $originals = tr.children();
+                const $helper = tr.clone().addClass('format-column-helper');
+                $helper.children().each(function (index) {
+                    $(this).width($originals.eq(index).outerWidth());
+                });
+                return $helper;
+            },
+            stop(_, ui) {
+                ui.item.removeClass('format-column-dragging');
+                renumberColumns();
+                syncSystemFieldOptions();
+            },
+        }).disableSelection();
+    }
 
-        return [
-            { excel_column_name: '작성일자', system_field_name: 'transaction_date', column_order: 1, is_required: 1 },
-            { excel_column_name: '사업자등록번호', system_field_name: 'business_number', column_order: 2, is_required: type === 'TAX_INVOICE' ? 1 : 0 },
-            { excel_column_name: '상호', system_field_name: 'company_name', column_order: 3, is_required: type === 'TAX_INVOICE' ? 1 : 0 },
-            { excel_column_name: '사업명', system_field_name: 'project_name', column_order: 4 },
-            { excel_column_name: '적요', system_field_name: 'description', column_order: 5, is_required: 1 },
-            { excel_column_name: '공급가액', system_field_name: 'supply_amount', column_order: 6 },
-            { excel_column_name: '부가세', system_field_name: 'vat_amount', column_order: 7 },
-            { excel_column_name: '합계금액', system_field_name: 'total_amount', column_order: 8 },
-            { excel_column_name: '과세구분', system_field_name: 'tax_type', column_order: 9 },
-            { excel_column_name: '비고', system_field_name: 'note', column_order: 10 },
-            { excel_column_name: '메모', system_field_name: 'memo', column_order: 11 },
-        ];
+    function findScrollParent(node) {
+        let current = node?.parentElement || null;
+        while (current && current !== document.body && current !== document.documentElement) {
+            const style = window.getComputedStyle(current);
+            if (/(auto|scroll)/.test(style.overflowY || '')) return current;
+            current = current.parentElement;
+        }
+        return null;
+    }
+
+    function updateFormatColumnStickyTop() {
+        if (!formatColumnTableEl) return;
+        const nav = document.querySelector('.top-nav.fixed-top, .top-nav');
+        const navBottom = nav ? nav.getBoundingClientRect().bottom : 0;
+        const scrollParent = findScrollParent(formatColumnTableEl);
+        const scrollTop = scrollParent ? scrollParent.getBoundingClientRect().top : 0;
+        formatColumnTableEl.style.setProperty('--format-column-sticky-top', `${Math.max(0, Math.ceil(navBottom - scrollTop))}px`);
     }
 
     function renderColumns(columns = []) {
-        columnBodyEl.innerHTML = columns.length
-            ? columns.map(columnRow).join('')
-            : columnRow({ system_field_name: 'transaction_date', is_required: 1 }, 0);
+        if (!columnBodyEl) return;
+        columnBodyEl.innerHTML = columns.length ? columns.map(columnRow).join('') : '';
+        renumberColumns();
+        syncSystemFieldOptions();
+        initColumnSortable();
+        updateFormatColumnStickyTop();
+    }
+
+    function isDefaultFormat(format) {
+        return Number(format?.is_default || 0) === 1;
+    }
+
+    function canDeleteFormat(format) {
+        return !!format;
+    }
+
+    function deleteDisabledMessage(format) {
+        return '';
+    }
+
+    function updateDeleteButtonState() {
+        const selected = formats.find((format) => format.id === formatIdEl?.value) || null;
+        if (!deleteFormatBtn) return;
+        deleteFormatBtn.disabled = !canDeleteFormat(selected);
+        deleteFormatBtn.title = deleteDisabledMessage(selected);
     }
 
     function renderFormats() {
-        if (!formats.length) {
-            formatListEl.innerHTML = '<div class="list-group-item text-muted">선택한 자료유형의 양식이 없습니다.</div>';
+        if (!formatListEl) return;
+
+        if (!currentType()) {
+            formatListEl.innerHTML = `<div class="list-group-item text-muted">${text.emptyType}</div>`;
+            updateDeleteButtonState();
             return;
         }
 
-        const selectedId = formatIdEl.value;
-        formatListEl.innerHTML = formats.map((format) => `
-            <button type="button" class="list-group-item list-group-item-action ${format.id === selectedId ? 'active' : ''}" data-id="${escapeHtml(format.id)}">
-                <div class="d-flex justify-content-between">
-                    <strong>${escapeHtml(format.format_name)}</strong>
-                    <span class="badge ${format.id === selectedId ? 'bg-light text-dark' : 'bg-secondary'}">${escapeHtml(typeLabel(format.data_type))}</span>
+        if (!formats.length) {
+            formatListEl.innerHTML = `<div class="list-group-item text-muted">${text.noFormats}<br><small>${text.createFirst}</small></div>`;
+            updateDeleteButtonState();
+            return;
+        }
+
+        const selectedId = formatIdEl?.value || '';
+        formatListEl.innerHTML = formats.map((format) => {
+            const selected = format.id === selectedId;
+            const disabledMessage = deleteDisabledMessage(format);
+            const deleteDisabled = !canDeleteFormat(format);
+            return `
+                <div class="list-group-item ${selected ? 'active' : ''}" data-format-row="${escapeHtml(format.id)}">
+                    <div class="d-flex align-items-start justify-content-between gap-2">
+                        <button type="button" class="btn btn-link p-0 text-start flex-grow-1 format-select-btn ${selected ? 'text-white' : 'text-body'}" data-id="${escapeHtml(format.id)}">
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <strong>${escapeHtml(format.format_name)}</strong>
+                                ${isDefaultFormat(format) ? `<span class="badge bg-primary-subtle text-primary-emphasis">${text.defaultFormat}</span>` : ''}
+                                <span class="badge ${selected ? 'bg-light text-dark' : 'bg-secondary'}">${escapeHtml(typeLabel(format.data_type))}</span>
+                            </div>
+                        </button>
+                        <button type="button" class="btn btn-outline-danger btn-sm format-list-delete-btn" data-delete-id="${escapeHtml(format.id)}" ${deleteDisabled ? 'disabled' : ''} title="${escapeHtml(disabledMessage)}">
+                            ${text.remove.replace('-', '')}
+                        </button>
+                    </div>
                 </div>
-                <small class="${format.id === selectedId ? 'text-white-50' : 'text-muted'}">${Number(format.is_default || 0) === 1 ? '기본양식' : ''}</small>
-            </button>
-        `).join('');
+            `;
+        }).join('');
+        updateDeleteButtonState();
     }
 
-    function resetForm(name = '', dataType = currentType()) {
+    function setSelectValue(select, value) {
+        if (!select) return;
+        select.value = value || '';
+        if (window.jQuery?.fn?.select2 && window.jQuery(select).hasClass('select2-hidden-accessible')) {
+            window.jQuery(select).val(value || '').trigger('change.select2');
+        }
+    }
+
+    function getSelectValue(select) {
+        if (!select) return '';
+        if (window.jQuery?.fn?.select2 && window.jQuery(select).hasClass('select2-hidden-accessible')) {
+            return String(window.jQuery(select).val() || '').trim();
+        }
+        return String(select.value || '').trim();
+    }
+
+    function resetForm(name = '', dataType = '') {
+        if (!formatIdEl) return;
+        activeFormatId = '';
         formatIdEl.value = '';
         formatNameEl.value = name;
-        formatDataTypeEl.value = dataType;
+        setSelectValue(formatDataTypeEl, dataType);
         formatIsDefaultEl.checked = false;
-        renderColumns(defaultColumnsFor(dataType));
+        renderColumns([]);
         renderFormats();
     }
 
     async function loadFormats(selectedId = '') {
         const dataType = currentType();
+        if (!dataType) {
+            formats = [];
+            resetForm('', '');
+            return;
+        }
+
         const json = await fetchJson(`${API.formats}?data_type=${encodeURIComponent(dataType)}&include_columns=1`);
         formats = json.data || [];
         renderFormats();
         if (selectedId) {
             await selectFormat(selectedId);
+        } else if (formats.length > 0) {
+            await selectFormat(formats[0].id);
         } else {
             resetForm('', dataType);
         }
@@ -189,59 +448,99 @@
     async function selectFormat(id) {
         const json = await fetchJson(`${API.detail}?id=${encodeURIComponent(id)}`);
         const data = json.data || {};
-        formatIdEl.value = data.id || '';
+        activeFormatId = data.id || id || '';
+        formatIdEl.value = activeFormatId;
         formatNameEl.value = data.format_name || '';
-        formatDataTypeEl.value = data.data_type || currentType();
+        setSelectValue(formatDataTypeEl, data.data_type || currentType());
         formatIsDefaultEl.checked = Number(data.is_default || 0) === 1;
         renderColumns(data.columns || []);
         renderFormats();
+        updateDeleteButtonState();
+    }
+
+    function validateUniqueSystemFields(columns) {
+        const seen = new Map();
+        for (const column of columns) {
+            if (!column.system_field_name) continue;
+            if (seen.has(column.system_field_name)) {
+                const label = systemFields.find((field) => field.value === column.system_field_name)?.label || column.system_field_name;
+                throw new Error(`${text.duplicateField}: ${label}`);
+            }
+            seen.set(column.system_field_name, true);
+        }
     }
 
     function collectColumns() {
-        return Array.from(columnBodyEl.querySelectorAll('tr')).map((row, index) => ({
-            column_order: Number(row.querySelector('.column-order')?.value || index + 1),
+        renumberColumns();
+        const columns = Array.from(columnBodyEl?.querySelectorAll('tr') || []).map((row, index) => ({
+            column_order: index + 1,
+            excel_column_index: index + 1,
             excel_column_name: row.querySelector('.excel-column-name')?.value?.trim() || '',
-            system_field_name: row.querySelector('.system-field-name')?.value || '',
+            system_field_name: row.querySelector('.system-field-name')?.value || null,
             is_required: row.querySelector('.is-required')?.checked ? 1 : 0,
-        })).filter((row) => row.excel_column_name !== '' && row.system_field_name !== '');
+        })).filter((row) => row.excel_column_name !== '');
+
+        validateUniqueSystemFields(columns);
+        return columns;
     }
 
     async function saveFormat() {
+        const selectedId = String(formatIdEl.value || activeFormatId || '').trim();
         const payload = {
-            id: formatIdEl.value,
+            id: selectedId,
             format_name: formatNameEl.value.trim(),
-            data_type: formatDataTypeEl.value,
+            data_type: getSelectValue(formatDataTypeEl),
             is_default: formatIsDefaultEl.checked ? 1 : 0,
             columns: collectColumns(),
         };
+
+        if (!payload.data_type) {
+            notify('warning', text.dataTypeSelect);
+            return;
+        }
+
         const json = await fetchJson(API.save, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
         });
-        notify('success', '양식이 저장되었습니다.');
+        notify('success', text.saved);
+        activeFormatId = json.id || payload.id || activeFormatId;
+        if (formatIdEl) {
+            formatIdEl.value = activeFormatId;
+        }
         if (formatTypeFilterEl && formatTypeFilterEl.value !== payload.data_type) {
-            formatTypeFilterEl.value = payload.data_type;
+            setSelectValue(formatTypeFilterEl, payload.data_type);
         }
         await loadFormats(json.id || payload.id);
     }
 
-    async function deleteFormat() {
-        const id = formatIdEl.value;
-        if (!id || !window.confirm('선택한 양식을 삭제하시겠습니까?')) return;
+    async function deleteFormat(id = formatIdEl.value) {
+        const format = formats.find((item) => item.id === id) || null;
+        const disabledMessage = deleteDisabledMessage(format);
+        if (!id) {
+            notify('warning', text.selectDeleteTarget);
+            return;
+        }
+        if (disabledMessage) {
+            notify('warning', disabledMessage);
+            return;
+        }
+        if (!window.confirm(text.confirmDelete)) return;
+
         await fetchJson(API.remove, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id }),
         });
-        notify('success', '양식이 삭제되었습니다.');
+        notify('success', text.deleted);
         await loadFormats();
     }
 
     async function copyFormat() {
         const id = formatIdEl.value;
         if (!id) {
-            notify('warning', '복사할 양식을 선택하세요.');
+            notify('warning', text.copyTarget);
             return;
         }
         const json = await fetchJson(API.copy, {
@@ -249,13 +548,13 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id }),
         });
-        notify('success', '양식이 복사되었습니다.');
+        notify('success', text.copied);
         await loadFormats(json.id || '');
     }
 
     function openNewFormatModal() {
         if (newFormatNameEl) newFormatNameEl.value = '';
-        if (newFormatDataTypeEl) newFormatDataTypeEl.value = currentType();
+        setSelectValue(newFormatDataTypeEl, currentType());
         if (newFormatModal) {
             newFormatModal.show();
             setTimeout(() => newFormatNameEl?.focus(), 150);
@@ -268,10 +567,14 @@
         const name = newFormatNameEl?.value?.trim() || '';
         const dataType = newFormatDataTypeEl?.value || currentType();
         if (name === '') {
-            notify('warning', '양식명을 입력하세요.');
+            notify('warning', text.enterFormatName);
             return;
         }
-        if (formatTypeFilterEl) formatTypeFilterEl.value = dataType;
+        if (!dataType) {
+            notify('warning', text.dataTypeSelect);
+            return;
+        }
+        setSelectValue(formatTypeFilterEl, dataType);
         resetForm(name, dataType);
         newFormatModal?.hide();
     }
@@ -281,26 +584,50 @@
     });
 
     formatListEl?.addEventListener('click', (event) => {
+        const deleteButton = event.target.closest('[data-delete-id]');
+        if (deleteButton) {
+            void deleteFormat(deleteButton.dataset.deleteId).catch((error) => notify('error', error.message));
+            return;
+        }
         const button = event.target.closest('[data-id]');
         if (button) void selectFormat(button.dataset.id);
     });
 
     columnBodyEl?.addEventListener('click', (event) => {
         const button = event.target.closest('.remove-column-btn');
-        if (button) button.closest('tr')?.remove();
+        if (!button) return;
+        button.closest('tr')?.remove();
+        renumberColumns();
+        syncSystemFieldOptions();
+    });
+
+    columnBodyEl?.addEventListener('change', (event) => {
+        if (event.target.closest('.system-field-name')) {
+            syncSystemFieldOptions();
+        }
     });
 
     newFormatBtn?.addEventListener('click', openNewFormatModal);
+    formatTrashBtn?.addEventListener('click', () => {
+        const modalEl = document.getElementById('dataFormatTrashModal');
+        if (!modalEl) return;
+        bootstrap.Modal.getOrCreateInstance(modalEl, { focus: false }).show();
+    });
     confirmNewFormatBtn?.addEventListener('click', confirmNewFormat);
     addColumnBtn?.addEventListener('click', () => {
         columnBodyEl.insertAdjacentHTML('beforeend', columnRow({}, columnBodyEl.querySelectorAll('tr').length));
+        renumberColumns();
+        syncSystemFieldOptions();
+        initColumnSortable();
     });
     saveFormatBtn?.addEventListener('click', () => void saveFormat().catch((error) => notify('error', error.message)));
     deleteFormatBtn?.addEventListener('click', () => void deleteFormat().catch((error) => notify('error', error.message)));
     copyFormatBtn?.addEventListener('click', () => void copyFormat().catch((error) => notify('error', error.message)));
+    window.addEventListener('resize', updateFormatColumnStickyTop, { passive: true });
 
     (async () => {
-        await loadFields();
+        await Promise.all([loadDataTypes(), loadFields()]);
         await loadFormats();
+        updateFormatColumnStickyTop();
     })().catch((error) => notify('error', error.message));
 })();

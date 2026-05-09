@@ -208,6 +208,7 @@ class ClientController
                 'account_holder' => $_POST['account_holder'] ?? null,
 
                 'trade_category' => $_POST['trade_category'] ?? null,
+                'default_account_id' => $_POST['default_account_id'] ?? null,
                 'item_category' => $_POST['item_category'] ?? null,
 
                 'client_category' => $_POST['client_category'] ?? null,

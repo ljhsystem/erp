@@ -1,0 +1,91 @@
+/* Common Spreadsheet Pattern */
+
+.spreadsheet-shell {
+  position: relative;
+  min-height: 420px;
+  background: var(--color-surface, #fff);
+}
+
+.spreadsheet-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap, 12px);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border, #e9ecef);
+  background: var(--spreadsheet-toolbar-bg, #f8fafc);
+}
+
+.spreadsheet-options {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 0;
+  font-size: var(--font-size, 13px);
+}
+
+.spreadsheet-grid {
+  width: 100%;
+  height: 560px;
+  overflow: hidden;
+}
+
+.spreadsheet-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted, #6c757d);
+  font-size: var(--font-size, 13px);
+  pointer-events: none;
+}
+
+.spreadsheet-shell.has-data .spreadsheet-empty {
+  display: none;
+}
+
+.spreadsheet-shell .handsontable th {
+  background: var(--spreadsheet-header-bg, #f8fafc);
+  color: var(--color-text, #334155);
+  font-size: var(--spreadsheet-font-size, calc(var(--font-size, 14px) - 2px));
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: normal;
+  vertical-align: middle;
+}
+
+.spreadsheet-shell .handsontable td {
+  color: var(--color-text, #1f2937);
+  font-size: var(--spreadsheet-font-size, calc(var(--font-size, 14px) - 2px));
+  white-space: nowrap;
+}
+
+.spreadsheet-shell .handsontable td.spreadsheet-status-valid {
+  color: #146c43;
+  font-weight: 700;
+  background: #d1e7dd;
+}
+
+.spreadsheet-shell .handsontable td.spreadsheet-status-warning,
+.spreadsheet-shell .handsontable td.spreadsheet-cell-warning {
+  background: #fff3cd;
+}
+
+.spreadsheet-shell .handsontable td.spreadsheet-status-error,
+.spreadsheet-shell .handsontable td.spreadsheet-cell-error {
+  background: #f8d7da;
+}
+
+.spreadsheet-shell .handsontable td.spreadsheet-message-cell {
+  color: #842029;
+}
+
+body[data-density="compact"] .spreadsheet-shell {
+  --spreadsheet-font-size: 12px;
+}
+
+body[data-density="comfortable"] .spreadsheet-shell {
+  --spreadsheet-font-size: 14px;
+}

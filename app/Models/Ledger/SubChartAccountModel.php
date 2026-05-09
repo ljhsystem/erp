@@ -43,8 +43,6 @@ class SubChartAccountModel
         $fields = [
             'id' => ':id',
             'account_id' => ':account_id',
-            'note' => ':note',
-            'memo' => ':memo',
             'created_by' => ':created_by',
             'updated_by' => ':updated_by',
         ];
@@ -52,8 +50,6 @@ class SubChartAccountModel
         $params = [
             ':id' => $data['id'],
             ':account_id' => $data['account_id'],
-            ':note' => $data['note'] ?? null,
-            ':memo' => $data['memo'] ?? null,
             ':created_by' => $data['created_by'] ?? null,
             ':updated_by' => $data['updated_by'] ?? $data['created_by'] ?? null,
         ];
@@ -100,15 +96,11 @@ class SubChartAccountModel
     public function update(string $id, array $data): bool
     {
         $sets = [
-            'note = :note',
-            'memo = :memo',
             'updated_by = :updated_by',
         ];
 
         $params = [
             ':id' => $id,
-            ':note' => $data['note'] ?? null,
-            ':memo' => $data['memo'] ?? null,
             ':updated_by' => $data['updated_by'] ?? null,
         ];
 

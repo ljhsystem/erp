@@ -46,6 +46,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journal.js');
 
             $searchFieldOptions = '
                 <option value="">선택</option>
+                <option value="journal_status">분개상태</option>
             ';
 
             $periodGuideTitle = '전표 기간 조건 안내';

@@ -56,8 +56,6 @@ class SubChartAccountController
                 'sub_code' => $_POST['sub_code'] ?? null,
                 'sub_name' => $_POST['sub_name'] ?? null,
                 'is_required' => isset($_POST['is_required']) ? (int) $_POST['is_required'] : 0,
-                'note' => $_POST['note'] ?? null,
-                'memo' => $_POST['memo'] ?? null,
             ];
 
             echo json_encode(
@@ -92,8 +90,6 @@ class SubChartAccountController
                 'sub_code' => $_POST['sub_code'] ?? null,
                 'sub_name' => $_POST['sub_name'] ?? null,
                 'is_required' => isset($_POST['is_required']) ? (int) $_POST['is_required'] : 0,
-                'note' => $_POST['note'] ?? null,
-                'memo' => $_POST['memo'] ?? null,
             ];
 
             echo json_encode(

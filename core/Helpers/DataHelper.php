@@ -107,6 +107,7 @@ class DataHelper
             'account_holder' => $data['account_holder'] ?? null,
 
             'trade_category' => $data['trade_category'] ?? null,
+            'default_account_id' => $data['default_account_id'] ?? null,
             'client_type' => $data['client_type'] ?? null,
             'tax_type' => $data['tax_type'] ?? null,
 

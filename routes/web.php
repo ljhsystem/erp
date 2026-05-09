@@ -1069,6 +1069,86 @@ $router->get('/ledger', 'LedgerController@webIndex', [
 // ============================================================
 // 怨꾩젙怨쇰ぉ ?붾㈃
 // ============================================================
+$router->get('/ledger/settings/accounts', 'LedgerController@webAccount', [
+    'key'         => 'web.ledger.settings.accounts',
+    'name' => '계정과목',
+    'description' => '회계관리 > 기초정보관리 > 계정과목',
+    'category' => '회계관리',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
+$router->get('/ledger/settings/opening-balances', 'LedgerController@webPlaceholder', [
+    'key'         => 'web.ledger.settings.opening_balances',
+    'name' => '기초금액',
+    'description' => '회계관리 > 기초정보관리 > 기초금액',
+    'category' => '회계관리',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
+$router->get('/ledger/data/formats', 'LedgerController@webDataFormat', [
+    'key'         => 'web.ledger.data.formats',
+    'name' => '양식관리',
+    'description' => '회계관리 > 자료관리 > 양식관리',
+    'category' => '회계관리',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
+$router->get('/ledger/data/list', 'LedgerController@webDataIndex', [
+    'key'         => 'web.ledger.data.list',
+    'name' => '자료목록',
+    'description' => '회계관리 > 자료관리 > 자료목록',
+    'category' => '회계관리',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
+$router->get('/ledger/transactions/input', 'TransactionController@webLedgerTransaction', [
+    'key'         => 'web.ledger.transactions.input',
+    'name' => '거래입력',
+    'description' => '회계관리 > 거래관리 > 거래입력',
+    'category' => '회계관리',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
+$router->get('/ledger/transactions', 'TransactionController@webLedgerTransaction', [
+    'key'         => 'web.ledger.transactions.index',
+    'name' => '거래입력',
+    'description' => '회계관리 > 거래관리 > 거래입력',
+    'category' => '회계관리',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
+$router->get('/ledger/transactions/create', 'TransactionController@webLedgerCreate', [
+    'key'         => 'web.ledger.transactions.create',
+    'name' => '거래입력',
+    'description' => '회계관리 > 거래관리 > 거래입력',
+    'category' => '회계관리',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
+$router->get('/ledger/vouchers/input', 'LedgerController@webJournal', [
+    'key'         => 'web.ledger.vouchers.input',
+    'name' => '전표입력',
+    'description' => '회계관리 > 전표관리 > 전표입력',
+    'category' => '회계관리',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
 $router->get('/ledger/accounts', 'LedgerController@webAccount', [
     'key'         => 'web.ledger.accounts',
     'name' => 'route',
@@ -1134,8 +1214,8 @@ $router->get('/ledger/vouchers/review', 'LedgerController@webVoucherReview', [
     'log'         => false,
 ]);
 
-$router->get('/ledger/data/upload', 'LedgerController@webDataUpload', [
-    'key'         => 'web.ledger.data.upload',
+$router->get('/ledger/data/format', 'LedgerController@webDataFormat', [
+    'key'         => 'web.ledger.data.format',
     'name' => 'route',
     'description' => 'route',
     'category' => 'system',
@@ -1144,8 +1224,18 @@ $router->get('/ledger/data/upload', 'LedgerController@webDataUpload', [
     'log'         => false,
 ]);
 
-$router->get('/ledger/data/format', 'LedgerController@webDataFormat', [
-    'key'         => 'web.ledger.data.format',
+$router->get('/ledger/settings/journal-rules', 'LedgerController@webJournalRules', [
+    'key'         => 'web.ledger.journal_rules',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
+$router->get('/ledger/data/upload', 'LedgerController@webDataUpload', [
+    'key'         => 'web.ledger.data.upload',
     'name' => 'route',
     'description' => 'route',
     'category' => 'system',
@@ -1165,7 +1255,7 @@ $router->get('/ledger/data', 'LedgerController@webDataIndex', [
 ]);
 
 $ledgerPlaceholderRoutes = [
-    ['/ledger/opening-balances', 'web.ledger.opening_balances', 'route', 'route'],
+    ['/ledger/opening-balances', 'web.ledger.opening_balances', '기초금액', '회계관리 > 기초정보관리 > 기초금액'],
     ['/ledger/book/journal', 'web.ledger.book.journal', 'route', 'route'],
     ['/ledger/book/account', 'web.ledger.book.account', 'route', 'route'],
     ['/ledger/book/general', 'web.ledger.book.general', 'route', 'route'],

@@ -112,7 +112,7 @@
 
                             <div class="row g-2 mt-2">
 
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <label class="form-label">거래처</label>
                                     <select name="client_id"
                                             id="modal_project_client_id"
@@ -138,28 +138,18 @@
                                            class="form-control form-control-sm">
                                 </div>
 
-                                <div class="col-md-1">
-                                    <label class="form-label">계약형태</label>
-                                    <select name="contract_type"
-                                            id="modal_contract_type"
-                                            class="form-select form-select-sm">
-                                        <option value="">선택</option>
-                                        <option value="일반">일반</option>
-                                        <option value="계약">계약</option>
-                                        <option value="견적">견적</option>
+                                <div class="col-md-3">
+                                    <label class="form-label">계약방식</label>
+                                    <select name="contract_method"
+                                            id="modal_contract_method"
+                                            class="form-select form-select-sm"
+                                            data-code-group="CONTRACT_METHOD"
+                                            data-empty-label="계약방식선택"
+                                            data-none-option-label="선택(없음)">
+                                        <option value="">계약방식선택</option>
                                     </select>
                                 </div>
 
-                                <div class="col-md-1">
-                                    <label class="form-label">도급종류</label>
-                                    <select name="contract_work_type"
-                                            id="modal_contract_work_type"
-                                            class="form-select form-select-sm">
-                                        <option value="">선택</option>
-                                        <option value="원도급">원도급</option>
-                                        <option value="하도급">하도급</option>
-                                    </select>
-                                </div>
 
                             </div>
                         </div>
@@ -175,10 +165,18 @@
                                     <select name="housing_type"
                                             id="modal_housing_type"
                                             class="form-select form-select-sm"
-                                            data-code-group="CLIENT_TYPE">
+                                            data-code-group="CONSTRUCTION_TYPE">
                                         <option value="">선택</option>
-                                        <option value="신설">신설</option>
-                                        <option value="유지보수">유지보수</option>
+                                    </select>
+                                </div>
+
+                                <div class="col-md-2">
+                                    <label class="form-label">도급종류</label>
+                                    <select name="contract_type"
+                                            id="modal_contract_type"
+                                            class="form-select form-select-sm"
+                                            data-code-group="CONTRACT_TYPE">
+                                        <option value="">선택</option>
                                     </select>
                                 </div>
 
@@ -187,38 +185,48 @@
                                     <select name="work_type"
                                             id="modal_work_type"
                                             class="form-select form-select-sm"
-                                            data-code-group="CLIENT_TYPE">
+                                            data-code-group="WORK_TYPE">
                                         <option value="">선택</option>
-                                        <option value="건축">건축</option>
-                                        <option value="토목">토목</option>
                                     </select>
                                 </div>
 
-                                <div class="col-md-3">
+                                <div class="col-md-2">
                                     <label class="form-label">공종 세분류</label>
                                     <input type="text"
                                            name="work_subtype"
                                            id="modal_work_subtype"
-                                           class="form-control form-control-sm"
-                                           placeholder="예: 오피스텔>비거주시설">
+                                           class="form-control form-control-sm js-project-value-input"
+                                           data-field="work_subtype"
+                                           list="project_work_subtype_options"
+                                           autocomplete="off"
+                                           placeholder="기존값 검색 또는 신규 입력">
+                                    <datalist id="project_work_subtype_options"></datalist>
                                 </div>
 
-                                <div class="col-md-3">
+                                <div class="col-md-2">
                                     <label class="form-label">업종(대업종)</label>
                                     <input type="text"
                                            name="business_type"
                                            id="modal_business_type"
-                                           class="form-control form-control-sm">
+                                           class="form-control form-control-sm js-project-value-input"
+                                           data-field="business_type"
+                                           list="project_business_type_options"
+                                           autocomplete="off"
+                                           placeholder="기존값 검색 또는 신규 입력">
+                                    <datalist id="project_business_type_options"></datalist>
                                 </div>
-
 
                                 <div class="col-md-2">
                                     <label class="form-label">세부 공사종류(주력분야)</label>
                                     <input type="text"
                                            name="work_detail_type"
                                            id="modal_work_detail_type"
-                                           class="form-control form-control-sm"
-                                           placeholder="예: 석공사,습식공사">
+                                           class="form-control form-control-sm js-project-value-input"
+                                           data-field="work_detail_type"
+                                           list="project_work_detail_type_options"
+                                           autocomplete="off"
+                                           placeholder="기존값 검색 또는 신규 입력">
+                                    <datalist id="project_work_detail_type_options"></datalist>
                                 </div>
                             </div>
                         </div>

@@ -83,6 +83,7 @@ class ProjectModel
             // 인력 정보
             'site_agent'              => ['col'=>'p.site_agent','type'=>'like'],
             'contract_type'           => ['col'=>'p.contract_type','type'=>'like'],
+            'contract_method'         => ['col'=>'p.contract_method','type'=>'like'],
             'director'                => ['col'=>'p.director','type'=>'like'],
             'manager'                 => ['col'=>'p.manager','type'=>'like'],
 
@@ -201,7 +202,7 @@ class ProjectModel
                 'p.site_region_city','p.site_region_district',
                 'p.site_region_address','p.site_region_address_detail',
                 'p.work_type','p.work_subtype','p.work_detail_type',
-                'p.contract_work_type','p.bid_type',
+                'p.contract_type','p.contract_method','p.contract_work_type','p.bid_type',
                 'p.client_name','p.client_type',
                 'p.permit_agency','p.authorized_company_seal',
                 'p.note','p.memo',
@@ -372,6 +373,51 @@ class ProjectModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    public function distinctValues(string $field, string $keyword = '', int $limit = 20): array
+    {
+        $allowed = [
+            'work_subtype',
+            'business_type',
+            'work_detail_type',
+        ];
+
+        if (!in_array($field, $allowed, true)) {
+            return [];
+        }
+
+        $limit = max(1, min(50, (int)$limit));
+        $keyword = trim($keyword);
+        $like = '%' . $keyword . '%';
+
+        $sql = "
+            SELECT DISTINCT TRIM(`{$field}`) AS value
+            FROM system_projects
+            WHERE deleted_at IS NULL
+              AND `{$field}` IS NOT NULL
+              AND TRIM(`{$field}`) <> ''
+        ";
+
+        $params = [];
+        if ($keyword !== '') {
+            $sql .= " AND `{$field}` LIKE :keyword";
+            $params[':keyword'] = $like;
+        }
+
+        $sql .= " ORDER BY value ASC LIMIT {$limit}";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+
+        return array_map(static function (array $row): array {
+            $value = (string)($row['value'] ?? '');
+            return [
+                'id' => $value,
+                'text' => $value,
+                'value' => $value,
+            ];
+        }, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+
     public function findIdByProjectName(string $projectName): ?string
     {
         $projectName = trim($projectName);
@@ -412,6 +458,7 @@ class ProjectModel
                 employee_id,
                 site_agent,
                 contract_type,
+                contract_method,
                 director,
                 manager,
                 business_type,
@@ -449,6 +496,7 @@ class ProjectModel
                 :employee_id,
                 :site_agent,
                 :contract_type,
+                :contract_method,
                 :director,
                 :manager,
                 :business_type,
@@ -493,6 +541,7 @@ class ProjectModel
 
             'site_agent' => $data['site_agent'] ?? null,
             'contract_type' => $data['contract_type'] ?? null,
+            'contract_method' => $data['contract_method'] ?? null,
             'director' => $data['director'] ?? null,
             'manager' => $data['manager'] ?? null,
 
@@ -551,6 +600,7 @@ class ProjectModel
 
                 site_agent = :site_agent,
                 contract_type = :contract_type,
+                contract_method = :contract_method,
                 director = :director,
                 manager = :manager,
 
@@ -606,6 +656,7 @@ class ProjectModel
 
             'site_agent' => $data['site_agent'] ?? null,
             'contract_type' => $data['contract_type'] ?? null,
+            'contract_method' => $data['contract_method'] ?? null,
             'director' => $data['director'] ?? null,
             'manager' => $data['manager'] ?? null,
 

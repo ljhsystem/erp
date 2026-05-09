@@ -1,0 +1,32 @@
+.ledger-data-upload-page #validationDetailCard .card-header {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25;
+}
+
+.ledger-data-upload-page #validationDetailCard .table {
+    font-size: 0.8125rem;
+}
+
+.ledger-data-upload-page #validationDetailCard th,
+.ledger-data-upload-page #validationDetailCard td {
+    padding: 0.25rem 0.45rem;
+    line-height: 1.25;
+    vertical-align: middle;
+}
+
+.ledger-data-upload-page #validationDetailCard th:first-child,
+.ledger-data-upload-page #validationDetailCard td:first-child {
+    width: 72px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.ledger-data-upload-page #validationDetailCard tbody tr {
+    height: 26px;
+}
+
+.ledger-data-upload-page #validationDetailCard .table-responsive {
+    max-height: 220px;
+    overflow: auto;
+}

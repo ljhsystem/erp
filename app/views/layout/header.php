@@ -117,6 +117,7 @@ $ui = array_merge([
     <?= AssetHelper::css('/assets/css/pages/layout/footer.css') ?>
     <?= AssetHelper::css('/assets/css/pages/layout/layout.css') ?>
     <?= AssetHelper::css('/assets/css/components/data-table.css') ?>
+    <?= AssetHelper::css('/assets/css/components/spreadsheet.css') ?>
     <?= AssetHelper::css('/assets/css/components/search-form.css') ?>
     <?= AssetHelper::css('/assets/css/components/excel-manager.css') ?>
     <?= AssetHelper::css('/assets/css/components/trash-manager.css') ?>

@@ -1,0 +1,3 @@
+-- Deprecated.
+-- Legacy upload staging tables were removed.
+-- Upload staging is handled by ledger_data_seed_batches / ledger_data_seed_rows.
