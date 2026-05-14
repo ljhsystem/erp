@@ -6,6 +6,7 @@
 
     const trashCacheMap = new Map();
     const busyTrashModals = new WeakSet();
+    const trashRowDataMap = new WeakMap();
 
     /* =========================
      * 1. 紐⑤떖 ?대┫ ??珥덇린??+ 濡쒕뵫
@@ -88,9 +89,8 @@
             //const data = row.dataset.row ? JSON.parse(row.dataset.row) : {};
 
 
-            const data = row.dataset.row
-            ? JSON.parse(decodeURIComponent(row.dataset.row))
-            : {};
+            const data = trashRowDataMap.get(row)
+                || (row.dataset.row ? JSON.parse(decodeURIComponent(row.dataset.row)) : {});
 
 
             
@@ -468,7 +468,7 @@
         data.forEach(row => {
     
             const tr = document.createElement('tr');
-            tr.dataset.row = encodeURIComponent(JSON.stringify(row));
+            trashRowDataMap.set(tr, row);
     
             tr.innerHTML = `
                 <td><input type="checkbox" class="trash-check"></td>

@@ -4,11 +4,96 @@
     margin: 0 auto;
 }
 
+.ledger-data-create-page .btn-trash-has-data {
+    color: #b42318 !important;
+    background-color: #fee4e2 !important;
+    border-color: #fda29b !important;
+}
+
+.ledger-data-create-page .btn-trash-has-data:hover,
+.ledger-data-create-page .btn-trash-has-data:focus {
+    color: #912018 !important;
+    background-color: #fecdca !important;
+    border-color: #f97066 !important;
+}
+
 .ledger-data-create-page .content-area {
     display: flex;
     flex-direction: column;
     gap: 14px;
     min-height: 0;
+}
+
+.ledger-data-create-page .seed-summary-filter {
+    display: inline;
+    width: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 700;
+    text-align: left;
+    appearance: none;
+    cursor: pointer;
+}
+
+.ledger-data-create-page .seed-summary-filter:hover,
+.ledger-data-create-page .seed-summary-filter:focus {
+    text-decoration: none;
+    opacity: 0.82;
+}
+
+.ledger-data-create-page .seed-summary-filter.is-active {
+    text-decoration: none;
+}
+
+.ledger-data-create-page .seed-summary-total {
+    color: #374151;
+}
+
+.ledger-data-create-page .seed-summary-evidence {
+    color: #198754;
+}
+
+.ledger-data-create-page .seed-summary-transaction {
+    color: #0d6efd;
+}
+
+.ledger-data-create-page .seed-summary-voucher {
+    color: #6f42c1;
+}
+
+.ledger-data-create-page .seed-summary-correction {
+    color: #ffc107;
+}
+
+.ledger-data-create-page .seed-status-badge {
+    border: 1px solid transparent;
+}
+
+.ledger-data-create-page .seed-status-evidence {
+    color: #fff;
+    background-color: #198754;
+    border-color: #198754;
+}
+
+.ledger-data-create-page .seed-status-transaction {
+    color: #fff;
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.ledger-data-create-page .seed-status-voucher {
+    color: #fff;
+    background-color: #6f42c1;
+    border-color: #6f42c1;
+}
+
+.ledger-data-create-page .seed-status-correction {
+    color: #000;
+    background-color: #d4a800;
+    border-color: transparent;
 }
 
 .ledger-data-create-page #seedRowsTable_wrapper th.seed-compact-cell,
@@ -900,7 +985,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0;
+    gap: 3px;
     min-width: 0;
     white-space: nowrap;
 }
@@ -909,8 +994,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 9px;
-    height: 12px;
+    width: 18px;
+    height: 24px;
     padding: 0;
     color: #94a3b8;
     border: 0;
@@ -923,7 +1008,7 @@
 }
 
 #seedRowReadinessModal .voucher-line-drag-handle i {
-    font-size: 8px;
+    font-size: 14px;
     line-height: 1;
     pointer-events: none;
 }

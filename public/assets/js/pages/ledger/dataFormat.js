@@ -12,17 +12,6 @@ import '/public/assets/js/components/trash-manager.js';
         importTypes: '/api/settings/system/code/list?code_group=IMPORT_TYPE',
     };
 
-    const EVIDENCE_UPLOAD_TYPES = new Set([
-        'TAX_INVOICE',
-        'CASH_RECEIPT',
-        'CASH_RECEIPT_PURCHASE',
-        'CASH_RECEIPT_SALES',
-        'CARD_HOMETAX',
-        'CARD_STATEMENT',
-        'CARD_APPROVAL',
-        'BANK_TRANSACTION',
-    ]);
-
     const LEGACY_TYPE_MAP = {
         CARD: 'CARD_STATEMENT',
         BANK: 'BANK_TRANSACTION',
@@ -160,7 +149,7 @@ import '/public/assets/js/components/trash-manager.js';
                     is_active: Number(row.is_active ?? 1),
                 };
             })
-            .filter((row) => row.code && row.is_active === 1 && EVIDENCE_UPLOAD_TYPES.has(row.code))
+            .filter((row) => row.code && row.is_active === 1)
             .filter((row, index, list) => list.findIndex((item) => item.code === row.code) === index);
     }
 
@@ -237,8 +226,9 @@ import '/public/assets/js/components/trash-manager.js';
                 ${fields.map((field) => {
                     const value = String(field.value || '');
                     const disabled = value !== '' && value !== selected && disabledValues.has(value);
+                    if (disabled) return '';
                     return `
-                        <option value="${escapeHtml(value)}" ${value === selected ? 'selected' : ''} ${disabled ? 'disabled' : ''}>
+                        <option value="${escapeHtml(value)}" ${value === selected ? 'selected' : ''}>
                             ${escapeHtml(field.label)} (${escapeHtml(value)})
                         </option>
                     `;
@@ -254,8 +244,8 @@ import '/public/assets/js/components/trash-manager.js';
 
     function systemFieldTone(value = '') {
         const group = systemFieldGroup(value);
-        if (group === '기준정보') return 'standard';
-        if (group === '기초정보') return 'basic';
+        if (group.includes('기준정보')) return 'standard';
+        if (group.includes('기초정보')) return 'basic';
         return '';
     }
 
@@ -854,7 +844,7 @@ import '/public/assets/js/components/trash-manager.js';
 
     async function confirmNewFormat() {
         const name = newFormatNameEl?.value?.trim() || '';
-        const dataType = newFormatDataTypeEl?.value || currentType();
+        const dataType = getSelectValue(newFormatDataTypeEl) || currentType();
         if (name === '') {
             notify('warning', text.enterFormatName);
             return;

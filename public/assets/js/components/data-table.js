@@ -385,6 +385,14 @@ async function softDeleteSelectedRows({ deleteApi, ids, table, selectedIds, butt
             },
         }));
         await reloadDataTable(table);
+        table.table?.().node?.()?.dispatchEvent(new CustomEvent('datatable:soft-delete-completed', {
+            bubbles: true,
+            detail: {
+                table,
+                ids,
+                selectedIds,
+            },
+        }));
         window.AppCore?.notify?.('success', `삭제 완료 (${ids.length}건)`);
         return true;
     } catch (error) {

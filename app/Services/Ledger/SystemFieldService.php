@@ -279,6 +279,7 @@ class SystemFieldService
         $dataType = $this->normalizeDataType($dataType);
         $tableName = $this->targetTableForDataType($dataType);
         $usesCurrency = $this->dataTypeUsesCurrency($dataType);
+        $isManualTaxInvoice = $this->isManualTaxInvoiceDataType($dataType);
         $isCashReceipt = in_array($dataType, ['CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES'], true);
         $isCardHometax = $dataType === 'CARD_HOMETAX';
         $isCardCompany = in_array($dataType, ['CARD_STATEMENT', 'CARD_APPROVAL'], true);
@@ -302,6 +303,13 @@ class SystemFieldService
             'merchant_address',
             'total_amount',
         ];
+        $manualTaxInvoiceHiddenFields = [
+            'source_key',
+            'approval_number',
+            'employee_name',
+            'bank_account_name',
+            'card_name',
+        ];
         $this->ensureTargetTableColumns($tableName);
         $stmt = $this->pdo->prepare("
             SELECT COLUMN_NAME, COLUMN_COMMENT, DATA_TYPE, IS_NULLABLE, ORDINAL_POSITION
@@ -318,6 +326,7 @@ class SystemFieldService
                 && !in_array((string) $row['COLUMN_NAME'], self::FORMAT_HIDDEN_FIELDS, true)
                 && !in_array((string) $row['COLUMN_NAME'], self::FORMAT_DEPRECATED_FIELDS, true)
                 && !(!$usesCurrency && in_array((string) $row['COLUMN_NAME'], ['currency'], true))
+                && !($isManualTaxInvoice && in_array((string) $row['COLUMN_NAME'], $manualTaxInvoiceHiddenFields, true))
                 && !(($dataType === 'TAX_INVOICE' || $isCashReceipt || $isCardHometax) && in_array((string) $row['COLUMN_NAME'], ['employee_name', 'bank_account_name', 'card_name'], true))
                 && !($isCardHometax && in_array((string) $row['COLUMN_NAME'], ['source_key', 'approval_number', 'user_name'], true))
                 && !($isCashReceipt && in_array((string) $row['COLUMN_NAME'], $cashReceiptHiddenFields, true))
@@ -355,6 +364,7 @@ class SystemFieldService
     private function referenceFieldOptions(string $dataType): array
     {
         $dataType = $this->normalizeDataType($dataType);
+        $isManualTaxInvoice = $this->isManualTaxInvoiceDataType($dataType);
         $currencyField = $dataType === 'BANK_TRANSACTION' ? 'currency_code' : 'currency';
         $needsCurrency = $this->dataTypeUsesCurrency($dataType);
         $isCashReceipt = in_array($dataType, ['CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES'], true);
@@ -376,7 +386,7 @@ class SystemFieldService
             $this->tableFieldOption('transaction_type', '거래유형', '기준정보', 'system_codes', 'code', 'varchar', [
                 'code_group' => 'TRANSACTION_TYPE',
             ]),
-            in_array($dataType, ['BANK_TRANSACTION', 'TAX_INVOICE', 'CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES', 'CARD_HOMETAX', 'CARD_STATEMENT', 'CARD_APPROVAL'], true)
+            ($isManualTaxInvoice || in_array($dataType, ['BANK_TRANSACTION', 'TAX_INVOICE', 'CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES', 'CARD_HOMETAX', 'CARD_STATEMENT', 'CARD_APPROVAL'], true))
                 ? $this->tableFieldOption('transaction_direction', '거래구분', '기준정보', 'system_codes', 'code', 'varchar', [
                     'code_group' => 'TRANSACTION_DIRECTION',
                 ])
@@ -393,7 +403,7 @@ class SystemFieldService
             in_array($dataType, ['CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES'], true)
                 ? $this->tableFieldOption('user_name', '사용자명', '기초정보', 'system_company', 'company_name_ko')
                 : null,
-            ($isCashReceipt || $isCardHometax)
+            ($isCashReceipt || $isCardHometax || $isCardCompany)
                 ? $this->tableFieldOption('merchant_business_number', '가맹점 사업자등록번호', '기초정보', 'system_clients', 'business_number')
                 : null,
             ($isCashReceipt || $isCardHometax || $isCardCompany)
@@ -451,10 +461,10 @@ class SystemFieldService
                 ? $this->tableFieldOption('customer_email_1', '공급받는자 이메일1', '기초정보', 'system_clients', 'email')
                 : null,
             $this->tableFieldOption('project_name', '프로젝트명', '기초정보', 'system_projects', $this->firstExistingColumn('system_projects', ['project_name', 'project_code'])),
-            !$isCashReceipt && !$isCardHometax && !$isCardCompany && $dataType !== 'TAX_INVOICE'
+            !$isManualTaxInvoice && !$isCashReceipt && !$isCardHometax && !$isCardCompany && $dataType !== 'TAX_INVOICE'
                 ? $this->tableFieldOption('employee_name', '직원', '기초정보', 'user_employees', $this->firstExistingColumn('user_employees', ['employee_name', 'name']))
                 : null,
-            !$isCashReceipt && !$isCardHometax && !$isCardCompany && $dataType !== 'TAX_INVOICE'
+            !$isManualTaxInvoice && !$isCashReceipt && !$isCardHometax && !$isCardCompany && $dataType !== 'TAX_INVOICE'
                 ? $this->tableFieldOption('bank_account_name', '계좌', '기초정보', 'system_bank_accounts', $this->firstExistingColumn('system_bank_accounts', ['account_name', 'bank_account_name', 'account_number']))
                 : null,
             ($isCardHometax || $isCardCompany)
@@ -466,7 +476,7 @@ class SystemFieldService
             $isCardCompany
                 ? $this->tableFieldOption('payment_bank_name', '결제계좌은행명', '기초정보', 'system_bank_accounts', 'bank_name')
                 : null,
-            !$isCashReceipt && !$isCardHometax && $dataType !== 'TAX_INVOICE'
+            !$isManualTaxInvoice && !$isCashReceipt && !$isCardHometax && $dataType !== 'TAX_INVOICE'
                 ? $this->tableFieldOption('card_name', '카드', '기초정보', 'system_cards', $this->firstExistingColumn('system_cards', ['card_name', 'card_number']))
                 : null,
         ];
@@ -544,6 +554,10 @@ class SystemFieldService
         $dataType = strtoupper(trim($dataType));
         $dataType = self::LEGACY_DATA_TYPE_MAP[$dataType] ?? $dataType;
 
+        if (self::isManualTaxInvoiceTypeCode($dataType)) {
+            return '세금계산서매입매출(수기)원본';
+        }
+
         return match ($dataType) {
             'BANK_TRANSACTION' => '입출금(은행)원본',
             'TAX_INVOICE' => '세금계산서(홈택스)원본',
@@ -557,6 +571,10 @@ class SystemFieldService
     private function mappedPayloadFieldOptions(string $dataType): array
     {
         $dataType = $this->normalizeDataType($dataType);
+        if ($this->isManualTaxInvoiceDataType($dataType)) {
+            return $this->manualTaxInvoiceFieldOptions($dataType);
+        }
+
         if (!in_array($dataType, self::DATA_EVIDENCE_TYPES, true)) {
             return [];
         }
@@ -564,6 +582,9 @@ class SystemFieldService
         $fieldsByName = [];
         foreach (self::MAPPED_PAYLOAD_FIELDS as $field) {
             $fieldsByName[(string) $field['value']] = $field;
+        }
+        if ($this->isManualTaxInvoiceDataType($dataType)) {
+            unset($fieldsByName['employee_name'], $fieldsByName['bank_account_name'], $fieldsByName['card_name']);
         }
         if (!$this->dataTypeUsesCurrency($dataType)) {
             unset($fieldsByName['currency_code'], $fieldsByName['exchange_rate']);
@@ -655,8 +676,76 @@ class SystemFieldService
         return $field;
     }
 
+    private function manualTaxInvoiceFieldOptions(string $dataType): array
+    {
+        $group = self::originalFieldGroupLabel($dataType);
+        $clientGroup = '기초정보';
+        $fields = [
+            ['supplier_business_number', '공급자 사업자등록번호'],
+            ['supplier_company_name', '공급자 상호'],
+            ['supplier_ceo_name', '공급자 대표자명'],
+            ['supplier_address', '공급자 주소'],
+            ['customer_business_number', '공급받는자 사업자등록번호'],
+            ['customer_company_name', '공급받는자 상호'],
+            ['customer_ceo_name', '공급받는자 대표자명'],
+            ['customer_address', '공급받는자 주소'],
+            ['note', '비고'],
+            ['receipt_claim_type', '영수/청구구분'],
+            ['item_date', '품목일자'],
+            ['item_name', '품목명'],
+            ['item_spec', '품목규격'],
+            ['item_qty', '품목수량'],
+            ['item_price', '품목단가'],
+            ['item_supply_amount', '품목공급가액'],
+            ['item_vat_amount', '품목세액'],
+            ['item_note', '품목비고'],
+        ];
+
+        $clientColumns = [
+            'supplier_business_number' => 'business_number',
+            'supplier_company_name' => 'company_name',
+            'supplier_ceo_name' => 'ceo_name',
+            'supplier_address' => 'address',
+            'customer_business_number' => 'business_number',
+            'customer_company_name' => 'company_name',
+            'customer_ceo_name' => 'ceo_name',
+            'customer_address' => 'address',
+        ];
+
+        return array_values(array_filter(array_map(
+            function (array $field) use ($group, $clientGroup, $clientColumns): ?array {
+                $fieldName = (string) $field[0];
+                if (isset($clientColumns[$fieldName])) {
+                    $option = $this->tableFieldOption(
+                        $fieldName,
+                        (string) $field[1],
+                        $clientGroup,
+                        'system_clients',
+                        $clientColumns[$fieldName]
+                    );
+
+                    return $option !== null ? array_replace($option, ['ordinal_position' => 10000]) : null;
+                }
+
+                return $this->fixedFieldOption(
+                    $fieldName,
+                    (string) $field[1],
+                    $group,
+                    'mapped_payload_json',
+                    $fieldName,
+                    'json'
+                ) + ['ordinal_position' => 10000];
+            },
+            $fields
+        )));
+    }
+
     private function dataTypeUsesCurrency(string $dataType): bool
     {
+        if ($this->isManualTaxInvoiceDataType($dataType)) {
+            return false;
+        }
+
         return !in_array($this->normalizeDataType($dataType), [
             'BANK_TRANSACTION',
             'TAX_INVOICE',
@@ -665,6 +754,38 @@ class SystemFieldService
             'CASH_RECEIPT_PURCHASE',
             'CASH_RECEIPT_SALES',
         ], true);
+    }
+
+    private function isManualTaxInvoiceDataType(string $dataType): bool
+    {
+        return self::isManualTaxInvoiceTypeCode($this->normalizeDataType($dataType));
+    }
+
+    private static function isManualTaxInvoiceTypeCode(string $dataType): bool
+    {
+        $type = strtoupper(trim($dataType));
+        if ($type === '') {
+            return false;
+        }
+
+        if (in_array($type, [
+            'TAX_INVOICE_MANUAL',
+            'MANUAL_TAX_INVOICE',
+            'TAX_INVOICE_PURCHASE_SALES_MANUAL',
+            'TAX_INVOICE_BUY_SELL_MANUAL',
+        ], true)) {
+            return true;
+        }
+
+        $compact = preg_replace('/[\s_\-()]+/u', '', $type) ?? $type;
+        return (
+            str_contains($type, 'TAX')
+            && str_contains($type, 'INVOICE')
+            && str_contains($type, 'MANUAL')
+        ) || (
+            str_contains($compact, '세금계산서')
+            && str_contains($compact, '수기')
+        );
     }
 
     private function mappedPayloadFieldOrder(string $dataType): array
@@ -828,7 +949,7 @@ class SystemFieldService
             foreach ($fields as $field) {
                 $value = (string) ($field['value'] ?? '');
                 $allowHiddenField = in_array($dataType, ['CARD_STATEMENT', 'CARD_APPROVAL'], true) && $value === 'billing_date';
-                $allowDeprecatedField = $dataType === 'CARD_HOMETAX' && $value === 'note';
+                $allowDeprecatedField = ($dataType === 'CARD_HOMETAX' || $this->isManualTaxInvoiceDataType($dataType)) && $value === 'note';
                 if ($value === ''
                     || isset($merged[$value])
                     || (!$allowHiddenField && in_array($value, self::FORMAT_HIDDEN_FIELDS, true))

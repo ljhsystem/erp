@@ -563,7 +563,7 @@ class ImportController
             ], true);
         }
 
-        if ($dataType !== 'TAX_INVOICE') {
+        if ($dataType !== 'TAX_INVOICE' && !self::isManualTaxInvoiceDataType($dataType)) {
             return false;
         }
 
@@ -983,7 +983,7 @@ class ImportController
     private function isStandardInfoTemplateColumn(string $field, string $header, string $dataType): bool
     {
         $group = $this->templateFieldGroup($field, $dataType);
-        if ($group === '기준정보') {
+        if (str_contains($group, '기준정보')) {
             return true;
         }
         if ($group !== '') {
@@ -997,7 +997,7 @@ class ImportController
     {
         $field = trim($field);
         $group = $this->templateFieldGroup($field, $dataType);
-        if ($group === '기초정보') {
+        if (str_contains($group, '기초정보')) {
             return true;
         }
         if ($group !== '') {
@@ -1523,6 +1523,7 @@ class ImportController
                 $rows = $this->enrichUploadRows($rows, $dataType);
                 $rows = $this->validatePreviewRows($rows, $format['columns'], $dataType);
                 $rows = $this->annotateSeedComparison($rows, $dataType);
+                $this->assertNoUploadValidationErrors($rows);
                 $result = $this->storeUploadBatch($format, $_FILES['file'], $rows);
                 $this->json(['success' => true, 'data' => $result, 'checks' => $checks, 'message' => '업로드가 완료되었습니다.']);
             } catch (\Throwable $e) {
@@ -1549,6 +1550,7 @@ class ImportController
             $rows = $this->enrichUploadRows($rows, $dataType);
             $rows = $this->validatePreviewRows($rows, $preview['format']['columns'], $dataType);
             $rows = $this->annotateSeedComparison($rows, $dataType);
+            $this->assertNoUploadValidationErrors($rows);
             $preview['file'] = $previewFile;
             $preview['rows'] = $rows;
             if (($preview['rows'] ?? []) === []) {
@@ -1900,12 +1902,28 @@ class ImportController
         }
         if ((string) ($_GET['type_counts'] ?? '') === '1') {
             $stmt = $this->pdo->query("
-                SELECT source_type AS import_type, COUNT(*) AS row_count
+                SELECT source_type, mapped_payload_json
                 FROM ledger_data_evidences
                 WHERE deleted_at IS NULL
-                GROUP BY source_type
             ");
-            $this->json(['success' => true, 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []]);
+            $counts = [];
+            foreach (($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []) as $row) {
+                $sourceType = self::normalizeDataType((string) ($row['source_type'] ?? ''));
+                $payload = json_decode((string) ($row['mapped_payload_json'] ?? ''), true);
+                $payloadType = is_array($payload)
+                    ? self::normalizeDataType((string) ($payload['import_type'] ?? $payload['data_type'] ?? $payload['evidence_type'] ?? ''))
+                    : '';
+                $type = in_array($sourceType, ['', 'MANUAL'], true) && $payloadType !== '' ? $payloadType : $sourceType;
+                if ($type === '') {
+                    $type = 'UNKNOWN';
+                }
+                $counts[$type] = ($counts[$type] ?? 0) + 1;
+            }
+            $data = [];
+            foreach ($counts as $type => $count) {
+                $data[] = ['import_type' => $type, 'row_count' => $count];
+            }
+            $this->json(['success' => true, 'data' => $data]);
             return;
         }
         $filters = $this->seedRowFiltersFromRequest();
@@ -2665,7 +2683,7 @@ class ImportController
         }
 
         $stmt = $this->pdo->prepare("
-            SELECT source_type, evidence_status, transaction_status, voucher_status, mapped_payload_json, " . $this->evidenceTransactionIdSelect() . "
+            SELECT source_type, format_id, evidence_status, transaction_status, voucher_status, mapped_payload_json, " . $this->evidenceTransactionIdSelect() . "
             FROM ledger_data_evidences
             WHERE id = :id
             LIMIT 1
@@ -2692,6 +2710,12 @@ class ImportController
         $parsed = $this->mappedPayloadForStorage($parsed);
         if (self::normalizeDataType((string) ($current['source_type'] ?? '')) === 'BANK_TRANSACTION') {
             $parsed = $this->normalizeBankTransactionPayload($parsed);
+        }
+        $format = $this->formatWithColumns(trim((string) ($payload['format_id'] ?? $current['format_id'] ?? '')));
+        $missingMessages = $this->requiredFormatMissingMessages($parsed, is_array($format['columns'] ?? null) ? $format['columns'] : []);
+        if ($missingMessages !== []) {
+            $this->json(['success' => false, 'message' => '필수 항목을 입력해야 저장할 수 있습니다. ' . implode(', ', $missingMessages)], 400);
+            return;
         }
         $currentMapped = json_decode((string) ($current['mapped_payload_json'] ?? ''), true);
         $currentMapped = is_array($currentMapped) ? $currentMapped : [];
@@ -2788,6 +2812,11 @@ class ImportController
         $parsed['data_type'] = $parsed['data_type'] ?? $dataType;
         if ($dataType === 'BANK_TRANSACTION') {
             $parsed = $this->normalizeBankTransactionPayload($parsed);
+        }
+        $missingMessages = $this->requiredFormatMissingMessages($parsed, is_array($format['columns'] ?? null) ? $format['columns'] : []);
+        if ($missingMessages !== []) {
+            $this->json(['success' => false, 'message' => '필수 항목을 입력해야 저장할 수 있습니다. ' . implode(', ', $missingMessages)], 400);
+            return;
         }
         $this->normalizeUploadAmountFields($parsed);
 
@@ -5034,7 +5063,7 @@ class ImportController
         }
 
         $parts = [];
-        if ($dataType === 'TAX_INVOICE') {
+        if ($dataType === 'TAX_INVOICE' || self::isManualTaxInvoiceDataType($dataType)) {
             $parts = [
                 $row['approval_number'] ?? '',
                 $this->normalizeBusinessNumber((string) ($row['supplier_business_number'] ?? '')),
@@ -6913,7 +6942,7 @@ class ImportController
                 $client = $direction === 'SALES' ? $customer : $supplier;
             }
 
-            if ($dataType === 'TAX_INVOICE'
+            if (($dataType === 'TAX_INVOICE' || self::isManualTaxInvoiceDataType($dataType))
                 && ($supplier['company_name'] . $supplier['business_number'] !== '' || $customer['company_name'] . $customer['business_number'] !== '')
                 && !$supplierIsOwn
                 && !$customerIsOwn
@@ -7197,22 +7226,11 @@ class ImportController
     private function validatePreviewRowsV2(array $rows, array $columns, string $dataType = ''): array
     {
         $dataType = self::normalizeDataType($dataType);
-        $requiredFields = [];
-        foreach ($columns as $column) {
-            if (self::isRequiredFormatColumn($column)) {
-                $requiredFields[] = (string) ($column['system_field_name'] ?? '');
-            }
-        }
 
         foreach ($rows as &$row) {
             $errors = [];
             $warnings = [];
-
-            foreach ($requiredFields as $field) {
-                if ($field !== '' && !$this->isMissingAllowedUploadField($field, $row) && trim((string) ($row[$field] ?? '')) === '') {
-                    $errors[] = self::fieldLabel($field) . ' 필수값 없음';
-                }
-            }
+            array_push($errors, ...$this->requiredFormatMissingMessages($row, $columns));
 
             $date = trim((string) ($row['transaction_date'] ?? ''));
             if ($date !== '' && !$this->isValidDateValue($date)) {
@@ -7273,18 +7291,49 @@ class ImportController
         return $rows;
     }
 
-    private function isMissingAllowedUploadField(string $field, array $row): bool
+    private function requiredFormatMissingMessages(array $payload, array $columns): array
     {
-        if ($field !== 'customer_company_name') {
-            return false;
+        $messages = [];
+        foreach ($columns as $column) {
+            if (!self::isRequiredFormatColumn($column)) {
+                continue;
+            }
+
+            $field = trim((string) ($column['system_field_name'] ?? ''));
+            $excelName = trim((string) ($column['excel_column_name'] ?? ''));
+            $label = $excelName !== '' ? $excelName : self::fieldLabel($field);
+            $value = $field !== '' ? ($payload[$field] ?? null) : ($payload[$excelName] ?? null);
+            if ($this->isBlankRequiredValue($value)) {
+                $messages[] = (preg_replace('/\s*\*$/u', '', $label) ?? $label) . ' 필수값 없음';
+            }
         }
 
-        return trim((string) ($row['customer_business_number'] ?? '')) !== ''
-            || trim((string) ($row['customer_email_1'] ?? '')) !== ''
-            || trim((string) ($row['customer_email_2'] ?? '')) !== ''
-            || trim((string) ($row['approval_number'] ?? '')) !== ''
-            || trim((string) ($row['total_amount'] ?? '')) !== ''
-            || trim((string) ($row['supply_amount'] ?? '')) !== '';
+        return array_values(array_unique($messages));
+    }
+
+    private function isBlankRequiredValue(mixed $value): bool
+    {
+        if (is_array($value)) {
+            return $value === [];
+        }
+
+        return trim((string) ($value ?? '')) === '';
+    }
+
+    private function assertNoUploadValidationErrors(array $rows): void
+    {
+        foreach ($rows as $row) {
+            $validation = is_array($row['_validation'] ?? null) ? $row['_validation'] : [];
+            if (($validation['status'] ?? '') !== 'error') {
+                continue;
+            }
+
+            $rowNo = (int) ($row['_row_no'] ?? 0);
+            $prefix = $rowNo > 0 ? "{$rowNo}행 " : '';
+            $messages = array_values(array_filter(array_map('strval', is_array($validation['messages'] ?? null) ? $validation['messages'] : [])));
+            $message = $messages !== [] ? implode(', ', array_slice($messages, 0, 5)) : '필수 항목이 누락되었습니다.';
+            throw new \RuntimeException($prefix . $message);
+        }
     }
 
     private function createTransactionFromPayload(array $row, string $dataType): array
@@ -8852,9 +8901,42 @@ class ImportController
         return self::LEGACY_DATA_TYPE_MAP[$type] ?? $type;
     }
 
+    private static function isManualTaxInvoiceDataType(string $dataType): bool
+    {
+        $type = self::normalizeDataType($dataType);
+        if (in_array($type, [
+            'TAX_INVOICE_MANUAL',
+            'MANUAL_TAX_INVOICE',
+            'TAX_INVOICE_PURCHASE_SALES_MANUAL',
+            'TAX_INVOICE_BUY_SELL_MANUAL',
+        ], true)) {
+            return true;
+        }
+
+        $compact = preg_replace('/[\s_\-()]+/u', '', $type) ?? $type;
+        return (
+            str_contains($type, 'TAX')
+            && str_contains($type, 'INVOICE')
+            && str_contains($type, 'MANUAL')
+        ) || (
+            str_contains($compact, '세금계산서')
+            && str_contains($compact, '수기')
+        );
+    }
+
     private static function processingPlanForDataType(string $dataType): array
     {
-        return match (self::normalizeDataType($dataType)) {
+        $dataType = self::normalizeDataType($dataType);
+        if (self::isManualTaxInvoiceDataType($dataType)) {
+            return [
+                'type' => 'TRANSACTION',
+                'target' => 'TRANSACTION_HEADER',
+                'objects' => ['TRANSACTION_HEADER'],
+                'label' => '거래 + 전표',
+            ];
+        }
+
+        return match ($dataType) {
             'TAX_INVOICE', 'CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES' => [
                 'type' => 'TRANSACTION',
                 'target' => 'TRANSACTION_HEADER',
@@ -9212,7 +9294,7 @@ class ImportController
     {
         $dataType = self::normalizeDataType($dataType);
 
-        if ($dataType === 'TAX_INVOICE') {
+        if ($dataType === 'TAX_INVOICE' || self::isManualTaxInvoiceDataType($dataType)) {
             return [
                 [
                     'role' => 'supplier',
@@ -10003,7 +10085,7 @@ class ImportController
     {
         http_response_code($status);
         header('Content-Type: application/json; charset=UTF-8');
-        echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+        echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     private static function fieldLabel(string $field): string

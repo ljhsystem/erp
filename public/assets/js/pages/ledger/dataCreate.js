@@ -49,6 +49,8 @@ import '/public/assets/js/components/trash-manager.js';
     let evidenceTable = null;
     let isCreating = false;
     let selectedTypeFilter = '';
+    let selectedStatusFilter = '';
+    let seedRowsTypeCounts = {};
     let seedRowsTypeSearchRegistered = false;
     const formatCache = new Map();
     let voucherAccountOptions = null;
@@ -382,6 +384,12 @@ import '/public/assets/js/components/trash-manager.js';
             const rows = Array.isArray(json) ? json : (json.data || []);
             codeOptions[group] = normalizeCodeRows(rows);
         }));
+        if ((codeOptions.IMPORT_TYPE || []).length === 0) {
+            const response = await fetch(`${API.codeList}?code_group=IMPORT_TYPE&filters=[]`, { cache: 'no-store' });
+            const json = await response.json().catch(() => ({}));
+            const rows = Array.isArray(json) ? json : (json.data || []);
+            codeOptions.IMPORT_TYPE = normalizeCodeRows(rows);
+        }
     }
 
     function statusBadge(status) {
@@ -432,10 +440,13 @@ import '/public/assets/js/components/trash-manager.js';
         const items = [];
         const seenFields = new Set();
         const seenMessages = new Set();
+        const configuredCorrection = configuredCorrectionFieldSet(row);
+        const hasConfiguredColumns = formatColumnsForRow(row).length > 0;
         const addIssue = (field, message) => {
             const normalizedField = canonicalReadinessField(field);
             const normalizedMessage = friendlyCorrectionMessage(row, normalizedField, message);
             if (!normalizedMessage) return;
+            if (normalizedField && hasConfiguredColumns && !configuredCorrection.has(normalizedField)) return;
             if (['counterparty_name', 'counterparty_account_number', 'counterparty_bank'].includes(normalizedField)
                 && String(readinessValue(row, normalizedField) ?? '').trim() !== '') {
                 return;
@@ -578,7 +589,7 @@ import '/public/assets/js/components/trash-manager.js';
         const configuredCorrection = configuredCorrectionFieldSet(row);
         const hasConfiguredColumns = formatColumnsForRow(row).length > 0;
         const serverMissing = (Array.isArray(row?.missing_fields) ? row.missing_fields : [])
-            .filter((field) => !hasConfiguredColumns || configuredCorrection.has(String(field || '').trim()));
+            .filter((field) => !hasConfiguredColumns || configuredCorrection.has(canonicalReadinessField(field)));
         const required = readinessRequiredFieldSet(row);
         const derived = [...serverMissing];
         required.forEach((field) => {
@@ -686,13 +697,13 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function transactionStateBadge(state) {
-        if (state === 'CREATED') return '<span class="badge text-bg-success">완료</span>';
+        if (state === 'CREATED') return '<span class="badge seed-status-badge seed-status-transaction">생성</span>';
         if (state === 'NOT_REQUIRED') return '<span class="badge text-bg-light text-dark border">해당없음</span>';
         return '<span class="badge text-bg-secondary">미생성</span>';
     }
 
     function voucherStateBadge(state) {
-        if (state === 'CREATED') return '<span class="badge text-bg-success">발행</span>';
+        if (state === 'CREATED') return '<span class="badge seed-status-badge seed-status-voucher">발행</span>';
         return '<span class="badge text-bg-primary">준비</span>';
     }
 
@@ -754,7 +765,7 @@ import '/public/assets/js/components/trash-manager.js';
     function correctionMissingSummary(row) {
         const issueCount = correctionIssueItems(row).length;
         if (issueCount === 0) {
-            return '<span class="badge text-bg-success">완료</span>';
+            return '<span class="badge seed-status-badge seed-status-evidence">완료</span>';
         }
         return `<span class="badge text-bg-warning">보정필요 ${issueCount.toLocaleString('ko-KR')}건</span>`;
 
@@ -838,7 +849,7 @@ import '/public/assets/js/components/trash-manager.js';
             }, column, row));
         });
 
-        return entries.filter((entry) => entry.required || Number(entry.requirementMode || 0) > 0);
+        return entries.filter((entry) => entry.required || Number(entry.requirementMode || 0) === 1);
     }
 
     function evidenceRequiredEntryResolvedValue(row = {}, entry = {}) {
@@ -859,11 +870,11 @@ import '/public/assets/js/components/trash-manager.js';
             const hasConfiguredColumns = formatColumnsForRow(row).length > 0;
             return explicit
                 .map((message) => {
-                    const field = readinessFieldFromMessage(message) || fallbackSystemFieldForLabel(message);
+                    const field = canonicalReadinessField(readinessFieldFromMessage(message) || fallbackSystemFieldForLabel(message));
                     return { field, message };
                 })
                 .filter((item) => !isOptionalBankBalanceField(item.field || item.message))
-                .filter((item) => !hasConfiguredColumns || item.field === '' || configuredCorrection.has(item.field));
+                .filter((item) => !hasConfiguredColumns || item.field === '' || configuredCorrection.has(canonicalReadinessField(item.field)));
         }
 
         const entries = evidenceRequiredEntries(row);
@@ -919,7 +930,7 @@ import '/public/assets/js/components/trash-manager.js';
     function evidenceStatusBadge(row = {}) {
         const statusIssues = correctionIssueItems(row).map((item) => item.message);
         if (statusIssues.length === 0) {
-            return '<span class="badge text-bg-success">완료</span>';
+            return '<span class="badge seed-status-badge seed-status-evidence">완료</span>';
         }
         const statusTitle = statusIssues.join(', ');
         return `<span class="badge text-bg-secondary" title="${escapeHtml(statusTitle)}">미완료</span>`;
@@ -970,18 +981,12 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function updateSummary(rows = []) {
-        const transactionRows = rows.filter((row) => processingType(row) === 'TRANSACTION');
-        const reconciliationRows = rows.filter((row) => ['RECONCILIATION', 'VERIFY_ONLY'].includes(processingType(row)));
-        const bankFlowRows = rows.filter((row) => processingType(row) === 'BANK_FLOW');
         const summary = {
             total: rows.length,
-            transactionPending: transactionRows.filter((row) => !transactionCreated(row)).length,
-            transactionCreated: transactionRows.filter((row) => transactionCreated(row)).length,
-            voucherReview: transactionRows.filter((row) => transactionCreated(row)).length,
-            reconciliationPending: reconciliationRows.filter((row) => normalizedStatus(row) === 'READY').length,
-            bankFlowPending: bankFlowRows.filter((row) => normalizedStatus(row) === 'READY').length,
-            errors: rows.filter((row) => normalizedStatus(row) === 'ERROR' || row.error_message).length,
-            duplicates: rows.filter((row) => normalizedStatus(row) === 'DUPLICATED').length,
+            evidenceReady: rows.filter((row) => correctionIssueItems(row).length === 0).length,
+            transactionCreated: rows.filter((row) => transactionCreated(row)).length,
+            voucherCreated: rows.filter((row) => voucherCreateState(row) === 'CREATED').length,
+            correctionNeeded: rows.filter((row) => correctionIssueItems(row).length > 0).length,
         };
 
         Object.entries(summary).forEach(([key, value]) => {
@@ -991,8 +996,21 @@ import '/public/assets/js/components/trash-manager.js';
             const countText = `${value.toLocaleString('ko-KR')}건`;
             el.textContent = label ? `${label} ${countText}` : countText;
         });
+        document.querySelectorAll('[data-seed-status-filter]').forEach((button) => {
+            const filter = String(button.dataset.seedStatusFilter || '').trim();
+            button.classList.toggle('is-active', filter === selectedStatusFilter);
+        });
 
         renderTypeSummary(rows);
+    }
+
+    function rowMatchesStatusFilter(row = {}) {
+        if (!selectedStatusFilter) return true;
+        if (selectedStatusFilter === 'evidenceReady') return correctionIssueItems(row).length === 0;
+        if (selectedStatusFilter === 'transactionCreated') return transactionCreated(row);
+        if (selectedStatusFilter === 'voucherCreated') return voucherCreateState(row) === 'CREATED';
+        if (selectedStatusFilter === 'correctionNeeded') return correctionIssueItems(row).length > 0;
+        return true;
     }
 
     function rowTypeKey(row) {
@@ -1000,7 +1018,29 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function rowTypeLabel(row, type = rowTypeKey(row)) {
-        return row?.import_type_name || importTypeLabel(type || row?.seed_source_type || row?.source_type);
+        const normalizedType = String(type || row?.seed_source_type || row?.source_type || '').trim().toUpperCase();
+        const typeOption = (codeOptions.IMPORT_TYPE || []).find((option) => normalizeCodeKey(option.code) === normalizeCodeKey(normalizedType));
+        return row?.import_type_name || typeOption?.code_name || importTypeLabel(normalizedType);
+    }
+
+    async function refreshSeedRowsTypeCounts() {
+        try {
+            const response = await fetch(`${API.rows}?type_counts=1`, { cache: 'no-store' });
+            const json = await response.json().catch(() => ({}));
+            if (!response.ok || json.success === false) {
+                throw new Error(json.message || '자료유형별 건수를 불러오지 못했습니다.');
+            }
+            const nextCounts = {};
+            (json.data || []).forEach((row) => {
+                const type = String(row.import_type || row.source_type || row.data_type || '').trim().toUpperCase();
+                if (!type) return;
+                nextCounts[type] = Number(row.row_count || row.count || 0);
+            });
+            seedRowsTypeCounts = nextCounts;
+            renderTypeSummary(evidenceTable?.rows().data().toArray() || []);
+        } catch (error) {
+            console.warn('[dataCreate] type counts failed', error);
+        }
     }
 
     function renderTypeSummary(rows = []) {
@@ -1008,19 +1048,34 @@ import '/public/assets/js/components/trash-manager.js';
         if (!container) return;
 
         const typeMap = new Map();
+        Object.entries(seedRowsTypeCounts).forEach(([type, count]) => {
+            const normalizedType = String(type || '').trim().toUpperCase();
+            if (!normalizedType || Number(count || 0) < 1) return;
+            typeMap.set(normalizedType, {
+                type: normalizedType,
+                label: rowTypeLabel({}, normalizedType),
+                count: Number(count || 0),
+            });
+        });
         rows.forEach((row) => {
             const type = rowTypeKey(row) || 'UNKNOWN';
             const current = typeMap.get(type) || { type, label: rowTypeLabel(row, type), count: 0 };
-            current.count += 1;
+            if (!typeMap.has(type)) {
+                current.count += 1;
+            }
+            current.label = rowTypeLabel(row, type);
             typeMap.set(type, current);
         });
 
         const items = Array.from(typeMap.values())
             .sort((a, b) => a.label.localeCompare(b.label, 'ko-KR'));
+        const totalCount = Object.keys(seedRowsTypeCounts).length > 0
+            ? Object.values(seedRowsTypeCounts).reduce((sum, value) => sum + Number(value || 0), 0)
+            : rows.length;
 
         const allActive = selectedTypeFilter === '' ? 'active' : '';
         const chips = [
-            `<button type="button" class="btn btn-sm btn-outline-secondary ${allActive}" data-seed-type-filter="">전체 ${rows.length.toLocaleString('ko-KR')}건</button>`,
+            `<button type="button" class="btn btn-sm btn-outline-secondary ${allActive}" data-seed-type-filter="">전체 ${totalCount.toLocaleString('ko-KR')}건</button>`,
             ...items.map((item) => {
                 const active = selectedTypeFilter === item.type ? 'active' : '';
                 return `<button type="button" class="btn btn-sm btn-outline-secondary ${active}" data-seed-type-filter="${escapeHtml(item.type)}">${escapeHtml(item.label)} ${item.count.toLocaleString('ko-KR')}건</button>`;
@@ -1037,19 +1092,28 @@ import '/public/assets/js/components/trash-manager.js';
 
         seedRowsTypeSearchRegistered = true;
         window.jQuery.fn.dataTable.ext.search.push((settings, _data, _dataIndex, rowData) => {
-            if (!selectedTypeFilter) {
-                return true;
-            }
             const tableNode = evidenceTable?.table?.().node?.();
             if (settings.nTable !== tableNode) {
                 return true;
             }
-            return rowTypeKey(rowData) === selectedTypeFilter;
+            if (selectedTypeFilter && rowTypeKey(rowData) !== selectedTypeFilter) {
+                return false;
+            }
+            return rowMatchesStatusFilter(rowData);
         });
     }
 
     function applyTypeFilter(type) {
         selectedTypeFilter = String(type || '').trim().toUpperCase();
+        selectedIds.clear();
+        evidenceTable?.clearSelectedIds?.();
+        evidenceTable?.draw(false);
+        updateButtons();
+        updateSummary(evidenceTable?.rows().data().toArray() || []);
+    }
+
+    function applyStatusFilter(type) {
+        selectedStatusFilter = String(type || '').trim();
         selectedIds.clear();
         evidenceTable?.clearSelectedIds?.();
         evidenceTable?.draw(false);
@@ -1413,7 +1477,7 @@ import '/public/assets/js/components/trash-manager.js';
                 required: Number(column?.is_required || column?.requirement_mode || 0) === 1,
             }))
             .filter((item) => item.key !== '' && item.required)
-            .map((item) => item.key);
+            .map((item) => canonicalReadinessField(item.key));
     }
 
     function configuredCorrectionFieldSet(row = {}, format = null) {
@@ -1422,8 +1486,8 @@ import '/public/assets/js/components/trash-manager.js';
                 key: String(column?.system_field_name || column?.system_field || '').trim(),
                 mode: Number(column?.is_required || column?.requirement_mode || 0),
             }))
-            .filter((item) => item.key !== '' && item.mode > 0)
-            .map((item) => item.key));
+            .filter((item) => item.key !== '' && item.mode === 1)
+            .map((item) => canonicalReadinessField(item.key)));
     }
 
     function readinessRequiredFieldSet(row, format = null) {
@@ -1451,6 +1515,9 @@ import '/public/assets/js/components/trash-manager.js';
             bank_account_name: ['bank_account_name', 'bank_account_id', 'account_name'],
             bank_account_id: ['bank_account_id', 'bank_account_name', 'account_name'],
             card_id: ['card_id', 'card_name', 'card_number'],
+            counterparty_name: ['counterparty_name', 'counterparty_account_holder_name', 'counterparty_account_holder', 'account_holder'],
+            counterparty_account_number: ['counterparty_account_number', 'counterparty_account_no'],
+            counterparty_bank: ['counterparty_bank', 'counterparty_bank_name'],
         }[key] || [key];
     }
 
@@ -4007,7 +4074,7 @@ import '/public/assets/js/components/trash-manager.js';
         적요: 'description',
         상대계좌: 'counterparty_account_number',
         상대계좌번호: 'counterparty_account_number',
-        상대은행: 'counterparty_bank_name',
+        상대은행: 'counterparty_bank',
         상대계좌예금주: 'counterparty_name',
         상대거래처: 'counterparty_name',
         미결제금액: 'check_bill_amount',
@@ -4069,7 +4136,7 @@ import '/public/assets/js/components/trash-manager.js';
     function sourceEntry(key, value, column = null, row = {}) {
         if (column) {
             const rawObject = value && typeof value === 'object' && !Array.isArray(value) ? value : null;
-            const requirementMode = Number(column.is_required || rawObject?.is_required || 0);
+            const requirementMode = Number(column.is_required || column.requirement_mode || rawObject?.is_required || rawObject?.requirement_mode || 0);
             return {
                 key: String(key),
                 label: String(column.excel_column_name || rawObject?.column_name || key).trim(),
@@ -4086,8 +4153,8 @@ import '/public/assets/js/components/trash-manager.js';
         if (value && typeof value === 'object' && !Array.isArray(value)) {
             const label = String(value.column_name || value.label || value.name || key).trim();
             const systemField = inferSystemField(key, value, null, row);
-            const requirementMode = Number(value.is_required || value.required || 0);
-            const required = Number(value.is_required || value.required || 0) === 1
+            const requirementMode = Number(value.is_required || value.requirement_mode || value.required || 0);
+            const required = requirementMode === 1
                 || String(value.is_required || value.required || '').toUpperCase() === 'Y'
                 || String(value.required || '').toLowerCase() === 'true';
             return {
@@ -4136,7 +4203,8 @@ import '/public/assets/js/components/trash-manager.js';
             column_index: Number(column.excel_column_index ?? column.column_order ?? 0),
             column_name: excelName,
             system_field_name: systemField,
-            is_required: Number(column.is_required || 0),
+            is_required: Number(column.is_required || column.requirement_mode || 0),
+            requirement_mode: Number(column.requirement_mode || column.is_required || 0),
             is_reference_column: Number(column.is_reference_column || 0),
             value: '',
         }];
@@ -4228,7 +4296,7 @@ import '/public/assets/js/components/trash-manager.js';
         const labelTitle = [entry.label, entry.required ? '필수' : '', entry.systemField].filter(Boolean).join(' ');
         let control = '';
         const lockAttrs = editable ? '' : ' readonly aria-readonly="true" tabindex="-1"';
-        const sourceAttrs = `class="form-control form-control-sm readiness-source-input ${type === 'amount' ? 'number-input' : ''}" data-source-key="${safeKey}" data-source-column-name="${safeLabel}" data-source-column-index="${escapeHtml(safeColumnIndex)}" data-source-system-field="${safeSystemField}" data-source-required="${entry.required ? '1' : '0'}" data-value-kind="${escapeHtml(type)}"${lockAttrs}`;
+        const sourceAttrs = `class="form-control form-control-sm readiness-source-input ${type === 'amount' ? 'number-input' : ''}" data-source-key="${safeKey}" data-source-column-name="${safeLabel}" data-source-column-index="${escapeHtml(safeColumnIndex)}" data-source-system-field="${safeSystemField}" data-source-required="${requirementMode}" data-value-kind="${escapeHtml(type)}"${lockAttrs}`;
         if (editable && config.kind === 'code' && config.codeGroup) {
             control = `
                 <select class="form-select form-select-sm readiness-source-input"
@@ -4236,7 +4304,7 @@ import '/public/assets/js/components/trash-manager.js';
                         data-source-column-name="${safeLabel}"
                         data-source-column-index="${escapeHtml(safeColumnIndex)}"
                         data-source-system-field="${safeSystemField}"
-                        data-source-required="${entry.required ? '1' : '0'}"
+                        data-source-required="${requirementMode}"
                         data-source-raw-value="${safeValue}"
                         data-code-group="${escapeHtml(config.codeGroup)}"
                         data-empty-label="${escapeHtml(config.emptyLabel || '선택')}">
@@ -4502,7 +4570,8 @@ import '/public/assets/js/components/trash-manager.js';
                     column_index: input.dataset.sourceColumnIndex ? Number(input.dataset.sourceColumnIndex) : null,
                     column_name: input.dataset.sourceColumnName || key,
                     system_field_name: input.dataset.sourceSystemField || '',
-                    is_required: input.dataset.sourceRequired === '1' ? 1 : 0,
+                    is_required: Number(input.dataset.sourceRequired || 0),
+                    requirement_mode: Number(input.dataset.sourceRequired || 0),
                     value,
                 };
                 return;
@@ -4655,7 +4724,7 @@ import '/public/assets/js/components/trash-manager.js';
                 data: 'client_name',
                 title: '거래처',
                 render(value, _type, row) {
-                    value = value || rowClient(row);
+                    value = value || rowClientName(row);
                     return `<span title="${escapeHtml(value)}">${escapeHtml(value || '-')}</span>`;
                 },
             },
@@ -4727,6 +4796,33 @@ import '/public/assets/js/components/trash-manager.js';
         bootstrap.Modal.getOrCreateInstance(modal, { focus: false }).show();
     }
 
+    async function updateTrashButtonState() {
+        const button = document.querySelector('.seed-rows-trash-btn');
+        if (!button) return;
+        try {
+            const res = await fetch(API.trash, { credentials: 'same-origin' });
+            const json = await res.json();
+            const rows = json?.success ? (json.data || []) : [];
+            const hasTrash = rows.length > 0;
+            button.classList.toggle('btn-trash-has-data', hasTrash);
+            button.classList.toggle('btn-outline-danger', !hasTrash);
+            button.setAttribute('aria-label', hasTrash ? `휴지통 ${rows.length}건` : '휴지통');
+            button.title = hasTrash ? `휴지통 ${rows.length}건` : '휴지통';
+        } catch (error) {
+            console.error('[data-create] trash state failed:', error);
+        }
+    }
+
+    function markTrashButtonHasData(count = 1) {
+        const button = document.querySelector('.seed-rows-trash-btn');
+        if (!button) return;
+        const safeCount = Math.max(1, Number(count) || 1);
+        button.classList.add('btn-trash-has-data');
+        button.classList.remove('btn-outline-danger');
+        button.setAttribute('aria-label', `휴지통 ${safeCount}건 이상`);
+        button.title = `휴지통 ${safeCount}건 이상`;
+    }
+
     function bindEvents() {
         const tableEl = document.getElementById('seedRowsTable');
 
@@ -4734,6 +4830,11 @@ import '/public/assets/js/components/trash-manager.js';
             selectedIds.clear();
             (event.detail?.ids || []).forEach((id) => selectedIds.add(String(id)));
             updateButtons();
+        });
+        tableEl?.addEventListener('datatable:soft-delete-completed', (event) => {
+            markTrashButtonHasData(event.detail?.ids?.length || 1);
+            void refreshSeedRowsTypeCounts();
+            void updateTrashButtonState();
         });
 
         tableEl?.addEventListener('click', (event) => {
@@ -4751,6 +4852,8 @@ import '/public/assets/js/components/trash-manager.js';
         document.addEventListener('trash:changed', (event) => {
             if (event.detail?.type === 'seedRows') {
                 reloadRows();
+                void refreshSeedRowsTypeCounts();
+                void updateTrashButtonState();
             }
         });
 
@@ -4766,6 +4869,12 @@ import '/public/assets/js/components/trash-manager.js';
             applyTypeFilter(button.dataset.seedTypeFilter || '');
         });
 
+        document.getElementById('seedRowsStatusSummary')?.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-seed-status-filter]');
+            if (!button) return;
+            applyStatusFilter(button.dataset.seedStatusFilter || '');
+        });
+
         document.addEventListener('trash:detail-render', (event) => {
             if (event.detail?.type !== 'seedRows') return;
             const detailEl = event.detail.modal?.querySelector('.trash-detail');
@@ -4777,7 +4886,7 @@ import '/public/assets/js/components/trash-manager.js';
                         <dt class="col-4">자료출처</dt><dd class="col-8">${escapeHtml(row.source_type_name || importSourceLabel(row.source_type))}</dd>
                         <dt class="col-4">자료유형</dt><dd class="col-8">${escapeHtml(row.import_type_name || importTypeLabel(row.import_type || row.seed_source_type))}</dd>
                         <dt class="col-4">상태</dt><dd class="col-8">${statusBadge(normalizedStatus(row))}</dd>
-                        <dt class="col-4">거래처</dt><dd class="col-8">${escapeHtml(rowClient(row) || '-')}</dd>
+                        <dt class="col-4">거래처</dt><dd class="col-8">${escapeHtml(rowClientName(row) || '-')}</dd>
                         <dt class="col-4">합계금액</dt><dd class="col-8">${escapeHtml(formatNumber(mapped(row).total_amount))}</dd>
                         <dt class="col-4">적요</dt><dd class="col-8">${escapeHtml(mapped(row).description || '-')}</dd>
                         <dt class="col-4">파일명</dt><dd class="col-8">${escapeHtml(row.file_name || '-')}</dd>
@@ -5080,6 +5189,7 @@ import '/public/assets/js/components/trash-manager.js';
             dataSrc(json) {
                 const rows = Array.isArray(json.data) ? json.data : [];
                 updateSummary(rows);
+                void refreshSeedRowsTypeCounts();
                 return rows;
             },
             buttons: [
@@ -5092,7 +5202,7 @@ import '/public/assets/js/components/trash-manager.js';
                 },
                 {
                     text: '휴지통',
-                    className: 'btn btn-danger btn-sm',
+                    className: 'btn btn-outline-danger btn-sm seed-rows-trash-btn',
                     action: openTrashModal,
                 },
             ],
@@ -5101,6 +5211,7 @@ import '/public/assets/js/components/trash-manager.js';
         evidenceTable.on('draw.dt xhr.dt', () => {
             updateButtons();
             updateSummary(evidenceTable?.rows().data().toArray() || []);
+            void updateTrashButtonState();
         });
 
         SearchForm({
@@ -5135,6 +5246,7 @@ import '/public/assets/js/components/trash-manager.js';
 
         bindEvents();
         updateButtons();
+        void updateTrashButtonState();
     }
 
     window.TrashColumns = window.TrashColumns || {};
@@ -5144,7 +5256,7 @@ import '/public/assets/js/components/trash-manager.js';
             <td>${statusBadge(normalizedStatus(row))}</td>
             <td>${escapeHtml(row.source_type_name || importSourceLabel(row.source_type))}</td>
             <td>${escapeHtml(row.import_type_name || importTypeLabel(row.import_type || row.seed_source_type))}</td>
-            <td>${escapeHtml(rowClient(row) || '-')}</td>
+            <td>${escapeHtml(rowClientName(row) || '-')}</td>
             <td class="text-end">${escapeHtml(formatNumber(mapped(row).total_amount))}</td>
             <td>${escapeHtml(formatDate(mapped(row).transaction_date))}</td>
             <td>${escapeHtml(row.deleted_at || '-')}</td>

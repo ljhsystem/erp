@@ -4,6 +4,7 @@ import { SearchForm } from '/public/assets/js/components/search-form.js';
 import {
     bindNumberInput as bindCommonNumberInput,
     formatDateInputValue,
+    formatBizNumber,
     formatPhone,
     parseNumber as parseCommonNumber,
 } from '/public/assets/js/common/format.js';
@@ -250,10 +251,11 @@ import '/public/assets/js/components/excel-manager.js';
 
     function clientAutofillPayload(row = {}) {
         return {
-            business_number: row.business_number || '',
+            business_number: formatBizNumber(row.business_number || ''),
             ceo_name: row.ceo_name || '',
             address: [row.address || '', row.address_detail || ''].filter(Boolean).join(' '),
             email: row.email || '',
+            phone: formatPhone(row.phone || ''),
         };
     }
 
@@ -265,6 +267,7 @@ import '/public/assets/js/components/excel-manager.js';
             nameKey: 'supplier_company_name',
             placeholder: '공급자 상호 선택',
             keys: ['supplier_company_name', 'supplier_name', '공급자상호', '공급자명'],
+            allowText: true,
             label: clientCompanyText,
             result: clientAutofillPayload,
             autofill: {
@@ -272,6 +275,8 @@ import '/public/assets/js/components/excel-manager.js';
                 supplier_ceo_name: 'ceo_name',
                 supplier_address: 'address',
                 supplier_email: 'email',
+                supplier_phone: 'phone',
+                supplier_ceo_phone: 'phone',
             },
         },
         CUSTOMER_COMPANY: {
@@ -281,6 +286,7 @@ import '/public/assets/js/components/excel-manager.js';
             nameKey: 'customer_company_name',
             placeholder: '공급받는자 상호 선택',
             keys: ['customer_company_name', 'customer_name', '공급받는자상호', '공급받는자명'],
+            allowText: true,
             label: clientCompanyText,
             result: clientAutofillPayload,
             autofill: {
@@ -288,6 +294,8 @@ import '/public/assets/js/components/excel-manager.js';
                 customer_ceo_name: 'ceo_name',
                 customer_address: 'address',
                 customer_email_1: 'email',
+                customer_phone: 'phone',
+                customer_ceo_phone: 'phone',
             },
         },
         CLIENT: {
@@ -443,6 +451,15 @@ import '/public/assets/js/components/excel-manager.js';
         const field = String(column.system_field_name || '').toLowerCase();
         const title = String(column.excel_column_name || '').trim();
         return /phone|tel|mobile|fax|전화|연락처|휴대폰|핸드폰|팩스/.test(`${field} ${title}`);
+    }
+
+    function isBusinessNumberColumn(column = {}) {
+        const field = String(column.system_field_name || '').toLowerCase();
+        const title = String(column.excel_column_name || '').replace(/\s+/g, '').toLowerCase();
+        const text = `${field} ${title}`;
+        return /business_number|biz_number|businessnumber/.test(text)
+            || title.includes('\uc0ac\uc5c5\uc790\ub4f1\ub85d\ubc88\ud638')
+            || title.includes('\uc0ac\uc5c5\uc790\ubc88\ud638');
     }
 
     function clientName(row = {}) {
@@ -930,6 +947,7 @@ import '/public/assets/js/components/excel-manager.js';
         if (bankCodePickerForColumn(column)) return 'code';
         if (isDateColumn(column)) return 'date';
         if (isAmountColumn(column)) return 'number';
+        if (isBusinessNumberColumn(column)) return 'business_number';
         if (isPhoneColumn(column)) return 'phone';
         if (String(value ?? '').length > 80 || /memo|note|description|address|비고|메모|주소|적요/.test(key)) return 'textarea';
         return 'text';
@@ -960,8 +978,8 @@ import '/public/assets/js/components/excel-manager.js';
 
     function infoColumnTone(column = {}) {
         const group = String(column.system_field_group || '').trim();
-        if (group === '기준정보') return 'standard';
-        if (group === '기초정보') return 'basic';
+        if (group.includes('기준정보')) return 'standard';
+        if (group.includes('기초정보')) return 'basic';
         if (group !== '') return '';
         if (Number(column.is_reference_column || 0) === 1 && businessRefPickerForColumn(column)) return 'basic';
         if (currentType !== 'BANK_TRANSACTION') return '';
@@ -1082,7 +1100,9 @@ import '/public/assets/js/components/excel-manager.js';
             ? normalizeDateInputValue(value, keepTime)
             : type === 'number'
                 ? formatNumber(value)
-                : type === 'phone'
+                : type === 'business_number'
+                    ? formatBizNumber(value)
+                    : type === 'phone'
                     ? formatPhone(value)
                     : String(value ?? '');
         const safeValue = escapeHtml(displayValue === '-' ? '' : displayValue);
@@ -1102,6 +1122,9 @@ import '/public/assets/js/components/excel-manager.js';
         }
         if (type === 'phone') {
             return `<input type="text" inputmode="tel" class="form-control form-control-sm evidence-edit-input evidence-edit-phone" data-key="${safeKey}" data-value-kind="phone" value="${safeValue}" ${required}>`;
+        }
+        if (type === 'business_number') {
+            return `<input type="text" inputmode="numeric" class="form-control form-control-sm evidence-edit-input evidence-edit-business-number" data-key="${safeKey}" data-value-kind="business_number" value="${safeValue}" ${required}>`;
         }
         if (type === 'date') {
             return `
@@ -1163,6 +1186,9 @@ import '/public/assets/js/components/excel-manager.js';
 
         if (type === 'number') {
             return `<input type="text" inputmode="decimal" class="form-control form-control-sm evidence-bulk-input evidence-bulk-number" data-key="${safeKey}" data-value-kind="number" disabled>`;
+        }
+        if (type === 'business_number') {
+            return `<input type="text" inputmode="numeric" class="form-control form-control-sm evidence-bulk-input evidence-bulk-business-number" data-key="${safeKey}" data-value-kind="business_number" disabled>`;
         }
         if (type === 'phone') {
             return `<input type="text" inputmode="tel" class="form-control form-control-sm evidence-bulk-input evidence-bulk-phone" data-key="${safeKey}" data-value-kind="phone" disabled>`;
@@ -1271,6 +1297,13 @@ import '/public/assets/js/components/excel-manager.js';
         refs.bulkFields?.querySelectorAll('.evidence-bulk-number').forEach((input) => {
             bindCommonNumberInput(input);
         });
+        refs.bulkFields?.querySelectorAll('.evidence-bulk-business-number').forEach((input) => {
+            if (input.dataset.businessNumberFormatBound === 'true') return;
+            const apply = () => { input.value = formatBizNumber(input.value); };
+            input.addEventListener('input', apply);
+            input.addEventListener('blur', apply);
+            input.dataset.businessNumberFormatBound = 'true';
+        });
         refs.bulkFields?.querySelectorAll('.evidence-bulk-phone').forEach((input) => {
             if (input.dataset.phoneFormatBound === 'true') return;
             const apply = () => { input.value = formatPhone(input.value); };
@@ -1351,6 +1384,10 @@ import '/public/assets/js/components/excel-manager.js';
                 patch[key] = normalizeDateInputValue(input.value, input.dataset.keepTime === '1');
                 return;
             }
+            if (input.dataset.valueKind === 'business_number') {
+                patch[key] = formatBizNumber(input.value);
+                return;
+            }
             if (input.dataset.valueKind === 'phone') {
                 patch[key] = formatPhone(input.value);
                 return;
@@ -1428,13 +1465,16 @@ import '/public/assets/js/components/excel-manager.js';
             const systemField = String(column.system_field_name || '').trim();
             const value = editFieldValue(row, column);
             const cleanTitle = title.replace(/\s*\*$/u, '');
-            const displayTitle = `${escapeHtml(cleanTitle)}${requirementStar(column)}`;
+            const displayStar = requirementStar(column);
             const infoTone = infoColumnTone(column);
             const infoToneClass = infoTone ? ` evidence-edit-field-${infoTone}` : '';
             return `
                 <label class="evidence-edit-field${infoToneClass}">
                     <span class="form-label small mb-1 d-flex align-items-center gap-2">
-                        <span>${displayTitle}</span>
+                        <span class="evidence-edit-title">
+                            <span class="evidence-edit-title-text">${escapeHtml(cleanTitle)}</span>
+                            ${displayStar}
+                        </span>
                         <span class="text-muted">${escapeHtml(systemField || key)}</span>
                     </span>
                     ${renderEditInput(column, value)}
@@ -1514,11 +1554,17 @@ import '/public/assets/js/components/excel-manager.js';
         return refs.editFields.querySelector(`.evidence-edit-input[data-key="${escapeSelectorValue(key)}"]`);
     }
 
-    function applyEditValueIfBlank(key, value) {
+    function formatValueForEditInput(input, value) {
+        if (input?.dataset?.valueKind === 'business_number') return formatBizNumber(value);
+        if (input?.dataset?.valueKind === 'phone') return formatPhone(value);
+        return String(value ?? '').trim();
+    }
+
+    function applyEditValueIfBlank(key, value, options = {}) {
         const input = editInputByKey(key);
-        const nextValue = String(value ?? '').trim();
+        const nextValue = formatValueForEditInput(input, value);
         if (!input || nextValue === '') return;
-        if (String(input.value ?? '').trim() !== '') return;
+        if (!options.overwrite && String(input.value ?? '').trim() !== '') return;
 
         input.value = nextValue;
         input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1528,7 +1574,7 @@ import '/public/assets/js/components/excel-manager.js';
     function applyRefAutofill(config = {}, data = {}) {
         if (!config.autofill) return;
         Object.entries(config.autofill).forEach(([targetKey, sourceKey]) => {
-            applyEditValueIfBlank(targetKey, data[sourceKey]);
+            applyEditValueIfBlank(targetKey, data[sourceKey], { overwrite: true });
         });
     }
 
@@ -1597,6 +1643,19 @@ import '/public/assets/js/components/excel-manager.js';
     function bindEditFieldBehaviors() {
         refs.editFields?.querySelectorAll('.evidence-edit-number').forEach((input) => {
             bindCommonNumberInput(input);
+        });
+
+        refs.editFields?.querySelectorAll('.evidence-edit-business-number').forEach((input) => {
+            if (input.dataset.businessNumberFormatBound === 'true') return;
+
+            const apply = () => {
+                input.value = formatBizNumber(input.value);
+            };
+
+            input.addEventListener('input', apply);
+            input.addEventListener('blur', apply);
+            apply();
+            input.dataset.businessNumberFormatBound = 'true';
         });
 
         refs.editFields?.querySelectorAll('.evidence-edit-phone').forEach((input) => {
@@ -1756,6 +1815,10 @@ import '/public/assets/js/components/excel-manager.js';
                 }
                 return;
             }
+            if (input.dataset.valueKind === 'business_number') {
+                next[key] = formatBizNumber(input.value);
+                return;
+            }
             if (input.dataset.valueKind === 'phone') {
                 next[key] = formatPhone(input.value);
                 return;
@@ -1765,8 +1828,40 @@ import '/public/assets/js/components/excel-manager.js';
         return next;
     }
 
+    function requiredEditColumns() {
+        const columns = Array.isArray(activeFormat?.columns) ? activeFormat.columns : [];
+        return columns.filter((column) => requirementMode(column) === 1 && editFieldKey(column) !== 'balance_amount');
+    }
+
+    function validateRequiredEditFields() {
+        const missing = [];
+        let firstInput = null;
+        requiredEditColumns().forEach((column) => {
+            const key = editFieldKey(column);
+            if (!key) return;
+            const input = editInputByKey(key);
+            const value = input
+                ? (input.dataset.valueKind === 'ref'
+                    ? String(input.dataset.refSelectedText || input.selectedOptions?.[0]?.textContent || input.value || '').trim()
+                    : String(input.value ?? '').trim())
+                : '';
+            input?.classList.remove('is-invalid');
+            if (value !== '') return;
+            input?.classList.add('is-invalid');
+            firstInput = firstInput || input;
+            missing.push(String(column.excel_column_name || column.system_field_name || key).replace(/\s*\*$/u, ''));
+        });
+
+        if (missing.length === 0) return true;
+        firstInput?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        firstInput?.focus?.();
+        notify('warning', `필수 항목을 입력해야 저장할 수 있습니다: ${missing.slice(0, 5).join(', ')}${missing.length > 5 ? ` 외 ${missing.length - 5}건` : ''}`);
+        return false;
+    }
+
     async function saveEditingRow() {
         if (!editingRow) return;
+        if (!validateRequiredEditFields()) return;
         const isNew = editingRow.__isNew === true;
         const json = await fetch(isNew ? API.createEvidence : API.saveSeedRow, {
             method: 'POST',
@@ -2344,7 +2439,7 @@ import '/public/assets/js/components/excel-manager.js';
             buttons: [
                 {
                     text: '휴지통',
-                    className: 'btn btn-danger btn-sm',
+                    className: 'btn btn-outline-danger btn-sm evidence-status-trash-btn',
                     action: openEvidenceTrash,
                 },
                 ...(hasFormat ? [
@@ -2369,6 +2464,10 @@ import '/public/assets/js/components/excel-manager.js';
                     action: openNewEvidenceModal,
                 }] : []),
             ],
+        });
+        void updateTrashButtonState();
+        table.on('draw.dt xhr.dt', () => {
+            void updateTrashButtonState();
         });
 
         bindRowReorder(table, {
@@ -2421,6 +2520,35 @@ import '/public/assets/js/components/excel-manager.js';
         refs.trashModal.dataset.importType = currentType;
         refs.trashModal.dataset.trashTitle = `${selectedLabel} 휴지통`;
         bootstrap.Modal.getOrCreateInstance(refs.trashModal, { focus: false }).show();
+    }
+
+    async function updateTrashButtonState() {
+        const button = document.querySelector('.evidence-status-trash-btn');
+        if (!button || !currentType) return;
+        try {
+            const res = await fetch(`${API.trash}?import_type=${encodeURIComponent(currentType)}`, {
+                credentials: 'same-origin',
+            });
+            const json = await res.json();
+            const rows = json?.success ? (json.data || []) : [];
+            const hasTrash = rows.length > 0;
+            button.classList.toggle('btn-trash-has-data', hasTrash);
+            button.classList.toggle('btn-outline-danger', !hasTrash);
+            button.setAttribute('aria-label', hasTrash ? `휴지통 ${rows.length}건` : '휴지통');
+            button.title = hasTrash ? `휴지통 ${rows.length}건` : '휴지통';
+        } catch (error) {
+            console.error('[data-status] trash state failed:', error);
+        }
+    }
+
+    function markTrashButtonHasData(count = 1) {
+        const button = document.querySelector('.evidence-status-trash-btn');
+        if (!button) return;
+        const safeCount = Math.max(1, Number(count) || 1);
+        button.classList.add('btn-trash-has-data');
+        button.classList.remove('btn-outline-danger');
+        button.setAttribute('aria-label', `휴지통 ${safeCount}건 이상`);
+        button.title = `휴지통 ${safeCount}건 이상`;
     }
 
     function changeType(nextType) {
@@ -2500,6 +2628,10 @@ import '/public/assets/js/components/excel-manager.js';
         evidenceTableEl?.addEventListener('datatable:selection-changed', (event) => {
             selectedIds = new Set((event.detail?.ids || []).map((id) => String(id)));
         });
+        evidenceTableEl?.addEventListener('datatable:soft-delete-completed', (event) => {
+            markTrashButtonHasData(event.detail?.ids?.length || 1);
+            void updateTrashButtonState();
+        });
 
         evidenceTableEl?.addEventListener('dblclick', (event) => {
             if (event.target.closest('a, button, input, select, textarea, .dt-select-column')) return;
@@ -2520,6 +2652,7 @@ import '/public/assets/js/components/excel-manager.js';
             if (event.detail?.type === 'evidenceStatus') {
                 table?.ajax.reload(() => updateSummary(lastRows), false);
                 void refreshEvidenceTypeCounts().catch(() => {});
+                void updateTrashButtonState();
             }
         });
 

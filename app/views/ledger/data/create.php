@@ -38,34 +38,29 @@ $pageScripts = AssetHelper::js('https://cdn.jsdelivr.net/npm/handsontable@14.6.1
         </div>
 
         <section class="row g-3 mb-3" id="seedRowsStatusSummary">
-            <div class="col-6 col-md-4 col-xl-2">
+            <div class="col-6 col-md-4 col-xl">
                 <div class="border rounded p-3 h-100 bg-white">
-                    <div class="h6 mb-0" data-seed-summary="total" data-seed-summary-label="전체">전체 0건</div>
+                    <button type="button" class="seed-summary-filter seed-summary-total is-active" data-seed-status-filter="" data-seed-summary="total" data-seed-summary-label="전체">전체 0건</button>
                 </div>
             </div>
-            <div class="col-6 col-md-4 col-xl-2">
+            <div class="col-6 col-md-4 col-xl">
                 <div class="border rounded p-3 h-100 bg-white">
-                    <div class="h6 mb-0 text-primary" data-seed-summary="transactionPending" data-seed-summary-label="거래미생성">거래미생성 0건</div>
+                    <button type="button" class="seed-summary-filter seed-summary-evidence" data-seed-status-filter="evidenceReady" data-seed-summary="evidenceReady" data-seed-summary-label="증빙준비">증빙준비 0건</button>
                 </div>
             </div>
-            <div class="col-6 col-md-4 col-xl-2">
+            <div class="col-6 col-md-4 col-xl">
                 <div class="border rounded p-3 h-100 bg-white">
-                    <div class="h6 mb-0 text-success" data-seed-summary="transactionCreated" data-seed-summary-label="거래생성">거래생성 0건</div>
+                    <button type="button" class="seed-summary-filter seed-summary-transaction" data-seed-status-filter="transactionCreated" data-seed-summary="transactionCreated" data-seed-summary-label="거래생성">거래생성 0건</button>
                 </div>
             </div>
-            <div class="col-6 col-md-4 col-xl-2">
+            <div class="col-6 col-md-4 col-xl">
                 <div class="border rounded p-3 h-100 bg-white">
-                    <div class="h6 mb-0 text-warning" data-seed-summary="voucherReview" data-seed-summary-label="전표검토">전표검토 0건</div>
+                    <button type="button" class="seed-summary-filter seed-summary-voucher" data-seed-status-filter="voucherCreated" data-seed-summary="voucherCreated" data-seed-summary-label="전표발행">전표발행 0건</button>
                 </div>
             </div>
-            <div class="col-6 col-md-4 col-xl-2">
+            <div class="col-6 col-md-4 col-xl">
                 <div class="border rounded p-3 h-100 bg-white">
-                    <div class="h6 mb-0 text-danger" data-seed-summary="errors" data-seed-summary-label="오류">오류 0건</div>
-                </div>
-            </div>
-            <div class="col-6 col-md-4 col-xl-2">
-                <div class="border rounded p-3 h-100 bg-white">
-                    <div class="h6 mb-0 text-secondary" data-seed-summary="duplicates" data-seed-summary-label="중복">중복 0건</div>
+                    <button type="button" class="seed-summary-filter seed-summary-correction" data-seed-status-filter="correctionNeeded" data-seed-summary="correctionNeeded" data-seed-summary-label="보정필요">보정필요 0건</button>
                 </div>
             </div>
         </section>

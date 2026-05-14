@@ -1,5 +1,6 @@
 # VS / IDE
 .vs/
+.vscode/
 *.suo
 *.user
 *.cache
@@ -23,5 +24,3 @@ vendor/
 
 # Env
 .env
-
-.vscode/

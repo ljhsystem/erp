@@ -2,26 +2,52 @@
     gap: 1rem;
 }
 
+.ledger-data-status-page .btn-trash-has-data {
+    color: #b42318 !important;
+    background-color: #fee4e2 !important;
+    border-color: #fda29b !important;
+}
+
+.ledger-data-status-page .btn-trash-has-data:hover,
+.ledger-data-status-page .btn-trash-has-data:focus {
+    color: #912018 !important;
+    background-color: #fecdca !important;
+    border-color: #f97066 !important;
+}
+
+.ledger-data-status-page .page-header > div:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
 .ledger-data-status-page .evidence-type-header-controls {
     display: flex;
     align-items: flex-start;
     justify-content: flex-end;
+    flex: 0 0 min(30vw, 320px);
     gap: 10px;
     min-width: 0;
-    max-width: min(100%, 980px);
+    width: min(30vw, 320px);
+    max-width: min(100%, 320px);
 }
 
 .ledger-data-status-page .evidence-type-select-box {
-    flex: 0 0 220px;
+    flex: 1 1 auto;
+    width: 100%;
     min-width: 0;
 }
 
-.ledger-data-status-page .evidence-type-select-box .select2-container {
+.ledger-data-status-page .evidence-type-select-box label {
+    margin-left: 1px;
+}
+
+.ledger-data-status-page .evidence-type-select-box #evidenceTypeSelect,
+.ledger-data-status-page .evidence-type-select-box .select2-container,
+.ledger-data-status-page .evidence-type-select-box .select2-selection {
     width: 100% !important;
 }
 
 .ledger-data-status-page .evidence-type-header-controls .evidence-type-tabs {
-    justify-content: flex-end;
     min-width: 0;
 }
 
@@ -199,7 +225,14 @@ textarea.evidence-edit-input {
     min-width: 0;
 }
 
-.evidence-edit-field .form-label > span:first-child {
+.evidence-edit-field .form-label .evidence-edit-title {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+.evidence-edit-field .form-label .evidence-edit-title-text {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -214,11 +247,13 @@ textarea.evidence-edit-input {
 }
 
 .evidence-required-star {
+    flex: 0 0 auto;
     color: #dc2626;
     font-weight: 700;
 }
 
 .evidence-optional-star {
+    flex: 0 0 auto;
     color: #2563eb;
     font-weight: 700;
 }
