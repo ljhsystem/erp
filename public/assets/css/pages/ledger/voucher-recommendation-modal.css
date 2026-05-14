@@ -1,0 +1,97 @@
+.modal#voucherRecommendationModal,
+.modal.show#voucherRecommendationModal {
+    z-index: 30040 !important;
+}
+
+body:has(#voucherRecommendationModal.show) .modal-backdrop.show:last-of-type {
+    z-index: 30035 !important;
+}
+
+.modal-backdrop.voucher-recommendation-backdrop {
+    z-index: 30035 !important;
+}
+
+#voucherRecommendationModal .modal-body {
+    background: #f8fafc;
+}
+
+#voucherRecommendationModal .voucher-recommendation-dialog {
+    width: min(1320px, calc(100vw - 32px));
+    max-width: min(1320px, calc(100vw - 32px));
+}
+
+#voucherRecommendationModal .voucher-recommendation-content {
+    max-height: calc(100vh - 56px);
+}
+
+.voucher-recommendation-section {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 14px;
+}
+
+.voucher-recommendation-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 12px;
+}
+
+.voucher-recommendation-header-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(160px, 1fr));
+    gap: 10px 12px;
+}
+
+.voucher-recommendation-field {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    min-width: 0;
+}
+
+.voucher-recommendation-field-label {
+    color: #475569;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.voucher-recommendation-line-table {
+    min-width: 1180px;
+    background: #fff;
+}
+
+.voucher-recommendation-line-table th {
+    background: #f1f5f9;
+    color: #111827;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.voucher-recommendation-balance {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.voucher-recommendation-balance.is-balanced {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.voucher-recommendation-balance.is-unbalanced {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+@media (max-width: 992px) {
+    .voucher-recommendation-header-grid {
+        grid-template-columns: repeat(2, minmax(160px, 1fr));
+    }
+}
