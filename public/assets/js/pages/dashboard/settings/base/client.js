@@ -1108,9 +1108,10 @@ async function initClientPage($){
         clientTable = createDataTable({
             tableSelector: '#client-table',
             api: API.LIST,
+            deleteApi: API.DELETE,
             columns: columns,
             defaultOrder: [[1, "asc"]],
-            pageLength: 10,
+            pageLength: 100,
             autoWidth: false,
             buttons: [
                 {
@@ -1240,6 +1241,7 @@ async function initClientPage($){
                 tableId: 'client',
                 defaultSearchField: 'client_name',
                 dateOptions: DATE_OPTIONS,
+                initialCollapsed: true,
                 normalizeFilters: normalizeClientFilters
             });
             bindTableHighlight('#client-table', clientTable);
@@ -1278,57 +1280,121 @@ async function initClientPage($){
         return '';
     }
 
+    async function fetchClientDetail(id) {
+        const res = await fetch(API.DETAIL + '?id=' + encodeURIComponent(id));
+        const json = await res.json();
+
+        if (!json.success) {
+            throw new Error(json.message || '상세조회 실패');
+        }
+
+        return json.data;
+    }
+
+    function resetClientFileInputs() {
+        const delBiz = document.getElementById('delete_business_certificate');
+        const delRrn = document.getElementById('delete_rrn_image');
+        const delBank = document.getElementById('delete_bank_file');
+
+        const bizInput = document.getElementById('modal_business_certificate');
+        const rrnInput = document.getElementById('modal_rrn_image');
+        const bankInput = document.getElementById('modal_bank_file');
+
+        if (delBiz) delBiz.value = '0';
+        if (delRrn) delRrn.value = '0';
+        if (delBank) delBank.value = '0';
+
+        if (bizInput) bizInput.value = '';
+        if (rrnInput) rrnInput.value = '';
+        if (bankInput) bankInput.value = '';
+    }
+
+    async function openClientEditModal(clientId) {
+        if (!clientId) return;
+
+        try {
+            const data = await fetchClientDetail(clientId);
+
+            window.isNewClient = false;
+            $('#btnDeleteClient').show();
+            $('#modal_client_id').val(data.id);
+
+            resetClientFileInputs();
+
+            await initCodeSelectControls(document.getElementById('clientModal'));
+            applyClientOptionalCodeSelects(document.getElementById('clientModal'));
+            await initDefaultAccountSelect(data.default_account_id || '');
+            fillModal(data);
+            clientModal.show();
+        } catch (e) {
+            console.error(e);
+            AppCore.notify('error', e.message || '서버 오류');
+        }
+    }
+
+    async function updateClientActive(clientId, active, toggleEl) {
+        if (!clientId) return;
+
+        if (toggleEl) toggleEl.disabled = true;
+
+        try {
+            const data = await fetchClientDetail(clientId);
+            const formData = new FormData();
+
+            Object.entries(data || {}).forEach(([key, value]) => {
+                if (['company_name_history', 'business_certificate', 'rrn_image', 'bank_file', 'rrn'].includes(key)) return;
+                formData.set(key, value ?? '');
+            });
+
+            formData.set('id', clientId);
+            formData.set('is_active', active ? '1' : '0');
+            formData.set('delete_business_certificate', '0');
+            formData.set('delete_rrn_image', '0');
+            formData.set('delete_bank_file', '0');
+
+            const res = await $.ajax({
+                url: API.SAVE,
+                method: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+            });
+
+            if (!res.success) {
+                throw new Error(res.message || '상태 변경 실패');
+            }
+
+            AppCore.notify('success', active ? '사용으로 변경되었습니다.' : '미사용으로 변경되었습니다.');
+            clientTable.ajax.reload(null, false);
+        } catch (e) {
+            if (toggleEl) toggleEl.checked = !active;
+            console.error(e);
+            AppCore.notify('error', e.message || '상태 변경 중 오류가 발생했습니다.');
+        } finally {
+            if (toggleEl) toggleEl.disabled = false;
+        }
+    }
+
     function bindTableEvents($) {
+        $('#client-table tbody').on('change', '.client-active-toggle', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            updateClientActive(this.dataset.id, this.checked, this);
+        });
+
+        $('#client-table tbody').on('click', '.client-edit-btn', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            openClientEditModal(this.dataset.id);
+        });
+
         /* ================================
         더블클릭 시 수정 모달
         ================================ */
         $('#client-table tbody').on('dblclick', 'tr', async function () {
-
             const row = clientTable.row(this).data();
             if (!row) return;
-
-            try {
-                const res = await fetch(API.DETAIL + '?id=' + row.id);
-                const json = await res.json();
-
-                if (!json.success) {
-                    AppCore.notify('error', '상세조회 실패');
-                    return;
-                }
-
-                const data = json.data;
-
-                window.isNewClient = false;
-                $('#btnDeleteClient').show();
-                $('#modal_client_id').val(data.id);
-
-                /* 삭제 플래그와 파일 input 먼저 초기화 */
-                const delBiz = document.getElementById('delete_business_certificate');
-                const delRrn = document.getElementById('delete_rrn_image');
-                const delBank = document.getElementById('delete_bank_file');
-
-                const bizInput = document.getElementById('modal_business_certificate');
-                const rrnInput = document.getElementById('modal_rrn_image');
-                const bankInput = document.getElementById('modal_bank_file');
-
-                if (delBiz) delBiz.value = '0';
-                if (delRrn) delRrn.value = '0';
-                if (delBank) delBank.value = '0';
-
-                if (bizInput) bizInput.value = '';
-                if (rrnInput) rrnInput.value = '';
-                if (bankInput) bankInput.value = '';
-
-                await initCodeSelectControls(document.getElementById('clientModal'));
-                applyClientOptionalCodeSelects(document.getElementById('clientModal'));
-                await initDefaultAccountSelect(data.default_account_id || '');
-                fillModal(data);
-                clientModal.show();
-
-            } catch (e) {
-                console.error(e);
-                AppCore.notify('error', '서버 오류');
-            }
+            await openClientEditModal(row.id);
         });
 
     }
@@ -1714,6 +1780,7 @@ async function initClientPage($){
         });
 
         Object.entries(CLIENT_COLUMN_MAP).forEach(([field,config]) => {
+            if (field === "is_active") return;
 
             columns.push({
                 data: field,
@@ -1733,13 +1800,6 @@ async function initClientPage($){
 
                     if(field === "business_certificate" || field === "rrn_image")
                         return data ? "등록" : "";
-
-                    if(field === "is_active") {
-                        const active = Number(data) === 1;
-                        return active
-                            ? '<span class="badge bg-success">사용</span>'
-                            : '<span class="badge bg-secondary">미사용</span>';
-                    }
 
                     if(field === "business_number")
                         return formatBizNumber(data);
@@ -1762,6 +1822,48 @@ async function initClientPage($){
                     return data;
                 }
             });
+        });
+
+        columns.push({
+            data: 'is_active',
+            title: '상태',
+            width: CLIENT_COLUMN_WIDTHS.is_active || '90px',
+            visible: true,
+            className: 'text-center',
+            defaultContent: '',
+            render: function (data, type, row) {
+                if (type !== 'display') return data;
+                const active = Number(data) === 1;
+                return `
+                    <div class="form-check form-switch d-inline-flex justify-content-center m-0">
+                        <input type="checkbox"
+                               class="form-check-input client-active-toggle"
+                               data-id="${escapeHtml(row.id || '')}"
+                               ${active ? 'checked' : ''}
+                               aria-label="상태 변경">
+                    </div>
+                `;
+            }
+        });
+
+        columns.push({
+            data: null,
+            title: '관리',
+            width: '90px',
+            className: 'text-center no-colvis',
+            orderable: false,
+            searchable: false,
+            defaultContent: '',
+            render: function (_data, type, row) {
+                if (type !== 'display') return '';
+                return `
+                    <button type="button"
+                            class="btn btn-outline-primary btn-sm client-edit-btn"
+                            data-id="${escapeHtml(row.id || '')}">
+                        수정
+                    </button>
+                `;
+            }
         });
 
         return columns;

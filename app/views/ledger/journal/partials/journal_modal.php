@@ -259,6 +259,29 @@
                         </div>
                                             </div>
                     </section>
+
+                    <section class="form-section journal-section journal-evidence-panel" aria-label="증빙연결">
+                        <div class="section-header journal-section-head">
+                            <span class="section-title journal-section-title">증빙연결</span>
+                        </div>
+
+                        <div class="section-body">
+                            <div class="journal-transaction-link">
+                                <input type="hidden"
+                                       name="linked_evidence_id"
+                                       id="linked_evidence_id">
+                                <button type="button"
+                                        class="btn btn-outline-primary btn-sm"
+                                        id="btnSelectEvidence">증빙 선택</button>
+                                <button type="button"
+                                        class="btn btn-outline-secondary btn-sm"
+                                        id="btnClearEvidenceLink">연결 해제</button>
+                                <div class="journal-transaction-summary"
+                                     id="linked_evidence_summary">연결된 증빙이 없습니다.</div>
+                                <div class="journal-source-origin d-none" id="linked_evidence_origin"></div>
+                            </div>
+                        </div>
+                    </section>
                 </div>
 
                 <div class="modal-footer">
@@ -277,6 +300,53 @@
 
                 <div id="journal-today-picker" class="is-hidden"></div>
             </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade"
+     id="journalEvidenceSearchModal"
+     tabindex="-1"
+     aria-labelledby="journalEvidenceSearchModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="journalEvidenceSearchModalLabel">증빙 선택</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+            </div>
+            <div class="modal-body">
+                <div class="journal-transaction-search">
+                    <input type="search"
+                           class="form-control form-control-sm"
+                           id="journal_evidence_search_keyword"
+                           placeholder="자료유형, 원본키, 일자, 거래처로 검색">
+                    <button type="button"
+                            class="btn btn-outline-secondary btn-sm"
+                            id="btnSearchEvidence">검색</button>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-bordered align-middle mb-0 journal-transaction-search-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th width="120">표준일자</th>
+                                <th width="150">자료유형</th>
+                                <th>원본키</th>
+                                <th width="160">거래처</th>
+                                <th width="90">선택</th>
+                            </tr>
+                        </thead>
+                        <tbody id="journal_evidence_search_body">
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-4">
+                                    증빙을 검색해 주세요.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 </div>

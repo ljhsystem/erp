@@ -122,8 +122,9 @@ window.AdminPicker = AdminPicker;
             api: API.LIST,
             columns: buildColumns(),
             defaultOrder: [[3, 'asc'], [2, 'asc'], [1, 'asc']],
-            pageLength: 10,
+            pageLength: 100,
             autoWidth: false,
+            deleteApi: API.DELETE,
             buttons: [
                 {
                     text: '엑셀관리',
@@ -162,7 +163,8 @@ window.AdminPicker = AdminPicker;
                 apiList: API.LIST,
                 tableId: 'code',
                 defaultSearchField: 'code_name',
-                dateOptions: DATE_OPTIONS
+                dateOptions: DATE_OPTIONS,
+                initialCollapsed: true
             });
 
             bindTableHighlight('#code-table', codeTable);
@@ -181,6 +183,8 @@ window.AdminPicker = AdminPicker;
         }];
 
         Object.entries(CODE_COLUMN_MAP).forEach(([field, config]) => {
+            if (field === 'is_active') return;
+
             columns.push({
                 data: field,
                 title: config.label,
@@ -202,6 +206,48 @@ window.AdminPicker = AdminPicker;
             });
         });
 
+        columns.push({
+            data: 'is_active',
+            title: CODE_COLUMN_MAP.is_active.label,
+            visible: true,
+            className: 'text-center',
+            headerClassName: 'text-center',
+            defaultContent: '',
+            render(data, type, row) {
+                if (type !== 'display') return data;
+                const active = Number(data) === 1;
+                return `
+                    <div class="form-check form-switch d-inline-flex justify-content-center m-0">
+                        <input type="checkbox"
+                               class="form-check-input code-active-toggle"
+                               data-id="${escapeHtml(row.id || '')}"
+                               ${active ? 'checked' : ''}
+                               aria-label="상태 변경">
+                    </div>
+                `;
+            }
+        });
+
+        columns.push({
+            data: null,
+            title: '관리',
+            className: 'text-center no-colvis',
+            headerClassName: 'text-center no-colvis',
+            orderable: false,
+            searchable: false,
+            defaultContent: '',
+            render(_data, type, row) {
+                if (type !== 'display') return '';
+                return `
+                    <button type="button"
+                            class="btn btn-outline-primary btn-sm code-edit-btn"
+                            data-id="${escapeHtml(row.id || '')}">
+                        수정
+                    </button>
+                `;
+            }
+        });
+
         return columns;
     }
 
@@ -211,6 +257,36 @@ window.AdminPicker = AdminPicker;
                 const row = codeTable.row(this).data();
                 if (!row?.id) return;
                 await openEditById(row.id);
+            });
+
+        $('#code-table tbody')
+            .on('change', '.code-active-toggle', async function (event) {
+                event.stopPropagation();
+                const id = this.dataset.id;
+                const active = this.checked;
+                if (!id) return;
+
+                this.disabled = true;
+
+                try {
+                    await updateCodeActive(id, active);
+                    codeTable?.ajax.reload(null, false);
+                    AppCore?.notify?.('success', active ? '사용으로 변경되었습니다.' : '미사용으로 변경되었습니다.');
+                } catch (error) {
+                    console.error(error);
+                    this.checked = !active;
+                    AppCore?.notify?.('error', error.message || '상태 변경에 실패했습니다.');
+                } finally {
+                    this.disabled = false;
+                }
+            });
+
+        $('#code-table tbody')
+            .on('click', '.code-edit-btn', async function (event) {
+                event.stopPropagation();
+                const id = this.dataset.id;
+                if (!id) return;
+                await openEditById(id);
             });
     }
 
@@ -229,6 +305,45 @@ window.AdminPicker = AdminPicker;
             console.error(error);
             AppCore?.notify?.('error', '서버 오류가 발생했습니다.');
         }
+    }
+
+    async function fetchCodeDetail(id) {
+        const res = await fetch(`${API.DETAIL}?id=${encodeURIComponent(id)}`);
+        const json = await res.json();
+
+        if (!json.success || !json.data) {
+            throw new Error(json.message || '기준정보 상세 조회에 실패했습니다.');
+        }
+
+        return json.data;
+    }
+
+    async function updateCodeActive(id, active) {
+        const data = await fetchCodeDetail(id);
+        const formData = new FormData();
+
+        Object.entries(data).forEach(([key, value]) => {
+            formData.set(key, value ?? '');
+        });
+
+        formData.set('id', id);
+        formData.set('code_group', normalizeCodeGroup(data.code_group || ''));
+        formData.set('group_name', String(data.group_name || '').trim());
+        formData.set('code', String(data.code || '').trim().toUpperCase());
+        formData.set('code_name', String(data.code_name || '').trim());
+        formData.set('is_active', active ? '1' : '0');
+
+        const res = await fetch(API.SAVE, {
+            method: 'POST',
+            body: formData
+        });
+        const json = await res.json();
+
+        if (!json.success) {
+            throw new Error(json.message || '상태 변경에 실패했습니다.');
+        }
+
+        return json;
     }
 
     function bindModalEvents($) {

@@ -4,7 +4,7 @@
 
 <div class="approval-page" id="approvalPage">
     <div class="page-header">
-        <h5 class="mb-1 fw-bold">결재템플릿 설정</h5>
+        <h5 class="mb-1 fw-bold">🧾 결재템플릿 설정</h5>
     </div>
 
     <div class="approval-row">

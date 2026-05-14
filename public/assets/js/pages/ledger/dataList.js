@@ -1,5 +1,6 @@
 import { createDataTable } from '/public/assets/js/components/data-table.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
+import { openVoucherRecommendationModal } from '/public/assets/js/pages/ledger/voucherRecommendationModal.js';
 import '/public/assets/js/components/trash-manager.js';
 
 (() => {
@@ -7,16 +8,15 @@ import '/public/assets/js/components/trash-manager.js';
 
     const API = {
         fields: '/api/import/fields',
-        rows: '/api/import/seed-rows',
-        trash: '/api/import/seed-rows/trash',
-        saveSeedRow: '/api/import/seed-row/save',
-        changeStatus: '/api/import/seed-rows/status',
-        deleteRows: '/api/import/seed-rows/delete',
-        restoreRows: '/api/import/seed-rows/restore',
-        purgeRows: '/api/import/seed-rows/purge',
-        purgeAll: '/api/import/seed-rows/purge-all',
+        rows: '/api/import/evidences',
+        trash: '/api/import/evidences/trash',
+        saveSeedRow: '/api/import/evidence/save',
+        changeStatus: '/api/import/evidences/status',
+        deleteRows: '/api/import/evidences/delete',
+        restoreRows: '/api/import/evidences/restore',
+        purgeRows: '/api/import/evidences/purge',
+        purgeAll: '/api/import/evidences/purge-all',
         createTransactions: '/api/import/create-transactions',
-        createVoucher: '/api/ledger/transaction/create-voucher',
     };
 
     const selectedIds = new Set();
@@ -119,7 +119,9 @@ import '/public/assets/js/components/trash-manager.js';
         return {
             TAX_INVOICE: '세금계산서',
             CASH_RECEIPT: '현금영수증',
-            CARD_APPROVAL: '카드',
+            CARD_HOMETAX: '카드(홈택스)',
+            CARD_STATEMENT: '카드(카드사)',
+            CARD_APPROVAL: '카드(카드사)',
             BANK_TRANSACTION: '입출금',
             SHOPPING_ORDER: '주문',
             IMPORT_INVOICE: '수입인보이스',
@@ -143,6 +145,7 @@ import '/public/assets/js/components/trash-manager.js';
             READY: ['READY', 'text-bg-success', '수정 및 거래 생성 가능'],
             PROCESSED: ['PROCESSED', 'text-bg-primary', '거래 생성 완료'],
             ERROR: ['ERROR', 'text-bg-danger', '수정 필요'],
+            VERIFY_ONLY: ['VERIFY_ONLY', 'text-bg-info', '세무 검증/대사 전용'],
             PROCESSING: ['PROCESSING', 'text-bg-warning', '처리 중'],
             DUPLICATED: ['DUPLICATED', 'text-bg-secondary', '중복 의심'],
             UNCHANGED: ['UNCHANGED', 'text-bg-light text-dark border', '동일 원본'],
@@ -195,7 +198,6 @@ import '/public/assets/js/components/trash-manager.js';
         const processedCount = selectedProcessedRows().length;
         const wrapper = seedTable?.table().container();
 
-        wrapper?.querySelector('.btn-create-selected-seeds')?.toggleAttribute('disabled', isCreating || readyCount === 0);
         wrapper?.querySelector('.btn-create-recommended-vouchers')?.toggleAttribute('disabled', isCreating || processedCount === 0);
         wrapper?.querySelector('.btn-open-voucher-check')?.toggleAttribute('disabled', processedCount === 0);
         wrapper?.querySelector('.btn-status-selected-seeds')?.toggleAttribute('disabled', !hasSelection);
@@ -357,7 +359,7 @@ import '/public/assets/js/components/trash-manager.js';
             { data: 'process_status', title: '상태', className: 'text-nowrap', render: (_value, _type, row) => statusBadge(normalizedStatus(row)) },
             { data: 'source_type', title: '자료출처', className: 'text-nowrap', render: (value, _type, row) => labelBadge(row.source_type_name || importSourceLabel(value)) },
             { data: 'import_type', title: '자료유형', className: 'text-nowrap', render: (value, _type, row) => labelBadge(row.import_type_name || importTypeLabel(value || row.seed_source_type)) },
-            { data: 'mapped_payload.transaction_direction', title: '거래방향', className: 'text-nowrap', render: (value) => escapeHtml(directionLabel(value || '')) },
+            { data: 'mapped_payload.transaction_direction', title: '거래구분', className: 'text-nowrap', render: (value) => escapeHtml(directionLabel(value || '')) },
             {
                 data: 'client_name',
                 title: '거래처',
@@ -511,34 +513,33 @@ import '/public/assets/js/components/trash-manager.js';
         isCreating = true;
         updateButtons();
         const originalText = button?.textContent || '추천전표생성';
-        if (button) button.textContent = '생성 중';
-        let successCount = 0;
-        const errors = [];
+        if (button) button.textContent = '검토 중';
         try {
-            for (const row of rows) {
-                const formData = new FormData();
-                formData.set('transaction_id', row.transaction_id);
-                try {
-                    await fetchJson(API.createVoucher, {
-                        method: 'POST',
-                        body: formData,
-                    });
-                    successCount++;
-                } catch (error) {
-                    errors.push(error.message);
-                }
+            if (rows.length > 1) {
+                notify('warning', '추천분개검토는 현재 1건씩 처리합니다. 첫 번째 선택 거래를 엽니다.');
             }
-            if (successCount > 0) {
-                notify('success', `추천전표 ${successCount}건이 생성되었습니다.`);
+            const opened = await openVoucherRecommendationModal({
+                transactionId: rows[0].transaction_id,
+                onSaved(json) {
+                    notify('success', json.message || 'draft 전표가 저장되었습니다.');
+                    reloadRows();
+                },
+                onClosed() {
+                    isCreating = false;
+                    if (button) button.textContent = originalText;
+                    updateButtons();
+                },
+            });
+            if (!opened) {
+                isCreating = false;
+                if (button) button.textContent = originalText;
+                updateButtons();
             }
-            if (errors.length > 0) {
-                notify('error', errors[0]);
-            }
-            reloadRows();
-        } finally {
+        } catch (error) {
             isCreating = false;
             if (button) button.textContent = originalText;
             updateButtons();
+            notify('error', error.message);
         }
     }
 
@@ -547,18 +548,11 @@ import '/public/assets/js/components/trash-manager.js';
             tableSelector: '#seedRowsTable',
             api: API.rows,
             density: 'compact',
-            pageLength: 20,
+            pageLength: 100,
             defaultOrder: [[6, 'desc']],
             searchTableId: 'seedRows',
             columns: buildColumns(),
             buttons: [
-                {
-                    text: '선택 거래 생성',
-                    className: 'btn btn-success btn-sm btn-create-selected-seeds',
-                    action: (_event, _dt, node) => {
-                        void createSelectedTransactions(node?.get(0)).catch((error) => notify('error', error.message));
-                    },
-                },
                 {
                     text: '추천전표생성',
                     className: 'btn btn-outline-success btn-sm btn-create-recommended-vouchers',
@@ -601,11 +595,6 @@ import '/public/assets/js/components/trash-manager.js';
                     className: 'btn btn-danger btn-sm',
                     action: openTrashModal,
                 },
-                {
-                    text: '새로고침',
-                    className: 'btn btn-outline-secondary btn-sm',
-                    action: reloadRows,
-                },
             ],
         });
 
@@ -616,6 +605,7 @@ import '/public/assets/js/components/trash-manager.js';
             apiList: API.rows,
             tableId: 'seedRows',
             defaultSearchField: 'client_name',
+            initialCollapsed: true,
             dateOptions: [
                 { value: 'mapped_payload.transaction_date', label: '작성일자' },
                 { value: 'created_at', label: '생성일시' },

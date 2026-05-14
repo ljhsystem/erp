@@ -16,6 +16,15 @@ window.AdminPicker = AdminPicker;
 
     console.log('[base-project.js] loaded');
 
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+    }
+
     /* =========================
        API / 상수
     ========================= */
@@ -585,9 +594,10 @@ window.AdminPicker = AdminPicker;
         projectTable = createDataTable({
             tableSelector: '#project-table',
             api: API.LIST,
+            deleteApi: API.DELETE,
             columns: columns,
             defaultOrder: [[1, "asc"]],
-            pageLength: 10,
+            pageLength: 100,
             buttons: [
                 {
                     text: "엑셀관리",
@@ -668,6 +678,7 @@ window.AdminPicker = AdminPicker;
                 tableId: 'project',
                 defaultSearchField: 'project_name',
                 dateOptions: DATE_OPTIONS,
+                initialCollapsed: true,
                 normalizeFilters: normalizeProjectFilters
             });
             bindTableHighlight('#project-table', projectTable);
@@ -696,43 +707,101 @@ window.AdminPicker = AdminPicker;
         return '';
     }
 
+    async function fetchProjectDetail(id) {
+        const res = await fetch(API.DETAIL + '?id=' + encodeURIComponent(id));
+        const json = await res.json();
+
+        if (!json.success || !json.data) {
+            throw new Error(json.message || '프로젝트 상세 조회 실패');
+        }
+
+        return json.data;
+    }
+
+    async function openProjectEditModal(projectId) {
+        if (!projectId) return;
+
+        try {
+            const data = await fetchProjectDetail(projectId);
+
+            window.isNewProject = false;
+            document.getElementById('projectModalLabel').textContent = '프로젝트 정보 수정';
+            $('#btnDeleteProject').show();
+            disconnectProjectClientTypeCodeSelect(document.getElementById('projectModal'));
+            await initCodeSelectControls(document.getElementById('projectModal'));
+
+            projectModal.show();
+
+            const modalEl = document.getElementById('projectModal');
+            const onShown = () => {
+                $('#modal_project_id').val(data.id ?? '');
+                fillModal(data);
+                modalEl.removeEventListener('shown.bs.modal', onShown);
+            };
+
+            modalEl.addEventListener('shown.bs.modal', onShown);
+        } catch (err) {
+            console.error(err);
+            AppCore.notify('error', err.message || '프로젝트 상세 조회 중 오류가 발생했습니다.');
+        }
+    }
+
+    async function updateProjectActive(projectId, active, toggleEl) {
+        if (!projectId) return;
+
+        if (toggleEl) toggleEl.disabled = true;
+
+        try {
+            const data = await fetchProjectDetail(projectId);
+            const formData = new FormData();
+
+            Object.entries(data || {}).forEach(([key, value]) => {
+                formData.set(key, value ?? '');
+            });
+
+            formData.set('id', projectId);
+            formData.set('is_active', active ? '1' : '0');
+
+            const res = await $.ajax({
+                url: API.SAVE,
+                method: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false
+            });
+
+            if (!res.success) {
+                throw new Error(res.message || '상태 변경 실패');
+            }
+
+            AppCore.notify('success', active ? '진행중으로 변경되었습니다.' : '완료로 변경되었습니다.');
+            projectTable.ajax.reload(null, false);
+        } catch (err) {
+            if (toggleEl) toggleEl.checked = !active;
+            console.error(err);
+            AppCore.notify('error', err.message || '상태 변경 중 오류가 발생했습니다.');
+        } finally {
+            if (toggleEl) toggleEl.disabled = false;
+        }
+    }
+
     function bindTableEvents($) {
+        $('#project-table tbody').on('change', '.project-active-toggle', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            updateProjectActive(this.dataset.id, this.checked, this);
+        });
+
+        $('#project-table tbody').on('click', '.project-edit-btn', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            openProjectEditModal(this.dataset.id);
+        });
+
         $('#project-table tbody').on('dblclick', 'tr', async function () {
             const rowData = projectTable.row(this).data();
             if (!rowData || !rowData.id) return;
-
-            try {
-                const res = await fetch(API.DETAIL + '?id=' + encodeURIComponent(rowData.id));
-                const json = await res.json();
-
-                if (!json.success || !json.data) {
-                    AppCore.notify('error', json.message || '프로젝트 상세 조회 실패');
-                    return;
-                }
-
-                const data = json.data;
-
-                window.isNewProject = false;
-                document.getElementById('projectModalLabel').textContent = '프로젝트 정보 수정';
-                $('#btnDeleteProject').show();
-                disconnectProjectClientTypeCodeSelect(document.getElementById('projectModal'));
-                await initCodeSelectControls(document.getElementById('projectModal'));
-
-                projectModal.show();
-
-                const modalEl = document.getElementById('projectModal');
-                const onShown = () => {
-                    $('#modal_project_id').val(data.id ?? '');
-                    fillModal(data);
-                    modalEl.removeEventListener('shown.bs.modal', onShown);
-                };
-
-                modalEl.addEventListener('shown.bs.modal', onShown);
-
-            } catch (err) {
-                console.error(err);
-                AppCore.notify('error', '프로젝트 상세 조회 중 오류가 발생했습니다.');
-            }
+            await openProjectEditModal(rowData.id);
         });
 
     }
@@ -897,6 +966,8 @@ window.AdminPicker = AdminPicker;
         });
 
         Object.entries(PROJECT_COLUMN_MAP).forEach(([field, config]) => {
+            if (field === 'is_active') return;
+
             const alignClassName = getProjectColumnAlignClass(field);
             const columnClassName = alignClassName || '';
 
@@ -932,15 +1003,51 @@ window.AdminPicker = AdminPicker;
                         return getCodeName(field, data);
                     }
 
-                    if (field === 'is_active') {
-                        return Number(data) === 1
-                            ? '<span class="badge bg-success">진행중</span>'
-                            : '<span class="badge bg-secondary">완료</span>';
-                    }
-
                     return data;
                 }
             });
+        });
+
+        columns.push({
+            data: 'is_active',
+            title: PROJECT_COLUMN_MAP.is_active.label,
+            visible: true,
+            className: 'text-center',
+            headerClassName: 'text-center',
+            defaultContent: '',
+            render: function (data, type, row) {
+                if (type !== 'display') return data;
+                const active = Number(data) === 1;
+                return `
+                    <div class="form-check form-switch d-inline-flex justify-content-center m-0">
+                        <input type="checkbox"
+                               class="form-check-input project-active-toggle"
+                               data-id="${escapeHtml(row.id || '')}"
+                               ${active ? 'checked' : ''}
+                               aria-label="진행상황 변경">
+                    </div>
+                `;
+            }
+        });
+
+        columns.push({
+            data: null,
+            title: '관리',
+            className: 'text-center no-colvis',
+            headerClassName: 'text-center no-colvis',
+            orderable: false,
+            searchable: false,
+            defaultContent: '',
+            render: function (_data, type, row) {
+                if (type !== 'display') return '';
+                return `
+                    <button type="button"
+                            class="btn btn-outline-primary btn-sm project-edit-btn"
+                            data-id="${escapeHtml(row.id || '')}">
+                        수정
+                    </button>
+                `;
+            }
         });
 
         return columns;

@@ -18,6 +18,7 @@ $layoutOptions = [
     'wrapper' => 'single',
 ];
 
+$pageStyles = AssetHelper::css('/assets/css/pages/ledger/voucher-recommendation-modal.css');
 $pageScripts = AssetHelper::module('/assets/js/pages/ledger/dataList.js');
 ?>
 
@@ -57,7 +58,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/dataList.js');
                 <option value="process_status">상태</option>
                 <option value="source_type">자료출처</option>
                 <option value="import_type">자료유형</option>
-                <option value="mapped_payload.transaction_direction">거래방향</option>
+                <option value="mapped_payload.transaction_direction">거래구분</option>
                 <option value="client_name">거래처</option>
                 <option value="mapped_payload.transaction_date">작성일자</option>
                 <option value="mapped_payload.supply_amount">공급가</option>
@@ -77,7 +78,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/dataList.js');
 
             $searchGuideTitle = 'Seed Data 검색 조건 안내';
             $searchGuideItems = [
-                '자료출처, 자료유형, 거래방향, 거래처, 적요, 금액 등 Seed 기준 필드로 검색합니다.',
+                '자료출처, 자료유형, 거래구분, 거래처, 적요, 금액 등 Seed 기준 필드로 검색합니다.',
                 '검색 결과에서 READY 행을 선택해 거래를 생성할 수 있습니다.',
             ];
 
@@ -87,7 +88,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/dataList.js');
             <?php
             $tableId = 'seedRowsTable';
             $tableClass = 'table table-bordered align-middle table-cross-highlight';
-            $ajaxUrl = '/api/import/seed-rows';
+            $ajaxUrl = '/api/import/evidences';
             $columnsType = 'seedRows';
 
             $enableButtons = true;
@@ -146,9 +147,11 @@ $tableHead = '
     <th width="150">관리</th>
 ';
 $emptyMessage = '휴지통 Seed Data를 선택하면 상세 정보가 표시됩니다.';
-$listUrl = '/api/import/seed-rows/trash';
-$restoreUrl = '/api/import/seed-rows/restore';
-$deleteUrl = '/api/import/seed-rows/purge';
-$deleteAllUrl = '/api/import/seed-rows/purge-all';
+$listUrl = '/api/import/evidences/trash';
+$restoreUrl = '/api/import/evidences/restore';
+$deleteUrl = '/api/import/evidences/purge';
+$deleteAllUrl = '/api/import/evidences/purge-all';
 include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
 ?>
+
+<?php include PROJECT_ROOT . '/app/views/ledger/partials/voucher_recommendation_modal.php'; ?>

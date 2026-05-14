@@ -166,7 +166,9 @@ window.AdminPicker = AdminPicker;
             api: API.LIST,
             columns,
             defaultOrder: [[1, 'asc']],
-            pageLength: 10,
+            pageLength: 100,
+            selectable: false,
+            deleteButton: false,
             buttons: [
                 {
                     text: '\uC0C8 \uC5ED\uD560',
@@ -190,7 +192,8 @@ window.AdminPicker = AdminPicker;
                 apiList: API.LIST,
                 tableId: 'role',
                 defaultSearchField: 'role_name',
-                dateOptions: DATE_OPTIONS
+                dateOptions: DATE_OPTIONS,
+                initialCollapsed: true
             });
             bindTableHighlight('#role-table', roleTable);
 
@@ -213,6 +216,8 @@ window.AdminPicker = AdminPicker;
 
 
         Object.entries(ROLE_COLUMN_MAP).forEach(([field, config]) => {
+            if (field === 'is_active') return;
+
             columns.push({
                 data: field,
                 title: config.label,
@@ -223,15 +228,51 @@ window.AdminPicker = AdminPicker;
                     if (data == null) return '';
                     if (type !== 'display') return data;
 
-                    if (field === 'is_active') {
-                        return String(data) === '1'
-                            ? '<span class="badge bg-success">\uC0AC\uC6A9</span>'
-                            : '<span class="badge bg-secondary">\uBBF8\uC0AC\uC6A9</span>';
-                    }
-
                     return escapeHtml(data);
                 }
             });
+        });
+
+        columns.push({
+            data: 'is_active',
+            title: ROLE_COLUMN_MAP.is_active.label,
+            visible: true,
+            className: 'text-center',
+            headerClassName: 'text-center',
+            defaultContent: '',
+            render: function (data, type, row) {
+                if (type !== 'display') return data;
+                const active = String(data) === '1';
+                return `
+                    <div class="form-check form-switch d-inline-flex justify-content-center m-0">
+                        <input type="checkbox"
+                               class="form-check-input role-active-toggle"
+                               data-id="${escapeHtml(row.id || '')}"
+                               ${active ? 'checked' : ''}
+                               aria-label="상태 변경">
+                    </div>
+                `;
+            }
+        });
+
+        columns.push({
+            data: null,
+            title: '관리',
+            className: 'text-center no-colvis',
+            headerClassName: 'text-center no-colvis',
+            orderable: false,
+            searchable: false,
+            defaultContent: '',
+            render: function (_data, type, row) {
+                if (type !== 'display') return '';
+                return `
+                    <button type="button"
+                            class="btn btn-outline-primary btn-sm role-edit-btn"
+                            data-id="${escapeHtml(row.id || '')}">
+                        수정
+                    </button>
+                `;
+            }
         });
 
         return columns;
@@ -242,6 +283,39 @@ window.AdminPicker = AdminPicker;
             .off('dblclick.roleEdit', 'tr')
             .on('dblclick.roleEdit', 'tr', function () {
                 const data = roleTable.row(this).data();
+                if (data) openEditModal(data);
+            });
+
+        $('#role-table tbody')
+            .off('change.roleActiveToggle', '.role-active-toggle')
+            .on('change.roleActiveToggle', '.role-active-toggle', async function (e) {
+                e.stopPropagation();
+
+                const data = roleTable.row($(this).closest('tr')).data();
+                const active = this.checked;
+                if (!data?.id) return;
+
+                this.disabled = true;
+
+                try {
+                    await updateRoleActive(data, active);
+                    reloadRoleTable();
+                    notify('success', active ? '사용으로 변경되었습니다.' : '미사용으로 변경되었습니다.');
+                } catch (err) {
+                    console.error('[roles.js] status update failed:', err);
+                    this.checked = !active;
+                    notify('error', err.message || '상태 변경에 실패했습니다.');
+                } finally {
+                    this.disabled = false;
+                }
+            });
+
+        $('#role-table tbody')
+            .off('click.roleEditBtn', '.role-edit-btn')
+            .on('click.roleEditBtn', '.role-edit-btn', function (e) {
+                e.stopPropagation();
+
+                const data = roleTable.row($(this).closest('tr')).data();
                 if (data) openEditModal(data);
             });
 
@@ -366,6 +440,29 @@ window.AdminPicker = AdminPicker;
             console.error('[roles.js] delete failed:', err);
             notify('error', '저장 중 오류가 발생했습니다.');
         }
+    }
+
+    async function updateRoleActive(row, active) {
+        const fd = new FormData();
+        fd.set('action', 'update');
+        fd.set('id', row.id || '');
+        fd.set('role_key', row.role_key || '');
+        fd.set('role_name', row.role_name || '');
+        fd.set('description', row.description || '');
+        fd.set('is_active', active ? '1' : '0');
+
+        const res = await fetch(API.SAVE, {
+            method: 'POST',
+            body: fd,
+            credentials: 'include'
+        });
+        const json = await res.json();
+
+        if (!json?.success) {
+            throw new Error(resolveSaveMessage(json?.message));
+        }
+
+        return json;
     }
 
     function resolveSaveMessage(message) {

@@ -164,8 +164,20 @@ class ClientService
                 }
 
                 $results[] = [
-                    'id'   => $row['id'],
-                    'text' => $text
+                    'id'                   => $row['id'],
+                    'text'                 => $text,
+                    'client_name'          => $row['client_name'] ?? '',
+                    'company_name'         => $row['company_name'] ?? '',
+                    'business_number'      => $row['business_number'] ?? '',
+                    'ceo_name'             => $row['ceo_name'] ?? '',
+                    'phone'                => $row['phone'] ?? '',
+                    'email'                => $row['email'] ?? '',
+                    'address'              => $row['address'] ?? '',
+                    'address_detail'       => $row['address_detail'] ?? '',
+                    'default_account_id'   => $row['default_account_id'] ?? '',
+                    'default_account_code' => $row['default_account_code'] ?? '',
+                    'default_account_name' => $row['default_account_name'] ?? '',
+                    'default_account_text' => $row['default_account_text'] ?? '',
                 ];
             }
 

@@ -21,6 +21,7 @@ $layoutOptions = [
 $pageStyles = AssetHelper::css('https://cdn.jsdelivr.net/npm/handsontable@14.6.1/dist/handsontable.full.min.css')
     . AssetHelper::css('/assets/css/pages/dashboard/settings/system/code.css')
     . AssetHelper::css('/assets/css/pages/dashboard/settings/client.css')
+    . AssetHelper::css('/assets/css/pages/ledger/voucher-recommendation-modal.css')
     . AssetHelper::css('/assets/css/pages/ledger/transaction.css');
 $pageScripts = AssetHelper::js('https://cdn.jsdelivr.net/npm/handsontable@14.6.1/dist/handsontable.full.min.js')
     . AssetHelper::module('/assets/js/pages/ledger/transaction.js');
@@ -104,6 +105,7 @@ $pageScripts = AssetHelper::js('https://cdn.jsdelivr.net/npm/handsontable@14.6.1
 
 <?php include __DIR__ . '/partials/transaction_modal.php'; ?>
 <?php include __DIR__ . '/partials/voucher_select_modal.php'; ?>
+<?php include PROJECT_ROOT . '/app/views/ledger/partials/voucher_recommendation_modal.php'; ?>
 <?php include PROJECT_ROOT . '/app/views/dashboard/settings/system/partials/code_modal.php'; ?>
 <?php include PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/client_modal.php'; ?>
 

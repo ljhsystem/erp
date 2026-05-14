@@ -4,7 +4,7 @@
 
 <div class="work-team-page" id="work-team-main">
     <div class="page-header">
-        <h5 class="mb-1 fw-bold">작업팀 관리</h5>
+        <h5 class="mb-1 fw-bold">🧑‍🤝‍🧑 팀 관리</h5>
         <span id="workTeamCount" class="text-primary work-team-count page-count"></span>
     </div>
 

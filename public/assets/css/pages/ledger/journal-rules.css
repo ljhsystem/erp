@@ -5,18 +5,28 @@
 .journal-rules-page .page-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.journal-rules-page .page-header h5 {
+    margin-bottom: 0;
+}
+
+.journal-rules-page .page-count {
+    display: inline-flex;
+    align-items: center;
+    font-size: 1rem;
+    margin-left: 2px;
+    font-weight: 500;
+    line-height: 1;
 }
 
 .journal-rules-page .content-area {
-    background: #fff;
-    border: 1px solid #dee2e6;
-    border-radius: 8px;
-    padding: 12px;
     display: flex;
     flex-direction: column;
     gap: 14px;
+    min-height: 0;
 }
 
 #journalRuleModal .modal-body {
@@ -55,19 +65,53 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    min-width: 74px;
+    min-width: 0;
     margin: 0;
-    cursor: pointer;
+    padding-left: 0 !important;
 }
 
 .journal-rule-status-switch .form-check-input {
-    margin: 0;
+    width: 2.35rem;
+    height: 1.2rem;
+    margin: 0 !important;
     cursor: pointer;
+    border-color: color-mix(in srgb, var(--color-text) 22%, white);
+    background-color: color-mix(in srgb, var(--color-text) 22%, white);
 }
 
-.journal-rule-status-label {
-    font-size: 12px;
-    font-weight: 700;
-    color: #495057;
+.journal-rule-status-switch .form-check-input:checked {
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.journal-rule-status-switch .form-check-input:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 .18rem var(--color-primary-soft);
+}
+
+.journal-rule-status-switch .form-check-input:disabled {
+    cursor: wait;
+    opacity: .65;
+}
+
+.journal-rules-page .journal-rule-edit-btn {
+    min-width: 52px;
+    font-weight: 600;
+    color: var(--color-primary);
+    border-color: color-mix(in srgb, var(--color-primary) 42%, white);
+    background: color-mix(in srgb, var(--color-primary) 7%, white);
+}
+
+.journal-rules-page .journal-rule-edit-btn:hover,
+.journal-rules-page .journal-rule-edit-btn:focus {
+    color: #fff;
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    box-shadow: 0 0 0 .18rem var(--color-primary-soft);
+}
+
+.journal-rules-page .journal-rule-edit-btn:active {
+    color: #fff;
+    border-color: var(--color-primary-hover);
+    background: var(--color-primary-hover);
 }

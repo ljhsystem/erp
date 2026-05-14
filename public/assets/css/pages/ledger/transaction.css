@@ -875,19 +875,6 @@
     z-index: 30010 !important;
 }
 
-.modal#transactionVoucherWizardModal,
-.modal.show#transactionVoucherWizardModal {
-    z-index: 30040 !important;
-}
-
-body:has(#transactionVoucherWizardModal.show) .modal-backdrop.show:last-of-type {
-    z-index: 30035 !important;
-}
-
-.modal-backdrop.transaction-voucher-wizard-backdrop {
-    z-index: 30005 !important;
-}
-
 .modal#codeQuickModal,
 .modal.show#codeQuickModal,
 .modal#codeModal,
@@ -1248,72 +1235,6 @@ body.modal-open .select2-container--open {
     white-space: nowrap;
 }
 
-#transactionVoucherWizardModal .modal-body {
-    background: #f8fafc;
-}
-
-#transactionVoucherWizardModal .transaction-voucher-wizard-dialog {
-    width: min(1320px, calc(100vw - 32px));
-    max-width: min(1320px, calc(100vw - 32px));
-}
-
-#transactionVoucherWizardModal .transaction-voucher-wizard {
-    max-height: calc(100vh - 56px);
-}
-
-.transaction-voucher-wizard-section {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 14px;
-    margin-bottom: 14px;
-}
-
-.transaction-voucher-wizard-title {
-    font-size: 14px;
-    font-weight: 700;
-    color: #111827;
-    margin-bottom: 12px;
-}
-
-.transaction-voucher-header-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(160px, 1fr));
-    gap: 10px 12px;
-}
-
-.transaction-voucher-line-table {
-    min-width: 1180px;
-    background: #fff;
-}
-
-.transaction-voucher-line-table th {
-    background: #f1f5f9;
-    color: #111827;
-    font-size: 13px;
-    white-space: nowrap;
-}
-
-.transaction-voucher-balance {
-    display: inline-flex;
-    align-items: center;
-    min-height: 30px;
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-weight: 700;
-    margin-bottom: 10px;
-}
-
-.transaction-voucher-balance.is-balanced {
-    background: #dcfce7;
-    color: #166534;
-}
-
-.transaction-voucher-balance.is-unbalanced {
-    background: #fef3c7;
-    color: #92400e;
-}
-
 @media (max-width: 992px) {
     #voucherSelectModal .voucher-select-filter,
     #voucherSelectModal .voucher-select-layout {
@@ -1324,9 +1245,6 @@ body.modal-open .select2-container--open {
         justify-content: flex-start;
     }
 
-    .transaction-voucher-header-grid {
-        grid-template-columns: repeat(2, minmax(160px, 1fr));
-    }
 }
 
 @media (max-width: 720px) {
@@ -1358,7 +1276,4 @@ body.modal-open .select2-container--open {
         grid-template-columns: minmax(140px, max-content) minmax(100px, 1fr);
     }
 
-    .transaction-voucher-header-grid {
-        grid-template-columns: 1fr;
-    }
 }

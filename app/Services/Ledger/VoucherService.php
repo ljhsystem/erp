@@ -62,6 +62,7 @@ class VoucherService
         $voucherId = trim((string) ($data['id'] ?? ''));
         $voucherDate = trim((string) ($data['voucher_date'] ?? ''));
         $status = 'draft';
+        $sourceType = strtoupper(trim((string) ($data['source_type'] ?? 'MANUAL')));
         $linkedTransactionId = trim((string) ($data['linked_transaction_id'] ?? ''));
         $lines = is_array($data['lines'] ?? null) ? $data['lines'] : [];
         $payments = is_array($data['payments'] ?? null) ? $data['payments'] : [];
@@ -70,6 +71,7 @@ class VoucherService
             $voucherId,
             $voucherDate,
             $status,
+            $sourceType,
             $linkedTransactionId,
             $lines,
             $payments
@@ -160,11 +162,11 @@ class VoucherService
                     'debit' => $line['debit'],
                     'credit' => $line['credit'],
                     'line_summary' => $line['line_summary'],
-                    'recommend_source' => $previousRecommendation['recommend_source'] ?? null,
-                    'recommend_confidence' => $previousRecommendation['recommend_confidence'] ?? null,
-                    'journal_rule_id' => $previousRecommendation['journal_rule_id'] ?? null,
-                    'recommend_reason' => $previousRecommendation['recommend_reason'] ?? null,
-                    'is_user_modified' => $hadRecommendedLines ? 1 : 0,
+                    'recommend_source' => $line['recommend_source'] ?? $previousRecommendation['recommend_source'] ?? null,
+                    'recommend_confidence' => $line['recommend_confidence'] ?? $previousRecommendation['recommend_confidence'] ?? null,
+                    'journal_rule_id' => $line['journal_rule_id'] ?? $previousRecommendation['journal_rule_id'] ?? null,
+                    'recommend_reason' => $line['recommend_reason'] ?? $previousRecommendation['recommend_reason'] ?? null,
+                    'is_user_modified' => (!empty($line['is_user_modified']) || $hadRecommendedLines) ? 1 : 0,
                     'created_at' => $timestamp,
                     'created_by' => $actor,
                     'updated_at' => $timestamp,
@@ -748,6 +750,7 @@ class VoucherService
         string $voucherId,
         string $voucherDate,
         string $status,
+        string $sourceType,
         string $linkedTransactionId,
         array $lines,
         array $payments
@@ -925,6 +928,13 @@ class VoucherService
                 'debit' => number_format(max($debit, 0), 2, '.', ''),
                 'credit' => number_format(max($credit, 0), 2, '.', ''),
                 'line_summary' => $lineSummary,
+                'recommend_source' => trim((string) ($line['recommend_source'] ?? $line['source'] ?? '')) ?: null,
+                'recommend_confidence' => is_numeric($line['recommend_confidence'] ?? $line['confidence'] ?? null)
+                    ? (int) ($line['recommend_confidence'] ?? $line['confidence'])
+                    : null,
+                'journal_rule_id' => trim((string) ($line['journal_rule_id'] ?? '')) ?: null,
+                'recommend_reason' => trim((string) ($line['recommend_reason'] ?? $line['reason'] ?? '')) ?: null,
+                'is_user_modified' => !empty($line['is_user_modified']) ? 1 : 0,
             ];
             $lineNo++;
         }
@@ -1308,16 +1318,16 @@ class VoucherService
     private function findTransactionSeedSource(string $transactionId): ?array
     {
         $transactionId = trim($transactionId);
-        if ($transactionId === '' || !$this->hasTable('ledger_data_seed_rows')) {
+        if ($transactionId === '' || !$this->hasTable('ledger_data_evidences')) {
             return null;
         }
 
         $stmt = $this->pdo->prepare("
-            SELECT id, row_no, source_type, source_key
-            FROM ledger_data_seed_rows
+            SELECT id, 0 AS row_no, source_type, source_key
+            FROM ledger_data_evidences
             WHERE transaction_id = :transaction_id
               AND deleted_at IS NULL
-            ORDER BY processed_at DESC, updated_at DESC, created_at DESC
+            ORDER BY latest_imported_at DESC, updated_at DESC, created_at DESC
             LIMIT 1
         ");
         $stmt->execute([':transaction_id' => $transactionId]);

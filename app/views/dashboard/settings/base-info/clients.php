@@ -8,7 +8,7 @@
        HEADER
   ========================== -->
   <div class="page-header">
-    <h5 class="mb-1 fw-bold">🧾 거래처관리</h5>
+    <h5 class="mb-1 fw-bold">🧾 거래처 관리</h5>
     <span id="clientCount" class="text-primary client-count page-count"></span>
   </div>
 

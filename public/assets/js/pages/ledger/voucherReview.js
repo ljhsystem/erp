@@ -439,7 +439,7 @@ import {
                     : rows;
             },
             defaultOrder: [[4, 'desc']],
-            pageLength: 20,
+            pageLength: 100,
         });
 
         table.on('draw.dt xhr.dt', syncRowsAfterDraw);

@@ -14,6 +14,15 @@ window.AdminPicker = AdminPicker;
 (() => {
     'use strict';
 
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
     const API = {
         LIST: '/api/settings/base-info/card/list',
         DETAIL: '/api/settings/base-info/card/detail',
@@ -314,9 +323,10 @@ window.AdminPicker = AdminPicker;
         cardTable = createDataTable({
             tableSelector: '#card-table',
             api: API.LIST,
+            deleteApi: API.DELETE,
             columns,
             defaultOrder: [[1, 'asc']],
-            pageLength: 10,
+            pageLength: 100,
             autoWidth: false,
             buttons: [
                 {
@@ -350,7 +360,8 @@ window.AdminPicker = AdminPicker;
                 tableId: 'card',
                 defaultSearchField: 'card_name',
                 dateOptions: DATE_OPTIONS,
-                normalizeFilters: normalizeCardFilters
+                normalizeFilters: normalizeCardFilters,
+                initialCollapsed: true
             });
 
             bindTableHighlight('#card-table', cardTable);
@@ -415,6 +426,82 @@ window.AdminPicker = AdminPicker;
         return '';
     }
 
+    async function fetchCardDetail(cardId) {
+        const res = await fetch(`${API.DETAIL}?id=${encodeURIComponent(cardId)}`);
+        const json = await res.json();
+
+        if (!json.success || !json.data) {
+            throw new Error(json.message || '카드 상세 조회에 실패했습니다.');
+        }
+
+        return json.data;
+    }
+
+    async function openCardEditModal(rowData) {
+        if (!rowData?.id) return;
+
+        try {
+            const data = await fetchCardDetail(rowData.id);
+
+            window.isNewCard = false;
+            setModalTitle('카드 정보 수정');
+
+            const deleteBtn = document.getElementById('btnDeleteCard');
+            if (deleteBtn) deleteBtn.style.display = '';
+
+            const idEl = getIdEl();
+            if (idEl) idEl.value = data.id;
+
+            const delFile = getDeleteCardFileEl();
+            const fileInput = getCardFileInputEl();
+            if (delFile) delFile.value = '0';
+            if (fileInput) fileInput.value = '';
+
+            fillModal(data);
+            cardModal?.show();
+        } catch (err) {
+            console.error(err);
+            AppCore?.notify?.('error', err.message || '서버 오류가 발생했습니다.');
+        }
+    }
+
+    async function updateCardActive(cardId, active, toggleEl) {
+        try {
+            const data = await fetchCardDetail(cardId);
+            const formData = new FormData();
+
+            Object.entries(data).forEach(([key, value]) => {
+                if (key === 'card_file') return;
+                formData.set(key, value ?? '');
+            });
+
+            formData.set('id', cardId);
+            formData.set('is_active', active ? '1' : '0');
+            formData.set('delete_card_file', '0');
+
+            if (toggleEl) toggleEl.disabled = true;
+
+            const res = await fetch(API.SAVE, {
+                method: 'POST',
+                body: formData
+            });
+            const json = await res.json();
+
+            if (!json.success) {
+                throw new Error(json.message || '상태 변경에 실패했습니다.');
+            }
+
+            cardTable?.ajax.reload(null, false);
+            AppCore?.notify?.('success', active ? '사용으로 변경되었습니다.' : '미사용으로 변경되었습니다.');
+        } catch (err) {
+            console.error(err);
+            if (toggleEl) toggleEl.checked = !active;
+            AppCore?.notify?.('error', err.message || '상태 변경에 실패했습니다.');
+        } finally {
+            if (toggleEl) toggleEl.disabled = false;
+        }
+    }
+
     function bindTableEvents($) {
         $('#card-table tbody').on('dblclick', 'tr', async function () {
             const row = cardTable.row(this).data();
@@ -449,6 +536,20 @@ window.AdminPicker = AdminPicker;
                 console.error(err);
                 AppCore?.notify?.('error', '서버 오류가 발생했습니다.');
             }
+        });
+
+        $('#card-table tbody').on('change', '.card-active-toggle', function (e) {
+            e.stopPropagation();
+            const cardId = this.dataset.id;
+            if (!cardId) return;
+            updateCardActive(cardId, this.checked, this);
+        });
+
+        $('#card-table tbody').on('click', '.card-edit-btn', function (e) {
+            e.stopPropagation();
+            const row = cardTable.row($(this).closest('tr')).data();
+            if (!row) return;
+            openCardEditModal(row);
         });
 
     }
@@ -591,6 +692,8 @@ window.AdminPicker = AdminPicker;
         }];
 
         Object.entries(CARD_COLUMN_MAP).forEach(([field, config]) => {
+            if (field === 'is_active') return;
+
             columns.push({
                 data: field,
                 title: config.label,
@@ -621,6 +724,49 @@ window.AdminPicker = AdminPicker;
                     return data;
                 }
             });
+        });
+
+        columns.push({
+            data: 'is_active',
+            title: CARD_COLUMN_MAP.is_active.label,
+            visible: true,
+            width: CARD_COLUMN_MAP.is_active.width,
+            className: 'text-center',
+            headerClassName: 'text-center',
+            defaultContent: '',
+            render: function (data, type, row) {
+                if (type !== 'display') return data;
+                const active = String(data) === '1';
+                return `
+                    <div class="form-check form-switch d-inline-flex justify-content-center m-0">
+                        <input type="checkbox"
+                               class="form-check-input card-active-toggle"
+                               data-id="${escapeHtml(row.id || '')}"
+                               ${active ? 'checked' : ''}
+                               aria-label="상태 변경">
+                    </div>
+                `;
+            }
+        });
+
+        columns.push({
+            data: null,
+            title: '관리',
+            className: 'text-center no-colvis',
+            headerClassName: 'text-center no-colvis',
+            orderable: false,
+            searchable: false,
+            defaultContent: '',
+            render: function (_data, type, row) {
+                if (type !== 'display') return '';
+                return `
+                    <button type="button"
+                            class="btn btn-outline-primary btn-sm card-edit-btn"
+                            data-id="${escapeHtml(row.id || '')}">
+                        수정
+                    </button>
+                `;
+            }
         });
 
         return columns;

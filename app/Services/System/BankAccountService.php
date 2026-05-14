@@ -127,8 +127,12 @@ class BankAccountService
                 }
 
                 $results[] = [
-                    'id'   => $row['id'],
-                    'text' => $text
+                    'id'             => $row['id'],
+                    'text'           => $text,
+                    'account_name'   => $row['account_name'] ?? '',
+                    'account_number' => $row['account_number'] ?? '',
+                    'bank_name'      => $row['bank_name'] ?? '',
+                    'account_holder' => $row['account_holder'] ?? '',
                 ];
             }
 

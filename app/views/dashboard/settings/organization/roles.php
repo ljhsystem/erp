@@ -5,7 +5,7 @@
 <div class="role-page" id="role-main">
 
   <div class="page-header">
-    <h5 class="mb-1 fw-bold">역할관리</h5>
+    <h5 class="mb-1 fw-bold">🛡️ 역할 관리</h5>
     <span id="roleCount" class="text-primary"></span>
   </div>
 

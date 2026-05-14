@@ -5,7 +5,7 @@
 <div class="department-page" id="department-main">
 
   <div class="page-header">
-    <h5 class="mb-1 fw-bold">부서관리</h5>
+    <h5 class="mb-1 fw-bold">🏢 부서 관리</h5>
     <span id="departmentCount" class="text-primary"></span>
   </div>
 

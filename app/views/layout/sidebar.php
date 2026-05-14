@@ -62,9 +62,8 @@ $link = static function (string $href, string $label, string $iconClass, string 
             <li>
                 <a href="#menu-ledger-data" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-database') ?><span>자료관리</span></a>
                 <ul id="menu-ledger-data" class="collapse">
-                    <li><?= $link('/ledger/data/formats', '양식관리', 'bi-table') ?></li>
-                    <li><?= $link('/ledger/data/upload', '자료업로드', 'bi-upload') ?></li>
-                    <li><?= $link('/ledger/data/list', '자료목록', 'bi-list-check') ?></li>
+                    <li><?= $link('/ledger/data/list', '증빙원본', 'bi-clipboard-data') ?></li>
+                    <li><?= $link('/ledger/data/create', '생성센터', 'bi-database-check') ?></li>
                 </ul>
             </li>
             <li>
@@ -147,4 +146,13 @@ $link = static function (string $href, string $label, string $iconClass, string 
             <li><?= $link('/shop/orders', '주문관리', 'bi-receipt') ?></li>
         <?php endif; ?>
     </ul>
+</div>
+
+<div class="sidebar-right-border" aria-hidden="false">
+    <button type="button"
+            id="sidebar-toggle-btn"
+            class="sidebar-toggle-btn"
+            aria-label="사이드바 열고 닫기">
+        <i class="bi bi-chevron-left"></i>
+    </button>
 </div>

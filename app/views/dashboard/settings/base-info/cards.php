@@ -5,7 +5,7 @@
 <div class="card-page" id="card-main" data-flash="<?= htmlspecialchars($flashMsg ?? '', ENT_QUOTES, 'UTF-8') ?>">
 
   <div class="page-header">
-    <h5 class="mb-1 fw-bold">💳 카드관리</h5>
+    <h5 class="mb-1 fw-bold">💳 카드 관리</h5>
     <span id="cardCount" class="text-primary card-count page-count"></span>
   </div>
 

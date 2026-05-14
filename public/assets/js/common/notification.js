@@ -3,6 +3,48 @@
     'use strict';
   
     window.AppCore = window.AppCore || {};
+
+    if (!window.AppCore.showLoading || !window.AppCore.hideLoading) {
+      let globalLoadingCount = 0;
+
+      function ensureLoadingMessage(overlay) {
+        let message = overlay.querySelector('.global-loading-message');
+        if (message) return message;
+
+        message = document.createElement('div');
+        message.className = 'global-loading-message';
+        message.textContent = '처리 중입니다...';
+        overlay.appendChild(message);
+        return message;
+      }
+
+      function showLoading(message = '처리 중입니다...') {
+        const overlay = document.getElementById('global-loading-overlay');
+        if (!overlay) return;
+
+        globalLoadingCount += 1;
+        overlay.style.display = 'flex';
+        overlay.setAttribute('aria-busy', 'true');
+        overlay.setAttribute('aria-live', 'polite');
+        ensureLoadingMessage(overlay).textContent = message;
+      }
+
+      function hideLoading() {
+        const overlay = document.getElementById('global-loading-overlay');
+        if (!overlay) return;
+
+        globalLoadingCount = Math.max(0, globalLoadingCount - 1);
+        if (globalLoadingCount > 0) return;
+
+        overlay.style.display = 'none';
+        overlay.removeAttribute('aria-busy');
+      }
+
+      window.AppCore.showLoading = showLoading;
+      window.AppCore.hideLoading = hideLoading;
+      window.AppCore.showGlobalLoading = showLoading;
+      window.AppCore.hideGlobalLoading = hideLoading;
+    }
   
     if (!window.AppCore.notify) {
       function createContainer() {

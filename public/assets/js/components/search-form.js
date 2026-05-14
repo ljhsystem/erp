@@ -10,7 +10,8 @@ export function SearchForm(config) {
         defaultSearchField,
         dateOptions,
         normalizeFilters,
-        excludeFields = []
+        excludeFields = [],
+        initialCollapsed = false
     } = config;
 
     const $ = window.jQuery;
@@ -42,15 +43,15 @@ export function SearchForm(config) {
     bindDatePicker();
 
     function applyInitialState() {
-        bodyEl?.classList.remove('hidden');
-        containerEl?.classList.remove('collapsed');
+        bodyEl?.classList.toggle('hidden', initialCollapsed);
+        containerEl?.classList.toggle('collapsed', initialCollapsed);
 
         if (toggleBtnEl) {
-            toggleBtnEl.textContent = '접기';
+            toggleBtnEl.textContent = initialCollapsed ? '열기' : '접기';
         }
 
-        if (table && table.page.len() !== 10) {
-            table.page.len(10).draw(false);
+        if (table && table.page.len() !== 100) {
+            table.page.len(100).draw(false);
         }
     }
 

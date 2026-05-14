@@ -189,6 +189,51 @@
 
 
 
+.account-page .account-active-toggle{
+    width: 2.35rem;
+    height: 1.2rem;
+    cursor: pointer;
+    border-color: color-mix(in srgb, var(--color-text) 22%, white);
+    background-color: color-mix(in srgb, var(--color-text) 22%, white);
+}
+
+.account-page .account-active-toggle:checked{
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.account-page .account-active-toggle:focus{
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 .18rem var(--color-primary-soft);
+}
+
+.account-page .account-active-toggle:disabled{
+    cursor: wait;
+    opacity: .65;
+}
+
+.account-page .account-edit-btn{
+    min-width: 52px;
+    font-weight: 600;
+    color: var(--color-primary);
+    border-color: color-mix(in srgb, var(--color-primary) 42%, white);
+    background: color-mix(in srgb, var(--color-primary) 7%, white);
+}
+
+.account-page .account-edit-btn:hover,
+.account-page .account-edit-btn:focus{
+    color: #fff;
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    box-shadow: 0 0 0 .18rem var(--color-primary-soft);
+}
+
+.account-page .account-edit-btn:active{
+    color: #fff;
+    border-color: var(--color-primary-hover);
+    background: var(--color-primary-hover);
+}
+
 /* =========================================================
    MOBILE
 ========================================================= */

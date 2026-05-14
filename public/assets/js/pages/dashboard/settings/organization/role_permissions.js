@@ -135,8 +135,10 @@ function initRoleTable() {
         tableSelector: '#role-list-table',
         api: API_ROLE_LIST,
         defaultOrder: [[0, 'asc']],
-        pageLength: 10,
+        pageLength: 100,
         cellSearchFill: false,
+        selectable: false,
+        deleteButton: false,
         columns: [
             {
                 data: 'sort_no',
@@ -206,8 +208,10 @@ function initPermissionTable() {
         tableSelector: '#role-permissions-table',
         api: API_PERM_LIST,
         defaultOrder: [[0, 'asc']],
-        pageLength: 50,
+        pageLength: 100,
         cellSearchFill: false,
+        selectable: false,
+        deleteButton: false,
         columns: [
             {
                 data: 'sort_no',

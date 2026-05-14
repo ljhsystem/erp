@@ -144,7 +144,7 @@
                             </label>
 
                             <label class="transaction-field">
-                                <span class="transaction-field-label">부가세</span>
+                                <span class="transaction-field-label">가감금액</span>
                                 <input type="text"
                                        class="form-control form-control-sm number-input text-end"
                                        name="vat_amount"
@@ -154,7 +154,7 @@
                             </label>
 
                             <label class="transaction-field">
-                                <span class="transaction-field-label">총금액</span>
+                                <span class="transaction-field-label">합계금액</span>
                                 <input type="text"
                                        class="form-control form-control-sm number-input text-end"
                                        name="total_amount"
@@ -208,18 +208,11 @@
 
                         <div class="transaction-lines-footer">
                             <div class="transaction-summary-grid">
-                                <div class="transaction-summary-row">
-                                    <span>내역 공급가액 합계</span>
-                                    <input type="text" class="form-control form-control-sm" id="transaction_supply_total" value="0" readonly>
-                                </div>
-
-                                <div class="transaction-summary-row">
-                                    <span>내역 부가세 합계</span>
-                                    <input type="text" class="form-control form-control-sm" id="transaction_vat_total" value="0" readonly>
-                                </div>
+                                <input type="hidden" id="transaction_supply_total" value="0">
+                                <input type="hidden" id="transaction_vat_total" value="0">
 
                                 <div class="transaction-summary-row total">
-                                    <span>내역 총액 합계</span>
+                                    <span>합계금액</span>
                                     <input type="text" class="form-control form-control-sm" id="transaction_grand_total" value="0" readonly>
                                 </div>
                             </div>
@@ -255,87 +248,6 @@
 
                 <div id="transaction-today-picker" class="is-hidden"></div>
             </form>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="transactionVoucherWizardModal" tabindex="-1" aria-labelledby="transactionVoucherWizardModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable transaction-voucher-wizard-dialog">
-        <div class="modal-content transaction-voucher-wizard">
-            <div class="modal-header">
-                <div>
-                    <h5 class="modal-title" id="transactionVoucherWizardModalLabel">추천 분개 검토</h5>
-                    <p class="mb-0 small text-muted">거래 내용을 확인하고 추천 분개라인을 수정한 뒤 draft 전표로 저장합니다.</p>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
-            </div>
-            <div class="modal-body">
-                <section class="transaction-voucher-wizard-section">
-                    <div class="transaction-voucher-wizard-title">STEP 1. 거래헤더 확인</div>
-                    <div class="transaction-voucher-header-grid">
-                        <label class="transaction-field">
-                            <span class="transaction-field-label">거래처</span>
-                            <input type="text" class="form-control form-control-sm" id="voucherWizardClientName">
-                        </label>
-                        <label class="transaction-field">
-                            <span class="transaction-field-label">프로젝트</span>
-                            <input type="text" class="form-control form-control-sm" id="voucherWizardProjectName">
-                        </label>
-                        <label class="transaction-field">
-                            <span class="transaction-field-label">거래유형</span>
-                            <input type="text" class="form-control form-control-sm" id="voucherWizardTransactionType">
-                        </label>
-                        <label class="transaction-field">
-                            <span class="transaction-field-label">거래방향</span>
-                            <input type="text" class="form-control form-control-sm" id="voucherWizardTransactionDirection">
-                        </label>
-                        <label class="transaction-field">
-                            <span class="transaction-field-label">공급가</span>
-                            <input type="text" class="form-control form-control-sm text-end" id="voucherWizardSupplyAmount">
-                        </label>
-                        <label class="transaction-field">
-                            <span class="transaction-field-label">부가세</span>
-                            <input type="text" class="form-control form-control-sm text-end" id="voucherWizardVatAmount">
-                        </label>
-                        <label class="transaction-field">
-                            <span class="transaction-field-label">합계금액</span>
-                            <input type="text" class="form-control form-control-sm text-end" id="voucherWizardTotalAmount">
-                        </label>
-                        <label class="transaction-field">
-                            <span class="transaction-field-label">적요</span>
-                            <input type="text" class="form-control form-control-sm" id="voucherWizardDescription">
-                        </label>
-                    </div>
-                </section>
-
-                <section class="transaction-voucher-wizard-section">
-                    <div class="transaction-voucher-wizard-title">STEP 2. 추천 분개라인 협의</div>
-                    <div class="transaction-voucher-balance" id="voucherWizardBalanceText"></div>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-bordered align-middle transaction-voucher-line-table">
-                            <thead>
-                            <tr>
-                                <th>차대구분</th>
-                                <th>계정과목</th>
-                                <th>보조계정</th>
-                                <th>거래처</th>
-                                <th>프로젝트</th>
-                                <th>금액</th>
-                                <th>추천근거</th>
-                                <th>신뢰도</th>
-                                <th>관리</th>
-                            </tr>
-                            </thead>
-                            <tbody id="voucherWizardLineBody"></tbody>
-                        </table>
-                    </div>
-                    <button type="button" class="btn btn-outline-dark btn-sm" id="btnAddVoucherWizardLine">+ 라인 추가</button>
-                </section>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-success btn-sm" id="btnSaveVoucherWizard">draft 전표 저장</button>
-                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
-            </div>
         </div>
     </div>
 </div>

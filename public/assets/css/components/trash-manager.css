@@ -48,6 +48,20 @@
   background: #e7f1ff;
 }
 
+.modal.trash-action-busy .trash,
+.modal.trash-action-busy .trash-table {
+  cursor: progress;
+}
+
+.modal.trash-action-busy .trash-check,
+.modal.trash-action-busy .trash-check-all,
+.modal.trash-action-busy .trash-toolbar .btn,
+.modal.trash-action-busy .btn-restore,
+.modal.trash-action-busy .btn-purge {
+  pointer-events: none;
+  opacity: .7;
+}
+
 .trash-right {
   width: 0;
   overflow: hidden;

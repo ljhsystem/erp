@@ -342,6 +342,8 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
             c.ceo_name,
             c.phone,
             c.email,
+            c.address,
+            c.address_detail,
             c.client_type,
             c.default_account_id,
             da.account_code AS default_account_code,

@@ -18,16 +18,25 @@ class TransactionModel
 
     public function getList(array $filters = []): array
     {
+        $lineStatusJoin = $this->lineStatusJoinSql();
         $sql = "
             SELECT
                 t.*,
                 COALESCE(sc.client_name, '') AS client_name,
-                COALESCE(sp.project_name, '') AS project_name
+                COALESCE(sp.project_name, '') AS project_name,
+                COALESCE(tls.line_count, 0) AS transaction_line_count,
+                COALESCE(tls.incomplete_count, 0) AS transaction_line_incomplete_count,
+                CASE
+                    WHEN COALESCE(tls.line_count, 0) = 0 THEN 'NONE'
+                    WHEN COALESCE(tls.incomplete_count, 0) > 0 THEN 'INCOMPLETE'
+                    ELSE 'COMPLETE'
+                END AS transaction_line_status
             FROM {$this->table} t
             LEFT JOIN system_clients sc
                 ON t.client_id = sc.id
             LEFT JOIN system_projects sp
                 ON t.project_id = sp.id
+            {$lineStatusJoin}
             WHERE t.deleted_at IS NULL
         ";
 
@@ -95,6 +104,8 @@ class TransactionModel
                 'project_name' => 'sp.project_name',
                 'client_id' => 't.client_id',
                 'client_name' => 'sc.client_name',
+                'base_amount' => 't.base_amount',
+                'adjustment_amount' => 't.adjustment_amount',
                 'supply_amount' => 't.supply_amount',
                 'vat_amount' => 't.vat_amount',
                 'total_amount' => 't.total_amount',
@@ -136,6 +147,103 @@ class TransactionModel
         $stmt->execute($params);
 
         return $this->stripHeaderTaxTypeRows($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+
+    private function lineStatusJoinSql(): string
+    {
+        if (!$this->tableExists('ledger_transaction_lines') || !$this->tableColumnExists('ledger_transaction_lines', 'transaction_id')) {
+            return "
+                LEFT JOIN (
+                    SELECT NULL AS transaction_id, 0 AS line_count, 0 AS incomplete_count
+                ) tls ON tls.transaction_id = t.id
+            ";
+        }
+
+        $where = $this->tableColumnExists('ledger_transaction_lines', 'deleted_at')
+            ? 'WHERE deleted_at IS NULL'
+            : '';
+        $itemNameExpr = $this->tableColumnExists('ledger_transaction_lines', 'item_name')
+            ? "TRIM(COALESCE(item_name, '')) = ''"
+            : '0 = 1';
+        $amountExpr = $this->lineAmountExpression();
+
+        return "
+            LEFT JOIN (
+                SELECT
+                    transaction_id,
+                    COUNT(*) AS line_count,
+                    SUM(CASE
+                        WHEN {$itemNameExpr} OR {$amountExpr} = 0 THEN 1
+                        ELSE 0
+                    END) AS incomplete_count
+                FROM ledger_transaction_lines
+                {$where}
+                GROUP BY transaction_id
+            ) tls
+                ON tls.transaction_id = t.id
+        ";
+    }
+
+    private function lineAmountExpression(): string
+    {
+        if ($this->tableColumnExists('ledger_transaction_lines', 'amount')) {
+            return 'COALESCE(amount, 0)';
+        }
+        if ($this->tableColumnExists('ledger_transaction_lines', 'total_amount')) {
+            return 'COALESCE(total_amount, 0)';
+        }
+        if ($this->tableColumnExists('ledger_transaction_lines', 'supply_amount') || $this->tableColumnExists('ledger_transaction_lines', 'vat_amount')) {
+            $supply = $this->tableColumnExists('ledger_transaction_lines', 'supply_amount') ? 'COALESCE(supply_amount, 0)' : '0';
+            $vat = $this->tableColumnExists('ledger_transaction_lines', 'vat_amount') ? 'COALESCE(vat_amount, 0)' : '0';
+            return "({$supply} + {$vat})";
+        }
+
+        return '1';
+    }
+
+    private function tableExists(string $tableName): bool
+    {
+        static $cache = [];
+        if (array_key_exists($tableName, $cache)) {
+            return $cache[$tableName];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT 1
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = :table_name
+            LIMIT 1
+        ");
+        $stmt->execute([':table_name' => $tableName]);
+        $cache[$tableName] = (bool) $stmt->fetchColumn();
+
+        return $cache[$tableName];
+    }
+
+    private function tableColumnExists(string $tableName, string $columnName): bool
+    {
+        static $cache = [];
+        $key = $tableName . '.' . $columnName;
+        if (array_key_exists($key, $cache)) {
+            return $cache[$key];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT 1
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = :table_name
+              AND COLUMN_NAME = :column_name
+            LIMIT 1
+        ");
+        $stmt->execute([
+            ':table_name' => $tableName,
+            ':column_name' => $columnName,
+        ]);
+        $cache[$key] = (bool) $stmt->fetchColumn();
+
+        return $cache[$key];
     }
 
     public function getUnpostedList(): array
@@ -192,6 +300,8 @@ class TransactionModel
             'project_id',
             'currency',
             'exchange_rate',
+            'base_amount',
+            'adjustment_amount',
             'supply_amount',
             'vat_amount',
             'total_amount',
@@ -241,6 +351,8 @@ class TransactionModel
             'project_id',
             'currency',
             'exchange_rate',
+            'base_amount',
+            'adjustment_amount',
             'supply_amount',
             'vat_amount',
             'total_amount',
@@ -333,7 +445,7 @@ class TransactionModel
         $payload = [];
 
         foreach ($allowed as $column) {
-            if (array_key_exists($column, $data)) {
+            if (array_key_exists($column, $data) && $this->tableColumnExists($this->table, $column)) {
                 $payload[$column] = $data[$column];
             }
         }

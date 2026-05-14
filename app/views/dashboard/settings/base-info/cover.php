@@ -8,7 +8,7 @@
          HEADER
     ========================== -->
     <div class="page-header">
-        <h5 class="mb-1 fw-bold">커버이미지관리</h5>
+        <h5 class="mb-1 fw-bold">🏞️ 커버이미지 관리</h5>
         <span id="coverCount" class="text-primary cover-count page-count"></span>
     </div>
 

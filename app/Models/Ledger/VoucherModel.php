@@ -19,17 +19,51 @@ class VoucherModel
     public function getList(array $filters = []): array
     {
         $storedTransactionIdExpr = $this->hasColumn('transaction_id') ? 'v.transaction_id' : 'NULL';
-        $hasSeedRows = $this->hasTable('ledger_data_seed_rows');
-        $importTypeExpr = $hasSeedRows
-            ? "COALESCE(linked_seed.source_type, source_seed_by_tx.source_type)"
+        $hasSeedRows = $this->hasTable('ledger_data_evidences');
+        $hasEvidenceLinks = $this->hasTable('ledger_data_evidence_links');
+        $hasEvidenceTransactionId = $hasSeedRows && $this->tableColumnExists('ledger_data_evidences', 'transaction_id');
+        $seedSources = [];
+        $seedIds = [];
+        if ($hasEvidenceLinks) {
+            $seedSources[] = 'evidence_linked_seed.source_type';
+            $seedIds[] = 'evidence_linked_seed.evidence_id';
+        }
+        if ($hasEvidenceTransactionId) {
+            $seedSources[] = 'linked_seed.source_type';
+            $seedSources[] = 'source_seed_by_tx.source_type';
+            $seedIds[] = 'linked_seed.evidence_id';
+            $seedIds[] = 'source_seed_by_tx.evidence_id';
+        }
+        $importTypeExpr = $hasSeedRows && $seedSources !== []
+            ? "COALESCE(" . implode(', ', $seedSources) . ")"
             : 'NULL';
-        $seedJoinSql = $hasSeedRows ? "
+        $evidenceIdExpr = $hasSeedRows && $seedIds !== []
+            ? "COALESCE(" . implode(', ', $seedIds) . ")"
+            : 'NULL';
+        $evidenceLinkJoinSql = ($hasSeedRows && $hasEvidenceLinks) ? "
+            LEFT JOIN (
+                SELECT
+                    el.voucher_id,
+                    MIN(e.id) AS evidence_id,
+                    MIN(e.source_type) AS source_type
+                FROM ledger_data_evidence_links el
+                INNER JOIN ledger_data_evidences e
+                    ON e.id = el.evidence_id
+                   AND e.deleted_at IS NULL
+                WHERE el.deleted_at IS NULL
+                  AND el.voucher_id IS NOT NULL
+                GROUP BY el.voucher_id
+            ) evidence_linked_seed
+                ON evidence_linked_seed.voucher_id = v.id
+        " : "";
+        $transactionSeedJoinSql = ($hasSeedRows && $hasEvidenceTransactionId) ? "
             LEFT JOIN (
                 SELECT
                     l.voucher_id,
+                    MIN(sr.id) AS evidence_id,
                     MIN(sr.source_type) AS source_type
                 FROM ledger_transaction_links l
-                INNER JOIN ledger_data_seed_rows sr
+                INNER JOIN ledger_data_evidences sr
                     ON sr.transaction_id = l.transaction_id
                    AND sr.deleted_at IS NULL
                 WHERE l.deleted_at IS NULL
@@ -40,13 +74,18 @@ class VoucherModel
             LEFT JOIN (
                 SELECT
                     transaction_id,
+                    MIN(id) AS evidence_id,
                     MIN(source_type) AS source_type
-                FROM ledger_data_seed_rows
+                FROM ledger_data_evidences
                 WHERE deleted_at IS NULL
                   AND transaction_id IS NOT NULL
                 GROUP BY transaction_id
             ) source_seed_by_tx
                 ON source_seed_by_tx.transaction_id = {$storedTransactionIdExpr}
+        " : "";
+        $seedJoinSql = $hasSeedRows ? "
+            {$evidenceLinkJoinSql}
+            {$transactionSeedJoinSql}
         " : "";
 
         $sql = "
@@ -72,6 +111,11 @@ class VoucherModel
                 COALESCE({$storedTransactionIdExpr}, transaction_links.transaction_id) AS transaction_id,
                 transaction_links.match_status,
                 {$importTypeExpr} AS import_type,
+                {$evidenceIdExpr} AS evidence_id,
+                CASE
+                    WHEN {$evidenceIdExpr} IS NULL THEN 'unlinked'
+                    ELSE 'linked'
+                END AS evidence_link_status,
                 COALESCE(linked_clients.client_name, '') AS client_name,
                 reversal_vouchers.id AS reversal_voucher_id,
                 reversal_vouchers.voucher_no AS reversal_voucher_no,
@@ -174,11 +218,14 @@ class VoucherModel
 
             if (!empty($filters['keyword'])) {
                 $sql .= " AND (
-                    v.voucher_no LIKE :keyword
-                    OR v.summary_text LIKE :keyword
-                    OR COALESCE(linked_clients.client_name, '') LIKE :keyword
+                    v.voucher_no LIKE :keyword_voucher_no
+                    OR v.summary_text LIKE :keyword_summary_text
+                    OR COALESCE(linked_clients.client_name, '') LIKE :keyword_client_name
                 )";
-                $params[':keyword'] = '%' . $filters['keyword'] . '%';
+                $keyword = '%' . $filters['keyword'] . '%';
+                $params[':keyword_voucher_no'] = $keyword;
+                $params[':keyword_summary_text'] = $keyword;
+                $params[':keyword_client_name'] = $keyword;
             }
         }
 
@@ -715,7 +762,13 @@ class VoucherModel
 
         if (!array_key_exists($table, $tables)) {
             try {
-                $stmt = $this->db->prepare('SHOW TABLES LIKE :table_name');
+                $stmt = $this->db->prepare("
+                    SELECT 1
+                    FROM information_schema.TABLES
+                    WHERE TABLE_SCHEMA = DATABASE()
+                      AND TABLE_NAME = :table_name
+                    LIMIT 1
+                ");
                 $stmt->execute([':table_name' => $table]);
                 $tables[$table] = (bool) $stmt->fetchColumn();
             } catch (\Throwable) {
@@ -724,6 +777,34 @@ class VoucherModel
         }
 
         return $tables[$table];
+    }
+
+    private function tableColumnExists(string $table, string $column): bool
+    {
+        static $cache = [];
+        $key = $table . '.' . $column;
+
+        if (!array_key_exists($key, $cache)) {
+            try {
+                $stmt = $this->db->prepare("
+                    SELECT 1
+                    FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE()
+                      AND TABLE_NAME = :table_name
+                      AND COLUMN_NAME = :column_name
+                    LIMIT 1
+                ");
+                $stmt->execute([
+                    ':table_name' => $table,
+                    ':column_name' => $column,
+                ]);
+                $cache[$key] = (bool) $stmt->fetchColumn();
+            } catch (\Throwable) {
+                $cache[$key] = false;
+            }
+        }
+
+        return $cache[$key];
     }
 
     private function bindParams(array $data): array

@@ -4,7 +4,9 @@
 
 <div class="code-page" id="code-main">
     <div class="page-header">
-        <h5 class="mb-1 fw-bold">기준정보 관리</h5>
+        <h4 class="mb-1 fw-bold">
+<i class="bi bi-collection me-2"></i>기준정보
+        </h4>
         <span id="codeCount" class="text-primary code-count page-count"></span>
     </div>
 

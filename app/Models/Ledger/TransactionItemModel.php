@@ -77,6 +77,7 @@ class TransactionItemModel
             'id',
             'sort_no',
             'transaction_id',
+            'line_type',
             'item_date',
             'item_name',
             'specification',
@@ -85,6 +86,7 @@ class TransactionItemModel
             'unit_price',
             'foreign_unit_price',
             'foreign_amount',
+            'amount',
             'supply_amount',
             'vat_amount',
             'total_amount',
@@ -124,6 +126,7 @@ class TransactionItemModel
         $allowed = [
             'transaction_id',
             'sort_no',
+            'line_type',
             'item_date',
             'item_name',
             'specification',
@@ -132,6 +135,7 @@ class TransactionItemModel
             'unit_price',
             'foreign_unit_price',
             'foreign_amount',
+            'amount',
             'supply_amount',
             'vat_amount',
             'total_amount',
@@ -207,12 +211,36 @@ class TransactionItemModel
         $payload = [];
 
         foreach ($allowed as $column) {
-            if (array_key_exists($column, $data)) {
+            if (array_key_exists($column, $data) && $this->tableColumnExists($column)) {
                 $payload[$column] = $data[$column];
             }
         }
 
         return $payload;
+    }
+
+    private function tableColumnExists(string $columnName): bool
+    {
+        static $cache = [];
+        if (array_key_exists($columnName, $cache)) {
+            return $cache[$columnName];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT 1
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = :table_name
+              AND COLUMN_NAME = :column_name
+            LIMIT 1
+        ");
+        $stmt->execute([
+            ':table_name' => $this->table,
+            ':column_name' => $columnName,
+        ]);
+
+        $cache[$columnName] = (bool) $stmt->fetchColumn();
+        return $cache[$columnName];
     }
 
     private function bindParams(array $data): array

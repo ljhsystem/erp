@@ -2,13 +2,139 @@
    Excel Manager Component
 ========================================================= */
 
-.excel-spinner {
-  color: var(--color-text-muted);
+.excel-action-grid .excel-action-card {
+  min-width: 150px;
+  min-height: 40px;
+  border-radius: 8px;
+  font-weight: 600;
+  padding-inline: 14px;
 }
 
-.excel-spinner .spinner-border {
-  width: calc(var(--row-height, 38px) - 8px);
-  height: calc(var(--row-height, 38px) - 8px);
+.excel-modal-subtitle {
+  margin-top: 2px;
+}
+
+.excel-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 150px;
+  padding: 22px;
+  border: 1px dashed #b8c2cc;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #334155;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+}
+
+.excel-dropzone:hover,
+.excel-dropzone.is-dragover {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .08);
+}
+
+.excel-dropzone.has-file {
+  border-color: #16a34a;
+  background: #f0fdf4;
+}
+
+.excel-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.excel-dropzone-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 22px;
+}
+
+.excel-dropzone-title {
+  font-weight: 700;
+}
+
+.excel-dropzone-hint,
+.excel-dropzone-file {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.excel-dropzone-file {
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.excel-progress-panel {
+  padding: 12px;
+  border: 1px solid #dbe4ee;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #334155;
+}
+
+.excel-progress {
+  height: 8px;
+  border-radius: 999px;
+  background-color: #e2e8f0;
+  overflow: hidden;
+}
+
+.excel-progress .progress-bar {
+  background-color: #2563eb;
+  transition: width .2s ease;
+}
+
+.excel-progress-panel.is-indeterminate .progress-bar {
+  opacity: .82;
+  background-image: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, .25) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, .25) 50%,
+    rgba(255, 255, 255, .25) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 1rem 1rem;
+  animation: excel-progress-stripes 1s linear infinite;
+}
+
+.excel-progress-icon {
+  color: #2563eb;
+  animation: excel-progress-spin 1s linear infinite;
+}
+
+@keyframes excel-progress-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes excel-progress-stripes {
+  to {
+    background-position-x: 1rem;
+  }
 }
 
 .btn-upload-excel {

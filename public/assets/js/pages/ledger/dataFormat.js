@@ -8,13 +8,32 @@ import '/public/assets/js/components/trash-manager.js';
         save: '/api/import/format/save',
         remove: '/api/import/format/delete',
         copy: '/api/import/format/copy',
+        template: '/api/import/template',
         importTypes: '/api/settings/system/code/list?code_group=IMPORT_TYPE',
+    };
+
+    const EVIDENCE_UPLOAD_TYPES = new Set([
+        'TAX_INVOICE',
+        'CASH_RECEIPT',
+        'CASH_RECEIPT_PURCHASE',
+        'CASH_RECEIPT_SALES',
+        'CARD_HOMETAX',
+        'CARD_STATEMENT',
+        'CARD_APPROVAL',
+        'BANK_TRANSACTION',
+    ]);
+
+    const LEGACY_TYPE_MAP = {
+        CARD: 'CARD_STATEMENT',
+        BANK: 'BANK_TRANSACTION',
+        TAX: 'TAX_INVOICE',
+        DATA: 'TAX_INVOICE',
     };
 
     const text = {
         requestFailed: '\uC694\uCCAD \uCC98\uB9AC\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.',
         dataTypeSelect: '\uC790\uB8CC\uC720\uD615\uC744 \uC120\uD0DD\uD558\uC138\uC694',
-        choose: '\uC120\uD0DD',
+        choose: '\uC0C1\uC138 JSON \uC790\uB3D9\uC800\uC7A5',
         orderChange: '\uC21C\uC11C \uBCC0\uACBD',
         excelColumnName: '\uC5D1\uC140 \uCEEC\uB7FC\uBA85',
         remove: '-\uC0AD\uC81C',
@@ -29,6 +48,7 @@ import '/public/assets/js/components/trash-manager.js';
         saved: '\uC591\uC2DD\uC774 \uC800\uC7A5\uB418\uC5C8\uC2B5\uB2C8\uB2E4.',
         copied: '\uC591\uC2DD\uC774 \uBCF5\uC0AC\uB418\uC5C8\uC2B5\uB2C8\uB2E4.',
         copyTarget: '\uBCF5\uC0AC\uD560 \uC591\uC2DD\uC744 \uC120\uD0DD\uD558\uC138\uC694.',
+        downloadTarget: '\uB2E4\uC6B4\uB85C\uB4DC\uD560 \uC591\uC2DD\uC744 \uC120\uD0DD\uD558\uC138\uC694.',
         enterFormatName: '\uC591\uC2DD\uBA85\uC744 \uC785\uB825\uD558\uC138\uC694.',
         duplicateField: '\uC2DC\uC2A4\uD15C \uD544\uB4DC\uB294 \uC911\uBCF5 \uC120\uD0DD\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4',
     };
@@ -41,12 +61,15 @@ import '/public/assets/js/components/trash-manager.js';
     const formatIsDefaultEl = document.getElementById('formatIsDefault');
     const columnBodyEl = document.getElementById('formatColumnBody');
     const formatColumnTableEl = document.getElementById('formatColumnTable');
+    const columnToggleAllEls = Array.from(document.querySelectorAll('.format-column-toggle-all'));
     const newFormatBtn = document.getElementById('newFormatBtn');
     const formatTrashBtn = document.getElementById('formatTrashBtn');
     const addColumnBtn = document.getElementById('addColumnBtn');
     const saveFormatBtn = document.getElementById('saveFormatBtn');
     const deleteFormatBtn = document.getElementById('deleteFormatBtn');
+    const closeFormatBtn = document.getElementById('closeFormatBtn');
     const copyFormatBtn = document.getElementById('copyFormatBtn');
+    const downloadCurrentFormatBtn = document.getElementById('downloadCurrentFormatBtn');
     const newFormatModalEl = document.getElementById('newFormatModal');
     const newFormatNameEl = document.getElementById('newFormatName');
     const newFormatDataTypeEl = document.getElementById('newFormatDataType');
@@ -128,12 +151,17 @@ import '/public/assets/js/components/trash-manager.js';
 
     function normalizeTypeRows(rows) {
         return rows
-            .map((row) => ({
-                code: String(row.code ?? row.value ?? '').trim(),
-                code_name: String(row.code_name ?? row.label ?? row.code ?? row.value ?? '').trim(),
-                is_active: Number(row.is_active ?? 1),
-            }))
-            .filter((row) => row.code && row.is_active === 1);
+            .map((row) => {
+                const rawCode = String(row.code ?? row.value ?? '').trim().toUpperCase();
+                const code = LEGACY_TYPE_MAP[rawCode] || rawCode;
+                return {
+                    code,
+                    code_name: String(row.code_name ?? row.label ?? row.code ?? row.value ?? '').trim(),
+                    is_active: Number(row.is_active ?? 1),
+                };
+            })
+            .filter((row) => row.code && row.is_active === 1 && EVIDENCE_UPLOAD_TYPES.has(row.code))
+            .filter((row, index, list) => list.findIndex((item) => item.code === row.code) === index);
     }
 
     async function loadDataTypes() {
@@ -194,7 +222,7 @@ import '/public/assets/js/components/trash-manager.js';
         return dataTypes.find((row) => row.code === value)?.code_name || value;
     }
 
-    function fieldOptions(selected = '') {
+    function fieldOptions(selected = '', disabledValues = new Set()) {
         const grouped = systemFields.reduce((groups, field) => {
             const group = field.group || 'Import';
             if (!groups.has(group)) groups.set(group, []);
@@ -206,20 +234,51 @@ import '/public/assets/js/components/trash-manager.js';
             <option value="" ${selected === '' ? 'selected' : ''}>${text.choose}</option>
         ` + Array.from(grouped.entries()).map(([group, fields]) => `
             <optgroup label="${escapeHtml(group)}">
-                ${fields.map((field) => `
-                    <option value="${escapeHtml(field.value)}" ${field.value === selected ? 'selected' : ''}>
-                        ${escapeHtml(field.label)} (${escapeHtml(field.value)})
-                    </option>
-                `).join('')}
+                ${fields.map((field) => {
+                    const value = String(field.value || '');
+                    const disabled = value !== '' && value !== selected && disabledValues.has(value);
+                    return `
+                        <option value="${escapeHtml(value)}" ${value === selected ? 'selected' : ''} ${disabled ? 'disabled' : ''}>
+                            ${escapeHtml(field.label)} (${escapeHtml(value)})
+                        </option>
+                    `;
+                }).join('')}
             </optgroup>
         `).join('');
+    }
+
+    function systemFieldGroup(value = '') {
+        const key = String(value || '').trim();
+        return systemFields.find((field) => String(field.value || '') === key)?.group || '';
+    }
+
+    function systemFieldTone(value = '') {
+        const group = systemFieldGroup(value);
+        if (group === '기준정보') return 'standard';
+        if (group === '기초정보') return 'basic';
+        return '';
+    }
+
+    function syncSystemFieldTone(row) {
+        if (!row) return;
+        const tone = systemFieldTone(systemFieldValue(row.querySelector('.system-field-name')));
+        row.classList.toggle('format-column-row-standard', tone === 'standard');
+        row.classList.toggle('format-column-row-basic', tone === 'basic');
+    }
+
+    function syncSystemFieldTones() {
+        columnBodyEl?.querySelectorAll('.format-column-row').forEach(syncSystemFieldTone);
     }
 
     function columnRow(column = {}, index = 0) {
         const order = Number(column.column_order || index + 1);
         const excelColumnIndex = Number(column.excel_column_index || order);
+        const requirementMode = Number(column.is_required || 0);
+        const requirementName = `requirement-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const tone = systemFieldTone(column.system_field_name || '');
+        const toneClass = tone ? ` format-column-row-${tone}` : '';
         return `
-            <tr class="format-column-row">
+            <tr class="format-column-row${toneClass}">
                 <td class="format-order-cell">
                     <span class="column-drag-handle" title="${text.orderChange}">
                         <i class="bi bi-grip-vertical"></i>
@@ -235,17 +294,33 @@ import '/public/assets/js/components/trash-manager.js';
                     <select class="form-select form-select-sm system-field-name">${fieldOptions(column.system_field_name || '')}</select>
                 </td>
                 <td class="text-center">
-                    <input type="checkbox" class="form-check-input is-required" ${Number(column.is_required || 0) === 1 ? 'checked' : ''}>
+                    <input type="checkbox" class="form-check-input is-visible" ${Number(column.is_visible ?? 1) === 1 ? 'checked' : ''}>
                 </td>
                 <td class="text-center">
-                    <button type="button" class="btn btn-link btn-sm p-0 text-danger text-decoration-none remove-column-btn">${text.remove}</button>
+                    <div class="requirement-radio-group" role="radiogroup" aria-label="필수구분">
+                        <label class="requirement-radio-label requirement-none" title="선택없음">
+                            <input type="radio" class="requirement-radio" name="${requirementName}" value="0" ${requirementMode === 0 ? 'checked' : ''}>
+                            <span></span>
+                        </label>
+                        <label class="requirement-radio-label requirement-optional" title="선택">
+                            <input type="radio" class="requirement-radio" name="${requirementName}" value="2" ${requirementMode === 2 ? 'checked' : ''}>
+                            <span></span>
+                        </label>
+                        <label class="requirement-radio-label requirement-required" title="필수">
+                            <input type="radio" class="requirement-radio" name="${requirementName}" value="1" ${requirementMode === 1 ? 'checked' : ''}>
+                            <span></span>
+                        </label>
+                    </div>
+                </td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-link btn-sm remove-column-btn format-text-action text-danger">${text.remove}</button>
                 </td>
             </tr>
         `;
     }
 
     function renumberColumns() {
-        columnBodyEl?.querySelectorAll('tr').forEach((row, index) => {
+        columnBodyEl?.querySelectorAll('tr:not(.format-fixed-column-row)').forEach((row, index) => {
             const order = index + 1;
             row.querySelector('.column-order-label').textContent = String(order);
             row.querySelector('.column-order').value = String(order);
@@ -253,19 +328,169 @@ import '/public/assets/js/components/trash-manager.js';
         });
     }
 
+    function systemFieldValue(select) {
+        if (!select) return '';
+        if (window.jQuery?.fn?.select2 && window.jQuery(select).hasClass('select2-hidden-accessible')) {
+            return String(window.jQuery(select).val() || '').trim();
+        }
+        return String(select.value || '').trim();
+    }
+
+    function clearDuplicateSystemFields() {
+        const seen = new Set();
+        let changed = false;
+        Array.from(columnBodyEl?.querySelectorAll('.system-field-name') || []).forEach((select) => {
+            const value = systemFieldValue(select);
+            if (!value) {
+                rememberSystemFieldValue(select);
+                return;
+            }
+            if (seen.has(value)) {
+                notify('warning', `${text.duplicateField}: ${duplicateSystemFieldLabel(value)}`);
+                setSelectValue(select, '');
+                rememberSystemFieldValue(select);
+                changed = true;
+                return;
+            }
+            seen.add(value);
+            rememberSystemFieldValue(select);
+        });
+        return changed;
+    }
+
+    function selectedSystemFieldValues(exceptSelect = null) {
+        return new Set(Array.from(columnBodyEl?.querySelectorAll('.system-field-name') || [])
+            .filter((select) => select !== exceptSelect)
+            .map((select) => systemFieldValue(select))
+            .filter(Boolean));
+    }
+
+    function updateSystemFieldOptionLocks(select) {
+        if (!select) return;
+        const current = systemFieldValue(select);
+        const selectedValues = selectedSystemFieldValues(select);
+        Array.from(select.options || []).forEach((option) => {
+            const value = String(option.value || '').trim();
+            option.disabled = value !== '' && value !== current && selectedValues.has(value);
+        });
+    }
+
     function syncSystemFieldOptions() {
+        clearDuplicateSystemFields();
         const rows = Array.from(columnBodyEl?.querySelectorAll('tr') || []);
-        const selectedValues = rows
-            .map((row) => row.querySelector('.system-field-name')?.value || '')
-            .filter(Boolean);
+        const selectedValues = selectedSystemFieldValues();
 
         rows.forEach((row) => {
             const select = row.querySelector('.system-field-name');
             if (!select) return;
-            const current = select.value;
-            select.querySelectorAll('option').forEach((option) => {
-                option.disabled = option.value !== '' && option.value !== current && selectedValues.includes(option.value);
+            const current = systemFieldValue(select);
+            select.innerHTML = fieldOptions(current, new Set(selectedValues));
+            refreshSystemFieldSelect(select);
+        });
+    }
+
+    function isSystemFieldSelectedElsewhere(value, select) {
+        const selectedValue = String(value || '').trim();
+        if (!selectedValue || !columnBodyEl) return false;
+
+        return Array.from(columnBodyEl.querySelectorAll('.system-field-name')).some((fieldSelect) => (
+            fieldSelect !== select
+            && systemFieldValue(fieldSelect) === selectedValue
+        ));
+    }
+
+    function isDuplicateSystemField(select) {
+        const value = systemFieldValue(select);
+        return isSystemFieldSelectedElsewhere(value, select);
+    }
+
+    function duplicateSystemFieldLabel(value) {
+        return systemFields.find((field) => field.value === value)?.label || value;
+    }
+
+    function rememberSystemFieldValue(select) {
+        if (!select) return;
+        select.dataset.previousSystemField = systemFieldValue(select);
+    }
+
+    function restorePreviousSystemFieldValue(select) {
+        const previous = select?.dataset?.previousSystemField || '';
+        setSelectValue(select, previous);
+    }
+
+    function systemFieldSelect2Options(select) {
+        const modalParent = window.jQuery(select).closest('.modal');
+        return {
+            width: '100%',
+            language: 'ko',
+            placeholder: text.choose,
+            allowClear: true,
+            minimumResultsForSearch: 0,
+            dropdownAutoWidth: true,
+            dropdownParent: modalParent.length ? modalParent.first() : window.jQuery(document.body),
+        };
+    }
+
+    function refreshSystemFieldSelect(select) {
+        if (!window.jQuery?.fn?.select2 || !select) return;
+        const $select = window.jQuery(select);
+        const current = $select.val();
+        if (select.dataset.previousSystemField === undefined) {
+            select.dataset.previousSystemField = String(current || '');
+        }
+        if ($select.hasClass('select2-hidden-accessible')) {
+            $select.select2('destroy');
+        }
+        $select.select2(systemFieldSelect2Options(select));
+        $select
+            .off('select2:opening.dataFormatField select2:selecting.dataFormatField select2:select.dataFormatField change.dataFormatField')
+            .on('select2:opening.dataFormatField', () => {
+                rememberSystemFieldValue(select);
+                updateSystemFieldOptionLocks(select);
+            })
+            .on('select2:selecting.dataFormatField', (event) => {
+                const data = event.params?.args?.data || event.params?.data || {};
+                const value = String(data.id || data.element?.value || '').trim();
+                if (!data.element?.disabled && !isSystemFieldSelectedElsewhere(value, select)) return;
+
+                event.preventDefault();
+                notify('warning', `${text.duplicateField}: ${duplicateSystemFieldLabel(value)}`);
+            })
+            .on('select2:select.dataFormatField change.dataFormatField', () => {
+                window.setTimeout(() => {
+                    const value = systemFieldValue(select);
+                    if (!isSystemFieldSelectedElsewhere(value, select)) {
+                        rememberSystemFieldValue(select);
+                        return;
+                    }
+
+                    notify('warning', `${text.duplicateField}: ${duplicateSystemFieldLabel(value)}`);
+                    restorePreviousSystemFieldValue(select);
+                    syncSystemFieldOptions();
+                }, 0);
             });
+        $select.val(current || '').trigger('change.select2');
+    }
+
+    function enhanceSystemFieldSelects() {
+        if (!window.jQuery?.fn?.select2 || !columnBodyEl) return;
+        window.jQuery(columnBodyEl).find('.system-field-name').each(function () {
+            refreshSystemFieldSelect(this);
+        });
+    }
+
+    function updateColumnToggleState() {
+        const rows = Array.from(columnBodyEl?.querySelectorAll('tr') || []);
+        columnToggleAllEls.forEach((checkbox) => {
+            const target = checkbox.dataset.target || '';
+            const rowChecks = rows
+                .map((row) => row.querySelector(target))
+                .filter(Boolean);
+            const checkedCount = rowChecks.filter((input) => input.checked).length;
+
+            checkbox.checked = rowChecks.length > 0 && checkedCount === rowChecks.length;
+            checkbox.indeterminate = checkedCount > 0 && checkedCount < rowChecks.length;
+            checkbox.disabled = rowChecks.length === 0;
         });
     }
 
@@ -280,7 +505,7 @@ import '/public/assets/js/components/trash-manager.js';
 
         $body.sortable({
             handle: '.column-drag-handle',
-            items: '> tr',
+            items: '> tr:not(.format-fixed-column-row)',
             axis: 'y',
             tolerance: 'pointer',
             forcePlaceholderSize: true,
@@ -327,11 +552,29 @@ import '/public/assets/js/components/trash-manager.js';
 
     function renderColumns(columns = []) {
         if (!columnBodyEl) return;
-        columnBodyEl.innerHTML = columns.length ? columns.map(columnRow).join('') : '';
+        columnBodyEl.innerHTML = (columns.length ? columns.map(columnRow).join('') : '') + fixedDisplayColumnRows();
         renumberColumns();
+        enhanceSystemFieldSelects();
         syncSystemFieldOptions();
+        syncSystemFieldTones();
         initColumnSortable();
         updateFormatColumnStickyTop();
+        updateColumnToggleState();
+    }
+
+    function currentColumnRows() {
+        return Array.from(columnBodyEl?.querySelectorAll('tr:not(.format-fixed-column-row)') || []).map((row, index) => ({
+            column_order: index + 1,
+            excel_column_index: index + 1,
+            excel_column_name: row.querySelector('.excel-column-name')?.value?.trim() || '',
+            system_field_name: systemFieldValue(row.querySelector('.system-field-name')) || null,
+            is_visible: row.querySelector('.is-visible')?.checked ? 1 : 0,
+            is_required: Number(row.querySelector('.requirement-radio:checked')?.value || 0),
+        })).filter((row) => row.excel_column_name !== '');
+    }
+
+    function fixedDisplayColumnRows() {
+        return '';
     }
 
     function isDefaultFormat(format) {
@@ -348,16 +591,27 @@ import '/public/assets/js/components/trash-manager.js';
 
     function updateDeleteButtonState() {
         const selected = formats.find((format) => format.id === formatIdEl?.value) || null;
-        if (!deleteFormatBtn) return;
-        deleteFormatBtn.disabled = !canDeleteFormat(selected);
-        deleteFormatBtn.title = deleteDisabledMessage(selected);
+        if (deleteFormatBtn) {
+            deleteFormatBtn.disabled = !canDeleteFormat(selected);
+            deleteFormatBtn.title = deleteDisabledMessage(selected);
+        }
+        if (copyFormatBtn) {
+            copyFormatBtn.disabled = !selected;
+            copyFormatBtn.title = selected ? '' : text.copyTarget;
+            copyFormatBtn.classList.toggle('btn-primary', !!selected);
+            copyFormatBtn.classList.toggle('btn-outline-secondary', !selected);
+        }
+        if (downloadCurrentFormatBtn) {
+            downloadCurrentFormatBtn.disabled = !selected;
+            downloadCurrentFormatBtn.title = selected ? '' : text.downloadTarget;
+        }
     }
 
     function renderFormats() {
         if (!formatListEl) return;
 
         if (!currentType()) {
-            formatListEl.innerHTML = `<div class="list-group-item text-muted">${text.emptyType}</div>`;
+            formatListEl.innerHTML = '';
             updateDeleteButtonState();
             return;
         }
@@ -418,19 +672,24 @@ import '/public/assets/js/components/trash-manager.js';
         formatIsDefaultEl.checked = false;
         renderColumns([]);
         renderFormats();
+        updateDeleteButtonState();
     }
 
     async function loadFormats(selectedId = '') {
         const dataType = currentType();
+
         if (!dataType) {
             formats = [];
+            systemFields = [];
             resetForm('', '');
             return;
         }
 
+        await loadFields(dataType);
         const json = await fetchJson(`${API.formats}?data_type=${encodeURIComponent(dataType)}&include_columns=1`);
         formats = json.data || [];
         renderFormats();
+
         if (selectedId) {
             await selectFormat(selectedId);
         } else if (formats.length > 0) {
@@ -440,14 +699,20 @@ import '/public/assets/js/components/trash-manager.js';
         }
     }
 
-    async function loadFields() {
-        const json = await fetchJson(API.fields);
+    async function loadFields(dataType = getSelectValue(formatDataTypeEl) || currentType()) {
+        if (!dataType) {
+            systemFields = [];
+            return;
+        }
+
+        const json = await fetchJson(`${API.fields}?data_type=${encodeURIComponent(dataType)}`);
         systemFields = json.data || [];
     }
 
     async function selectFormat(id) {
         const json = await fetchJson(`${API.detail}?id=${encodeURIComponent(id)}`);
         const data = json.data || {};
+        await loadFields(data.data_type || currentType());
         activeFormatId = data.id || id || '';
         formatIdEl.value = activeFormatId;
         formatNameEl.value = data.format_name || '';
@@ -456,6 +721,13 @@ import '/public/assets/js/components/trash-manager.js';
         renderColumns(data.columns || []);
         renderFormats();
         updateDeleteButtonState();
+    }
+
+    async function reloadFieldsForEditorType() {
+        const dataType = getSelectValue(formatDataTypeEl);
+        const columns = currentColumnRows();
+        await loadFields(dataType);
+        renderColumns(columns);
     }
 
     function validateUniqueSystemFields(columns) {
@@ -476,8 +748,9 @@ import '/public/assets/js/components/trash-manager.js';
             column_order: index + 1,
             excel_column_index: index + 1,
             excel_column_name: row.querySelector('.excel-column-name')?.value?.trim() || '',
-            system_field_name: row.querySelector('.system-field-name')?.value || null,
-            is_required: row.querySelector('.is-required')?.checked ? 1 : 0,
+            system_field_name: systemFieldValue(row.querySelector('.system-field-name')) || null,
+            is_visible: row.querySelector('.is-visible')?.checked ? 1 : 0,
+            is_required: Number(row.querySelector('.requirement-radio:checked')?.value || 0),
         })).filter((row) => row.excel_column_name !== '');
 
         validateUniqueSystemFields(columns);
@@ -505,6 +778,13 @@ import '/public/assets/js/components/trash-manager.js';
             body: JSON.stringify(payload),
         });
         notify('success', text.saved);
+        if (window.parent && window.parent !== window) {
+            window.parent.postMessage({
+                type: 'data-format:saved',
+                dataType: payload.data_type,
+                formatId: json.id || payload.id || '',
+            }, window.location.origin);
+        }
         activeFormatId = json.id || payload.id || activeFormatId;
         if (formatIdEl) {
             formatIdEl.value = activeFormatId;
@@ -552,6 +832,15 @@ import '/public/assets/js/components/trash-manager.js';
         await loadFormats(json.id || '');
     }
 
+    function downloadCurrentFormat() {
+        const id = String(formatIdEl?.value || activeFormatId || '').trim();
+        if (!id) {
+            notify('warning', text.downloadTarget);
+            return;
+        }
+        window.location.href = `${API.template}?format_id=${encodeURIComponent(id)}`;
+    }
+
     function openNewFormatModal() {
         if (newFormatNameEl) newFormatNameEl.value = '';
         setSelectValue(newFormatDataTypeEl, currentType());
@@ -563,7 +852,7 @@ import '/public/assets/js/components/trash-manager.js';
         resetForm('', currentType());
     }
 
-    function confirmNewFormat() {
+    async function confirmNewFormat() {
         const name = newFormatNameEl?.value?.trim() || '';
         const dataType = newFormatDataTypeEl?.value || currentType();
         if (name === '') {
@@ -575,12 +864,17 @@ import '/public/assets/js/components/trash-manager.js';
             return;
         }
         setSelectValue(formatTypeFilterEl, dataType);
+        await loadFields(dataType);
         resetForm(name, dataType);
         newFormatModal?.hide();
     }
 
     formatTypeFilterEl?.addEventListener('change', () => {
         void loadFormats().catch((error) => notify('error', error.message));
+    });
+
+    formatDataTypeEl?.addEventListener('change', () => {
+        void reloadFieldsForEditorType().catch((error) => notify('error', error.message));
     });
 
     formatListEl?.addEventListener('click', (event) => {
@@ -599,12 +893,35 @@ import '/public/assets/js/components/trash-manager.js';
         button.closest('tr')?.remove();
         renumberColumns();
         syncSystemFieldOptions();
+        updateColumnToggleState();
     });
 
     columnBodyEl?.addEventListener('change', (event) => {
-        if (event.target.closest('.system-field-name')) {
+        const systemFieldSelect = event.target.closest('.system-field-name');
+        if (systemFieldSelect) {
+            if (isDuplicateSystemField(systemFieldSelect)) {
+                const value = systemFieldValue(systemFieldSelect);
+                notify('warning', `${text.duplicateField}: ${duplicateSystemFieldLabel(value)}`);
+                restorePreviousSystemFieldValue(systemFieldSelect);
+            } else {
+                rememberSystemFieldValue(systemFieldSelect);
+            }
             syncSystemFieldOptions();
+            syncSystemFieldTone(systemFieldSelect.closest('tr'));
         }
+        if (event.target.closest('.is-visible, .requirement-radio')) {
+            updateColumnToggleState();
+        }
+    });
+
+    columnToggleAllEls.forEach((checkbox) => {
+        checkbox.addEventListener('change', () => {
+            const target = checkbox.dataset.target || '';
+            columnBodyEl?.querySelectorAll(target).forEach((input) => {
+                input.checked = checkbox.checked;
+            });
+            updateColumnToggleState();
+        });
     });
 
     newFormatBtn?.addEventListener('click', openNewFormatModal);
@@ -613,20 +930,32 @@ import '/public/assets/js/components/trash-manager.js';
         if (!modalEl) return;
         bootstrap.Modal.getOrCreateInstance(modalEl, { focus: false }).show();
     });
-    confirmNewFormatBtn?.addEventListener('click', confirmNewFormat);
+    confirmNewFormatBtn?.addEventListener('click', () => void confirmNewFormat().catch((error) => notify('error', error.message)));
     addColumnBtn?.addEventListener('click', () => {
         columnBodyEl.insertAdjacentHTML('beforeend', columnRow({}, columnBodyEl.querySelectorAll('tr').length));
         renumberColumns();
+        enhanceSystemFieldSelects();
         syncSystemFieldOptions();
+        syncSystemFieldTones();
         initColumnSortable();
+        updateColumnToggleState();
     });
     saveFormatBtn?.addEventListener('click', () => void saveFormat().catch((error) => notify('error', error.message)));
+    downloadCurrentFormatBtn?.addEventListener('click', downloadCurrentFormat);
     deleteFormatBtn?.addEventListener('click', () => void deleteFormat().catch((error) => notify('error', error.message)));
+    closeFormatBtn?.addEventListener('click', () => {
+        const modalEl = window.parent?.document?.getElementById('dataFormatModal');
+        if (modalEl && window.parent?.bootstrap) {
+            window.parent.bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+            return;
+        }
+        window.close();
+    });
     copyFormatBtn?.addEventListener('click', () => void copyFormat().catch((error) => notify('error', error.message)));
     window.addEventListener('resize', updateFormatColumnStickyTop, { passive: true });
 
     (async () => {
-        await Promise.all([loadDataTypes(), loadFields()]);
+        await loadDataTypes();
         await loadFormats();
         updateFormatColumnStickyTop();
     })().catch((error) => notify('error', error.message));

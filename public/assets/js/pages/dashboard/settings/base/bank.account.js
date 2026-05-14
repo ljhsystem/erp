@@ -16,6 +16,15 @@ window.AdminPicker = AdminPicker;
 
     console.log('[base-bank-account.js] loaded');
 
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+    }
+
     /* =========================
        API / 상수
     ========================= */
@@ -474,9 +483,10 @@ window.AdminPicker = AdminPicker;
         accountTable = createDataTable({
             tableSelector: '#account-table',
             api: API.LIST,
+            deleteApi: API.DELETE,
             columns: columns,
             defaultOrder: [[1, "asc"]],
-            pageLength: 10,
+            pageLength: 100,
             buttons: [
                 {
                     text: "엑셀관리",
@@ -573,6 +583,7 @@ window.AdminPicker = AdminPicker;
                 tableId: 'account',
                 defaultSearchField: 'account_name',
                 dateOptions: DATE_OPTIONS,
+                initialCollapsed: true,
                 normalizeFilters: normalizeAccountFilters
             });
             bindTableHighlight('#account-table', accountTable);
@@ -616,51 +627,110 @@ window.AdminPicker = AdminPicker;
     /* ============================================================
        TABLE EVENTS
     ============================================================ */
+    async function fetchAccountDetail(id) {
+        const res = await fetch(API.DETAIL + '?id=' + encodeURIComponent(id));
+        const json = await res.json();
+
+        if (!json.success) {
+            throw new Error(json.message || '계좌 상세 조회 실패');
+        }
+
+        return json.data;
+    }
+
+    async function openAccountEditModal(accountId) {
+        if (!accountId) return;
+
+        try {
+            const data = await fetchAccountDetail(accountId);
+
+            window.isNewAccount = false;
+
+            const titleEl = document.querySelector('#accountModal .modal-title');
+            if (titleEl) {
+                titleEl.textContent = '계좌 정보 수정';
+            }
+
+            const deleteBtn = document.getElementById('btnDeleteAccount');
+            if (deleteBtn) deleteBtn.style.display = '';
+
+            const idEl = getIdEl();
+            if (idEl) idEl.value = data.id;
+
+            const delFile = getDeleteBankBookEl();
+            const fileInput = getBankBookInputEl();
+
+            if (delFile) delFile.value = '0';
+            if (fileInput) fileInput.value = '';
+
+            await initCodeSelectControls(document.getElementById('accountModal'));
+            fillModal(data);
+            accountModal.show();
+        } catch (e) {
+            console.error(e);
+            AppCore?.notify?.('error', e.message || '서버 오류');
+        }
+    }
+
+    async function updateAccountActive(accountId, active, toggleEl) {
+        if (!accountId) return;
+
+        if (toggleEl) toggleEl.disabled = true;
+
+        try {
+            const data = await fetchAccountDetail(accountId);
+            const formData = new FormData();
+
+            Object.entries(data || {}).forEach(([key, value]) => {
+                if (key === 'bank_file') return;
+                formData.set(key, value ?? '');
+            });
+
+            formData.set('id', accountId);
+            formData.set('is_active', active ? '1' : '0');
+            formData.set('delete_bank_file', '0');
+
+            const res = await $.ajax({
+                url: API.SAVE,
+                method: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false
+            });
+
+            if (!res.success) {
+                throw new Error(res.message || '상태 변경 실패');
+            }
+
+            AppCore?.notify?.('success', active ? '사용으로 변경되었습니다.' : '미사용으로 변경되었습니다.');
+            accountTable.ajax.reload(null, false);
+        } catch (e) {
+            if (toggleEl) toggleEl.checked = !active;
+            console.error(e);
+            AppCore?.notify?.('error', e.message || '상태 변경 중 오류가 발생했습니다.');
+        } finally {
+            if (toggleEl) toggleEl.disabled = false;
+        }
+    }
+
     function bindTableEvents($) {
 
-        $('#account-table tbody').on('dblclick', 'tr', async function () {
+        $('#account-table tbody').on('change', '.account-active-toggle', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            updateAccountActive(this.dataset.id, this.checked, this);
+        });
 
+        $('#account-table tbody').on('click', '.account-edit-btn', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            openAccountEditModal(this.dataset.id);
+        });
+
+        $('#account-table tbody').on('dblclick', 'tr', async function () {
             const row = accountTable.row(this).data();
             if (!row) return;
-
-            try {
-                const res = await fetch(API.DETAIL + '?id=' + row.id);
-                const json = await res.json();
-
-                if (!json.success) {
-                    AppCore?.notify?.('error', '계좌 상세 조회 실패');
-                    return;
-                }
-
-                const data = json.data;
-
-                window.isNewAccount = false;
-
-                const titleEl = document.querySelector('#accountModal .modal-title');
-                if (titleEl) {
-                    titleEl.textContent = '계좌 정보 수정';
-                }
-
-                const deleteBtn = document.getElementById('btnDeleteAccount');
-                if (deleteBtn) deleteBtn.style.display = '';
-
-                const idEl = getIdEl();
-                if (idEl) idEl.value = data.id;
-
-                const delFile = getDeleteBankBookEl();
-                const fileInput = getBankBookInputEl();
-
-                if (delFile) delFile.value = '0';
-                if (fileInput) fileInput.value = '';
-
-                await initCodeSelectControls(document.getElementById('accountModal'));
-                fillModal(data);
-                accountModal.show();
-
-            } catch (e) {
-                console.error(e);
-                AppCore?.notify?.('error', '서버 오류');
-            }
+            await openAccountEditModal(row.id);
         });
 
     }
@@ -805,6 +875,7 @@ window.AdminPicker = AdminPicker;
         });
 
         Object.entries(ACCOUNT_COLUMN_MAP).forEach(([field, config]) => {
+            if (field === 'is_active') return;
 
             columns.push({
                 data: field,
@@ -828,12 +899,6 @@ window.AdminPicker = AdminPicker;
                         `;
                     }
 
-                    if (field === 'is_active') {
-                        return String(data) === '1'
-                            ? '<span class="badge bg-success">사용</span>'
-                            : '<span class="badge bg-secondary">미사용</span>';
-                    }
-
                     if (field === 'currency') {
                         return getCodeName(field, data);
                     }
@@ -841,6 +906,46 @@ window.AdminPicker = AdminPicker;
                     return data;
                 }
             });
+        });
+
+        columns.push({
+            data: 'is_active',
+            title: ACCOUNT_COLUMN_MAP.is_active.label,
+            visible: true,
+            className: 'text-center',
+            defaultContent: '',
+            render: function (data, type, row) {
+                if (type !== 'display') return data;
+                const active = String(data) === '1';
+                return `
+                    <div class="form-check form-switch d-inline-flex justify-content-center m-0">
+                        <input type="checkbox"
+                               class="form-check-input account-active-toggle"
+                               data-id="${escapeHtml(row.id || '')}"
+                               ${active ? 'checked' : ''}
+                               aria-label="상태 변경">
+                    </div>
+                `;
+            }
+        });
+
+        columns.push({
+            data: null,
+            title: '관리',
+            className: 'text-center no-colvis',
+            orderable: false,
+            searchable: false,
+            defaultContent: '',
+            render: function (_data, type, row) {
+                if (type !== 'display') return '';
+                return `
+                    <button type="button"
+                            class="btn btn-outline-primary btn-sm account-edit-btn"
+                            data-id="${escapeHtml(row.id || '')}">
+                        수정
+                    </button>
+                `;
+            }
         });
 
         return columns;

@@ -5,6 +5,7 @@
     console.log("[trash-manager v3] loaded");
 
     const trashCacheMap = new Map();
+    const busyTrashModals = new WeakSet();
 
     /* =========================
      * 1. 紐⑤떖 ?대┫ ??珥덇린??+ 濡쒕뵫
@@ -18,6 +19,7 @@
         const layout = modal.querySelector('.trash');
         const detail = modal.querySelector('.trash-detail');
         const tbody  = modal.querySelector('.trash-table tbody');
+        updateTrashModalTitle(modal);
 
         if (layout) layout.classList.remove('open');
         if (detail) detail.style.display = 'none';
@@ -133,6 +135,11 @@
 
         const modal = e.target.closest('.modal');
         if (!modal) return;
+        if (busyTrashModals.has(modal)) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
 
         const restoreUrl   = modal.dataset.restoreUrl;
         const deleteUrl    = modal.dataset.deleteUrl;
@@ -148,18 +155,17 @@
             const id = restoreBtn.dataset.id;
             if (!id || !confirm('복원하시겠습니까?')) return;
 
-            const res = await fetch(restoreUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `id=${encodeURIComponent(id)}`
-            });
+            await runTrashAction(modal, '복원 처리 중입니다...', async () => {
+                const res = await fetch(restoreUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(actionPayload(modal, { id }))
+                });
 
-            const json = await res.json();
-
-            if (json.success) {
+                await parseActionResponse(res, '복원에 실패했습니다.');
                 AppCore?.notify('success', '복원 완료');
-                triggerChange(modal);
-            }
+                await triggerChange(modal);
+            });
 
             return;
         }
@@ -174,18 +180,17 @@
             const id = deleteBtn.dataset.id;
             if (!id || !confirm('영구삭제하시겠습니까?')) return;
 
-            const res = await fetch(deleteUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `id=${encodeURIComponent(id)}`
-            });
+            await runTrashAction(modal, '영구삭제 처리 중입니다...', async () => {
+                const res = await fetch(deleteUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(actionPayload(modal, { id }))
+                });
 
-            const json = await res.json();
-
-            if (json.success) {
+                await parseActionResponse(res, '영구삭제에 실패했습니다.');
                 AppCore?.notify('success', '영구삭제 완료');
-                triggerChange(modal);
-            }
+                await triggerChange(modal);
+            });
 
             return;
         }
@@ -197,18 +202,17 @@
             if (!ids.length) return AppCore?.notify('warning', '선택된 항목이 없습니다.');
             if (!confirm('선택 항목을 복원하시겠습니까?')) return;
 
-            const res = await fetch(restoreUrl + '-bulk', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids })
-            });
+            await runTrashAction(modal, `선택 복원 처리 중입니다... (${ids.length}건)`, async () => {
+                const res = await fetch(restoreUrl + '-bulk', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(actionPayload(modal, { ids }))
+                });
 
-            const json = await res.json();
-
-            if (json.success) {
+                await parseActionResponse(res, '선택 복원에 실패했습니다.');
                 AppCore?.notify('success', '선택 복원 완료');
-                triggerChange(modal);
-            }
+                await triggerChange(modal);
+            });
 
             return;
         }
@@ -220,18 +224,17 @@
             if (!ids.length) return AppCore?.notify('warning', '선택된 항목이 없습니다.');
             if (!confirm('선택 항목을 영구삭제하시겠습니까?')) return;
 
-            const res = await fetch(deleteUrl + '-bulk', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids })
-            });
+            await runTrashAction(modal, `선택 영구삭제 처리 중입니다... (${ids.length}건)`, async () => {
+                const res = await fetch(deleteUrl + '-bulk', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(actionPayload(modal, { ids }))
+                });
 
-            const json = await res.json();
-
-            if (json.success) {
+                await parseActionResponse(res, '선택 영구삭제에 실패했습니다.');
                 AppCore?.notify('success', '선택 영구삭제 완료');
-                triggerChange(modal);
-            }
+                await triggerChange(modal);
+            });
 
             return;
         }
@@ -242,16 +245,17 @@
 
             const restoreAllUrl = restoreUrl + '-all';
 
-            const res = await fetch(restoreAllUrl, {
-                method: 'POST'
-            });
+            await runTrashAction(modal, '전체 복원 처리 중입니다...', async () => {
+                const res = await fetch(restoreAllUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(actionPayload(modal))
+                });
 
-            const json = await res.json();
-
-            if (json.success) {
+                await parseActionResponse(res, '전체 복원에 실패했습니다.');
                 AppCore?.notify('success', '전체 복원 완료');
-                triggerChange(modal);
-            }
+                await triggerChange(modal);
+            });
 
             return;
         }
@@ -260,13 +264,16 @@
 
             if (!confirm('전체 항목을 영구삭제하시겠습니까?')) return;
 
-            const res = await fetch(deleteAllUrl, { method: 'POST' });
-            const json = await res.json();
-
-            if (json.success) {
+            await runTrashAction(modal, '전체 영구삭제 처리 중입니다...', async () => {
+                const res = await fetch(deleteAllUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(actionPayload(modal))
+                });
+                await parseActionResponse(res, '전체 영구삭제에 실패했습니다.');
                 AppCore?.notify('success', '전체 영구삭제 완료');
-                triggerChange(modal);
-            }
+                await triggerChange(modal);
+            });
 
             return;
         }
@@ -282,6 +289,10 @@
 
         const modal = e.target.closest('.modal');
         if (!modal) return;
+        if (busyTrashModals.has(modal)) {
+            checkAll.checked = !checkAll.checked;
+            return;
+        }
 
         modal.querySelectorAll('.trash-check')
             .forEach(cb => cb.checked = checkAll.checked);
@@ -300,6 +311,86 @@
      * 怨듯넻 ?⑥닔
      ========================= */
 
+    function showGlobalLoading(message = '처리 중입니다...') {
+        if (window.AppCore?.showLoading) {
+            window.AppCore.showLoading(message);
+            return;
+        }
+
+        const overlay = document.getElementById('global-loading-overlay');
+        if (overlay) overlay.style.display = 'flex';
+    }
+
+    function hideGlobalLoading() {
+        if (window.AppCore?.hideLoading) {
+            window.AppCore.hideLoading();
+            return;
+        }
+
+        const overlay = document.getElementById('global-loading-overlay');
+        if (overlay) overlay.style.display = 'none';
+    }
+
+    function updateTrashModalTitle(modal) {
+        const title = modal?.querySelector('.modal-title');
+        if (!title) return;
+        if (!modal.dataset.baseTitle) {
+            modal.dataset.baseTitle = title.textContent.trim();
+        }
+        const scopedTitle = String(modal.dataset.trashTitle || '').trim();
+        title.textContent = scopedTitle || modal.dataset.baseTitle || '휴지통';
+    }
+
+    function actionPayload(modal, extra = {}) {
+        const payload = { ...extra };
+        const importType = String(modal?.dataset.importType || '').trim();
+        if (importType) {
+            payload.import_type = importType;
+            payload.data_type = importType;
+        }
+        return payload;
+    }
+
+    function setTrashBusy(modal, busy = false) {
+        if (!modal) return;
+        if (busy) {
+            busyTrashModals.add(modal);
+        } else {
+            busyTrashModals.delete(modal);
+        }
+        modal.classList.toggle('trash-action-busy', busy);
+        modal.querySelectorAll('button, .trash-check, .trash-check-all').forEach((node) => {
+            node.disabled = busy;
+            node.classList.toggle('disabled', busy);
+            node.setAttribute('aria-disabled', busy ? 'true' : 'false');
+        });
+    }
+
+    async function runTrashAction(modal, message, callback) {
+        if (!modal || busyTrashModals.has(modal)) return null;
+
+        setTrashBusy(modal, true);
+        showGlobalLoading(message);
+        try {
+            return await callback();
+        } catch (error) {
+            console.error(error);
+            AppCore?.notify?.('error', error?.message || '처리 중 오류가 발생했습니다.');
+            return null;
+        } finally {
+            hideGlobalLoading();
+            setTrashBusy(modal, false);
+        }
+    }
+
+    async function parseActionResponse(response, fallbackMessage) {
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok || json.success === false) {
+            throw new Error(json.message || fallbackMessage);
+        }
+        return json;
+    }
+
     function triggerChange(modal){
         document.dispatchEvent(new CustomEvent('trash:changed', {
             detail: {
@@ -307,7 +398,7 @@
                 listUrl: modal.dataset.listUrl
             }
         }));
-        loadTrash(modal);
+        return loadTrash(modal);
     }
 
     function getSelectedIds(modal, mode){

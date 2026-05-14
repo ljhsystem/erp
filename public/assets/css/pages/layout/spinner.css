@@ -10,6 +10,8 @@
   background: rgba(255, 255, 255, 0.6);
   backdrop-filter: blur(2px);
   display: none;
+  flex-direction: column;
+  gap: 12px;
   justify-content: center;
   align-items: center;
   z-index: 99999;
@@ -18,4 +20,14 @@
 #global-loading-overlay .spinner-border {
   width: 4rem;
   height: 4rem;
+}
+
+#global-loading-overlay .global-loading-message {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
 }

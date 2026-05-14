@@ -5,7 +5,7 @@
 <div class="account-page" id="account-main" data-flash="<?= htmlspecialchars($flashMsg ?? '', ENT_QUOTES, 'UTF-8') ?>">
 
   <div class="page-header">
-    <h5 class="mb-1 fw-bold">계좌관리</h5>
+    <h5 class="mb-1 fw-bold">🏦 계좌 관리</h5>
     <span id="accountCount" class="text-primary account-count page-count"></span>
   </div>
 

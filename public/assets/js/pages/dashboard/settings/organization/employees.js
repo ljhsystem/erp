@@ -370,7 +370,9 @@ window.AdminPicker = AdminPicker;
             api: API.LIST,
             columns,
             defaultOrder: [[1, 'asc']],
-            pageLength: 10,
+            pageLength: 100,
+            selectable: false,
+            deleteButton: false,
             buttons: [
                 {
                     text: '\uC0C8 \uC9C1\uC6D0',
@@ -390,7 +392,8 @@ window.AdminPicker = AdminPicker;
                 apiList: API.LIST,
                 tableId: 'employee',
                 defaultSearchField: 'employee_name',
-                dateOptions: DATE_OPTIONS
+                dateOptions: DATE_OPTIONS,
+                initialCollapsed: true
             });
             bindTableHighlight('#employee-table', employeeTable);
 
@@ -416,6 +419,8 @@ window.AdminPicker = AdminPicker;
 
 
         Object.entries(EMPLOYEE_COLUMN_MAP).forEach(([field, config]) => {
+            if (field === 'is_active') return;
+
             columns.push({
                 data: field,
                 title: config.label,
@@ -453,12 +458,6 @@ window.AdminPicker = AdminPicker;
                         return String(data) === '1' ? 'ON' : 'OFF';
                     }
 
-                    if (field === 'is_active') {
-                        return String(data) === '1'
-                            ? '<span class="badge bg-success">\uC0AC\uC6A9</span>'
-                            : '<span class="badge bg-secondary">\uBBF8\uC0AC\uC6A9</span>';
-                    }
-
                     if (field === 'client_name') {
                         const clientName = String(data || '').trim();
                         return clientName
@@ -481,6 +480,48 @@ window.AdminPicker = AdminPicker;
                     return data;
                 }
             });
+        });
+
+        columns.push({
+            data: 'is_active',
+            title: EMPLOYEE_COLUMN_MAP.is_active.label,
+            visible: true,
+            className: 'text-center',
+            headerClassName: 'text-center',
+            defaultContent: '',
+            render: function (data, type, row) {
+                if (type !== 'display') return data;
+                const active = String(data) === '1';
+                return `
+                    <div class="form-check form-switch d-inline-flex justify-content-center m-0">
+                        <input type="checkbox"
+                               class="form-check-input employee-active-toggle"
+                               data-id="${escapeHtml(row.id || '')}"
+                               ${active ? 'checked' : ''}
+                               aria-label="상태 변경">
+                    </div>
+                `;
+            }
+        });
+
+        columns.push({
+            data: null,
+            title: '관리',
+            className: 'text-center no-colvis',
+            headerClassName: 'text-center no-colvis',
+            orderable: false,
+            searchable: false,
+            defaultContent: '',
+            render: function (_data, type, row) {
+                if (type !== 'display') return '';
+                return `
+                    <button type="button"
+                            class="btn btn-outline-primary btn-sm employee-edit-btn"
+                            data-id="${escapeHtml(row.id || '')}">
+                        수정
+                    </button>
+                `;
+            }
         });
 
         return columns;
@@ -523,6 +564,51 @@ window.AdminPicker = AdminPicker;
             .off('dblclick.employeeEdit', 'tr')
             .on('dblclick.employeeEdit', 'tr', function () {
                 const data = employeeTable.row(this).data();
+                if (!data) return;
+
+                $(document).trigger('employee:edit-open', [data]);
+            });
+
+        $('#employee-table tbody')
+            .off('change.employeeActiveToggle', '.employee-active-toggle')
+            .on('change.employeeActiveToggle', '.employee-active-toggle', async function (e) {
+                e.stopPropagation();
+
+                const id = this.dataset.id;
+                const active = this.checked;
+                if (!id) return;
+
+                const fd = new FormData();
+                fd.append('id', id);
+                fd.append('is_active', active ? '1' : '0');
+
+                this.disabled = true;
+
+                try {
+                    const res = await fetch(API.UPDATE_STATUS, { method: 'POST', body: fd, credentials: 'include' });
+                    const json = await res.json();
+
+                    if (!json.success) {
+                        throw new Error(json.message || '상태 변경에 실패했습니다.');
+                    }
+
+                    employeeTable?.ajax.reload(null, false);
+                    AppCore.notify('success', active ? '사용으로 변경되었습니다.' : '미사용으로 변경되었습니다.');
+                } catch (err) {
+                    console.error(err);
+                    this.checked = !active;
+                    AppCore.notify('error', err.message || '상태 변경에 실패했습니다.');
+                } finally {
+                    this.disabled = false;
+                }
+            });
+
+        $('#employee-table tbody')
+            .off('click.employeeEditBtn', '.employee-edit-btn')
+            .on('click.employeeEditBtn', '.employee-edit-btn', function (e) {
+                e.stopPropagation();
+
+                const data = employeeTable.row($(this).closest('tr')).data();
                 if (!data) return;
 
                 $(document).trigger('employee:edit-open', [data]);

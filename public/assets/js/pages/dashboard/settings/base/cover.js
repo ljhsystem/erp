@@ -72,11 +72,11 @@ window.AdminPicker = AdminPicker;
         title:       { label: "\uD0C0\uC774\uD2C0(Title)", visible: true },
         alt:         { label: "\uC774\uBBF8\uC9C0\uBB38\uAD6C(Alt)", visible: true },
         description: { label: "\uC124\uBA85(Description)", visible: true },
-        is_active:   { label: "\uC0C1\uD0DC", visible: true },
         created_at:  { label: "\uB4F1\uB85D\uC77C\uC2DC", visible: false },
         created_by:  { label: "\uB4F1\uB85D\uC790", visible: false },
         updated_at:  { label: "\uC218\uC815\uC77C\uC2DC", visible: false },
-        updated_by:  { label: "\uC218\uC815\uC790", visible: false }
+        updated_by:  { label: "\uC218\uC815\uC790", visible: false },
+        is_active:   { label: "\uC0C1\uD0DC", visible: true }
     };
 
     const DATE_OPTIONS = [
@@ -523,9 +523,10 @@ window.AdminPicker = AdminPicker;
         coverTable = createDataTable({
             tableSelector: DOM.table,
             api: API.LIST,
+            deleteApi: API.DELETE,
             columns,
             defaultOrder: [[1, 'asc']],
-            pageLength: 10,
+            pageLength: 100,
             buttons: [
                 {
                     text: '휴지통',
@@ -636,9 +637,15 @@ window.AdminPicker = AdminPicker;
 
                     if (field === 'is_active' && type === 'display') {
                         const active = Number(data) === 1;
-                        return active
-                            ? '<span class="badge bg-success">사용</span>'
-                            : '<span class="badge bg-secondary">미사용</span>';
+                        return `
+                            <div class="form-check form-switch d-inline-flex justify-content-center m-0">
+                                <input type="checkbox"
+                                       class="form-check-input cover-active-toggle"
+                                       data-id="${escapeHtmlAttr(row.id || '')}"
+                                       ${active ? 'checked' : ''}
+                                       aria-label="상태 변경">
+                            </div>
+                        `;
                     }
 
                     if (field === 'created_by' && type === 'display') {
@@ -653,6 +660,25 @@ window.AdminPicker = AdminPicker;
                 },
                 searchable: field !== 'url'
             });
+        });
+
+        columns.push({
+            data: null,
+            title: '관리',
+            className: 'text-center no-colvis',
+            orderable: false,
+            searchable: false,
+            defaultContent: '',
+            render: function (_data, type, row) {
+                if (type !== 'display') return '';
+                return `
+                    <button type="button"
+                            class="btn btn-outline-primary btn-sm cover-edit-btn"
+                            data-id="${escapeHtmlAttr(row.id || '')}">
+                        수정
+                    </button>
+                `;
+            }
         });
 
         return columns;
@@ -706,6 +732,83 @@ window.AdminPicker = AdminPicker;
     /* =========================================================
        테이블 이벤트
     ========================================================= */
+    function openCoverEditModal(rowData) {
+        if (!rowData) return;
+
+        const yearValue = String(rowData.year ?? '').trim();
+
+        window.jQuery(DOM.modalId).val(rowData.id || '');
+        populateCoverYearOptions(yearValue);
+        window.jQuery(DOM.modalTitle).val(rowData.title || '');
+        window.jQuery(DOM.modalAlt).val(rowData.alt || '');
+        window.jQuery(DOM.modalDescription).val(rowData.description || '');
+        window.jQuery(DOM.modalIsActive).val(String(Number(rowData.is_active ?? 1) === 1 ? 1 : 0));
+
+        if (rowData.url) {
+            window.jQuery(DOM.modalImagePreview).attr('src', rowData.url).show();
+        } else {
+            window.jQuery(DOM.modalImagePreview).attr('src', '').hide();
+        }
+
+        setCoverModalMode('edit');
+
+        if (coverModal) {
+            coverModal.show();
+        }
+
+        setTimeout(() => {
+            window.jQuery(DOM.modalYear).val(yearValue).trigger('change');
+        }, 0);
+    }
+
+    function updateCoverActive(rowData, active, toggleEl) {
+        if (!rowData?.id) return;
+
+        const fd = new FormData();
+        fd.set('id', rowData.id);
+        fd.set('year', rowData.year || '');
+        fd.set('title', rowData.title || '');
+        fd.set('alt', rowData.alt || '');
+        fd.set('description', rowData.description || '');
+        fd.set('is_active', active ? '1' : '0');
+
+        if (toggleEl) {
+            toggleEl.disabled = true;
+        }
+
+        window.jQuery.ajax({
+            url: API.SAVE,
+            type: 'POST',
+            data: fd,
+            processData: false,
+            contentType: false,
+            dataType: 'json',
+            success: function (res) {
+                if (res && res.success) {
+                    notifyMessage('success', active ? '사용으로 변경되었습니다.' : '미사용으로 변경되었습니다.');
+                    reloadCoverTable(false);
+                    return;
+                }
+
+                if (toggleEl) {
+                    toggleEl.checked = !active;
+                }
+                notifyMessage('error', res?.message || '상태 변경에 실패했습니다.');
+            },
+            error: function () {
+                if (toggleEl) {
+                    toggleEl.checked = !active;
+                }
+                notifyMessage('error', '상태 변경 요청에 실패했습니다.');
+            },
+            complete: function () {
+                if (toggleEl) {
+                    toggleEl.disabled = false;
+                }
+            }
+        });
+    }
+
     function bindTableEvents($) {
         let clickTimer = null;
 
@@ -725,6 +828,22 @@ window.AdminPicker = AdminPicker;
             new bootstrap.Modal(qs(DOM.originalImageModal)).show();
         });
 
+        $(DOM.table + ' tbody').on('change', '.cover-active-toggle', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const rowData = coverTable.row($(this).closest('tr')).data();
+            updateCoverActive(rowData, this.checked, this);
+        });
+
+        $(DOM.table + ' tbody').on('click', '.cover-edit-btn', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const rowData = coverTable.row($(this).closest('tr')).data();
+            openCoverEditModal(rowData);
+        });
+
         $(DOM.table + ' tbody').on('dblclick', 'tr', function (e) {
             e.preventDefault();
             e.stopPropagation();
@@ -741,30 +860,7 @@ window.AdminPicker = AdminPicker;
             const rowData = coverTable.row($tr).data();
             if (!rowData) return;
 
-            const yearValue = String(rowData.year ?? '').trim();
-
-            $(DOM.modalId).val(rowData.id || '');
-            populateCoverYearOptions(yearValue);
-            $(DOM.modalTitle).val(rowData.title || '');
-            $(DOM.modalAlt).val(rowData.alt || '');
-            $(DOM.modalDescription).val(rowData.description || '');
-            $(DOM.modalIsActive).val(String(Number(rowData.is_active ?? 1) === 1 ? 1 : 0));
-
-            if (rowData.url) {
-                $(DOM.modalImagePreview).attr('src', rowData.url).show();
-            } else {
-                $(DOM.modalImagePreview).attr('src', '').hide();
-            }
-
-            setCoverModalMode('edit');
-
-            if (coverModal) {
-                coverModal.show();
-            }
-
-            setTimeout(() => {
-                $(DOM.modalYear).val(yearValue).trigger('change');
-            }, 0);
+            openCoverEditModal(rowData);
         });
     }
 

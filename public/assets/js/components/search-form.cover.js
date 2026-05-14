@@ -2,7 +2,10 @@
 import { SearchForm as BaseSearchForm } from '/public/assets/js/components/search-form.js';
 
 export function SearchForm(config) {
-    BaseSearchForm(config);
+    BaseSearchForm({
+        initialCollapsed: true,
+        ...config,
+    });
 
     window.setPeriod = function (type) {
         const activeEl = document.activeElement;

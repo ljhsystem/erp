@@ -69,7 +69,7 @@ window.AdminPicker = AdminPicker;
         is_posting: { label: '전표입력', visible: true, className: 'text-center' },
         allow_sub_account: { label: '보조계정', visible: true, className: 'text-center' },
         is_active: { label: '상태', visible: true, className: 'text-center' },
-        note: { label: '비고', visible: true },
+        note: { label: '비고', visible: false },
         memo: { label: '메모', visible: false },
         created_at: { label: '생성일시', visible: false },
         created_by: { label: '생성자ID', visible: false },
@@ -250,9 +250,10 @@ window.AdminPicker = AdminPicker;
         accountTable = createDataTable({
             tableSelector: '#account-table',
             api: API.LIST,
+            deleteApi: API.DELETE,
             columns: buildColumns(),
             defaultOrder: [[1, 'asc']],
-            pageLength: 10,
+            pageLength: 100,
             autoWidth: false,
             searchTableId: 'ledgerAccount',
             buttons: [
@@ -271,6 +272,7 @@ window.AdminPicker = AdminPicker;
             tableId: 'ledgerAccount',
             defaultSearchField: 'account_name',
             dateOptions: DATE_OPTIONS,
+            initialCollapsed: true,
             excludeFields: ['id', 'parent_id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'deleted_at', 'deleted_by', 'deleted_by_name', 'has_sub_account']
         });
 
@@ -337,7 +339,6 @@ window.AdminPicker = AdminPicker;
                                        role="switch"
                                        data-id="${escapeHtml(row?.id || '')}"
                                        ${active ? 'checked' : ''}>
-                                <span class="account-status-toggle-label">${active ? '사용' : '미사용'}</span>
                             </div>
                         `;
                     }
@@ -345,6 +346,26 @@ window.AdminPicker = AdminPicker;
                     return escapeHtml(value ?? '');
                 }
             });
+        });
+
+        columns.push({
+            data: null,
+            title: '관리',
+            className: 'text-center no-colvis',
+            headerClassName: 'text-center no-colvis',
+            orderable: false,
+            searchable: false,
+            defaultContent: '',
+            render(_value, type, row) {
+                if (type !== 'display') return '';
+                return `
+                    <button type="button"
+                            class="btn btn-outline-primary btn-sm account-edit-btn"
+                            data-id="${escapeHtml(row?.id || '')}">
+                        수정
+                    </button>
+                `;
+            }
         });
 
         return columns;
@@ -475,6 +496,14 @@ window.AdminPicker = AdminPicker;
                 event.stopPropagation();
             })
             .on('change.accountStatusToggle', '.account-status-toggle', updateAccountStatusInline);
+
+        $('#account-table tbody')
+            .off('click.accountEditBtn')
+            .on('click.accountEditBtn', '.account-edit-btn', function (event) {
+                event.stopPropagation();
+                const row = accountTable?.row($(this).closest('tr')).data();
+                if (row) openEditModal(row);
+            });
 
         $('#account-edit-form')
             .off('submit.accountSave')

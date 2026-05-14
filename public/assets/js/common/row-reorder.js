@@ -6,6 +6,7 @@ export function bindRowReorder(table, options = {}) {
         idField = 'id',
         sortNoField = 'sort_no',
         extraData = null,
+        includeAppliedRows = false,
         onSuccess = null,
         onError = null
     } = options;
@@ -29,6 +30,7 @@ export function bindRowReorder(table, options = {}) {
         handle: '.reorder-handle',
         api,
         requestType: 'json',
+        includeAppliedRows,
         mapRow({ rowData, index }) {
             if (!rowData) return null;
 
@@ -45,7 +47,9 @@ export function bindRowReorder(table, options = {}) {
             return item;
         },
         updateRow({ row, index }) {
-            window.jQuery(row).find('td').eq(1).text(index + 1);
+            const $cells = window.jQuery(row).find('td');
+            const $sequenceCell = $cells.filter('.dt-sequence-column').first();
+            ($sequenceCell.length ? $sequenceCell : $cells.eq(1)).text(index + 1);
         },
         buildPayload(changes) {
             return { changes };
@@ -73,7 +77,8 @@ export function bindSortableRowReorder(options = {}) {
         onError = null,
         onComplete = null,
         reload = null,
-        requestType = 'form'
+        requestType = 'form',
+        includeAppliedRows = false
     } = options;
 
     const $ = window.jQuery;
@@ -126,21 +131,38 @@ export function bindSortableRowReorder(options = {}) {
             $sortable.find('.dt-row-reorder-placeholder').remove();
 
             const rows = [];
+            const visibleRows = [];
+            const pageStart = Number(table?.page?.info?.()?.start || 0);
 
             $sortable.find('tr').each(function (index) {
                 const rowData = table?.row(this).data();
-                const mapped = typeof mapRow === 'function'
-                    ? mapRow({ row: this, rowData, index })
-                    : { id: rowData?.id || $(this).data('id'), sort_no: index + 1 };
-
-                if (!mapped?.id) return;
+                visibleRows.push({ row: this, rowData });
 
                 if (typeof updateRow === 'function') {
-                    updateRow({ row: this, rowData, index, mapped });
+                    updateRow({ row: this, rowData, index: pageStart + index });
                 }
-
-                rows.push(mapped);
             });
+
+            if (includeAppliedRows && table?.rows) {
+                const allRows = table.rows({ order: 'applied', search: 'applied' }).data().toArray();
+                visibleRows.forEach(({ rowData }, index) => {
+                    allRows[pageStart + index] = rowData;
+                });
+
+                allRows.forEach((rowData, index) => {
+                    const mapped = typeof mapRow === 'function'
+                        ? mapRow({ row: null, rowData, index })
+                        : { id: rowData?.id, sort_no: index + 1 };
+                    if (mapped?.id) rows.push(mapped);
+                });
+            } else {
+                visibleRows.forEach(({ row, rowData }, index) => {
+                    const mapped = typeof mapRow === 'function'
+                        ? mapRow({ row, rowData, index })
+                        : { id: rowData?.id || $(row).data('id'), sort_no: index + 1 };
+                    if (mapped?.id) rows.push(mapped);
+                });
+            }
 
             if (!rows.length) return;
 

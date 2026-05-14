@@ -2058,6 +2058,16 @@ $router->post('/api/import/seed-upload', 'ImportController@apiSeedUpload', [
     'log' => true,
 ]);
 
+$router->post('/api/import/evidence-upload', 'ImportController@apiSeedUpload', [
+    'key' => 'api.import.evidence_upload',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
 $router->get('/api/import/batches', 'ImportController@apiUploadBatches', [
     'key' => 'api.import.batches',
     'name' => 'route',
@@ -2078,8 +2088,38 @@ $router->get('/api/import/seed-rows', 'ImportController@apiSeedRows', [
     'log' => false,
 ]);
 
+$router->get('/api/import/evidences', 'ImportController@apiSeedRows', [
+    'key' => 'api.import.evidences',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
+]);
+
+$router->get('/api/import/evidences/download', 'ImportController@apiEvidencesDownload', [
+    'key' => 'api.import.evidences.download',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
+]);
+
 $router->get('/api/import/seed-rows/trash', 'ImportController@apiSeedRowsTrash', [
     'key' => 'api.import.seed_rows.trash',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
+]);
+
+$router->get('/api/import/evidences/trash', 'ImportController@apiSeedRowsTrash', [
+    'key' => 'api.import.evidences.trash',
     'name' => 'route',
     'description' => 'route',
     'category' => 'system',
@@ -2108,8 +2148,78 @@ $router->post('/api/import/seed-row/save', 'ImportController@apiSeedRowSave', [
     'log' => true,
 ]);
 
+$router->post('/api/import/evidence/save', 'ImportController@apiSeedRowSave', [
+    'key' => 'api.import.evidence.save',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
+$router->post('/api/import/evidence/create', 'ImportController@apiEvidenceCreate', [
+    'key' => 'api.import.evidence.create',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
+$router->get('/api/import/evidence/summary-search', 'ImportController@apiEvidenceSummarySearch', [
+    'key' => 'api.import.evidence.summary_search',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => true,
+]);
+
+$router->post('/api/import/evidences/bulk-save', 'ImportController@apiEvidenceBulkSave', [
+    'key' => 'api.import.evidences.bulk_save',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
 $router->post('/api/import/seed-rows/status', 'ImportController@apiSeedRowsStatus', [
     'key' => 'api.import.seed_rows.status',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
+$router->post('/api/import/evidences/status', 'ImportController@apiSeedRowsStatus', [
+    'key' => 'api.import.evidences.status',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
+$router->post('/api/import/seed-rows/reorder', 'ImportController@apiSeedRowsReorder', [
+    'key' => 'api.import.seed_rows.reorder',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
+$router->post('/api/import/evidences/reorder', 'ImportController@apiSeedRowsReorder', [
+    'key' => 'api.import.evidences.reorder',
     'name' => 'route',
     'description' => 'route',
     'category' => 'system',
@@ -2128,8 +2238,28 @@ $router->post('/api/import/seed-rows/delete', 'ImportController@apiSeedRowsDelet
     'log' => true,
 ]);
 
+$router->post('/api/import/evidences/delete', 'ImportController@apiSeedRowsDelete', [
+    'key' => 'api.import.evidences.delete',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['delete'],
+    'log' => true,
+]);
+
 $router->post('/api/import/seed-rows/restore', 'ImportController@apiSeedRowsRestore', [
     'key' => 'api.import.seed_rows.restore',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
+$router->post('/api/import/evidences/restore', 'ImportController@apiSeedRowsRestore', [
+    'key' => 'api.import.evidences.restore',
     'name' => 'route',
     'description' => 'route',
     'category' => 'system',
@@ -2148,8 +2278,28 @@ $router->post('/api/import/seed-rows/restore-bulk', 'ImportController@apiSeedRow
     'log' => true,
 ]);
 
+$router->post('/api/import/evidences/restore-bulk', 'ImportController@apiSeedRowsRestore', [
+    'key' => 'api.import.evidences.restore_bulk',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
 $router->post('/api/import/seed-rows/restore-all', 'ImportController@apiSeedRowsRestoreAll', [
     'key' => 'api.import.seed_rows.restore_all',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
+$router->post('/api/import/evidences/restore-all', 'ImportController@apiSeedRowsRestoreAll', [
+    'key' => 'api.import.evidences.restore_all',
     'name' => 'route',
     'description' => 'route',
     'category' => 'system',
@@ -2168,6 +2318,16 @@ $router->post('/api/import/seed-rows/purge', 'ImportController@apiSeedRowsPurge'
     'log' => true,
 ]);
 
+$router->post('/api/import/evidences/purge', 'ImportController@apiSeedRowsPurge', [
+    'key' => 'api.import.evidences.purge',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['delete'],
+    'log' => true,
+]);
+
 $router->post('/api/import/seed-rows/purge-bulk', 'ImportController@apiSeedRowsPurge', [
     'key' => 'api.import.seed_rows.purge_bulk',
     'name' => 'route',
@@ -2178,8 +2338,28 @@ $router->post('/api/import/seed-rows/purge-bulk', 'ImportController@apiSeedRowsP
     'log' => true,
 ]);
 
+$router->post('/api/import/evidences/purge-bulk', 'ImportController@apiSeedRowsPurge', [
+    'key' => 'api.import.evidences.purge_bulk',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['delete'],
+    'log' => true,
+]);
+
 $router->post('/api/import/seed-rows/purge-all', 'ImportController@apiSeedRowsPurgeAll', [
     'key' => 'api.import.seed_rows.purge_all',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['delete'],
+    'log' => true,
+]);
+
+$router->post('/api/import/evidences/purge-all', 'ImportController@apiSeedRowsPurgeAll', [
+    'key' => 'api.import.evidences.purge_all',
     'name' => 'route',
     'description' => 'route',
     'category' => 'system',
@@ -3207,6 +3387,16 @@ $router->get('/api/ledger/voucher/transaction-search', 'VoucherController@apiTra
     'log'         => false,
 ]);
 
+$router->get('/api/ledger/voucher/evidence-search', 'VoucherController@apiEvidenceSearch', [
+    'key'         => 'api.ledger.voucher.evidence_search',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
 $router->post('/api/ledger/voucher/save', 'VoucherController@apiSave', [
     'key'         => 'api.ledger.voucher.save',
     'name' => 'route',
@@ -3299,6 +3489,26 @@ $router->post('/api/ledger/voucher/reverse', 'VoucherController@apiReverse', [
 
 $router->post('/api/ledger/voucher/link-transaction', 'VoucherController@apiLinkTransaction', [
     'key'         => 'api.ledger.voucher.link_transaction',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/voucher/link-evidence', 'VoucherController@apiLinkEvidence', [
+    'key'         => 'api.ledger.voucher.link_evidence',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth'        => true,
+    'permissions' => ['save'],
+    'log'         => true,
+]);
+
+$router->post('/api/ledger/voucher/unlink-evidence', 'VoucherController@apiUnlinkEvidence', [
+    'key'         => 'api.ledger.voucher.unlink_evidence',
     'name' => 'route',
     'description' => 'route',
     'category' => 'system',

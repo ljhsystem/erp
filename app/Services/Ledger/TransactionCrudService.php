@@ -87,6 +87,8 @@ class TransactionCrudService
             'project_name',
             'client_id',
             'client_name',
+            'base_amount',
+            'adjustment_amount',
             'supply_amount',
             'vat_amount',
             'total_amount',
@@ -221,11 +223,13 @@ class TransactionCrudService
     public function softDelete(string $transactionId): array
     {
         $actor = ActorHelper::user();
+        $transaction = $this->transactionModel->getById($transactionId) ?: [];
 
         try {
             $this->pdo->beginTransaction();
 
             $this->assertTransactionDeleteAllowed($transactionId);
+            $this->deleteLinkedVouchersForTransaction($transactionId, $actor);
 
             $this->pdo->prepare("
                 UPDATE ledger_transaction_links
@@ -253,7 +257,7 @@ class TransactionCrudService
                 throw new \RuntimeException('거래 삭제에 실패했습니다.');
             }
 
-            $this->restoreSeedRowsForDeletedTransaction($transactionId, $actor);
+            $this->restoreSeedRowsForDeletedTransaction($transactionId, $actor, $transaction);
 
             $this->pdo->commit();
 
@@ -273,23 +277,45 @@ class TransactionCrudService
         }
     }
 
-    private function restoreSeedRowsForDeletedTransaction(string $transactionId, string $actor): void
+    private function restoreSeedRowsForDeletedTransaction(string $transactionId, string $actor, array $transaction = []): void
     {
-        $stmt = $this->pdo->prepare("
-            UPDATE ledger_data_seed_rows
-            SET process_status = 'READY',
-                transaction_id = NULL,
-                processed_at = NULL,
-                error_message = NULL,
-                updated_at = NOW(),
-                updated_by = :actor
-            WHERE transaction_id = :transaction_id
-              AND process_status = 'PROCESSED'
-        ");
-        $stmt->execute([
-            ':transaction_id' => $transactionId,
-            ':actor' => $actor,
-        ]);
+        if ($this->tableColumnExists('ledger_data_evidences', 'transaction_id')) {
+            $stmt = $this->pdo->prepare("
+                UPDATE ledger_data_evidences
+                SET evidence_status = 'ACTIVE',
+                    transaction_status = 'NONE',
+                    transaction_id = NULL,
+                    error_message = NULL,
+                    updated_at = NOW(),
+                    updated_by = :actor
+                WHERE transaction_id = :transaction_id
+                  AND transaction_status NOT IN ('NONE', 'PROCESSING')
+            ");
+            $stmt->execute([
+                ':transaction_id' => $transactionId,
+                ':actor' => $actor,
+            ]);
+        } else {
+            $this->restoreEvidenceRowsByTransactionFingerprint($transaction, $actor);
+        }
+
+        if ($this->tableColumnExists('ledger_data_seed_rows', 'transaction_id')) {
+            $stmt = $this->pdo->prepare("
+                UPDATE ledger_data_seed_rows
+                SET process_status = 'READY',
+                    transaction_id = NULL,
+                    error_message = NULL,
+                    processed_at = NULL,
+                    updated_at = NOW(),
+                    updated_by = :actor
+                WHERE transaction_id = :transaction_id
+                  AND process_status NOT IN ('READY', 'PROCESSING')
+            ");
+            $stmt->execute([
+                ':transaction_id' => $transactionId,
+                ':actor' => $actor,
+            ]);
+        }
     }
 
     private function assertTransactionDeleteAllowed(string $transactionId): void
@@ -311,6 +337,257 @@ class TransactionCrudService
         if ($voucher) {
             throw new \RuntimeException('확정/승인된 전표가 연결된 거래는 삭제할 수 없습니다.');
         }
+    }
+
+    private function restoreEvidenceRowsByTransactionFingerprint(array $transaction, string $actor): void
+    {
+        if (!$this->tableExists('ledger_data_evidences')) {
+            return;
+        }
+
+        $importType = trim((string) ($transaction['import_type'] ?? ''));
+        $transactionDate = $this->dateString($transaction['transaction_date'] ?? null);
+        $totalAmount = $this->numberOrNull($transaction['total_amount'] ?? null);
+        if ($importType === '' || $transactionDate === '' || $totalAmount === null) {
+            return;
+        }
+
+        $stmt = $this->pdo->prepare("
+            SELECT id, evidence_date, mapped_payload_json
+            FROM ledger_data_evidences
+            WHERE source_type = :source_type
+              AND deleted_at IS NULL
+              AND transaction_status NOT IN ('NONE', 'PROCESSING', 'ERROR', 'DUPLICATED')
+        ");
+        $stmt->execute([':source_type' => $importType]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $matchedIds = [];
+        foreach ($rows as $row) {
+            $mapped = json_decode((string) ($row['mapped_payload_json'] ?? ''), true);
+            if (!is_array($mapped)) {
+                continue;
+            }
+
+            $mappedDate = $this->dateString($mapped['transaction_date'] ?? $mapped['evidence_date'] ?? $row['evidence_date'] ?? null);
+            $mappedAmount = $this->numberOrNull($mapped['total_amount'] ?? $mapped['amount'] ?? null);
+            if ($mappedAmount === null) {
+                $supply = (float) ($this->numberOrNull($mapped['supply_amount'] ?? null) ?? 0);
+                $vat = (float) ($this->numberOrNull($mapped['vat_amount'] ?? null) ?? 0);
+                $mappedAmount = $supply + $vat;
+            }
+
+            if ($mappedDate !== $transactionDate || $mappedAmount === null || abs($mappedAmount - $totalAmount) > 0.01) {
+                continue;
+            }
+
+            $transactionDescription = trim((string) ($transaction['description'] ?? ''));
+            $mappedDescription = trim((string) ($mapped['description'] ?? ''));
+            if ($transactionDescription !== '' && $mappedDescription !== '' && $transactionDescription !== $mappedDescription) {
+                continue;
+            }
+
+            $matchedIds[] = (string) ($row['id'] ?? '');
+        }
+
+        $matchedIds = array_values(array_unique(array_filter($matchedIds)));
+        if ($matchedIds === []) {
+            return;
+        }
+
+        [$inSql, $params] = $this->placeholders($matchedIds, 'evidence_id');
+        $params[':actor'] = $actor;
+        $this->pdo->prepare("
+            UPDATE ledger_data_evidences
+            SET evidence_status = 'ACTIVE',
+                transaction_status = 'NONE',
+                error_message = NULL,
+                updated_at = NOW(),
+                updated_by = :actor
+            WHERE id IN ({$inSql})
+              AND deleted_at IS NULL
+        ")->execute($params);
+    }
+
+    private function deleteLinkedVouchersForTransaction(string $transactionId, string $actor): void
+    {
+        $voucherIds = $this->linkedVoucherIdsForTransaction($transactionId);
+        if ($voucherIds === []) {
+            return;
+        }
+
+        [$inSql, $params] = $this->placeholders($voucherIds, 'voucher_id');
+
+        $stmt = $this->pdo->prepare("
+            SELECT id, status, voucher_no
+            FROM ledger_vouchers
+            WHERE id IN ({$inSql})
+              AND deleted_at IS NULL
+        ");
+        $stmt->execute($params);
+        $vouchers = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $deletableIds = [];
+        foreach ($vouchers as $voucher) {
+            $status = strtolower((string) ($voucher['status'] ?? ''));
+            if (in_array($status, ['posted', 'closed', 'confirmed'], true)) {
+                $label = trim((string) ($voucher['voucher_no'] ?? $voucher['id'] ?? ''));
+                throw new \RuntimeException('확정/승인된 전표가 연결된 거래는 삭제할 수 없습니다. 전표번호: ' . $label);
+            }
+            $deletableIds[] = (string) $voucher['id'];
+        }
+
+        if ($deletableIds === []) {
+            return;
+        }
+
+        [$deleteInSql, $deleteParams] = $this->placeholders($deletableIds, 'delete_voucher_id');
+
+        if ($this->tableExists('ledger_voucher_line_refs') && $this->tableExists('ledger_voucher_lines')) {
+            $this->pdo->prepare("
+                DELETE r
+                FROM ledger_voucher_line_refs r
+                INNER JOIN ledger_voucher_lines l
+                    ON l.id = r.voucher_line_id
+                WHERE l.voucher_id IN ({$deleteInSql})
+            ")->execute($deleteParams);
+        }
+
+        if ($this->tableExists('ledger_voucher_payments')) {
+            $this->pdo->prepare("
+                DELETE FROM ledger_voucher_payments
+                WHERE voucher_id IN ({$deleteInSql})
+            ")->execute($deleteParams);
+        }
+
+        if ($this->tableExists('ledger_voucher_lines')) {
+            $this->pdo->prepare("
+                DELETE FROM ledger_voucher_lines
+                WHERE voucher_id IN ({$deleteInSql})
+            ")->execute($deleteParams);
+        }
+
+        $updateParams = $deleteParams;
+        $updateParams[':deleted_by'] = $actor;
+        $updateParams[':updated_by'] = $actor;
+        $this->pdo->prepare("
+            UPDATE ledger_vouchers
+            SET status = 'deleted',
+                deleted_at = NOW(),
+                deleted_by = :deleted_by,
+                updated_at = NOW(),
+                updated_by = :updated_by
+            WHERE id IN ({$deleteInSql})
+              AND deleted_at IS NULL
+        ")->execute($updateParams);
+    }
+
+    private function linkedVoucherIdsForTransaction(string $transactionId): array
+    {
+        $ids = [];
+
+        if ($this->tableExists('ledger_transaction_links')) {
+            $stmt = $this->pdo->prepare("
+                SELECT DISTINCT voucher_id
+                FROM ledger_transaction_links
+                WHERE transaction_id = :transaction_id
+                  AND voucher_id IS NOT NULL
+                  AND deleted_at IS NULL
+            ");
+            $stmt->execute([':transaction_id' => $transactionId]);
+            $ids = array_merge($ids, array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []));
+        }
+
+        if ($this->tableColumnExists('ledger_vouchers', 'transaction_id')) {
+            $stmt = $this->pdo->prepare("
+                SELECT DISTINCT id
+                FROM ledger_vouchers
+                WHERE transaction_id = :transaction_id
+                  AND deleted_at IS NULL
+            ");
+            $stmt->execute([':transaction_id' => $transactionId]);
+            $ids = array_merge($ids, array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []));
+        }
+
+        return array_values(array_unique(array_filter($ids)));
+    }
+
+    private function placeholders(array $ids, string $prefix): array
+    {
+        $placeholders = [];
+        $params = [];
+        foreach (array_values($ids) as $index => $id) {
+            $key = ':' . $prefix . '_' . $index;
+            $placeholders[] = $key;
+            $params[$key] = $id;
+        }
+
+        return [implode(', ', $placeholders), $params];
+    }
+
+    private function tableExists(string $table): bool
+    {
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $table)) {
+            return false;
+        }
+
+        $stmt = $this->pdo->prepare("
+            SELECT 1
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = :table_name
+            LIMIT 1
+        ");
+        $stmt->execute([':table_name' => $table]);
+
+        return (bool) $stmt->fetchColumn();
+    }
+
+    private function tableColumnExists(string $table, string $column): bool
+    {
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $table) || !preg_match('/^[a-zA-Z0-9_]+$/', $column)) {
+            return false;
+        }
+
+        $stmt = $this->pdo->prepare("
+            SELECT 1
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = :table_name
+              AND COLUMN_NAME = :column_name
+            LIMIT 1
+        ");
+        $stmt->execute([
+            ':table_name' => $table,
+            ':column_name' => $column,
+        ]);
+
+        return (bool) $stmt->fetchColumn();
+    }
+
+    private function dateString(mixed $value): string
+    {
+        $value = trim((string) ($value ?? ''));
+        if ($value === '') {
+            return '';
+        }
+
+        $timestamp = strtotime($value);
+        return $timestamp ? date('Y-m-d', $timestamp) : '';
+    }
+
+    private function numberOrNull(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_numeric($value)) {
+            return (float) $value;
+        }
+
+        $normalized = str_replace(',', '', trim((string) $value));
+        return is_numeric($normalized) ? (float) $normalized : null;
     }
 
     public function save(array $data, array $files = []): array
@@ -356,7 +633,16 @@ class TransactionCrudService
                 }
             }
 
-            $this->recreateItems($transactionId, $items, $actor, $timestamp);
+            if (!empty($data['_header_only_retry'])) {
+                $existingItems = $this->transactionItemModel->getByTransactionId($transactionId);
+                foreach ($existingItems as $row) {
+                    if (!$this->transactionItemModel->hardDelete((string) $row['id'])) {
+                        throw new \RuntimeException('기존 거래 항목 정리에 실패했습니다.');
+                    }
+                }
+            } else {
+                $this->recreateItems($transactionId, $items, $actor, $timestamp);
+            }
             $this->syncFiles($transactionId, $data, $files, $actor, $timestamp);
 
             $this->pdo->commit();
@@ -405,6 +691,8 @@ class TransactionCrudService
             'project_id' => $this->nullable($data['project_id'] ?? null),
             'currency' => trim((string) ($data['currency'] ?? 'KRW')) ?: 'KRW',
             'exchange_rate' => $this->numericOrNull($data['exchange_rate'] ?? null),
+            'base_amount' => $totals['base_amount'],
+            'adjustment_amount' => $totals['adjustment_amount'],
             'supply_amount' => $totals['supply_amount'],
             'vat_amount' => $totals['vat_amount'],
             'total_amount' => $totals['total_amount'],
@@ -440,6 +728,7 @@ class TransactionCrudService
                 'id' => UuidHelper::generate(),
                 'sort_no' => $index + 1,
                 'transaction_id' => $transactionId,
+                'line_type' => $item['line_type'],
                 'item_date' => $item['item_date'],
                 'item_name' => $item['item_name'],
                 'specification' => $item['specification'],
@@ -448,6 +737,7 @@ class TransactionCrudService
                 'unit_price' => $item['unit_price'],
                 'foreign_unit_price' => $item['foreign_unit_price'],
                 'foreign_amount' => $item['foreign_amount'],
+                'amount' => $item['amount'],
                 'supply_amount' => $item['supply_amount'],
                 'vat_amount' => $item['vat_amount'],
                 'total_amount' => $item['total_amount'],
@@ -480,20 +770,33 @@ class TransactionCrudService
 
     private function calculateTotals(array $items): array
     {
+        $baseAmount = 0.0;
+        $adjustmentAmount = 0.0;
         $supplyAmount = 0.0;
         $vatAmount = 0.0;
         $totalAmount = 0.0;
 
         foreach ($items as $item) {
-            $supplyAmount += (float) ($item['supply_amount'] ?? 0);
-            $vatAmount += (float) ($item['vat_amount'] ?? 0);
-            $totalAmount += (float) ($item['total_amount'] ?? 0);
+            $lineType = strtoupper(trim((string) ($item['line_type'] ?? 'ITEM'))) ?: 'ITEM';
+            $amount = (float) ($item['amount'] ?? $item['total_amount'] ?? 0);
+            if ($lineType === 'ITEM') {
+                $baseAmount += $amount;
+                $supplyAmount += $amount;
+            } else {
+                $adjustmentAmount += $amount;
+                if ($lineType === 'VAT') {
+                    $vatAmount += $amount;
+                }
+            }
+            $totalAmount += $amount;
         }
 
         return [
+            'base_amount' => round($baseAmount, 2),
+            'adjustment_amount' => round($adjustmentAmount, 2),
             'supply_amount' => round($supplyAmount, 2),
             'vat_amount' => round($vatAmount, 2),
-            'total_amount' => round($totalAmount, 2),
+            'total_amount' => round($totalAmount ?: ($baseAmount + $adjustmentAmount), 2),
         ];
     }
 
@@ -503,14 +806,21 @@ class TransactionCrudService
             return $lineTotals;
         }
 
+        $baseAmount = (float) ($this->numericOrNull($data['base_amount'] ?? null) ?? $this->numericOrNull($data['supply_amount'] ?? null) ?? 0);
+        $adjustmentAmount = (float) ($this->numericOrNull($data['adjustment_amount'] ?? null) ?? $this->numericOrNull($data['vat_amount'] ?? null) ?? 0);
         $supplyAmount = (float) ($this->numericOrNull($data['supply_amount'] ?? null) ?? 0);
         $vatAmount = (float) ($this->numericOrNull($data['vat_amount'] ?? null) ?? 0);
         $totalAmount = (float) ($this->numericOrNull($data['total_amount'] ?? null) ?? 0);
         if (abs($totalAmount) <= 0 && (abs($supplyAmount) > 0 || abs($vatAmount) > 0)) {
             $totalAmount = $supplyAmount + $vatAmount;
         }
+        if (abs($totalAmount) <= 0 && (abs($baseAmount) > 0 || abs($adjustmentAmount) > 0)) {
+            $totalAmount = $baseAmount + $adjustmentAmount;
+        }
 
         return [
+            'base_amount' => round($baseAmount, 2),
+            'adjustment_amount' => round($adjustmentAmount, 2),
             'supply_amount' => round($supplyAmount, 2),
             'vat_amount' => round($vatAmount, 2),
             'total_amount' => round($totalAmount, 2),
@@ -703,7 +1013,15 @@ class TransactionCrudService
                 }
             }
 
+            $lineType = $this->normalizeLineType($item['line_type'] ?? $item['amount_type'] ?? '');
+            $givenAmount = $this->numericOrNull($item['amount'] ?? null);
+            if ($lineType === '') {
+                $lineType = 'ITEM';
+            }
+            $lineAmount = round((float) ($givenAmount ?? ($lineType === 'ITEM' ? $supplyAmount : $totalAmount)), 2);
+
             $rows[] = [
+                'line_type' => $lineType,
                 'item_date' => $itemDate,
                 'item_name' => $itemName,
                 'specification' => $this->nullable($item['specification'] ?? null),
@@ -712,15 +1030,42 @@ class TransactionCrudService
                 'unit_price' => $unitPrice,
                 'foreign_unit_price' => $usesForeignAmount ? (float) ($foreignUnitPrice ?? 0) : null,
                 'foreign_amount' => $usesForeignAmount ? (float) ($foreignAmount ?? 0) : null,
+                'amount' => $lineAmount,
                 'supply_amount' => $supplyAmount,
-                'vat_amount' => $vatAmount,
-                'total_amount' => $totalAmount,
+                'vat_amount' => $lineType === 'VAT' ? $lineAmount : ($givenAmount === null ? 0.0 : $vatAmount),
+                'total_amount' => $lineAmount,
                 'tax_type' => $taxType,
                 'description' => $this->nullable($item['description'] ?? null),
             ];
+
+            if (!isset($item['line_type'], $item['amount_type'], $item['amount']) && abs($vatAmount) > 0) {
+                $rows[] = [
+                    'line_type' => 'VAT',
+                    'item_date' => $itemDate,
+                    'item_name' => 'VAT',
+                    'specification' => null,
+                    'unit_name' => null,
+                    'quantity' => 1,
+                    'unit_price' => $vatAmount,
+                    'foreign_unit_price' => null,
+                    'foreign_amount' => null,
+                    'amount' => $vatAmount,
+                    'supply_amount' => 0.0,
+                    'vat_amount' => $vatAmount,
+                    'total_amount' => $vatAmount,
+                    'tax_type' => $taxType,
+                    'description' => 'VAT',
+                ];
+            }
         }
 
         return $rows;
+    }
+
+    private function normalizeLineType(mixed $value): string
+    {
+        $type = strtoupper(trim((string) ($value ?? '')));
+        return preg_match('/^[A-Z0-9_]+$/', $type) ? $type : '';
     }
 
     private function decodeArrayInput(mixed $value): mixed

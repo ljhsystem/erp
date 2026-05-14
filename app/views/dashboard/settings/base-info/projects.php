@@ -8,7 +8,7 @@
        HEADER
   ========================== -->
   <div class="page-header">
-    <h5 class="mb-1 fw-bold">프로젝트관리</h5>
+    <h5 class="mb-1 fw-bold">🏗️ 프로젝트 관리</h5>
     <span id="projectCount" class="text-primary project-count page-count"></span>
   </div>
 

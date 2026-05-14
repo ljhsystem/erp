@@ -1099,10 +1099,30 @@ $router->get('/ledger/data/formats', 'LedgerController@webDataFormat', [
     'log'         => false,
 ]);
 
-$router->get('/ledger/data/list', 'LedgerController@webDataIndex', [
+$router->get('/ledger/data/list', 'LedgerController@webDataList', [
     'key'         => 'web.ledger.data.list',
-    'name' => '자료목록',
-    'description' => '회계관리 > 자료관리 > 자료목록',
+    'name' => '증빙원본',
+    'description' => '회계관리 > 자료관리 > 증빙원본',
+    'category' => '회계관리',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
+$router->get('/ledger/data/raw', 'LedgerController@webDataRaw', [
+    'key'         => 'web.ledger.data.raw',
+    'name' => '원본자료',
+    'description' => '회계관리 > 자료관리 > 원본자료',
+    'category' => '회계관리',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
+$router->get('/ledger/data/create', 'LedgerController@webDataCreate', [
+    'key'         => 'web.ledger.data.create',
+    'name' => '생성센터',
+    'description' => '회계관리 > 자료관리 > 생성센터',
     'category' => '회계관리',
     'auth'        => true,
     'permissions' => ['view'],

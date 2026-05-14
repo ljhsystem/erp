@@ -8,6 +8,7 @@ $layoutOptions = array_merge([
     'header' => true,
     'navbar' => true,
     'sidebar' => true,
+    'breadcrumb' => true,
     'footer' => true,
     'wrapper' => 'default',
 ], $layoutOptions);
@@ -78,13 +79,17 @@ class="
 <div class="d-flex app-shell">
     <?php include __DIR__ . '/sidebar.php'; ?>
     <main class="main-content flex-grow-1">
-        <?php include __DIR__ . '/breadcrumb.php'; ?>
+        <?php if ($layoutOptions['breadcrumb']) : ?>
+            <?php include __DIR__ . '/breadcrumb.php'; ?>
+        <?php endif; ?>
         <?= $content ?? '' ?>
     </main>
 </div>
 <?php else : ?>
 <main class="main-content single-layout">
-    <?php include __DIR__ . '/breadcrumb.php'; ?>
+    <?php if ($layoutOptions['breadcrumb']) : ?>
+        <?php include __DIR__ . '/breadcrumb.php'; ?>
+    <?php endif; ?>
     <?= $content ?? '' ?>
 </main>
 <?php endif; ?>

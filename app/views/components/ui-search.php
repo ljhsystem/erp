@@ -41,11 +41,15 @@ $dateInputAttrs = $dateInputAttrs ?? '';
 
 $showPeriodTooltip = $showPeriodTooltip ?? true;
 $showSearchTooltip = $showSearchTooltip ?? true;
+$searchInitialCollapsed = !empty($searchInitialCollapsed);
+$searchContainerClass = 'search-form-container' . ($searchInitialCollapsed ? ' collapsed' : '');
+$searchBodyClass = 'search-form-body' . ($searchInitialCollapsed ? ' hidden' : '');
+$searchToggleText = $searchInitialCollapsed ? '열기' : '접기';
 ?>
-<div id="<?= $searchId ?>SearchFormContainer" class="search-form-container">
-    <span id="<?= $searchId ?>ToggleSearchForm" class="search-toggle-text">접기</span>
+<div id="<?= $searchId ?>SearchFormContainer" class="<?= $searchContainerClass ?>">
+    <span id="<?= $searchId ?>ToggleSearchForm" class="search-toggle-text"><?= htmlspecialchars($searchToggleText, ENT_QUOTES, 'UTF-8') ?></span>
 
-    <div id="<?= $searchId ?>SearchFormBody" class="search-form-body">
+    <div id="<?= $searchId ?>SearchFormBody" class="<?= $searchBodyClass ?>">
 
         <label class="search-form-title">검색</label>
 

@@ -65,6 +65,30 @@ export function formatDateDisplay(val) {
 }
 
 export function formatDateInputValue(val) {
+    const raw = String(val ?? '').trim();
+    const ymd = raw.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (ymd) {
+        const month = Number(ymd[2]);
+        const day = Number(ymd[3]);
+        if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+            return `${ymd[1]}-${ymd[2].padStart(2, '0')}-${ymd[3].padStart(2, '0')}`;
+        }
+    }
+
+    const brokenMmddYear = raw.match(/^(\d{2})(\d{2})[-/.](\d{2})[-/.](\d{2})$/);
+    if (brokenMmddYear) {
+        return `${brokenMmddYear[3]}${brokenMmddYear[4]}-${brokenMmddYear[1]}-${brokenMmddYear[2]}`;
+    }
+
+    const separated = raw.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+    if (separated) {
+        const first = Number(separated[1]);
+        const second = Number(separated[2]);
+        const month = first > 12 && second <= 12 ? separated[2] : separated[1];
+        const day = first > 12 && second <= 12 ? separated[1] : separated[2];
+        return `${separated[3]}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
+
     const digits = onlyNumber(val).slice(0, 8);
 
     if (digits.length <= 4) {

@@ -369,15 +369,28 @@
     align-items:center;
     justify-content:center;
     gap:6px;
-    min-width:86px;
+    min-width:0;
     margin:0;
+    padding-left:0 !important;
 }
 
 .account-table-status-switch .form-check-input{
-    width:2.4em;
-    height:1.2em;
-    margin:0;
+    width:2.35rem;
+    height:1.2rem;
+    margin:0 !important;
     cursor:pointer;
+    border-color: color-mix(in srgb, var(--color-text) 22%, white);
+    background-color: color-mix(in srgb, var(--color-text) 22%, white);
+}
+
+.account-table-status-switch .form-check-input:checked{
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.account-table-status-switch .form-check-input:focus{
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 .18rem var(--color-primary-soft);
 }
 
 .account-table-status-switch .form-check-input:disabled{
@@ -385,11 +398,26 @@
     opacity:.65;
 }
 
-.account-status-toggle-label{
-    min-width:38px;
-    font-size:12px;
-    font-weight:700;
-    color:#475569;
+.account-main .account-edit-btn{
+    min-width:52px;
+    font-weight:600;
+    color:var(--color-primary);
+    border-color:color-mix(in srgb, var(--color-primary) 42%, white);
+    background:color-mix(in srgb, var(--color-primary) 7%, white);
+}
+
+.account-main .account-edit-btn:hover,
+.account-main .account-edit-btn:focus{
+    color:#fff;
+    border-color:var(--color-primary);
+    background:var(--color-primary);
+    box-shadow:0 0 0 .18rem var(--color-primary-soft);
+}
+
+.account-main .account-edit-btn:active{
+    color:#fff;
+    border-color:var(--color-primary-hover);
+    background:var(--color-primary-hover);
 }
 
 #modal-subaccount-table th{

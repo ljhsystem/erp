@@ -1,17 +1,412 @@
+body.no-sidebar:has(.ledger-data-format-page.is-modal-page) {
+    overflow: hidden;
+}
+
+body.no-sidebar:has(.ledger-data-format-page.is-modal-page) .main-content.single-layout {
+    position: static;
+    height: 100vh;
+    max-height: 100vh;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
 .ledger-data-format-page .format-column-table-wrap {
     overflow: visible;
+}
+
+.ledger-data-format-page.is-modal-page {
+    height: 100vh;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #f6f8fb;
+}
+
+.ledger-data-format-page.is-modal-page .container-fluid {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    padding: 0;
+}
+
+.ledger-data-format-page.is-modal-page .data-format-layout {
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr);
+    gap: 8px;
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+    margin: 0;
+    align-items: stretch;
+}
+
+.ledger-data-format-page.is-modal-page .data-format-list-panel,
+.ledger-data-format-page.is-modal-page .data-format-editor-panel {
+    display: flex;
+    min-height: 0;
+    min-width: 0;
+    width: auto;
+    max-width: none;
+    padding: 0;
+}
+
+.ledger-data-format-page.is-modal-page .card {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid #dbe3ee;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.ledger-data-format-page.is-modal-page .card-body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    padding: 10px;
+    overflow: hidden;
+}
+
+.ledger-data-format-page.is-modal-page .card-header {
+    flex-shrink: 0;
+    padding: 9px 10px;
+    background: linear-gradient(180deg, #fff 0%, #f9fbfd 100%);
+    border-bottom: 1px solid #e6ebf1;
+}
+
+.ledger-data-format-page.is-modal-page .card-header .fw-semibold {
+    color: #172033;
+    font-size: 14px;
+}
+
+.ledger-data-format-page.is-modal-page .data-format-list-panel .card-header {
+    display: grid;
+    gap: 6px;
+}
+
+.ledger-data-format-page.is-modal-page .data-format-list-panel .card-header > .d-flex {
+    gap: 8px;
+    min-width: 0;
+}
+
+.ledger-data-format-page.is-modal-page .data-format-list-panel .card-header .btn-primary {
+    flex: 0 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.ledger-data-format-page.is-modal-page .data-format-list-panel .card-header .btn-outline-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 38px;
+    width: 38px;
+    height: 31px;
+    margin-right: 4px;
+    padding-right: 0;
+    padding-left: 0;
+}
+
+.ledger-data-format-page.is-modal-page .data-format-list-panel .card-header .btn-outline-danger .bi {
+    line-height: 1;
+}
+
+.ledger-data-format-page.is-modal-page #formatTypeFilter,
+.ledger-data-format-page.is-modal-page #formatTypeFilter + .select2-container,
+.ledger-data-format-page.is-modal-page #formatTypeFilter + .select2-container .select2-selection--single {
+    width: 100% !important;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.ledger-data-format-page.is-modal-page #formatTypeFilter,
+.ledger-data-format-page.is-modal-page #formatTypeFilter + .select2-container .select2-selection--single {
+    min-height: 38px;
+    height: 38px;
+}
+
+.ledger-data-format-page.is-modal-page #formatTypeFilter + .select2-container .select2-selection__rendered {
+    line-height: 36px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ledger-data-format-page.is-modal-page #formatTypeFilter + .select2-container .select2-selection__arrow {
+    height: 36px;
+}
+
+
+.ledger-data-format-page.is-modal-page #formatList {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    scrollbar-gutter: stable;
+    padding: 6px;
+    background: #fff;
+}
+
+.ledger-data-format-page.is-modal-page #formatList .list-group-item {
+    margin-bottom: 5px;
+    border: 1px solid #e4eaf1;
+    border-radius: 6px;
+    transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
+}
+
+.ledger-data-format-page.is-modal-page #formatList .list-group-item:hover {
+    border-color: #cbd8e6;
+    box-shadow: 0 6px 14px rgba(15, 23, 42, .06);
+    transform: none;
+}
+
+.ledger-data-format-page.is-modal-page #formatList .list-group-item.active:hover {
+    border-color: #1f6feb;
+    box-shadow: 0 8px 16px rgba(31, 111, 235, .16);
+    transform: none;
+}
+
+.ledger-data-format-page.is-modal-page #formatList .list-group-item.active {
+    border-color: #1f6feb;
+    background: #1f6feb;
+    box-shadow: 0 8px 16px rgba(31, 111, 235, .16);
+}
+
+.ledger-data-format-page.is-modal-page .format-column-table-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    margin-bottom: 0 !important;
+    overflow: auto;
+    scrollbar-gutter: stable;
+    border: 1px solid #dbe2ea;
+    border-radius: 0;
+    background: #fff;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8);
+}
+
+.ledger-data-format-page.is-modal-page .format-column-table {
+    min-width: 760px;
+    width: 100%;
+    table-layout: fixed;
+    font-size: 12px;
+}
+
+.ledger-data-format-page.is-modal-page .format-column-table thead th {
+    border-top: 0;
+}
+
+.ledger-data-format-page.is-modal-page .format-column-table td,
+.ledger-data-format-page.is-modal-page .format-column-table th {
+    padding: 0 2px !important;
+    vertical-align: middle;
+}
+
+.ledger-data-format-page.is-modal-page .format-column-table.table > :not(caption) > * > * {
+    padding: 0 2px !important;
+}
+
+.ledger-data-format-page.is-modal-page .format-column-table thead th {
+    height: 26px !important;
+    min-height: 26px !important;
+    padding: 0 6px !important;
+    line-height: 1.1 !important;
+}
+
+.ledger-data-format-page.is-modal-page .format-column-table tbody td {
+    height: 36px;
+}
+
+.ledger-data-format-page.is-modal-page .format-column-table .form-control,
+.ledger-data-format-page.is-modal-page .format-column-table .form-select {
+    min-height: 36px;
+    height: 36px;
+    padding: 7px 10px;
+    border-color: #d7e0ea;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 1.2;
+}
+
+.ledger-data-format-page.is-modal-page .format-column-table .excel-column-name {
+    height: 36px !important;
+    min-height: 36px !important;
+    padding-top: 7px !important;
+    padding-bottom: 7px !important;
+}
+
+.ledger-data-format-page.is-modal-page .format-column-table .select2-container {
+    height: 36px !important;
+}
+
+.ledger-data-format-page.is-modal-page .format-column-table .select2-container--default .select2-selection--single {
+    height: 36px !important;
+    min-height: 36px !important;
+    border-color: #d7e0ea;
+    border-radius: 4px;
+}
+
+.ledger-data-format-page.is-modal-page .format-column-table .select2-container--default .select2-selection--single .select2-selection__rendered {
+    height: 34px;
+    padding-left: 10px;
+    padding-right: 26px;
+    color: #6b7280;
+    font-size: 12px;
+    line-height: 34px;
+}
+
+.ledger-data-format-page.is-modal-page .format-column-table .select2-container--default .select2-selection--single .select2-selection__arrow {
+    width: 26px;
+    height: 34px;
+}
+
+.ledger-data-format-page .format-editor-hint {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    padding: 7px 9px;
+    border: 1px solid #dbeafe;
+    border-radius: 5px;
+    color: #1e3a5f;
+    background: #f5fbff;
+    font-size: 12px;
+}
+
+.ledger-data-format-page .requirement-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    white-space: nowrap;
+    font-size: 11px;
+    color: #4b5563;
+}
+
+.ledger-data-format-page .requirement-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.ledger-data-format-page .requirement-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    border: 1px solid currentColor;
+    background: currentColor;
+}
+
+.ledger-data-format-page .format-editor-hint .bi {
+    color: #1f6feb;
+}
+
+.ledger-data-format-page .format-action-bar {
+    flex-shrink: 0;
+    background: #fff;
+    border-top: 1px solid var(--bs-border-color, #dee2e6);
+}
+
+.ledger-data-format-page.is-modal-page .format-action-bar {
+    position: static;
+    z-index: 30;
+    padding: 10px 16px 12px;
+}
+
+.ledger-data-format-page .format-modal-footer {
+    flex: 0 0 auto;
+    margin-top: 0;
+    padding: 8px 10px;
+    border: 1px solid #dbe3ee;
+    border-radius: 0;
+    background: #fff;
+    box-shadow: none;
+}
+
+.ledger-data-format-page.is-modal-page .format-modal-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 40;
 }
 
 .ledger-data-format-page .format-column-table tbody tr {
     transition: background-color .16s ease, box-shadow .16s ease, opacity .16s ease;
 }
 
+.ledger-data-format-page .format-column-table tbody tr:hover {
+    background: #f8fbff;
+}
+
+.ledger-data-format-page .format-column-table tbody tr.format-column-row-basic > td {
+    background: #e2f0d9;
+}
+
+.ledger-data-format-page .format-column-table tbody tr.format-column-row-basic .form-control,
+.ledger-data-format-page .format-column-table tbody tr.format-column-row-basic .form-select,
+.ledger-data-format-page .format-column-table tbody tr.format-column-row-basic .select2-container--default .select2-selection--single {
+    background-color: #f3faef;
+    border-color: #b7d7a8;
+}
+
+.ledger-data-format-page .format-column-table tbody tr.format-column-row-basic:hover > td {
+    background: #d8ebcd;
+}
+
+.ledger-data-format-page .format-column-table tbody tr.format-column-row-standard > td {
+    background: #f3e8ff;
+}
+
+.ledger-data-format-page .format-column-table tbody tr.format-column-row-standard .form-control,
+.ledger-data-format-page .format-column-table tbody tr.format-column-row-standard .form-select,
+.ledger-data-format-page .format-column-table tbody tr.format-column-row-standard .select2-container--default .select2-selection--single {
+    background-color: #faf5ff;
+    border-color: #d8b4fe;
+}
+
+.ledger-data-format-page .format-column-table tbody tr.format-column-row-standard:hover > td {
+    background: #eadcff;
+}
+
 .ledger-data-format-page .format-column-table thead th {
     position: sticky !important;
     top: var(--format-column-sticky-top, 0px);
     z-index: 120;
-    background: var(--table-header-bg, #f8f9fa);
+    background: #f3f6fa;
     box-shadow: inset 0 -1px 0 var(--color-border, #dee2e6);
+    color: #1f2937;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.1;
+    text-align: center;
+}
+
+.ledger-data-format-page .format-bulk-check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 100%;
+    margin: 0;
+    cursor: pointer;
+    user-select: none;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: 1;
+}
+
+.ledger-data-format-page .format-bulk-check .form-check-input {
+    width: 12px;
+    height: 12px;
+}
+
+.ledger-data-format-page .format-bulk-check .form-check-input {
+    margin: 0;
+    cursor: pointer;
 }
 
 .ledger-data-format-page .format-order-cell {
@@ -22,11 +417,11 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
-    margin-right: 8px;
+    width: 20px;
+    height: 20px;
+    margin-right: 4px;
     border: 1px solid #dee2e6;
-    border-radius: 6px;
+    border-radius: 4px;
     color: #6c757d;
     background: #fff;
     cursor: grab;
@@ -39,7 +434,7 @@
 
 .ledger-data-format-page .column-order-label {
     display: inline-block;
-    min-width: 18px;
+    min-width: 16px;
     font-weight: 600;
     color: #495057;
     text-align: right;
@@ -49,6 +444,72 @@
     opacity: .72;
     background: #f8fbff;
     box-shadow: inset 0 0 0 2px #4dabf7;
+}
+
+.ledger-data-format-page .requirement-radio-group {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 82px;
+    height: 28px;
+}
+
+.ledger-data-format-page .requirement-radio-label {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    cursor: pointer;
+}
+
+.ledger-data-format-page .requirement-radio-label input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.ledger-data-format-page .requirement-radio-label span {
+    position: relative;
+    display: block;
+    width: 14px;
+    height: 14px;
+    border: 1px solid currentColor;
+    border-radius: 3px;
+    background: #fff;
+}
+
+.ledger-data-format-page .requirement-radio-label input:checked + span {
+    background: currentColor;
+    box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 15%, transparent);
+}
+
+.ledger-data-format-page .requirement-radio-label input:checked + span::after {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 1px;
+    width: 5px;
+    height: 8px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+.ledger-data-format-page .requirement-none {
+    color: #9ca3af;
+}
+
+.ledger-data-format-page .requirement-optional {
+    color: #2563eb;
+}
+
+.ledger-data-format-page .requirement-required {
+    color: #dc2626;
 }
 
 .ledger-data-format-page .format-column-helper {
@@ -64,7 +525,28 @@
 }
 
 .ledger-data-format-page .remove-column-btn {
-    min-width: 52px;
+    min-width: 0;
+    font-weight: 400;
+}
+
+.ledger-data-format-page .remove-column-btn.format-text-action {
+    font-weight: 400;
+}
+
+.ledger-data-format-page .format-text-action {
+    padding: 0;
+    border: 0;
+    text-decoration: none;
+    font-weight: 600;
+    line-height: 1.2;
+    box-shadow: none;
+    font-size: 12px;
+}
+
+.ledger-data-format-page .format-text-action:hover,
+.ledger-data-format-page .format-text-action:focus {
+    text-decoration: underline;
+    box-shadow: none;
 }
 
 .ledger-data-format-page .format-select-btn {
@@ -75,6 +557,61 @@
     text-decoration: none;
 }
 
-.ledger-data-format-page .list-group-item.active .format-list-delete-btn:not(:disabled) {
+.ledger-data-format-page #formatList .format-list-delete-btn {
+    min-width: 44px;
+    border-color: #dc3545;
+    color: #dc3545;
     background: #fff;
+    font-weight: 600;
+}
+
+.ledger-data-format-page #formatList .format-list-delete-btn:not(:disabled):hover,
+.ledger-data-format-page #formatList .format-list-delete-btn:not(:disabled):focus {
+    border-color: #dc3545;
+    color: #fff;
+    background: #dc3545;
+    box-shadow: 0 0 0 .2rem rgba(220, 53, 69, .14);
+}
+
+.ledger-data-format-page #formatList .list-group-item.active .format-list-delete-btn:not(:disabled) {
+    border-color: #fff;
+    color: #dc3545;
+    background: #fff;
+}
+
+.ledger-data-format-page #formatList .list-group-item.active .format-list-delete-btn:not(:disabled):hover,
+.ledger-data-format-page #formatList .list-group-item.active .format-list-delete-btn:not(:disabled):focus {
+    border-color: #b02a37;
+    color: #fff;
+    background: #dc3545;
+}
+
+@media (max-width: 991.98px) {
+    body.no-sidebar:has(.ledger-data-format-page.is-modal-page) {
+        overflow: auto;
+    }
+
+    body.no-sidebar:has(.ledger-data-format-page.is-modal-page) .main-content.single-layout {
+        height: auto;
+        max-height: none;
+        overflow: visible;
+    }
+
+    .ledger-data-format-page.is-modal-page,
+    .ledger-data-format-page.is-modal-page .container-fluid {
+        height: auto;
+        overflow: visible;
+    }
+
+    .ledger-data-format-page.is-modal-page .data-format-layout {
+        display: flex;
+        flex-direction: column;
+        height: auto;
+        min-height: 0;
+    }
+
+    .ledger-data-format-page.is-modal-page #formatList,
+    .ledger-data-format-page.is-modal-page .format-column-table-wrap {
+        max-height: none;
+    }
 }

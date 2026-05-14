@@ -5,7 +5,7 @@
 <div class="position-page" id="position-main">
 
   <div class="page-header">
-    <h5 class="mb-1 fw-bold">직책관리</h5>
+    <h5 class="mb-1 fw-bold">🪪 직책 관리</h5>
     <span id="positionCount" class="text-primary"></span>
   </div>
 

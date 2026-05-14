@@ -45,11 +45,20 @@ window.AdminPicker = AdminPicker;
     const transactionModalEl = document.getElementById('journalTransactionSearchModal');
     const transactionSearchBody = document.getElementById('journal_transaction_search_body');
     const transactionSearchKeywordEl = document.getElementById('journal_transaction_search_keyword');
+    const evidenceModalEl = document.getElementById('journalEvidenceSearchModal');
+    const evidenceSearchBody = document.getElementById('journal_evidence_search_body');
+    const evidenceSearchKeywordEl = document.getElementById('journal_evidence_search_keyword');
     const linkedTransactionIdEl = document.getElementById('linked_transaction_id');
     const linkedTransactionSummaryEl = document.getElementById('linked_transaction_summary');
+    const linkedEvidenceIdEl = document.getElementById('linked_evidence_id');
+    const linkedEvidenceSummaryEl = document.getElementById('linked_evidence_summary');
+    const linkedEvidenceOriginEl = document.getElementById('linked_evidence_origin');
     const selectTransactionBtn = document.getElementById('btnSelectTransaction');
     const clearTransactionLinkBtn = document.getElementById('btnClearTransactionLink');
     const searchTransactionBtn = document.getElementById('btnSearchTransaction');
+    const selectEvidenceBtn = document.getElementById('btnSelectEvidence');
+    const clearEvidenceLinkBtn = document.getElementById('btnClearEvidenceLink');
+    const searchEvidenceBtn = document.getElementById('btnSearchEvidence');
     const transactionNoticeEl = document.getElementById('journalTransactionNotice');
 
     if (!tableBody || !journalTableEl || !form || !modalEl || !lineBody || !voucherDateEl) {
@@ -64,6 +73,10 @@ window.AdminPicker = AdminPicker;
         document.body.appendChild(transactionModalEl);
     }
 
+    if (evidenceModalEl && evidenceModalEl.parentElement !== document.body) {
+        document.body.appendChild(evidenceModalEl);
+    }
+
     const pickerLayerEl = document.getElementById('journal-today-picker');
     if (pickerLayerEl && pickerLayerEl.parentElement !== document.body) {
         document.body.appendChild(pickerLayerEl);
@@ -74,11 +87,14 @@ window.AdminPicker = AdminPicker;
         detail: '/api/ledger/voucher/detail',
         save: '/api/ledger/voucher/save',
         linkTransaction: '/api/ledger/voucher/link-transaction',
+        linkEvidence: '/api/ledger/voucher/link-evidence',
+        unlinkEvidence: '/api/ledger/voucher/unlink-evidence',
         summarySearch: '/api/ledger/voucher/summary-search',
         remove: '/api/ledger/voucher/delete',
         confirm: '/api/ledger/voucher/confirm',
         cancelReview: '/api/ledger/voucher/cancel-review',
         transactionSearch: '/api/ledger/voucher/transaction-search',
+        evidenceSearch: '/api/ledger/voucher/evidence-search',
         accountList: '/api/ledger/account/list',
         trash: '/api/ledger/voucher/trash',
         restore: '/api/ledger/voucher/restore',
@@ -148,6 +164,9 @@ window.AdminPicker = AdminPicker;
     const transactionModal = window.bootstrap && transactionModalEl
         ? new bootstrap.Modal(transactionModalEl, { focus: false })
         : null;
+    const evidenceModal = window.bootstrap && evidenceModalEl
+        ? new bootstrap.Modal(evidenceModalEl, { focus: false })
+        : null;
     const basicInfoBridge = createJournalBasicInfoBridge({ notify });
 
     let accountPickerItems = null;
@@ -156,6 +175,7 @@ window.AdminPicker = AdminPicker;
     const pickerOptionCache = {};
     const accountPolicyCache = {};
     let transactionRows = [];
+    let evidenceRows = [];
     let journalTable = null;
     let summaryAutocompleteTimer = null;
     let summaryAutocompleteItems = [];
@@ -719,6 +739,17 @@ window.AdminPicker = AdminPicker;
         return '<span class="journal-link-badge journal-link-linked">✔ 연결됨</span>';
     }
 
+    function renderEvidenceLinkedStatus(row = {}) {
+        const linked = String(row.evidence_link_status || '').toLowerCase() === 'linked'
+            || String(row.evidence_id || '').trim() !== '';
+        if (!linked) {
+            return '<span class="journal-link-badge journal-link-unlinked">미연결</span>';
+        }
+
+        const label = row.import_type ? `연결 ${importTypeLabel(row.import_type)}` : '연결';
+        return `<span class="journal-link-badge journal-link-linked">${escapeHtml(label)}</span>`;
+    }
+
     function renderJournalStatusState(value) {
         const key = String(value || 'EMPTY').toUpperCase();
         const map = {
@@ -814,6 +845,52 @@ window.AdminPicker = AdminPicker;
         voucherSourceTransactionInfoEl.classList.remove('d-none');
     }
 
+    function evidenceFromVoucher(voucher = {}) {
+        return voucher.linked_evidence
+            || voucher.evidence_link
+            || voucher.seed_source
+            || null;
+    }
+
+    function buildEvidenceSummary(voucher = {}) {
+        const evidence = evidenceFromVoucher(voucher);
+        if (!evidence) {
+            return '연결증빙: 없음';
+        }
+
+        const importType = String(evidence.source_type || voucher.import_type || '').trim();
+        const sourceLabel = importType ? importTypeLabel(importType) : '증빙';
+        const sourceKey = evidence.source_key || evidence.id || voucher.evidence_id || '';
+        const date = evidence.evidence_date || evidence.processed_at || evidence.created_at || '';
+
+        return ['연결증빙:', sourceLabel, sourceKey ? `#${sourceKey}` : '', date].filter(Boolean).join(' ');
+    }
+
+    function setLinkedEvidence(voucher = {}) {
+        if (!linkedEvidenceIdEl || !linkedEvidenceSummaryEl) {
+            return;
+        }
+
+        const evidence = evidenceFromVoucher(voucher);
+        const evidenceId = evidence?.id || voucher.evidence_id || '';
+        linkedEvidenceIdEl.value = evidenceId;
+        linkedEvidenceSummaryEl.textContent = buildEvidenceSummary(voucher);
+        linkedEvidenceSummaryEl.title = evidenceId ? buildEvidenceSummary(voucher) : '';
+        if (clearEvidenceLinkBtn) {
+            const status = String(voucherStatusEl?.value || 'draft').toLowerCase();
+            clearEvidenceLinkBtn.disabled = evidenceId === '' || !['draft', 'posted'].includes(status);
+        }
+
+        if (linkedEvidenceOriginEl) {
+            const importType = String(evidence?.source_type || voucher.import_type || '').trim();
+            const originText = importType
+                ? `${importSourceLabel(importType)} / ${importTypeLabel(importType)}`
+                : '';
+            linkedEvidenceOriginEl.textContent = originText;
+            linkedEvidenceOriginEl.classList.toggle('d-none', originText === '');
+        }
+    }
+
     function buildTransactionSummary(row = null) {
         return buildLinkedTransactionSummary(row);
     }
@@ -869,6 +946,8 @@ window.AdminPicker = AdminPicker;
         const canEditLines = isDraft;
         const canLinkTransaction = isDraft || isPosted || isClosed;
         const canClearTransaction = isDraft || isPosted;
+        const canLinkEvidence = canLinkTransaction;
+        const canClearEvidence = canClearTransaction;
 
         voucherDateEl.disabled = !canEditHeader;
         document.getElementById('voucher_summary_text').disabled = !canEditHeader;
@@ -910,6 +989,12 @@ window.AdminPicker = AdminPicker;
 
         selectTransactionBtn.disabled = !canLinkTransaction;
         clearTransactionLinkBtn.disabled = !canClearTransaction;
+        if (selectEvidenceBtn) {
+            selectEvidenceBtn.disabled = !canLinkEvidence;
+        }
+        if (clearEvidenceLinkBtn) {
+            clearEvidenceLinkBtn.disabled = !canClearEvidence || !(linkedEvidenceIdEl?.value || '');
+        }
 
         if (isConfirmed) {
             setValidationBadge('ok', '검토요청 전표입니다. 분개라인 수정은 제한됩니다.');
@@ -1515,6 +1600,7 @@ window.AdminPicker = AdminPicker;
         setVoucherSource('MANUAL', '');
         setLinkedTransaction(null);
         setSourceTransactionInfo({});
+        setLinkedEvidence({});
         lineBody.innerHTML = emptyLineRow();
         if (paymentBody) {
             paymentBody.innerHTML = emptyPaymentRow();
@@ -1944,6 +2030,27 @@ window.AdminPicker = AdminPicker;
                 },
             },
             {
+                data: 'evidence_link_status',
+                title: '증빙연결',
+                className: 'text-center',
+                defaultContent: '',
+                render(data, type, row) {
+                    if (type === 'sort' || type === 'type') {
+                        return String(data || row.evidence_id || 'unlinked');
+                    }
+
+                    return renderEvidenceLinkedStatus(row);
+                },
+            },
+            {
+                data: null,
+                title: '자료출처',
+                defaultContent: '',
+                render(_data, _type, row) {
+                    return escapeHtml(renderImportOrigin(row));
+                },
+            },
+            {
                 data: 'journal_status',
                 title: '분개상태',
                 className: 'text-center',
@@ -1953,14 +2060,6 @@ window.AdminPicker = AdminPicker;
                         return String(data || 'EMPTY').toUpperCase();
                     }
                     return renderJournalStatusState(data);
-                },
-            },
-            {
-                data: null,
-                title: '자료출처',
-                defaultContent: '',
-                render(_data, _type, row) {
-                    return escapeHtml(renderImportOrigin(row));
                 },
             },
             {
@@ -2333,6 +2432,7 @@ window.AdminPicker = AdminPicker;
             document.getElementById('voucher_memo').value = displayMemo(data.memo);
             setSourceTransactionInfo(data);
             setLinkedTransaction(data.linked_transaction || data.source_transaction || null);
+            setLinkedEvidence(data);
 
             lineBody.innerHTML = emptyLineRow();
             if (Array.isArray(data.lines) && data.lines.length > 0) {
@@ -2373,6 +2473,7 @@ window.AdminPicker = AdminPicker;
         formData.set('lines', JSON.stringify(collectLines()));
         formData.set('payments', JSON.stringify(collectPayments()));
         formData.set('linked_transaction_id', linkedTransactionIdEl?.value || '');
+        formData.set('linked_evidence_id', linkedEvidenceIdEl?.value || '');
         formData.set('transaction_id', voucherTransactionIdEl?.value || linkedTransactionIdEl?.value || '');
 
         const json = await fetchJson(API.save, {
@@ -2471,6 +2572,64 @@ window.AdminPicker = AdminPicker;
         }
 
         notify('success', '거래 연결이 저장되었습니다.');
+        reloadJournalTable();
+        return json.data || null;
+    }
+
+    async function saveEvidenceLinkOnly() {
+        const voucherId = form.querySelector('[name="id"]')?.value || '';
+        if (!voucherId) {
+            notify('error', '증빙을 연결할 전표 ID를 확인할 수 없습니다.');
+            return null;
+        }
+
+        const formData = new FormData();
+        formData.append('id', voucherId);
+        formData.append('linked_evidence_id', linkedEvidenceIdEl?.value || '');
+        formData.append('linked_transaction_id', linkedTransactionIdEl?.value || '');
+
+        const json = await fetchJson(API.linkEvidence, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!json.success) {
+            notify('error', json.message || '증빙 연결 저장에 실패했습니다.');
+            return null;
+        }
+
+        setLinkedEvidence({
+            linked_evidence: json.data?.linked_evidence || null,
+            evidence_id: json.data?.evidence_id || linkedEvidenceIdEl?.value || '',
+        });
+        notify('success', '증빙 연결이 저장되었습니다.');
+        reloadJournalTable();
+        return json.data || null;
+    }
+
+    async function clearEvidenceLinkOnly() {
+        const voucherId = form.querySelector('[name="id"]')?.value || '';
+        const evidenceId = linkedEvidenceIdEl?.value || '';
+        setLinkedEvidence({});
+        if (!voucherId || !evidenceId) {
+            return null;
+        }
+
+        const formData = new FormData();
+        formData.append('id', voucherId);
+        formData.append('linked_evidence_id', evidenceId);
+
+        const json = await fetchJson(API.unlinkEvidence, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!json.success) {
+            notify('error', json.message || '증빙 연결 해제에 실패했습니다.');
+            return null;
+        }
+
+        notify('success', '증빙 연결을 해제했습니다.');
         reloadJournalTable();
         return json.data || null;
     }
@@ -2578,6 +2737,74 @@ window.AdminPicker = AdminPicker;
             transactionSearchBody.innerHTML = `
                 <tr>
                     <td colspan="5" class="text-center text-danger py-4">거래 목록을 불러오지 못했습니다.</td>
+                </tr>
+            `;
+        }
+    }
+
+    function renderEvidenceSearchRows(rows = []) {
+        if (!evidenceSearchBody) {
+            return;
+        }
+
+        if (!rows.length) {
+            evidenceSearchBody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">선택할 증빙이 없습니다.</td>
+                </tr>
+            `;
+            return;
+        }
+
+        evidenceSearchBody.innerHTML = rows.map((row, index) => `
+            <tr data-index="${index}">
+                <td>${escapeHtml(row.evidence_date || row.processed_at || row.created_at || '')}</td>
+                <td>${escapeHtml(importTypeLabel(row.source_type || ''))}</td>
+                <td>${escapeHtml(row.source_key || row.id || '')}</td>
+                <td>${escapeHtml(row.client_name || row.counterparty_name || '-')}</td>
+                <td class="text-center">
+                    <button type="button"
+                            class="btn btn-outline-primary btn-sm btn-pick-evidence">선택</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    async function loadEvidenceSearch() {
+        if (!evidenceSearchBody) {
+            return;
+        }
+
+        evidenceSearchBody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-muted py-4">증빙을 불러오는 중입니다.</td>
+            </tr>
+        `;
+
+        try {
+            const query = new URLSearchParams();
+            const keyword = evidenceSearchKeywordEl?.value?.trim() || '';
+            if (keyword) {
+                query.set('q', keyword);
+            }
+            const voucherId = form.querySelector('[name="id"]')?.value || '';
+            if (voucherId) {
+                query.set('voucher_id', voucherId);
+            }
+
+            const json = await fetchJson(`${API.evidenceSearch}?${query.toString()}`);
+            if (!json.success) {
+                throw new Error(json.message || '증빙 목록을 불러오지 못했습니다.');
+            }
+
+            evidenceRows = Array.isArray(json.data) ? json.data : [];
+            renderEvidenceSearchRows(evidenceRows);
+        } catch (error) {
+            console.error('[ledger-journal] evidence search failed', error);
+            evidenceRows = [];
+            evidenceSearchBody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-danger py-4">증빙 목록을 불러오지 못했습니다.</td>
                 </tr>
             `;
         }
@@ -2827,14 +3054,43 @@ window.AdminPicker = AdminPicker;
             }
         });
 
+        selectEvidenceBtn?.addEventListener('click', () => {
+            if (!evidenceModal) {
+                notify('warning', '증빙 선택 모달을 찾을 수 없습니다.');
+                return;
+            }
+
+            if (evidenceSearchKeywordEl) {
+                evidenceSearchKeywordEl.value = '';
+            }
+
+            evidenceModal.show();
+            void loadEvidenceSearch();
+        });
+
+        clearEvidenceLinkBtn?.addEventListener('click', () => {
+            void clearEvidenceLinkOnly();
+        });
+
         searchTransactionBtn?.addEventListener('click', () => {
             void loadTransactionSearch();
+        });
+
+        searchEvidenceBtn?.addEventListener('click', () => {
+            void loadEvidenceSearch();
         });
 
         transactionSearchKeywordEl?.addEventListener('keydown', (event) => {
             if (event.key === 'Enter') {
                 event.preventDefault();
                 void loadTransactionSearch();
+            }
+        });
+
+        evidenceSearchKeywordEl?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                void loadEvidenceSearch();
             }
         });
 
@@ -2855,6 +3111,29 @@ window.AdminPicker = AdminPicker;
             transactionModal?.hide();
             if (form.querySelector('[name="id"]')?.value) {
                 void saveTransactionLinkOnly();
+            }
+        });
+
+        evidenceSearchBody?.addEventListener('click', (event) => {
+            const button = event.target.closest('.btn-pick-evidence');
+            if (!button) {
+                return;
+            }
+
+            const rowEl = button.closest('tr');
+            const index = Number(rowEl?.dataset.index ?? -1);
+            const row = evidenceRows[index];
+            if (!row) {
+                return;
+            }
+
+            setLinkedEvidence({
+                linked_evidence: row,
+                evidence_id: row.id || '',
+            });
+            evidenceModal?.hide();
+            if (form.querySelector('[name="id"]')?.value) {
+                void saveEvidenceLinkOnly();
             }
         });
     }

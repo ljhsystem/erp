@@ -102,9 +102,11 @@ function initTemplateTable() {
         tableSelector: '#template-list-table',
         api: API.TEMPLATE_LIST,
         defaultOrder: [[1, 'asc']],
-        pageLength: 10,
+        pageLength: 100,
         cellSearchFill: false,
         rowReorder: false,
+        selectable: false,
+        deleteButton: false,
         columns: [
             {
                 data: null,
@@ -177,9 +179,11 @@ function initStepTable() {
         tableSelector: '#template-steps-table',
         api: API.STEP_LIST,
         defaultOrder: [[1, 'asc']],
-        pageLength: 50,
+        pageLength: 100,
         cellSearchFill: false,
         rowReorder: false,
+        selectable: false,
+        deleteButton: false,
         ajaxData() {
             return { template_id: selectedTemplateId || '' };
         },

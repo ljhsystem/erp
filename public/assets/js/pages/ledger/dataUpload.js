@@ -525,7 +525,7 @@ import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/p
         seedUploadBtn.disabled = true;
         seedUploadBtn.textContent = '적재 중';
         try {
-            const json = await fetchJson('/api/import/seed-upload', {
+            const json = await fetchJson('/api/import/evidence-upload', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ preview_token: currentPreviewToken }),

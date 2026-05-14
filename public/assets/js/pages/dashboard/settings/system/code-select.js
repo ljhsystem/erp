@@ -23,6 +23,7 @@ const state = {
     activeOriginal: null,
     callbacks: new Set(),
     modalCleanupBound: false,
+    searchFocusBound: false,
 };
 
 export function getCodeName(field, code) {
@@ -180,6 +181,16 @@ function bindCodeSelectModalCleanup() {
     }, true);
 }
 
+function bindSelect2SearchFocus() {
+    if (state.searchFocusBound || !window.jQuery) return;
+    state.searchFocusBound = true;
+    window.jQuery(document).on('select2:open.codeSelectFocus', () => {
+        window.setTimeout(() => {
+            document.querySelector('.select2-container--open .select2-search__field')?.focus?.();
+        }, 0);
+    });
+}
+
 function closeCodeSelectsInModal(modal) {
     if (!modal?.querySelectorAll || !window.jQuery?.fn?.select2) return;
 
@@ -232,6 +243,7 @@ function bindCodeSelect(select, codeGroup) {
 
 function enhanceSelect2(select) {
     if (!window.jQuery?.fn?.select2 || !select) return;
+    bindSelect2SearchFocus();
 
     const $select = window.jQuery(select);
     const modalParent = $select.closest('.modal');
@@ -240,7 +252,7 @@ function enhanceSelect2(select) {
         dropdownAutoWidth: false,
         placeholder: select.querySelector('option[value=""]')?.textContent || undefined,
         language: 'ko',
-        minimumResultsForSearch: Infinity,
+        minimumResultsForSearch: select.dataset.codeSearchable === 'true' ? 0 : Infinity,
         dropdownCssClass: 'code-select-dropdown',
     };
 

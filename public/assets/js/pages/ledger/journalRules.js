@@ -307,7 +307,7 @@ import '/public/assets/js/components/trash-manager.js';
             api: API.list,
             columns: columns(),
             defaultOrder: [[1, 'asc']],
-            pageLength: 20,
+            pageLength: 100,
             searchTableId: 'journalRule',
             buttons: [
                 { text: '엑셀관리', className: 'btn btn-success btn-sm', action: () => excelModal?.show() },
@@ -327,6 +327,7 @@ import '/public/assets/js/components/trash-manager.js';
             apiList: API.list,
             tableId: 'journalRule',
             defaultSearchField: 'rule_name',
+            initialCollapsed: true,
             dateOptions: [
                 { value: 'created_at', label: '생성일' },
                 { value: 'updated_at', label: '수정일' },
@@ -369,7 +370,26 @@ import '/public/assets/js/components/trash-manager.js';
             { data: 'credit_account_name', title: '대변계정', render: (_value, _type, row) => escapeHtml(accountText(row, 'credit')) },
             { data: 'vat_account_name', title: '부가세계정', render: (_value, _type, row) => escapeHtml(accountText(row, 'vat')) },
             { data: 'description', title: '설명/적요', render: textCell },
-            { data: 'is_active', title: '사용여부', className: 'text-center text-nowrap', orderable: false, render: renderStatusToggle },
+            { data: 'is_active', title: '상태', className: 'text-center text-nowrap', orderable: false, render: renderStatusToggle },
+            {
+                data: null,
+                title: '관리',
+                className: 'text-center no-colvis',
+                headerClassName: 'text-center no-colvis',
+                orderable: false,
+                searchable: false,
+                defaultContent: '',
+                render: (_value, type, row) => {
+                    if (type !== 'display') return '';
+                    return `
+                        <button type="button"
+                                class="btn btn-outline-primary btn-sm journal-rule-edit-btn"
+                                data-id="${escapeHtml(row.id || '')}">
+                            수정
+                        </button>
+                    `;
+                },
+            },
         ];
     }
 
@@ -387,6 +407,15 @@ import '/public/assets/js/components/trash-manager.js';
             })
             .off('change.journalRuleStatus')
             .on('change.journalRuleStatus', '.journal-rule-status-toggle', updateRuleStatus);
+
+        $('#journal-rule-table tbody')
+            .off('click.journalRuleEditBtn')
+            .on('click.journalRuleEditBtn', '.journal-rule-edit-btn', async function (event) {
+                event.stopPropagation();
+                const id = this.dataset.id || '';
+                if (!id) return;
+                await openEdit(id);
+            });
 
         document.getElementById('journalRuleForm')?.addEventListener('submit', async (event) => {
             event.preventDefault();
@@ -516,16 +545,14 @@ import '/public/assets/js/components/trash-manager.js';
         const active = Number(value ?? 0) === 1;
         const id = escapeHtml(row.id || '');
         const checked = active ? ' checked' : '';
-        const label = active ? '사용' : '미사용';
 
         return `
-            <label class="form-check form-switch journal-rule-status-switch">
+            <div class="form-check form-switch journal-rule-status-switch">
                 <input type="checkbox"
                        class="form-check-input journal-rule-status-toggle"
                        data-id="${id}"
                        ${checked}>
-                <span class="form-check-label journal-rule-status-label">${label}</span>
-            </label>
+            </div>
         `;
     }
 

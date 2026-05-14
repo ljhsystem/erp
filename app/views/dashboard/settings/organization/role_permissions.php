@@ -4,7 +4,7 @@
 
 <div class="role-permission-page" id="rolePermissionPage">
     <div class="page-header">
-        <h5 class="mb-1 fw-bold">역할별 권한 설정</h5>
+        <h5 class="mb-1 fw-bold">🔐 역할별 권한 설정</h5>
     </div>
 
     <div class="rp-row">

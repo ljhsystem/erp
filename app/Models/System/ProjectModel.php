@@ -713,8 +713,8 @@ class ProjectModel
             SET
                 is_active = 0,
                 deleted_at = NOW(),
-                deleted_by = :actor,
-                updated_by = :actor
+                deleted_by = :deleted_by,
+                updated_by = :updated_by
             WHERE id = :id
               AND deleted_at IS NULL
         ";
@@ -722,8 +722,9 @@ class ProjectModel
         $stmt = $this->db->prepare($sql);
 
         $stmt->execute([
-            ':id'    => $id,
-            ':actor' => $actor
+            ':id' => $id,
+            ':deleted_by' => $actor,
+            ':updated_by' => $actor
         ]);
 
         return $stmt->rowCount() > 0;

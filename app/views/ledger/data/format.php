@@ -9,12 +9,14 @@ if (!headers_sent()) {
 }
 
 $pageTitle = json_decode('"\\uC591\\uC2DD\\uAD00\\uB9AC"');
+$isModal = ($_GET['modal'] ?? '') === '1';
 
 $layoutOptions = [
     'header' => true,
-    'navbar' => true,
-    'sidebar' => true,
-    'footer' => true,
+    'navbar' => !$isModal,
+    'sidebar' => !$isModal,
+    'breadcrumb' => !$isModal,
+    'footer' => !$isModal,
     'wrapper' => 'single',
 ];
 
@@ -22,16 +24,16 @@ $pageStyles = AssetHelper::css('/assets/css/pages/ledger/data-format.css');
 $pageScripts = AssetHelper::module('/assets/js/pages/ledger/dataFormat.js');
 ?>
 
-<main class="ledger-data-format-page" id="ledgerDataFormatPage">
-    <div class="container-fluid py-4">
-        <div class="page-header mb-3">
+<main class="ledger-data-format-page <?= $isModal ? 'is-modal-page' : '' ?>" id="ledgerDataFormatPage">
+    <div class="container-fluid <?= $isModal ? 'p-0' : 'py-4' ?>">
+        <div class="page-header mb-3 <?= $isModal ? 'd-none' : '' ?>">
             <h5 class="mb-0 fw-bold">
                 <i class="bi bi-table me-2"></i>&#50577;&#49885;&#44288;&#47532;
             </h5>
         </div>
 
-        <div class="row g-3">
-            <section class="col-12 col-lg-4">
+        <div class="row g-3 data-format-layout">
+            <section class="col-12 col-lg-4 data-format-list-panel">
                 <div class="card h-100">
                     <div class="card-header">
                         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -51,7 +53,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/dataFormat.js');
                 </div>
             </section>
 
-            <section class="col-12 col-lg-8">
+            <section class="col-12 col-lg-8 data-format-editor-panel">
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <span class="fw-semibold">&#52972;&#47100; &#47588;&#54609; &#49444;&#51221;</span>
@@ -78,31 +80,50 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/dataFormat.js');
                             </div>
                         </div>
 
+                        <div class="format-editor-hint mb-3">
+                            <i class="bi bi-columns-gap"></i>
+                            <span>&#50641;&#49472; &#52972;&#47100;&#51012; &#50577;&#49885; &#49692;&#49436;&#45824;&#47196; &#47588;&#54609;&#54616;&#44256;, &#54364;&#49884;/&#54596;&#49688;&#45716; &#52972;&#47100; &#54756;&#45908;&#50640;&#49436; &#51204;&#52404; &#49440;&#53469;&#54624; &#49688; &#51080;&#49845;&#45768;&#45796;.</span>
+                            <span class="requirement-legend ms-auto">
+                                <span><i class="requirement-dot requirement-none"></i>&#49440;&#53469;&#50630;&#51020;</span>
+                                <span><i class="requirement-dot requirement-optional"></i>&#49440;&#53469;</span>
+                                <span><i class="requirement-dot requirement-required"></i>&#54596;&#49688;</span>
+                            </span>
+                        </div>
+
                         <div class="table-responsive mb-3 format-column-table-wrap">
                             <table class="table table-bordered align-middle mb-0 format-column-table" id="formatColumnTable">
                                 <thead class="table-light">
                                 <tr>
                                     <th style="width: 92px;">&#49692;&#49436;</th>
                                     <th>&#50641;&#49472; &#52972;&#47100;&#47749;</th>
-                                    <th>&#49884;&#49828;&#53596; &#54596;&#46300;&#47749;</th>
-                                    <th style="width: 80px;">&#54596;&#49688;</th>
-                                    <th style="width: 104px;">&#49325;&#51228;</th>
+                                    <th>&#49884;&#49828;&#53596; &#54596;&#46300;</th>
+                                    <th style="width: 94px;" class="text-center">
+                                        <label class="format-bulk-check" title="&#54868;&#47732;&#54364;&#49884; &#51204;&#52404; &#49440;&#53469;/&#54644;&#51228;">
+                                            <input type="checkbox" class="form-check-input format-column-toggle-all" data-target=".is-visible">
+                                            <span>&#54868;&#47732;&#54364;&#49884;</span>
+                                        </label>
+                                    </th>
+                                    <th style="width: 112px;" class="text-center">
+                                        <span>&#54596;&#49688;&#44396;&#48516;</span>
+                                    </th>
+                                    <th style="width: 112px;" class="text-center">
+                                        <button type="button" class="btn btn-link btn-sm format-text-action" id="addColumnBtn">+&#52628;&#44032;</button>
+                                    </th>
                                 </tr>
                                 </thead>
                                 <tbody id="formatColumnBody"></tbody>
                             </table>
                         </div>
 
-                        <div class="d-flex justify-content-between">
-                            <button type="button" class="btn btn-outline-secondary btn-sm" id="addColumnBtn">&#52972;&#47100; &#52628;&#44032;</button>
-                            <div>
-                                <button type="button" class="btn btn-outline-danger btn-sm" id="deleteFormatBtn">&#49325;&#51228;</button>
-                                <button type="button" class="btn btn-primary btn-sm" id="saveFormatBtn">&#51200;&#51109;</button>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </section>
+        </div>
+
+        <div class="format-modal-footer d-flex justify-content-end align-items-center gap-2">
+            <button type="button" class="btn btn-outline-primary btn-sm" id="downloadCurrentFormatBtn">&#54788;&#51116;&#50577;&#49885;&#45796;&#50868;&#47196;&#46300;</button>
+            <button type="button" class="btn btn-primary btn-sm" id="saveFormatBtn">&#51200;&#51109;</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="closeFormatBtn">&#45803;&#44592;</button>
         </div>
     </div>
 </main>

@@ -33,3 +33,48 @@
     max-height: 75vh;
     overflow-y: auto;
 }
+
+#code-main .code-active-toggle {
+    width: 2.35rem;
+    height: 1.2rem;
+    cursor: pointer;
+    border-color: color-mix(in srgb, var(--color-text) 22%, white);
+    background-color: color-mix(in srgb, var(--color-text) 22%, white);
+}
+
+#code-main .code-active-toggle:checked {
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+#code-main .code-active-toggle:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 .18rem var(--color-primary-soft);
+}
+
+#code-main .code-active-toggle:disabled {
+    cursor: wait;
+    opacity: .65;
+}
+
+#code-main .code-edit-btn {
+    min-width: 52px;
+    font-weight: 600;
+    color: var(--color-primary);
+    border-color: color-mix(in srgb, var(--color-primary) 42%, white);
+    background: color-mix(in srgb, var(--color-primary) 7%, white);
+}
+
+#code-main .code-edit-btn:hover,
+#code-main .code-edit-btn:focus {
+    color: #fff;
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    box-shadow: 0 0 0 .18rem var(--color-primary-soft);
+}
+
+#code-main .code-edit-btn:active {
+    color: #fff;
+    border-color: var(--color-primary-hover);
+    background: var(--color-primary-hover);
+}

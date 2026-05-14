@@ -78,8 +78,28 @@ class LedgerController
 
     public function webDataIndex(): void
     {
-        $this->renderPage('/app/views/ledger/data/index.php', [
-            'pageTitle' => '자료목록',
+        header('Location: /ledger/data/list', true, 302);
+        exit;
+    }
+
+    public function webDataList(): void
+    {
+        $this->renderPage('/app/views/ledger/data/list.php', [
+            'pageTitle' => '증빙원본',
+        ]);
+    }
+
+    public function webDataRaw(): void
+    {
+        $this->renderPage('/app/views/ledger/data/raw.php', [
+            'pageTitle' => '원본자료',
+        ]);
+    }
+
+    public function webDataCreate(): void
+    {
+        $this->renderPage('/app/views/ledger/data/create.php', [
+            'pageTitle' => '생성센터',
         ]);
     }
 

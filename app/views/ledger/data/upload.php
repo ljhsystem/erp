@@ -9,12 +9,14 @@ if (!headers_sent()) {
 }
 
 $pageTitle = '&#51088;&#47308; &#50629;&#47196;&#46300;';
+$isModal = ($_GET['modal'] ?? '') === '1';
 
 $layoutOptions = [
     'header' => true,
-    'navbar' => true,
-    'sidebar' => true,
-    'footer' => true,
+    'navbar' => !$isModal,
+    'sidebar' => !$isModal,
+    'breadcrumb' => !$isModal,
+    'footer' => !$isModal,
     'wrapper' => 'single',
 ];
 
@@ -26,8 +28,8 @@ $pageScripts = AssetHelper::js('https://cdn.jsdelivr.net/npm/handsontable@14.6.1
 ?>
 
 <main class="ledger-data-upload-page" id="ledgerDataUploadPage">
-    <div class="container-fluid py-4">
-        <div class="page-header mb-3">
+    <div class="container-fluid <?= $isModal ? 'py-3' : 'py-4' ?>">
+        <div class="page-header mb-3 <?= $isModal ? 'd-none' : '' ?>">
             <h5 class="mb-0 fw-bold">
                 <i class="bi bi-upload me-2"></i>&#51088;&#47308; &#50629;&#47196;&#46300;
             </h5>

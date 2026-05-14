@@ -17,6 +17,28 @@ function ensureSelect2($) {
 }
 
 let modalCleanupBound = false;
+let searchFocusBound = false;
+
+function focusOpenSelect2Search() {
+    window.setTimeout(() => {
+        const search = document.querySelector('.select2-container--open .select2-search__field');
+        search?.focus?.();
+    }, 0);
+}
+
+function bindSearchFocus() {
+    if (searchFocusBound) {
+        return;
+    }
+
+    const $ = window.jQuery || window.$;
+    if (!$) {
+        return;
+    }
+
+    searchFocusBound = true;
+    $(document).on('select2:open.pickerSearchFocus', focusOpenSelect2Search);
+}
 
 function bindModalCleanup() {
     if (modalCleanupBound) {
@@ -98,6 +120,7 @@ function createSelect2(target, options = {}) {
     const $ = ensureJQuery();
     ensureSelect2($);
     bindModalCleanup();
+    bindSearchFocus();
 
     const el = typeof target === 'string'
         ? document.querySelector(target)
@@ -201,6 +224,8 @@ function reloadOptions(target, items = [], valueKey = 'id', textKey = 'text', se
 function createAjaxSelect2(target, options = {}) {
     const $ = ensureJQuery();
     ensureSelect2($);
+    bindModalCleanup();
+    bindSearchFocus();
 
     const el = typeof target === 'string'
         ? document.querySelector(target)

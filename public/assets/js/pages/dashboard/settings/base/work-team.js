@@ -119,9 +119,10 @@ window.AdminPicker = AdminPicker;
         workTeamTable = createDataTable({
             tableSelector: '#work-team-table',
             api: API.LIST,
+            deleteApi: API.DELETE,
             columns: buildColumns(),
             defaultOrder: [[1, 'asc']],
-            pageLength: 10,
+            pageLength: 100,
             autoWidth: false,
             buttons: [
                 {
@@ -156,7 +157,8 @@ window.AdminPicker = AdminPicker;
                 apiList: API.LIST,
                 tableId: 'workTeam',
                 defaultSearchField: 'team_name',
-                dateOptions: DATE_OPTIONS
+                dateOptions: DATE_OPTIONS,
+                initialCollapsed: true
             });
 
             bindTableHighlight('#work-team-table', workTeamTable);
@@ -175,6 +177,8 @@ window.AdminPicker = AdminPicker;
         }];
 
         Object.entries(WORK_TEAM_COLUMN_MAP).forEach(([field, config]) => {
+            if (field === 'is_active') return;
+
             columns.push({
                 data: field,
                 title: config.label,
@@ -196,7 +200,107 @@ window.AdminPicker = AdminPicker;
             });
         });
 
+        columns.push({
+            data: 'is_active',
+            title: WORK_TEAM_COLUMN_MAP.is_active.label,
+            visible: true,
+            className: 'text-center',
+            headerClassName: 'text-center',
+            defaultContent: '',
+            render(data, type, row) {
+                if (type !== 'display') return data;
+                const active = Number(data) === 1;
+                return `
+                    <div class="form-check form-switch d-inline-flex justify-content-center m-0">
+                        <input type="checkbox"
+                               class="form-check-input work-team-active-toggle"
+                               data-id="${escapeHtml(row.id || '')}"
+                               ${active ? 'checked' : ''}
+                               aria-label="상태 변경">
+                    </div>
+                `;
+            }
+        });
+
+        columns.push({
+            data: null,
+            title: '관리',
+            className: 'text-center no-colvis',
+            headerClassName: 'text-center no-colvis',
+            orderable: false,
+            searchable: false,
+            defaultContent: '',
+            render(_data, type, row) {
+                if (type !== 'display') return '';
+                return `
+                    <button type="button"
+                            class="btn btn-outline-primary btn-sm work-team-edit-btn"
+                            data-id="${escapeHtml(row.id || '')}">
+                        수정
+                    </button>
+                `;
+            }
+        });
+
         return columns;
+    }
+
+    async function fetchWorkTeamDetail(teamId) {
+        const res = await fetch(`${API.DETAIL}?id=${encodeURIComponent(teamId)}`);
+        const json = await res.json();
+
+        if (!json.success || !json.data) {
+            throw new Error(json.message || '작업팀 상세 조회에 실패했습니다.');
+        }
+
+        return json.data;
+    }
+
+    async function openWorkTeamEditModal(rowData) {
+        if (!rowData?.id) return;
+
+        try {
+            const data = await fetchWorkTeamDetail(rowData.id);
+            openEditModal(data);
+        } catch (error) {
+            console.error(error);
+            AppCore?.notify?.('error', error.message || '서버 오류가 발생했습니다.');
+        }
+    }
+
+    async function updateWorkTeamActive(teamId, active, toggleEl) {
+        try {
+            const data = await fetchWorkTeamDetail(teamId);
+            const formData = new FormData();
+
+            Object.entries(data).forEach(([key, value]) => {
+                formData.set(key, value ?? '');
+            });
+
+            formData.set('id', teamId);
+            formData.set('is_active', active ? '1' : '0');
+
+            if (toggleEl) toggleEl.disabled = true;
+
+            const res = await fetch(API.SAVE, {
+                method: 'POST',
+                body: formData
+            });
+            const json = await res.json();
+
+            if (!json.success) {
+                throw new Error(json.message || '상태 변경에 실패했습니다.');
+            }
+
+            workTeamTable?.ajax.reload(null, false);
+            AppCore?.notify?.('success', active ? '사용으로 변경되었습니다.' : '미사용으로 변경되었습니다.');
+        } catch (error) {
+            console.error(error);
+            if (toggleEl) toggleEl.checked = !active;
+            AppCore?.notify?.('error', error.message || '상태 변경에 실패했습니다.');
+        } finally {
+            if (toggleEl) toggleEl.disabled = false;
+        }
     }
 
     function bindTableEvents($) {
@@ -218,6 +322,20 @@ window.AdminPicker = AdminPicker;
                 console.error(error);
                 AppCore?.notify?.('error', '서버 오류가 발생했습니다.');
             }
+        });
+
+        $('#work-team-table tbody').on('change', '.work-team-active-toggle', function (event) {
+            event.stopPropagation();
+            const teamId = this.dataset.id;
+            if (!teamId) return;
+            updateWorkTeamActive(teamId, this.checked, this);
+        });
+
+        $('#work-team-table tbody').on('click', '.work-team-edit-btn', function (event) {
+            event.stopPropagation();
+            const row = workTeamTable.row($(this).closest('tr')).data();
+            if (!row) return;
+            openWorkTeamEditModal(row);
         });
     }
 

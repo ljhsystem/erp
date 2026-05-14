@@ -15,6 +15,7 @@ import {
 } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
 import { openClientQuickCreate } from '/public/assets/js/pages/dashboard/settings/base/client.js';
 import { openVoucherModal } from '/public/assets/js/pages/ledger/voucherSelectModal.js';
+import { openVoucherRecommendationModal } from '/public/assets/js/pages/ledger/voucherRecommendationModal.js';
 import '/public/assets/js/components/trash-manager.js';
 
 (() => {
@@ -46,11 +47,6 @@ import '/public/assets/js/components/trash-manager.js';
     const headerVatAmountEl = document.getElementById('transaction_vat_amount');
     const headerTotalAmountEl = document.getElementById('transaction_total_amount');
     const modalBodyEl = modalEl?.querySelector('.transaction-modal-body');
-    const voucherWizardEl = document.getElementById('transactionVoucherWizardModal');
-    const voucherWizardLineBody = document.getElementById('voucherWizardLineBody');
-    const voucherWizardBalanceText = document.getElementById('voucherWizardBalanceText');
-    const saveVoucherWizardBtn = document.getElementById('btnSaveVoucherWizard');
-    const addVoucherWizardLineBtn = document.getElementById('btnAddVoucherWizardLine');
 
     if (!form || !modalEl || !hotEl) {
         return;
@@ -70,6 +66,8 @@ import '/public/assets/js/components/trash-manager.js';
     let activeLineDateInputHandler = null;
     let unitCodeSelectEl = null;
     let unitOptions = [];
+    let lineTypeCodeSelectEl = null;
+    let lineTypeOptions = [];
     let pendingUnitCell = null;
     let lastInvalidUnitNotice = '';
     let taxTypeCodeSelectEl = null;
@@ -78,13 +76,6 @@ import '/public/assets/js/components/trash-manager.js';
     let allowModalClose = false;
     let floatingLineHeaderEl = null;
     let lineHeaderFrame = null;
-    let voucherWizardModal = null;
-    let voucherWizardState = {
-        transactionId: '',
-        accounts: [],
-        transaction: {},
-        originalLines: [],
-    };
     let selectedVoucherId = '';
     let selectedVoucherLabel = '';
     let fileDropzoneEmptyText = '파일을 드래그해서 첨부하세요';
@@ -103,8 +94,6 @@ import '/public/assets/js/components/trash-manager.js';
         purge: '/api/ledger/transaction/purge',
         purgeAll: '/api/ledger/transaction/purge-all',
         reorder: '/api/ledger/transaction/reorder',
-        createVoucher: '/api/ledger/transaction/create-voucher',
-        recommendVoucher: '/api/ledger/transaction/recommend-voucher',
         linkVoucher: '/api/ledger/transaction/link-voucher',
         unlinkVoucher: '/api/ledger/transaction/unlink-voucher',
         clientSearch: '/api/settings/base-info/client/search-picker',
@@ -153,8 +142,8 @@ import '/public/assets/js/components/trash-manager.js';
         },
     };
 
-    const LINE_ITEM_DATE_COL = 2;
-    const LINE_UNIT_COL = 5;
+    const LINE_ITEM_DATE_COL = 3;
+    const LINE_UNIT_COL = 6;
     const TAX_TYPE_DEFAULT_LABEL = '과세';
     const UNIT_EMPTY_LABEL = '선택(없음)';
     const UNIT_QUICK_ADD_LABEL = '+기준추가';
@@ -162,25 +151,14 @@ import '/public/assets/js/components/trash-manager.js';
     const LINE_COLUMNS = [
         { data: '__move', title: '<i class="bi bi-arrows-move"></i>', readOnly: true, width: 28, renderer: lineMoveRenderer },
         { data: '__row_no', title: '순번', readOnly: true, width: 36, renderer: lineRowNoRenderer },
+        { data: 'line_type', title: '라인유형', type: 'autocomplete', source: lineTypeDropdownSource, strict: true, filter: false, allowInvalid: false, width: 112 },
         { data: 'item_date', title: '발생일', type: 'date', dateFormat: 'YYYY-MM-DD', correctFormat: true, datePickerConfig: HOT_DATE_PICKER_CONFIG, width: 82 },
         { data: 'item_name', title: '품명', width: 105 },
         { data: 'specification', title: '규격', width: 70 },
         { data: 'unit_name', title: '단위', type: 'autocomplete', source: unitDropdownSource, strict: true, filter: false, allowInvalid: false, width: 54 },
         { data: 'quantity', title: '수량', type: 'numeric', numericFormat: { pattern: '0,0.000' }, width: 62 },
         { data: 'unit_price', title: '단가', type: 'numeric', numericFormat: { pattern: '0,0' }, width: 72 },
-        { data: 'supply_amount', title: '공급가액', type: 'numeric', numericFormat: { pattern: '0,0' }, readOnly: true, width: 78 },
-        { data: 'vat_amount', title: '부가세액', type: 'numeric', numericFormat: { pattern: '0,0' }, readOnly: true, width: 72 },
-        { data: 'total_amount', title: '합계금액', type: 'numeric', numericFormat: { pattern: '0,0' }, readOnly: true, width: 78 },
-        {
-            data: 'tax_type',
-            title: '과세구분',
-            type: 'autocomplete',
-            source: taxTypeDropdownSource,
-            strict: true,
-            filter: false,
-            allowInvalid: false,
-            width: 70,
-        },
+        { data: 'amount', title: '금액', type: 'numeric', numericFormat: { pattern: '0,0' }, width: 78 },
         { data: 'description', title: '적요', width: 105 },
         { data: '__actions', title: '+추가', readOnly: true, width: 44, renderer: lineActionRenderer },
     ];
@@ -421,6 +399,103 @@ import '/public/assets/js/components/trash-manager.js';
         notify('warning', `"${text}"은(는) 단위 기준정보 목록에 없습니다. 목록에서 선택하거나 +기준추가로 등록하세요.`);
     }
 
+    function defaultLineTypeOptions() {
+        return [
+            { code: 'ITEM', label: '품목' },
+            { code: 'VAT', label: '부가세' },
+            { code: 'SERVICE', label: '봉사료' },
+            { code: 'WITHHOLDING_INCOME', label: '소득세' },
+            { code: 'WITHHOLDING_LOCAL', label: '주민세' },
+            { code: 'PENSION', label: '국민연금' },
+            { code: 'HEALTH', label: '건강보험' },
+            { code: 'LONGTERM_CARE', label: '장기요양' },
+            { code: 'EMPLOYMENT', label: '고용보험' },
+            { code: 'SUPPORT', label: '지원금' },
+            { code: 'DISCOUNT', label: '할인' },
+            { code: 'FREIGHT', label: '운임' },
+            { code: 'CUSTOMS', label: '관세' },
+            { code: 'ETC', label: '기타' },
+        ];
+    }
+
+    function updateLineTypeOptionsFromCodeState(options = {}) {
+        const rows = Array.isArray(options.TRANSACTION_LINE_TYPE) ? options.TRANSACTION_LINE_TYPE : [];
+        lineTypeOptions = rows
+            .map((row) => ({
+                code: String(row.code ?? '').trim().toUpperCase(),
+                label: String(row.code_name || row.code || '').trim(),
+            }))
+            .filter((row) => row.code && row.label);
+
+        if (lineTypeOptions.length === 0) {
+            lineTypeOptions = defaultLineTypeOptions();
+        }
+
+        lineHot?.updateSettings({
+            columns: getLineColumns(),
+            colHeaders: getLineColumns().map((column) => column.title),
+        });
+
+        (lineHot?.getSourceData() || []).forEach((row, index) => {
+            const normalized = normalizeLineTypeCellValue(row?.line_type);
+            if (row && row.line_type !== normalized) {
+                lineHot.setSourceDataAtCell(index, 'line_type', normalized);
+            }
+        });
+        lineHot?.render();
+    }
+
+    function findLineTypeOption(value) {
+        const text = String(value ?? '').trim();
+        const upper = text.toUpperCase();
+        const options = lineTypeOptions.length > 0 ? lineTypeOptions : defaultLineTypeOptions();
+        return options.find((option) => (
+            option.code === upper ||
+            option.label === text
+        ));
+    }
+
+    function lineTypeDropdownSource(query, process) {
+        const keyword = String(query ?? '').trim().toLowerCase();
+        const options = lineTypeOptions.length > 0 ? lineTypeOptions : defaultLineTypeOptions();
+        const isCurrentSelection = options.some((option) => (
+            option.label.toLowerCase() === keyword ||
+            option.code.toLowerCase() === keyword
+        ));
+        const rows = options.filter((option) => {
+            if (!keyword || isCurrentSelection) return true;
+
+            return option.label.toLowerCase().includes(keyword)
+                || option.code.toLowerCase().includes(keyword);
+        });
+
+        process(rows.map((option) => option.label));
+    }
+
+    function normalizeLineTypeCellValue(value) {
+        const text = String(value ?? '').trim();
+        if (!text) return lineTypeLabelFromCode('ITEM');
+
+        const found = findLineTypeOption(text);
+        return found?.label || text;
+    }
+
+    function lineTypeCodeFromCell(value) {
+        const text = String(value ?? '').trim();
+        if (!text) return 'ITEM';
+
+        const found = findLineTypeOption(text);
+        return found?.code || text.toUpperCase();
+    }
+
+    function lineTypeLabelFromCode(value) {
+        const text = String(value ?? '').trim();
+        if (!text) return '품목';
+
+        const found = findLineTypeOption(text);
+        return found?.label || text;
+    }
+
     function updateUnitOptionsFromCodeState(options = {}) {
         const rows = Array.isArray(options.UNIT) ? options.UNIT : [];
         unitOptions = rows
@@ -552,6 +627,16 @@ import '/public/assets/js/components/trash-manager.js';
             document.body.appendChild(unitCodeSelectEl);
         }
 
+        lineTypeCodeSelectEl = document.getElementById('transaction_line_type_code_select');
+        if (!lineTypeCodeSelectEl) {
+            lineTypeCodeSelectEl = document.createElement('select');
+            lineTypeCodeSelectEl.id = 'transaction_line_type_code_select';
+            lineTypeCodeSelectEl.dataset.codeGroup = 'TRANSACTION_LINE_TYPE';
+            lineTypeCodeSelectEl.className = 'd-none';
+            lineTypeCodeSelectEl.tabIndex = -1;
+            document.body.appendChild(lineTypeCodeSelectEl);
+        }
+
         taxTypeCodeSelectEl = document.getElementById('transaction_tax_type_code_select');
         if (!taxTypeCodeSelectEl) {
             taxTypeCodeSelectEl = document.createElement('select');
@@ -562,8 +647,13 @@ import '/public/assets/js/components/trash-manager.js';
             document.body.appendChild(taxTypeCodeSelectEl);
         }
 
+        onCodeOptionsLoaded(updateLineTypeOptionsFromCodeState);
         onCodeOptionsLoaded(updateUnitOptionsFromCodeState);
         onCodeOptionsLoaded(updateTaxTypeOptionsFromCodeState);
+        await createCodeSelect({
+            selectId: lineTypeCodeSelectEl.id,
+            codeGroup: 'TRANSACTION_LINE_TYPE',
+        });
         await createCodeSelect({
             selectId: unitCodeSelectEl.id,
             codeGroup: 'UNIT',
@@ -611,10 +701,12 @@ import '/public/assets/js/components/trash-manager.js';
 
     function setHeaderAmountValues(data = {}) {
         if (headerSupplyAmountEl) {
-            headerSupplyAmountEl.value = data.supply_amount === undefined || data.supply_amount === null ? '' : formatNumber(data.supply_amount);
+            const baseAmount = data.base_amount ?? data.supply_amount;
+            headerSupplyAmountEl.value = baseAmount === undefined || baseAmount === null ? '' : formatNumber(baseAmount);
         }
         if (headerVatAmountEl) {
-            headerVatAmountEl.value = data.vat_amount === undefined || data.vat_amount === null ? '' : formatNumber(data.vat_amount);
+            const adjustmentAmount = data.adjustment_amount ?? data.vat_amount;
+            headerVatAmountEl.value = adjustmentAmount === undefined || adjustmentAmount === null ? '' : formatNumber(adjustmentAmount);
         }
         syncHeaderTotalAmount();
         if (headerTotalAmountEl && data.total_amount !== undefined && data.total_amount !== null) {
@@ -634,6 +726,8 @@ import '/public/assets/js/components/trash-manager.js';
             const raw = String(formData.get(name) ?? '').trim();
             formData.set(name, raw === '' ? '' : String(parseNumber(raw)));
         });
+        formData.set('base_amount', formData.get('supply_amount') || '0');
+        formData.set('adjustment_amount', formData.get('vat_amount') || '0');
     }
 
     function lineMoveRenderer(instance, td) {
@@ -715,6 +809,19 @@ import '/public/assets/js/components/trash-manager.js';
             rejected: '반려',
         };
         return `<span class="transaction-status transaction-status-${status}">${labels[status]}</span>`;
+    }
+
+    function renderLineStatus(_value, _type, row = {}) {
+        const status = String(row.transaction_line_status || 'NONE').toUpperCase();
+        const count = Number(row.transaction_line_count || 0);
+        const incomplete = Number(row.transaction_line_incomplete_count || 0);
+        if (status === 'COMPLETE') {
+            return `<span class="badge text-bg-success">완성 ${count}</span>`;
+        }
+        if (status === 'INCOMPLETE') {
+            return `<span class="badge text-bg-warning" title="보완 필요 ${incomplete}건">미완성 ${count}</span>`;
+        }
+        return '<span class="badge text-bg-secondary" title="거래 화면에서 거래내역을 추가해 주세요.">내역 없음</span>';
     }
 
     function updateTransactionStatusBadge(value) {
@@ -821,9 +928,16 @@ import '/public/assets/js/components/trash-manager.js';
             },
             textColumn('currency', '통화'),
             textColumn('exchange_rate', '환율', { className: 'text-end' }),
-            amountColumn('supply_amount', '공급가'),
-            amountColumn('vat_amount', '부가세'),
-            amountColumn('total_amount', '총금액', true),
+            amountColumn('base_amount', '공급가액'),
+            amountColumn('adjustment_amount', '가감금액'),
+            amountColumn('total_amount', '합계금액', true),
+            {
+                data: 'transaction_line_status',
+                title: '거래내역',
+                className: 'text-center text-nowrap',
+                visible: true,
+                render: renderLineStatus,
+            },
             {
                 data: 'description',
                 title: '적요',
@@ -894,8 +1008,9 @@ import '/public/assets/js/components/trash-manager.js';
                 { text: '새 거래', className: 'btn btn-warning btn-sm', action: openCreateModal },
             ],
             defaultOrder: [[1, 'asc']],
-            pageLength: 10,
+            pageLength: 100,
             searchTableId: 'transaction',
+            deleteApi: API.remove,
         });
 
         bindRowReorder(transactionTable, {
@@ -918,6 +1033,7 @@ import '/public/assets/js/components/trash-manager.js';
             tableId: 'transaction',
             defaultSearchField: 'description',
             dateOptions: DATE_OPTIONS,
+            initialCollapsed: true,
         });
 
         bindTableEvents();
@@ -976,6 +1092,7 @@ import '/public/assets/js/components/trash-manager.js';
 
     function blankLine() {
         return {
+            line_type: lineTypeLabelFromCode('ITEM'),
             item_date: document.getElementById('transaction_date')?.value || today(),
             item_name: '',
             specification: '',
@@ -984,6 +1101,7 @@ import '/public/assets/js/components/trash-manager.js';
             unit_price: 0,
             foreign_unit_price: '',
             foreign_amount: '',
+            amount: '',
             supply_amount: 0,
             vat_amount: 0,
             total_amount: 0,
@@ -994,6 +1112,7 @@ import '/public/assets/js/components/trash-manager.js';
 
     function normalizeLine(item = {}) {
         return {
+            line_type: lineTypeLabelFromCode(lineTypeCodeFromCell(item.line_type || item.amount_type || 'ITEM')),
             item_date: item.item_date || document.getElementById('transaction_date')?.value || today(),
             item_name: item.item_name || '',
             specification: item.specification || '',
@@ -1008,6 +1127,7 @@ import '/public/assets/js/components/trash-manager.js';
             foreign_amount: item.foreign_amount === undefined || item.foreign_amount === null || item.foreign_amount === ''
                 ? ''
                 : numberValue(item.foreign_amount),
+            amount: numberValue(item.amount ?? item.total_amount ?? item.supply_amount ?? 0),
             supply_amount: numberValue(item.supply_amount ?? 0),
             vat_amount: numberValue(item.vat_amount ?? 0),
             total_amount: numberValue(item.total_amount ?? 0),
@@ -1022,6 +1142,22 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function calculateLine(row) {
+        const lineType = lineTypeCodeFromCell(row.line_type || 'ITEM');
+        row.line_type = lineTypeLabelFromCode(lineType);
+        if (lineType !== 'ITEM') {
+            const amount = numberValue(row.amount ?? row.total_amount);
+            if (!String(row.item_name || '').trim()) {
+                row.item_name = row.line_type;
+            }
+            row.quantity = numberValue(row.quantity) || 1;
+            row.unit_price = amount;
+            row.supply_amount = 0;
+            row.vat_amount = amount;
+            row.total_amount = amount;
+            row.amount = amount;
+            return row;
+        }
+
         const quantity = numberValue(row.quantity);
         const foreignMode = usesForeignCurrency();
         const foreignUnitPrice = numberValue(row.foreign_unit_price);
@@ -1034,15 +1170,19 @@ import '/public/assets/js/components/trash-manager.js';
             ? Math.round(foreignAmount * exchangeRate)
             : Math.round(quantity * unitPrice);
         const taxType = normalizeTaxTypeCode(row.tax_type || defaultLineTaxTypeCode());
-        const vat = taxType === 'TAXABLE' ? Math.round(supply * 0.1) : 0;
+        const enteredAmount = numberValue(row.amount ?? row.total_amount);
+        const amount = quantity > 0 && (unitPrice !== 0 || foreignAmount !== 0)
+            ? supply
+            : enteredAmount;
 
         row.quantity = quantity;
         row.unit_price = unitPrice;
         row.foreign_unit_price = foreignMode ? foreignUnitPrice : '';
         row.foreign_amount = foreignMode ? foreignAmount : '';
-        row.supply_amount = supply;
-        row.vat_amount = vat;
-        row.total_amount = supply + vat;
+        row.amount = amount;
+        row.supply_amount = row.amount;
+        row.vat_amount = 0;
+        row.total_amount = row.amount;
         row.tax_type = taxTypeLabelFromCode(taxType);
         return row;
     }
@@ -1060,33 +1200,40 @@ import '/public/assets/js/components/trash-manager.js';
 
     function calculateTotals() {
         const rows = lineHot ? lineHot.getSourceData() : [];
-        let supply = 0;
-        let vat = 0;
+        let base = 0;
+        let adjustment = 0;
         let total = 0;
 
         rows.forEach((row, index) => {
-            if (!row || (!row.item_name && !row.specification && !numberValue(row.unit_price) && !numberValue(row.foreign_amount) && !numberValue(row.foreign_unit_price))) return;
+            if (!row || (!row.item_name && !row.specification && !numberValue(row.amount) && !numberValue(row.unit_price) && !numberValue(row.foreign_amount) && !numberValue(row.foreign_unit_price))) return;
             const calculated = calculateLine(row);
-            supply += calculated.supply_amount;
-            vat += calculated.vat_amount;
-            total += calculated.total_amount;
+            const lineAmount = numberValue(calculated.amount ?? calculated.total_amount);
+            if (lineTypeCodeFromCell(calculated.line_type) === 'ITEM') {
+                base += lineAmount;
+            } else {
+                adjustment += lineAmount;
+            }
+            total += lineAmount;
 
             if (lineHot) {
                 setLineCellValue(index, 'unit_price', calculated.unit_price, 'calc');
                 setLineCellValue(index, 'foreign_amount', calculated.foreign_amount, 'calc');
+                setLineCellValue(index, 'amount', calculated.amount, 'calc');
                 setLineCellValue(index, 'supply_amount', calculated.supply_amount, 'calc');
                 setLineCellValue(index, 'vat_amount', calculated.vat_amount, 'calc');
                 setLineCellValue(index, 'total_amount', calculated.total_amount, 'calc');
             }
         });
 
-        document.getElementById('transaction_supply_total').value = formatAmount(supply);
-        document.getElementById('transaction_vat_total').value = formatAmount(vat);
+        document.getElementById('transaction_supply_total').value = formatAmount(base);
+        document.getElementById('transaction_vat_total').value = formatAmount(adjustment);
         document.getElementById('transaction_grand_total').value = formatAmount(total);
         if (total > 0) {
             setHeaderAmountValues({
-                supply_amount: supply,
-                vat_amount: vat,
+                base_amount: base,
+                adjustment_amount: adjustment,
+                supply_amount: base,
+                vat_amount: adjustment,
                 total_amount: total,
             });
         }
@@ -1255,6 +1402,10 @@ import '/public/assets/js/components/trash-manager.js';
                         change[3] = normalizeUnitCellValue(nextValue);
                     }
 
+                    if (prop === 'line_type') {
+                        change[3] = normalizeLineTypeCellValue(nextValue);
+                    }
+
                     if (prop === 'tax_type') {
                         change[3] = normalizeTaxTypeCellValue(nextValue);
                     }
@@ -1311,6 +1462,7 @@ import '/public/assets/js/components/trash-manager.js';
             },
             afterCreateRow(index, amount) {
                 for (let i = index; i < index + amount; i += 1) {
+                    lineHot.setSourceDataAtCell(i, 'line_type', lineTypeLabelFromCode('ITEM'));
                     lineHot.setSourceDataAtCell(i, 'item_date', document.getElementById('transaction_date')?.value || today());
                     lineHot.setSourceDataAtCell(i, 'tax_type', defaultLineTaxTypeLabel());
                 }
@@ -1504,9 +1656,10 @@ import '/public/assets/js/components/trash-manager.js';
         initLineHot();
         return (lineHot?.getSourceData() || [])
             .map((row) => calculateLine(normalizeLine(row)))
-            .filter((row) => String(row.item_name || '').trim() !== '')
+            .filter((row) => String(row.item_name || row.description || '').trim() !== '' || numberValue(row.amount) !== 0)
             .map((row, index) => ({
                 sort_no: index + 1,
+                line_type: lineTypeCodeFromCell(row.line_type || 'ITEM'),
                 item_date: row.item_date || document.getElementById('transaction_date')?.value || today(),
                 item_name: String(row.item_name || '').trim(),
                 specification: String(row.specification || '').trim(),
@@ -1515,6 +1668,10 @@ import '/public/assets/js/components/trash-manager.js';
                 unit_price: row.unit_price,
                 foreign_unit_price: usesForeignCurrency() ? row.foreign_unit_price : '',
                 foreign_amount: usesForeignCurrency() ? row.foreign_amount : '',
+                amount: row.amount,
+                supply_amount: row.supply_amount,
+                vat_amount: row.vat_amount,
+                total_amount: row.total_amount,
                 tax_type: normalizeTaxTypeCode(row.tax_type || defaultLineTaxTypeCode()) || defaultLineTaxTypeCode(),
                 description: String(row.description || '').trim(),
             }));
@@ -1533,17 +1690,12 @@ import '/public/assets/js/components/trash-manager.js';
 
         const importEnabled = usesForeignCurrency();
         modalEl.querySelectorAll('.transaction-currency-field, .transaction-exchange-field').forEach((field) => {
-            field.classList.toggle('d-none', !importEnabled);
+            field.classList.remove('d-none');
         });
         lineHot?.updateSettings({
             columns: getLineColumns(),
             colHeaders: getLineColumns().map((column) => column.title),
         });
-
-        if (!importEnabled) {
-            setCurrencyValue('');
-            if (exchangeRateEl) exchangeRateEl.value = '';
-        }
 
         applyForeignTaxTypeToLines();
         calculateTotals();
@@ -2078,6 +2230,8 @@ import '/public/assets/js/components/trash-manager.js';
             'description',
             'currency',
             'exchange_rate',
+            'base_amount',
+            'adjustment_amount',
             'supply_amount',
             'vat_amount',
             'total_amount',
@@ -2092,6 +2246,7 @@ import '/public/assets/js/components/trash-manager.js';
         });
 
         const lines = (lineHot?.getSourceData() || []).map((row) => ({
+            line_type: String(row?.line_type ?? ''),
             item_date: String(row?.item_date ?? ''),
             item_name: String(row?.item_name ?? ''),
             specification: String(row?.specification ?? ''),
@@ -2100,6 +2255,7 @@ import '/public/assets/js/components/trash-manager.js';
             unit_price: String(row?.unit_price ?? ''),
             foreign_unit_price: String(row?.foreign_unit_price ?? ''),
             foreign_amount: String(row?.foreign_amount ?? ''),
+            amount: String(row?.amount ?? ''),
             tax_type: String(row?.tax_type ?? ''),
             description: String(row?.description ?? ''),
         }));
@@ -2151,204 +2307,23 @@ import '/public/assets/js/components/trash-manager.js';
         return json;
     }
 
-    async function loadVoucherWizardAccounts() {
-        if (voucherWizardState.accounts.length > 0) return voucherWizardState.accounts;
-        const json = await fetchJson('/api/ledger/account/list');
-        voucherWizardState.accounts = Array.isArray(json.data) ? json.data.filter((row) => {
-            const postable = String(row.is_postable ?? row.is_posting ?? '').toUpperCase();
-            return postable === 'Y' || postable === '1' || row.is_posting === 1;
-        }) : [];
-        return voucherWizardState.accounts;
-    }
-
-    function accountOptions(selectedId = '') {
-        const selected = String(selectedId || '');
-        return ['<option value="">계정 선택</option>'].concat(voucherWizardState.accounts.map((account) => {
-            const id = String(account.id || '');
-            const label = `${account.account_code || ''} ${account.account_name || ''}`.trim();
-            return `<option value="${escapeHtml(id)}" ${id === selected ? 'selected' : ''}>${escapeHtml(label)}</option>`;
-        })).join('');
-    }
-
-    function sourceLabel(source = '') {
-        return {
-            CLIENT_DEFAULT: '거래처 기본계정',
-            JOURNAL_RULE: '분개규칙',
-            RECENT_PATTERN: '최근사용패턴',
-            VAT_RULE: 'VAT RULE',
-        }[source] || source || '-';
-    }
-
-    function confidenceBadge(confidence) {
-        const value = Number(confidence || 0);
-        const cls = value >= 90 ? 'text-bg-success' : (value >= 70 ? 'text-bg-warning' : 'text-bg-danger');
-        return `<span class="badge ${cls}">${value}%</span>`;
-    }
-
-    function setVoucherWizardHeader(transaction = {}) {
-        const set = (id, value) => {
-            const el = document.getElementById(id);
-            if (el) el.value = value ?? '';
-        };
-        set('voucherWizardClientName', transaction.client_name || '');
-        set('voucherWizardProjectName', transaction.project_name || '');
-        set('voucherWizardTransactionType', transaction.transaction_type || '');
-        set('voucherWizardTransactionDirection', transaction.transaction_direction || '');
-        set('voucherWizardSupplyAmount', formatNumber(transaction.supply_amount || 0));
-        set('voucherWizardVatAmount', formatNumber(transaction.vat_amount || 0));
-        set('voucherWizardTotalAmount', formatNumber(transaction.total_amount || 0));
-        set('voucherWizardDescription', transaction.description || '');
-    }
-
-    function voucherWizardLineTemplate(line = {}) {
-        const lineType = String(line.line_type || 'DEBIT').toUpperCase();
-        const amount = formatNumber(line.amount || 0);
-        const source = String(line.source || '');
-        const confidence = Number(line.confidence || 0);
-        const reason = line.reason || sourceLabel(source);
-        const original = encodeURIComponent(JSON.stringify({
-            line_type: lineType,
-            account_id: line.account_id || '',
-            amount: String(Number(line.amount || 0).toFixed(2)),
-        }));
-
-        return `
-            <tr data-original="${original}">
-                <td><select class="form-select form-select-sm voucher-wizard-line-type"><option value="DEBIT" ${lineType === 'DEBIT' ? 'selected' : ''}>차변</option><option value="CREDIT" ${lineType === 'CREDIT' ? 'selected' : ''}>대변</option></select></td>
-                <td><select class="form-select form-select-sm voucher-wizard-account">${accountOptions(line.account_id || '')}</select></td>
-                <td><input type="text" class="form-control form-control-sm voucher-wizard-sub-account" value="${escapeHtml(line.sub_account_name || '')}"></td>
-                <td><input type="text" class="form-control form-control-sm voucher-wizard-client" value="${escapeHtml(voucherWizardState.transaction.client_name || '')}"></td>
-                <td><input type="text" class="form-control form-control-sm voucher-wizard-project" value="${escapeHtml(voucherWizardState.transaction.project_name || '')}"></td>
-                <td><input type="text" class="form-control form-control-sm text-end voucher-wizard-amount" value="${escapeHtml(amount)}"></td>
-                <td><span class="voucher-wizard-source" data-source="${escapeHtml(source)}" data-reason="${escapeHtml(reason)}" data-rule-id="${escapeHtml(line.journal_rule_id || '')}">${escapeHtml(reason)}</span></td>
-                <td class="text-center" data-confidence="${confidence}">${confidenceBadge(confidence)}</td>
-                <td class="text-center"><button type="button" class="btn btn-outline-danger btn-sm btn-remove-voucher-wizard-line">-삭제</button></td>
-            </tr>
-        `;
-    }
-
-    function renderVoucherWizardLines(lines = []) {
-        if (!voucherWizardLineBody) return;
-        voucherWizardState.originalLines = lines.map((line) => ({ ...line }));
-        voucherWizardLineBody.innerHTML = lines.map(voucherWizardLineTemplate).join('');
-        updateVoucherWizardBalance();
-    }
-
-    function collectVoucherWizardLines() {
-        if (!voucherWizardLineBody) return [];
-        return Array.from(voucherWizardLineBody.querySelectorAll('tr')).map((row) => {
-            const lineType = row.querySelector('.voucher-wizard-line-type')?.value || '';
-            const accountId = row.querySelector('.voucher-wizard-account')?.value || '';
-            const amount = parseNumber(row.querySelector('.voucher-wizard-amount')?.value || '0');
-            const sourceEl = row.querySelector('.voucher-wizard-source');
-            const currentKey = JSON.stringify({ line_type: lineType, account_id: accountId, amount: String(Number(amount || 0).toFixed(2)) });
-            let originalKey = '';
-            let original = {};
-            try {
-                original = JSON.parse(decodeURIComponent(row.dataset.original || ''));
-                originalKey = JSON.stringify(original);
-            } catch (_error) {
-                originalKey = '';
-                original = {};
-            }
-            return {
-                line_type: lineType,
-                account_id: accountId,
-                amount,
-                recommended_line_type: original.line_type || lineType,
-                recommended_account_id: original.account_id || accountId,
-                recommended_amount: original.amount || amount,
-                sub_account_name: row.querySelector('.voucher-wizard-sub-account')?.value || '',
-                client_name: row.querySelector('.voucher-wizard-client')?.value || '',
-                project_name: row.querySelector('.voucher-wizard-project')?.value || '',
-                client_id: voucherWizardState.transaction.client_id || '',
-                project_id: voucherWizardState.transaction.project_id || '',
-                source: sourceEl?.dataset.source || '',
-                reason: sourceEl?.dataset.reason || '',
-                journal_rule_id: sourceEl?.dataset.ruleId || '',
-                confidence: Number(row.querySelector('[data-confidence]')?.dataset.confidence || 0),
-                line_summary: document.getElementById('voucherWizardDescription')?.value || '',
-                is_user_modified: currentKey !== originalKey,
-            };
-        }).filter((line) => line.account_id && line.amount > 0 && ['DEBIT', 'CREDIT'].includes(line.line_type));
-    }
-
-    function voucherWizardTotals() {
-        return collectVoucherWizardLines().reduce((totals, line) => {
-            if (line.line_type === 'DEBIT') totals.debit += line.amount;
-            if (line.line_type === 'CREDIT') totals.credit += line.amount;
-            return totals;
-        }, { debit: 0, credit: 0 });
-    }
-
-    function updateVoucherWizardBalance() {
-        const totals = voucherWizardTotals();
-        const diff = Math.round((totals.debit - totals.credit) * 100) / 100;
-        const balanced = totals.debit > 0 && totals.credit > 0 && diff === 0;
-        if (voucherWizardBalanceText) {
-            voucherWizardBalanceText.className = `transaction-voucher-balance ${balanced ? 'is-balanced' : 'is-unbalanced'}`;
-            voucherWizardBalanceText.textContent = `차변 ${formatNumber(totals.debit)} / 대변 ${formatNumber(totals.credit)} / 차이 ${formatNumber(Math.abs(diff))}`;
-        }
-        if (saveVoucherWizardBtn) saveVoucherWizardBtn.disabled = !balanced;
-    }
-
-    async function openVoucherWizard() {
-        const id = document.getElementById('transaction_id')?.value || '';
-        if (!id) {
-            notify('warning', '거래 저장 후 전표를 생성할 수 있습니다.');
-            return;
-        }
-        await loadVoucherWizardAccounts();
-        const json = await fetchJson(`${API.recommendVoucher}?transaction_id=${encodeURIComponent(id)}`);
-        voucherWizardState.transactionId = id;
-        voucherWizardState.transaction = json.transaction || {};
-        setVoucherWizardHeader(voucherWizardState.transaction);
-        renderVoucherWizardLines(json.recommendation?.recommendations || []);
-        voucherWizardModal = bootstrap.Modal.getOrCreateInstance(voucherWizardEl, { focus: false });
-        document.querySelectorAll('.modal-backdrop.show').forEach((backdrop) => {
-            backdrop.classList.add('transaction-voucher-wizard-backdrop');
-        });
-        voucherWizardModal.show();
-    }
-
-    async function saveVoucherWizard() {
-        const totals = voucherWizardTotals();
-        if (Math.round(totals.debit * 100) !== Math.round(totals.credit * 100)) {
-            notify('warning', '차변합과 대변합이 일치해야 저장할 수 있습니다.');
-            return;
-        }
-        const json = await fetchJson(API.createVoucher, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                transaction_id: voucherWizardState.transactionId,
-                header: {
-                    transaction_date: document.getElementById('transaction_date')?.value || '',
-                    description: document.getElementById('voucherWizardDescription')?.value || '',
-                },
-                lines: collectVoucherWizardLines(),
-            }),
-        });
-        if (json.data) {
-            document.getElementById('transaction_match_status').value = json.data.match_status || 'matched';
-            renderVoucherState(json.data);
-        }
-        voucherWizardModal?.hide();
-        reloadTable();
-        notify('success', json.message || 'draft 전표가 저장되었습니다.');
-    }
-
     async function createVoucherForCurrentTransaction() {
-        await openVoucherWizard();
-        return;
         const id = document.getElementById('transaction_id')?.value || '';
         if (!id) {
             notify('warning', '거래 저장 후 전표를 생성할 수 있습니다.');
             return;
         }
-
-        const json = await postTransactionAction(API.createVoucher, { transaction_id: id });
-        notify('success', json.message || '전표가 생성되었습니다.');
+        await openVoucherRecommendationModal({
+            transactionId: id,
+            onSaved(json) {
+                if (json.data) {
+                    document.getElementById('transaction_match_status').value = json.data.match_status || 'matched';
+                    renderVoucherState(json.data);
+                }
+                reloadTable();
+                notify('success', json.message || 'draft 전표가 저장되었습니다.');
+            },
+        });
     }
 
     async function linkVoucherToCurrentTransaction() {
@@ -2473,16 +2448,15 @@ import '/public/assets/js/components/trash-manager.js';
             notify('warning', '거래헤더 금액을 입력해 주세요.');
             return;
         }
+        const rawExchangeRate = String(exchangeRateEl?.value || '').trim();
         if (usesForeignCurrency()) {
-            const rawExchangeRate = String(exchangeRateEl?.value || '').trim();
             if (parseNumber(rawExchangeRate) <= 0) {
                 notify('warning', '외화사용여부를 선택한 경우 환율을 입력해 주세요.');
                 return;
             }
             formData.set('exchange_rate', rawExchangeRate === '' ? '' : String(parseNumber(rawExchangeRate)));
-        } else {
-            formData.set('currency', '');
-            formData.set('exchange_rate', '');
+        } else if (rawExchangeRate !== '') {
+            formData.set('exchange_rate', String(parseNumber(rawExchangeRate)));
         }
 
         await fetchJson(API.save, { method: 'POST', body: formData });
@@ -2641,26 +2615,6 @@ import '/public/assets/js/components/trash-manager.js';
         });
 
         createVoucherBtn?.addEventListener('click', () => void createVoucherForCurrentTransaction());
-        addVoucherWizardLineBtn?.addEventListener('click', () => {
-            if (!voucherWizardLineBody) return;
-            voucherWizardLineBody.insertAdjacentHTML('beforeend', voucherWizardLineTemplate({
-                line_type: 'DEBIT',
-                amount: 0,
-                source: 'USER',
-                confidence: 0,
-                reason: '사용자 추가',
-            }));
-            updateVoucherWizardBalance();
-        });
-        saveVoucherWizardBtn?.addEventListener('click', () => void saveVoucherWizard().catch((error) => notify('error', error.message)));
-        voucherWizardLineBody?.addEventListener('input', updateVoucherWizardBalance);
-        voucherWizardLineBody?.addEventListener('change', updateVoucherWizardBalance);
-        voucherWizardLineBody?.addEventListener('click', (event) => {
-            const button = event.target.closest('.btn-remove-voucher-wizard-line');
-            if (!button) return;
-            button.closest('tr')?.remove();
-            updateVoucherWizardBalance();
-        });
         selectVoucherBtn?.addEventListener('click', () => {
             openVoucherModal({
                 selectedVoucherId,

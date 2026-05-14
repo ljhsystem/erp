@@ -171,7 +171,9 @@ window.AdminPicker = AdminPicker;
             api: API.LIST,
             columns,
             defaultOrder: [[1, 'asc']],
-            pageLength: 10,
+            pageLength: 100,
+            selectable: false,
+            deleteButton: false,
             buttons: [
                 {
                     text: '\uC0C8 \uBD80\uC11C',
@@ -195,7 +197,8 @@ window.AdminPicker = AdminPicker;
                 apiList: API.LIST,
                 tableId: 'department',
                 defaultSearchField: 'dept_name',
-                dateOptions: DATE_OPTIONS
+                dateOptions: DATE_OPTIONS,
+                initialCollapsed: true
             });
             bindTableHighlight('#department-table', departmentTable);
 
@@ -218,6 +221,8 @@ window.AdminPicker = AdminPicker;
 
 
         Object.entries(DEPARTMENT_COLUMN_MAP).forEach(([field, config]) => {
+            if (field === 'is_active') return;
+
             columns.push({
                 data: field,
                 title: config.label,
@@ -228,15 +233,51 @@ window.AdminPicker = AdminPicker;
                     if (data == null) return '';
                     if (type !== 'display') return data;
 
-                    if (field === 'is_active') {
-                        return String(data) === '1'
-                            ? '<span class="badge bg-success">\uC0AC\uC6A9</span>'
-                            : '<span class="badge bg-secondary">\uBBF8\uC0AC\uC6A9</span>';
-                    }
-
                     return escapeHtml(data);
                 }
             });
+        });
+
+        columns.push({
+            data: 'is_active',
+            title: DEPARTMENT_COLUMN_MAP.is_active.label,
+            visible: true,
+            className: 'text-center',
+            headerClassName: 'text-center',
+            defaultContent: '',
+            render: function (data, type, row) {
+                if (type !== 'display') return data;
+                const active = String(data) === '1';
+                return `
+                    <div class="form-check form-switch d-inline-flex justify-content-center m-0">
+                        <input type="checkbox"
+                               class="form-check-input department-active-toggle"
+                               data-id="${escapeHtml(row.id || '')}"
+                               ${active ? 'checked' : ''}
+                               aria-label="상태 변경">
+                    </div>
+                `;
+            }
+        });
+
+        columns.push({
+            data: null,
+            title: '관리',
+            className: 'text-center no-colvis',
+            headerClassName: 'text-center no-colvis',
+            orderable: false,
+            searchable: false,
+            defaultContent: '',
+            render: function (_data, type, row) {
+                if (type !== 'display') return '';
+                return `
+                    <button type="button"
+                            class="btn btn-outline-primary btn-sm department-edit-btn"
+                            data-id="${escapeHtml(row.id || '')}">
+                        수정
+                    </button>
+                `;
+            }
         });
 
         return columns;
@@ -247,6 +288,39 @@ window.AdminPicker = AdminPicker;
             .off('dblclick.departmentEdit', 'tr')
             .on('dblclick.departmentEdit', 'tr', function () {
                 const data = departmentTable.row(this).data();
+                if (data) openEditModal(data);
+            });
+
+        $('#department-table tbody')
+            .off('change.departmentActiveToggle', '.department-active-toggle')
+            .on('change.departmentActiveToggle', '.department-active-toggle', async function (e) {
+                e.stopPropagation();
+
+                const data = departmentTable.row($(this).closest('tr')).data();
+                const active = this.checked;
+                if (!data?.id) return;
+
+                this.disabled = true;
+
+                try {
+                    await updateDepartmentActive(data, active);
+                    reloadDepartmentTable();
+                    notify('success', active ? '사용으로 변경되었습니다.' : '미사용으로 변경되었습니다.');
+                } catch (err) {
+                    console.error('[departments.js] status update failed:', err);
+                    this.checked = !active;
+                    notify('error', err.message || '상태 변경에 실패했습니다.');
+                } finally {
+                    this.disabled = false;
+                }
+            });
+
+        $('#department-table tbody')
+            .off('click.departmentEditBtn', '.department-edit-btn')
+            .on('click.departmentEditBtn', '.department-edit-btn', function (e) {
+                e.stopPropagation();
+
+                const data = departmentTable.row($(this).closest('tr')).data();
                 if (data) openEditModal(data);
             });
 
@@ -376,6 +450,29 @@ window.AdminPicker = AdminPicker;
             console.error('[departments.js] delete failed:', err);
             notify('error', '저장 중 오류가 발생했습니다.');
         }
+    }
+
+    async function updateDepartmentActive(row, active) {
+        const fd = new FormData();
+        fd.set('action', 'update');
+        fd.set('id', row.id || '');
+        fd.set('dept_name', row.dept_name || '');
+        fd.set('description', row.description || '');
+        fd.set('manager_id', normalizeManagerId(row.manager_id || ''));
+        fd.set('is_active', active ? '1' : '0');
+
+        const res = await fetch(API.SAVE, {
+            method: 'POST',
+            body: fd,
+            credentials: 'include'
+        });
+        const json = await res.json();
+
+        if (!json?.success) {
+            throw new Error(json?.message || '상태 변경에 실패했습니다.');
+        }
+
+        return json;
     }
 
     async function loadManagerOptions(selectedValue = '') {

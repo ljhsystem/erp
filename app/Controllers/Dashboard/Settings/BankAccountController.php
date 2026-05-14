@@ -197,7 +197,10 @@ class BankAccountController
     {
         header('Content-Type: application/json; charset=UTF-8');
 
-        $id = $_POST['id'] ?? null;
+        $input = json_decode((string) file_get_contents('php://input'), true);
+        $input = is_array($input) ? $input : [];
+        $ids = array_values(array_filter(array_map('strval', is_array($input['ids'] ?? null) ? $input['ids'] : [])));
+        $id = $_POST['id'] ?? $input['id'] ?? $ids[0] ?? null;
 
         if (!$id) {
             echo json_encode([
@@ -207,9 +210,28 @@ class BankAccountController
             exit;
         }
 
+        if (count($ids) > 1) {
+            $failed = [];
+            foreach ($ids as $deleteId) {
+                $result = $this->service->delete($deleteId, 'USER');
+                if (empty($result['success'])) {
+                    $failed[] = $result['message'] ?? $deleteId;
+                }
+            }
+            echo json_encode([
+                'success' => $failed === [],
+                'message' => $failed === [] ? '삭제되었습니다.' : ($failed[0] ?? '삭제에 실패했습니다.'),
+                'data' => [
+                    'deleted_count' => count($ids) - count($failed),
+                    'failed_count' => count($failed),
+                ],
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
         $result = $this->service->delete($id, 'USER');
 
-        echo json_encode($result);
+        echo json_encode($result, JSON_UNESCAPED_UNICODE);
         exit;
     }
 
