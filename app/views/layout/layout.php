@@ -63,10 +63,16 @@ class="
   alert-style-<?= htmlspecialchars($ui['alert_style'], ENT_QUOTES, 'UTF-8') ?>
   motion-<?= htmlspecialchars($ui['motion_mode'], ENT_QUOTES, 'UTF-8') ?>
   <?= ($layoutOptions['sidebar'] === false) ? 'no-sidebar' : '' ?>
+  <?= ($layoutOptions['footer'] === false) ? 'no-footer' : '' ?>
 ">
 
 <div id="global-loading-overlay">
-    <div class="spinner-border text-primary" role="status">
+    <div class="page-loading-card" role="status">
+        <div class="page-loading-mark" aria-hidden="true">
+            <span class="page-loading-ring"></span>
+        </div>
+        <p class="page-loading-title">화면을 불러오는 중입니다</p>
+        <div class="page-loading-message">화면 데이터를 준비하고 있습니다.</div>
         <span class="visually-hidden">Loading...</span>
     </div>
 </div>

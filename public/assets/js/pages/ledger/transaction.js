@@ -1,10 +1,13 @@
 import {
     bindTableHighlight,
     createDataTable,
-} from '/public/assets/js/components/data-table.js';
+} from '/public/assets/js/common/table/data-table.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { bindNumberInput, formatDateInputValue, formatNumber, parseNumber } from '/public/assets/js/common/format.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
+import { createAgGridInputAdapter } from '/public/assets/js/common/grid/ag-grid-input.js';
+import { selectEditor, dateStringEditor } from '/public/assets/js/common/grid/ag-grid-editors.js';
+import { gridNumberFormatter, gridNumberParser } from '/public/assets/js/common/grid/ag-grid-formatters.js';
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import {
     createCodeSelect,
@@ -21,7 +24,7 @@ import '/public/assets/js/components/trash-manager.js';
 (() => {
     const form = document.getElementById('transactionForm');
     const modalEl = document.getElementById('transactionModal');
-    const hotEl = document.getElementById('transactionLineHot');
+    const gridEl = document.getElementById('transactionLineGrid');
     const deleteBtn = document.getElementById('btnDeleteTransaction');
     const countEl = document.getElementById('transactionCount');
     const importToggle = document.getElementById('is_import');
@@ -47,20 +50,23 @@ import '/public/assets/js/components/trash-manager.js';
     const headerVatAmountEl = document.getElementById('transaction_vat_amount');
     const headerTotalAmountEl = document.getElementById('transaction_total_amount');
     const modalBodyEl = modalEl?.querySelector('.transaction-modal-body');
+    const AG_GRID_STYLE_URL = 'https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/styles/ag-grid.css';
+    const AG_GRID_THEME_URL = 'https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/styles/ag-theme-quartz.css';
+    const AG_GRID_SCRIPT_URL = 'https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/dist/ag-grid-community.min.js';
 
-    if (!form || !modalEl || !hotEl) {
+    if (!form || !modalEl || !gridEl) {
         return;
     }
 
     const modal = window.bootstrap ? new bootstrap.Modal(modalEl, { focus: false }) : null;
     let transactionTable = null;
-    let lineHot = null;
+    let lineGrid = null;
     let currentFiles = [];
     let pendingFiles = [];
     let fileRowOrder = [];
     let transactionDatePicker = null;
     let lineDateEscHandler = null;
-    let lineHotEditing = false;
+    let lineGridEditing = false;
     let manualLineDateEdit = false;
     let activeLineDateInput = null;
     let activeLineDateInputHandler = null;
@@ -79,6 +85,8 @@ import '/public/assets/js/components/trash-manager.js';
     let selectedVoucherId = '';
     let selectedVoucherLabel = '';
     let fileDropzoneEmptyText = '파일을 드래그해서 첨부하세요';
+    let modalControlsInitialized = false;
+    let agGridLoadPromise = null;
 
     if (pickerLayerEl && pickerLayerEl.parentElement !== document.body) {
         document.body.appendChild(pickerLayerEl);
@@ -110,8 +118,8 @@ import '/public/assets/js/components/trash-manager.js';
         firstDay: 0,
         showMonthAfterYear: true,
         yearSuffix: '',
-        onOpen: decorateHotDatePicker,
-        onDraw: decorateHotDatePicker,
+        onOpen: decorateGridDatePicker,
+        onDraw: decorateGridDatePicker,
         i18n: {
             previousMonth: '이전 달',
             nextMonth: '다음 달',
@@ -149,35 +157,150 @@ import '/public/assets/js/components/trash-manager.js';
     const UNIT_QUICK_ADD_LABEL = '+기준추가';
 
     const LINE_COLUMNS = [
-        { data: '__move', title: '<i class="bi bi-arrows-move"></i>', readOnly: true, width: 28, renderer: lineMoveRenderer },
-        { data: '__row_no', title: '순번', readOnly: true, width: 36, renderer: lineRowNoRenderer },
-        { data: 'line_type', title: '라인유형', type: 'autocomplete', source: lineTypeDropdownSource, strict: true, filter: false, allowInvalid: false, width: 112 },
-        { data: 'item_date', title: '발생일', type: 'date', dateFormat: 'YYYY-MM-DD', correctFormat: true, datePickerConfig: HOT_DATE_PICKER_CONFIG, width: 82 },
-        { data: 'item_name', title: '품명', width: 105 },
-        { data: 'specification', title: '규격', width: 70 },
-        { data: 'unit_name', title: '단위', type: 'autocomplete', source: unitDropdownSource, strict: true, filter: false, allowInvalid: false, width: 54 },
-        { data: 'quantity', title: '수량', type: 'numeric', numericFormat: { pattern: '0,0.000' }, width: 62 },
-        { data: 'unit_price', title: '단가', type: 'numeric', numericFormat: { pattern: '0,0' }, width: 72 },
-        { data: 'amount', title: '금액', type: 'numeric', numericFormat: { pattern: '0,0' }, width: 78 },
-        { data: 'description', title: '적요', width: 105 },
-        { data: '__actions', title: '+추가', readOnly: true, width: 44, renderer: lineActionRenderer },
+        {
+            field: '__move',
+            headerName: '<i class="bi bi-arrows-move"></i>',
+            editable: false,
+            width: 24,
+            minWidth: 22,
+            maxWidth: 24,
+            rowDrag: true,
+            rowDragText: '',
+            suppressSizeToFit: false,
+            headerClass: 'transaction-line-move-head text-center',
+            cellClass: ['transaction-line-move-cell', 'text-center'],
+            cellRenderer: lineMoveRenderer,
+        },
+        {
+            field: '__row_no',
+            headerName: '순번',
+            editable: false,
+            width: 34,
+            minWidth: 32,
+            maxWidth: 36,
+            valueGetter: (params) => `${Number(params.node?.rowIndex || 0) + 1}`,
+            cellClass: 'transaction-line-row-no-cell',
+        },
+        {
+            field: 'line_type',
+            headerName: '라인유형',
+            ...selectEditor(['ITEM']),
+            valueFormatter: ({ value }) => String(value ?? ''),
+            width: 58,
+            minWidth: 54,
+        },
+        {
+            field: 'item_date',
+            headerName: '거래일',
+            width: 66,
+            minWidth: 62,
+            ...dateStringEditor(),
+        },
+        { field: 'item_name', headerName: '품명', width: 58, minWidth: 54, flex: 0.45 },
+        { field: 'specification', headerName: '규격', width: 96, minWidth: 84, flex: 0.75 },
+        {
+            field: 'unit_name',
+            headerName: '단위',
+            ...selectEditor([UNIT_EMPTY_LABEL]),
+            valueFormatter: ({ value }) => String(value ?? ''),
+            width: 34,
+            minWidth: 32,
+            cellClass: 'transaction-line-unit-cell text-center',
+        },
+        {
+            field: 'quantity',
+            headerName: '수량',
+            width: 42,
+            minWidth: 38,
+            type: 'numericColumn',
+            valueFormatter: gridNumberFormatter,
+            valueParser: gridNumberParser,
+            cellClass: 'text-end',
+        },
+        {
+            field: 'unit_price',
+            headerName: '단가',
+            width: 52,
+            minWidth: 46,
+            type: 'numericColumn',
+            valueFormatter: gridNumberFormatter,
+            valueParser: gridNumberParser,
+            cellClass: 'text-end',
+        },
+        {
+            field: 'amount',
+            headerName: '금액',
+            width: 54,
+            minWidth: 48,
+            type: 'numericColumn',
+            valueFormatter: gridNumberFormatter,
+            valueParser: gridNumberParser,
+            cellClass: 'text-end',
+        },
+        { field: 'description', headerName: '적요', width: 64, minWidth: 58, flex: 0.4 },
+        {
+            field: '__actions',
+            headerName: '+추가',
+            editable: false,
+            width: 50,
+            minWidth: 48,
+            maxWidth: 52,
+            cellClass: 'transaction-line-action-cell text-center',
+            cellRenderer: lineActionRenderer,
+            suppressKeyboardEvent: () => true,
+        },
     ];
 
     function getLineColumns() {
+        const lineTypeItems = lineTypeOptions.length > 0
+            ? lineTypeOptions.map((option) => option.label)
+            : defaultLineTypeOptions().map((option) => option.label);
+        const unitItems = [UNIT_EMPTY_LABEL, ...unitOptions.map((option) => option.label), UNIT_QUICK_ADD_LABEL];
+        const baseColumns = LINE_COLUMNS.map((column) => {
+            if (column.field === 'line_type') {
+                return { ...column, ...selectEditor(lineTypeItems) };
+            }
+            if (column.field === 'unit_name') {
+                return { ...column, ...selectEditor(unitItems) };
+            }
+            if (column.field === 'item_date') {
+                return { ...column, ...dateStringEditor() };
+            }
+            if (column.field === 'quantity' || column.field === 'unit_price' || column.field === 'amount') {
+                return { ...column };
+            }
+            return { ...column };
+        });
+
         if (!usesForeignCurrency()) {
-            return LINE_COLUMNS.filter((column) => !['foreign_unit_price', 'foreign_amount'].includes(column.data));
+            return baseColumns.filter((column) => !['foreign_unit_price', 'foreign_amount'].includes(column.field));
         }
 
         const columns = [];
-        LINE_COLUMNS.forEach((column) => {
-            if (column.data === 'unit_price') {
-                columns.push(
-                    { data: 'foreign_unit_price', title: '외화단가', type: 'numeric', numericFormat: { pattern: '0,0.00' }, width: 62 },
-                    { data: 'foreign_amount', title: '외화금액', type: 'numeric', numericFormat: { pattern: '0,0.00' }, width: 82 },
-                );
-                return;
-            }
+        baseColumns.forEach((column) => {
             columns.push(column);
+            if (column.field === 'unit_price') {
+                columns.push(
+                    {
+                        field: 'foreign_unit_price',
+                        headerName: '외화단가',
+                        type: 'numericColumn',
+                        valueFormatter: gridNumberFormatter,
+                        valueParser: gridNumberParser,
+                        width: 62,
+                        cellClass: 'text-end',
+                    },
+                    {
+                        field: 'foreign_amount',
+                        headerName: '외화금액',
+                        type: 'numericColumn',
+                        valueFormatter: gridNumberFormatter,
+                        valueParser: gridNumberParser,
+                        width: 82,
+                        cellClass: 'text-end',
+                    },
+                );
+            }
         });
 
         return columns;
@@ -219,7 +342,7 @@ import '/public/assets/js/components/trash-manager.js';
         return `${y}-${m}-${d}`;
     }
 
-    function decorateHotDatePicker(pickerArg) {
+    function decorateGridDatePicker(pickerArg) {
         const picker = pickerArg?.el ? pickerArg : this;
         const root = picker?.el;
         const title = root?.querySelector?.('.pika-title');
@@ -231,13 +354,13 @@ import '/public/assets/js/components/trash-manager.js';
         prevYear.type = 'button';
         prevYear.className = 'pika-year-prev';
         prevYear.textContent = '<<';
-        prevYear.setAttribute('aria-label', '이전 년');
+        prevYear.setAttribute('aria-label', '이전 연도');
 
         const nextYear = document.createElement('button');
         nextYear.type = 'button';
         nextYear.className = 'pika-year-next';
         nextYear.textContent = '>>';
-        nextYear.setAttribute('aria-label', '다음 년');
+        nextYear.setAttribute('aria-label', '다음 연도');
 
         prevYear.addEventListener('click', (event) => {
             event.preventDefault();
@@ -265,13 +388,13 @@ import '/public/assets/js/components/trash-manager.js';
         return ['Backspace', 'Delete'].includes(event.key);
     }
 
-    function getVisibleHotDatePicker() {
+    function getVisibleGridDatePicker() {
         return Array.from(document.querySelectorAll('.pika-single'))
             .find((picker) => !picker.classList.contains('is-hidden') && picker.offsetParent !== null);
     }
 
-    function closeHotDatePicker() {
-        const editor = lineHot?.getActiveEditor?.();
+    function closeGridDatePicker() {
+        const editor = lineGrid?.getActiveEditor?.();
         editor?.datePicker?.hide?.();
 
         document.querySelectorAll('.pika-single').forEach((picker) => {
@@ -291,7 +414,7 @@ import '/public/assets/js/components/trash-manager.js';
     function bindLineDateInputFormatter() {
         unbindLineDateInputFormatter();
 
-        const editor = lineHot?.getActiveEditor?.();
+        const editor = lineGrid?.getActiveEditor?.();
         const input = editor?.TEXTAREA;
         if (!input) return;
 
@@ -318,19 +441,19 @@ import '/public/assets/js/components/trash-manager.js';
         if (lineDateEscHandler || !window.ESCStack) return;
 
         lineDateEscHandler = () => {
-            if (!lineHotEditing) {
+            if (!lineGridEditing) {
                 unbindLineDateEscHandler();
                 return false;
             }
 
-            if (getVisibleHotDatePicker()) {
-                closeHotDatePicker();
+            if (getVisibleGridDatePicker()) {
+                closeGridDatePicker();
                 return true;
             }
 
-            const editor = lineHot?.getActiveEditor?.();
+            const editor = lineGrid?.getActiveEditor?.();
             editor.finishEditing?.(true);
-            lineHotEditing = false;
+            lineGridEditing = false;
             unbindLineDateEscHandler();
             return true;
         };
@@ -396,7 +519,10 @@ import '/public/assets/js/components/trash-manager.js';
         if (!text || lastInvalidUnitNotice === key) return;
 
         lastInvalidUnitNotice = key;
-        notify('warning', `"${text}"은(는) 단위 기준정보 목록에 없습니다. 목록에서 선택하거나 +기준추가로 등록하세요.`);
+        notify(
+            'warning',
+            `"${text}"은(는) 현재 단위 기준정보 목록에 없습니다. 목록에서 선택하거나 +기준추가로 등록해주세요.`
+        );
     }
 
     function defaultLineTypeOptions() {
@@ -404,51 +530,64 @@ import '/public/assets/js/components/trash-manager.js';
             { code: 'ITEM', label: '품목' },
             { code: 'VAT', label: '부가세' },
             { code: 'SERVICE', label: '봉사료' },
-            { code: 'WITHHOLDING_INCOME', label: '소득세' },
-            { code: 'WITHHOLDING_LOCAL', label: '주민세' },
-            { code: 'PENSION', label: '국민연금' },
-            { code: 'HEALTH', label: '건강보험' },
-            { code: 'LONGTERM_CARE', label: '장기요양' },
-            { code: 'EMPLOYMENT', label: '고용보험' },
-            { code: 'SUPPORT', label: '지원금' },
-            { code: 'DISCOUNT', label: '할인' },
-            { code: 'FREIGHT', label: '운임' },
-            { code: 'CUSTOMS', label: '관세' },
-            { code: 'ETC', label: '기타' },
+            { code: 'WITHHOLDING', label: '원천세' },
         ];
     }
 
     function updateLineTypeOptionsFromCodeState(options = {}) {
         const rows = Array.isArray(options.TRANSACTION_LINE_TYPE) ? options.TRANSACTION_LINE_TYPE : [];
+        const allowedCodes = new Set(defaultLineTypeOptions().map((option) => option.code));
         lineTypeOptions = rows
             .map((row) => ({
                 code: String(row.code ?? '').trim().toUpperCase(),
                 label: String(row.code_name || row.code || '').trim(),
             }))
-            .filter((row) => row.code && row.label);
+            .map((row) => {
+                if (row.code === 'WITHHOLDING_INCOME' || row.code === 'WITHHOLDING_LOCAL') {
+                    return { code: 'WITHHOLDING', label: '원천세' };
+                }
+                return row;
+            })
+            .filter((row) => allowedCodes.has(row.code) && row.label)
+            .filter((row, index, list) => list.findIndex((item) => item.code === row.code) === index);
 
         if (lineTypeOptions.length === 0) {
             lineTypeOptions = defaultLineTypeOptions();
         }
 
-        lineHot?.updateSettings({
+        lineGrid?.updateSettings({
             columns: getLineColumns(),
-            colHeaders: getLineColumns().map((column) => column.title),
+            colHeaders: getLineColumns().map((column) => column.headerName || column.title || String(column.field || '')),
         });
 
-        (lineHot?.getSourceData() || []).forEach((row, index) => {
+        (lineGrid?.getSourceData() || []).forEach((row, index) => {
             const normalized = normalizeLineTypeCellValue(row?.line_type);
             if (row && row.line_type !== normalized) {
-                lineHot.setSourceDataAtCell(index, 'line_type', normalized);
+                lineGrid.setSourceDataAtCell(index, 'line_type', normalized);
             }
         });
-        lineHot?.render();
+        lineGrid?.render();
     }
 
     function findLineTypeOption(value) {
         const text = String(value ?? '').trim();
         const upper = text.toUpperCase();
         const options = lineTypeOptions.length > 0 ? lineTypeOptions : defaultLineTypeOptions();
+        const aliases = {
+            '부가가치세': 'VAT',
+            '서비스료': 'SERVICE',
+            '용역수수료': 'SERVICE',
+            '원천징수': 'WITHHOLDING',
+            '소득세': 'WITHHOLDING',
+            '지방세': 'WITHHOLDING',
+            WITHHOLDING_INCOME: 'WITHHOLDING',
+            WITHHOLDING_LOCAL: 'WITHHOLDING',
+        };
+        const aliasCode = aliases[text] || aliases[upper] || '';
+        if (aliasCode) {
+            return defaultLineTypeOptions().find((option) => option.code === aliasCode)
+                || options.find((option) => option.code === aliasCode);
+        }
         return options.find((option) => (
             option.code === upper ||
             option.label === text
@@ -505,18 +644,18 @@ import '/public/assets/js/components/trash-manager.js';
             }))
             .filter((row) => row.label);
 
-        lineHot?.updateSettings({
+        lineGrid?.updateSettings({
             columns: getLineColumns(),
             colHeaders: getLineColumns().map((column) => column.title),
         });
 
-        (lineHot?.getSourceData() || []).forEach((row, index) => {
+        (lineGrid?.getSourceData() || []).forEach((row, index) => {
             const normalized = normalizeUnitCellValue(row?.unit_name);
             if (row && row.unit_name !== normalized) {
-                lineHot.setSourceDataAtCell(index, 'unit_name', normalized);
+                lineGrid.setSourceDataAtCell(index, 'unit_name', normalized);
             }
         });
-        lineHot?.render();
+        lineGrid?.render();
     }
 
     function updateTaxTypeOptionsFromCodeState(options = {}) {
@@ -528,17 +667,17 @@ import '/public/assets/js/components/trash-manager.js';
             }))
             .filter((row) => row.code && row.label);
 
-        lineHot?.updateSettings({
+        lineGrid?.updateSettings({
             columns: getLineColumns(),
             colHeaders: getLineColumns().map((column) => column.title),
         });
-        (lineHot?.getSourceData() || []).forEach((row, index) => {
+        (lineGrid?.getSourceData() || []).forEach((row, index) => {
             const normalized = normalizeTaxTypeCellValue(row?.tax_type);
             if (row && row.tax_type !== normalized) {
-                lineHot.setSourceDataAtCell(index, 'tax_type', normalized);
+                lineGrid.setSourceDataAtCell(index, 'tax_type', normalized);
             }
         });
-        lineHot?.render();
+        lineGrid?.render();
     }
 
     function findTaxTypeOption(value) {
@@ -567,7 +706,7 @@ import '/public/assets/js/components/trash-manager.js';
 
     function normalizeTaxTypeCellValue(value) {
         const text = String(value ?? '').trim();
-        if (!text) return '';
+        if (!text) return '품목';
 
         const found = findTaxTypeOption(text);
         return found?.label || text;
@@ -575,7 +714,7 @@ import '/public/assets/js/components/trash-manager.js';
 
     function taxTypeCodeFromCellValue(value) {
         const text = String(value ?? '').trim();
-        if (!text) return '';
+        if (!text) return '품목';
 
         const found = findTaxTypeOption(text);
         return found?.code || text;
@@ -605,9 +744,9 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function applyForeignTaxTypeToLines() {
-        if (!usesForeignCurrency() || !lineHot) return;
+        if (!usesForeignCurrency() || !lineGrid) return;
 
-        (lineHot.getSourceData() || []).forEach((row, index) => {
+        (lineGrid.getSourceData() || []).forEach((row, index) => {
             if (!row) return;
             if (!String(row.tax_type || '').trim()) {
                 setLineCellValue(index, 'tax_type', taxTypeLabelFromCode('ZERO'), 'foreign-tax');
@@ -673,7 +812,7 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function applyPendingUnitSelection() {
-        if (!pendingUnitCell || !unitCodeSelectEl || !lineHot) return;
+        if (!pendingUnitCell || !unitCodeSelectEl || !lineGrid) return;
 
         const selectedCode = unitCodeSelectEl.value || '';
         if (!selectedCode) return;
@@ -681,7 +820,7 @@ import '/public/assets/js/components/trash-manager.js';
         const selected = unitOptions.find((option) => option.code === selectedCode);
         if (!selected) return;
 
-        lineHot.setDataAtCell(
+        lineGrid.setDataAtCell(
             pendingUnitCell.row,
             pendingUnitCell.col,
             selected.label,
@@ -730,26 +869,16 @@ import '/public/assets/js/components/trash-manager.js';
         formData.set('adjustment_amount', formData.get('vat_amount') || '0');
     }
 
-    function lineMoveRenderer(instance, td) {
-        Handsontable.dom.empty(td);
-        td.className = `${td.className || ''} transaction-line-move-cell`.trim();
-        td.removeAttribute('draggable');
-        td.innerHTML = '<span class="transaction-line-move-handle" aria-label="순서 변경"><i class="bi bi-list"></i></span>';
-        return td;
+    function lineMoveRenderer() {
+        return '<span class="transaction-line-move-handle" aria-label="순서 변경"><i class="bi bi-list"></i></span>';
     }
 
-    function lineRowNoRenderer(instance, td, row) {
-        Handsontable.dom.empty(td);
-        td.className = `${td.className || ''} transaction-line-row-no-cell`.trim();
-        td.textContent = String(row + 1);
-        return td;
+    function lineRowNoRenderer(params = {}) {
+        return `${Number(params.node?.rowIndex || 0) + 1}`;
     }
 
-    function lineActionRenderer(instance, td) {
-        Handsontable.dom.empty(td);
-        td.className = `${td.className || ''} transaction-line-action-cell`.trim();
-        td.innerHTML = '<button type="button" class="transaction-line-delete-action">-삭제</button>';
-        return td;
+    function lineActionRenderer() {
+        return '<button type="button" class="transaction-line-delete-action">-삭제</button>';
     }
 
     function formatBytes(value) {
@@ -815,12 +944,15 @@ import '/public/assets/js/components/trash-manager.js';
         const status = String(row.transaction_line_status || 'NONE').toUpperCase();
         const count = Number(row.transaction_line_count || 0);
         const incomplete = Number(row.transaction_line_incomplete_count || 0);
+
         if (status === 'COMPLETE') {
             return `<span class="badge text-bg-success">완성 ${count}</span>`;
         }
+
         if (status === 'INCOMPLETE') {
             return `<span class="badge text-bg-warning" title="보완 필요 ${incomplete}건">미완성 ${count}</span>`;
         }
+
         return '<span class="badge text-bg-secondary" title="거래 화면에서 거래내역을 추가해 주세요.">내역 없음</span>';
     }
 
@@ -851,12 +983,47 @@ import '/public/assets/js/components/trash-manager.js';
         });
 
         deleteBtn?.classList.toggle('d-none', !editable || !document.getElementById('transaction_id')?.value);
-        lineHot?.updateSettings({ readOnly: !editable });
-        lineHot?.render();
+        lineGrid?.updateSettings({ readOnly: !editable });
+        lineGrid?.render();
     }
 
     function renderCodeName(field, value) {
         return escapeHtml(getCodeName(field, value) || value || '');
+    }
+
+    function ensureAgGridLibrary() {
+        if (window.agGrid?.createGrid) {
+            return Promise.resolve();
+        }
+        if (agGridLoadPromise) {
+            return agGridLoadPromise;
+        }
+
+        agGridLoadPromise = new Promise((resolve, reject) => {
+            [AG_GRID_STYLE_URL, AG_GRID_THEME_URL].forEach((href) => {
+                if (document.querySelector(`link[href="${href}"]`)) return;
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = href;
+                document.head.appendChild(link);
+            });
+
+            const existing = document.querySelector(`script[src="${AG_GRID_SCRIPT_URL}"]`);
+            if (existing) {
+                existing.addEventListener('load', () => resolve(), { once: true });
+                existing.addEventListener('error', () => reject(new Error('AG Grid library failed to load.')), { once: true });
+                return;
+            }
+
+            const script = document.createElement('script');
+            script.src = AG_GRID_SCRIPT_URL;
+            script.async = true;
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error('AG Grid library failed to load.'));
+            document.head.appendChild(script);
+        });
+
+        return agGridLoadPromise;
     }
 
     function buildTransactionDataColumns() {
@@ -906,14 +1073,12 @@ import '/public/assets/js/components/trash-manager.js';
                     return renderCodeName('transaction_type', value);
                 },
             }),
-            textColumn('client_id', '거래처ID'),
+            textColumn('client_id', '거래처ID', { visible: false }),
             {
                 data: 'client_name',
                 title: '거래처',
-                visible: true,
-                defaultContent: '',
                 render(data, type, row) {
-                    return escapeHtml(data || row.client_id || '');
+                    return escapeHtml(data || row.client_name || '-');
                 },
             },
             textColumn('project_id', '프로젝트ID'),
@@ -923,7 +1088,7 @@ import '/public/assets/js/components/trash-manager.js';
                 defaultContent: '',
                 visible: false,
                 render(data, type, row) {
-                    return escapeHtml(data || row.project_id || '');
+                    return escapeHtml(data || row.project_name || '-');
                 },
             },
             textColumn('currency', '통화'),
@@ -957,15 +1122,24 @@ import '/public/assets/js/components/trash-manager.js';
                     return renderMatchStatus(data);
                 },
             },
-            textColumn('status', '거래상태', { visible: true, className: 'text-center', render: renderTransactionStatus }),
+            textColumn('status', '거래상태', {
+                visible: true,
+                className: 'text-center',
+                render: renderTransactionStatus,
+            }),
+
             textColumn('note', '비고'),
             textColumn('memo', '메모'),
+
             textColumn('created_at', '생성일시'),
             textColumn('created_by', '생성자'),
+
             textColumn('updated_at', '수정일시'),
             textColumn('updated_by', '수정자'),
+
             textColumn('deleted_at', '삭제일시'),
             textColumn('deleted_by', '삭제자'),
+
             {
                 data: 'id',
                 title: 'ID',
@@ -982,7 +1156,9 @@ import '/public/assets/js/components/trash-manager.js';
 
     function updateCount() {
         if (!transactionTable || !countEl) return;
+
         const info = transactionTable.page.info();
+
         countEl.textContent = `${info.recordsDisplay || 0}건`;
     }
 
@@ -995,32 +1171,47 @@ import '/public/assets/js/components/trash-manager.js';
             tableSelector: '#transaction-table',
             api: API.list,
             columns: buildTransactionDataColumns(),
-            buttons: [
-                {
-                    extend: 'excelHtml5',
-                    text: '엑셀 다운로드',
-                    className: 'btn btn-outline-success btn-sm',
-                    title: '거래입력',
-                    filename: '거래입력',
-                    exportOptions: { columns: ':visible:not(.no-export):not(.no-colvis)' },
+        buttons: [
+            {
+                extend: 'excelHtml5',
+                text: '엑셀 다운로드',
+                className: 'btn btn-outline-success btn-sm',
+                title: '거래입력',
+                filename: '거래입력',
+                exportOptions: {
+                    columns: ':visible:not(.no-export):not(.no-colvis)',
                 },
-                { text: '휴지통', className: 'btn btn-danger btn-sm', action: openTrashModal },
-                { text: '새 거래', className: 'btn btn-warning btn-sm', action: openCreateModal },
-            ],
+            },
+            {
+                text: '휴지통',
+                className: 'btn btn-danger btn-sm',
+                action: openTrashModal,
+            },
+            {
+                text: '새 거래',
+                className: 'btn btn-warning btn-sm',
+                action: () => void openCreateModal(),
+            },
+        ],
             defaultOrder: [[1, 'asc']],
             pageLength: 100,
             searchTableId: 'transaction',
             deleteApi: API.remove,
         });
-
         bindRowReorder(transactionTable, {
             api: API.reorder,
+
             onSuccess() {
                 notify('success', '거래 순번이 변경되었습니다.');
                 transactionTable?.ajax.reload(null, false);
             },
+
             onError(json) {
-                notify('error', json?.message || '거래 순번 변경에 실패했습니다.');
+                notify(
+                    'error',
+                    json?.message || '거래 순번 변경에 실패했습니다.'
+                );
+
                 transactionTable?.ajax.reload(null, false);
             },
         });
@@ -1033,7 +1224,6 @@ import '/public/assets/js/components/trash-manager.js';
             tableId: 'transaction',
             defaultSearchField: 'description',
             dateOptions: DATE_OPTIONS,
-            initialCollapsed: true,
         });
 
         bindTableEvents();
@@ -1047,6 +1237,7 @@ import '/public/assets/js/components/trash-manager.js';
 
     function openTrashModal() {
         const trashModal = document.getElementById('transactionTrashModal');
+
         if (!trashModal) {
             notify('warning', '거래 휴지통 모달을 찾을 수 없습니다.');
             return;
@@ -1056,7 +1247,10 @@ import '/public/assets/js/components/trash-manager.js';
         trashModal.dataset.restoreUrl = API.restore;
         trashModal.dataset.deleteUrl = API.purge;
         trashModal.dataset.deleteAllUrl = API.purgeAll;
-        bootstrap.Modal.getOrCreateInstance(trashModal, { focus: false }).show();
+
+        bootstrap.Modal
+            .getOrCreateInstance(trashModal, { focus: false })
+            .show();
     }
 
     function bindTableEvents() {
@@ -1111,8 +1305,17 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function normalizeLine(item = {}) {
+        const inferredLineType = (() => {
+            const rawType = lineTypeCodeFromCell(item.line_type || item.amount_type || 'ITEM');
+            const name = String(item.item_name || item.description || '').trim().toUpperCase();
+            if (rawType === 'ITEM' && ['VAT', '부가세', '부가가치세'].includes(name)) {
+                return 'VAT';
+            }
+            return rawType;
+        })();
+
         return {
-            line_type: lineTypeLabelFromCode(lineTypeCodeFromCell(item.line_type || item.amount_type || 'ITEM')),
+            line_type: lineTypeLabelFromCode(inferredLineType),
             item_date: item.item_date || document.getElementById('transaction_date')?.value || today(),
             item_name: item.item_name || '',
             specification: item.specification || '',
@@ -1152,7 +1355,7 @@ import '/public/assets/js/components/trash-manager.js';
             row.quantity = numberValue(row.quantity) || 1;
             row.unit_price = amount;
             row.supply_amount = 0;
-            row.vat_amount = amount;
+            row.vat_amount = lineType === 'VAT' ? amount : 0;
             row.total_amount = amount;
             row.amount = amount;
             return row;
@@ -1188,18 +1391,18 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function setLineCellValue(row, prop, value, source = 'program') {
-        if (!lineHot || row < 0) return;
+        if (!lineGrid || row < 0) return;
 
-        if (typeof lineHot.setSourceDataAtCell === 'function') {
-            lineHot.setSourceDataAtCell(row, prop, value, source);
+        if (typeof lineGrid.setSourceDataAtCell === 'function') {
+            lineGrid.setSourceDataAtCell(row, prop, value, source);
             return;
         }
 
-        lineHot.setDataAtRowProp(row, prop, value, source);
+        lineGrid.setDataAtRowProp(row, prop, value, source);
     }
 
     function calculateTotals() {
-        const rows = lineHot ? lineHot.getSourceData() : [];
+        const rows = lineGrid ? lineGrid.getSourceData() : [];
         let base = 0;
         let adjustment = 0;
         let total = 0;
@@ -1215,7 +1418,7 @@ import '/public/assets/js/components/trash-manager.js';
             }
             total += lineAmount;
 
-            if (lineHot) {
+            if (lineGrid) {
                 setLineCellValue(index, 'unit_price', calculated.unit_price, 'calc');
                 setLineCellValue(index, 'foreign_amount', calculated.foreign_amount, 'calc');
                 setLineCellValue(index, 'amount', calculated.amount, 'calc');
@@ -1239,18 +1442,17 @@ import '/public/assets/js/components/trash-manager.js';
         }
     }
 
-    function refreshLineHotDimensions() {
+    function refreshLineGridDimensions() {
         window.requestAnimationFrame(() => {
-            lineHot?.refreshDimensions?.();
-            lineHot?.render?.();
+            lineGrid?.refreshDimensions?.();
+            lineGrid?.render?.();
             syncFloatingLineHeader();
         });
     }
 
     function getLineHeaderRow() {
-        return hotEl.querySelector('.ht_master .htCore thead tr')
-            || hotEl.querySelector('.handsontable .htCore thead tr')
-            || hotEl.querySelector('thead tr');
+        return gridEl.querySelector('.ag-header-row')
+            || gridEl.querySelector('thead tr');
     }
 
     function ensureFloatingLineHeader() {
@@ -1280,12 +1482,12 @@ import '/public/assets/js/components/trash-manager.js';
     function updateFloatingLineHeader() {
         lineHeaderFrame = null;
 
-        if (!modalBodyEl || !lineHot || !modalEl.classList.contains('show')) {
+        if (!modalBodyEl || !lineGrid || !modalEl.classList.contains('show')) {
             hideFloatingLineHeader();
             return;
         }
 
-        const wrap = hotEl.closest('.transaction-hot-wrap');
+        const wrap = gridEl.closest('.transaction-grid-wrap');
         const sourceRow = getLineHeaderRow();
         if (!wrap || !sourceRow) {
             hideFloatingLineHeader();
@@ -1332,263 +1534,112 @@ import '/public/assets/js/components/trash-manager.js';
         modalEl.addEventListener('shown.bs.modal', syncFloatingLineHeader);
     }
 
-    function initLineHot() {
-        if (lineHot || !window.Handsontable) return;
+    function initLineGrid() {
+        if (lineGrid) return;
 
-        lineHot = new Handsontable(hotEl, {
-            data: [blankLine()],
-            columns: getLineColumns(),
-            colHeaders: getLineColumns().map((column) => column.title),
-            rowHeaders: false,
-            minRows: 0,
-            stretchH: 'all',
-            width: '100%',
-            height: 'auto',
-            renderAllRows: true,
-            licenseKey: 'non-commercial-and-evaluation',
-            contextMenu: ['row_above', 'row_below', 'remove_row'],
-            manualColumnResize: true,
-            afterGetColHeader(column, th) {
-                if (column === 0) {
-                    th.classList.add('transaction-line-move-head');
-                    th.innerHTML = '<i class="bi bi-arrows-move"></i>';
-                    return;
+        lineGrid = createAgGridInputAdapter(gridEl, {
+            rowData: [blankLine()],
+            columnDefs: getLineColumns(),
+        className: 'transaction-line-ag-grid ag-theme-quartz',
+            deleteColumnField: '__actions',
+            deleteButtonSelector: 'button',
+            addHeaderColumnField: '__actions',
+            focusColumnAfterAdd: 'line_type',
+            addRow: () => blankLine(),
+            onCellEditingStarted(event) {
+                lineGridEditing = true;
+                bindLineDateEscHandler();
+                unbindLineDateInputFormatter();
+
+                const field = event.colDef?.field;
+                const row = event.rowIndex;
+                if (field === 'item_date' && isLineDateCell(row, lineGrid?.getSelectedLast?.()[1] ?? LINE_ITEM_DATE_COL)) {
+                    bindLineDateInputFormatter();
                 }
-
-                if (column === getLineColumns().length - 1) {
-                    th.classList.add('transaction-line-add-head');
-                    th.innerHTML = '<button type="button" class="transaction-line-add-action">+추가</button>';
+                const previous = event.data?.[field] ?? '';
+                if (field === 'item_date' && previous) {
+                    bindLineDateInputFormatter();
                 }
             },
-            beforeKeyDown(event) {
-                const selected = lineHot.getSelectedLast();
-                if (!selected) return;
-
-                const [row, col] = selected;
+            onCellEditingStopped() {
+                lineGridEditing = false;
+                unbindLineDateInputFormatter();
+                unbindLineDateEscHandler();
+            },
+            onCellValueChanged(event) {
+                const field = event.colDef?.field || '';
+                const row = event.rowIndex;
+                if (field === 'line_type') {
+                    setLineCellValue(row, 'line_type', normalizeLineTypeCellValue(event.newValue));
+                }
+                if (field === 'unit_name') {
+                    const normalized = normalizeUnitCellValue(event.newValue);
+                    if (normalized === UNIT_QUICK_ADD_LABEL) {
+                        setLineCellValue(row, 'unit_name', event.oldValue || '', 'unit-quick-add-reset');
+                        openUnitQuickAdd(row, LINE_UNIT_COL);
+                        return;
+                    }
+                    if (normalized === UNIT_EMPTY_LABEL) {
+                        setLineCellValue(row, 'unit_name', '', 'unit-empty');
+                    } else {
+                        setLineCellValue(row, field, normalized);
+                    }
+                    if (!isAllowedUnitCellValue(normalized)) {
+                        notifyInvalidUnitValue(normalized);
+                    }
+                }
+                if (field === 'item_date') {
+                    const formatted = formatDateInputValue(event.newValue);
+                    if (formatted !== event.newValue) {
+                        setLineCellValue(row, field, formatted, 'date-format');
+                        return;
+                    }
+                }
+                if (field === 'tax_type') {
+                    setLineCellValue(row, 'tax_type', normalizeTaxTypeCellValue(event.newValue));
+                }
+                calculateTotals();
+                refreshLineGridDimensions();
+            },
+            onCellKeyDown(event) {
+                const selected = lineGrid?.getSelectedLast?.() || [];
+                const row = selected[0];
+                const col = selected[1];
                 if (!isLineDateCell(row, col)) return;
 
-                if (isManualDateKey(event)) {
+                if (event.event && isManualDateKey(event.event)) {
                     manualLineDateEdit = true;
-                    window.setTimeout(closeHotDatePicker, 0);
+                    window.setTimeout(closeGridDatePicker, 0);
                 }
             },
-            afterBeginEditing(row, col) {
-                lineHotEditing = true;
-                bindLineDateEscHandler();
-
-                if (isLineDateCell(row, col) && manualLineDateEdit) {
-                    manualLineDateEdit = false;
-                    bindLineDateInputFormatter();
-                    window.requestAnimationFrame(closeHotDatePicker);
-                } else {
-                    unbindLineDateInputFormatter();
+            onCellFocused(event) {
+                const row = event.rowIndex;
+                const col = String(event.column?.getColId?.() || '');
+                const fields = getLineColumns().map((column) => column.field);
+                const colIndex = fields.indexOf(col);
+                if (!isLineDateCell(row, colIndex)) {
+                    closeGridDatePicker();
                 }
             },
-            afterFinishEditing() {
-                lineHotEditing = false;
-                unbindLineDateInputFormatter();
-                unbindLineDateEscHandler();
-            },
-            beforeChange(changes, source) {
-                if (!changes || source === 'date-format') return;
-
-                changes.forEach((change) => {
-                    const [, prop, , nextValue] = change;
-                    if (prop === 'item_date') {
-                        change[3] = formatDateInputValue(nextValue);
-                    }
-
-                    if (prop === 'unit_name') {
-                        change[3] = normalizeUnitCellValue(nextValue);
-                    }
-
-                    if (prop === 'line_type') {
-                        change[3] = normalizeLineTypeCellValue(nextValue);
-                    }
-
-                    if (prop === 'tax_type') {
-                        change[3] = normalizeTaxTypeCellValue(nextValue);
-                    }
-                });
-            },
-            beforeValidate(value, row, prop) {
-                if (prop === 'unit_name' && !isAllowedUnitCellValue(value)) {
-                    notifyInvalidUnitValue(value);
-                }
-            },
-            afterChange(changes, source) {
-                if (!changes || source === 'calc' || source === 'loadData') return;
-                if (source !== 'unit-quick-add') {
-                    changes.forEach(([row, prop, previousValue, nextValue]) => {
-                        if (prop !== 'unit_name') return;
-
-                        if (nextValue === UNIT_QUICK_ADD_LABEL) {
-                            setLineCellValue(row, prop, previousValue || '', 'unit-quick-add-reset');
-                            openUnitQuickAdd(row, LINE_UNIT_COL);
-                            return;
-                        }
-
-                        if (nextValue === UNIT_EMPTY_LABEL) {
-                            setLineCellValue(row, prop, '', 'unit-empty');
-                        }
-                    });
-                }
-
-                if (source !== 'date-format') {
-                    changes.forEach(([row, prop, previousValue, nextValue]) => {
-                        if (prop !== 'item_date') return;
-                        const formatted = formatDateInputValue(nextValue);
-                        if (formatted !== nextValue) {
-                            setLineCellValue(row, prop, formatted, 'date-format');
-                        }
-                    });
-                }
+            onRowDragEnd() {
                 calculateTotals();
-            },
-            afterSelection(row, col) {
-                if (!isLineDateCell(row, col)) {
-                    closeHotDatePicker();
-                }
-            },
-            afterDeselect() {
-                lineHotEditing = false;
-                unbindLineDateInputFormatter();
-                unbindLineDateEscHandler();
-            },
-            afterRemoveRow() {
-                updateLineEmptyState();
-                calculateTotals();
-                refreshLineHotDimensions();
-            },
-            afterCreateRow(index, amount) {
-                for (let i = index; i < index + amount; i += 1) {
-                    lineHot.setSourceDataAtCell(i, 'line_type', lineTypeLabelFromCode('ITEM'));
-                    lineHot.setSourceDataAtCell(i, 'item_date', document.getElementById('transaction_date')?.value || today());
-                    lineHot.setSourceDataAtCell(i, 'tax_type', defaultLineTaxTypeLabel());
-                }
-                calculateTotals();
-                refreshLineHotDimensions();
+                refreshLineGridDimensions();
             },
         });
 
-        bindLineDragEvents();
-        bindLineActionEvents();
         updateLineEmptyState();
     }
 
     function updateLineEmptyState() {
-        hotEl.classList.toggle('is-empty', (lineHot?.countRows() || 0) === 0);
+        gridEl.classList.toggle('is-empty', (lineGrid?.countRows() || 0) === 0);
     }
 
     function bindLineActionEvents() {
-        if (!lineHot || hotEl.dataset.lineActionBound === 'true') return;
-
-        hotEl.dataset.lineActionBound = 'true';
-        hotEl.addEventListener('click', (event) => {
-            if (event.target.closest('.transaction-line-add-action')) {
-                event.preventDefault();
-                addLine();
-                return;
-            }
-
-            const deleteButton = event.target.closest('.transaction-line-delete-action');
-            if (!deleteButton) return;
-
-            event.preventDefault();
-            const cell = deleteButton.closest('td');
-            const coords = cell ? lineHot.getCoords(cell) : null;
-            if (!coords || coords.row < 0) return;
-            removeLineAt(coords.row);
-        });
+        if (!lineGrid) return;
     }
 
     function bindLineDragEvents() {
-        if (!lineHot || hotEl.dataset.lineDragBound === 'true') return;
-
-        hotEl.dataset.lineDragBound = 'true';
-        let draggingRow = null;
-
-        function getLineRowFromElement(element) {
-            const cell = element?.closest?.('td');
-            if (!cell || !hotEl.contains(cell)) return null;
-
-            const coords = lineHot.getCoords(cell);
-            return coords && coords.row >= 0 ? coords.row : null;
-        }
-
-        function clearLineDragState() {
-            hotEl.querySelectorAll('.transaction-line-move-cell.is-dragging, tr.is-drop-target')
-                .forEach((element) => element.classList.remove('is-dragging', 'is-drop-target'));
-        }
-
-        function markLineDropTarget(rowIndex) {
-            hotEl.querySelectorAll('tr.is-drop-target')
-                .forEach((row) => row.classList.remove('is-drop-target'));
-
-            if (rowIndex === null || rowIndex === draggingRow) return;
-
-            const cell = lineHot.getCell(rowIndex, 0);
-            cell?.parentElement?.classList.add('is-drop-target');
-        }
-
-        function reorderLineRows(fromIndex, toIndex) {
-            if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
-
-            const rows = lineHot.getSourceData().slice();
-            const [moved] = rows.splice(fromIndex, 1);
-            rows.splice(toIndex, 0, moved);
-            lineHot.loadData(rows);
-            lineHot.selectCell(toIndex, 1);
-            calculateTotals();
-            refreshLineHotDimensions();
-        }
-
-        hotEl.addEventListener('pointerdown', (event) => {
-            const cell = event.target.closest('td.transaction-line-move-cell');
-            if (!cell || lineHot.getSettings().readOnly) return;
-
-            const rowIndex = getLineRowFromElement(cell);
-            if (rowIndex === null) return;
-
-            event.preventDefault();
-            draggingRow = rowIndex;
-            cell.classList.add('is-dragging');
-            hotEl.classList.add('is-line-dragging');
-            try {
-                hotEl.setPointerCapture?.(event.pointerId);
-            } catch (error) {
-                // Some browsers only allow capture on the direct event target.
-            }
-        });
-
-        hotEl.addEventListener('pointermove', (event) => {
-            if (draggingRow === null) return;
-
-            const element = document.elementFromPoint(event.clientX, event.clientY);
-            markLineDropTarget(getLineRowFromElement(element));
-        });
-
-        hotEl.addEventListener('pointerup', (event) => {
-            if (draggingRow === null) return;
-
-            const fromIndex = draggingRow;
-            const element = document.elementFromPoint(event.clientX, event.clientY);
-            const toIndex = getLineRowFromElement(element);
-
-            draggingRow = null;
-            hotEl.classList.remove('is-line-dragging');
-            clearLineDragState();
-
-            if (toIndex !== null) {
-                reorderLineRows(fromIndex, toIndex);
-            }
-        });
-
-        hotEl.addEventListener('pointercancel', () => {
-            draggingRow = null;
-            hotEl.classList.remove('is-line-dragging');
-            clearLineDragState();
-        });
+        if (!lineGrid) return;
     }
 
     function initTransactionDatePicker() {
@@ -1616,45 +1667,59 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function setLines(items = []) {
-        initLineHot();
-        const rows = (Array.isArray(items) ? items : []).map((item) => calculateLine(normalizeLine(item)));
-        lineHot?.loadData(rows);
+        initLineGrid();
+        const seenAdjustmentKeys = new Set();
+        const rows = (Array.isArray(items) ? items : [])
+            .map((item) => calculateLine(normalizeLine(item)))
+            .filter((row) => {
+                const lineType = lineTypeCodeFromCell(row.line_type || 'ITEM');
+                if (lineType === 'ITEM') return true;
+
+                const key = [
+                    lineType,
+                    row.item_date || '',
+                    Math.round(numberValue(row.amount) * 100) / 100,
+                ].join('|');
+                if (seenAdjustmentKeys.has(key)) return false;
+                seenAdjustmentKeys.add(key);
+                return true;
+            });
+        lineGrid?.loadData(rows);
         updateLineEmptyState();
         calculateTotals();
-        refreshLineHotDimensions();
+        refreshLineGridDimensions();
     }
 
     function addLine() {
-        initLineHot();
-        if (lineHot.countRows() === 0) {
-            lineHot.loadData([blankLine()]);
+        initLineGrid();
+        if (lineGrid.countRows() === 0) {
+            lineGrid.loadData([blankLine()]);
             updateLineEmptyState();
-            lineHot?.selectCell(0, 1);
+            lineGrid?.selectCell(0, 1);
             calculateTotals();
-            refreshLineHotDimensions();
+            refreshLineGridDimensions();
             return;
         }
 
-        lineHot?.alter('insert_row_below', Math.max(lineHot.countRows() - 1, 0), 1);
-        const rowIndex = Math.max(lineHot.countRows() - 1, 0);
-        Object.entries(blankLine()).forEach(([key, value]) => lineHot.setSourceDataAtCell(rowIndex, key, value));
-        lineHot?.selectCell(rowIndex, 1);
+        const rowIndex = Math.max(lineGrid.countRows(), 0);
+        lineGrid?.addRow?.(blankLine(), rowIndex);
+        lineGrid?.selectCell(rowIndex, 1);
         updateLineEmptyState();
         calculateTotals();
-        refreshLineHotDimensions();
+        refreshLineGridDimensions();
     }
 
     function removeLineAt(rowIndex) {
-        if (!lineHot) return;
-        lineHot.alter('remove_row', rowIndex, 1);
+        if (!lineGrid) return;
+        lineGrid.alter('remove_row', rowIndex, 1);
         updateLineEmptyState();
         calculateTotals();
-        refreshLineHotDimensions();
+        refreshLineGridDimensions();
     }
 
     function collectLines() {
-        initLineHot();
-        return (lineHot?.getSourceData() || [])
+        initLineGrid();
+        return (lineGrid?.getSourceData() || [])
             .map((row) => calculateLine(normalizeLine(row)))
             .filter((row) => String(row.item_name || row.description || '').trim() !== '' || numberValue(row.amount) !== 0)
             .map((row, index) => ({
@@ -1692,13 +1757,16 @@ import '/public/assets/js/components/trash-manager.js';
         modalEl.querySelectorAll('.transaction-currency-field, .transaction-exchange-field').forEach((field) => {
             field.classList.remove('d-none');
         });
-        lineHot?.updateSettings({
-            columns: getLineColumns(),
-            colHeaders: getLineColumns().map((column) => column.title),
-        });
 
-        applyForeignTaxTypeToLines();
-        calculateTotals();
+        if (lineGrid) {
+            lineGrid.updateSettings({
+                columns: getLineColumns(),
+                colHeaders: getLineColumns().map((column) => column.headerName || column.title),
+            });
+
+            applyForeignTaxTypeToLines();
+            calculateTotals();
+        }
     }
 
     function setBusinessUnitValue(value) {
@@ -1707,6 +1775,10 @@ import '/public/assets/js/components/trash-manager.js';
 
     function setTransactionTypeValue(value) {
         setCodeSelectValue('transaction_type', value || '');
+    }
+
+    function setTransactionDirectionValue(value) {
+        setCodeSelectValue('transaction_direction', value || '');
     }
 
     function setCurrencyValue(value) {
@@ -1730,21 +1802,11 @@ import '/public/assets/js/components/trash-manager.js';
 
         AdminPicker.select2Ajax(clientSelectEl, {
             url: API.clientSearch,
-            placeholder: '거래처검색',
+            placeholder: '거래처 검색',
+            includeCommonAdd: true,
             minimumInputLength: 0,
             dropdownParent: window.jQuery(modalEl),
             width: '100%',
-            templateResult(item) {
-                if (!item.id) return item.text;
-
-                if (item.isQuickCreate) {
-                    return window.jQuery(
-                        '<div class="select2-action-option"><span class="fw-semibold text-primary">+ 신규 거래처 추가</span></div>'
-                    );
-                }
-
-                return item.text;
-            },
             dataBuilder(params) {
                 return {
                     q: params.term || '',
@@ -1752,39 +1814,26 @@ import '/public/assets/js/components/trash-manager.js';
                     is_active: 1,
                 };
             },
-            processResults(data, params) {
+            processResults(data) {
                 const rows = data?.results ?? data?.data ?? [];
-                const term = String(params?.term ?? '').trim();
 
                 return {
-                    results: [
-                        ...rows.map((row) => ({
-                            id: String(row.id ?? ''),
-                            text: row.text || row.client_name || row.company_name || '',
-                        })).filter((row) => row.id !== ''),
-                        {
-                            id: '__quick_client__',
-                            text: '+ 신규 거래처 추가',
-                            isQuickCreate: true,
-                            term,
-                        },
-                    ],
+                    results: rows.map((row) => ({
+                        id: String(row.id ?? ''),
+                        text: row.text || row.client_name || row.company_name || '',
+                    })).filter((row) => row.id !== ''),
                 };
             },
         });
 
-        window.jQuery(clientSelectEl)
-            .off('select2:select.transactionClient')
-            .on('select2:select.transactionClient', (event) => {
-                const item = event.params?.data;
-                if (!item) return;
-
-                if (item.id === '__quick_client__') {
-                    clearClientSelect();
-                    window.jQuery(clientSelectEl).select2('close');
-                    openTransactionClientQuickCreate(item.term || '');
-                }
-            });
+        window.jQuery(clientSelectEl).off('select2:select.transactionClient');
+        clientSelectEl.removeEventListener?.('picker:add', clientSelectEl.__transactionClientPickerAdd);
+        clientSelectEl.__transactionClientPickerAdd = () => {
+            clearClientSelect();
+            window.jQuery(clientSelectEl).select2('close');
+            openTransactionClientQuickCreate('');
+        };
+        clientSelectEl.addEventListener('picker:add', clientSelectEl.__transactionClientPickerAdd);
     }
 
     function clearClientSelect() {
@@ -1805,9 +1854,9 @@ import '/public/assets/js/components/trash-manager.js';
             return;
         }
 
-        const label = String(text || clientId).trim();
+        const label = String(text || '-').trim();
         if (window.jQuery?.fn?.select2) {
-            const option = new Option(label, clientId, true, true);
+            const option = new Option(label || '-', clientId, true, true);
             window.jQuery(clientSelectEl)
                 .find('option')
                 .filter((index, item) => item.value === clientId)
@@ -1822,13 +1871,17 @@ import '/public/assets/js/components/trash-manager.js';
     function openTransactionClientQuickCreate(defaultName = '') {
         openClientQuickCreate({
             select: clientSelectEl,
+
             title: '신규 거래처 추가',
+
             initialValues: {
                 client_name: defaultName,
             },
+
             getOptionText(values) {
                 return values.client_name || values.company_name || '';
             },
+
             onSuccess() {
                 notify('success', '거래처가 등록되었습니다.');
             },
@@ -1854,13 +1907,10 @@ import '/public/assets/js/components/trash-manager.js';
                 const rows = data?.results ?? data?.data ?? [];
 
                 return {
-                    results: [
-                        { id: '__none__', text: '선택(없음)', isNone: true },
-                        ...rows.map((row) => ({
-                            id: String(row.id ?? ''),
-                            text: row.text || row.project_name || row.construction_name || '',
-                        })).filter((row) => row.id !== ''),
-                    ],
+                    results: rows.map((row) => ({
+                        id: String(row.id ?? ''),
+                        text: row.text || row.project_name || row.construction_name || '',
+                    })).filter((row) => row.id !== ''),
                 };
             },
         });
@@ -1895,9 +1945,9 @@ import '/public/assets/js/components/trash-manager.js';
             return;
         }
 
-        const label = String(text || projectId).trim();
+        const label = String(text || '-').trim();
         if (window.jQuery?.fn?.select2) {
-            const option = new Option(label, projectId, true, true);
+            const option = new Option(label || '-', projectId, true, true);
             window.jQuery(projectSelectEl)
                 .find('option')
                 .filter((index, item) => item.value === projectId)
@@ -1913,6 +1963,7 @@ import '/public/assets/js/components/trash-manager.js';
         if (!fileListEl) return;
 
         const existingFiles = Array.isArray(files) ? files : [];
+
         const baseRows = [
             ...existingFiles.map((file) => ({
                 type: 'existing',
@@ -1921,8 +1972,11 @@ import '/public/assets/js/components/trash-manager.js';
                 id: String(file.id || ''),
                 file_name: file.file_name || file.name || '',
                 file_size: file.file_size || file.size || 0,
-                file_url: file.id ? `/api/ledger/transaction/file?id=${encodeURIComponent(String(file.id))}` : '',
+                file_url: file.id
+                    ? `/api/ledger/transaction/file?id=${encodeURIComponent(String(file.id))}`
+                    : '',
             })),
+
             ...pendingFiles.map((file) => ({
                 type: 'new',
                 key: file._transactionTempId,
@@ -1931,15 +1985,26 @@ import '/public/assets/js/components/trash-manager.js';
                 file_size: file.size,
             })),
         ];
-        const rowMap = new Map(baseRows.map((row) => [row.orderKey, row]));
+
+        const rowMap = new Map(
+            baseRows.map((row) => [row.orderKey, row])
+        );
+
         const orderedRows = fileRowOrder.length > 0
-            ? fileRowOrder.map((key) => rowMap.get(key)).filter(Boolean)
+            ? fileRowOrder
+                .map((key) => rowMap.get(key))
+                .filter(Boolean)
             : [];
-        const orderedKeys = new Set(orderedRows.map((row) => row.orderKey));
+
+        const orderedKeys = new Set(
+            orderedRows.map((row) => row.orderKey)
+        );
+
         const rows = [
             ...orderedRows,
             ...baseRows.filter((row) => !orderedKeys.has(row.orderKey)),
         ];
+
         updateFileDropzone(rows);
 
         if (rows.length === 0) {
@@ -1949,50 +2014,94 @@ import '/public/assets/js/components/trash-manager.js';
 
         fileListEl.innerHTML = `
             <div class="transaction-file-table" role="table" aria-label="거래 증빙 파일">
+
                 <div class="transaction-file-row transaction-file-head" role="row">
-                    <span class="transaction-file-drag-head"><i class="bi bi-arrows-move"></i></span>
+                    <span class="transaction-file-drag-head">
+                        <i class="bi bi-arrows-move"></i>
+                    </span>
+
                     <span>순번</span>
                     <span>파일명</span>
                     <span>크기</span>
                     <span>관리</span>
                 </div>
+
                 ${rows.map((file, index) => {
+
                     const id = escapeHtml(file.id || '');
                     const key = escapeHtml(file.key || '');
                     const type = escapeHtml(file.type || '');
-                    const name = escapeHtml(file.file_name || `파일 ${index + 1}`);
-                    const fileUrl = file.type === 'existing' && file.file_url
+
+                    const name = escapeHtml(
+                        file.file_name || `파일 ${index + 1}`
+                    );
+
+                    const fileUrl = (
+                        file.type === 'existing' && file.file_url
+                    )
                         ? escapeHtml(file.file_url)
                         : '';
+
                     const nameContent = fileUrl
-                        ? `<a class="transaction-file-link" href="${fileUrl}" target="_blank" rel="noopener">${name}</a>`
+                        ? `<a class="transaction-file-link"
+                            href="${fileUrl}"
+                            target="_blank"
+                            rel="noopener">${name}</a>`
                         : name;
-                    const sizeText = escapeHtml(formatBytes(file.file_size));
+
+                    const sizeText = escapeHtml(
+                        formatBytes(file.file_size)
+                    );
+
                     const order = index + 1;
+
                     const orderInput = file.type === 'existing'
-                        ? `<input type="hidden" name="file_orders[${id}]" value="${order}">`
-                        : `<input type="hidden" name="new_file_orders[]" value="${order}">`;
+                        ? `<input type="hidden"
+                                name="file_orders[${id}]"
+                                value="${order}">`
+                        : `<input type="hidden"
+                                name="new_file_orders[]"
+                                value="${order}">`;
+
                     const deleteAttrs = file.type === 'existing'
                         ? `data-id="${id}"`
                         : `data-temp-id="${key}"`;
 
                     return `
                     <div class="transaction-file-row transaction-file-item"
-                         role="row"
-                         draggable="true"
-                         data-file-type="${type}"
-                         data-file-key="${key}"
-                         data-order-key="${escapeHtml(file.orderKey || '')}">
-                        <span class="transaction-file-drag" aria-label="순서 변경"><i class="bi bi-list"></i></span>
-                        <span class="transaction-file-order">${order}${orderInput}</span>
-                        <span class="transaction-file-name" title="${name}">${nameContent}</span>
-                        <span class="transaction-file-size">${sizeText}</span>
+                        role="row"
+                        draggable="true"
+                        data-file-type="${type}"
+                        data-file-key="${key}"
+                        data-order-key="${escapeHtml(file.orderKey || '')}">
+
+                        <span class="transaction-file-drag"
+                            aria-label="순서 변경">
+                            <i class="bi bi-list"></i>
+                        </span>
+
+                        <span class="transaction-file-order">
+                            ${order}
+                            ${orderInput}
+                        </span>
+
+                        <span class="transaction-file-name" title="${name}">
+                            ${nameContent}
+                        </span>
+
+                        <span class="transaction-file-size">
+                            ${sizeText}
+                        </span>
+
                         <button type="button"
                                 class="transaction-file-delete btn-delete-transaction-file"
-                                ${deleteAttrs}>-삭제</button>
+                                ${deleteAttrs}>
+                            -삭제
+                        </button>
                     </div>
                     `;
                 }).join('')}
+
             </div>
         `;
     }
@@ -2096,6 +2205,9 @@ import '/public/assets/js/components/trash-manager.js';
 
     function bindFileReorderEvents() {
         if (!fileListEl) return;
+        if (fileListEl.dataset.reorderBound === 'true') return;
+
+        fileListEl.dataset.reorderBound = 'true';
 
         let draggingRow = null;
 
@@ -2128,6 +2240,23 @@ import '/public/assets/js/components/trash-manager.js';
         });
     }
 
+    async function initModalControls() {
+        if (modalControlsInitialized) return;
+
+        await ensureAgGridLibrary();
+        modalControlsInitialized = true;
+        initTransactionDatePicker();
+        bindLineHeaderStickiness();
+        initClientSelect();
+        initProjectSelect();
+        bindFileReorderEvents();
+        modalEl.querySelectorAll('.number-input').forEach((input) => bindNumberInput(input));
+        void loadTransactionFilePolicy();
+        void initUnitCodeOptions();
+        void initCodeSelectControls(document.getElementById('clientModal'));
+        void initCodeSelectControls(modalEl);
+    }
+
     function markFileDeleted(fileId) {
         if (!fileId) return;
 
@@ -2145,10 +2274,11 @@ import '/public/assets/js/components/trash-manager.js';
 
     function formatVoucherStatus(value) {
         const status = String(value || 'draft').toLowerCase();
+
         return {
             draft: '임시저장',
-            confirmed: '확정',
-            posted: '전기',
+            confirmed: '검토요청',
+            posted: '승인완료',
             closed: '마감',
         }[status] || status;
     }
@@ -2203,11 +2333,11 @@ import '/public/assets/js/components/trash-manager.js';
             const label = escapeHtml(voucher.voucher_no || voucher.sort_no || voucherId);
             const date = escapeHtml(voucher.voucher_date || '');
             const voucherStatus = escapeHtml(formatVoucherStatus(voucher.status));
-            const summary = escapeHtml(voucher.summary_text || '');
+            const summary = escapeHtml(voucher.summary_text || '허용 확장자 없음');
 
             return `
                 <div class="transaction-voucher-item">
-                    <strong>${label}</strong>
+                    <strong>선택됨</strong>
                     <span>${date}</span>
                     <span>${voucherStatus}</span>
                     <span>${summary}</span>
@@ -2224,6 +2354,7 @@ import '/public/assets/js/components/trash-manager.js';
             'match_status',
             'transaction_date',
             'business_unit',
+            'transaction_direction',
             'transaction_type',
             'client_id',
             'project_id',
@@ -2245,7 +2376,7 @@ import '/public/assets/js/components/trash-manager.js';
             fields[name] = field ? String(field.value ?? '') : '';
         });
 
-        const lines = (lineHot?.getSourceData() || []).map((row) => ({
+        const lines = (lineGrid?.getSourceData() || []).map((row) => ({
             line_type: String(row?.line_type ?? ''),
             item_date: String(row?.item_date ?? ''),
             item_name: String(row?.item_name ?? ''),
@@ -2376,7 +2507,7 @@ import '/public/assets/js/components/trash-manager.js';
         pendingFiles = [];
         fileRowOrder = [];
         if (fileInput) fileInput.value = '';
-        setLines([blankLine()]);
+        setLines([]);
         renderFiles([]);
         renderVoucherState({});
         clearVoucherSelection();
@@ -2384,29 +2515,72 @@ import '/public/assets/js/components/trash-manager.js';
         setTransactionModalEditable(true);
     }
 
-    function openCreateModal() {
-        resetModal();
-        markTransactionModalClean();
+    function showTransactionModalShell(title = '') {
+        if (title) {
+            document.getElementById('transactionModalLabel').textContent = title;
+        }
+        allowModalClose = true;
+        modalBaselineSnapshot = '';
+        setTransactionModalLoading(true);
+        setTransactionModalEditable(false);
         modal?.show();
-        setTimeout(refreshLineHotDimensions, 150);
+        window.setTimeout(() => {
+            allowModalClose = false;
+        }, 0);
+    }
+
+    function setTransactionModalLoading(isLoading = false) {
+        const loading = Boolean(isLoading);
+        modalEl?.classList.toggle('is-loading-detail', loading);
+        modalEl?.setAttribute('aria-busy', loading ? 'true' : 'false');
+    }
+
+    async function openCreateModal() {
+        showTransactionModalShell('거래 등록');
+        try {
+            await initModalControls();
+            resetModal();
+            markTransactionModalClean();
+            setTransactionModalLoading(false);
+            setTimeout(refreshLineGridDimensions, 150);
+        } catch (error) {
+            notify('error', error.message || '거래 입력 모달을 준비하지 못했습니다.');
+            setTransactionModalLoading(false);
+            allowModalClose = true;
+            modal?.hide();
+        }
     }
 
     async function openDetail(id) {
         if (!id) return;
 
-        const json = await fetchJson(`${API.detail}?id=${encodeURIComponent(id)}`);
+        showTransactionModalShell('거래 수정');
+        let json = null;
+        try {
+            [json] = await Promise.all([
+                fetchJson(`${API.detail}?id=${encodeURIComponent(id)}`),
+                initModalControls(),
+            ]);
+        } catch (error) {
+            notify('error', error.message || '거래 상세 정보를 불러오지 못했습니다.');
+            setTransactionModalLoading(false);
+            allowModalClose = true;
+            modal?.hide();
+            return;
+        }
         const data = json.data || {};
         resetModal();
 
         document.getElementById('transaction_id').value = data.id || '';
         document.getElementById('transaction_date').value = data.transaction_date || today();
         setBusinessUnitValue(data.business_unit || '');
+        setTransactionDirectionValue(data.transaction_direction || '');
         setTransactionTypeValue(data.transaction_type || '');
         setCurrencyValue(data.currency || '');
         if (exchangeRateEl) exchangeRateEl.value = data.exchange_rate ? formatNumber(data.exchange_rate) : '';
         setHeaderAmountValues(data);
-        setClientSelectValue(data.client_id || '', data.client_name || data.client_id || '');
-        setProjectSelectValue(data.project_id || '', data.project_name || data.project_id || '');
+        setClientSelectValue(data.client_id || '', data.client_name || '');
+        setProjectSelectValue(data.project_id || '', data.project_name || '');
         document.getElementById('transaction_description').value = data.description || '';
         const transactionStatus = normalizeTransactionStatus(data.status);
         document.getElementById('transaction_status').value = transactionStatus;
@@ -2434,8 +2608,8 @@ import '/public/assets/js/components/trash-manager.js';
         syncConditionalPanels();
         setTransactionModalEditable(transactionStatus !== 'approved');
         markTransactionModalClean();
-        modal?.show();
-        setTimeout(refreshLineHotDimensions, 150);
+        setTransactionModalLoading(false);
+        setTimeout(refreshLineGridDimensions, 150);
     }
 
     async function saveTransaction() {
@@ -2451,7 +2625,7 @@ import '/public/assets/js/components/trash-manager.js';
         const rawExchangeRate = String(exchangeRateEl?.value || '').trim();
         if (usesForeignCurrency()) {
             if (parseNumber(rawExchangeRate) <= 0) {
-                notify('warning', '외화사용여부를 선택한 경우 환율을 입력해 주세요.');
+                notify('warning', '외화 사용여부를 선택한 경우 환율을 입력해 주세요.');
                 return;
             }
             formData.set('exchange_rate', rawExchangeRate === '' ? '' : String(parseNumber(rawExchangeRate)));
@@ -2486,7 +2660,7 @@ import '/public/assets/js/components/trash-manager.js';
         const id = escapeHtml(row.id || '');
         return `
             <td>${escapeHtml(row.transaction_date || '')}</td>
-            <td>${escapeHtml(row.client_name || row.client_id || '')}</td>
+            <td>${escapeHtml(row.client_name || '-')}</td>
             <td>${escapeHtml(row.description || '')}</td>
             <td class="text-end">${escapeHtml(formatAmount(row.total_amount || 0))}</td>
             <td>${renderMatchStatus(row.match_status)}</td>
@@ -2538,7 +2712,7 @@ import '/public/assets/js/components/trash-manager.js';
         transactionDateEl?.addEventListener('change', () => {
             transactionDateEl.value = formatDateInputValue(transactionDateEl.value);
             const date = transactionDateEl.value || today();
-            (lineHot?.getSourceData() || []).forEach((row, index) => {
+            (lineGrid?.getSourceData() || []).forEach((row, index) => {
                 if (!row.item_date) setLineCellValue(index, 'item_date', date, 'date-sync');
             });
         });
@@ -2580,11 +2754,11 @@ import '/public/assets/js/components/trash-manager.js';
         modalEl.addEventListener('hidden.bs.modal', () => {
             allowModalClose = false;
             modalBaselineSnapshot = '';
-            lineHotEditing = false;
+            lineGridEditing = false;
             hideFloatingLineHeader();
             unbindLineDateInputFormatter();
             unbindLineDateEscHandler();
-            closeHotDatePicker();
+            closeGridDatePicker();
             transactionDatePicker?.close?.();
         });
 
@@ -2643,16 +2817,16 @@ import '/public/assets/js/components/trash-manager.js';
                         <dt class="col-4">거래일자</dt>
                         <dd class="col-8">${escapeHtml(row.transaction_date || '-')}</dd>
                         <dt class="col-4">거래처</dt>
-                        <dd class="col-8">${escapeHtml(row.client_name || row.client_id || '-')}</dd>
+                        <dd class="col-8">${escapeHtml(row.client_name || '-')}</dd>
+                        <dt class="col-4">거래처</dt>
+                        <dd class="col-8">${escapeHtml(row.project_name || '-')}</dd>
                         <dt class="col-4">프로젝트</dt>
-                        <dd class="col-8">${escapeHtml(row.project_name || row.project_id || '-')}</dd>
-                        <dt class="col-4">적요</dt>
                         <dd class="col-8">${escapeHtml(row.description || '-')}</dd>
-                        <dt class="col-4">금액</dt>
+                        <dt class="col-4">적요</dt>
                         <dd class="col-8">${escapeHtml(formatAmount(row.total_amount || 0))}</dd>
-                        <dt class="col-4">전표연결</dt>
+                        <dt class="col-4">금액</dt>
                         <dd class="col-8">${renderMatchStatus(row.match_status)}</dd>
-                        <dt class="col-4">삭제일시</dt>
+                        <dt class="col-4">전표연결</dt>
                         <dd class="col-8">${escapeHtml(row.deleted_at || '-')}</dd>
                         <dt class="col-4">삭제자</dt>
                         <dd class="col-8">${escapeHtml(row.deleted_by_name || row.deleted_by || '-')}</dd>
@@ -2662,18 +2836,7 @@ import '/public/assets/js/components/trash-manager.js';
         });
     }
 
-    async function boot() {
-        initTransactionDatePicker();
-        initLineHot();
-        bindLineHeaderStickiness();
-        initClientSelect();
-        initProjectSelect();
-        bindFileReorderEvents();
-        void loadTransactionFilePolicy();
-        modalEl.querySelectorAll('.number-input').forEach((input) => bindNumberInput(input));
-        void initUnitCodeOptions();
-        void initCodeSelectControls(document.getElementById('clientModal'));
-        await initCodeSelectControls(modalEl);
+    function boot() {
         initTransactionTable();
         bindEvents();
         syncConditionalPanels();

@@ -1,5 +1,5 @@
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
-import { createDataTable, bindTableHighlight } from '/public/assets/js/components/data-table.js';
+import { createDataTable, bindTableHighlight } from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { openClientQuickCreate } from '/public/assets/js/pages/dashboard/settings/base/client.js';
@@ -57,6 +57,7 @@ window.AdminPicker = AdminPicker;
     let excelModal = null;
     let todayPicker = null;
     let clientSelect2Inited = false;
+    let workTeamModalControlsPromise = null;
 
     document.addEventListener('DOMContentLoaded', () => {
         if (!window.jQuery) {
@@ -85,7 +86,7 @@ window.AdminPicker = AdminPicker;
         });
         bindTableEvents($);
         bindModalEvents($);
-        initClientSelect2();
+        void preloadWorkTeamModalControls();
         bindAdminDateInputs();
         bindDateIconPicker();
         bindExcelEvents();
@@ -99,11 +100,55 @@ window.AdminPicker = AdminPicker;
         workTeamModal = new bootstrap.Modal(modalEl, { focus: false });
 
         modalEl.addEventListener('hidden.bs.modal', resetForm);
+        modalEl.addEventListener('shown.bs.modal', deferWorkTeamModalControls);
 
         const excelModalEl = document.getElementById('workTeamExcelModal');
         if (excelModalEl) {
             excelModal = new bootstrap.Modal(excelModalEl);
         }
+    }
+
+    function preloadWorkTeamModalControls() {
+        if (!workTeamModalControlsPromise) {
+            workTeamModalControlsPromise = prepareWorkTeamModalControls()
+                .catch((error) => {
+                    console.error('[work-team] modal controls preload failed', error);
+                    workTeamModalControlsPromise = null;
+                });
+        }
+
+        return workTeamModalControlsPromise;
+    }
+
+    function prepareWorkTeamModalControls() {
+        if (!workTeamModalControlsPromise) {
+            workTeamModalControlsPromise = Promise.resolve()
+                .then(() => {
+                    initClientSelect2();
+                })
+                .catch((error) => {
+                    workTeamModalControlsPromise = null;
+                    throw error;
+                });
+        }
+
+        return workTeamModalControlsPromise;
+    }
+
+    function deferWorkTeamModalControls() {
+        const run = () => {
+            prepareWorkTeamModalControls().catch((error) => {
+                console.error('[work-team] modal controls prepare failed', error);
+                AppCore?.notify?.('error', '작업팀 입력 항목 준비 중 오류가 발생했습니다.');
+            });
+        };
+
+        if (typeof window.requestAnimationFrame === 'function') {
+            window.requestAnimationFrame(() => window.setTimeout(run, 0));
+            return;
+        }
+
+        window.setTimeout(run, 0);
     }
 
     function initExcelDataset() {
@@ -158,7 +203,6 @@ window.AdminPicker = AdminPicker;
                 tableId: 'workTeam',
                 defaultSearchField: 'team_name',
                 dateOptions: DATE_OPTIONS,
-                initialCollapsed: true
             });
 
             bindTableHighlight('#work-team-table', workTeamTable);
@@ -259,9 +303,21 @@ window.AdminPicker = AdminPicker;
     async function openWorkTeamEditModal(rowData) {
         if (!rowData?.id) return;
 
+        resetForm();
+        document.getElementById('workTeamModalLabel').textContent = '작업팀 수정';
+        document.getElementById('btnDeleteWorkTeam').style.display = '';
+        const idEl = document.getElementById('modal_work_team_id');
+        if (idEl) idEl.value = rowData.id;
+        workTeamModal?.show();
+
         try {
-            const data = await fetchWorkTeamDetail(rowData.id);
-            openEditModal(data);
+            const [data] = await Promise.all([
+                fetchWorkTeamDetail(rowData.id),
+                prepareWorkTeamModalControls()
+            ]);
+
+            fillForm(data);
+            setTeamLeaderSelect2(data);
         } catch (error) {
             console.error(error);
             AppCore?.notify?.('error', error.message || '서버 오류가 발생했습니다.');
@@ -308,20 +364,7 @@ window.AdminPicker = AdminPicker;
             const row = workTeamTable.row(this).data();
             if (!row?.id) return;
 
-            try {
-                const res = await fetch(`${API.DETAIL}?id=${encodeURIComponent(row.id)}`);
-                const json = await res.json();
-
-                if (!json.success || !json.data) {
-                    AppCore?.notify?.('error', json.message || '작업팀 상세 조회에 실패했습니다.');
-                    return;
-                }
-
-                openEditModal(json.data);
-            } catch (error) {
-                console.error(error);
-                AppCore?.notify?.('error', '서버 오류가 발생했습니다.');
-            }
+            openWorkTeamEditModal(row);
         });
 
         $('#work-team-table tbody').on('change', '.work-team-active-toggle', function (event) {
@@ -400,6 +443,7 @@ window.AdminPicker = AdminPicker;
         document.getElementById('btnDeleteWorkTeam').style.display = 'none';
         setTeamLeaderSelect2({});
         workTeamModal?.show();
+        deferWorkTeamModalControls();
     }
 
     function openEditModal(data) {
@@ -440,44 +484,25 @@ window.AdminPicker = AdminPicker;
         AdminPicker.select2Ajax(el, {
             url: API.CLIENT_SEARCH,
             placeholder: '팀장 거래처 검색',
+            includeCommonAdd: true,
             minimumInputLength: 0,
             dropdownParent: window.jQuery('#workTeamModal'),
             width: '100%',
-            templateResult(item) {
-                if (!item.id) return item.text;
-                if (item.isQuickCreate) {
-                    return window.jQuery(
-                        '<div class="select2-action-option"><span class="fw-semibold text-primary">+ 신규 거래처 추가</span></div>'
-                    );
-                }
-                if (item.isNone) return item.text;
-                return item.text;
-            },
             dataBuilder(params) {
                 return {
                     q: params.term || '',
                     limit: 20
                 };
             },
-            processResults(json, params) {
+            processResults(json) {
                 const rows = json?.results ?? json?.data ?? [];
-                const term = String(params?.term ?? '').trim();
 
                 return {
-                    results: [
-                        { id: '__none__', text: '선택(없음)', isNone: true },
-                        ...rows.map(row => ({
-                            id: String(row.id ?? ''),
-                            text: row.text ?? row.client_name ?? '',
-                            raw: row
-                        })).filter(item => item.id !== ''),
-                        {
-                            id: '__quick_client__',
-                            text: '+ 신규 거래처 추가',
-                            isQuickCreate: true,
-                            term
-                        }
-                    ]
+                    results: rows.map(row => ({
+                        id: String(row.id ?? ''),
+                        text: row.text ?? row.client_name ?? '',
+                        raw: row
+                    })).filter(item => item.id !== '')
                 };
             }
         });
@@ -487,20 +512,15 @@ window.AdminPicker = AdminPicker;
             const item = event.params?.data;
             if (!item) return;
 
-            if (item?.id === '__none__') {
-                window.jQuery(this).val(null).trigger('change');
-                return;
-            }
-
-            if (item.id === '__quick_client__') {
-                window.jQuery(this).val(null).trigger('change');
-                window.jQuery(this).select2('close');
-                openWorkTeamClientQuickCreate(item.term || '');
-                return;
-            }
-
             window.jQuery(this).val(String(item.id)).trigger('change');
         });
+        el.removeEventListener?.('picker:add', el.__workTeamClientPickerAdd);
+        el.__workTeamClientPickerAdd = () => {
+            window.jQuery(el).val(null).trigger('change');
+            window.jQuery(el).select2('close');
+            openWorkTeamClientQuickCreate('');
+        };
+        el.addEventListener('picker:add', el.__workTeamClientPickerAdd);
 
         clientSelect2Inited = true;
     }
@@ -528,7 +548,6 @@ window.AdminPicker = AdminPicker;
             initialValues: {
                 client_name: defaultName
             },
-            openDetail: openWorkTeamClientDetailModal,
             onSuccess() {
                 AppCore?.notify?.('success', '거래처가 등록되었습니다.');
             },
@@ -536,91 +555,6 @@ window.AdminPicker = AdminPicker;
                 return values.client_name || '';
             }
         });
-    }
-
-    async function openWorkTeamClientDetailModal(values = {}) {
-        const template = document.getElementById('work-team-client-modal-template');
-        if (!(template instanceof HTMLTemplateElement)) {
-            AppCore?.notify?.('error', '거래처 상세 모달 템플릿을 찾을 수 없습니다.');
-            return;
-        }
-
-        const root = document.createElement('div');
-        root.dataset.workTeamClientDetailRoot = '1';
-        root.appendChild(template.content.cloneNode(true));
-        document.body.appendChild(root);
-
-        const modalEl = root.querySelector('#clientModal');
-        const form = root.querySelector('#client-edit-form');
-
-        if (!modalEl || !form) {
-            root.remove();
-            AppCore?.notify?.('error', '거래처 상세 모달을 초기화할 수 없습니다.');
-            return;
-        }
-
-        const titleEl = modalEl.querySelector('#clientModalLabel');
-        if (titleEl) titleEl.textContent = '거래처 신규 등록';
-
-        const deleteBtn = modalEl.querySelector('#btnDeleteClient');
-        if (deleteBtn) deleteBtn.style.display = 'none';
-
-        fillFormValue(form, 'client_name', values.client_name);
-        fillFormValue(form, 'ceo_name', values.ceo_name);
-        fillFormValue(form, 'phone', values.phone);
-        fillFormValue(form, 'is_active', '1');
-
-        const modal = bootstrap.Modal.getOrCreateInstance(modalEl, {
-            backdrop: 'static',
-            focus: false
-        });
-
-        modalEl.addEventListener('hidden.bs.modal', () => {
-            root.remove();
-        }, { once: true });
-
-        form.addEventListener('submit', async (event) => {
-            event.preventDefault();
-
-            const formData = new FormData(form);
-            const clientName = String(formData.get('client_name') || '').trim();
-
-            if (!clientName) {
-                AppCore?.notify?.('warning', '거래처명을 입력하세요.');
-                return;
-            }
-
-            const submitButton = form.querySelector('button[type="submit"]');
-            if (submitButton) submitButton.disabled = true;
-
-            try {
-                const response = await fetch(API.CLIENT_SAVE, {
-                    method: 'POST',
-                    body: formData
-                });
-                const json = await response.json();
-
-                if (!json.success || !json.id) {
-                    AppCore?.notify?.('error', json.message || '거래처 등록에 실패했습니다.');
-                    return;
-                }
-
-                const $client = window.jQuery('#modal_work_team_team_leader_client_id');
-                $client.find(`option[value="${json.id}"]`).remove();
-                $client.append(new Option(clientName, json.id, true, true));
-                $client.val(json.id).trigger('change');
-
-                AppCore?.notify?.('success', '거래처가 등록되었습니다.');
-                modal.hide();
-            } catch (error) {
-                console.error(error);
-                AppCore?.notify?.('error', '서버 오류가 발생했습니다.');
-            } finally {
-                if (submitButton) submitButton.disabled = false;
-            }
-        }, { once: true });
-
-        modal.show();
     }
 
     function fillFormValue(form, name, value) {

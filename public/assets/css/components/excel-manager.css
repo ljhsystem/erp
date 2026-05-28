@@ -43,6 +43,24 @@
   background: #f0fdf4;
 }
 
+.modal.is-excel-uploading .excel-action-card,
+.modal.is-excel-uploading .btn-upload-excel,
+.excel-dropzone.is-disabled {
+  cursor: not-allowed;
+}
+
+.excel-dropzone.is-disabled {
+  opacity: .62;
+  pointer-events: none;
+}
+
+.excel-dropzone.is-disabled:hover,
+.excel-dropzone.is-disabled.is-dragover {
+  border-color: #b8c2cc;
+  background: #f8fafc;
+  box-shadow: none;
+}
+
 .excel-file-input {
   position: absolute;
   width: 1px;

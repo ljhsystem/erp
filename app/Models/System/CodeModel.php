@@ -475,6 +475,94 @@ class CodeModel
         return $stmt->execute([':id' => $id]);
     }
 
+    public function tableExists(string $table): bool
+    {
+        if (!$this->isSafeIdentifier($table)) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*)
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = :table
+        ");
+        $stmt->execute([':table' => $table]);
+
+        return (int)$stmt->fetchColumn() > 0;
+    }
+
+    public function columnExists(string $table, string $column): bool
+    {
+        if (!$this->isSafeIdentifier($table) || !$this->isSafeIdentifier($column)) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*)
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = :table
+              AND COLUMN_NAME = :column
+        ");
+        $stmt->execute([
+            ':table' => $table,
+            ':column' => $column,
+        ]);
+
+        return (int)$stmt->fetchColumn() > 0;
+    }
+
+    public function countValueReferences(string $table, string $column, string $value): int
+    {
+        if (!$this->tableExists($table) || !$this->columnExists($table, $column)) {
+            return 0;
+        }
+
+        $quotedTable = $this->quoteIdentifier($table);
+        $quotedColumn = $this->quoteIdentifier($column);
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*)
+            FROM {$quotedTable}
+            WHERE {$quotedColumn} = :value
+        ");
+        $stmt->execute([':value' => $value]);
+
+        return (int)$stmt->fetchColumn();
+    }
+
+    public function countJsonValueReferences(string $table, string $column, string $jsonKey, string $value): int
+    {
+        if (
+            !$this->tableExists($table)
+            || !$this->columnExists($table, $column)
+            || !$this->isSafeJsonPathKey($jsonKey)
+        ) {
+            return 0;
+        }
+
+        $quotedTable = $this->quoteIdentifier($table);
+        $quotedColumn = $this->quoteIdentifier($column);
+        $jsonPath = '$."' . str_replace('"', '\"', $jsonKey) . '"';
+
+        try {
+            $stmt = $this->db->prepare("
+                SELECT COUNT(*)
+                FROM {$quotedTable}
+                WHERE JSON_VALID({$quotedColumn})
+                  AND JSON_UNQUOTE(JSON_EXTRACT({$quotedColumn}, :json_path)) = :value
+            ");
+            $stmt->execute([
+                ':json_path' => $jsonPath,
+                ':value' => $value,
+            ]);
+
+            return (int)$stmt->fetchColumn();
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
     public function updateSortNo(string $id, string $newSortNo): bool
     {
         $stmt = $this->db->prepare("
@@ -487,5 +575,24 @@ class CodeModel
             ':sort_no' => (int)$newSortNo,
             ':id' => $id,
         ]);
+    }
+
+    private function quoteIdentifier(string $identifier): string
+    {
+        if (!$this->isSafeIdentifier($identifier)) {
+            throw new \InvalidArgumentException('Unsafe SQL identifier.');
+        }
+
+        return '`' . $identifier . '`';
+    }
+
+    private function isSafeIdentifier(string $identifier): bool
+    {
+        return preg_match('/^[A-Za-z0-9_]+$/', $identifier) === 1;
+    }
+
+    private function isSafeJsonPathKey(string $key): bool
+    {
+        return preg_match('/^[A-Za-z0-9_]+$/', $key) === 1;
     }
 }

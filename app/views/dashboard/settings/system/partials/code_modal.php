@@ -96,19 +96,27 @@
                 <div class="modal-body">
                     <div class="row g-2">
                         <div class="col-md-6">
-                            <label class="form-label">코드그룹</label>
-                            <input type="text" class="form-control form-control-sm" name="code_group" readonly>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">그룹명</label>
-                            <input type="text" class="form-control form-control-sm" name="group_name">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">사용여부</label>
-                            <select class="form-select form-select-sm" name="is_active">
-                                <option value="1">사용</option>
-                                <option value="0">미사용</option>
+                            <label class="form-label">코드그룹 <span class="text-danger">*</span></label>
+                            <select class="form-select form-select-sm" name="code_group">
+                                <option value="">선택</option>
                             </select>
+                            <div class="input-group input-group-sm mt-1 d-none" data-role="quick-code-group-input-wrap">
+                                <input type="text"
+                                       class="form-control form-control-sm text-uppercase"
+                                       data-role="quick-code-group-input"
+                                       placeholder="신규 코드그룹 직접 입력">
+                                <button type="button"
+                                        class="btn btn-outline-secondary"
+                                        data-role="quick-code-group-back"
+                                        title="목록으로 돌아가기"
+                                        aria-label="목록으로 돌아가기">
+                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">그룹명 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" name="group_name">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">코드 <span class="text-danger">*</span></label>
@@ -117,14 +125,6 @@
                         <div class="col-md-6">
                             <label class="form-label">코드명 <span class="text-danger">*</span></label>
                             <input type="text" class="form-control form-control-sm" name="code_name" required>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">비고</label>
-                            <input type="text" class="form-control form-control-sm" name="note">
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">메모</label>
-                            <textarea class="form-control form-control-sm" name="memo" rows="3"></textarea>
                         </div>
                     </div>
                     <div class="small text-danger mt-2" data-role="message"></div>

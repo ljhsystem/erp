@@ -67,16 +67,24 @@ $link = static function (string $href, string $label, string $iconClass, string 
                 </ul>
             </li>
             <li>
-                <a href="#menu-ledger-transaction" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-receipt') ?><span>거래관리</span></a>
-                <ul id="menu-ledger-transaction" class="collapse">
+                <a href="#menu-ledger-voucher" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-journal-richtext') ?><span>전표관리</span></a>
+                <ul id="menu-ledger-voucher" class="collapse">
                     <li><?= $link('/ledger/transactions/input', '거래입력', 'bi-pencil-square') ?></li>
+                    <li><?= $link('/ledger/vouchers/input', '전표입력', 'bi-pencil-square') ?></li>
+                    <li><?= $link('/ledger/vouchers/review', '전표검토/승인', 'bi-check2-square') ?></li>
                 </ul>
             </li>
             <li>
-                <a href="#menu-ledger-voucher" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-journal-richtext') ?><span>전표관리</span></a>
-                <ul id="menu-ledger-voucher" class="collapse">
-                    <li><?= $link('/ledger/vouchers/input', '전표입력', 'bi-pencil-square') ?></li>
-                    <li><?= $link('/ledger/vouchers/review', '전표검토/승인', 'bi-check2-square') ?></li>
+                <a href="#menu-ledger-funds" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-bank') ?><span>자금관리</span></a>
+                <ul id="menu-ledger-funds" class="collapse">
+                    <li><?= $link('/ledger/funds/account-transactions', '계좌별거래내역', 'bi-bank') ?></li>
+                    <li><?= $link('/ledger/funds/payment-info', '결제정보', 'bi-credit-card-2-front') ?></li>
+                    <li><?= $link('/ledger/funds/deposit-ledger', '예금출납장', 'bi-journal-check') ?></li>
+                    <li><?= $link('/ledger/funds/cash-ledger', '현금출납장', 'bi-cash-stack') ?></li>
+                    <li><?= $link('/ledger/funds/daily-report', '자금일보', 'bi-calendar2-check') ?></li>
+                    <li><?= $link('/ledger/funds/account-balances', '계좌잔액현황', 'bi-wallet2') ?></li>
+                    <li><?= $link('/ledger/funds/unlinked-transactions', '미연결입출금', 'bi-link-45deg') ?></li>
+                    <li><?= $link('/ledger/funds/payment-schedule', '지급예정현황', 'bi-calendar-range') ?></li>
                 </ul>
             </li>
             <li>

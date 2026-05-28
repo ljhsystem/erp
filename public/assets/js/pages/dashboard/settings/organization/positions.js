@@ -4,7 +4,7 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import {
     createDataTable,
     bindTableHighlight
-} from '/public/assets/js/components/data-table.js';
+} from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 
@@ -43,6 +43,7 @@ window.AdminPicker = AdminPicker;
     let positionModal = null;
     let todayPicker = null;
     let globalBound = false;
+    let positionModalEls = {};
 
     document.addEventListener('DOMContentLoaded', () => {
         if (!window.jQuery) {
@@ -77,9 +78,20 @@ window.AdminPicker = AdminPicker;
         if (!modalEl) return;
 
         positionModal = new bootstrap.Modal(modalEl, { focus: false });
+        positionModalEls = {
+            modal: modalEl,
+            form: document.getElementById('position-edit-form'),
+            title: document.getElementById('positionEditModalLabel'),
+            id: document.getElementById('position_edit_id'),
+            name: document.getElementById('position_edit_name'),
+            rank: document.getElementById('position_edit_rank'),
+            description: document.getElementById('position_edit_description'),
+            isActive: document.getElementById('position_edit_is_active'),
+            deleteBtn: document.getElementById('position_edit_delete_btn')
+        };
 
         modalEl.addEventListener('shown.bs.modal', () => {
-            document.getElementById('position_edit_name')?.focus();
+            positionModalEls.name?.focus();
         });
 
         modalEl.addEventListener('hidden.bs.modal', () => {
@@ -193,7 +205,6 @@ window.AdminPicker = AdminPicker;
                 tableId: 'position',
                 defaultSearchField: 'position_name',
                 dateOptions: DATE_OPTIONS,
-                initialCollapsed: true
             });
             bindTableHighlight('#position-table', positionTable);
 
@@ -353,31 +364,33 @@ window.AdminPicker = AdminPicker;
         resetPositionForm();
         setPositionModalMode('edit');
 
-        $('#position_edit_id').val(row.id || '');
-        $('#position_edit_name').val(row.position_name || '');
-        $('#position_edit_rank').val(row.level_rank ?? 0);
-        $('#position_edit_description').val(row.description || '');
-        $('#position_edit_is_active').prop('checked', String(row.is_active) === '1');
+        if (positionModalEls.id) positionModalEls.id.value = row.id || '';
+        if (positionModalEls.name) positionModalEls.name.value = row.position_name || '';
+        if (positionModalEls.rank) positionModalEls.rank.value = row.level_rank ?? 0;
+        if (positionModalEls.description) positionModalEls.description.value = row.description || '';
+        if (positionModalEls.isActive) positionModalEls.isActive.checked = String(row.is_active) === '1';
 
         positionModal?.show();
     }
 
     function setPositionModalMode(mode) {
         const isCreate = mode === 'create';
-        $('#positionEditModal .modal-title').text(isCreate ? '직책 등록' : '직책 수정');
-        $('#position_edit_delete_btn')
-            .text('영구 삭제')
-            .toggle(!isCreate);
-        $('#position_edit_delete_btn').text('영구삭제');
+        if (positionModalEls.title) {
+            positionModalEls.title.textContent = isCreate ? '직책 등록' : '직책 수정';
+        }
+        if (positionModalEls.deleteBtn) {
+            positionModalEls.deleteBtn.textContent = '영구삭제';
+            positionModalEls.deleteBtn.style.display = isCreate ? 'none' : '';
+        }
     }
 
     function resetPositionForm() {
-        const form = document.getElementById('position-edit-form');
+        const form = positionModalEls.form || document.getElementById('position-edit-form');
         form?.reset();
 
-        $('#position_edit_id').val('');
-        $('#position_edit_rank').val('0');
-        $('#position_edit_is_active').prop('checked', true);
+        if (positionModalEls.id) positionModalEls.id.value = '';
+        if (positionModalEls.rank) positionModalEls.rank.value = '0';
+        if (positionModalEls.isActive) positionModalEls.isActive.checked = true;
         setPositionModalMode('create');
     }
 

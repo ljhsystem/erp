@@ -1,5 +1,5 @@
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
-import { createDataTable, bindTableHighlight } from '/public/assets/js/components/data-table.js';
+import { createDataTable, bindTableHighlight } from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import '/public/assets/js/components/excel-manager.js';
@@ -56,9 +56,12 @@ window.AdminPicker = AdminPicker;
     let codeTable = null;
     let codeModal = null;
     let excelModal = null;
+    let codeQuickModal = null;
     let todayPicker = null;
     let codeGroups = [];
     let codeGroupNames = {};
+    let codeModalEls = {};
+    let codeQuickEls = {};
 
     document.addEventListener('DOMContentLoaded', () => {
         if (!window.jQuery) {
@@ -99,7 +102,47 @@ window.AdminPicker = AdminPicker;
         if (!modalEl) return;
 
         codeModal = new bootstrap.Modal(modalEl, { focus: false });
+        codeModalEls = {
+            modal: modalEl,
+            form: document.getElementById('codeForm'),
+            title: document.getElementById('codeModalLabel'),
+            id: document.getElementById('modal_code_id'),
+            group: document.getElementById('modal_code_group'),
+            groupInput: document.getElementById('modal_code_group_input'),
+            groupInputWrap: document.getElementById('modal_code_group_input_wrap'),
+            groupName: document.getElementById('modal_code_group_name'),
+            code: document.getElementById('modal_code_code'),
+            codeName: document.getElementById('modal_code_code_name'),
+            isActive: document.getElementById('modal_code_is_active'),
+            extraData: document.getElementById('modal_code_extra_data'),
+            note: document.getElementById('modal_code_note'),
+            memo: document.getElementById('modal_code_memo'),
+            deleteBtn: document.getElementById('btnDeleteCode')
+        };
         modalEl.addEventListener('hidden.bs.modal', resetForm);
+
+        const quickModalEl = document.getElementById('codeQuickModal');
+        if (quickModalEl) {
+            codeQuickModal = new bootstrap.Modal(quickModalEl, { focus: false });
+            const quickForm = quickModalEl.querySelector('#codeQuickForm');
+            codeQuickEls = {
+                modal: quickModalEl,
+                form: quickForm,
+                title: quickModalEl.querySelector('.modal-title'),
+                codeGroup: quickForm?.querySelector('[name="code_group"]'),
+                groupInput: quickForm?.querySelector('[data-role="quick-code-group-input"]'),
+                groupInputWrap: quickForm?.querySelector('[data-role="quick-code-group-input-wrap"]'),
+                groupBackBtn: quickForm?.querySelector('[data-role="quick-code-group-back"]'),
+                groupName: quickForm?.querySelector('[name="group_name"]'),
+                code: quickForm?.querySelector('[name="code"]'),
+                codeName: quickForm?.querySelector('[name="code_name"]'),
+                message: quickForm?.querySelector('[data-role="message"]'),
+                detailBtn: quickForm?.querySelector('[data-role="detail"]')
+            };
+            quickModalEl.addEventListener('shown.bs.modal', () => {
+                codeQuickEls.codeGroup?.focus();
+            });
+        }
 
         const excelModalEl = document.getElementById('codeExcelModal');
         if (excelModalEl) {
@@ -141,7 +184,7 @@ window.AdminPicker = AdminPicker;
                 {
                     text: '새 기준정보',
                     className: 'btn btn-warning btn-sm',
-                    action: openCreateModal
+                    action: openQuickCreateModal
                 }
             ]
         });
@@ -164,7 +207,6 @@ window.AdminPicker = AdminPicker;
                 tableId: 'code',
                 defaultSearchField: 'code_name',
                 dateOptions: DATE_OPTIONS,
-                initialCollapsed: true
             });
 
             bindTableHighlight('#code-table', codeTable);
@@ -256,7 +298,7 @@ window.AdminPicker = AdminPicker;
             .on('dblclick', 'tr', async function () {
                 const row = codeTable.row(this).data();
                 if (!row?.id) return;
-                await openEditById(row.id);
+                await openEditById(row.id, row);
             });
 
         $('#code-table tbody')
@@ -286,11 +328,18 @@ window.AdminPicker = AdminPicker;
                 event.stopPropagation();
                 const id = this.dataset.id;
                 if (!id) return;
-                await openEditById(id);
+                const row = codeTable.row($(this).closest('tr')).data();
+                await openEditById(id, row);
             });
     }
 
-    async function openEditById(id) {
+    async function openEditById(id, rowData = null) {
+        if (rowData) {
+            openEditModal(rowData);
+        } else {
+            openEditModal({ id });
+        }
+
         try {
             const res = await fetch(`${API.DETAIL}?id=${encodeURIComponent(id)}`);
             const json = await res.json();
@@ -425,32 +474,245 @@ window.AdminPicker = AdminPicker;
             showCodeGroupSelect('');
         });
 
+        $('#codeQuickForm')
+            .off('submit.codeQuickForm')
+            .on('submit.codeQuickForm', async function (event) {
+                event.preventDefault();
+                await saveQuickCode(this);
+            });
+
+        $('#codeQuickForm [name="code_group"]')
+            .off('change.codeQuickGroup')
+            .on('change.codeQuickGroup', function () {
+                syncQuickGroupInputs(this);
+            });
+
+        $('#codeQuickForm [data-role="quick-code-group-input"]')
+            .off('input.codeQuickGroupInput')
+            .on('input.codeQuickGroupInput', function () {
+                syncQuickGroupInputs(this);
+            });
+
+        $('#codeQuickForm [data-role="quick-code-group-back"]')
+            .off('click.codeQuickGroupBack')
+            .on('click.codeQuickGroupBack', function () {
+                showQuickCodeGroupSelect('');
+            });
+
+        $('#codeQuickForm [name="code"]')
+            .off('input.codeQuickCode')
+            .on('input.codeQuickCode', function () {
+                this.value = this.value.toUpperCase();
+            });
+
+        $('#codeQuickForm [data-role="detail"]')
+            .off('click.codeQuickDetail')
+            .on('click.codeQuickDetail', function () {
+                const values = getQuickValues();
+                codeQuickModal?.hide();
+                openCreateModal(values);
+            });
+
     }
 
-    function openCreateModal() {
+    function openQuickCreateModal(initialValues = {}) {
+        resetQuickForm(initialValues);
+        codeQuickModal?.show();
+    }
+
+    function resetQuickForm(values = {}) {
+        codeQuickEls.form?.reset();
+        if (codeQuickEls.title) codeQuickEls.title.textContent = '기준정보 빠른 추가';
+        renderQuickGroupOptions(values.code_group || '');
+        if (codeQuickEls.groupName) {
+            codeQuickEls.groupName.value = values.group_name || getCodeGroupName(values.code_group || '') || '';
+        }
+        if (codeQuickEls.code) codeQuickEls.code.value = String(values.code || '').toUpperCase();
+        if (codeQuickEls.codeName) codeQuickEls.codeName.value = values.code_name || '';
+        if (codeQuickEls.message) codeQuickEls.message.textContent = '';
+    }
+
+    function getQuickValues() {
+        return {
+            code_group: normalizeCodeGroup(getQuickCodeGroupValue()),
+            group_name: String(codeQuickEls.groupName?.value || '').trim(),
+            is_active: '1',
+            code: String(codeQuickEls.code?.value || '').trim().toUpperCase(),
+            code_name: String(codeQuickEls.codeName?.value || '').trim(),
+            note: '',
+            memo: ''
+        };
+    }
+
+    async function saveQuickCode(form) {
+        const values = getQuickValues();
+
+        if (!values.code_group || !values.group_name || !values.code || !values.code_name) {
+            setQuickMessage('코드그룹, 그룹명, 코드, 코드명은 필수입니다.');
+            return;
+        }
+
+        if (!isValidCodeGroup(values.code_group)) {
+            setQuickMessage('코드그룹은 영문과 _만 사용할 수 있습니다.');
+            return;
+        }
+
+        const submitButton = form?.querySelector('button[type="submit"]');
+        if (submitButton) submitButton.disabled = true;
+        setQuickMessage('');
+
+        try {
+            const formData = new FormData();
+            Object.entries(values).forEach(([key, value]) => {
+                formData.set(key, value ?? '');
+            });
+
+            const res = await fetch(API.SAVE, {
+                method: 'POST',
+                body: formData
+            });
+            const json = await res.json();
+
+            if (!json?.success) {
+                setQuickMessage(json?.message || '저장에 실패했습니다.');
+                return;
+            }
+
+            mergeCodeGroups([{ code_group: values.code_group, group_name: values.group_name }]);
+            codeQuickModal?.hide();
+            codeTable?.ajax.reload(null, false);
+            AppCore?.notify?.('success', '저장 완료');
+        } catch (error) {
+            console.error(error);
+            setQuickMessage('저장 중 오류가 발생했습니다.');
+        } finally {
+            if (submitButton) submitButton.disabled = false;
+        }
+    }
+
+    function setQuickMessage(message = '') {
+        if (codeQuickEls.message) codeQuickEls.message.textContent = message;
+    }
+
+    function syncQuickGroupName(codeGroup) {
+        if (!codeQuickEls.groupName) return;
+        const groupName = getCodeGroupName(codeGroup);
+        if (groupName) {
+            codeQuickEls.groupName.value = groupName;
+        }
+    }
+
+    function renderQuickGroupOptions(selectedGroup = '') {
+        const select = codeQuickEls.codeGroup;
+        if (!select) return;
+
+        const normalizedSelected = normalizeCodeGroup(selectedGroup);
+        const groups = Array.from(new Set([...codeGroups, normalizedSelected].filter(Boolean))).sort();
+
+        select.innerHTML = '<option value="">선택</option>';
+        groups.forEach((group) => {
+            const option = document.createElement('option');
+            option.value = group;
+            option.textContent = codeGroupNames[group] ? `${codeGroupNames[group]} (${group})` : group;
+            select.appendChild(option);
+        });
+
+        const create = document.createElement('option');
+        create.value = NEW_CODE_GROUP_VALUE;
+        create.textContent = '+ 신규 코드그룹 생성';
+        select.appendChild(create);
+
+        if (normalizedSelected && groups.includes(normalizedSelected)) {
+            showQuickCodeGroupSelect(normalizedSelected);
+        } else {
+            showQuickCodeGroupSelect('');
+        }
+    }
+
+    function getQuickCodeGroupValue() {
+        if (codeQuickEls.groupInputWrap && !codeQuickEls.groupInputWrap.classList.contains('d-none')) {
+            return codeQuickEls.groupInput?.value || '';
+        }
+
+        return codeQuickEls.codeGroup?.value === NEW_CODE_GROUP_VALUE ? '' : codeQuickEls.codeGroup?.value || '';
+    }
+
+    function syncQuickGroupInputs(source) {
+        if (source === codeQuickEls.codeGroup && codeQuickEls.codeGroup?.value === NEW_CODE_GROUP_VALUE) {
+            showQuickCodeGroupInput('');
+            return;
+        }
+
+        if (source === codeQuickEls.codeGroup) {
+            syncQuickGroupName(codeQuickEls.codeGroup?.value || '');
+            return;
+        }
+
+        if (source === codeQuickEls.groupInput) {
+            codeQuickEls.groupInput.value = normalizeCodeGroup(codeQuickEls.groupInput.value);
+            syncQuickGroupName(codeQuickEls.groupInput.value);
+        }
+    }
+
+    function showQuickCodeGroupSelect(value = '') {
+        const normalized = normalizeCodeGroup(value);
+        if (codeQuickEls.groupInputWrap) codeQuickEls.groupInputWrap.classList.add('d-none');
+        if (codeQuickEls.codeGroup) {
+            codeQuickEls.codeGroup.classList.remove('d-none');
+            codeQuickEls.codeGroup.disabled = false;
+            codeQuickEls.codeGroup.value = Array.from(codeQuickEls.codeGroup.options).some((option) => option.value === normalized)
+                ? normalized
+                : '';
+        }
+        if (codeQuickEls.groupInput) {
+            codeQuickEls.groupInput.value = '';
+        }
+        syncQuickGroupName(normalized);
+    }
+
+    function showQuickCodeGroupInput(value = '') {
+        if (codeQuickEls.codeGroup) {
+            codeQuickEls.codeGroup.classList.add('d-none');
+            codeQuickEls.codeGroup.disabled = true;
+            codeQuickEls.codeGroup.value = '';
+        }
+        if (codeQuickEls.groupInputWrap) codeQuickEls.groupInputWrap.classList.remove('d-none');
+        if (codeQuickEls.groupInput) {
+            codeQuickEls.groupInput.value = normalizeCodeGroup(value);
+            codeQuickEls.groupInput.focus();
+        }
+        syncQuickGroupName(value);
+    }
+
+    function openCreateModal(initialValues = {}) {
         resetForm();
-        document.getElementById('codeModalLabel').textContent = '기준정보 등록';
-        setModalCodeGroup('');
-        document.getElementById('btnDeleteCode').style.display = 'none';
+        codeModalEls.title.textContent = '기준정보 등록';
+        codeModalEls.deleteBtn.style.display = 'none';
+        fillForm({
+            ...initialValues,
+            id: '',
+            extra_data: initialValues.extra_data || '{}'
+        });
         codeModal?.show();
     }
 
-    function openEditModal(data) {
+    function openEditModal(data = {}) {
         resetForm();
-        document.getElementById('codeModalLabel').textContent = '기준정보 수정';
-        document.getElementById('btnDeleteCode').style.display = '';
+        codeModalEls.title.textContent = '기준정보 수정';
+        codeModalEls.deleteBtn.style.display = data?.id ? '' : 'none';
         fillForm(data);
         codeModal?.show();
     }
 
     function resetForm() {
-        const form = document.getElementById('codeForm');
+        const form = codeModalEls.form || document.getElementById('codeForm');
         if (form) form.reset();
 
-        document.getElementById('modal_code_id').value = '';
-        document.getElementById('modal_code_group_name').value = '';
+        if (codeModalEls.id) codeModalEls.id.value = '';
+        if (codeModalEls.groupName) codeModalEls.groupName.value = '';
+        if (codeModalEls.extraData) codeModalEls.extraData.value = '{}';
         setModalCodeGroup('');
-        document.getElementById('btnDeleteCode').style.display = 'none';
+        if (codeModalEls.deleteBtn) codeModalEls.deleteBtn.style.display = 'none';
     }
 
     function fillForm(data) {
@@ -529,6 +791,9 @@ window.AdminPicker = AdminPicker;
 
         codeGroups = Array.from(merged).sort();
         renderGroupOptions(document.getElementById('modal_code_group'), codeGroups, '선택');
+        if (codeQuickEls.codeGroup) {
+            renderQuickGroupOptions(getQuickCodeGroupValue());
+        }
     }
 
     function renderGroupOptions(select, groups, firstLabel) {
@@ -627,13 +892,17 @@ window.AdminPicker = AdminPicker;
     }
 
     function syncGroupNameFromCodeGroup(codeGroup, fallback = '') {
-        const input = document.getElementById('modal_code_group_name');
+        const input = codeModalEls.groupName || document.getElementById('modal_code_group_name');
         if (!input) return;
 
         const normalized = normalizeCodeGroup(codeGroup);
-        const groupName = codeGroupNames[normalized] || fallback || '';
+        const groupName = getCodeGroupName(normalized) || fallback || '';
 
         input.value = groupName;
+    }
+
+    function getCodeGroupName(codeGroup) {
+        return codeGroupNames[normalizeCodeGroup(codeGroup)] || '';
     }
 
     function normalizeCodeGroup(value) {

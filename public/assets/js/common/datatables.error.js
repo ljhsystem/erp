@@ -1,32 +1,68 @@
-// 경로: PROJECT_ROOT . '/assets/js/common/datatables.error.js'
+(() => {
+    'use strict';
 
-// DataTables 에러 기본 동작 끄기 (기본 alert 경고 제거)
-$(function () {
-    if ($.fn.dataTable && $.fn.dataTable.ext) {
-        $.fn.dataTable.ext.errMode = 'none';
+    const AppCore = window.AppCore = window.AppCore || {};
+    const AppEvents = window.AppEvents || {};
+
+    const onDocument = typeof AppEvents.onDocument === 'function'
+        ? AppEvents.onDocument
+        : (type, handler, options = false) => {
+            document.addEventListener(type, handler, options);
+            return () => document.removeEventListener(type, handler, options);
+        };
+
+    const onJQDocument = typeof AppEvents.onJQDocument === 'function'
+        ? AppEvents.onJQDocument
+        : null;
+
+    function notify(type, message) {
+        if (AppCore.notify) {
+            AppCore.notify(type, message);
+            return;
+        }
+        window.alert?.(message);
     }
 
-    // DataTables Ajax 응답 공통 처리
-    $(document).on('xhr.dt', function (e, settings, json, xhr) {
+    function handleXhrError(_event, _settings, _json, xhr) {
+        if (!xhr || !xhr.status) return false;
+        if (xhr.status >= 200 && xhr.status < 300) return false;
 
-        // 정상 응답이면 처리 안 함
-        if (xhr.status >= 200 && xhr.status < 300) return;
-
-        // 403 권한 없음
         if (xhr.status === 403) {
-            alert("⛔ 접근 권한이 없습니다.");
-            return false; // 추가 동작 막기
-        }
-
-        // 401 로그인 필요
-        if (xhr.status === 401) {
-            alert("로그인이 필요합니다.");
-            window.location.href = "/login";
+            notify('warning', '권한이 없습니다.');
             return false;
         }
 
-        // 기타 서버 오류
-        alert("서버 오류가 발생했습니다. (" + xhr.status + ")");
+        if (xhr.status === 401) {
+            notify('warning', '로그인 세션이 만료되었습니다.');
+            window.location.href = '/login';
+            return false;
+        }
+
+        notify('error', `요청 처리 중 오류가 발생했습니다. (${xhr.status})`);
         return false;
-    });
-});
+    }
+
+    function bind() {
+        const $ = window.jQuery;
+        if (!$.fn?.dataTable || !$.fn.dataTable.ext) {
+            return;
+        }
+
+        $.fn.dataTable.ext.errMode = 'none';
+
+        if (onJQDocument) {
+            onJQDocument('xhr.dt', handleXhrError);
+            return;
+        }
+
+        if (typeof $.fn?.on === 'function') {
+            $(document).on('xhr.dt', handleXhrError);
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        onDocument('DOMContentLoaded', bind, { once: true });
+    } else {
+        bind();
+    }
+})();

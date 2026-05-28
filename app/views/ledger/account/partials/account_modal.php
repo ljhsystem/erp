@@ -29,6 +29,9 @@
                                            inputmode="numeric"
                                            maxlength="7"
                                            required>
+                                    <div class="form-text">
+                                        계정코드는 기존 계정체계를 확인한 뒤 같은 분류의 마지막 코드 다음 번호로 부여하세요. 예: 자산/부채/자본/수익/비용의 상위계정과 전표입력 가능 여부를 먼저 확인합니다.
+                                    </div>
                                 </div>
 
                                 <div class="col-md-6">

@@ -43,10 +43,21 @@ export function renderTime({ picker, container, options = {} }) {
     merSel.disabled  = !enabled;
   }
 
+  function currentTime() {
+    const now = new Date();
+    const roundedMinute = Math.floor(now.getMinutes() / opt.minuteStep) * opt.minuteStep;
+    const hour24 = now.getHours();
+    return {
+      hour: hour24 === 0 ? 12 : (hour24 > 12 ? hour24 - 12 : hour24),
+      minute: roundedMinute,
+      meridiem: hour24 >= 12 ? 'PM' : 'AM'
+    };
+  }
+
   // ✅ 체크박스 → state
   toggle.addEventListener('change', () => {
     if (toggle.checked) {
-      picker.setTime({ hour: 9, minute: 0, meridiem: 'AM' });
+      picker.setTime(currentTime());
       picker.toggleTime(true);
     } else {
       picker.toggleTime(false);
@@ -69,7 +80,9 @@ export function renderTime({ picker, container, options = {} }) {
     }
 
     hourSel.value = String(s.hour ?? 9);
-    minSel.value  = String(s.minute ?? 0);
+    const minute = Number(s.minute ?? 0);
+    const normalizedMinute = Math.floor(minute / opt.minuteStep) * opt.minuteStep;
+    minSel.value  = String(normalizedMinute);
     merSel.value  = String(s.meridiem ?? 'AM');
   }
 

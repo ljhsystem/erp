@@ -1,7 +1,7 @@
 // Path: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/base/project.js'
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import { formatDateDisplay, formatAmount, unformatAmount } from '/public/assets/js/common/format.js';
-import { createDataTable, bindTableHighlight } from '/public/assets/js/components/data-table.js';
+import { createDataTable, bindTableHighlight } from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { openClientQuickCreate } from '/public/assets/js/pages/dashboard/settings/base/client.js';
@@ -142,6 +142,7 @@ window.AdminPicker = AdminPicker;
     let employeeSelect2Inited = false;
     let siteAgentSelect2Inited = false;
     let clientSelect2Inited = false;
+    let projectModalControlsPromise = null;
 
     function disconnectProjectClientTypeCodeSelect(scope = document) {
         const root = scope || document;
@@ -179,8 +180,7 @@ window.AdminPicker = AdminPicker;
         initAdminDatePicker();
 
         initExcelDataset(); // 엑셀 업로드 설정
-        disconnectProjectClientTypeCodeSelect(document.getElementById('projectModal'));
-        await initCodeSelectControls(document.getElementById('projectModal'));
+        void preloadProjectModalControls();
         onCodeOptionsLoaded(() => {
             disconnectProjectClientTypeCodeSelect(document.getElementById('projectModal'));
             projectTable?.rows().invalidate('data').draw(false);
@@ -588,6 +588,24 @@ window.AdminPicker = AdminPicker;
         }
     }
 
+    function preloadProjectModalControls() {
+        if (!projectModalControlsPromise) {
+            projectModalControlsPromise = prepareProjectModalControls()
+                .catch((error) => {
+                    console.error('[project] modal controls preload failed', error);
+                    projectModalControlsPromise = null;
+                });
+        }
+
+        return projectModalControlsPromise;
+    }
+
+    async function prepareProjectModalControls() {
+        const modalEl = document.getElementById('projectModal');
+        disconnectProjectClientTypeCodeSelect(modalEl);
+        await initCodeSelectControls(modalEl);
+    }
+
     function initDataTable($) {
         const columns = buildProjectColumns();
 
@@ -628,11 +646,9 @@ window.AdminPicker = AdminPicker;
                 {
                     text: "새 프로젝트",
                     className: "btn btn-warning btn-sm",
-                    action: async function () {
+                    action: function () {
                         const form = document.getElementById('project-edit-form');
                         if (form) form.reset();
-                        disconnectProjectClientTypeCodeSelect(document.getElementById('projectModal'));
-                        await initCodeSelectControls(document.getElementById('projectModal'));
 
                         resetProjectModalSelect2();
 
@@ -654,6 +670,11 @@ window.AdminPicker = AdminPicker;
                         if (projectModal) {
                             projectModal.show();
                         }
+
+                        void prepareProjectModalControls().catch((error) => {
+                            console.error('[project] modal controls prepare failed', error);
+                            AppCore?.notify?.('error', '프로젝트 입력 항목 준비 중 오류가 발생했습니다.');
+                        });
                     }
                 }
             ]
@@ -678,7 +699,6 @@ window.AdminPicker = AdminPicker;
                 tableId: 'project',
                 defaultSearchField: 'project_name',
                 dateOptions: DATE_OPTIONS,
-                initialCollapsed: true,
                 normalizeFilters: normalizeProjectFilters
             });
             bindTableHighlight('#project-table', projectTable);
@@ -721,25 +741,23 @@ window.AdminPicker = AdminPicker;
     async function openProjectEditModal(projectId) {
         if (!projectId) return;
 
+        window.isNewProject = false;
+        const form = document.getElementById('project-edit-form');
+        if (form) form.reset();
+        resetProjectModalSelect2();
+        document.getElementById('projectModalLabel').textContent = '프로젝트 정보 수정';
+        $('#btnDeleteProject').show();
+        $('#modal_project_id').val(projectId);
+        projectModal?.show();
+
         try {
-            const data = await fetchProjectDetail(projectId);
+            const [data] = await Promise.all([
+                fetchProjectDetail(projectId),
+                prepareProjectModalControls()
+            ]);
 
-            window.isNewProject = false;
-            document.getElementById('projectModalLabel').textContent = '프로젝트 정보 수정';
-            $('#btnDeleteProject').show();
-            disconnectProjectClientTypeCodeSelect(document.getElementById('projectModal'));
-            await initCodeSelectControls(document.getElementById('projectModal'));
-
-            projectModal.show();
-
-            const modalEl = document.getElementById('projectModal');
-            const onShown = () => {
-                $('#modal_project_id').val(data.id ?? '');
-                fillModal(data);
-                modalEl.removeEventListener('shown.bs.modal', onShown);
-            };
-
-            modalEl.addEventListener('shown.bs.modal', onShown);
+            $('#modal_project_id').val(data.id ?? '');
+            fillModal(data);
         } catch (err) {
             console.error(err);
             AppCore.notify('error', err.message || '프로젝트 상세 조회 중 오류가 발생했습니다.');
@@ -938,7 +956,7 @@ window.AdminPicker = AdminPicker;
 
             el.value = value;
             if (
-                ['contract_method', 'housing_type', 'contract_type', 'work_type'].includes(key)
+                ['bid_type', 'contract_method', 'housing_type', 'contract_type', 'work_type'].includes(key)
                 && window.jQuery?.fn?.select2
                 && window.jQuery(el).hasClass('select2-hidden-accessible')
             ) {
@@ -999,7 +1017,7 @@ window.AdminPicker = AdminPicker;
                         return formatAmount(data);
                     }
 
-                    if (['contract_method', 'housing_type', 'contract_type', 'work_type'].includes(field)) {
+                    if (['bid_type', 'contract_method', 'housing_type', 'contract_type', 'work_type'].includes(field)) {
                         return getCodeName(field, data);
                     }
 
@@ -1170,49 +1188,25 @@ window.AdminPicker = AdminPicker;
         AdminPicker.select2Ajax(el, {
             url: API.CLIENT_SEARCH,
             placeholder: '거래처 검색',
+            includeCommonAdd: true,
             minimumInputLength: 0,
             dropdownParent: window.jQuery('#projectModal'),
             width: '100%',
-            templateResult(item) {
-                if (!item.id) return item.text;
-
-                if (item.isQuickCreate) {
-                    return window.jQuery(
-                        '<div class="select2-action-option"><span class="fw-semibold text-primary">+ 신규 거래처 추가</span></div>'
-                    );
-                }
-
-                if (item.isNone) {
-                    return item.text;
-                }
-
-                return item.text;
-            },
             dataBuilder(params) {
                 return {
                     q: params.term || '',
                     limit: 20
                 };
             },
-            processResults(json, params) {
+            processResults(json) {
                 const rows = json?.results ?? json?.data ?? [];
-                const term = String(params?.term ?? '').trim();
 
                 return {
-                    results: [
-                        { id: '__none__', text: '선택(없음)', isNone: true },
-                        ...rows.map(row => ({
-                            id: String(row.id ?? ''),
-                            text: row.text ?? row.client_name ?? '',
-                            raw: row
-                        })).filter(item => item.id !== ''),
-                        {
-                            id: '__quick_client__',
-                            text: '+ 신규 거래처 추가',
-                            isQuickCreate: true,
-                            term
-                        }
-                    ]
+                    results: rows.map(row => ({
+                        id: String(row.id ?? ''),
+                        text: row.text ?? row.client_name ?? '',
+                        raw: row
+                    })).filter(item => item.id !== '')
                 };
             }
         });
@@ -1222,20 +1216,15 @@ window.AdminPicker = AdminPicker;
             const item = e.params?.data;
             if (!item) return;
 
-            if (item.id === '__none__') {
-                window.jQuery(this).val(null).trigger('change');
-                return;
-            }
-
-            if (item.id === '__quick_client__') {
-                window.jQuery(this).val(null).trigger('change');
-                window.jQuery(this).select2('close');
-                openProjectClientQuickCreate(item.term || '');
-                return;
-            }
-
             window.jQuery(this).val(String(item.id)).trigger('change');
         });
+        el.removeEventListener?.('picker:add', el.__projectClientPickerAdd);
+        el.__projectClientPickerAdd = () => {
+            window.jQuery(el).val(null).trigger('change');
+            window.jQuery(el).select2('close');
+            openProjectClientQuickCreate('');
+        };
+        el.addEventListener('picker:add', el.__projectClientPickerAdd);
 
         clientSelect2Inited = true;
     }
@@ -1342,7 +1331,6 @@ window.AdminPicker = AdminPicker;
             initialValues: {
                 client_name: defaultName
             },
-            openDetail: openProjectClientDetailModal,
             onSuccess(json, values) {
                 AppCore?.notify?.('success', '거래처가 등록되었습니다.');
             },
@@ -1350,91 +1338,6 @@ window.AdminPicker = AdminPicker;
                 return values.client_name || '';
             }
         });
-    }
-
-    async function openProjectClientDetailModal(values = {}) {
-        const template = document.getElementById('project-client-modal-template');
-        if (!(template instanceof HTMLTemplateElement)) {
-            AppCore?.notify?.('error', '거래처 상세 모달 템플릿을 찾을 수 없습니다.');
-            return;
-        }
-
-        const root = document.createElement('div');
-        root.dataset.projectClientDetailRoot = '1';
-        root.appendChild(template.content.cloneNode(true));
-        document.body.appendChild(root);
-
-        const modalEl = root.querySelector('#clientModal');
-        const form = root.querySelector('#client-edit-form');
-
-        if (!modalEl || !form) {
-            root.remove();
-            AppCore?.notify?.('error', '거래처 상세 모달을 초기화할 수 없습니다.');
-            return;
-        }
-
-        const titleEl = modalEl.querySelector('#clientModalLabel');
-        if (titleEl) titleEl.textContent = '거래처 신규 등록';
-
-        const deleteBtn = modalEl.querySelector('#btnDeleteClient');
-        if (deleteBtn) deleteBtn.style.display = 'none';
-
-        fillFormValue(form, 'client_name', values.client_name);
-        fillFormValue(form, 'ceo_name', values.ceo_name);
-        fillFormValue(form, 'phone', values.phone);
-        fillFormValue(form, 'is_active', '1');
-
-        const modal = bootstrap.Modal.getOrCreateInstance(modalEl, {
-            backdrop: 'static',
-            focus: false
-        });
-
-        modalEl.addEventListener('hidden.bs.modal', () => {
-            root.remove();
-        }, { once: true });
-
-        form.addEventListener('submit', async (event) => {
-            event.preventDefault();
-
-            const formData = new FormData(form);
-            const clientName = String(formData.get('client_name') || '').trim();
-
-            if (!clientName) {
-                AppCore?.notify?.('warning', '거래처명을 입력하세요.');
-                return;
-            }
-
-            const submitButton = form.querySelector('button[type="submit"]');
-            if (submitButton) submitButton.disabled = true;
-
-            try {
-                const response = await fetch(API.CLIENT_SAVE, {
-                    method: 'POST',
-                    body: formData
-                });
-                const json = await response.json();
-
-                if (!json.success || !json.id) {
-                    AppCore?.notify?.('error', json.message || '거래처 등록에 실패했습니다.');
-                    return;
-                }
-
-                const $client = $('#modal_project_client_id');
-                $client.find(`option[value="${json.id}"]`).remove();
-                $client.append(new Option(clientName, json.id, true, true));
-                $client.val(json.id).trigger('change');
-
-                AppCore?.notify?.('success', '거래처가 등록되었습니다.');
-                modal.hide();
-            } catch (error) {
-                console.error(error);
-                AppCore?.notify?.('error', '서버 오류가 발생했습니다.');
-            } finally {
-                if (submitButton) submitButton.disabled = false;
-            }
-        }, { once: true });
-
-        modal.show();
     }
 
     function fillFormValue(form, name, value) {

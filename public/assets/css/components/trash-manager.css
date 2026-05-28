@@ -26,6 +26,19 @@
   flex-wrap: wrap;
 }
 
+.btn-trash-has-data {
+  color: #b42318 !important;
+  background-color: #fee4e2 !important;
+  border-color: #fda29b !important;
+}
+
+.btn-trash-has-data:hover,
+.btn-trash-has-data:focus {
+  color: #912018 !important;
+  background-color: #fecdca !important;
+  border-color: #f97066 !important;
+}
+
 .trash-toolbar > .btn:nth-child(3) {
   margin-left: auto;
 }

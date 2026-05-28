@@ -1,5 +1,5 @@
-import { createSpreadsheet, setSpreadsheetDataState } from '/public/assets/js/common/handsontable.js';
 import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+import { createAgGridAdapter } from '/public/assets/js/common/grid/ag-grid-adapter.js';
 
 (() => {
     const dataTypeEl = document.getElementById('dataType');
@@ -28,8 +28,9 @@ import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/p
 
     let previewRows = [];
     let previewColumns = [];
-    let previewHot = null;
+    let previewGrid = null;
     let currentPreviewToken = '';
+    let currentPreviewSummary = {};
     const LAST_FORMAT_PREFIX = 'ledger.dataUpload.lastFormat.';
     const TEXT = {
         requestFailed: '\uC694\uCCAD \uCC98\uB9AC\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.',
@@ -40,10 +41,11 @@ import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/p
         warning: '\uACBD\uACE0',
         ok: '\uC815\uC0C1',
         noRows: '\uC5C5\uB85C\uB4DC\uB41C \uB370\uC774\uD130\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.',
-        saved: 'Seed 업로드가 완료되었습니다.',
+        saved: 'Seed upload completed.',
         selectFormat: '\uC591\uC2DD\uC744 \uC120\uD0DD\uD558\uC138\uC694',
         selectTypeAndFormat: '\uC790\uB8CC\uC720\uD615\uACFC \uC591\uC2DD\uC744 \uC120\uD0DD\uD558\uC138\uC694.',
         selectFormatAndFile: '\uC591\uC2DD\uACFC \uD30C\uC77C\uC744 \uC120\uD0DD\uD558\uC138\uC694.',
+        requiredMissingConfirm: '\uD544\uC218\uC694\uC18C\uAC00 \uC785\uB825\uB418\uC5B4 \uC788\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uC0DD\uC131\uC13C\uD130\uC5D0\uC11C \uBCF4\uC815\uD544\uC694\uB85C \uCC98\uB9AC\uB429\uB2C8\uB2E4. \uADF8\uB798\uB3C4 \uC5C5\uB85C\uB4DC\uB97C \uC9C4\uD589\uD560\uAE4C\uC694?',
     };
 
     function escapeHtml(value) {
@@ -66,6 +68,9 @@ import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/p
     async function fetchJson(url, options = {}) {
         const res = await fetch(url, options);
         const json = await res.json().catch(() => ({}));
+        if (json?.requires_confirmation) {
+            return json;
+        }
         if (!res.ok || json.success === false) {
             throw new Error(json.message || TEXT.requestFailed);
         }
@@ -90,7 +95,7 @@ import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/p
         const contentType = res.headers.get('Content-Type') || '';
         if (!res.ok || contentType.includes('application/json')) {
             const json = await res.json().catch(() => ({}));
-            throw new Error(json.message || '양식 다운로드에 실패했습니다.');
+            throw new Error(json.message || 'Request failed.');
         }
 
         const blob = await res.blob();
@@ -98,7 +103,7 @@ import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/p
         if (signature !== 'PK') {
             const body = await blob.text().catch(() => '');
             const message = body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-            throw new Error(message || '양식 다운로드에 실패했습니다.');
+            throw new Error(message || 'Request failed.');
         }
 
         const url = URL.createObjectURL(blob);
@@ -168,10 +173,10 @@ import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/p
 
     function seedActionLabel(action) {
         return {
-            NEW: '신규',
-            UPDATED: '변경',
-            UNCHANGED: '동일',
-        }[String(action || '').toUpperCase()] || '신규';
+            NEW: 'NEW',
+            UPDATED: 'UPDATED',
+            UNCHANGED: 'UNCHANGED',
+        }[String(action || '').toUpperCase()] || 'NEW';
     }
 
     function setSeedUploadEnabled(enabled) {
@@ -180,15 +185,21 @@ import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/p
         }
     }
 
+    function setPreviewGridDataState(wrapper, hasData) {
+        if (!wrapper) return;
+        wrapper.classList.toggle('has-data', Boolean(hasData));
+    }
+
     function destroyPreviewGrid() {
-        if (previewHot) {
-            previewHot.destroy();
-            previewHot = null;
+        if (previewGrid) {
+            previewGrid.destroy();
+            previewGrid = null;
         }
-        setSpreadsheetDataState(previewGridWrapEl, false);
+        setPreviewGridDataState(previewGridWrapEl, false);
         if (previewGridSummaryEl) {
             previewGridSummaryEl.textContent = '';
         }
+        currentPreviewSummary = {};
         setSeedUploadEnabled(false);
     }
 
@@ -240,30 +251,23 @@ import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/p
                 item[`col_${columnIndex}`] = columnValue(row, column);
             });
 
-            return item;
+        return item;
         });
     }
 
-    function buildHotColumns(columns) {
-        return [
-            { data: '_status', readOnly: true, width: 90 },
-            { data: '_seed_action', readOnly: true, width: 90 },
-            { data: '_message', readOnly: true, width: 260 },
-            ...columns.map((column, columnIndex) => ({
-                data: `col_${columnIndex}`,
-                readOnly: true,
-                width: ['supply_amount', 'vat_amount', 'total_amount'].includes(column.system_field_name) ? 120 : 140,
-            })),
-        ];
+    function previewValidationStatus(row) {
+        return String(row?._validation?.status || 'ok').toLowerCase();
     }
 
-    function buildHotHeaders(columns) {
-        return [
-            TEXT.status,
-            'Seed판정',
-            TEXT.errorMessage,
-            ...columns.map((column) => column.excel_column_name || column.system_field_name || '-'),
-        ];
+    function statusCellClass(params) {
+        const status = previewValidationStatus(params?.data || {});
+        if (status === 'error') return 'spreadsheet-status-error';
+        if (status === 'warning') return 'spreadsheet-status-warning';
+        return 'spreadsheet-status-valid';
+    }
+
+    function messageCellClass() {
+        return 'spreadsheet-message-cell';
     }
 
     function requiredColumnMissing(row, column) {
@@ -271,35 +275,58 @@ import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/p
         return String(columnValue(row, column) ?? '').trim() === '';
     }
 
-    function previewCellRenderer(instance, td, row, col, prop, value, cellProperties) {
-        Handsontable.renderers.TextRenderer(instance, td, row, col, prop, value, cellProperties);
-        td.classList.remove(
-            'spreadsheet-status-valid',
-            'spreadsheet-status-warning',
-            'spreadsheet-status-error',
-            'spreadsheet-message-cell',
-            'spreadsheet-cell-warning',
-            'spreadsheet-cell-error',
-        );
+    function dataCellClass(columnIndex, columns = []) {
+        return (params = {}) => {
+            const row = params.data || {};
+            const sourceRow = row._source || {};
+            const column = columns[columnIndex];
+            if (!column) return '';
 
-        const sourceRow = instance.getSourceDataAtRow(row)?._source || {};
-        const status = sourceRow?._validation?.status || 'ok';
-        if (prop === '_status') {
-            td.classList.add(status === 'error' ? 'spreadsheet-status-error' : (status === 'warning' ? 'spreadsheet-status-warning' : 'spreadsheet-status-valid'));
-            return;
-        }
-        if (prop === '_message') {
-            td.classList.add('spreadsheet-message-cell');
-            return;
-        }
+            const warning = previewValidationStatus(row) === 'warning';
+            const requiredMissing = Number(column.is_required || 0) && requiredColumnMissing(sourceRow, column);
+            if (requiredMissing) {
+                return 'spreadsheet-cell-error';
+            }
+            if (warning) {
+                return 'spreadsheet-cell-warning';
+            }
+            return ['supply_amount', 'vat_amount', 'total_amount'].includes(column.system_field_name) ? 'text-end' : '';
+        };
+    }
 
-        const columnIndex = Number(String(prop).replace('col_', ''));
-        const column = cellProperties.previewColumns?.[columnIndex];
-        if (column && requiredColumnMissing(sourceRow, column)) {
-            td.classList.add('spreadsheet-cell-error');
-        } else if (status === 'warning') {
-            td.classList.add('spreadsheet-cell-warning');
-        }
+    function buildGridColumns(columns) {
+        return [
+            {
+                field: '_status',
+                headerName: TEXT.status,
+                pinned: 'left',
+                width: 90,
+                editable: false,
+                cellClass: statusCellClass,
+            },
+            {
+                field: '_seed_action',
+                headerName: 'Seed Status',
+                pinned: 'left',
+                width: 90,
+                editable: false,
+            },
+            {
+                field: '_message',
+                headerName: TEXT.errorMessage,
+                pinned: 'left',
+                width: 260,
+                editable: false,
+                cellClass: messageCellClass,
+            },
+            ...columns.map((column, columnIndex) => ({
+                field: `col_${columnIndex}`,
+                headerName: column.excel_column_name || column.system_field_name || '-',
+                editable: false,
+                width: ['supply_amount', 'vat_amount', 'total_amount'].includes(column.system_field_name) ? 120 : 140,
+                cellClass: dataCellClass(columnIndex, columns),
+            })),
+        ];
     }
 
     function renderPreviewRows(rows, columns) {
@@ -307,8 +334,7 @@ import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/p
         const filteredColumns = visiblePreviewColumns(columns);
         const filteredRows = visiblePreviewRows(rows);
         const data = buildPreviewDataset(filteredRows, filteredColumns);
-        const hotColumns = buildHotColumns(filteredColumns);
-        const headers = buildHotHeaders(filteredColumns);
+        const gridColumns = buildGridColumns(filteredColumns);
 
         destroyPreviewGrid();
 
@@ -319,51 +345,43 @@ import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/p
             return;
         }
 
-        setSpreadsheetDataState(previewGridWrapEl, true);
+        setPreviewGridDataState(previewGridWrapEl, true);
         if (previewGridSummaryEl) {
             const errors = rows.filter((row) => row?._validation?.status === 'error').length;
             const warnings = rows.filter((row) => row?._validation?.status === 'warning').length;
-            previewGridSummaryEl.textContent = `${data.length.toLocaleString('ko-KR')}\uD589 / ${filteredColumns.length.toLocaleString('ko-KR')}\uCEEC\uB7FC · ERROR ${errors} · WARNING ${warnings}`;
+            previewGridSummaryEl.textContent = data.length.toLocaleString('ko-KR') + ' rows / ' + filteredColumns.length.toLocaleString('ko-KR') + ' columns, ERROR ' + errors + ', WARNING ' + warnings;
         }
 
         try {
-            previewHot = createSpreadsheet(previewGridEl, {
-            data,
-            columns: hotColumns,
-            colHeaders: headers,
-            rowHeaders: true,
-            fixedColumnsStart: Math.min(4, hotColumns.length),
-            fixedRowsTop: 0,
-            cells(row, col) {
-                const prop = hotColumns[col]?.data || '';
-                return {
-                    renderer: previewCellRenderer,
-                    previewColumns: filteredColumns,
-                    className: ['supply_amount', 'vat_amount', 'total_amount'].includes(filteredColumns[col - 3]?.system_field_name) ? 'htRight' : '',
-                    data: prop,
-                };
-            },
-            afterGetColHeader(column, th) {
-                if (column < 0) return;
-                th.title = headers[column] || '';
-            },
+            previewGrid = createAgGridAdapter(previewGridEl, {
+                rowData: data,
+                columnDefs: gridColumns,
+                className: 'spreadsheet-grid ag-theme-quartz',
+                readOnly: true,
+                rowSelection: 'single',
+                domLayout: 'normal',
+                gridOptions: {
+                    suppressColumnVirtualisation: true,
+                    suppressRowClickSelection: true,
+                    suppressCellFocus: true,
+                },
             });
         } catch (error) {
             notify('error', error.message);
         }
     }
-
     function renderValidationSummary(summary = {}) {
         if (!validationSummaryCard || !validationSummaryList) return;
         const items = [
-            ['정상', summary.ok || 0, 'text-bg-success'],
-            ['경고', summary.warning || 0, 'text-bg-warning'],
-            ['오류', summary.error || 0, 'text-bg-danger'],
-            ['신규', summary.new || 0, 'text-bg-primary'],
-            ['변경', summary.updated || 0, 'text-bg-info'],
-            ['동일', summary.unchanged || 0, 'text-bg-secondary'],
-            ['컬럼오류', summary.check_error || 0, 'text-bg-danger'],
-            ['컬럼경고', summary.check_warning || 0, 'text-bg-warning'],
+            ['OK', summary.ok || 0, 'text-bg-success'],
+            ['Warning', summary.warning || 0, 'text-bg-warning'],
+            ['Error', summary.error || 0, 'text-bg-danger'],
+            ['New', summary.new || 0, 'text-bg-primary'],
+            ['Updated', summary.updated || 0, 'text-bg-info'],
+            ['Unchanged', summary.unchanged || 0, 'text-bg-secondary'],
+            ['Check Error', summary.check_error || 0, 'text-bg-danger'],
+            ['Check Warning', summary.check_warning || 0, 'text-bg-warning'],
+            ['Required Missing', summary.required_missing_items || 0, 'text-bg-warning'],
         ];
         validationSummaryList.innerHTML = items.map(([label, count, cls]) => `<span class="badge ${cls}">${label} ${Number(count).toLocaleString('ko-KR')}</span>`).join('');
         validationSummaryCard.classList.remove('d-none');
@@ -378,11 +396,11 @@ import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/p
         rows.forEach((row) => {
             const messages = Array.isArray(row?._validation?.messages) ? row._validation.messages : [];
             messages.forEach((message) => {
-                details.push([validationStatus(row._validation), `${row._row_no || '-'}행: ${message}`]);
+                details.push([validationStatus(row._validation), (row._row_no || '-') + ': ' + message]);
             });
         });
         if (!details.length) {
-            details.push(['정상', '검증 오류가 없습니다.']);
+            details.push(['OK', 'No validation details.']);
         }
         validationDetailList.innerHTML = details.map(([type, message]) => `
             <tr>
@@ -398,7 +416,7 @@ import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/p
         const newCount = Number(result?.new_count || 0);
         const updatedCount = Number(result?.updated_count || 0);
         const unchangedCount = Number(result?.unchanged_count || 0);
-        uploadResultText.textContent = `${TEXT.saved} 신규 ${newCount}건, 변경 ${updatedCount}건, 동일 ${unchangedCount}건`;
+        uploadResultText.textContent = TEXT.saved + ' (New: ' + newCount.toLocaleString('ko-KR') + ' / Updated: ' + updatedCount.toLocaleString('ko-KR') + ' / Unchanged: ' + unchangedCount.toLocaleString('ko-KR') + ')';
         uploadResultAlert.classList.remove('d-none');
     }
 
@@ -427,6 +445,7 @@ import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/p
         previewRows = [];
         previewColumns = [];
         currentPreviewToken = '';
+        currentPreviewSummary = {};
         validationSummaryCard?.classList.add('d-none');
         validationDetailCard?.classList.add('d-none');
         destroyPreviewGrid();
@@ -438,6 +457,7 @@ import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/p
         previewRows = [];
         previewColumns = [];
         currentPreviewToken = '';
+        currentPreviewSummary = {};
         validationSummaryCard?.classList.add('d-none');
         validationDetailCard?.classList.add('d-none');
         destroyPreviewGrid();
@@ -459,6 +479,7 @@ import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/p
         previewRows = [];
         previewColumns = [];
         currentPreviewToken = '';
+        currentPreviewSummary = {};
         destroyPreviewGrid();
         updateTemplateButtonState();
     });
@@ -490,7 +511,7 @@ import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/p
         formData.append('format_id', formatId);
         formData.append('file', file);
         validateBtn.disabled = true;
-        validateBtn.textContent = '검증 중';
+        validateBtn.textContent = 'Validating...';
         setSeedUploadEnabled(false);
         try {
             const json = await fetchJson('/api/import/preview', {
@@ -501,11 +522,12 @@ import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/p
             previewColumns = json.data?.format?.columns || [];
             currentPreviewToken = json.data?.preview_token || '';
             renderPreviewRows(previewRows, previewColumns);
-        renderValidationSummary(json.data?.summary || {});
+        currentPreviewSummary = json.data?.summary || {};
+        renderValidationSummary(currentPreviewSummary);
         renderValidationDetails(previewRows, json.data?.checks || []);
-        setSeedUploadEnabled(Boolean(currentPreviewToken) && Number(json.data?.summary?.check_error || 0) === 0);
+        setSeedUploadEnabled(Boolean(currentPreviewToken) && Number(currentPreviewSummary?.check_error || 0) === 0);
         if (Number(json.data?.summary?.error || 0) > 0) {
-            notify('warning', '검증 오류가 있는 행은 ERROR 상태로 Seed에 적재됩니다. 자료목록에서 수정 후 READY로 변경하세요.');
+            notify('warning', 'Validation is complete, but there are Error/Warning rows. If status is not READY, Seed upload may be blocked.');
         }
             uploadResultAlert?.classList.add('d-none');
             console.log('[dataUpload] validated preview:', json.data?.summary);
@@ -513,36 +535,69 @@ import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/p
             notify('error', error.message);
         } finally {
             validateBtn.disabled = false;
-            validateBtn.textContent = '검증';
+            validateBtn.textContent = 'Validate';
         }
     });
 
     seedUploadBtn?.addEventListener('click', async () => {
         if (!currentPreviewToken) {
-            notify('warning', '먼저 검증을 실행하세요.');
+            notify('warning', 'No preview data. Please validate first.');
+            return;
+        }
+        const requiredMissingItems = Number(currentPreviewSummary?.required_missing_items || 0);
+        const requiredMissingRows = Number(currentPreviewSummary?.required_missing_rows || 0);
+        const allowRequiredMissing = requiredMissingItems > 0
+            ? window.confirm(`${TEXT.requiredMissingConfirm}\n\n${requiredMissingRows.toLocaleString('ko-KR')} rows / ${requiredMissingItems.toLocaleString('ko-KR')} items`)
+            : false;
+        if (requiredMissingItems > 0 && !allowRequiredMissing) {
             return;
         }
         seedUploadBtn.disabled = true;
-        seedUploadBtn.textContent = '적재 중';
+        seedUploadBtn.textContent = 'Saving...';
         try {
             const json = await fetchJson('/api/import/evidence-upload', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ preview_token: currentPreviewToken }),
+                body: JSON.stringify({
+                    preview_token: currentPreviewToken,
+                    allow_required_missing: allowRequiredMissing,
+                }),
             });
+            if (json.requires_confirmation && json.confirmation_code === 'REQUIRED_FIELD_MISSING') {
+                const confirmed = window.confirm(json.message || TEXT.requiredMissingConfirm);
+                if (!confirmed) {
+                    setSeedUploadEnabled(true);
+                    return;
+                }
+                const retryJson = await fetchJson('/api/import/evidence-upload', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        preview_token: currentPreviewToken,
+                        allow_required_missing: true,
+                    }),
+                });
+                currentPreviewToken = '';
+                const retryResult = retryJson.data || {};
+                showUploadResult(retryResult);
+                notify(
+                    'success',
+                    TEXT.saved + ' (New: ' + Number(retryResult.new_count || 0).toLocaleString('ko-KR') + ' / Updated: ' + Number(retryResult.updated_count || 0).toLocaleString('ko-KR') + ' / Unchanged: ' + Number(retryResult.unchanged_count || 0).toLocaleString('ko-KR') + ')'
+                );
+                return;
+            }
             currentPreviewToken = '';
             const result = json.data || {};
             showUploadResult(result);
             notify(
                 'success',
-                `Seed 업로드가 완료되었습니다. 신규 ${Number(result.new_count || 0).toLocaleString('ko-KR')}건, 변경 ${Number(result.updated_count || 0).toLocaleString('ko-KR')}건, 동일 ${Number(result.unchanged_count || 0).toLocaleString('ko-KR')}건`
+                TEXT.saved + ' (New: ' + Number(result.new_count || 0).toLocaleString('ko-KR') + ' / Updated: ' + Number(result.updated_count || 0).toLocaleString('ko-KR') + ' / Unchanged: ' + Number(result.unchanged_count || 0).toLocaleString('ko-KR') + ')'
             );
-            setSeedUploadEnabled(false);
         } catch (error) {
             notify('error', error.message);
             setSeedUploadEnabled(true);
         } finally {
-            seedUploadBtn.textContent = 'Seed 업로드';
+            seedUploadBtn.textContent = 'Seed Upload';
         }
     });
 
@@ -550,7 +605,7 @@ import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/p
         optionEl?.addEventListener('change', () => renderPreviewRows(previewRows, previewColumns));
     });
 
-    window.addEventListener('resize', () => previewHot?.render());
+    window.addEventListener('resize', () => previewGrid?.render());
 
     onCodeOptionsLoaded(() => {
         if (currentDataType() === '') {

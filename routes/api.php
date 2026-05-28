@@ -2068,6 +2068,16 @@ $router->post('/api/import/evidence-upload', 'ImportController@apiSeedUpload', [
     'log' => true,
 ]);
 
+$router->post('/api/import/evidence-upload/cancel', 'ImportController@apiSeedUploadCancel', [
+    'key' => 'api.import.evidence_upload_cancel',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => false,
+]);
+
 $router->get('/api/import/batches', 'ImportController@apiUploadBatches', [
     'key' => 'api.import.batches',
     'name' => 'route',
@@ -2160,6 +2170,36 @@ $router->post('/api/import/evidence/save', 'ImportController@apiSeedRowSave', [
 
 $router->post('/api/import/evidence/create', 'ImportController@apiEvidenceCreate', [
     'key' => 'api.import.evidence.create',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
+$router->post('/api/import/evidence/split-child', 'ImportController@apiEvidenceSplitChild', [
+    'key' => 'api.import.evidence.split_child',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
+$router->post('/api/import/evidence/processing-child/delete', 'ImportController@apiEvidenceDeleteProcessingChild', [
+    'key' => 'api.import.evidence.processing_child.delete',
+    'name' => 'route',
+    'description' => 'route',
+    'category' => 'system',
+    'auth' => true,
+    'permissions' => ['delete'],
+    'log' => true,
+]);
+
+$router->post('/api/import/evidence/processing-child/update', 'ImportController@apiEvidenceUpdateProcessingChild', [
+    'key' => 'api.import.evidence.processing_child.update',
     'name' => 'route',
     'description' => 'route',
     'category' => 'system',
@@ -2386,6 +2426,96 @@ $router->post('/api/import/create-transactions', 'ImportController@apiCreateTran
     'auth' => true,
     'permissions' => ['save'],
     'log' => true,
+]);
+
+$router->get('/api/funds/bank-transactions', 'BankTransactionReportController@apiList', [
+    'key' => 'api.funds.bank_transactions.list',
+    'name' => '계좌별거래내역 조회',
+    'description' => '자금관리 > 계좌별거래내역 조회',
+    'category' => '회계관리',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
+]);
+
+$router->get('/api/funds/bank-transactions/summary', 'BankTransactionReportController@apiSummary', [
+    'key' => 'api.funds.bank_transactions.summary',
+    'name' => '계좌별거래내역 요약',
+    'description' => '자금관리 > 계좌별거래내역 요약',
+    'category' => '회계관리',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
+]);
+
+$router->get('/api/funds/bank-transactions/show', 'BankTransactionReportController@apiShow', [
+    'key' => 'api.funds.bank_transactions.show',
+    'name' => '입출금 원본 보기',
+    'description' => '자금관리 입출금 원본 보기',
+    'category' => '회계관리',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
+]);
+
+$router->get('/api/funds/bank-transactions/trash', 'BankTransactionReportController@apiTrashList', [
+    'key' => 'api.funds.bank_transactions.trash',
+    'name' => '입출금 원본 휴지통',
+    'description' => '자금관리 입출금 원본 휴지통',
+    'category' => '회계관리',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
+]);
+
+$router->post('/api/funds/bank-transactions/delete', 'BankTransactionReportController@apiDelete', [
+    'key' => 'api.funds.bank_transactions.delete',
+    'name' => '입출금 원본 삭제',
+    'description' => '자금관리 입출금 원본 휴지통 이동',
+    'category' => '회계관리',
+    'auth' => true,
+    'permissions' => ['delete'],
+    'log' => true,
+]);
+
+$router->post('/api/funds/bank-transactions/restore', 'BankTransactionReportController@apiRestore', [
+    'key' => 'api.funds.bank_transactions.restore',
+    'name' => '입출금 원본 복구',
+    'description' => '자금관리 입출금 원본 복구',
+    'category' => '회계관리',
+    'auth' => true,
+    'permissions' => ['delete'],
+    'log' => true,
+]);
+
+$router->post('/api/funds/bank-transactions/restore-bulk', 'BankTransactionReportController@apiRestoreBulk', [
+    'key' => 'api.funds.bank_transactions.restore_bulk',
+    'name' => '입출금 원본 일괄복구',
+    'description' => '자금관리 입출금 원본 일괄복구',
+    'category' => '회계관리',
+    'auth' => true,
+    'permissions' => ['delete'],
+    'log' => true,
+]);
+
+$router->post('/api/funds/bank-transactions/restore-all', 'BankTransactionReportController@apiRestoreAll', [
+    'key' => 'api.funds.bank_transactions.restore_all',
+    'name' => '입출금 원본 전체복구',
+    'description' => '자금관리 입출금 원본 전체복구',
+    'category' => '회계관리',
+    'auth' => true,
+    'permissions' => ['delete'],
+    'log' => true,
+]);
+
+$router->get('/api/funds/payment-info', 'PaymentInfoReportController@apiList', [
+    'key' => 'api.funds.payment_info.list',
+    'name' => '결제정보 조회',
+    'description' => '자금관리 > 결제정보 조회',
+    'category' => '회계관리',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
 ]);
 
 $router->get('/api/system/file-policies', 'FileController@apiPolicyList', [

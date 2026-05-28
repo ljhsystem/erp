@@ -1,10 +1,10 @@
 // 경로: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/base/bank.account.js'
 
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
-import { createDataTable, bindTableHighlight } from '/public/assets/js/components/data-table.js';
+import { createDataTable, bindTableHighlight } from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
-import { onlyNumber, formatAccountNumber } from '/public/assets/js/common/format.js';
+import * as NumberFormat from '/public/assets/js/common/format.js';
 import { initCodeSelectControls, getCodeName, onCodeOptionsLoaded } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
 import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
@@ -15,6 +15,10 @@ window.AdminPicker = AdminPicker;
     'use strict';
 
     console.log('[base-bank-account.js] loaded');
+
+    const onlyNumber = NumberFormat.onlyNumber || ((value) => String(value ?? '').replace(/\D/g, ''));
+    const { formatAccountNumber, loadBankAccountFormatRegistry, unformatAccountNumber } = NumberFormat;
+    loadBankAccountFormatRegistry?.();
 
     function escapeHtml(value) {
         return String(value ?? '')
@@ -57,14 +61,14 @@ window.AdminPicker = AdminPicker;
     ========================= */
     const ACCOUNT_COLUMN_MAP = {
         sort_no          : { label: "순번",       visible: true  },
-        account_name     : { label: "계좌명",     visible: true  },
-        bank_name        : { label: "은행명",     visible: true  },
-        account_number   : { label: "계좌번호",   visible: true  },
-        account_holder   : { label: "예금주",     visible: true  },
-        account_type     : { label: "계좌구분",   visible: true  },
+        account_name     : { label: "계좌명",     visible: true,  width: "220px", className: "account-nowrap" },
+        bank_name        : { label: "은행명",     visible: true,  width: "160px", className: "account-nowrap" },
+        account_number   : { label: "계좌번호",   visible: true,  width: "165px", className: "account-nowrap" },
+        account_holder   : { label: "예금주",     visible: true,  width: "130px", className: "account-nowrap" },
+        account_type     : { label: "계좌구분",   visible: true,  width: "115px", className: "account-nowrap" },
         currency         : { label: "통화",       visible: false },
         bank_file        : { label: "통장사본",   visible: false },
-        note             : { label: "비고",       visible: true  },
+        note             : { label: "비고",       visible: true,  className: "account-note-cell" },
         memo             : { label: "메모",       visible: false },
         is_active        : { label: "상태",       visible: true  },
         created_at       : { label: "등록일시",   visible: false },
@@ -85,6 +89,7 @@ window.AdminPicker = AdminPicker;
     let excelModal = null;
     let todayPicker = null;
     let globalBound = false;
+    let accountModalControlsPromise = null;
 
     /* ============================================================
        DOM READY
@@ -96,6 +101,7 @@ window.AdminPicker = AdminPicker;
         }
 
         const $ = window.jQuery;
+        void loadBankAccountFormatRegistry?.();
         await initAccountPage($);
     });
 
@@ -108,7 +114,7 @@ window.AdminPicker = AdminPicker;
         initAdminDatePicker();
         initBankBookUpload();
         initExcelDataset();
-        await initCodeSelectControls(document.getElementById('accountModal'));
+        void preloadAccountModalControls();
         onCodeOptionsLoaded(() => {
             accountTable?.rows().invalidate('data').draw(false);
         });
@@ -252,6 +258,7 @@ window.AdminPicker = AdminPicker;
         globalBound = true;
 
         document.addEventListener('input', onGlobalInput);
+        document.addEventListener('change', onGlobalChange);
     }
 
     function onGlobalInput(e) {
@@ -264,10 +271,60 @@ window.AdminPicker = AdminPicker;
         }
 
         if (type === 'account_number') {
-            const form = e.target.closest('form');
-            const bankName = form?.querySelector('[name="bank_name"]')?.value || '';
-            e.target.value = formatAccountNumber(e.target.value, bankName);
+            formatAccountNumberInput(e.target);
             return;
+        }
+    }
+
+    function onGlobalChange(e) {
+        if (e.target.name !== 'bank_name') return;
+        const form = e.target.closest('form');
+        const input = form?.querySelector('[name="account_number"][data-format="account_number"]');
+        formatAccountNumberInput(input, { forceReload: true });
+    }
+
+    function getAccountModalBankName(form = document.getElementById('accountForm')) {
+        const bankSelect = form?.querySelector('[name="bank_name"]');
+        if (!bankSelect) return '';
+
+        const selectedText = bankSelect.options?.[bankSelect.selectedIndex]?.textContent || '';
+        return [bankSelect.value, selectedText].filter(Boolean).join(' ');
+    }
+
+    function formatAccountNumberInput(input, options = {}) {
+        if (!input) return;
+
+        const form = input.closest('form') || document.getElementById('accountForm');
+        const bankName = getAccountModalBankName(form);
+        input.value = formatAccountNumber(input.value, bankName);
+
+        void loadBankAccountFormatRegistry?.({ force: options.forceReload === true }).then(() => {
+            const latestBankName = getAccountModalBankName(form);
+            input.value = formatAccountNumber(input.value, latestBankName);
+        });
+    }
+
+    function bindAccountBankFormatting(modalEl = document.getElementById('accountModal')) {
+        const bankSelect = modalEl?.querySelector('#modal_bank_name, [name="bank_name"]');
+        const accountInput = modalEl?.querySelector('[name="account_number"][data-format="account_number"]');
+        if (!bankSelect || !accountInput) return;
+
+        const reformatAccountNumber = () => {
+            formatAccountNumberInput(accountInput, { forceReload: true });
+            window.requestAnimationFrame?.(() => {
+                formatAccountNumberInput(accountInput);
+            });
+        };
+
+        if (bankSelect.dataset.accountFormatNativeBound !== 'true') {
+            bankSelect.addEventListener('change', reformatAccountNumber);
+            bankSelect.dataset.accountFormatNativeBound = 'true';
+        }
+
+        if (window.jQuery?.fn?.select2) {
+            window.jQuery(bankSelect)
+                .off('select2:select.accountBankFormat select2:clear.accountBankFormat')
+                .on('select2:select.accountBankFormat select2:clear.accountBankFormat', reformatAccountNumber);
         }
     }
 
@@ -299,6 +356,14 @@ window.AdminPicker = AdminPicker;
                     displayValue = value ? '등록됨' : '';
                 }
 
+                if (key === 'bank_name' || key === 'account_type') {
+                    displayValue = getCodeName(key, value) || value;
+                }
+
+                if (key === 'account_number') {
+                    displayValue = formatAccountNumber(value, data.bank_name || '');
+                }
+
                 html += `<div><b>${config.label}:</b> ${displayValue}</div>`;
             });
 
@@ -312,10 +377,10 @@ window.AdminPicker = AdminPicker;
             return `
                 <td>${row.sort_no ?? ''}</td>
                 <td>${row.account_name ?? ''}</td>
-                <td>${row.bank_name ?? ''}</td>
-                <td>${row.account_number ?? ''}</td>
+                <td>${escapeHtml(getCodeName('bank_name', row.bank_name) || row.bank_name || '')}</td>
+                <td>${escapeHtml(formatAccountNumber(row.account_number ?? '', row.bank_name ?? ''))}</td>
                 <td>${row.account_holder ?? ''}</td>
-                <td>${row.account_type ?? ''}</td>
+                <td>${escapeHtml(getCodeName('account_type', row.account_type) || row.account_type || '')}</td>
                 <td>${row.currency ?? ''}</td>
                 <td>${row.deleted_at ?? ''}</td>
                 <td>${row.deleted_by_name ?? row.deleted_by ?? ''}</td>
@@ -473,6 +538,24 @@ window.AdminPicker = AdminPicker;
         }
     }
 
+    function preloadAccountModalControls() {
+        if (!accountModalControlsPromise) {
+            accountModalControlsPromise = prepareAccountModalControls()
+                .catch((error) => {
+                    console.error('[bank-account] modal controls preload failed', error);
+                    accountModalControlsPromise = null;
+                });
+        }
+
+        return accountModalControlsPromise;
+    }
+
+    async function prepareAccountModalControls() {
+        await loadBankAccountFormatRegistry?.();
+        await initCodeSelectControls(document.getElementById('accountModal'));
+        bindAccountBankFormatting();
+    }
+
     /* ============================================================
        DATATABLE
     ============================================================ */
@@ -520,11 +603,10 @@ window.AdminPicker = AdminPicker;
                 {
                     text: "새 계좌",
                     className: "btn btn-warning btn-sm",
-                    action: async function () {
+                    action: function () {
 
                         const form = document.getElementById('accountForm');
                         if (form) form.reset();
-                        await initCodeSelectControls(document.getElementById('accountModal'));
                         const currencyEl = document.getElementById('modal_account_currency');
                         if (currencyEl) {
                             currencyEl.value = 'KRW';
@@ -559,6 +641,11 @@ window.AdminPicker = AdminPicker;
                         if (accountModal) {
                             accountModal.show();
                         }
+
+                        void prepareAccountModalControls().catch((error) => {
+                            console.error('[bank-account] modal controls prepare failed', error);
+                            AppCore?.notify?.('error', '계좌 입력 항목 준비 중 오류가 발생했습니다.');
+                        });
                     }
                 }
             ]
@@ -583,7 +670,6 @@ window.AdminPicker = AdminPicker;
                 tableId: 'account',
                 defaultSearchField: 'account_name',
                 dateOptions: DATE_OPTIONS,
-                initialCollapsed: true,
                 normalizeFilters: normalizeAccountFilters
             });
             bindTableHighlight('#account-table', accountTable);
@@ -641,31 +727,40 @@ window.AdminPicker = AdminPicker;
     async function openAccountEditModal(accountId) {
         if (!accountId) return;
 
+        window.isNewAccount = false;
+
+        const form = document.getElementById('accountForm');
+        if (form) form.reset();
+
+        const titleEl = document.querySelector('#accountModal .modal-title');
+        if (titleEl) {
+            titleEl.textContent = '계좌 정보 수정';
+        }
+
+        const deleteBtn = document.getElementById('btnDeleteAccount');
+        if (deleteBtn) deleteBtn.style.display = '';
+
+        const idEl = getIdEl();
+        if (idEl) idEl.value = accountId;
+
+        const delFile = getDeleteBankBookEl();
+        const fileInput = getBankBookInputEl();
+
+        if (delFile) delFile.value = '0';
+        if (fileInput) fileInput.value = '';
+
+        resetBankBookUI();
+        accountModal?.show();
+
         try {
-            const data = await fetchAccountDetail(accountId);
+            const [data] = await Promise.all([
+                fetchAccountDetail(accountId),
+                prepareAccountModalControls()
+            ]);
 
-            window.isNewAccount = false;
-
-            const titleEl = document.querySelector('#accountModal .modal-title');
-            if (titleEl) {
-                titleEl.textContent = '계좌 정보 수정';
-            }
-
-            const deleteBtn = document.getElementById('btnDeleteAccount');
-            if (deleteBtn) deleteBtn.style.display = '';
-
-            const idEl = getIdEl();
-            if (idEl) idEl.value = data.id;
-
-            const delFile = getDeleteBankBookEl();
-            const fileInput = getBankBookInputEl();
-
-            if (delFile) delFile.value = '0';
-            if (fileInput) fileInput.value = '';
-
-            await initCodeSelectControls(document.getElementById('accountModal'));
+            const nextIdEl = getIdEl();
+            if (nextIdEl) nextIdEl.value = data.id;
             fillModal(data);
-            accountModal.show();
         } catch (e) {
             console.error(e);
             AppCore?.notify?.('error', e.message || '서버 오류');
@@ -748,7 +843,7 @@ window.AdminPicker = AdminPicker;
             const form = this;
             const formData = new FormData(form);
             const accountName = String(formData.get('account_name') || '').trim();
-            const accountNumber = String(formData.get('account_number') || '').trim();
+            const accountNumber = unformatAccountNumber(formData.get('account_number') || '');
             const currency = String(formData.get('currency') || '').trim().toUpperCase();
             const bankName = String(formData.get('bank_name') || '').trim();
             const accountHolder = String(formData.get('account_holder') || '').trim();
@@ -758,8 +853,8 @@ window.AdminPicker = AdminPicker;
                 return;
             }
 
-            if (accountNumber && !/^[0-9-]+$/.test(accountNumber)) {
-                AppCore?.notify?.('warning', '계좌번호는 숫자와 하이픈만 입력할 수 있습니다.');
+            if (accountNumber && !/^\d+$/.test(accountNumber)) {
+                AppCore?.notify?.('warning', '계좌번호는 숫자만 저장할 수 있습니다.');
                 return;
             }
 
@@ -774,6 +869,7 @@ window.AdminPicker = AdminPicker;
             }
 
             formData.set('currency', currency || 'KRW');
+            formData.set('account_number', accountNumber);
 
             const btn = form.querySelector('button[type="submit"]');
             if (btn) btn.disabled = true;
@@ -851,14 +947,36 @@ window.AdminPicker = AdminPicker;
             }
 
             if (key === 'account_number') {
-                el.value = formatAccountNumber(data[key] ?? '', data.bank_name ?? '');
+                el.value = data[key] ?? '';
+                return;
+            }
+
+            if (el.tagName === 'SELECT') {
+                setSelectValueByCodeOrText(el, data[key] ?? '');
                 return;
             }
 
             el.value = data[key] ?? '';
         });
 
+        const accountNumberInput = document.querySelector('#accountForm [name="account_number"][data-format="account_number"]');
+        formatAccountNumberInput(accountNumberInput);
         renderBankBook(data);
+    }
+
+    function setSelectValueByCodeOrText(select, value) {
+        const raw = String(value ?? '').trim();
+        const normalized = raw.toUpperCase();
+        const option = Array.from(select.options || []).find((item) => {
+            const optionValue = String(item.value ?? '').trim();
+            const optionText = String(item.textContent ?? '').trim();
+            return optionValue === raw || optionValue.toUpperCase() === normalized || optionText === raw || optionText.toUpperCase() === normalized;
+        });
+
+        select.value = option?.value ?? raw;
+        if (window.jQuery?.fn?.select2 && window.jQuery(select).hasClass('select2-hidden-accessible')) {
+            window.jQuery(select).trigger('change.select2');
+        }
     }
 
     function buildAccountColumns() {
@@ -881,8 +999,10 @@ window.AdminPicker = AdminPicker;
                 data: field,
                 title: config.label,
                 visible: config.visible ?? true,
+                width: config.width || null,
+                className: config.className || '',
                 defaultContent: "",
-                render: function(data, type) {
+                render: function(data, type, row) {
 
                     if (data == null) return "";
                     if (type !== 'display') return data;
@@ -899,8 +1019,21 @@ window.AdminPicker = AdminPicker;
                         `;
                     }
 
-                    if (field === 'currency') {
+                    if (field === 'currency' || field === 'account_type') {
                         return getCodeName(field, data);
+                    }
+
+                    if (field === 'bank_name') {
+                        return escapeHtml(getCodeName(field, data) || data);
+                    }
+
+                    if (field === 'account_number') {
+                        return escapeHtml(formatAccountNumber(data, row?.bank_name || ''));
+                    }
+
+                    if (field === 'note') {
+                        const value = escapeHtml(data);
+                        return `<span class="account-note-text" title="${value}">${value}</span>`;
                     }
 
                     return data;

@@ -112,6 +112,7 @@ $ui = array_merge([
     <!-- 공통 CSS -->
     <?= AssetHelper::css('/assets/css/common/picker.css') ?>
     <?= AssetHelper::css('/assets/css/common/notification.css') ?>
+    <?= AssetHelper::css('/assets/css/common/page-loading-spinner.css') ?>
     <?= AssetHelper::css('/assets/css/pages/layout/spinner.css') ?>
     <?= AssetHelper::css('/assets/css/pages/layout/navbar.css') ?>
     <?= AssetHelper::css('/assets/css/pages/layout/footer.css') ?>
@@ -142,7 +143,8 @@ $ui = array_merge([
     <?= AssetHelper::js('https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js') ?><!-- select2기능 -->
     <?= AssetHelper::js('https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js') ?><!-- 카카오 주소 API + 공통 주소 JS -->
     <?= AssetHelper::js('/assets/js/common/address.js') ?>
-    <?= AssetHelper::js('/assets/js/common/notification.js') ?>
+    <?= AssetHelper::module('/assets/js/common/notification.js') ?>
+    <?= AssetHelper::js('/assets/js/common/page-loading-spinner.js') ?>
     <script type="module" src="<?= AssetHelper::url('/assets/js/common/picker/picker.select2.js') ?>"></script>
     <?= AssetHelper::js('/assets/js/common/file.js') ?><!-- 파일주소 JS -->
     <?= AssetHelper::js('/assets/js/common/esc-manager.js') ?><!-- esc JS -->

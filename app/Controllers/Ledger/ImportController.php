@@ -3,9 +3,12 @@
 namespace App\Controllers\Ledger;
 
 use App\Models\Ledger\TransactionLinkModel;
+use App\Models\Ledger\ProcessingItemModel;
 use App\Models\System\ClientModel;
 use App\Models\System\CompanyModel;
 use App\Services\Ledger\JournalLearningService;
+use App\Services\Ledger\ProcessingItemSplitService;
+use App\Services\Ledger\ProcessingItemTreeService;
 use App\Services\Ledger\SystemFieldService;
 use App\Services\Ledger\TransactionCrudService;
 use App\Services\Ledger\VoucherService;
@@ -16,6 +19,7 @@ use Core\Helpers\UuidHelper;
 use PDO;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Reader\IReadFilter;
 use PhpOffice\PhpSpreadsheet\RichText\RichText;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -97,6 +101,7 @@ class ImportController
     private ?array $ownCompanyProfile = null;
     private array $systemFieldOptionsByDataType = [];
     private array $voucherRefIdCache = [];
+    private array $voucherRefNameCache = [];
     private array $bankAccountIdCache = [];
     private array $existingSeedRowCache = [];
     private array $existingSeedFingerprintCache = [];
@@ -1451,6 +1456,7 @@ class ImportController
     public function apiPreview(): void
     {
         $this->prepareLargeUploadRuntime();
+        \Core\Session::write();
 
         $formatId = trim((string) ($_POST['format_id'] ?? ''));
         $format = $this->formatWithColumns($formatId);
@@ -1465,6 +1471,7 @@ class ImportController
                 throw new \RuntimeException('자료업로드는 외부 증빙 원본 자료유형만 사용할 수 있습니다.');
             }
             $checks = $this->validateUploadFileColumns($_FILES['file'], $format['columns']);
+            $this->assertUploadFileMatchesFormat($checks, $format['columns']);
             $checkErrors = array_values(array_filter($checks, static fn(array $check): bool => ($check['level'] ?? '') === 'error'));
             if ($checkErrors !== []) {
                 throw new \RuntimeException('업로드 파일의 헤더가 선택한 양식 컬럼과 일치하지 않습니다. ' . (string) ($checkErrors[0]['message'] ?? ''));
@@ -1496,6 +1503,15 @@ class ImportController
     public function apiSeedUpload(): void
     {
         $this->prepareLargeUploadRuntime();
+        \Core\Session::write();
+        $cancelToken = !empty($_FILES['file']) ? $this->uploadCancelTokenFromPayload($_POST) : '';
+        $startedAt = microtime(true);
+        $this->uploadTrace('start', [
+            'token' => $cancelToken,
+            'mode' => !empty($_FILES['file']) ? 'file' : 'preview',
+            'file' => (string) ($_FILES['file']['name'] ?? ''),
+            'size' => (string) ($_FILES['file']['size'] ?? ''),
+        ]);
 
         if (!empty($_FILES['file'])) {
             $formatId = trim((string) ($_POST['format_id'] ?? ''));
@@ -1510,58 +1526,228 @@ class ImportController
                 if (!$this->isAllowedDataType($dataType)) {
                     throw new \RuntimeException('자료업로드는 외부 증빙 원본 자료유형만 사용할 수 있습니다.');
                 }
+                $this->assertUploadNotCanceled($cancelToken);
+                $stageStartedAt = microtime(true);
                 $checks = $this->validateUploadFileColumns($_FILES['file'], $format['columns']);
+                $this->uploadTrace('validated_columns', [
+                    'token' => $cancelToken,
+                    'elapsed_ms' => (int) round((microtime(true) - $stageStartedAt) * 1000),
+                ]);
+                $this->assertUploadFileMatchesFormat($checks, $format['columns']);
                 $checkErrors = array_values(array_filter($checks, static fn(array $check): bool => ($check['level'] ?? '') === 'error'));
                 if ($checkErrors !== []) {
                     throw new \RuntimeException('업로드 파일의 헤더가 선택한 양식 컬럼과 일치하지 않습니다. ' . (string) ($checkErrors[0]['message'] ?? ''));
                 }
 
+                $this->assertUploadNotCanceled($cancelToken);
+                $stageStartedAt = microtime(true);
                 $rows = $this->parseUploadedRows($_FILES['file'], $format['columns']);
+                $this->uploadTrace('parsed_rows', [
+                    'token' => $cancelToken,
+                    'rows' => count($rows),
+                    'elapsed_ms' => (int) round((microtime(true) - $stageStartedAt) * 1000),
+                ]);
                 if ($rows === []) {
                     throw new \RuntimeException('업로드할 데이터 행이 없습니다. 선택한 시트의 2행부터 데이터를 입력했는지 확인하세요.');
                 }
+                $this->assertUploadNotCanceled($cancelToken);
+                $stageStartedAt = microtime(true);
                 $rows = $this->enrichUploadRows($rows, $dataType);
                 $rows = $this->validatePreviewRows($rows, $format['columns'], $dataType);
                 $rows = $this->annotateSeedComparison($rows, $dataType);
+                $this->uploadTrace('prepared_rows', [
+                    'token' => $cancelToken,
+                    'rows' => count($rows),
+                    'elapsed_ms' => (int) round((microtime(true) - $stageStartedAt) * 1000),
+                ]);
                 $this->assertNoUploadValidationErrors($rows);
-                $result = $this->storeUploadBatch($format, $_FILES['file'], $rows);
+                $requiredMissing = $this->uploadRequiredMissingSummary($rows);
+                if (!$this->uploadAllowsRequiredMissing($_POST) && $requiredMissing['items'] > 0) {
+                    $token = $this->storeUploadPreviewSession($format, $_FILES['file'], $rows);
+                    $this->uploadTrace('requires_confirmation', [
+                        'token' => $cancelToken,
+                        'rows' => count($rows),
+                        'elapsed_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                    ]);
+                    $this->json([
+                        'success' => false,
+                        'requires_confirmation' => true,
+                        'confirmation_code' => 'REQUIRED_FIELD_MISSING',
+                        'message' => $this->uploadRequiredMissingConfirmationMessage($requiredMissing),
+                        'data' => [
+                            'preview_token' => $token,
+                            'total_rows' => count($rows),
+                            'required_missing' => $requiredMissing,
+                        ],
+                    ]);
+                    return;
+                }
+                $stageStartedAt = microtime(true);
+                $result = $this->storeUploadBatch($format, $_FILES['file'], $rows, $cancelToken);
+                $this->uploadTrace('stored_rows', [
+                    'token' => $cancelToken,
+                    'rows' => count($rows),
+                    'elapsed_ms' => (int) round((microtime(true) - $stageStartedAt) * 1000),
+                    'total_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                ]);
+                $this->clearUploadCancelToken($cancelToken);
                 $this->json(['success' => true, 'data' => $result, 'checks' => $checks, 'message' => '업로드가 완료되었습니다.']);
             } catch (\Throwable $e) {
+                $this->uploadTrace('failed', [
+                    'token' => $cancelToken,
+                    'elapsed_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                    'message' => $e->getMessage(),
+                ]);
                 $this->json(['success' => false, 'message' => $e->getMessage()], 400);
             }
             return;
         }
 
+        $this->uploadTrace('preview_payload_reading', [
+            'elapsed_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+        ]);
         $payload = $this->requestPayload();
+        $cancelToken = $this->uploadCancelTokenFromPayload($payload);
+        $this->uploadTrace('preview_payload_loaded', [
+            'token' => $cancelToken,
+            'preview_token' => trim((string) ($payload['preview_token'] ?? '')),
+            'elapsed_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+        ]);
         $token = trim((string) ($payload['preview_token'] ?? ''));
+        $this->uploadTrace('preview_session_loading', [
+            'token' => $cancelToken,
+            'preview_token' => $token,
+        ]);
         $preview = $this->uploadPreviewFromSession($token);
+        $this->uploadTrace('preview_session_loaded', [
+            'token' => $cancelToken,
+            'preview_token' => $token,
+            'found' => $preview ? 1 : 0,
+            'elapsed_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+        ]);
         if (!$preview) {
             $this->json(['success' => false, 'message' => '검증 결과가 없습니다. 먼저 검증을 실행하세요.'], 400);
             return;
         }
 
         try {
+            $this->assertUploadNotCanceled($cancelToken);
             $previewFile = is_array($preview['file'] ?? null) ? $preview['file'] : [];
             if (trim((string) ($previewFile['tmp_name'] ?? '')) === '' || !is_file((string) $previewFile['tmp_name'])) {
                 throw new \RuntimeException('업로드 임시 파일이 없습니다. 다시 검증 후 업로드하세요.');
             }
             $dataType = self::normalizeDataType((string) ($preview['format']['data_type'] ?? 'ETC'));
-            $rows = $this->parseUploadedRows($previewFile, $preview['format']['columns']);
-            $rows = $this->enrichUploadRows($rows, $dataType);
-            $rows = $this->validatePreviewRows($rows, $preview['format']['columns'], $dataType);
-            $rows = $this->annotateSeedComparison($rows, $dataType);
+            $rows = is_array($preview['rows'] ?? null) ? $preview['rows'] : [];
+            if ($rows === []) {
+                $rows = $this->parseUploadedRows($previewFile, $preview['format']['columns']);
+                $rows = $this->enrichUploadRows($rows, $dataType);
+                $rows = $this->validatePreviewRows($rows, $preview['format']['columns'], $dataType);
+                $rows = $this->annotateSeedComparison($rows, $dataType);
+            }
             $this->assertNoUploadValidationErrors($rows);
+            $requiredMissing = $this->uploadRequiredMissingSummary($rows);
+            if (!$this->uploadAllowsRequiredMissing($payload) && $requiredMissing['items'] > 0) {
+                $this->json([
+                    'success' => false,
+                    'requires_confirmation' => true,
+                    'confirmation_code' => 'REQUIRED_FIELD_MISSING',
+                    'message' => $this->uploadRequiredMissingConfirmationMessage($requiredMissing),
+                    'data' => ['required_missing' => $requiredMissing],
+                ]);
+                return;
+            }
             $preview['file'] = $previewFile;
             $preview['rows'] = $rows;
             if (($preview['rows'] ?? []) === []) {
                 throw new \RuntimeException('업로드할 데이터 행이 없습니다. 다시 검증 후 업로드하세요.');
             }
-            $result = $this->storeUploadBatch($preview['format'], $preview['file'], $preview['rows']);
+            $totalRows = count($preview['rows']);
+            $isChunked = !empty($payload['chunked_upload']) || isset($payload['chunk_offset']) || isset($payload['chunk_size']);
+            if ($isChunked) {
+                $offset = max(0, (int) ($payload['chunk_offset'] ?? 0));
+                $chunkSize = max(1, min(50, (int) ($payload['chunk_size'] ?? 5)));
+                if ($offset >= $totalRows) {
+                    $this->clearUploadPreviewSession($token);
+                    $this->clearUploadCancelToken($cancelToken);
+                    $this->json(['success' => true, 'data' => [
+                        'total_rows' => $totalRows,
+                        'processed_count' => 0,
+                        'new_count' => 0,
+                        'updated_count' => 0,
+                        'unchanged_count' => 0,
+                        'error_count' => 0,
+                        'skipped_count' => 0,
+                        'chunk_offset' => $offset,
+                        'next_offset' => $totalRows,
+                        'done' => true,
+                    ], 'message' => 'Seed upload completed.']);
+                    return;
+                }
+
+                $chunkRows = array_slice($preview['rows'], $offset, $chunkSize);
+                $stageStartedAt = microtime(true);
+                $result = $this->storeUploadBatch($preview['format'], $preview['file'], $chunkRows, $cancelToken);
+                $nextOffset = min($totalRows, $offset + count($chunkRows));
+                $done = $nextOffset >= $totalRows;
+                $result['total_rows'] = $totalRows;
+                $result['chunk_rows'] = count($chunkRows);
+                $result['chunk_offset'] = $offset;
+                $result['next_offset'] = $nextOffset;
+                $result['done'] = $done;
+                $this->uploadTrace('stored_preview_chunk', [
+                    'token' => $cancelToken,
+                    'offset' => $offset,
+                    'next' => $nextOffset,
+                    'total' => $totalRows,
+                    'elapsed_ms' => (int) round((microtime(true) - $stageStartedAt) * 1000),
+                    'total_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                ]);
+                if ($done) {
+                    $this->clearUploadPreviewSession($token);
+                    $this->clearUploadCancelToken($cancelToken);
+                }
+                $this->json(['success' => true, 'data' => $result, 'message' => $done ? 'Seed upload completed.' : 'Upload chunk saved.']);
+                return;
+            }
+            $stageStartedAt = microtime(true);
+            $result = $this->storeUploadBatch($preview['format'], $preview['file'], $preview['rows'], $cancelToken);
+            $this->uploadTrace('stored_preview_rows', [
+                'token' => $cancelToken,
+                'rows' => count($preview['rows']),
+                'elapsed_ms' => (int) round((microtime(true) - $stageStartedAt) * 1000),
+                'total_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            ]);
             $this->clearUploadPreviewSession($token);
+            $this->clearUploadCancelToken($cancelToken);
             $this->json(['success' => true, 'data' => $result, 'message' => 'Seed 업로드가 완료되었습니다.']);
         } catch (\Throwable $e) {
+            $this->uploadTrace('failed_preview', [
+                'token' => $cancelToken,
+                'elapsed_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'message' => $e->getMessage(),
+            ]);
             $this->json(['success' => false, 'message' => $e->getMessage()], 400);
         }
+    }
+
+    public function apiSeedUploadCancel(): void
+    {
+        \Core\Session::write();
+        $payload = $this->requestPayload();
+        $cancelToken = $this->uploadCancelTokenFromPayload($payload);
+        if ($cancelToken === '') {
+            $this->json(['success' => false, 'message' => '취소할 업로드 토큰이 없습니다.'], 400);
+            return;
+        }
+
+        $this->markUploadCanceled($cancelToken);
+        $this->uploadTrace('cancel_requested', ['token' => $cancelToken]);
+        $previewToken = trim((string) ($payload['preview_token'] ?? ''));
+        if ($previewToken !== '') {
+            $this->clearUploadPreviewSession($previewToken);
+        }
+
+        $this->json(['success' => true, 'message' => '업로드 취소 요청을 접수했습니다.']);
     }
 
     public function apiCreateTransactions(): void
@@ -1586,6 +1772,12 @@ class ImportController
                 $this->json(['success' => false, 'message' => 'Seed 배치를 찾을 수 없습니다.'], 404);
                 return;
             }
+        }
+
+        if (!empty($payload['bundled_voucher'])) {
+            $result = $this->createBundledVoucherFromEvidenceRows($rowIds);
+            $this->json($result, !empty($result['success']) ? 200 : 422);
+            return;
         }
 
         $dataType = self::normalizeDataType((string) ($batch['data_type'] ?? 'TAX_INVOICE'));
@@ -1847,6 +2039,191 @@ class ImportController
         ], $errors === [] ? 200 : 422);
     }
 
+    private function createBundledVoucherFromEvidenceRows(array $rowIds): array
+    {
+        $rowIds = array_values(array_filter(array_unique(array_map('strval', $rowIds))));
+        if (count($rowIds) < 2) {
+            return ['success' => false, 'message' => '묶음전표발행은 2건 이상 선택해야 합니다.'];
+        }
+        if (!$this->tableExists('ledger_data_evidences')) {
+            return ['success' => false, 'message' => '증빙원본 테이블을 찾을 수 없습니다.'];
+        }
+
+        [$inSql, $params] = $this->placeholdersForIds($rowIds, 'bundled_voucher_evidence');
+        $transactionSelect = $this->evidenceHasTransactionIdColumn() ? 'transaction_id' : 'NULL AS transaction_id';
+        $stmt = $this->pdo->prepare("
+            SELECT id, source_type, evidence_date,
+                   client_id, project_id, employee_id, bank_account_id, card_id,
+                   client_name, project_name, employee_name, bank_account_name, card_name,
+                   mapped_payload_json,
+                   {$transactionSelect}
+            FROM ledger_data_evidences
+            WHERE id IN ({$inSql})
+              AND deleted_at IS NULL
+        ");
+        $stmt->execute($params);
+
+        $rowsById = [];
+        foreach (($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []) as $row) {
+            $rowsById[(string) ($row['id'] ?? '')] = $row;
+        }
+
+        $rows = [];
+        foreach ($rowIds as $id) {
+            if (isset($rowsById[$id])) {
+                $rows[] = $rowsById[$id];
+            }
+        }
+        if (count($rows) !== count($rowIds)) {
+            return ['success' => false, 'message' => '선택한 증빙원본 중 일부를 찾을 수 없습니다.'];
+        }
+
+        $actor = ActorHelper::user();
+        $errors = [];
+        $voucherLines = [];
+        $voucherDate = '';
+        $firstEvidenceId = (string) ($rows[0]['id'] ?? '');
+        $linkedTransactions = [];
+
+        foreach ($rows as $index => $row) {
+            $evidenceId = (string) ($row['id'] ?? '');
+            $transactionId = trim((string) ($row['transaction_id'] ?? ''));
+            $mapped = $this->decodeMappedPayload($row['mapped_payload_json'] ?? null);
+            if (!is_array($mapped)) {
+                $errors[] = ($index + 1) . '번째 증빙원본의 매핑 데이터가 올바르지 않습니다.';
+                continue;
+            }
+
+            $dataType = self::normalizeDataType((string) ($row['source_type'] ?? $mapped['import_type'] ?? ''));
+            if ($dataType === 'BANK_TRANSACTION') {
+                $mapped = $this->normalizeBankTransactionPayload($mapped);
+            }
+            $mapped = $this->normalizeEvidenceMappedPayloadForResponse($mapped);
+            $this->mergeEvidenceBusinessInfoIntoPayload($row, $mapped);
+            $mapped['source_type'] = $dataType;
+            $mapped['import_type'] = $dataType;
+            $mapped['evidence_date'] = $row['evidence_date'] ?? ($mapped['evidence_date'] ?? '');
+
+            if ($this->activeVoucherExistsForEvidence($evidenceId, $transactionId)) {
+                $errors[] = ($index + 1) . '번째 증빙원본은 이미 전표가 연결되어 있습니다.';
+                continue;
+            }
+
+            $readiness = $this->readinessForEvidenceRow([
+                'source_type' => $dataType,
+                'import_type' => $dataType,
+                'source_key' => $mapped['source_key'] ?? '',
+                'evidence_date' => $row['evidence_date'] ?? '',
+            ], $mapped);
+            if (($readiness['status'] ?? '') !== 'READY') {
+                $errors[] = ($index + 1) . '번째 증빙원본 보정필요: ' . implode(' / ', $readiness['errors'] ?? []);
+                continue;
+            }
+
+            if (!$this->hasVoucherLinesPayload($mapped)) {
+                $errors[] = ($index + 1) . '번째 증빙원본에 전표 분개라인이 없습니다.';
+                continue;
+            }
+
+            try {
+                $lines = $this->bankVoucherLinesForSave($mapped['_voucher_lines'] ?? []);
+                $missingRefMessage = $this->missingRequiredEvidenceRefsMessage($lines, $mapped);
+                if ($missingRefMessage !== null) {
+                    $errors[] = ($index + 1) . '번째 증빙원본: ' . $missingRefMessage;
+                    continue;
+                }
+                $lines = $this->applyEvidenceRefsToVoucherLines($lines, $mapped);
+                $voucherLines = array_merge($voucherLines, $lines);
+            } catch (\Throwable $e) {
+                $errors[] = ($index + 1) . '번째 증빙원본: ' . $e->getMessage();
+                continue;
+            }
+
+            if ($voucherDate === '') {
+                $voucherDate = $this->dateValue($mapped['voucher_date'] ?? $mapped['transaction_date'] ?? $mapped['evidence_date'] ?? '');
+            }
+            if ($transactionId !== '') {
+                $linkedTransactions[$evidenceId] = $transactionId;
+            }
+        }
+
+        if ($errors !== []) {
+            return ['success' => false, 'message' => implode("\n", $errors), 'errors' => $errors];
+        }
+        if ($voucherLines === []) {
+            return ['success' => false, 'message' => '묶음전표로 발행할 분개라인이 없습니다.'];
+        }
+
+        try {
+            $result = $this->voucherService()->save([
+                'voucher_date' => $voucherDate !== '' ? $voucherDate : date('Y-m-d'),
+                'summary_text' => '묶음전표 ' . count($rows) . '건',
+                'source_type' => 'SYSTEM',
+                'lines' => $voucherLines,
+                'payments' => [],
+            ]);
+            $voucherId = (string) ($result['voucher_id'] ?? $result['id'] ?? '');
+            if ($voucherId === '') {
+                return ['success' => false, 'message' => '묶음전표 발행 결과 전표 ID가 없습니다.'];
+            }
+
+            $this->tagBundledVoucher($voucherId, $firstEvidenceId, $actor);
+            foreach ($rows as $row) {
+                $evidenceId = (string) ($row['id'] ?? '');
+                $transactionId = $linkedTransactions[$evidenceId] ?? '';
+                $this->linkVoucherToEvidence($evidenceId, $voucherId, $transactionId, $actor);
+                if ($transactionId !== '') {
+                    $this->linkVoucherToTransaction($voucherId, $transactionId, null, 'AUTO', $actor);
+                }
+                $this->updateEvidenceVoucherStatus($evidenceId, 'CREATED', $actor);
+            }
+
+            return [
+                'success' => true,
+                'voucher_id' => $voucherId,
+                'processed_ids' => $rowIds,
+                'success_count' => count($rows),
+                'message' => '묶음전표 ' . count($rows) . '건 발행이 완료되었습니다.',
+            ];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    private function tagBundledVoucher(string $voucherId, string $firstEvidenceId, string $actor): void
+    {
+        if ($voucherId === '') {
+            return;
+        }
+
+        $sets = [];
+        $params = [':id' => $voucherId, ':actor' => $actor];
+        if ($this->tableColumnExists('ledger_vouchers', 'source_type')) {
+            $sets[] = 'source_type = :source_type';
+            $params[':source_type'] = 'SYSTEM';
+        }
+        if ($firstEvidenceId !== '' && $this->tableColumnExists('ledger_vouchers', 'source_id')) {
+            $sets[] = 'source_id = :source_id';
+            $params[':source_id'] = $firstEvidenceId;
+        }
+        if ($this->tableColumnExists('ledger_vouchers', 'import_type')) {
+            $sets[] = 'import_type = :import_type';
+            $params[':import_type'] = 'BUNDLED_EVIDENCE';
+        }
+        if ($this->tableColumnExists('ledger_vouchers', 'updated_at')) {
+            $sets[] = 'updated_at = NOW()';
+        }
+        if ($this->tableColumnExists('ledger_vouchers', 'updated_by')) {
+            $sets[] = 'updated_by = :actor';
+        }
+        if ($sets === []) {
+            return;
+        }
+
+        $this->pdo->prepare('UPDATE ledger_vouchers SET ' . implode(', ', $sets) . ' WHERE id = :id')
+            ->execute($params);
+    }
+
     public function apiUploadBatches(): void
     {
         $stmt = $this->pdo->query("
@@ -1879,9 +2256,13 @@ class ImportController
 
     public function apiSeedRows(): void
     {
-        $this->ensureEvidenceBusinessInfoColumns();
-        $this->ensureBankTransactionBalanceColumns();
+        if ((string) ($_GET['repair_schema'] ?? '') === '1') {
+            $this->ensureEvidenceBusinessInfoColumns();
+            $this->ensureEvidenceSortColumns();
+        }
         if ((string) ($_GET['repair_bank_orphans'] ?? '') === '1') {
+            $this->ensureEvidenceBusinessInfoColumns();
+            $this->ensureBankTransactionBalanceColumns();
             $this->ensureBankTransactionEvidenceRows();
         }
         $status = strtoupper(trim((string) ($_GET['process_status'] ?? $_GET['status'] ?? '')));
@@ -1900,28 +2281,31 @@ class ImportController
             $this->json(['success' => true, 'data' => []]);
             return;
         }
+        $sequenceScope = $this->evidenceSequenceScopeFromRequest('', $importType);
+        $this->ensureEvidenceSortColumns();
         if ((string) ($_GET['type_counts'] ?? '') === '1') {
             $stmt = $this->pdo->query("
-                SELECT source_type, mapped_payload_json
+                SELECT
+                    CASE
+                        WHEN source_type IS NULL OR source_type = '' THEN 'UNKNOWN'
+                        ELSE source_type
+                    END AS import_type,
+                    COUNT(*) AS row_count
                 FROM ledger_data_evidences
                 WHERE deleted_at IS NULL
+                GROUP BY
+                    CASE
+                        WHEN source_type IS NULL OR source_type = '' THEN 'UNKNOWN'
+                        ELSE source_type
+                    END
             ");
-            $counts = [];
-            foreach (($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []) as $row) {
-                $sourceType = self::normalizeDataType((string) ($row['source_type'] ?? ''));
-                $payload = json_decode((string) ($row['mapped_payload_json'] ?? ''), true);
-                $payloadType = is_array($payload)
-                    ? self::normalizeDataType((string) ($payload['import_type'] ?? $payload['data_type'] ?? $payload['evidence_type'] ?? ''))
-                    : '';
-                $type = in_array($sourceType, ['', 'MANUAL'], true) && $payloadType !== '' ? $payloadType : $sourceType;
-                if ($type === '') {
-                    $type = 'UNKNOWN';
-                }
-                $counts[$type] = ($counts[$type] ?? 0) + 1;
-            }
             $data = [];
-            foreach ($counts as $type => $count) {
-                $data[] = ['import_type' => $type, 'row_count' => $count];
+            foreach (($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []) as $row) {
+                $type = self::normalizeDataType((string) ($row['import_type'] ?? ''));
+                $data[] = [
+                    'import_type' => $type !== '' ? $type : 'UNKNOWN',
+                    'row_count' => (int) ($row['row_count'] ?? 0),
+                ];
             }
             $this->json(['success' => true, 'data' => $data]);
             return;
@@ -1930,6 +2314,11 @@ class ImportController
 
         $where = [];
         $params = [];
+        $requestedId = trim((string) ($_GET['id'] ?? ''));
+        if ($requestedId !== '') {
+            $where[] = 'r.id = :requested_id';
+            $params[':requested_id'] = $requestedId;
+        }
         if ($status === 'READY') {
             $where[] = "r.evidence_status = 'ACTIVE'";
             $where[] = "r.transaction_status = 'NONE'";
@@ -1958,6 +2347,42 @@ class ImportController
             $where[] = 'r.source_type IN (' . implode(', ', $keys) . ')';
         }
         $where[] = $status === 'DELETED' ? 'r.deleted_at IS NOT NULL' : 'r.deleted_at IS NULL';
+        $isServerPaged = isset($_GET['draw']) || isset($_GET['start']) || isset($_GET['length']);
+        $pageStart = max(0, (int) ($_GET['start'] ?? 0));
+        $pageLength = (int) ($_GET['length'] ?? 0);
+        if ($pageLength <= 0) {
+            $pageLength = 100;
+        }
+        $pageLength = min($pageLength, 500);
+        $recordsFiltered = null;
+        if ($isServerPaged && $filters === []) {
+            $countStmt = $this->pdo->prepare("
+                SELECT COUNT(*)
+                FROM ledger_data_evidences r
+                WHERE " . implode(' AND ', $where) . "
+            ");
+            $countStmt->execute($params);
+            $recordsFiltered = (int) $countStmt->fetchColumn();
+
+            $pageIds = $this->evidencePageIdsForServerPaging($where, $params, $importType, $pageStart, $pageLength, $sequenceScope);
+            if ($pageIds === []) {
+                $this->json([
+                    'success' => true,
+                    'draw' => (int) ($_GET['draw'] ?? 0),
+                    'recordsTotal' => $recordsFiltered,
+                    'recordsFiltered' => $recordsFiltered,
+                    'data' => [],
+                ]);
+                return;
+            }
+            $idPlaceholders = [];
+            foreach ($pageIds as $index => $id) {
+                $key = ':page_id_' . $index;
+                $idPlaceholders[] = $key;
+                $params[$key] = $id;
+            }
+            $where[] = 'r.id IN (' . implode(', ', $idPlaceholders) . ')';
+        }
 
         $sql = "
             SELECT
@@ -1967,6 +2392,8 @@ class ImportController
                 r.source_type AS import_type,
                 st.code_name AS source_type_name,
                 it.code_name AS import_type_name,
+                r.create_sort_no,
+                r.status_sort_no,
                 0 AS row_no,
                 r.format_id,
                 r.raw_json,
@@ -2023,11 +2450,12 @@ class ImportController
                AND it.code = r.source_type
         ";
         $sql .= ' WHERE ' . implode(' AND ', $where);
-        $sql .= ' ' . $this->evidenceRowsOrderSql($importType);
+        $sql .= ' ' . $this->evidenceRowsOrderSql($importType, $sequenceScope);
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $this->syncVoucherStatusFromActiveLinks($rows);
         foreach ($rows as &$row) {
             $row['raw_payload'] = json_decode((string) ($row['raw_json'] ?? ''), true) ?: [];
             $row['mapped_payload'] = json_decode((string) ($row['parsed_json'] ?? ''), true) ?: [];
@@ -2045,14 +2473,25 @@ class ImportController
                 $row['source_type_name'] = self::sourceTypeLabel((string) $row['source_type']);
                 $row['import_type_name'] = self::importTypeLabel($payloadDataType);
             }
+            $resolvedClientName = '';
+            $clientIdForDisplay = trim((string) ($row['client_id'] ?? $mappedPayload['client_id'] ?? ''));
+            if ($clientIdForDisplay !== '' && $this->isUuid($clientIdForDisplay)) {
+                $resolvedClientName = (string) ($this->businessRefNameById('CLIENT', $clientIdForDisplay) ?? '');
+            }
             $row['client_name'] = (string) (
                 $row['import_type'] === 'BANK_TRANSACTION'
                     ? ($mappedPayload['counterparty_name']
                         ?? $mappedPayload['counterparty_account_holder_name']
                         ?? $mappedPayload['counterparty_account_holder']
+                        ?? ($resolvedClientName !== '' ? $resolvedClientName : null)
+                        ?? $row['client_name']
+                        ?? $mappedPayload['client_name']
                         ?? $mappedPayload['client_company_name']
                         ?? '')
-                    : ($mappedPayload['client_company_name']
+                    : (($resolvedClientName !== '' ? $resolvedClientName : null)
+                ?? $row['client_name']
+                ?? $mappedPayload['client_name']
+                ?? $mappedPayload['client_company_name']
                 ?? $mappedPayload['client_business_number']
                 ?? $mappedPayload['supplier_name']
                 ?? $mappedPayload['customer_name']
@@ -2063,7 +2502,8 @@ class ImportController
             unset($row['raw_json'], $row['parsed_json']);
         }
         unset($row);
-        $this->sortEvidenceRowsForResponse($rows, $importType);
+        $this->attachRequiredFormatColumnsToRows($rows);
+        $this->sortEvidenceRowsForResponse($rows, $importType, $sequenceScope);
         foreach ($rows as &$row) {
             $this->applyReadinessToEvidenceRow($row);
         }
@@ -2076,10 +2516,10 @@ class ImportController
         if ($filters !== []) {
             $rows = array_values(array_filter($rows, fn(array $row): bool => $this->seedRowMatchesFilters($row, $filters)));
         }
-        $responseSortKey = self::normalizeDataType($importType) === '' ? '_create_sort_no' : '_status_sort_no';
+        $responseSortKey = $this->evidenceSortKeyForScope($sequenceScope, $importType);
         foreach ($rows as $index => &$row) {
-            $storedSortNo = $this->evidencePayloadSortNo($row, $responseSortKey);
-            $row['row_no'] = $storedSortNo > 0 ? $storedSortNo : $index + 1;
+            $row['applied_sort_no'] = $this->evidencePayloadSortNo($row, $responseSortKey);
+            $row['row_no'] = $index + 1;
             if (!empty($row['error_message'])) {
                 $row['error_message'] = $this->formatTransactionCreateError(
                     (string) $row['error_message'],
@@ -2089,8 +2529,252 @@ class ImportController
             }
         }
         unset($row);
+        $rows = $this->expandEvidenceRowsWithProcessingItems($rows, $sequenceScope);
+
+        if ($isServerPaged) {
+            $total = $recordsFiltered ?? count($rows);
+            $this->json([
+                'success' => true,
+                'draw' => (int) ($_GET['draw'] ?? 0),
+                'recordsTotal' => $total,
+                'recordsFiltered' => $total,
+                'data' => $rows,
+            ]);
+            return;
+        }
 
         $this->json(['success' => true, 'data' => $rows]);
+    }
+
+    private function attachRequiredFormatColumnsToRows(array &$rows): void
+    {
+        if ($rows === []) {
+            return;
+        }
+
+        $columnsByFormatId = [];
+        $formatIdByType = [];
+
+        foreach ($rows as &$row) {
+            $formatId = trim((string) ($row['format_id'] ?? ''));
+            if ($formatId === '') {
+                $dataType = self::normalizeDataType((string) ($row['import_type'] ?? $row['source_type'] ?? $row['data_type'] ?? ''));
+                if ($dataType !== '') {
+                    if (!array_key_exists($dataType, $formatIdByType)) {
+                        $formatIdByType[$dataType] = $this->defaultFormatIdForDataType($dataType);
+                    }
+                    $formatId = $formatIdByType[$dataType] ?? '';
+                }
+            }
+            if ($formatId !== '' && !array_key_exists($formatId, $columnsByFormatId)) {
+                $columnsByFormatId[$formatId] = $this->columns($formatId);
+            }
+            if ($formatId !== '' && trim((string) ($row['format_id'] ?? '')) === '') {
+                $row['format_id'] = $formatId;
+            }
+            $row['format_columns'] = $formatId !== '' ? ($columnsByFormatId[$formatId] ?? []) : [];
+        }
+        unset($row);
+    }
+
+    private function expandEvidenceRowsWithProcessingItems(array $rows, string $sequenceScope = ''): array
+    {
+        if ($rows === [] || !$this->tableExists('ledger_processing_items')) {
+            return $rows;
+        }
+
+        $itemModel = new ProcessingItemModel($this->pdo);
+        $treeService = new ProcessingItemTreeService();
+        $expanded = [];
+
+        foreach ($rows as $row) {
+            $evidenceId = trim((string) ($row['id'] ?? ''));
+            if ($evidenceId === '') {
+                $expanded[] = $row;
+                continue;
+            }
+
+            $items = $itemModel->getBySource('ledger_data_evidences', $evidenceId);
+            $hasSplitStructure = false;
+            foreach ($items as $item) {
+                if (trim((string) ($item['parent_item_id'] ?? '')) !== '' || strtoupper((string) ($item['item_status'] ?? '')) === 'SPLIT') {
+                    $hasSplitStructure = true;
+                    break;
+                }
+            }
+            if (!$hasSplitStructure || $items === []) {
+                $row['evidence_id'] = $evidenceId;
+                $row['processing_item_id'] = $items[0]['id'] ?? null;
+                $row['processing_display_path'] = (string) ($row['row_no'] ?? '');
+                $row['processing_has_children'] = false;
+                $row['processing_is_child'] = false;
+                $expanded[] = $row;
+                continue;
+            }
+
+            $tree = $treeService->buildTree($items, (string) ($row['row_no'] ?? ''), false);
+            $flat = $treeService->flattenTree($tree);
+            $childIdsByParent = [];
+            foreach ($items as $item) {
+                $parentId = trim((string) ($item['parent_item_id'] ?? ''));
+                if ($parentId !== '') {
+                    $childIdsByParent[$parentId] = true;
+                }
+            }
+
+            $processingRows = [];
+            foreach ($flat as $item) {
+                $expandedRow = $row;
+                $expandedRow['evidence_id'] = $evidenceId;
+                $expandedRow['processing_item_id'] = (string) ($item['id'] ?? '');
+                $expandedRow['processing_parent_item_id'] = $item['parent_item_id'] ?? null;
+                $expandedRow['processing_display_path'] = (string) ($item['display_no'] ?? $item['display_path'] ?? $item['sort_no'] ?? $row['row_no'] ?? '');
+                $expandedRow['processing_item_status'] = (string) ($item['item_status'] ?? '');
+                $expandedRow['processing_is_current'] = (int) ($item['is_current'] ?? 0) === 1;
+                $expandedRow['processing_is_child'] = trim((string) ($item['parent_item_id'] ?? '')) !== '';
+                $expandedRow['processing_has_children'] = isset($childIdsByParent[(string) ($item['id'] ?? '')]);
+                $expandedRow['processing_level'] = (int) ($item['level'] ?? 1);
+                $expandedRow['_select_disabled'] = (bool) $expandedRow['processing_is_child'];
+                if ($expandedRow['processing_display_path'] !== '') {
+                    $expandedRow['row_no'] = $expandedRow['processing_display_path'];
+                }
+
+                $payload = json_decode((string) ($item['mapped_payload_json'] ?? ''), true);
+                if (is_array($payload)) {
+                    if ($expandedRow['import_type'] === 'BANK_TRANSACTION') {
+                        $payload = $this->normalizeBankTransactionPayload($payload);
+                    }
+                    $payload = $this->normalizeEvidenceMappedPayloadForResponse($payload);
+                    $this->mergeEvidenceBusinessInfoIntoPayload($expandedRow, $payload);
+                    foreach (['quantity', 'unit_price', 'supply_amount', 'vat_amount', 'total_amount', 'currency', 'description', 'memo'] as $key) {
+                        if (array_key_exists($key, $item) && $item[$key] !== null && $item[$key] !== '') {
+                            $payload[$key] = $item[$key];
+                        }
+                    }
+                    $expandedRow['mapped_payload'] = $payload;
+                }
+
+                $processingRows[] = $expandedRow;
+            }
+            $parentRow = null;
+            $children = [];
+            foreach ($processingRows as $processingRow) {
+                if (!empty($processingRow['processing_is_child'])) {
+                    $children[] = $processingRow;
+                    continue;
+                }
+                if ($parentRow === null || !empty($processingRow['processing_has_children'])) {
+                    $parentRow = $processingRow;
+                }
+            }
+            if ($parentRow === null) {
+                $parentRow = $row;
+                $parentRow['evidence_id'] = $evidenceId;
+                $parentRow['processing_has_children'] = $children !== [];
+                $parentRow['processing_is_child'] = false;
+            }
+            $parentRow['processing_children'] = array_values($children);
+            $parentRow['processing_child_count'] = count($children);
+            $parentRow['processing_has_children'] = count($children) > 0;
+            $parentRow['processing_is_child'] = false;
+            $parentRow['row_no'] = $row['row_no'] ?? ($parentRow['row_no'] ?? '');
+            $parentRow['processing_display_path'] = (string) ($parentRow['row_no'] ?? '');
+            $parentRow['_select_disabled'] = false;
+            $expanded[] = $parentRow;
+        }
+
+        return $expanded;
+    }
+
+    private function defaultFormatIdForDataType(string $dataType): string
+    {
+        $dataType = self::normalizeDataType($dataType);
+        if ($dataType === '' || !$this->isAllowedDataType($dataType)) {
+            return '';
+        }
+
+        $types = self::queryDataTypes($dataType);
+        $placeholders = [];
+        $params = [];
+        foreach ($types as $index => $type) {
+            $key = ':data_type_' . $index;
+            $placeholders[] = $key;
+            $params[$key] = $type;
+        }
+
+        $stmt = $this->pdo->prepare('
+            SELECT id
+            FROM ledger_data_formats
+            WHERE deleted_at IS NULL
+              AND data_type IN (' . implode(', ', $placeholders) . ')
+            ORDER BY is_default DESC, format_name ASC, id ASC
+            LIMIT 1
+        ');
+        $stmt->execute($params);
+
+        return (string) ($stmt->fetchColumn() ?: '');
+    }
+
+    private function evidencePageIdsForServerPaging(array $where, array $params, string $importType, int $pageStart, int $pageLength, string $sequenceScope = ''): array
+    {
+        $pageStart = max(0, $pageStart);
+        $pageLength = max(1, min($pageLength, 500));
+        $stmt = $this->pdo->prepare("
+            SELECT r.id
+            FROM ledger_data_evidences r
+            WHERE " . implode(' AND ', $where) . "
+            " . $this->evidenceRowsOrderSql($importType, $sequenceScope) . "
+            LIMIT {$pageLength} OFFSET {$pageStart}
+        ");
+        $stmt->execute($params);
+
+        return array_values(array_filter(array_map(
+            static fn(array $row): string => trim((string) ($row['id'] ?? '')),
+            $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []
+        )));
+    }
+
+    private function syncVoucherStatusFromActiveLinks(array &$rows): void
+    {
+        if ($rows === [] || !$this->tableExists('ledger_data_evidence_links') || !$this->tableExists('ledger_vouchers')) {
+            return;
+        }
+
+        $evidenceIds = array_values(array_filter(array_unique(array_map(
+            static fn(array $row): string => trim((string) ($row['id'] ?? '')),
+            $rows
+        ))));
+        if ($evidenceIds === []) {
+            return;
+        }
+
+        [$inSql, $params] = $this->placeholdersForIds($evidenceIds, 'active_voucher_evidence');
+        $stmt = $this->pdo->prepare("
+            SELECT DISTINCT l.evidence_id
+            FROM ledger_data_evidence_links l
+            INNER JOIN ledger_vouchers v
+                ON v.id = l.voucher_id
+               AND v.deleted_at IS NULL
+            WHERE l.deleted_at IS NULL
+              AND l.evidence_id IN ({$inSql})
+        ");
+        $stmt->execute($params);
+        $createdEvidenceIds = array_flip(array_filter(array_map(
+            static fn(array $row): string => trim((string) ($row['evidence_id'] ?? '')),
+            $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []
+        )));
+
+        if ($createdEvidenceIds === []) {
+            return;
+        }
+
+        foreach ($rows as &$row) {
+            $id = trim((string) ($row['id'] ?? ''));
+            if ($id !== '' && isset($createdEvidenceIds[$id])) {
+                $row['voucher_status'] = 'CREATED';
+            }
+        }
+        unset($row);
     }
 
     private function applyReadinessToEvidenceRow(array &$row): void
@@ -2134,8 +2818,9 @@ class ImportController
         $missing = [];
         $errors = [];
         $warnings = [];
-        $require = static function (string $field, mixed $value, string $message) use (&$missing, &$errors): void {
-            if (trim((string) ($value ?? '')) === '') {
+        $require = function (string $field, mixed $value, string $message) use (&$missing, &$errors): void {
+            $text = trim((string) ($value ?? ''));
+            if ($text === '' || $this->isEmptySelectionLabel($text)) {
                 $missing[] = $field;
                 $errors[] = $message;
             }
@@ -2147,7 +2832,7 @@ class ImportController
 
         if ($processing['type'] === 'VERIFY_ONLY') {
             $require('approval_number', $payload['approval_number'] ?? $payload['approval_no'] ?? $payload['source_key'] ?? '', '카드 승인/청구 식별값이 없습니다.');
-            $require('card_company', $payload['card_company'] ?? $payload['card_company_name'] ?? $payload['card_name'] ?? '', '카드사 또는 카드 정보가 없습니다.');
+            $require('card_company', $payload['source_card_company_name'] ?? $payload['card_company'] ?? $payload['card_company_name'] ?? $payload['card_name'] ?? '', '카드사 또는 카드 정보가 없습니다.');
             $require('merchant', $payload['merchant_company_name'] ?? $payload['merchant_name'] ?? $payload['client_company_name'] ?? $payload['company_name'] ?? '', '가맹점 정보가 없습니다.');
             if ($this->amountOrNull(
                 $payload['billing_amount']
@@ -2224,7 +2909,6 @@ class ImportController
 
         $total = $this->amountOrNull($payload['total_amount'] ?? null);
         $supply = $this->amountOrNull($payload['supply_amount'] ?? null);
-        $vat = $this->amountOrNull($payload['vat_amount'] ?? null);
         if ($total === null && $supply === null) {
             $missing[] = 'total_amount';
             $errors[] = '거래 금액이 확정되지 않았습니다.';
@@ -2233,14 +2917,16 @@ class ImportController
             $missing[] = 'supply_amount';
             $errors[] = '공급가액이 확정되지 않았습니다.';
         }
-        if ($vat === null) {
-            $missing[] = 'vat_amount';
-            $errors[] = '부가세가 확정되지 않았습니다.';
-        }
 
         $clientId = trim((string) ($payload['client_id'] ?? ''));
+        if ($this->isEmptySelectionLabel($clientId)) {
+            $clientId = '';
+        }
         $clientBusinessNumber = $this->normalizeBusinessNumber((string) ($context['client_business_number'] ?? $payload['client_business_number'] ?? $payload['business_number'] ?? ''));
         $clientName = $this->cleanCompanyName((string) ($context['client_company_name'] ?? $payload['client_company_name'] ?? $payload['company_name'] ?? $payload['counterparty_name'] ?? ''));
+        if ($this->isEmptySelectionLabel($clientName)) {
+            $clientName = '';
+        }
         if ($clientId === '' && $clientBusinessNumber === '' && $clientName === '') {
             $missing[] = 'client_id';
             $errors[] = '거래처 ID 또는 거래처 후보값이 없습니다.';
@@ -2275,14 +2961,38 @@ class ImportController
         ];
     }
 
-    private function evidenceRowsOrderSql(string $importType): string
+    private function evidenceRowsOrderSql(string $importType, string $sequenceScope = ''): string
     {
         $normalizedType = self::normalizeDataType($importType);
+        $sortColumn = $this->evidenceSortColumnForScope($sequenceScope, $importType);
+        if ($sortColumn !== '') {
+            $fallback = $sortColumn === 'create_sort_no'
+                ? "
+                    r.latest_imported_at DESC,
+                    r.created_at DESC,
+                    r.id ASC
+                "
+                : "
+                    COALESCE(r.evidence_date, DATE(r.latest_imported_at), DATE(r.created_at)) DESC,
+                    r.latest_imported_at DESC,
+                    r.created_at DESC,
+                    r.id ASC
+                ";
+
+            return "
+                ORDER BY
+                    CASE WHEN r.`{$sortColumn}` IS NULL OR r.`{$sortColumn}` < 1 THEN 1 ELSE 0 END ASC,
+                    r.`{$sortColumn}` ASC,
+                    {$fallback}
+            ";
+        }
+
         if ($normalizedType === '') {
             return "
                 ORDER BY
                     r.latest_imported_at DESC,
-                    r.created_at DESC
+                    r.created_at DESC,
+                    r.id ASC
             ";
         }
 
@@ -2290,7 +3000,8 @@ class ImportController
             ORDER BY
                 COALESCE(r.evidence_date, DATE(r.latest_imported_at), DATE(r.created_at)) DESC,
                 r.latest_imported_at DESC,
-                r.created_at DESC
+                r.created_at DESC,
+                r.id ASC
         ";
     }
 
@@ -2326,12 +3037,13 @@ class ImportController
         return (string) ($row['processed_at'] ?? $row['created_at'] ?? '');
     }
 
-    private function sortEvidenceRowsForResponse(array &$rows, string $importType): void
+    private function sortEvidenceRowsForResponse(array &$rows, string $importType, string $sequenceScope = ''): void
     {
         $normalizedType = self::normalizeDataType($importType);
-        $sortKey = $normalizedType === '' ? '_create_sort_no' : '_status_sort_no';
+        $sortKey = $this->evidenceSortKeyForScope($sequenceScope, $importType);
+        $isCreateScope = $sortKey === '_create_sort_no';
 
-        usort($rows, function (array $a, array $b) use ($normalizedType, $sortKey): int {
+        usort($rows, function (array $a, array $b) use ($normalizedType, $sortKey, $isCreateScope): int {
             $aSort = $this->evidencePayloadSortNo($a, $sortKey);
             $bSort = $this->evidencePayloadSortNo($b, $sortKey);
             if ($aSort > 0 && $bSort > 0 && $aSort !== $bSort) {
@@ -2344,7 +3056,7 @@ class ImportController
                 return 1;
             }
 
-            if ($normalizedType === '') {
+            if ($isCreateScope) {
                 $createdCompare = strcmp(
                     (string) ($b['processed_at'] ?? $b['created_at'] ?? ''),
                     (string) ($a['processed_at'] ?? $a['created_at'] ?? '')
@@ -2362,8 +3074,41 @@ class ImportController
         });
     }
 
+    private function evidenceSequenceScopeFromRequest(string $default = '', string $importType = ''): string
+    {
+        $scope = strtolower(trim((string) ($_GET['sequence_scope'] ?? $_GET['sort_scope'] ?? $default)));
+        if (in_array($scope, ['create', 'status'], true)) {
+            return $scope;
+        }
+
+        return self::normalizeDataType($importType) === '' ? 'create' : 'status';
+    }
+
+    private function evidenceSortKeyForScope(string $sequenceScope, string $importType = ''): string
+    {
+        $scope = strtolower(trim($sequenceScope));
+        if ($scope === 'create') {
+            return '_create_sort_no';
+        }
+        if ($scope === 'status') {
+            return '_status_sort_no';
+        }
+
+        return self::normalizeDataType($importType) === '' ? '_create_sort_no' : '_status_sort_no';
+    }
+
+    private function evidenceSortColumnForScope(string $sequenceScope, string $importType = ''): string
+    {
+        $key = $this->evidenceSortKeyForScope($sequenceScope, $importType);
+        return $key === '_create_sort_no' ? 'create_sort_no' : 'status_sort_no';
+    }
+
     private function evidencePayloadSortNo(array $row, string $key): int
     {
+        $column = $key === '_create_sort_no' ? 'create_sort_no' : ($key === '_status_sort_no' ? 'status_sort_no' : '');
+        if ($column !== '' && array_key_exists($column, $row) && is_numeric($row[$column])) {
+            return max(0, (int) $row[$column]);
+        }
         $payload = is_array($row['mapped_payload'] ?? null) ? $row['mapped_payload'] : [];
         $value = $payload[$key] ?? 0;
         if (is_string($value)) {
@@ -2682,8 +3427,9 @@ class ImportController
             return;
         }
 
+        $this->ensureEvidenceSortColumns();
         $stmt = $this->pdo->prepare("
-            SELECT source_type, format_id, evidence_status, transaction_status, voucher_status, mapped_payload_json, " . $this->evidenceTransactionIdSelect() . "
+            SELECT source_type, format_id, evidence_status, transaction_status, voucher_status, mapped_payload_json, create_sort_no, status_sort_no, " . $this->evidenceTransactionIdSelect() . "
             FROM ledger_data_evidences
             WHERE id = :id
             LIMIT 1
@@ -2707,9 +3453,15 @@ class ImportController
         }
 
         $this->ensureEvidenceBusinessInfoColumns();
+        $this->ensureEvidenceSortColumns();
         $parsed = $this->mappedPayloadForStorage($parsed);
         if (self::normalizeDataType((string) ($current['source_type'] ?? '')) === 'BANK_TRANSACTION') {
             $parsed = $this->normalizeBankTransactionPayload($parsed);
+        }
+        $businessProjectMessages = $this->businessProjectRuleMessages($parsed);
+        if ($businessProjectMessages !== []) {
+            $this->json(['success' => false, 'message' => implode(' ', $businessProjectMessages)], 400);
+            return;
         }
         $format = $this->formatWithColumns(trim((string) ($payload['format_id'] ?? $current['format_id'] ?? '')));
         $missingMessages = $this->requiredFormatMissingMessages($parsed, is_array($format['columns'] ?? null) ? $format['columns'] : []);
@@ -2724,7 +3476,22 @@ class ImportController
                 $parsed[$sortKey] = $currentMapped[$sortKey];
             }
         }
+        $createSortNo = (int) ($parsed['_create_sort_no'] ?? $current['create_sort_no'] ?? 0);
+        $statusSortNo = (int) ($parsed['_status_sort_no'] ?? $current['status_sort_no'] ?? 0);
         $this->normalizeUploadAmountFields($parsed);
+        $dataType = self::normalizeDataType((string) ($current['source_type'] ?? ''));
+        if ($this->shouldSyncTaxInvoiceEvidenceClients($dataType)) {
+            $clientSync = $this->syncTaxInvoiceEvidenceClientsFromSource($parsed, $seedRowId, $dataType);
+            if (trim((string) ($parsed['client_id'] ?? '')) === '' && trim((string) ($clientSync['primary_client_id'] ?? '')) !== '') {
+                $parsed['client_id'] = (string) $clientSync['primary_client_id'];
+            }
+            if (trim((string) ($parsed['client_id'] ?? '')) !== '') {
+                $clientName = $this->businessRefNameById('CLIENT', (string) $parsed['client_id']);
+                if ($clientName !== null && $clientName !== '') {
+                    $parsed['client_name'] = $clientName;
+                }
+            }
+        }
         $evidenceDate = null;
         foreach (['transaction_date', 'evidence_date', 'purchase_datetime', 'purchase_date', 'approval_datetime', 'approval_date', 'write_date', 'written_date', 'issue_date'] as $dateKey) {
             $evidenceDate = $this->dateValueOrNull($parsed[$dateKey] ?? null);
@@ -2733,7 +3500,7 @@ class ImportController
             }
         }
         $rawSql = is_array($raw) ? "raw_json = :raw_json," : "";
-        $voucherStatusSql = self::normalizeDataType((string) ($current['source_type'] ?? '')) === 'BANK_TRANSACTION'
+        $voucherStatusSql = $dataType === 'BANK_TRANSACTION'
             ? "voucher_status = :voucher_status,"
             : "";
         $voucherErrorMessage = $voucherStatusSql !== ''
@@ -2754,6 +3521,8 @@ class ImportController
             ':bank_account_name' => $this->businessRefNameForStorage('ACCOUNT', $parsed),
             ':card_name' => $this->businessRefNameForStorage('CARD', $parsed),
             ':error_message' => $voucherErrorMessage,
+            ':create_sort_no' => $createSortNo > 0 ? $createSortNo : null,
+            ':status_sort_no' => $statusSortNo > 0 ? $statusSortNo : null,
             ':actor' => ActorHelper::user(),
         ];
         if ($voucherStatusSql !== '') {
@@ -2776,6 +3545,8 @@ class ImportController
                 employee_name = :employee_name,
                 bank_account_name = :bank_account_name,
                 card_name = :card_name,
+                create_sort_no = :create_sort_no,
+                status_sort_no = :status_sort_no,
                 {$rawSql}
                 {$voucherStatusSql}
                 evidence_status = 'ACTIVE',
@@ -2786,7 +3557,37 @@ class ImportController
             WHERE id = :id
         ")->execute($params);
 
-        $this->json(['success' => true, 'message' => 'Seed Data가 수정되었습니다.']);
+        $responseRow = [
+            'id' => $seedRowId,
+            'source_type' => self::sourceTypeForDataType((string) ($current['source_type'] ?? '')),
+            'import_type' => self::normalizeDataType((string) ($current['source_type'] ?? '')),
+            'format_id' => trim((string) ($payload['format_id'] ?? $current['format_id'] ?? '')),
+            'evidence_date' => $evidenceDate,
+            'client_id' => $params[':client_id'],
+            'project_id' => $params[':project_id'],
+            'employee_id' => $params[':employee_id'],
+            'bank_account_id' => $params[':bank_account_id'],
+            'card_id' => $params[':card_id'],
+            'client_name' => $params[':client_name'],
+            'project_name' => $params[':project_name'],
+            'employee_name' => $params[':employee_name'],
+            'bank_account_name' => $params[':bank_account_name'],
+            'card_name' => $params[':card_name'],
+            'create_sort_no' => $createSortNo,
+            'status_sort_no' => $statusSortNo,
+            'raw_payload' => is_array($raw) ? $raw : [],
+            'mapped_payload' => $this->normalizeEvidenceMappedPayloadForResponse($parsed),
+            'evidence_status' => 'ACTIVE',
+            'transaction_status' => 'NONE',
+            'voucher_status' => $params[':voucher_status'] ?? (string) ($current['voucher_status'] ?? 'NONE'),
+            'review_status' => 'NORMAL',
+            'error_message' => $voucherErrorMessage,
+            'process_status' => 'READY',
+            'status' => 'READY',
+        ];
+        $this->applyReadinessToEvidenceRow($responseRow);
+
+        $this->json(['success' => true, 'message' => 'Seed Data가 수정되었습니다.', 'data' => $responseRow]);
     }
 
     public function apiEvidenceCreate(): void
@@ -2812,6 +3613,11 @@ class ImportController
         $parsed['data_type'] = $parsed['data_type'] ?? $dataType;
         if ($dataType === 'BANK_TRANSACTION') {
             $parsed = $this->normalizeBankTransactionPayload($parsed);
+        }
+        $businessProjectMessages = $this->businessProjectRuleMessages($parsed);
+        if ($businessProjectMessages !== []) {
+            $this->json(['success' => false, 'message' => implode(' ', $businessProjectMessages)], 400);
+            return;
         }
         $missingMessages = $this->requiredFormatMissingMessages($parsed, is_array($format['columns'] ?? null) ? $format['columns'] : []);
         if ($missingMessages !== []) {
@@ -2852,17 +3658,24 @@ class ImportController
         $voucherErrorMessage = $dataType === 'BANK_TRANSACTION'
             ? $this->bankVoucherValidationMessage($parsed)
             : null;
-
         $this->ensureEvidenceBusinessInfoColumns();
+        $this->ensureEvidenceSortColumns();
+        $nextStatusSortNo = $this->nextEvidenceJsonSortNo('_status_sort_no', $dataType);
+        $nextCreateSortNo = $this->nextEvidenceJsonSortNo('_create_sort_no');
+        $parsed['_status_sort_no'] = $nextStatusSortNo;
+        $parsed['_create_sort_no'] = $nextCreateSortNo;
+
         $this->pdo->prepare("
             INSERT INTO ledger_data_evidences
                 (id, source_type, source_key, format_id, evidence_date, client_id, project_id, employee_id, bank_account_id, card_id,
                  client_name, project_name, employee_name, bank_account_name, card_name, currency, supply_amount, vat_amount, total_amount,
+                 create_sort_no, status_sort_no,
                  evidence_status, transaction_status, voucher_status, review_status, error_message,
                  latest_imported_at, raw_json, mapped_payload_json, created_by, updated_by)
             VALUES
                 (:id, :source_type, :source_key, :format_id, :evidence_date, :client_id, :project_id, :employee_id, :bank_account_id, :card_id,
                  :client_name, :project_name, :employee_name, :bank_account_name, :card_name, :currency, :supply_amount, :vat_amount, :total_amount,
+                 :create_sort_no, :status_sort_no,
                  'ACTIVE', 'NONE', :voucher_status, 'NORMAL', :error_message,
                  NOW(), :raw_json, :mapped_payload_json, :created_by, :updated_by)
         ")->execute([
@@ -2885,6 +3698,8 @@ class ImportController
             ':supply_amount' => $this->number($parsed['supply_amount'] ?? null),
             ':vat_amount' => $this->number($parsed['vat_amount'] ?? null),
             ':total_amount' => $this->evidenceTotalAmountForStorage($parsed, $dataType),
+            ':create_sort_no' => $nextCreateSortNo,
+            ':status_sort_no' => $nextStatusSortNo,
             ':voucher_status' => $voucherStatus,
             ':error_message' => $voucherErrorMessage,
             ':raw_json' => $this->jsonEncodeForStorage($raw),
@@ -2896,6 +3711,198 @@ class ImportController
         $this->json(['success' => true, 'id' => $evidenceId, 'message' => '새 증빙원본이 생성되었습니다.']);
     }
 
+    public function apiEvidenceSplitChild(): void
+    {
+        $payload = $this->requestPayload();
+        $evidenceId = trim((string) ($payload['evidence_id'] ?? $payload['id'] ?? ''));
+        $processingItemId = trim((string) ($payload['processing_item_id'] ?? ''));
+        if ($evidenceId === '' && $processingItemId === '') {
+            $this->json(['success' => false, 'message' => '분할할 증빙원본을 선택해주세요.'], 400);
+            return;
+        }
+
+        $itemModel = new ProcessingItemModel($this->pdo);
+        $parentItem = null;
+        if ($processingItemId !== '') {
+            $parentItem = $itemModel->getById($processingItemId);
+            if ($parentItem && isset($payload['children']) && is_array($payload['children'])) {
+                $ancestorId = trim((string) ($parentItem['parent_item_id'] ?? ''));
+                if ($ancestorId !== '') {
+                    $parentItem = $itemModel->getById($ancestorId) ?: $parentItem;
+                }
+            }
+        }
+
+        if (!$parentItem) {
+            $stmt = $this->pdo->prepare("
+                SELECT *
+                FROM ledger_data_evidences
+                WHERE id = :id
+                  AND deleted_at IS NULL
+                LIMIT 1
+            ");
+            $stmt->execute([':id' => $evidenceId]);
+            $evidence = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+            if (!$evidence) {
+                $this->json(['success' => false, 'message' => '증빙원본을 찾을 수 없습니다.'], 404);
+                return;
+            }
+            $parentItem = $itemModel->ensureDefaultItemForEvidence($evidence);
+        }
+
+        if (!$parentItem) {
+            $this->json(['success' => false, 'message' => '분할 기준 처리항목을 만들 수 없습니다.'], 400);
+            return;
+        }
+
+        if (isset($payload['children']) && is_array($payload['children'])) {
+            $result = $this->saveProcessingItemSplitChildren($parentItem, $payload['children']);
+            $this->json($result, !empty($result['success']) ? 200 : 422);
+            return;
+        }
+
+        $parentPayload = json_decode((string) ($parentItem['mapped_payload_json'] ?? ''), true);
+        $parentPayload = is_array($parentPayload) ? $parentPayload : [];
+        $blankPayload = $parentPayload;
+        foreach (['quantity', 'unit_price', 'supply_amount', 'vat_amount', 'total_amount', 'amount', 'deposit_amount', 'withdraw_amount', 'deposit', 'withdraw'] as $key) {
+            if (array_key_exists($key, $blankPayload)) {
+                $blankPayload[$key] = 0;
+            }
+        }
+        foreach (['description', 'memo', 'item_name', 'line_summary'] as $key) {
+            if (array_key_exists($key, $blankPayload)) {
+                $blankPayload[$key] = '';
+            }
+        }
+
+        $children = [
+            [
+                'sort_no' => 1,
+                'item_type' => 'SPLIT',
+                'line_type' => $parentItem['line_type'] ?? $parentItem['source_type'] ?? null,
+                'quantity' => $parentItem['quantity'] ?? null,
+                'unit_price' => $parentItem['unit_price'] ?? null,
+                'supply_amount' => $parentItem['supply_amount'] ?? null,
+                'vat_amount' => $parentItem['vat_amount'] ?? null,
+                'total_amount' => $parentItem['total_amount'] ?? null,
+                'currency' => $parentItem['currency'] ?? 'KRW',
+                'description' => $parentItem['description'] ?? null,
+                'mapped_payload' => $parentPayload,
+            ],
+            [
+                'sort_no' => 2,
+                'item_type' => 'SPLIT',
+                'line_type' => $parentItem['line_type'] ?? $parentItem['source_type'] ?? null,
+                'quantity' => null,
+                'unit_price' => null,
+                'supply_amount' => 0,
+                'vat_amount' => 0,
+                'total_amount' => 0,
+                'deposit_amount' => 0,
+                'withdraw_amount' => 0,
+                'currency' => $parentItem['currency'] ?? 'KRW',
+                'description' => null,
+                'mapped_payload' => $blankPayload,
+            ],
+        ];
+
+        $result = (new ProcessingItemSplitService($this->pdo, $itemModel))
+            ->split((string) ($parentItem['id'] ?? ''), $children, '증빙원본 자식행 추가', ActorHelper::user());
+
+        $this->json($result + ['message' => ($result['message'] ?? '자식행이 추가되었습니다.')], !empty($result['success']) ? 200 : 422);
+    }
+
+    public function apiEvidenceDeleteProcessingChild(): void
+    {
+        $payload = $this->requestPayload();
+        $processingItemId = trim((string) ($payload['processing_item_id'] ?? $payload['id'] ?? ''));
+        if ($processingItemId === '') {
+            $this->json(['success' => false, 'message' => '삭제할 자식행을 선택해주세요.'], 400);
+            return;
+        }
+
+        $itemModel = new ProcessingItemModel($this->pdo);
+        $item = $itemModel->getById($processingItemId);
+        if (!$item) {
+            $this->json(['success' => false, 'message' => '자식행을 찾을 수 없습니다.'], 404);
+            return;
+        }
+        if (trim((string) ($item['parent_item_id'] ?? '')) === '') {
+            $this->json(['success' => false, 'message' => '부모행은 이 버튼으로 삭제할 수 없습니다.'], 400);
+            return;
+        }
+
+        $stmt = $this->pdo->prepare('DELETE FROM ledger_processing_items WHERE id = :id AND parent_item_id IS NOT NULL');
+        $stmt->execute([':id' => $processingItemId]);
+
+        $this->json(['success' => true, 'message' => '자식행을 삭제했습니다.']);
+    }
+
+    public function apiEvidenceUpdateProcessingChild(): void
+    {
+        $payload = $this->requestPayload();
+        $processingItemId = trim((string) ($payload['processing_item_id'] ?? $payload['id'] ?? ''));
+        $child = $payload['child'] ?? [];
+        if (!is_array($child)) {
+            $child = [];
+        }
+        if ($processingItemId === '') {
+            $processingItemId = trim((string) ($child['id'] ?? $child['processing_item_id'] ?? ''));
+        }
+        if ($processingItemId === '') {
+            $this->json(['success' => false, 'message' => '수정할 자식행을 선택해주세요.'], 400);
+            return;
+        }
+
+        $itemModel = new ProcessingItemModel($this->pdo);
+        $item = $itemModel->getById($processingItemId);
+        if (!$item) {
+            $this->json(['success' => false, 'message' => '자식행을 찾을 수 없습니다.'], 404);
+            return;
+        }
+        $parentItemId = trim((string) ($item['parent_item_id'] ?? ''));
+        if ($parentItemId === '') {
+            $this->json(['success' => false, 'message' => '부모행은 자식 수정 모달에서 수정할 수 없습니다.'], 400);
+            return;
+        }
+        $parentItem = $itemModel->getById($parentItemId);
+        if (!$parentItem) {
+            $this->json(['success' => false, 'message' => '부모행을 찾을 수 없습니다.'], 404);
+            return;
+        }
+
+        $payloadJson = $child['mapped_payload'] ?? [];
+        if (!is_array($payloadJson)) {
+            $payloadJson = [];
+        }
+        $payloadJson = $this->mappedPayloadForStorage($payloadJson);
+        $child['mapped_payload'] = $payloadJson;
+        $missingRequired = $this->processingSplitRequiredMissingMessages($parentItem, [$child + ['mapped_payload' => $payloadJson]]);
+        if ($missingRequired !== []) {
+            $this->json([
+                'success' => false,
+                'message' => '필수 항목을 입력해야 저장할 수 있습니다. ' . implode(', ', array_slice($missingRequired, 0, 5)) . (count($missingRequired) > 5 ? ' 외 ' . (count($missingRequired) - 5) . '건' : ''),
+            ], 422);
+            return;
+        }
+
+        $actor = ActorHelper::user();
+        $timestamp = date('Y-m-d H:i:s');
+        $itemModel->update($processingItemId, [
+            'quantity' => $this->amountOrNull($child['quantity'] ?? $payloadJson['quantity'] ?? null),
+            'unit_price' => $this->amountOrNull($child['unit_price'] ?? $payloadJson['unit_price'] ?? null),
+            'supply_amount' => $this->amountOrNull($child['supply_amount'] ?? $payloadJson['supply_amount'] ?? null),
+            'vat_amount' => $this->amountOrNull($child['vat_amount'] ?? $payloadJson['vat_amount'] ?? null),
+            'total_amount' => $this->amountOrNull($child['total_amount'] ?? $payloadJson['total_amount'] ?? null),
+            'description' => $child['description'] ?? ($payloadJson['description'] ?? null),
+            'memo' => $child['memo'] ?? ($payloadJson['memo'] ?? null),
+            'mapped_payload_json' => json_encode($payloadJson, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'updated_at' => $timestamp,
+            'updated_by' => $actor,
+        ]);
+
+        $this->json(['success' => true, 'message' => '자식 항목을 수정했습니다.']);
+    }
     public function apiEvidenceBulkSave(): void
     {
         $payload = $this->requestPayload();
@@ -3024,6 +4031,350 @@ class ImportController
         ]);
     }
 
+    private function saveProcessingItemSplitChildren(array $parentItem, array $children): array
+    {
+        $parentItemId = trim((string) ($parentItem['id'] ?? ''));
+        if ($parentItemId === '') {
+            return ['success' => false, 'message' => '분할 기준 처리항목이 없습니다.'];
+        }
+
+        $children = array_values(array_filter($children, static fn($child): bool => is_array($child)));
+        if (count($children) < 2) {
+            return ['success' => false, 'message' => '분할 항목은 2개 이상 필요합니다.'];
+        }
+
+        foreach ($children as &$child) {
+            $payload = $child['mapped_payload'] ?? [];
+            $child['mapped_payload'] = is_array($payload)
+                ? $this->mappedPayloadForStorage($payload)
+                : [];
+        }
+        unset($child);
+
+        foreach ($this->processingSplitAmountFields($parentItem, $children) as $field => $parentAmount) {
+            $sum = 0.0;
+            foreach ($children as $child) {
+                $sum += (float) ($this->processingSplitChildAmountValue($child, $field) ?? 0);
+            }
+            if (abs((float) $parentAmount - $sum) > 0.01) {
+                return [
+                    'success' => false,
+                    'message' => '분할 합계가 부모 ' . $field . ' 금액과 일치하지 않습니다. 부모=' . $this->formatAmountForMessage((float) $parentAmount) . ' 자식합계=' . $this->formatAmountForMessage($sum),
+                ];
+            }
+        }
+        $missingRequired = $this->processingSplitRequiredMissingMessages($parentItem, $children);
+        if ($missingRequired !== []) {
+            return [
+                'success' => false,
+                'message' => '필수 항목을 입력해야 저장할 수 있습니다. ' . implode(', ', array_slice($missingRequired, 0, 5)) . (count($missingRequired) > 5 ? ' 외 ' . (count($missingRequired) - 5) . '건' : ''),
+            ];
+        }
+
+        $itemModel = new ProcessingItemModel($this->pdo);
+        $existingChildren = [];
+        foreach ($itemModel->getBySource((string) ($parentItem['source_table'] ?? ''), (string) ($parentItem['source_id'] ?? '')) as $item) {
+            if (trim((string) ($item['parent_item_id'] ?? '')) === $parentItemId) {
+                $existingChildren[(string) ($item['id'] ?? '')] = $item;
+            }
+        }
+
+        $actor = ActorHelper::user();
+        $parentDisplayPath = $this->processingParentDisplayPath($parentItem);
+        $timestamp = date('Y-m-d H:i:s');
+        $splitGroupId = trim((string) ($parentItem['split_group_id'] ?? '')) ?: UuidHelper::generate();
+        $saved = [];
+
+        $this->pdo->beginTransaction();
+        try {
+            $itemModel->update($parentItemId, [
+                'item_status' => 'SPLIT',
+                'is_current' => 0,
+                'split_group_id' => $splitGroupId,
+                'sort_no' => ctype_digit($parentDisplayPath) ? (int) $parentDisplayPath : (int) ($parentItem['sort_no'] ?? 1),
+                'display_path' => $parentDisplayPath,
+                'updated_at' => $timestamp,
+                'updated_by' => $actor,
+            ]);
+
+            foreach ($children as $index => $child) {
+                $sortNo = max(1, (int) ($child['sort_no'] ?? ($index + 1)));
+                $childId = trim((string) ($child['id'] ?? $child['processing_item_id'] ?? ''));
+                $existing = $childId !== '' ? ($existingChildren[$childId] ?? null) : null;
+                $payload = $child['mapped_payload'] ?? [];
+                if (!is_array($payload)) {
+                    $payload = [];
+                }
+                $data = [
+                    'sort_no' => $sortNo,
+                    'display_path' => $parentDisplayPath . '-' . $sortNo,
+                    'quantity' => $this->amountOrNull($child['quantity'] ?? $payload['quantity'] ?? null),
+                    'unit_price' => $this->amountOrNull($child['unit_price'] ?? $payload['unit_price'] ?? null),
+                    'supply_amount' => $this->amountOrNull($child['supply_amount'] ?? $payload['supply_amount'] ?? null),
+                    'vat_amount' => $this->amountOrNull($child['vat_amount'] ?? $payload['vat_amount'] ?? null),
+                    'total_amount' => $this->amountOrNull($child['total_amount'] ?? $payload['total_amount'] ?? null),
+                    'description' => $child['description'] ?? ($payload['description'] ?? null),
+                    'memo' => $child['memo'] ?? ($payload['memo'] ?? null),
+                    'mapped_payload_json' => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    'item_status' => 'ACTIVE',
+                    'is_current' => 1,
+                    'updated_at' => $timestamp,
+                    'updated_by' => $actor,
+                ];
+
+                if ($existing) {
+                    $itemModel->update($childId, $data);
+                    $saved[] = $itemModel->getById($childId) ?: ($data + ['id' => $childId]);
+                    unset($existingChildren[$childId]);
+                    continue;
+                }
+
+                $newId = UuidHelper::generate();
+                $insert = array_merge($this->processingChildBasePayload($parentItem), $data, [
+                    'id' => $newId,
+                    'parent_item_id' => $parentItemId,
+                    'source_item_id' => $parentItemId,
+                    'lineage_root_id' => $parentItem['lineage_root_id'] ?? $parentItemId,
+                    'split_group_id' => $splitGroupId,
+                    'item_type' => 'SPLIT',
+                    'created_at' => $timestamp,
+                    'created_by' => $actor,
+                ]);
+                $itemModel->insert($insert);
+                $saved[] = $itemModel->getById($newId) ?: $insert;
+            }
+
+            foreach (array_keys($existingChildren) as $deletedChildId) {
+                $itemModel->update($deletedChildId, [
+                    'deleted_at' => $timestamp,
+                    'deleted_by' => $actor,
+                    'is_current' => 0,
+                    'item_status' => 'DELETED',
+                    'updated_at' => $timestamp,
+                    'updated_by' => $actor,
+                ]);
+            }
+
+            $this->pdo->commit();
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+
+        return ['success' => true, 'children' => $saved, 'message' => '분할 항목을 저장했습니다.'];
+    }
+
+    private function processingParentDisplayPath(array $parentItem): string
+    {
+        if (($parentItem['source_table'] ?? '') === 'ledger_data_evidences') {
+            $sourceId = trim((string) ($parentItem['source_id'] ?? ''));
+            if ($sourceId !== '') {
+                $stmt = $this->pdo->prepare('SELECT mapped_payload_json FROM ledger_data_evidences WHERE id = :id LIMIT 1');
+                $stmt->execute([':id' => $sourceId]);
+                $mapped = json_decode((string) ($stmt->fetchColumn() ?: ''), true);
+                if (is_array($mapped)) {
+                    foreach (['_status_sort_no', '_create_sort_no', '_row_no', '_upload_row_no'] as $key) {
+                        $value = trim((string) ($mapped[$key] ?? ''));
+                        if ($value !== '' && $value !== '0') {
+                            return $value;
+                        }
+                    }
+                }
+            }
+        }
+
+        $displayPath = trim((string) ($parentItem['display_path'] ?? ''));
+        if ($displayPath !== '') {
+            return $displayPath;
+        }
+        $sortNo = trim((string) ($parentItem['sort_no'] ?? ''));
+        return $sortNo !== '' && $sortNo !== '0' ? $sortNo : '1';
+    }
+
+    private function processingSplitRequiredMissingMessages(array $parentItem, array $children): array
+    {
+        $sourceTable = (string) ($parentItem['source_table'] ?? '');
+        $sourceId = (string) ($parentItem['source_id'] ?? '');
+        if ($sourceTable !== 'ledger_data_evidences' || $sourceId === '') {
+            return [];
+        }
+        $stmt = $this->pdo->prepare("
+            SELECT c.excel_column_name, c.system_field_name
+            FROM ledger_data_evidences e
+            JOIN ledger_data_format_columns c ON c.format_id = e.format_id
+            WHERE e.id = :id
+              AND COALESCE(c.is_required, 0) = 1
+            ORDER BY c.column_order, c.excel_column_index, c.excel_column_name
+        ");
+        $stmt->execute([':id' => $sourceId]);
+        $columns = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        if ($columns === []) {
+            return [];
+        }
+        $messages = [];
+        foreach (array_values($children) as $index => $child) {
+            if (!is_array($child)) {
+                continue;
+            }
+            $payload = is_array($child['mapped_payload'] ?? null) ? $child['mapped_payload'] : [];
+            foreach ($columns as $column) {
+                $key = trim((string) ($column['system_field_name'] ?? ''));
+                if ($key === '') {
+                    $key = trim((string) ($column['excel_column_name'] ?? ''));
+                }
+                if ($key === '') {
+                    continue;
+                }
+                if ($this->isProcessingSplitExcludedField((string) ($parentItem['source_type'] ?? ''), $key, (string) ($column['excel_column_name'] ?? ''))) {
+                    continue;
+                }
+                if ($this->isBlankValue($payload[$key] ?? null)) {
+                    $label = trim((string) ($column['excel_column_name'] ?? $key));
+                    $messages[] = ($index + 1) . '행 ' . ($label !== '' ? $label : $key);
+                }
+            }
+        }
+        return $messages;
+    }
+
+    private function processingSplitAmountFields(array $parentItem, array $children): array
+    {
+        $sourceType = self::normalizeDataType((string) ($parentItem['source_type'] ?? ''));
+        $parentPayload = json_decode((string) ($parentItem['mapped_payload_json'] ?? ''), true);
+        $parentPayload = is_array($parentPayload) ? $parentPayload : [];
+        if ($sourceType === 'BANK_TRANSACTION') {
+            $fields = [];
+            foreach (['deposit_amount', 'withdraw_amount'] as $field) {
+                $value = $this->processingSplitParentAmountValue($parentItem, $parentPayload, $field);
+                if ($value !== null) {
+                    $fields[$field] = $value;
+                }
+            }
+            return $fields;
+        }
+        $fields = [];
+        foreach (array_keys($parentPayload) as $field) {
+            if ($this->isProcessingSplitAmountField((string) $field) && !$this->isProcessingSplitExcludedField($sourceType, (string) $field, (string) $field)) {
+                $value = $this->amountOrNull($parentPayload[$field] ?? null);
+                if ($value !== null) {
+                    $fields[(string) $field] = $value;
+                }
+            }
+        }
+        foreach ($children as $child) {
+            if (!is_array($child)) {
+                continue;
+            }
+            $payload = is_array($child['mapped_payload'] ?? null) ? $child['mapped_payload'] : [];
+            foreach (array_keys($payload) as $field) {
+                $field = (string) $field;
+                if (isset($fields[$field]) || !$this->isProcessingSplitAmountField($field) || $this->isProcessingSplitExcludedField($sourceType, $field, $field)) {
+                    continue;
+                }
+                $value = $this->amountOrNull($parentPayload[$field] ?? $parentItem[$field] ?? null);
+                if ($value !== null) {
+                    $fields[$field] = $value;
+                }
+            }
+        }
+        foreach (['supply_amount', 'vat_amount', 'total_amount'] as $field) {
+            if (!isset($fields[$field]) && array_key_exists($field, $parentPayload)) {
+                $value = $this->amountOrNull($parentPayload[$field] ?? $parentItem[$field] ?? null);
+                if ($value !== null) {
+                    $fields[$field] = $value;
+                }
+            }
+        }
+        return $fields;
+    }
+
+    private function processingSplitParentAmountValue(array $parentItem, array $parentPayload, string $field): ?float
+    {
+        $keys = $field === 'withdraw_amount'
+            ? ['withdraw_amount', 'withdrawal_amount']
+            : [$field];
+        foreach ($keys as $key) {
+            $value = $this->amountOrNull($parentPayload[$key] ?? $parentItem[$key] ?? null);
+            if ($value !== null) {
+                return abs((float) $value);
+            }
+        }
+        return null;
+    }
+
+    private function processingSplitChildAmountValue(array $child, string $field): ?float
+    {
+        $payload = is_array($child['mapped_payload'] ?? null) ? $child['mapped_payload'] : [];
+        $keys = $field === 'withdraw_amount'
+            ? ['withdraw_amount', 'withdrawal_amount']
+            : [$field];
+        foreach ($keys as $key) {
+            $value = $this->amountOrNull($child[$key] ?? $payload[$key] ?? null);
+            if ($value !== null) {
+                return abs((float) $value);
+            }
+        }
+        return null;
+    }
+
+    private function isProcessingSplitExcludedField(string $sourceType, string $field, string $label = ''): bool
+    {
+        $sourceType = self::normalizeDataType($sourceType);
+        $fieldText = strtolower(trim($field));
+        $labelText = trim($label);
+        $text = $fieldText . ' ' . $labelText;
+        if (preg_match('/balance_amount|check_bill_amount|balance|거래후잔액|잔액|수표어음/u', $text)) {
+            return true;
+        }
+        if ($sourceType === 'BANK_TRANSACTION' && $this->isProcessingSplitAmountField($fieldText)) {
+            return !preg_match('/(^|_)(deposit|withdraw|withdrawal)(_|$)|입금|출금/u', $text);
+        }
+        return false;
+    }
+
+    private function isProcessingSplitAmountField(string $field): bool
+    {
+        $field = strtolower(trim($field));
+        if ($field === '') {
+            return false;
+        }
+        if (in_array($field, ['balance_amount', 'unit_price', 'foreign_unit_price', 'exchange_rate', 'rate'], true)) {
+            return false;
+        }
+        return (bool) preg_match('/(^|_)(amount|vat|tax|fee|charge|duty|deposit|withdraw|withdrawal|supply|total|settlement|gross|withholding)(_|$)/', $field);
+    }
+
+    private function processingChildBasePayload(array $parent): array
+    {
+        return [
+            'source_domain' => $parent['source_domain'] ?? null,
+            'source_table' => $parent['source_table'] ?? '',
+            'source_id' => $parent['source_id'] ?? '',
+            'source_type' => $parent['source_type'] ?? '',
+            'line_type' => $parent['line_type'] ?? null,
+            'transaction_status' => 'NONE',
+            'voucher_status' => 'NONE',
+            'readiness_status' => $parent['readiness_status'] ?? 'UNKNOWN',
+            'correction_status' => 'NONE',
+            'item_date' => $parent['item_date'] ?? null,
+            'client_id' => $parent['client_id'] ?? null,
+            'project_id' => $parent['project_id'] ?? null,
+            'employee_id' => $parent['employee_id'] ?? null,
+            'bank_account_id' => $parent['bank_account_id'] ?? null,
+            'card_id' => $parent['card_id'] ?? null,
+            'account_id' => $parent['account_id'] ?? null,
+            'currency' => $parent['currency'] ?? 'KRW',
+            'raw_json' => $parent['raw_json'] ?? null,
+        ];
+    }
+
+    private function formatAmountForMessage(float $value): string
+    {
+        return rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.');
+    }
+
     private function isBlankValue(mixed $value): bool
     {
         if ($value === null) {
@@ -3099,14 +4450,16 @@ class ImportController
         $firstChange = is_array(reset($changes)) ? reset($changes) : [];
         $scope = strtolower(trim((string) ($payload['scope'] ?? $payload['sort_scope'] ?? $firstChange['scope'] ?? $firstChange['sort_scope'] ?? 'create')));
         $sortKey = $scope === 'status' ? '_status_sort_no' : '_create_sort_no';
+        $sortColumn = $scope === 'status' ? 'status_sort_no' : 'create_sort_no';
         $importType = self::normalizeDataType((string) ($payload['import_type'] ?? $payload['data_type'] ?? $firstChange['import_type'] ?? $firstChange['data_type'] ?? ''));
         $actor = ActorHelper::user();
+        $this->ensureEvidenceSortColumns();
 
         $this->pdo->beginTransaction();
         try {
             [$inSql, $params] = $this->placeholdersForIds(array_keys($rows), 'reorder_id');
             $sql = "
-                SELECT id, mapped_payload_json
+                SELECT id, mapped_payload_json, `{$sortColumn}` AS current_sort_no
                 FROM ledger_data_evidences
                 WHERE id IN ({$inSql})
                   AND deleted_at IS NULL
@@ -3117,8 +4470,13 @@ class ImportController
                 $this->json(['success' => false, 'message' => '증빙원본 순서 변경에는 자료유형이 필요합니다.'], 400);
                 return;
             }
-            $sql .= ' AND source_type = :import_type';
-            $params[':import_type'] = $importType;
+            $typePlaceholders = [];
+            foreach (self::queryDataTypes($importType) as $index => $type) {
+                $key = ':import_type_' . $index;
+                $typePlaceholders[] = $key;
+                $params[$key] = $type;
+            }
+            $sql .= ' AND source_type IN (' . implode(', ', $typePlaceholders) . ')';
         }
             $select = $this->pdo->prepare($sql);
             $select->execute($params);
@@ -3127,6 +4485,7 @@ class ImportController
             $update = $this->pdo->prepare("
                 UPDATE ledger_data_evidences
                 SET mapped_payload_json = :mapped_payload_json,
+                    `{$sortColumn}` = :sort_no,
                     updated_at = NOW(),
                     updated_by = :actor
                 WHERE id = :id
@@ -3138,12 +4497,24 @@ class ImportController
                 }
                 $mappedPayload = json_decode((string) ($storedRow['mapped_payload_json'] ?? ''), true);
                 $mappedPayload = is_array($mappedPayload) ? $mappedPayload : [];
+                $currentColumnSortNo = is_numeric($storedRow['current_sort_no'] ?? null) ? max(0, (int) $storedRow['current_sort_no']) : 0;
+                $currentPayloadSortNo = $this->evidencePayloadSortNo(['mapped_payload' => $mappedPayload], $sortKey);
+                if ($currentColumnSortNo === $rows[$id] && $currentPayloadSortNo === $rows[$id]) {
+                    continue;
+                }
                 $mappedPayload[$sortKey] = $rows[$id];
                 $update->execute([
                     ':id' => $id,
                     ':mapped_payload_json' => $this->jsonEncodeForStorage($mappedPayload),
+                    ':sort_no' => $rows[$id],
                     ':actor' => $actor,
                 ]);
+                if ($scope === 'status') {
+                    $this->syncProcessingItemDisplayPathsForEvidence($id, $rows[$id], $actor);
+                }
+            }
+            if ($scope === 'status') {
+                $this->normalizeEvidenceStatusSortNoForType($importType, $actor, $rows);
             }
 
             $this->pdo->commit();
@@ -3156,6 +4527,197 @@ class ImportController
         }
 
         $this->json(['success' => true, 'message' => '순서가 변경되었습니다.']);
+    }
+
+    private function syncProcessingItemDisplayPathsForEvidence(string $evidenceId, int $rowNo, string $actor): void
+    {
+        if ($evidenceId === '' || $rowNo < 1 || !$this->tableExists('ledger_processing_items')) {
+            return;
+        }
+
+        $stmt = $this->pdo->prepare("
+            SELECT id, parent_item_id, sort_no, display_path, created_at
+            FROM ledger_processing_items
+            WHERE source_table = 'ledger_data_evidences'
+              AND source_id = :source_id
+              AND deleted_at IS NULL
+            ORDER BY parent_item_id ASC, sort_no ASC, created_at ASC
+        ");
+        $stmt->execute([':source_id' => $evidenceId]);
+        $items = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        if ($items === []) {
+            return;
+        }
+
+        $childrenByParent = [];
+        $roots = [];
+        foreach ($items as $item) {
+            $id = trim((string) ($item['id'] ?? ''));
+            if ($id === '') {
+                continue;
+            }
+            $parentId = trim((string) ($item['parent_item_id'] ?? ''));
+            if ($parentId === '') {
+                $roots[] = $item;
+            } else {
+                $childrenByParent[$parentId][] = $item;
+            }
+        }
+
+        $sortItems = static function (array &$rows): void {
+            usort($rows, static function (array $a, array $b): int {
+                $sortA = (int) ($a['sort_no'] ?? 0);
+                $sortB = (int) ($b['sort_no'] ?? 0);
+                if ($sortA !== $sortB) {
+                    return $sortA <=> $sortB;
+                }
+                return strcmp((string) ($a['created_at'] ?? ''), (string) ($b['created_at'] ?? ''));
+            });
+        };
+        $sortItems($roots);
+        foreach ($childrenByParent as &$children) {
+            $sortItems($children);
+        }
+        unset($children);
+
+        $update = $this->pdo->prepare("
+            UPDATE ledger_processing_items
+            SET sort_no = :sort_no,
+                display_path = :display_path,
+                updated_at = NOW(),
+                updated_by = :actor
+            WHERE id = :id
+        ");
+
+        $walk = function (array $item, string $displayPath, int $sortNo) use (&$walk, $childrenByParent, $update, $actor): void {
+            $id = trim((string) ($item['id'] ?? ''));
+            if ($id === '') {
+                return;
+            }
+
+            $update->execute([
+                ':id' => $id,
+                ':sort_no' => $sortNo,
+                ':display_path' => $displayPath,
+                ':actor' => $actor,
+            ]);
+
+            $children = $childrenByParent[$id] ?? [];
+            foreach (array_values($children) as $index => $child) {
+                $childSortNo = $index + 1;
+                $walk($child, $displayPath . '-' . $childSortNo, $childSortNo);
+            }
+        };
+
+        foreach (array_values($roots) as $index => $root) {
+            $rootDisplayPath = (string) ($index === 0 ? $rowNo : ($rowNo . '-' . ($index + 1)));
+            $rootSortNo = $index === 0 ? $rowNo : $index + 1;
+            $walk($root, $rootDisplayPath, $rootSortNo);
+        }
+    }
+
+    private function normalizeEvidenceStatusSortNoForType(string $importType, string $actor, array $priorityRows = []): void
+    {
+        $importType = self::normalizeDataType($importType);
+        if ($importType === '') {
+            return;
+        }
+
+        $params = [];
+        $placeholders = [];
+        foreach (self::queryDataTypes($importType) as $index => $type) {
+            $key = ':normalize_type_' . $index;
+            $placeholders[] = $key;
+            $params[$key] = $type;
+        }
+        if ($placeholders === []) {
+            return;
+        }
+
+        $stmt = $this->pdo->prepare("
+            SELECT id, status_sort_no, mapped_payload_json
+            FROM ledger_data_evidences
+            WHERE deleted_at IS NULL
+              AND source_type IN (" . implode(', ', $placeholders) . ")
+            ORDER BY
+                CASE WHEN status_sort_no IS NULL OR status_sort_no < 1 THEN 1 ELSE 0 END ASC,
+                status_sort_no ASC,
+                COALESCE(evidence_date, DATE(latest_imported_at), DATE(created_at)) DESC,
+                latest_imported_at DESC,
+                created_at DESC,
+                id ASC
+        ");
+        $stmt->execute($params);
+        $storedRows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        if ($storedRows === []) {
+            return;
+        }
+        $normalizedPriorityRows = [];
+        foreach ($priorityRows as $id => $sortNo) {
+            $id = trim((string) $id);
+            $sortNo = (int) $sortNo;
+            if ($id !== '' && $sortNo > 0) {
+                $normalizedPriorityRows[$id] = $sortNo;
+            }
+        }
+        $priorityRows = $normalizedPriorityRows;
+        if ($priorityRows !== []) {
+            usort($storedRows, static function (array $left, array $right) use ($priorityRows): int {
+                $leftId = (string) ($left['id'] ?? '');
+                $rightId = (string) ($right['id'] ?? '');
+                $leftPriority = $priorityRows[$leftId] ?? null;
+                $rightPriority = $priorityRows[$rightId] ?? null;
+                if ($leftPriority !== null || $rightPriority !== null) {
+                    if ($leftPriority === null) {
+                        return 1;
+                    }
+                    if ($rightPriority === null) {
+                        return -1;
+                    }
+                    return $leftPriority <=> $rightPriority;
+                }
+
+                $leftSortNo = is_numeric($left['status_sort_no'] ?? null) ? (int) $left['status_sort_no'] : PHP_INT_MAX;
+                $rightSortNo = is_numeric($right['status_sort_no'] ?? null) ? (int) $right['status_sort_no'] : PHP_INT_MAX;
+                if ($leftSortNo !== $rightSortNo) {
+                    return $leftSortNo <=> $rightSortNo;
+                }
+
+                return strcmp((string) ($left['id'] ?? ''), (string) ($right['id'] ?? ''));
+            });
+        }
+
+        $update = $this->pdo->prepare("
+            UPDATE ledger_data_evidences
+            SET mapped_payload_json = :mapped_payload_json,
+                status_sort_no = :status_sort_no,
+                updated_at = NOW(),
+                updated_by = :actor
+            WHERE id = :id
+        ");
+        foreach ($storedRows as $index => $row) {
+            $id = trim((string) ($row['id'] ?? ''));
+            if ($id === '') {
+                continue;
+            }
+            $nextSortNo = $index + 1;
+            $currentSortNo = is_numeric($row['status_sort_no'] ?? null) ? (int) $row['status_sort_no'] : 0;
+            $mappedPayload = json_decode((string) ($row['mapped_payload_json'] ?? ''), true);
+            $mappedPayload = is_array($mappedPayload) ? $mappedPayload : [];
+            $currentPayloadSortNo = (int) ($mappedPayload['_status_sort_no'] ?? 0);
+            if ($currentSortNo === $nextSortNo && $currentPayloadSortNo === $nextSortNo) {
+                continue;
+            }
+
+            $mappedPayload['_status_sort_no'] = $nextSortNo;
+            $update->execute([
+                ':id' => $id,
+                ':mapped_payload_json' => $this->jsonEncodeForStorage($mappedPayload),
+                ':status_sort_no' => $nextSortNo,
+                ':actor' => $actor,
+            ]);
+            $this->syncProcessingItemDisplayPathsForEvidence($id, $nextSortNo, $actor);
+        }
     }
 
     public function apiSeedRowsDelete(): void
@@ -3173,13 +4735,17 @@ class ImportController
 
             $deletableIds = $this->deletableSeedRowIds($ids);
             if ($deletableIds === []) {
+                $blocked = $this->seedRowDeleteBlockSummary($ids);
                 if ($this->pdo->inTransaction()) {
                     $this->pdo->rollBack();
                 }
                 $this->json([
-                    'success' => false,
-                    'message' => '삭제 가능한 Seed Data가 없습니다. 이미 삭제되었거나 거래/전표 생성이 완료된 데이터는 제외됩니다.',
-                ], 409);
+                    'success' => true,
+                    'message' => $blocked !== ''
+                        ? '삭제된 항목은 없습니다. ' . $blocked
+                        : '삭제된 항목은 없습니다. 이미 삭제되었거나 거래/전표 생성이 완료된 데이터는 제외됩니다.',
+                    'data' => ['deleted_count' => 0, 'skipped_count' => count($ids)],
+                ]);
                 return;
             }
 
@@ -3202,21 +4768,37 @@ class ImportController
             $deletedCount = $stmt->rowCount();
             $this->syncBankTransactionsSoftDelete($deletableIds, $actor);
             if ($deletedCount === 0) {
+                $blocked = $this->seedRowDeleteBlockSummary($ids);
                 if ($this->pdo->inTransaction()) {
                     $this->pdo->rollBack();
                 }
                 $this->json([
-                    'success' => false,
-                    'message' => '삭제 가능한 Seed Data가 없습니다. 이미 삭제되었거나 거래/전표 생성이 완료된 데이터는 제외됩니다.',
-                ], 409);
+                    'success' => true,
+                    'message' => $blocked !== ''
+                        ? '삭제된 항목은 없습니다. ' . $blocked
+                        : '삭제된 항목은 없습니다. 이미 삭제되었거나 거래/전표 생성이 완료된 데이터는 제외됩니다.',
+                    'data' => ['deleted_count' => 0, 'skipped_count' => count($ids)],
+                ]);
                 return;
             }
 
             $this->pdo->commit();
+            $skippedIds = array_values(array_diff($ids, $deletableIds));
+            $skippedCount = max(0, count($ids) - $deletedCount);
+            $blocked = $skippedCount > 0 ? $this->seedRowDeleteBlockSummary($skippedIds) : '';
+            $message = "선택 Seed Data {$deletedCount}건이 삭제되었습니다.";
+            if ($skippedCount > 0) {
+                $message .= $blocked !== ''
+                    ? " 제외 {$skippedCount}건: {$blocked}"
+                    : " 삭제할 수 없는 {$skippedCount}건은 제외되었습니다.";
+            }
             $this->json([
                 'success' => true,
-                'message' => "선택 Seed Data {$deletedCount}건이 삭제되었습니다. 거래/전표 생성 완료 데이터는 제외됩니다.",
-                'data' => ['deleted_count' => $deletedCount],
+                'message' => $message,
+                'data' => [
+                    'deleted_count' => $deletedCount,
+                    'skipped_count' => $skippedCount,
+                ],
             ]);
         } catch (\Throwable $e) {
             if ($this->pdo->inTransaction()) {
@@ -3421,9 +5003,17 @@ class ImportController
             WHERE id IN ({$inSql})
         ");
         $stmt->execute($params);
+        $restoredCount = $stmt->rowCount();
         $this->syncBankTransactionsRestore($ids, ActorHelper::user());
 
-        $this->json(['success' => true, 'message' => '선택 Seed Data가 복구되었습니다.']);
+        $this->json([
+            'success' => true,
+            'message' => "선택 Seed Data {$restoredCount}건이 복구되었습니다.",
+            'data' => [
+                'restored_count' => $restoredCount,
+                'skipped_count' => max(0, count($ids) - $restoredCount),
+            ],
+        ]);
     }
 
     public function apiSeedRowsRestoreAll(): void
@@ -3443,9 +5033,14 @@ class ImportController
         ");
         $actor = ActorHelper::user();
         $stmt->execute([':actor' => $actor] + $scopeParams);
+        $restoredCount = $stmt->rowCount();
         $this->syncBankTransactionsRestore($ids, $actor);
 
-        $this->json(['success' => true, 'message' => '휴지통 Seed Data가 복구되었습니다.']);
+        $this->json([
+            'success' => true,
+            'message' => "휴지통 Seed Data {$restoredCount}건이 복구되었습니다.",
+            'data' => ['restored_count' => $restoredCount],
+        ]);
     }
 
     public function apiSeedRowsPurge(): void
@@ -3460,27 +5055,22 @@ class ImportController
         $purgeableIds = $this->purgeableSeedRowIds($ids);
         if ($purgeableIds === []) {
             $this->json([
-                'success' => false,
-                'message' => '영구 삭제 가능한 Seed Data가 없습니다. 거래/전표 생성 결과가 남아있는 데이터는 제외됩니다.',
-                'data' => ['deleted_count' => 0],
-            ], 409);
+                'success' => true,
+                'message' => '영구 삭제된 항목은 없습니다. 휴지통에 없는 항목은 제외됩니다.',
+                'data' => ['deleted_count' => 0, 'skipped_count' => count($ids)],
+            ]);
             return;
         }
 
-        [$inSql, $params] = $this->placeholdersForIds($purgeableIds, 'seed_id');
-        $stmt = $this->pdo->prepare("
-            DELETE FROM ledger_data_evidences
-            WHERE id IN ({$inSql})
-              AND deleted_at IS NOT NULL
-        ");
-        $this->deleteBankTransactionsByEvidenceIds($purgeableIds);
-        $stmt->execute($params);
-        $deletedCount = $stmt->rowCount();
+        $deletedCount = $this->purgeSeedRowsByIds($purgeableIds);
 
         $this->json([
             'success' => true,
             'message' => "선택 Seed Data {$deletedCount}건이 영구 삭제되었습니다.",
-            'data' => ['deleted_count' => $deletedCount],
+            'data' => [
+                'deleted_count' => $deletedCount,
+                'skipped_count' => max(0, count($ids) - $deletedCount),
+            ],
         ]);
     }
 
@@ -3504,6 +5094,93 @@ class ImportController
         return array_values(array_filter(array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [])));
     }
 
+    private function seedRowDeleteBlockSummary(array $ids): string
+    {
+        $ids = array_values(array_unique(array_filter(array_map('strval', $ids))));
+        if ($ids === []) {
+            return '';
+        }
+
+        [$inSql, $params] = $this->placeholdersForIds($ids, 'delete_block_id');
+        $transactionSelect = $this->evidenceHasTransactionIdColumn() ? ', transaction_id' : '';
+        $stmt = $this->pdo->prepare("
+            SELECT id, source_type, source_key, evidence_date, transaction_status, deleted_at, mapped_payload_json{$transactionSelect}
+            FROM ledger_data_evidences
+            WHERE id IN ({$inSql})
+        ");
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        if ($rows === []) {
+            return '선택한 항목을 찾을 수 없습니다.';
+        }
+
+        $counts = [
+            'deleted' => 0,
+            'generated' => 0,
+            'status' => 0,
+        ];
+        $samples = [];
+        foreach ($rows as $row) {
+            $reason = '';
+            if (!empty($row['deleted_at'])) {
+                $counts['deleted']++;
+                $reason = '이미 삭제됨';
+            } elseif ($this->hasActiveOutputForEvidenceRow($row)) {
+                $counts['generated']++;
+                $reason = '거래/전표 생성 결과 있음';
+            } elseif (!in_array((string) ($row['transaction_status'] ?? ''), ['NONE', 'ERROR', 'DUPLICATED'], true)) {
+                $counts['status']++;
+                $reason = '거래생성상태 ' . (string) ($row['transaction_status'] ?? '-');
+            }
+
+            if ($reason !== '' && count($samples) < 3) {
+                $samples[] = $this->seedRowDeleteBlockLabel($row) . ' - ' . $reason;
+            }
+        }
+
+        $parts = [];
+        if ($counts['generated'] > 0) {
+            $parts[] = '거래/전표 생성 결과가 남아있는 항목 ' . $counts['generated'] . '건';
+        }
+        if ($counts['deleted'] > 0) {
+            $parts[] = '이미 삭제된 항목 ' . $counts['deleted'] . '건';
+        }
+        if ($counts['status'] > 0) {
+            $parts[] = '삭제 대상 상태가 아닌 항목 ' . $counts['status'] . '건';
+        }
+
+        if ($parts === []) {
+            return '선택 항목이 삭제 조건에 맞지 않습니다.';
+        }
+
+        return implode(', ', $parts) . ($samples !== [] ? ' (' . implode(' / ', $samples) . ')' : '') . '.';
+    }
+
+    private function seedRowDeleteBlockLabel(array $row): string
+    {
+        $mapped = json_decode((string) ($row['mapped_payload_json'] ?? ''), true);
+        $mapped = is_array($mapped) ? $mapped : [];
+        $rowNo = $mapped['_status_sort_no'] ?? $mapped['_create_sort_no'] ?? $mapped['_row_no'] ?? '';
+        $client = $mapped['client_name']
+            ?? $mapped['client_company_name']
+            ?? $mapped['counterparty_name']
+            ?? $mapped['supplier_company_name']
+            ?? $mapped['customer_company_name']
+            ?? '';
+        $label = [];
+        if (trim((string) $rowNo) !== '') {
+            $label[] = '순번 ' . trim((string) $rowNo);
+        }
+        if (trim((string) $client) !== '') {
+            $label[] = trim((string) $client);
+        }
+        if ($label === []) {
+            $label[] = trim((string) ($row['source_key'] ?? $row['id'] ?? '항목'));
+        }
+
+        return implode(' ', $label);
+    }
+
     public function apiSeedRowsPurgeAll(): void
     {
         $payload = $this->requestPayload();
@@ -3511,22 +5188,14 @@ class ImportController
         $purgeableIds = $this->purgeableSeedRowIds([], $importType);
         if ($purgeableIds === []) {
             $this->json([
-                'success' => false,
-                'message' => '영구 삭제 가능한 휴지통 Seed Data가 없습니다. 거래/전표 생성 결과가 남아있는 데이터는 제외됩니다.',
+                'success' => true,
+                'message' => '영구 삭제 가능한 휴지통 Seed Data가 없습니다.',
                 'data' => ['deleted_count' => 0],
-            ], 409);
+            ]);
             return;
         }
 
-        [$inSql, $params] = $this->placeholdersForIds($purgeableIds, 'seed_id');
-        $stmt = $this->pdo->prepare("
-            DELETE FROM ledger_data_evidences
-            WHERE id IN ({$inSql})
-              AND deleted_at IS NOT NULL
-        ");
-        $this->deleteBankTransactionsByEvidenceIds($purgeableIds);
-        $stmt->execute($params);
-        $deletedCount = $stmt->rowCount();
+        $deletedCount = $this->purgeSeedRowsByIds($purgeableIds);
 
         $this->json([
             'success' => true,
@@ -3538,7 +5207,6 @@ class ImportController
     private function purgeableSeedRowIds(array $ids = [], string $importType = ''): array
     {
         $ids = array_values(array_unique(array_filter(array_map('strval', $ids))));
-        $transactionSelect = $this->evidenceHasTransactionIdColumn() ? ', transaction_id' : '';
         $where = ['deleted_at IS NOT NULL'];
         $params = [];
 
@@ -3553,21 +5221,138 @@ class ImportController
         }
 
         $stmt = $this->pdo->prepare("
-            SELECT id, source_type, evidence_date, transaction_status, mapped_payload_json{$transactionSelect}
+            SELECT id
             FROM ledger_data_evidences
             WHERE " . implode(' AND ', $where) . "
         ");
         $stmt->execute($params);
 
-        $purgeable = [];
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
-            $status = strtoupper(trim((string) ($row['transaction_status'] ?? '')));
-            if (in_array($status, ['NONE', 'ERROR', 'DUPLICATED'], true) || !$this->hasActiveOutputForEvidenceRow($row)) {
-                $purgeable[] = (string) $row['id'];
-            }
+        return array_values(array_unique(array_filter(array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []))));
+    }
+
+    private function purgeSeedRowsByIds(array $ids): int
+    {
+        $ids = array_values(array_unique(array_filter(array_map('strval', $ids))));
+        if ($ids === []) {
+            return 0;
         }
 
-        return array_values(array_unique($purgeable));
+        $this->pdo->beginTransaction();
+        try {
+            $this->deleteEvidencePurgeDependencies($ids);
+
+            [$inSql, $params] = $this->placeholdersForIds($ids, 'purge_delete_seed_id');
+            $stmt = $this->pdo->prepare("
+                DELETE FROM ledger_data_evidences
+                WHERE id IN ({$inSql})
+                  AND deleted_at IS NOT NULL
+            ");
+            $stmt->execute($params);
+            $deletedCount = $stmt->rowCount();
+
+            $this->pdo->commit();
+            return $deletedCount;
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    private function deleteEvidencePurgeDependencies(array $evidenceIds): void
+    {
+        $evidenceIds = array_values(array_unique(array_filter(array_map('strval', $evidenceIds))));
+        if ($evidenceIds === []) {
+            return;
+        }
+
+        $this->deleteBankTransactionsByEvidenceIds($evidenceIds);
+        $this->deleteEvidenceLinksByEvidenceIds($evidenceIds);
+        $this->detachEvidenceSourceRefs($evidenceIds);
+        $this->deleteProcessingItemsByEvidenceIds($evidenceIds);
+    }
+
+    private function deleteEvidenceLinksByEvidenceIds(array $evidenceIds): void
+    {
+        if (!$this->tableExists('ledger_data_evidence_links')) {
+            return;
+        }
+
+        [$inSql, $params] = $this->placeholdersForIds($evidenceIds, 'purge_link_evidence_id');
+        $this->pdo->prepare("
+            DELETE FROM ledger_data_evidence_links
+            WHERE evidence_id IN ({$inSql})
+        ")->execute($params);
+    }
+
+    private function detachEvidenceSourceRefs(array $evidenceIds): void
+    {
+        if ($this->tableExists('ledger_vouchers') && $this->tableColumnExists('ledger_vouchers', 'source_id')) {
+            [$inSql, $params] = $this->placeholdersForIds($evidenceIds, 'purge_voucher_source_id');
+            $this->pdo->prepare("
+                UPDATE ledger_vouchers
+                SET source_id = NULL
+                WHERE source_id IN ({$inSql})
+            ")->execute($params);
+        }
+
+        if ($this->tableExists('ledger_transactions') && $this->tableColumnExists('ledger_transactions', 'evidence_id')) {
+            [$inSql, $params] = $this->placeholdersForIds($evidenceIds, 'purge_transaction_evidence_id');
+            $this->pdo->prepare("
+                UPDATE ledger_transactions
+                SET evidence_id = NULL
+                WHERE evidence_id IN ({$inSql})
+            ")->execute($params);
+        }
+    }
+
+    private function deleteProcessingItemsByEvidenceIds(array $evidenceIds): void
+    {
+        if (!$this->tableExists('ledger_processing_items')) {
+            return;
+        }
+
+        [$inSql, $params] = $this->placeholdersForIds($evidenceIds, 'purge_processing_source_id');
+        $stmt = $this->pdo->prepare("
+            SELECT id
+            FROM ledger_processing_items
+            WHERE source_table = 'ledger_data_evidences'
+              AND source_id IN ({$inSql})
+        ");
+        $stmt->execute($params);
+        $itemIds = array_values(array_filter(array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [])));
+        if ($itemIds === []) {
+            return;
+        }
+
+        if ($this->tableExists('ledger_processing_item_actions')) {
+            [$actionInSql, $actionParams] = $this->placeholdersForIds($itemIds, 'purge_processing_action_id');
+            [$relatedInSql, $relatedParams] = $this->placeholdersForIds($itemIds, 'purge_processing_related_id');
+            $this->pdo->prepare("
+                DELETE FROM ledger_processing_item_actions
+                WHERE processing_item_id IN ({$actionInSql})
+                   OR related_processing_item_id IN ({$relatedInSql})
+            ")->execute($actionParams + $relatedParams);
+        }
+
+        foreach (['ledger_transaction_lines', 'ledger_voucher_lines', 'ledger_data_evidence_links'] as $table) {
+            if (!$this->tableExists($table) || !$this->tableColumnExists($table, 'processing_item_id')) {
+                continue;
+            }
+            [$lineInSql, $lineParams] = $this->placeholdersForIds($itemIds, 'purge_' . $table . '_item_id');
+            $this->pdo->prepare("
+                UPDATE {$table}
+                SET processing_item_id = NULL
+                WHERE processing_item_id IN ({$lineInSql})
+            ")->execute($lineParams);
+        }
+
+        [$itemInSql, $itemParams] = $this->placeholdersForIds($itemIds, 'purge_processing_item_id');
+        $this->pdo->prepare("
+            DELETE FROM ledger_processing_items
+            WHERE id IN ({$itemInSql})
+        ")->execute($itemParams);
     }
 
     private function deletedSeedRowIds(string $importType = ''): array
@@ -4063,7 +5848,7 @@ class ImportController
         return $this->journalLearningService;
     }
 
-    private function storeUploadBatch(array $format, array $file, array $rows): array
+    private function storeUploadBatch(array $format, array $file, array $rows, string $cancelToken = ''): array
     {
         $actor = ActorHelper::user();
         $batchId = 'EV-' . date('YmdHis') . '-' . bin2hex(random_bytes(3));
@@ -4071,16 +5856,19 @@ class ImportController
         $dataType = self::normalizeDataType((string) ($format['data_type'] ?? 'ETC'));
 
         $this->ensureEvidenceBusinessInfoColumns();
+        $this->ensureEvidenceSortColumns();
         try {
             $upsertEvidence = $this->pdo->prepare("
                 INSERT INTO ledger_data_evidences
                     (id, source_type, source_key, format_id, evidence_date, client_id, project_id, employee_id, bank_account_id, card_id,
                      client_name, project_name, employee_name, bank_account_name, card_name, currency, supply_amount, vat_amount, total_amount,
+                     create_sort_no, status_sort_no,
                      evidence_status, transaction_status, voucher_status, review_status, error_message,
                      latest_imported_at, raw_json, mapped_payload_json, created_by, updated_by)
                 VALUES
                     (:id, :source_type, :source_key, :format_id, :evidence_date, :client_id, :project_id, :employee_id, :bank_account_id, :card_id,
                      :client_name, :project_name, :employee_name, :bank_account_name, :card_name, :currency, :supply_amount, :vat_amount, :total_amount,
+                     :create_sort_no, :status_sort_no,
                      :evidence_status, :transaction_status, :voucher_status, 'NORMAL', :error_message,
                      NOW(), :raw_json, :mapped_payload_json, :created_by, :updated_by)
                 ON DUPLICATE KEY UPDATE
@@ -4101,6 +5889,8 @@ class ImportController
                     supply_amount = VALUES(supply_amount),
                     vat_amount = VALUES(vat_amount),
                     total_amount = VALUES(total_amount),
+                    create_sort_no = VALUES(create_sort_no),
+                    status_sort_no = VALUES(status_sort_no),
                     evidence_status = VALUES(evidence_status),
                     transaction_status = CASE
                         WHEN transaction_status IN ('NONE', 'ERROR', 'DUPLICATED') THEN VALUES(transaction_status)
@@ -4120,6 +5910,9 @@ class ImportController
             $updatedCount = 0;
             $unchangedCount = 0;
             $errorCount = 0;
+            $protectedUpdateCount = 0;
+            $protectedTransactionCount = 0;
+            $protectedVoucherCount = 0;
             $nextStatusSortNo = $this->nextEvidenceJsonSortNo('_status_sort_no', $dataType);
             $nextCreateSortNo = $this->nextEvidenceJsonSortNo('_create_sort_no');
             $processedRows = 0;
@@ -4127,6 +5920,10 @@ class ImportController
             $this->preloadExistingSeedRowsForUploadRows($rows, $dataType);
             $this->pdo->beginTransaction();
             foreach ($rows as $row) {
+                $this->assertUploadNotCanceled($cancelToken);
+                if (connection_aborted()) {
+                    throw new \RuntimeException('업로드가 취소되었습니다.');
+                }
                 $validation = is_array($row['_validation'] ?? null) ? $row['_validation'] : [];
                 $status = $this->uploadStatusFromValidation($validation);
                 $processStatus = $status === 'ERROR' ? 'ERROR' : 'READY';
@@ -4162,11 +5959,18 @@ class ImportController
                 $this->assignEvidenceJsonSortNo($parsedPayload, $existingMappedPayload, '_create_sort_no', $nextCreateSortNo);
                 $parsedJson = $this->jsonEncodeForStorage($parsedPayload);
                 if ($existingSeed && (string) ($existingSeed['raw_json'] ?? '') === $rawJson && (string) ($existingSeed['mapped_payload_json'] ?? '') === $parsedJson) {
-                    if ($dataType === 'BANK_TRANSACTION') {
-                        $this->upsertBankTransactionFromPayload((string) $existingSeed['id'], $parsedPayload, $actor);
-                        $this->updateEvidenceVoucherStatus((string) $existingSeed['id'], $voucherStatus, $actor);
-                    }
                     $unchangedCount++;
+                    $this->commitUploadChunkIfNeeded(++$processedRows, $chunkSize);
+                    continue;
+                }
+                if ($existingSeed && $this->isUploadProtectedExistingSeed($existingSeed)) {
+                    $protectedUpdateCount++;
+                    if ($this->existingSeedHasCreatedTransaction($existingSeed)) {
+                        $protectedTransactionCount++;
+                    }
+                    if ($this->existingSeedHasCreatedVoucher($existingSeed)) {
+                        $protectedVoucherCount++;
+                    }
                     $this->commitUploadChunkIfNeeded(++$processedRows, $chunkSize);
                     continue;
                 }
@@ -4196,6 +6000,8 @@ class ImportController
                     ':supply_amount' => $this->number($parsedPayload['supply_amount'] ?? null),
                     ':vat_amount' => $this->number($parsedPayload['vat_amount'] ?? null),
                     ':total_amount' => $this->evidenceTotalAmountForStorage($parsedPayload, $dataType),
+                    ':create_sort_no' => (int) ($parsedPayload['_create_sort_no'] ?? 0) ?: null,
+                    ':status_sort_no' => (int) ($parsedPayload['_status_sort_no'] ?? 0) ?: null,
                     ':evidence_status' => $processStatus === 'ERROR' ? 'ERROR' : 'ACTIVE',
                     ':transaction_status' => $processStatus === 'ERROR' ? 'ERROR' : 'NONE',
                     ':voucher_status' => $voucherStatus,
@@ -4213,6 +6019,7 @@ class ImportController
                         'mapped_payload_json' => $parsedJson,
                         'evidence_status' => $processStatus === 'ERROR' ? 'ERROR' : 'ACTIVE',
                         'transaction_status' => $processStatus === 'ERROR' ? 'ERROR' : 'NONE',
+                        'voucher_status' => $voucherStatus,
                     ];
                     $this->existingSeedRowCache[$dataType . '|' . $sourceKey] = $cachedSeed;
                     if ($this->usesFingerprintSourceKey($dataType)) {
@@ -4244,10 +6051,15 @@ class ImportController
             'data_type' => $dataType,
             'format_id' => (string) ($format['id'] ?? ''),
             'total_rows' => count($rows),
+            'processed_count' => $newCount + $updatedCount + $unchangedCount + $errorCount,
             'new_count' => $newCount,
             'updated_count' => $updatedCount,
             'unchanged_count' => $unchangedCount,
             'error_count' => $errorCount,
+            'skipped_count' => max(0, count($rows) - ($newCount + $updatedCount + $unchangedCount + $errorCount)),
+            'protected_update_count' => $protectedUpdateCount,
+            'protected_transaction_count' => $protectedTransactionCount,
+            'protected_voucher_count' => $protectedVoucherCount,
         ];
     }
 
@@ -4582,7 +6394,13 @@ class ImportController
 
     private function ensureBankTransactionBalanceColumns(): void
     {
+        static $checked = false;
+        if ($checked) {
+            return;
+        }
+
         if (!$this->tableExists('ledger_bank_transactions')) {
+            $checked = true;
             return;
         }
 
@@ -4620,6 +6438,8 @@ class ImportController
             } catch (\Throwable) {
             }
         }
+
+        $checked = true;
     }
 
     private function bankTransactionType(mixed $value, array $payload = []): string
@@ -4652,7 +6472,7 @@ class ImportController
 
     private function nullableString(mixed $value): ?string
     {
-        $value = trim((string) $value);
+        $value = trim((string) $this->payloadScalarForStorage($value));
         return $value === '' ? null : $value;
     }
 
@@ -4766,6 +6586,88 @@ class ImportController
         }
     }
 
+    private function ensureEvidenceSortColumns(): void
+    {
+        static $ensured = false;
+        if ($ensured || !$this->tableExists('ledger_data_evidences')) {
+            return;
+        }
+        $ensured = true;
+
+        $existing = [];
+        try {
+            $stmt = $this->pdo->query("
+                SELECT COLUMN_NAME
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'ledger_data_evidences'
+            ");
+            foreach (($stmt->fetchAll(PDO::FETCH_COLUMN) ?: []) as $column) {
+                $existing[(string) $column] = true;
+            }
+        } catch (\Throwable) {
+            return;
+        }
+
+        $columns = [
+            'create_sort_no' => "INT UNSIGNED NULL DEFAULT NULL COMMENT 'Create center sequence'",
+            'status_sort_no' => "INT UNSIGNED NULL DEFAULT NULL COMMENT 'Evidence type sequence'",
+        ];
+        foreach ($columns as $column => $definition) {
+            if (isset($existing[$column])) {
+                continue;
+            }
+            try {
+                $this->pdo->exec("
+                    ALTER TABLE `ledger_data_evidences`
+                        ADD COLUMN `{$column}` {$definition}
+                ");
+                $existing[$column] = true;
+            } catch (\Throwable) {
+            }
+        }
+
+        foreach ([
+            'idx_ledger_data_evidences_create_sort' => ['deleted_at', 'create_sort_no', 'id'],
+            'idx_ledger_data_evidences_status_sort' => ['source_type', 'deleted_at', 'status_sort_no', 'id'],
+        ] as $indexName => $columns) {
+            try {
+                $columnSql = implode('`, `', $columns);
+                $this->pdo->exec("
+                    CREATE INDEX IF NOT EXISTS `{$indexName}`
+                        ON `ledger_data_evidences` (`{$columnSql}`)
+                ");
+            } catch (\Throwable) {
+            }
+        }
+
+        $this->backfillEvidenceSortColumnIfNeeded('create_sort_no', '_create_sort_no');
+        $this->backfillEvidenceSortColumnIfNeeded('status_sort_no', '_status_sort_no');
+    }
+
+    private function backfillEvidenceSortColumnIfNeeded(string $column, string $jsonKey): void
+    {
+        try {
+            $stmt = $this->pdo->query("
+                SELECT 1
+                FROM `ledger_data_evidences`
+                WHERE (`{$column}` IS NULL OR `{$column}` < 1)
+                LIMIT 1
+            ");
+            if (!$stmt || !$stmt->fetchColumn()) {
+                return;
+            }
+
+            $this->pdo->exec("
+                UPDATE `ledger_data_evidences`
+                SET `{$column}` = CAST(JSON_UNQUOTE(JSON_EXTRACT(`mapped_payload_json`, '$.{$jsonKey}')) AS UNSIGNED)
+                WHERE (`{$column}` IS NULL OR `{$column}` < 1)
+                  AND JSON_EXTRACT(`mapped_payload_json`, '$.{$jsonKey}') IS NOT NULL
+            ");
+        } catch (\Throwable) {
+        }
+    }
+
     private function isUuid(string $value): bool
     {
         return (bool) preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', trim($value));
@@ -4796,9 +6698,10 @@ class ImportController
                 'size' => (int) ($file['size'] ?? 0),
                 'type' => (string) ($file['type'] ?? ''),
             ],
-            'rows' => array_slice($rows, 0, self::UPLOAD_PREVIEW_ROW_LIMIT),
+            'rows' => $rows,
             'created_at' => time(),
         ];
+        session_write_close();
 
         return $token;
     }
@@ -4814,9 +6717,11 @@ class ImportController
 
         $preview = $_SESSION['ledger_upload_previews'][$token] ?? null;
         if (!is_array($preview)) {
+            session_write_close();
             return null;
         }
 
+        session_write_close();
         return $preview;
     }
 
@@ -4835,6 +6740,46 @@ class ImportController
             @unlink($tmpName);
         }
         unset($_SESSION['ledger_upload_previews'][$token]);
+        session_write_close();
+    }
+
+    private function uploadCancelTokenFromPayload(array $payload): string
+    {
+        $token = trim((string) ($payload['upload_cancel_token'] ?? $payload['cancel_token'] ?? ''));
+        return preg_match('/^[a-zA-Z0-9_-]{12,80}$/', $token) === 1 ? $token : '';
+    }
+
+    private function uploadCancelPath(string $token): string
+    {
+        return rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'ledger_upload_cancel_' . $token;
+    }
+
+    private function markUploadCanceled(string $token): void
+    {
+        if ($token === '') {
+            return;
+        }
+
+        @file_put_contents($this->uploadCancelPath($token), (string) time(), LOCK_EX);
+    }
+
+    private function clearUploadCancelToken(string $token): void
+    {
+        if ($token === '') {
+            return;
+        }
+
+        $path = $this->uploadCancelPath($token);
+        if (is_file($path)) {
+            @unlink($path);
+        }
+    }
+
+    private function assertUploadNotCanceled(string $token): void
+    {
+        if ($token !== '' && is_file($this->uploadCancelPath($token))) {
+            throw new \RuntimeException('업로드가 취소되었습니다.');
+        }
     }
 
     private function uploadValidationSummary(array $rows): array
@@ -4847,6 +6792,9 @@ class ImportController
             'new' => 0,
             'updated' => 0,
             'unchanged' => 0,
+            'protected_update' => 0,
+            'required_missing_rows' => 0,
+            'required_missing_items' => 0,
         ];
 
         foreach ($rows as $row) {
@@ -4858,13 +6806,72 @@ class ImportController
             if (isset($summary[$action])) {
                 $summary[$action]++;
             }
+            $requiredMissingCount = (int) ($row['_validation']['required_missing_count'] ?? 0);
+            if ($requiredMissingCount > 0) {
+                $summary['required_missing_rows']++;
+                $summary['required_missing_items'] += $requiredMissingCount;
+            }
         }
 
         return $summary;
     }
 
+    private function uploadAllowsRequiredMissing(array $payload): bool
+    {
+        $value = $payload['allow_required_missing'] ?? $payload['confirm_required_missing'] ?? false;
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        return in_array(strtolower(trim((string) $value)), ['1', 'true', 'yes', 'y'], true);
+    }
+
+    private function uploadRequiredMissingSummary(array $rows): array
+    {
+        $summary = [
+            'rows' => 0,
+            'items' => 0,
+            'messages' => [],
+        ];
+
+        foreach ($rows as $row) {
+            $validation = is_array($row['_validation'] ?? null) ? $row['_validation'] : [];
+            $messages = array_values(array_filter(array_map('strval', is_array($validation['required_missing_messages'] ?? null) ? $validation['required_missing_messages'] : [])));
+            if ($messages === []) {
+                continue;
+            }
+
+            $summary['rows']++;
+            $summary['items'] += count($messages);
+            $rowNo = (int) ($row['_row_no'] ?? 0);
+            $prefix = $rowNo > 0 ? "{$rowNo}행: " : '';
+            foreach ($messages as $message) {
+                $summary['messages'][] = $prefix . $message;
+            }
+        }
+
+        $summary['messages'] = array_slice(array_values(array_unique($summary['messages'])), 0, 5);
+        return $summary;
+    }
+
+    private function uploadRequiredMissingConfirmationMessage(array $summary): string
+    {
+        $rows = number_format((int) ($summary['rows'] ?? 0));
+        $items = number_format((int) ($summary['items'] ?? 0));
+        $examples = array_values(array_filter(array_map('strval', is_array($summary['messages'] ?? null) ? $summary['messages'] : [])));
+        $message = "필수요소가 입력되어 있지 않습니다. {$rows}개 행, {$items}개 항목이 생성센터에서 보정필요로 처리됩니다. 그래도 업로드를 진행할까요?";
+        if ($examples !== []) {
+            $message .= "\n\n" . implode("\n", $examples);
+        }
+
+        return $message;
+    }
+
     private function prepareLargeUploadRuntime(): void
     {
+        if (function_exists('ignore_user_abort')) {
+            @ignore_user_abort(false);
+        }
         if (function_exists('set_time_limit')) {
             @set_time_limit(0);
         }
@@ -4873,9 +6880,21 @@ class ImportController
         }
     }
 
+    private function uploadTrace(string $event, array $context = []): void
+    {
+        $parts = [];
+        foreach ($context as $key => $value) {
+            if (is_scalar($value) || $value === null) {
+                $parts[] = $key . '=' . (string) $value;
+            }
+        }
+
+        error_log('[ImportUpload] ' . $event . ($parts !== [] ? ' ' . implode(' ', $parts) : ''));
+    }
+
     private function validateUploadFileColumns(array $file, array $columns): array
     {
-        $spreadsheet = $this->loadUploadedSpreadsheet($file);
+        $spreadsheet = $this->loadUploadedSpreadsheetHeaderOnly($file);
         if ($spreadsheet->getSheetCount() > 1 && $this->hasBankVoucherLineColumns($columns)) {
             [$headerColumns, $lineColumns] = $this->splitBankFormatColumns($columns, $this->bankLineSheetHasRowTypeColumn($spreadsheet));
             $checks = array_merge(
@@ -4900,7 +6919,7 @@ class ImportController
             $actualName = preg_replace('/\s*\*$/u', '', $actualName) ?? $actualName;
 
             if (self::isRequiredFormatColumn($column) && $actualName === '') {
-                $checks[] = ['level' => 'error', 'message' => "필수컬럼 누락: {$excelName}"];
+                $checks[] = ['level' => 'warning', 'message' => "필수컬럼 누락: {$excelName}"];
                 continue;
             }
             if ($excelName !== '' && $actualName !== '') {
@@ -4925,7 +6944,7 @@ class ImportController
             $actualName = preg_replace('/\s*\*$/u', '', $actualName) ?? $actualName;
 
             if (self::isRequiredFormatColumn($column) && $actualName === '') {
-                $checks[] = ['level' => 'error', 'message' => "{$sheetLabel} 필수컬럼 누락: {$excelName}"];
+                $checks[] = ['level' => 'warning', 'message' => "{$sheetLabel} 필수컬럼 누락: {$excelName}"];
                 continue;
             }
             if ($excelName !== '' && $actualName !== '') {
@@ -4934,6 +6953,32 @@ class ImportController
         }
 
         return $checks;
+    }
+
+    private function assertUploadFileMatchesFormat(array $checks, array $columns): void
+    {
+        $configuredCount = 0;
+        foreach ($columns as $column) {
+            if (trim((string) ($column['excel_column_name'] ?? '')) !== '') {
+                $configuredCount++;
+            }
+        }
+
+        if ($configuredCount < 1) {
+            throw new \RuntimeException('선택한 양식에 업로드 컬럼 설정이 없습니다. 양식 관리를 확인하세요.');
+        }
+
+        $matchedCount = 0;
+        foreach ($checks as $check) {
+            if (($check['level'] ?? '') === 'ok') {
+                $matchedCount++;
+            }
+        }
+
+        $minimumMatched = min(2, $configuredCount);
+        if ($matchedCount < $minimumMatched) {
+            throw new \RuntimeException("업로드 파일의 헤더가 선택한 양식과 일치하지 않습니다. 매칭된 컬럼 {$matchedCount}개 / 양식 컬럼 {$configuredCount}개입니다. 올바른 양식 파일을 선택하세요.");
+        }
     }
 
     private function annotateSeedComparison(array $rows, string $dataType): array
@@ -4961,9 +7006,10 @@ class ImportController
             $existingParsed = json_decode((string) ($existing['mapped_payload_json'] ?? ''), true);
             $existingParsed = is_array($existingParsed) ? $existingParsed : [];
             unset($existingParsed['_status_sort_no'], $existingParsed['_create_sort_no']);
-            $row['_seed_action'] = ((string) ($existing['raw_json'] ?? '') === $rawJson && $this->jsonEncodeForStorage($existingParsed) === $parsedJson)
+            $isUnchanged = (string) ($existing['raw_json'] ?? '') === $rawJson && $this->jsonEncodeForStorage($existingParsed) === $parsedJson;
+            $row['_seed_action'] = $isUnchanged
                 ? 'UNCHANGED'
-                : 'UPDATED';
+                : ($this->isUploadProtectedExistingSeed($existing) ? 'PROTECTED_UPDATE' : 'UPDATED');
         }
         unset($row);
 
@@ -5023,7 +7069,7 @@ class ImportController
             }
 
             $stmt = $this->pdo->prepare("
-                SELECT id, source_key, raw_json, mapped_payload_json, evidence_status, transaction_status, " . $this->evidenceTransactionIdSelect() . "
+                SELECT id, source_key, raw_json, mapped_payload_json, evidence_status, transaction_status, voucher_status, " . $this->evidenceTransactionIdSelect() . "
                 FROM ledger_data_evidences
                 WHERE source_type = :source_type
                   AND source_key IN (" . implode(', ', $placeholders) . ")
@@ -5054,12 +7100,35 @@ class ImportController
     {
         $dataType = self::normalizeDataType($dataType);
         $explicitSourceKey = trim((string) ($row['source_key'] ?? ''));
-        if ($explicitSourceKey !== '') {
+        if ($dataType !== 'BANK_TRANSACTION' && $explicitSourceKey !== '') {
             return $explicitSourceKey;
         }
-        $bankReferenceNo = trim((string) ($row['bank_reference_no'] ?? ''));
-        if ($dataType === 'BANK_TRANSACTION' && $bankReferenceNo !== '') {
-            return $bankReferenceNo;
+        if ($dataType === 'BANK_TRANSACTION') {
+            $bankReferenceNo = trim((string) ($row['bank_reference_no'] ?? ''));
+            $transactionDateTime = $this->dateTimeValue($row['transaction_datetime'] ?? $row['transaction_at'] ?? null);
+            $transactionDate = $this->dateValue($row['transaction_date'] ?? $row['evidence_date'] ?? '');
+            $transactionTime = trim((string) ($row['transaction_time'] ?? ''));
+            $parts = [
+                $transactionDateTime ?: trim($transactionDate . ' ' . $transactionTime),
+                $this->businessRefIdForStorage('ACCOUNT', $row) ?? '',
+                $row['bank_account_name'] ?? '',
+                $this->number($row['deposit_amount'] ?? 0),
+                $this->number($row['withdraw_amount'] ?? $row['withdrawal_amount'] ?? 0),
+                $this->amountOrNull($row['balance_amount'] ?? null) ?? '',
+                $this->amountOrNull($row['check_bill_amount'] ?? null) ?? '',
+                $row['description'] ?? '',
+                $row['counterparty_name'] ?? '',
+                $row['counterparty_account_number'] ?? $row['counterparty_account_no'] ?? '',
+                $row['counterparty_bank_name'] ?? $row['counterparty_bank'] ?? '',
+                $bankReferenceNo,
+            ];
+
+            $parts = array_map(static fn(mixed $value): string => trim((string) $value), $parts);
+            if (implode('', $parts) === '') {
+                return null;
+            }
+
+            return hash('sha256', $dataType . '|bank|' . implode('|', $parts));
         }
 
         $parts = [];
@@ -5180,7 +7249,7 @@ class ImportController
         }
 
         $stmt = $this->pdo->prepare("
-            SELECT id, raw_json, mapped_payload_json, evidence_status, transaction_status, " . $this->evidenceTransactionIdSelect() . "
+            SELECT id, raw_json, mapped_payload_json, evidence_status, transaction_status, voucher_status, " . $this->evidenceTransactionIdSelect() . "
             FROM ledger_data_evidences
             WHERE source_type = :source_type
               AND source_key = :source_key
@@ -5212,7 +7281,7 @@ class ImportController
     private function loadExistingSeedFingerprintIndex(string $sourceType): array
     {
         $stmt = $this->pdo->prepare("
-            SELECT id, source_key, raw_json, mapped_payload_json, evidence_status, transaction_status, " . $this->evidenceTransactionIdSelect() . "
+            SELECT id, source_key, raw_json, mapped_payload_json, evidence_status, transaction_status, voucher_status, " . $this->evidenceTransactionIdSelect() . "
             FROM ledger_data_evidences
             WHERE deleted_at IS NULL
               AND source_type = :source_type
@@ -5241,12 +7310,26 @@ class ImportController
 
     private function nextEvidenceJsonSortNo(string $key, string $sourceType = ''): int
     {
+        $sortColumn = $key === '_create_sort_no' ? 'create_sort_no' : ($key === '_status_sort_no' ? 'status_sort_no' : '');
         $where = ['deleted_at IS NULL'];
         $params = [];
         $sourceType = self::normalizeDataType($sourceType);
         if ($sourceType !== '') {
             $where[] = 'source_type = :source_type';
             $params[':source_type'] = $sourceType;
+        }
+
+        if ($sortColumn !== '' && $this->tableColumnExists('ledger_data_evidences', $sortColumn)) {
+            try {
+                $stmt = $this->pdo->prepare("
+                    SELECT COALESCE(MAX(`{$sortColumn}`), 0)
+                    FROM ledger_data_evidences
+                    WHERE " . implode(' AND ', $where)
+                );
+                $stmt->execute($params);
+                return ((int) $stmt->fetchColumn()) + 1;
+            } catch (\Throwable) {
+            }
         }
 
         $stmt = $this->pdo->prepare("
@@ -5300,11 +7383,18 @@ class ImportController
     private function mappedPayloadForStorage(array $row): array
     {
         $mapped = [];
+        $keepInternalKeys = [
+            '_transaction_lines' => true,
+            '_transaction_files' => true,
+            '_voucher_lines' => true,
+        ];
         foreach ($row as $key => $value) {
-            if (str_starts_with((string) $key, '_') && $key !== '_voucher_lines') {
+            if (str_starts_with((string) $key, '_') && !isset($keepInternalKeys[(string) $key])) {
                 continue;
             }
-            $mapped[$key] = $value;
+            $mapped[$key] = isset($keepInternalKeys[(string) $key])
+                ? $value
+                : $this->payloadScalarForStorage($value, str_ends_with((string) $key, '_id'));
         }
         if (!isset($mapped['transaction_date']) && isset($mapped['evidence_date'])) {
             $mapped['transaction_date'] = $mapped['evidence_date'];
@@ -5325,7 +7415,49 @@ class ImportController
         ) {
             $mapped['transaction_datetime'] = $mapped['transaction_date'];
         }
-        return $this->normalizeMappedPayloadDateValues($this->normalizeMappedClientReference($mapped));
+        $mapped = $this->normalizeMappedPayloadDateValues($this->normalizeMappedClientReference($mapped));
+        return $this->normalizeBusinessRefPayload($mapped);
+    }
+
+    private function payloadScalarForStorage(mixed $value, bool $preferId = false): mixed
+    {
+        if ($value === null || is_scalar($value)) {
+            $text = trim((string) $value);
+            if ($text === '[object Object]' || $this->isEmptySelectionLabel($text)) {
+                return '';
+            }
+            return $value;
+        }
+
+        if (is_array($value)) {
+            if (array_is_list($value)) {
+                $parts = [];
+                foreach ($value as $item) {
+                    $text = trim((string) $this->payloadScalarForStorage($item, $preferId));
+                    if ($text !== '') {
+                        $parts[] = $text;
+                    }
+                }
+
+                return implode(', ', array_values(array_unique($parts)));
+            }
+
+            $candidates = $preferId
+                ? ['id', 'value', 'code', 'text', 'label', 'name']
+                : ['text', 'label', 'name', 'value', 'code_name', 'code', 'client_name', 'company_name', 'project_name', 'employee_name', 'account_name', 'bank_name'];
+            foreach ($candidates as $key) {
+                if (array_key_exists($key, $value)) {
+                    $text = trim((string) $this->payloadScalarForStorage($value[$key], false));
+                    if ($text !== '') {
+                        return $text;
+                    }
+                }
+            }
+
+            return '';
+        }
+
+        return '';
     }
 
     private function normalizeMappedClientReference(array $mapped): array
@@ -5414,7 +7546,7 @@ class ImportController
     {
         $payload = $this->normalizeMappedClientReference($payload);
         $aliases = [
-            'client_name' => ['client_name', 'client_company_name', 'counterparty_name', 'merchant_company_name', 'supplier_company_name', 'customer_company_name'],
+            'client_name' => ['client_name', '거래처명', '거래처'],
             'project_name' => ['project_name', 'project_code'],
             'employee_name' => ['employee_name', 'user_name'],
             'bank_account_name' => ['bank_account_name', 'bank_account', 'account_name', 'payment_account_name', 'account_number', 'payment_account_number'],
@@ -5437,22 +7569,24 @@ class ImportController
             'counterparty_account_number' => ['counterparty_account_number', 'counterparty_account_no', 'account_number'],
             'counterparty_bank_name' => ['counterparty_bank_name', 'counterparty_bank', 'bank_name'],
             'counterparty_bank' => ['counterparty_bank', 'counterparty_bank_name', 'bank_name'],
-            'client_company_name' => ['client_company_name', 'client_name', 'counterparty_name', '가맹점', '가맹점명', '사용처', '거래처명', '거래처'],
+            'client_company_name' => ['client_company_name', 'counterparty_name', '가맹점', '가맹점명', '사용처'],
         ];
 
         foreach ($aliases as $target => $keys) {
-            if (isset($payload[$target]) && trim((string) $payload[$target]) !== '') {
+            if (isset($payload[$target]) && trim((string) $this->payloadScalarForStorage($payload[$target])) !== '') {
+                $payload[$target] = $this->payloadScalarForStorage($payload[$target]);
                 continue;
             }
             foreach ($keys as $key) {
-                if (isset($payload[$key]) && trim((string) $payload[$key]) !== '') {
-                    $payload[$target] = $payload[$key];
+                $value = $this->payloadScalarForStorage($payload[$key] ?? null);
+                if ($value !== null && trim((string) $value) !== '') {
+                    $payload[$target] = $value;
                     break;
                 }
             }
         }
 
-        return $this->normalizeMappedClientReference($payload);
+        return $this->normalizeMappedClientReference($this->normalizeBusinessRefPayload($payload));
     }
 
     private function businessRefIdForStorage(string $refType, array $payload): ?string
@@ -5473,17 +7607,53 @@ class ImportController
     private function businessRefNameForStorage(string $refType, array $payload): ?string
     {
         $refType = $this->normalizeVoucherRefType($refType);
+        $uuidCandidate = null;
+        if ($refType === 'ACCOUNT') {
+            $accountId = (string) ($this->businessRefIdForStorage('ACCOUNT', $payload) ?? '');
+            if ($accountId !== '' && $this->isUuid($accountId)) {
+                $resolvedName = $this->businessRefNameById('ACCOUNT', $accountId);
+                if ($resolvedName !== null && $resolvedName !== '') {
+                    return $resolvedName;
+                }
+            }
+        }
         if ($refType === 'CLIENT') {
+            $clientId = (string) ($this->businessRefIdForStorage('CLIENT', $payload) ?? '');
+            if ($clientId !== '' && $this->isUuid($clientId)) {
+                $resolvedName = $this->businessRefNameById('CLIENT', $clientId);
+                if ($resolvedName !== null && $resolvedName !== '') {
+                    return $resolvedName;
+                }
+            }
             $clientName = $this->clientNameFromImportParty($payload);
+            if ($this->isEmptySelectionLabel($clientName)) {
+                $clientName = '';
+            }
             if ($clientName !== '' && !$this->isUuid($clientName)) {
                 return $clientName;
+            }
+            if ($this->isUuid($clientName)) {
+                $uuidCandidate = $clientName;
             }
         }
 
         foreach ($this->businessRefCandidateValues($refType, $payload, false) as $value) {
             $value = trim((string) $value);
+            if ($this->isEmptySelectionLabel($value)) {
+                continue;
+            }
             if ($value !== '' && !$this->isUuid($value)) {
                 return $value;
+            }
+            if ($value !== '' && $this->isUuid($value) && $uuidCandidate === null) {
+                $uuidCandidate = $value;
+            }
+        }
+
+        if ($uuidCandidate !== null) {
+            $resolvedName = $this->businessRefNameById($refType, $uuidCandidate);
+            if ($resolvedName !== null && $resolvedName !== '') {
+                return $resolvedName;
             }
         }
 
@@ -5495,7 +7665,7 @@ class ImportController
         $keys = match ($this->normalizeVoucherRefType($refType)) {
             'CLIENT' => $includeIds
                 ? ['client_id', 'client_name', 'client_name_ko', 'client_name_en', 'company_name_ko', 'company_name_en', 'client_company_name', 'client_company_name_ko', 'client_company_name_en', 'counterparty_name', 'merchant_company_name', 'supplier_company_name', 'customer_company_name', 'client_business_number', 'supplier_business_number', 'customer_business_number']
-                : ['client_name', 'client_name_ko', 'client_name_en', 'company_name_ko', 'company_name_en', 'client_company_name', 'client_company_name_ko', 'client_company_name_en', 'counterparty_name', 'merchant_company_name', 'supplier_company_name', 'customer_company_name', 'client_id'],
+                : ['client_name', 'client_name_ko', 'client_name_en', 'client_id'],
             'PROJECT' => $includeIds
                 ? ['project_id', 'project_name', 'project_code']
                 : ['project_name', 'project_code', 'project_id'],
@@ -5504,7 +7674,7 @@ class ImportController
                 : ['employee_name', 'user_name', 'employee_id'],
             'ACCOUNT' => $includeIds
                 ? ['bank_account_id', 'account_number', 'payment_account_number', 'bank_account_name', 'bank_account', 'account_name', 'payment_account_name', 'bank_name', 'payment_bank_name']
-                : ['account_number', 'payment_account_number', 'bank_account_name', 'bank_account', 'account_name', 'payment_account_name', 'bank_account_id'],
+                : ['bank_account_name', 'bank_account', 'account_name', 'payment_account_name', 'bank_account_id', 'account_number', 'payment_account_number'],
             'CARD' => $includeIds
                 ? ['card_id', 'card_name', 'card_number', 'card_company_name']
                 : ['card_name', 'card_number', 'card_company_name', 'card_id'],
@@ -5517,7 +7687,7 @@ class ImportController
                 continue;
             }
             $value = trim((string) $payload[$key]);
-            if ($value !== '') {
+            if ($value !== '' && !$this->isEmptySelectionLabel($value)) {
                 $values[] = $value;
             }
         }
@@ -5525,13 +7695,179 @@ class ImportController
         return array_values(array_unique($values));
     }
 
+    private function isEmptySelectionLabel(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return true;
+        }
+
+        $labels = [
+            '__none__',
+            '__CODE_NONE__',
+            '_none_',
+            '__none',
+            'none__',
+            '--none--',
+            '선택(없음)',
+            '선택',
+            '선택(없음)',
+            '직접 선택',
+            '거래처 선택',
+            '프로젝트 선택',
+            '직원 선택',
+            '계좌 선택',
+            '카드 선택',
+            '사업구분 선택',
+            '거래구분 선택',
+            '거래유형 선택',
+            '자료출처 선택',
+            '자료유형 선택',
+            '라인유형 선택',
+            '차대구분 선택',
+        ];
+        if (in_array($value, $labels, true)) {
+            return true;
+        }
+
+        return str_ends_with($value, ' 선택') || str_ends_with($value, '필수');
+    }
+
     private function mergeEvidenceBusinessInfoIntoPayload(array $evidenceRow, array &$payload): void
     {
+        $payload = $this->normalizeBusinessRefPayload($payload);
         foreach (['client_id', 'project_id', 'employee_id', 'bank_account_id', 'card_id', 'client_name', 'project_name', 'employee_name', 'bank_account_name', 'card_name'] as $key) {
-            if (empty($payload[$key]) && !empty($evidenceRow[$key])) {
-                $payload[$key] = $evidenceRow[$key];
+            $rowValue = trim((string) ($evidenceRow[$key] ?? ''));
+            if ($rowValue === '' || $this->isEmptySelectionLabel($rowValue)) {
+                continue;
+            }
+            $payloadValue = trim((string) $this->payloadScalarForStorage($payload[$key] ?? null));
+            if ($payloadValue === '' || $this->isEmptySelectionLabel($payloadValue) || ($this->isUuid($payloadValue) && str_ends_with($key, '_name'))) {
+                $payload[$key] = $rowValue;
             }
         }
+        $payload = $this->normalizeBusinessRefPayload($payload);
+    }
+
+    private function normalizeBusinessRefPayload(array $payload): array
+    {
+        foreach ($this->businessRefPayloadKeyMap() as $refType => $keys) {
+            $idKey = $keys['id'];
+            $nameKey = $keys['name'];
+            $id = trim((string) ($payload[$idKey] ?? ''));
+            $name = trim((string) $this->payloadScalarForStorage($payload[$nameKey] ?? null));
+            if ($this->isEmptySelectionLabel($id)) {
+                $id = '';
+            }
+            if ($this->isEmptySelectionLabel($name)) {
+                $name = '';
+            }
+
+            if ($id === '' && $this->isUuid($name)) {
+                $id = $name;
+            }
+            if ($id === '') {
+                $id = (string) ($this->businessRefIdForStorage($refType, $payload) ?? '');
+            }
+
+            $displayName = '';
+            if ($name !== '' && !$this->isUuid($name)) {
+                $displayName = $name;
+            } elseif ($id !== '') {
+                $displayName = (string) ($this->businessRefNameById($refType, $id) ?? '');
+            }
+            if ($refType === 'ACCOUNT' && $id !== '') {
+                $resolvedName = (string) ($this->businessRefNameById($refType, $id) ?? '');
+                if ($resolvedName !== '') {
+                    $displayName = $resolvedName;
+                }
+            }
+            if ($displayName === '') {
+                $displayName = (string) ($this->businessRefNameForStorage($refType, $payload) ?? '');
+            }
+
+            if ($id !== '' && $this->isUuid($id)) {
+                $payload[$idKey] = $id;
+            }
+            if ($displayName !== '' && !$this->isUuid($displayName)) {
+                $payload[$nameKey] = $displayName;
+            }
+        }
+
+        return $payload;
+    }
+
+    private function businessRefPayloadKeyMap(): array
+    {
+        return [
+            'CLIENT' => ['id' => 'client_id', 'name' => 'client_name'],
+            'PROJECT' => ['id' => 'project_id', 'name' => 'project_name'],
+            'EMPLOYEE' => ['id' => 'employee_id', 'name' => 'employee_name'],
+            'ACCOUNT' => ['id' => 'bank_account_id', 'name' => 'bank_account_name'],
+            'CARD' => ['id' => 'card_id', 'name' => 'card_name'],
+        ];
+    }
+
+    private function businessRefNameById(string $refType, string $id): ?string
+    {
+        $refType = $this->normalizeVoucherRefType($refType);
+        $id = trim($id);
+        if ($id === '' || !$this->isUuid($id)) {
+            return null;
+        }
+
+        $cacheKey = $refType . '|' . $id;
+        if (array_key_exists($cacheKey, $this->voucherRefNameCache)) {
+            return $this->voucherRefNameCache[$cacheKey];
+        }
+
+        $table = match ($refType) {
+            'CLIENT' => 'system_clients',
+            'PROJECT' => 'system_projects',
+            'EMPLOYEE' => 'user_employees',
+            'ACCOUNT' => 'system_bank_accounts',
+            'CARD' => 'system_cards',
+            default => null,
+        };
+        if ($table === null || !$this->tableExists($table) || !$this->tableColumnExists($table, 'id')) {
+            $this->voucherRefNameCache[$cacheKey] = null;
+            return null;
+        }
+
+        $columns = match ($refType) {
+            'CLIENT' => ['client_name', 'company_name'],
+            'PROJECT' => ['project_name', 'construction_name', 'project_code'],
+            'EMPLOYEE' => ['employee_name', 'name', 'username'],
+            'ACCOUNT' => ['account_name', 'bank_account_name', 'bank_name', 'account_number'],
+            'CARD' => ['card_name', 'card_number', 'card_company_name'],
+            default => [],
+        };
+        $selects = [];
+        foreach ($columns as $column) {
+            if ($this->tableColumnExists($table, $column)) {
+                $selects[] = $column;
+            }
+        }
+        if ($selects === []) {
+            $this->voucherRefNameCache[$cacheKey] = null;
+            return null;
+        }
+
+        $deleted = $this->tableColumnExists($table, 'deleted_at') ? ' AND deleted_at IS NULL' : '';
+        $stmt = $this->pdo->prepare('SELECT ' . implode(', ', $selects) . " FROM {$table} WHERE id = :id{$deleted} LIMIT 1");
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        foreach ($selects as $column) {
+            $value = trim((string) ($row[$column] ?? ''));
+            if ($value !== '' && !$this->isUuid($value)) {
+                $this->voucherRefNameCache[$cacheKey] = $value;
+                return $value;
+            }
+        }
+
+        $this->voucherRefNameCache[$cacheKey] = null;
+        return null;
     }
 
     private function jsonEncodeForStorage(array $payload): string
@@ -5646,8 +7982,15 @@ class ImportController
 
         if ($field === 'client_name') {
             $mapped = is_array($row['mapped_payload'] ?? null) ? $row['mapped_payload'] : [];
+            $clientId = trim((string) ($row['client_id'] ?? $mapped['client_id'] ?? ''));
+            $resolvedClientName = $clientId !== '' && $this->isUuid($clientId)
+                ? (string) ($this->businessRefNameById('CLIENT', $clientId) ?? '')
+                : '';
             return (string) (
-                $mapped['client_company_name']
+                ($resolvedClientName !== '' ? $resolvedClientName : null)
+                ?? $row['client_name']
+                ?? $mapped['client_name']
+                ?? $mapped['client_company_name']
                 ?? $mapped['client_business_number']
                 ?? $mapped['supplier_company_name']
                 ?? $mapped['customer_company_name']
@@ -5927,6 +8270,7 @@ class ImportController
 
     private function updateUploadRowStatus(string $rowId, string $status, ?string $message, ?string $transactionId = null): void
     {
+        $isCorrectionError = $status === 'ERROR' && $this->isGenerationCorrectionMessage($message);
         $processStatus = match ($status) {
             'CREATED', 'PROCESSED' => 'PROCESSED',
             'DUPLICATE', 'DUPLICATED' => 'DUPLICATED',
@@ -5934,6 +8278,9 @@ class ImportController
             'ERROR' => 'ERROR',
             default => 'READY',
         };
+        if ($isCorrectionError) {
+            $processStatus = 'READY';
+        }
 
         $transactionSql = $this->evidenceHasTransactionIdColumn()
             ? 'transaction_id = COALESCE(:transaction_id, transaction_id),'
@@ -5942,6 +8289,10 @@ class ImportController
             UPDATE ledger_data_evidences
             SET transaction_status = :transaction_status,
                 evidence_status = :evidence_status,
+                voucher_status = CASE
+                    WHEN :voucher_status IS NULL THEN voucher_status
+                    ELSE :voucher_status
+                END,
                 error_message = :error_message,
                 {$transactionSql}
                 updated_at = NOW(),
@@ -5952,13 +8303,24 @@ class ImportController
             ':id' => $rowId,
             ':transaction_status' => $processStatus === 'PROCESSED' ? 'CREATED' : ($processStatus === 'PROCESSING' ? 'PROCESSING' : 'NONE'),
             ':evidence_status' => $processStatus === 'ERROR' ? 'ERROR' : ($processStatus === 'DUPLICATED' ? 'DUPLICATED' : 'ACTIVE'),
-            ':error_message' => $message,
+            ':voucher_status' => $isCorrectionError ? 'WAITING' : ($processStatus === 'ERROR' ? 'ERROR' : null),
+            ':error_message' => $isCorrectionError ? null : $message,
             ':updated_by' => ActorHelper::user(),
         ];
         if ($this->evidenceHasTransactionIdColumn()) {
             $params[':transaction_id'] = $transactionId !== '' ? $transactionId : null;
         }
         $stmt->execute($params);
+    }
+
+    private function isGenerationCorrectionMessage(?string $message): bool
+    {
+        $text = trim((string) $message);
+        if ($text === '') {
+            return false;
+        }
+
+        return (bool) preg_match('/필수값\s*없음|신규\s*생성\s*예정|미매칭|미기재/u', $text);
     }
 
     private function refreshUploadBatchStatus(string $batchId): void
@@ -6009,6 +8371,26 @@ class ImportController
         return '(' . implode(' OR ', $conditions) . ')';
     }
 
+    private function isUploadProtectedExistingSeed(array $row): bool
+    {
+        return $this->existingSeedHasCreatedTransaction($row) || $this->existingSeedHasCreatedVoucher($row);
+    }
+
+    private function existingSeedHasCreatedTransaction(array $row): bool
+    {
+        $transactionStatus = strtoupper(trim((string) ($row['transaction_status'] ?? '')));
+        $transactionId = trim((string) ($row['transaction_id'] ?? ''));
+
+        return $transactionId !== '' || in_array($transactionStatus, ['CREATED', 'PROCESSED', 'DONE', 'COMPLETED', 'POSTED'], true);
+    }
+
+    private function existingSeedHasCreatedVoucher(array $row): bool
+    {
+        $voucherStatus = strtoupper(trim((string) ($row['voucher_status'] ?? '')));
+
+        return in_array($voucherStatus, ['CREATED', 'PROCESSED', 'DONE', 'COMPLETED', 'POSTED'], true);
+    }
+
     private function format(string $id): ?array
     {
         if ($id === '') {
@@ -6053,9 +8435,9 @@ class ImportController
             ORDER BY column_order ASC, excel_column_index ASC, id ASC
         ");
         $stmt->execute([':format_id' => $formatId]);
-        $columns = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        $validFields = array_flip($this->systemFieldService()->fieldNames($dataType));
         $fieldOptions = $this->systemFieldOptionsByValue($dataType);
+        $columns = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $validFields = array_flip(array_keys($fieldOptions));
         foreach ($columns as &$column) {
             if (!array_key_exists('is_visible', $column)) {
                 $column['is_visible'] = 1;
@@ -6267,20 +8649,20 @@ class ImportController
 
     private static function isRequiredFormatColumn(array $column): bool
     {
-        if (self::isOptionalBalanceFormatColumn($column)) {
+        if (self::isOptionalEvidenceFormatColumn($column)) {
             return false;
         }
 
         return self::normalizeRequirementMode($column['is_required'] ?? 0) === 1;
     }
 
-    private static function isOptionalBalanceFormatColumn(array $column): bool
+    private static function isOptionalEvidenceFormatColumn(array $column): bool
     {
         $field = trim((string) ($column['system_field_name'] ?? ''));
         $label = preg_replace('/\s+/u', '', trim((string) ($column['excel_column_name'] ?? ''))) ?? '';
 
-        return $field === 'balance_amount'
-            || in_array($label, ['거래후잔액', '잔액'], true);
+        return in_array($field, ['balance_amount', 'supplier_address', 'customer_address'], true)
+            || in_array($label, ['거래후잔액', '잔액', '공급자주소', '공급받는자주소'], true);
     }
 
     private function parseUploadedRows(array $file, array $columns): array
@@ -6307,6 +8689,7 @@ class ImportController
         array_shift($rawRows);
 
         $mappedColumns = [];
+        $rawColumns = [];
         $headerColumnsByName = $this->uploadHeaderColumnsByName($headerRow);
         $usedHeaderColumns = [];
         foreach ($columns as $column) {
@@ -6314,11 +8697,14 @@ class ImportController
             $systemField = trim((string) ($column['system_field_name'] ?? ''));
             $sheetColumn = $this->uploadSheetColumnForFormatColumn($column, $headerRow, $headerColumnsByName, $usedHeaderColumns);
             if ($excelName === '' || $sheetColumn === null) {
-                if (self::isRequiredFormatColumn($column)) {
-                    throw new \RuntimeException("필수 컬럼이 없습니다: {$excelName}");
-                }
                 continue;
             }
+            $columnIndex = (int) ($column['excel_column_index'] ?? $column['column_order'] ?? 0);
+            $rawColumns[] = [
+                'sheet_column' => $sheetColumn,
+                'column_index' => $columnIndex,
+                'column_name' => $excelName,
+            ];
             if ($systemField === '') {
                 $systemField = null;
             }
@@ -6326,23 +8712,19 @@ class ImportController
                 'sheet_column' => $sheetColumn,
                 'system_field_name' => $systemField,
                 'excel_column_name' => $excelName,
-                'payload_key' => $this->payloadKeyFromExcelColumn($excelName, (int) ($column['excel_column_index'] ?? $column['column_order'] ?? 0)),
+                'payload_key' => $this->payloadKeyFromExcelColumn($excelName, $columnIndex),
             ];
         }
 
         $rows = [];
         foreach (array_values($rawRows) as $rowIndex => $rawRow) {
             $rawPayload = [];
-            foreach ($columns as $column) {
-                $sheetColumn = $this->uploadSheetColumnForFormatColumn($column, $headerRow, $headerColumnsByName);
-                if ($sheetColumn === null) {
-                    continue;
-                }
-                $index = (int) ($column['excel_column_index'] ?? $column['column_order'] ?? 0);
+            foreach ($rawColumns as $column) {
+                $index = (int) ($column['column_index'] ?? 0);
                 $rawPayload[(string) $index] = [
                     'column_index' => $index,
-                    'column_name' => trim((string) ($column['excel_column_name'] ?? '')),
-                    'value' => $this->cellValue($rawRow[$sheetColumn] ?? null),
+                    'column_name' => (string) ($column['column_name'] ?? ''),
+                    'value' => $this->cellValue($rawRow[$column['sheet_column']] ?? null),
                 ];
             }
             $mapped = [];
@@ -6747,7 +9129,14 @@ class ImportController
         $isCsv = $extension === 'csv' || str_contains($mime, 'csv');
 
         if (!$isCsv) {
-            return IOFactory::load($tmpName);
+            $reader = IOFactory::createReaderForFile($tmpName);
+            if (method_exists($reader, 'setReadDataOnly')) {
+                $reader->setReadDataOnly(true);
+            }
+            if (method_exists($reader, 'setPreCalculateFormulas')) {
+                $reader->setPreCalculateFormulas(false);
+            }
+            return $reader->load($tmpName);
         }
 
         $reader = IOFactory::createReader('Csv');
@@ -6756,6 +9145,48 @@ class ImportController
         }
         if (method_exists($reader, 'setReadDataOnly')) {
             $reader->setReadDataOnly(true);
+        }
+
+        return $reader->load($tmpName);
+    }
+
+    private function loadUploadedSpreadsheetHeaderOnly(array $file): Spreadsheet
+    {
+        $tmpName = (string) ($file['tmp_name'] ?? '');
+        $extension = strtolower(pathinfo((string) ($file['name'] ?? ''), PATHINFO_EXTENSION));
+        $mime = strtolower((string) ($file['type'] ?? ''));
+        $isCsv = $extension === 'csv' || str_contains($mime, 'csv');
+        $readFilter = new class implements IReadFilter {
+            public function readCell(string $columnAddress, int $row, string $worksheetName = ''): bool
+            {
+                return $row === 1;
+            }
+        };
+
+        if (!$isCsv) {
+            $reader = IOFactory::createReaderForFile($tmpName);
+            if (method_exists($reader, 'setReadDataOnly')) {
+                $reader->setReadDataOnly(true);
+            }
+            if (method_exists($reader, 'setPreCalculateFormulas')) {
+                $reader->setPreCalculateFormulas(false);
+            }
+            if (method_exists($reader, 'setReadFilter')) {
+                $reader->setReadFilter($readFilter);
+            }
+
+            return $reader->load($tmpName);
+        }
+
+        $reader = IOFactory::createReader('Csv');
+        if (method_exists($reader, 'setInputEncoding')) {
+            $reader->setInputEncoding($this->detectCsvEncoding($tmpName));
+        }
+        if (method_exists($reader, 'setReadDataOnly')) {
+            $reader->setReadDataOnly(true);
+        }
+        if (method_exists($reader, 'setReadFilter')) {
+            $reader->setReadFilter($readFilter);
         }
 
         return $reader->load($tmpName);
@@ -6986,6 +9417,11 @@ class ImportController
 
     private function normalizeBankTransactionPayload(array $row): array
     {
+        foreach ($row as $key => $value) {
+            if (!str_starts_with((string) $key, '_') && !is_scalar($value) && $value !== null) {
+                $row[$key] = $this->payloadScalarForStorage($value, str_ends_with((string) $key, '_id'));
+            }
+        }
         $row['withdraw_amount'] = $row['withdraw_amount'] ?? $row['withdrawal_amount'] ?? null;
         $deposit = $this->amountOrNull($row['deposit_amount'] ?? null);
         $withdraw = $this->amountOrNull($row['withdraw_amount'] ?? null);
@@ -7097,13 +9533,19 @@ class ImportController
         ) {
             return 'merchant_company_name';
         }
+        if ($dataType === 'CARD_HOMETAX'
+            && in_array($cleanExcelName, ['카드사', '카드사명', '카드회사'], true)
+            && in_array($systemField, ['client_id', 'client_name', 'card_name', 'card_company_name'], true)
+        ) {
+            return 'source_card_company_name';
+        }
 
         return $systemField;
     }
 
     private function bankCounterpartyName(array $row): string
     {
-        foreach (['counterparty_name', 'counterparty_account_holder_name', 'counterparty_account_holder', 'account_holder', 'client_company_name'] as $key) {
+        foreach (['counterparty_name', 'counterparty_account_holder_name', 'counterparty_account_holder', 'account_holder', 'client_company_name', 'client_name'] as $key) {
             $value = $this->cleanCompanyName((string) ($row[$key] ?? ''));
             if ($value !== '' && !$this->looksLikeBankAccountNumber($value)) {
                 return $value;
@@ -7230,7 +9672,8 @@ class ImportController
         foreach ($rows as &$row) {
             $errors = [];
             $warnings = [];
-            array_push($errors, ...$this->requiredFormatMissingMessages($row, $columns));
+            $requiredMissingMessages = $this->requiredFormatMissingMessages($row, $columns);
+            array_push($warnings, ...$requiredMissingMessages);
 
             $date = trim((string) ($row['transaction_date'] ?? ''));
             if ($date !== '' && !$this->isValidDateValue($date)) {
@@ -7284,6 +9727,8 @@ class ImportController
                 'status' => $status,
                 'label' => ['ok' => '정상', 'warning' => '경고', 'error' => '오류'][$status],
                 'messages' => array_values(array_merge($errors, $warnings)),
+                'required_missing_count' => count($requiredMissingMessages),
+                'required_missing_messages' => array_values($requiredMissingMessages),
             ];
         }
         unset($row);
@@ -7311,13 +9756,39 @@ class ImportController
         return array_values(array_unique($messages));
     }
 
+    private function businessProjectRuleMessages(array $payload): array
+    {
+        $businessUnit = trim((string) $this->payloadScalarForStorage($payload['business_unit'] ?? $payload['business_unit_code'] ?? ''));
+        $businessUnitKey = strtoupper((string) preg_replace('/\s+/u', '', $businessUnit));
+        $projectId = trim((string) $this->payloadScalarForStorage($payload['project_id'] ?? ''));
+        $projectName = trim((string) $this->payloadScalarForStorage($payload['project_name'] ?? ''));
+        $hasProject = $projectId !== '' || $projectName !== '';
+
+        if ($businessUnitKey === '') {
+            return [];
+        }
+
+        $isHeadOffice = str_contains($businessUnitKey, 'HQ') || str_contains($businessUnitKey, '본사');
+        $isConstruction = str_contains($businessUnitKey, 'CONSTRUCTION') || str_contains($businessUnitKey, '전문건설');
+
+        if ($isHeadOffice && $hasProject) {
+            return ['사업구분이 본사일 때는 프로젝트명을 선택할 수 없습니다.'];
+        }
+        if ($isConstruction && !$hasProject) {
+            return ['사업구분이 전문건설업일 때는 프로젝트명을 선택해야 합니다.'];
+        }
+
+        return [];
+    }
+
     private function isBlankRequiredValue(mixed $value): bool
     {
         if (is_array($value)) {
             return $value === [];
         }
 
-        return trim((string) ($value ?? '')) === '';
+        $text = trim((string) ($value ?? ''));
+        return $text === '' || $this->isEmptySelectionLabel($text);
     }
 
     private function assertNoUploadValidationErrors(array $rows): void
@@ -8554,14 +11025,8 @@ class ImportController
         $note = trim((string) ($row['note'] ?? ''));
         $items = $this->transactionLinePayloadsForUpload($row, $supply, $vat, $service, $taxType);
 
-        $clientSync = $this->syncUploadClientsForTransaction($row, $dataType, $context);
-        $clientId = $clientSync['primary_client_id'] ?? null;
-        if ($clientId === null) {
-            $clientId = $this->findOrCreateClient(
-                (string) ($context['client_business_number'] ?? $row['client_business_number'] ?? $row['business_number'] ?? ''),
-                (string) ($context['client_company_name'] ?? $row['client_company_name'] ?? $row['company_name'] ?? '')
-            );
-        }
+        $clientId = $this->businessRefIdForStorage('CLIENT', $row)
+            ?? $this->existingClientIdByBusinessNumber((string) ($context['client_business_number'] ?? $row['client_business_number'] ?? $row['business_number'] ?? ''));
 
         return [
             'transaction_date' => $this->dateValue($row['transaction_date'] ?? date('Y-m-d')),
@@ -9169,7 +11634,7 @@ class ImportController
         $name = preg_replace('#[\\/:*?"<>|]+#u', '_', $name) ?? '';
         $name = preg_replace('#[^\p{L}\p{N}_. \-()\[\]]+#u', '_', $name) ?? '';
         $name = preg_replace('#\s+#u', '_', $name) ?? '';
-        $name = trim($name, "._- \t\n\r\0\x0B");
+        $name = trim($name, "._- \t\n\n\0\x0B");
 
         return $name !== '' ? $name : '업로드_양식';
     }
@@ -9233,6 +11698,212 @@ class ImportController
         $stmt = $this->pdo->prepare('SELECT id FROM system_clients WHERE client_name = :name AND deleted_at IS NULL LIMIT 1');
         $stmt->execute([':name' => $clientName]);
         return $stmt->fetchColumn() ?: null;
+    }
+
+    private function existingClientIdByBusinessNumber(string $businessNumber): ?string
+    {
+        $businessNumber = $this->normalizeBusinessNumber($businessNumber);
+        if ($businessNumber === '') {
+            return null;
+        }
+        $stmt = $this->pdo->prepare("
+            SELECT id
+            FROM system_clients
+            WHERE business_number = :business_number
+              AND deleted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->execute([':business_number' => $businessNumber]);
+        $id = $stmt->fetchColumn();
+        return $id ? (string) $id : null;
+    }
+
+    private function shouldSyncTaxInvoiceEvidenceClients(string $dataType): bool
+    {
+        $dataType = self::normalizeDataType($dataType);
+        return $dataType === 'TAX_INVOICE' || self::isManualTaxInvoiceDataType($dataType);
+    }
+
+    private function syncTaxInvoiceEvidenceClientsFromSource(array $payload, string $evidenceId, string $dataType): array
+    {
+        $this->ensureClientHistoryTable();
+        $direction = $this->transactionDirectionForStorage((string) ($payload['transaction_direction'] ?? ''), $payload, $dataType);
+        $primaryRole = $direction === 'SALES' ? 'customer' : 'supplier';
+        $synced = [];
+        $primaryClientId = null;
+
+        foreach (['supplier', 'customer'] as $role) {
+            $party = $this->taxInvoiceEvidenceParty($payload, $role);
+            if ($party === null || $this->isOwnCompanyBusinessNumber((string) $party['business_number'])) {
+                continue;
+            }
+            $clientId = $this->upsertEvidenceClientByBusinessNumber($party, $evidenceId, 'HOMETAX_TAX_INVOICE');
+            if ($clientId === null) {
+                continue;
+            }
+            $synced[$role] = $clientId;
+            if ($role === $primaryRole) {
+                $primaryClientId = $clientId;
+            }
+        }
+
+        return [
+            'primary_client_id' => $primaryClientId,
+            'synced_client_ids' => $synced,
+        ];
+    }
+
+    private function taxInvoiceEvidenceParty(array $payload, string $role): ?array
+    {
+        $prefix = $role === 'customer' ? 'customer' : 'supplier';
+        $businessNumber = $this->normalizeBusinessNumber((string) ($payload[$prefix . '_business_number'] ?? ''));
+        if ($businessNumber === '') {
+            return null;
+        }
+
+        $companyName = $this->cleanCompanyName((string) ($payload[$prefix . '_company_name'] ?? $payload[$prefix . '_name'] ?? ''));
+        return [
+            'role' => $prefix,
+            'business_number' => $businessNumber,
+            'company_name' => $companyName,
+            'ceo_name' => $this->nullableCleanString($payload[$prefix . '_ceo_name'] ?? null),
+            'address' => $this->nullableCleanString($payload[$prefix . '_address'] ?? null),
+        ];
+    }
+
+    private function isOwnCompanyBusinessNumber(string $businessNumber): bool
+    {
+        $businessNumber = $this->normalizeBusinessNumber($businessNumber);
+        if ($businessNumber === '') {
+            return false;
+        }
+        return in_array($businessNumber, $this->ownCompanyProfile()['business_numbers'], true);
+    }
+
+    private function upsertEvidenceClientByBusinessNumber(array $party, string $evidenceId, string $sourceType): ?string
+    {
+        $businessNumber = $this->normalizeBusinessNumber((string) ($party['business_number'] ?? ''));
+        if ($businessNumber === '') {
+            return null;
+        }
+
+        $companyName = $this->cleanCompanyName((string) ($party['company_name'] ?? ''));
+        $ceoName = $this->nullableCleanString($party['ceo_name'] ?? null);
+        $address = $this->nullableCleanString($party['address'] ?? null);
+        $stmt = $this->pdo->prepare("
+            SELECT id, client_name, company_name, ceo_name, address
+            FROM system_clients
+            WHERE business_number = :business_number
+              AND deleted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->execute([':business_number' => $businessNumber]);
+        $client = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+        if (!$client) {
+            $clientId = UuidHelper::generate();
+            $clientName = $companyName !== '' ? $companyName : $businessNumber;
+            $created = (new ClientModel($this->pdo))->create([
+                'id' => $clientId,
+                'sort_no' => SequenceHelper::next('system_clients', 'sort_no'),
+                'client_name' => $clientName,
+                'company_name' => $companyName !== '' ? $companyName : null,
+                'business_number' => $businessNumber,
+                'ceo_name' => $ceoName,
+                'address' => $address,
+                'registration_date' => date('Y-m-d'),
+                'client_type' => 'CLIENT',
+                'is_active' => 1,
+                'created_by' => ActorHelper::user(),
+                'updated_by' => ActorHelper::user(),
+            ]);
+            if (!$created) {
+                throw new \RuntimeException('Failed to create client from evidence source.');
+            }
+            return $clientId;
+        }
+
+        $clientId = (string) $client['id'];
+        $updates = [];
+        foreach ([
+            'company_name' => $companyName,
+            'ceo_name' => $ceoName,
+            'address' => $address,
+        ] as $field => $newValue) {
+            $newValue = trim((string) ($newValue ?? ''));
+            if ($newValue === '') {
+                continue;
+            }
+            $oldValue = trim((string) ($client[$field] ?? ''));
+            if ($oldValue !== $newValue) {
+                $updates[$field] = $newValue;
+                $this->insertEvidenceClientHistory($clientId, $field, $oldValue, $newValue, $sourceType, $evidenceId);
+            }
+        }
+        if ($updates !== []) {
+            $sets = [];
+            $params = [
+                ':id' => $clientId,
+                ':actor' => ActorHelper::user(),
+            ];
+            foreach ($updates as $field => $value) {
+                $sets[] = "{$field} = :{$field}";
+                $params[':' . $field] = $value;
+            }
+            $sql = 'UPDATE system_clients SET ' . implode(', ', $sets) . ', updated_at = NOW(), updated_by = :actor WHERE id = :id';
+            $this->pdo->prepare($sql)->execute($params);
+        }
+
+        return $clientId;
+    }
+
+    private function insertEvidenceClientHistory(string $clientId, string $fieldName, string $oldValue, string $newValue, string $sourceType, string $evidenceId): void
+    {
+        $this->ensureClientHistoryTable();
+        $stmt = $this->pdo->prepare("
+            INSERT INTO system_client_histories
+                (id, client_id, field_name, old_value, new_value, source_type, source_evidence_id, changed_at, changed_by)
+            VALUES
+                (:id, :client_id, :field_name, :old_value, :new_value, :source_type, :source_evidence_id, NOW(), :changed_by)
+        ");
+        $stmt->execute([
+            ':id' => UuidHelper::generate(),
+            ':client_id' => $clientId,
+            ':field_name' => $fieldName,
+            ':old_value' => $oldValue,
+            ':new_value' => $newValue,
+            ':source_type' => $sourceType,
+            ':source_evidence_id' => $evidenceId,
+            ':changed_by' => ActorHelper::user(),
+        ]);
+    }
+
+    private function ensureClientHistoryTable(): void
+    {
+        static $ensured = false;
+        if ($ensured) {
+            return;
+        }
+        $this->pdo->exec("
+            CREATE TABLE IF NOT EXISTS system_client_histories (
+                id CHAR(36) NOT NULL,
+                client_id VARCHAR(36) NOT NULL,
+                field_name VARCHAR(100) NOT NULL,
+                old_value TEXT NULL,
+                new_value TEXT NULL,
+                source_type VARCHAR(80) NULL,
+                source_evidence_id VARCHAR(36) NULL,
+                changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                changed_by VARCHAR(100) NULL,
+                PRIMARY KEY (id),
+                INDEX idx_client_changed_at (client_id, changed_at),
+                INDEX idx_source_evidence (source_evidence_id),
+                CONSTRAINT fk_system_client_histories_client
+                    FOREIGN KEY (client_id) REFERENCES system_clients (id)
+                    ON UPDATE RESTRICT ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+        ");
+        $ensured = true;
     }
 
     private function syncUploadClientsForTransaction(array $row, string $dataType, array $context): array
@@ -9874,8 +12545,9 @@ class ImportController
     private function firstRowValue(array $row, array $keys): string
     {
         foreach ($keys as $key) {
-            if (array_key_exists($key, $row) && trim((string) $row[$key]) !== '') {
-                return trim((string) $row[$key]);
+            $value = $this->payloadScalarForStorage($row[$key] ?? null);
+            if (array_key_exists($key, $row) && trim((string) $value) !== '') {
+                return trim((string) $value);
             }
         }
 
@@ -9886,7 +12558,7 @@ class ImportController
     {
         $values = [];
         foreach ($keys as $key) {
-            $value = trim((string) ($row[$key] ?? ''));
+            $value = trim((string) $this->payloadScalarForStorage($row[$key] ?? null));
             if ($value !== '') {
                 $values[] = $value;
             }
@@ -9903,7 +12575,7 @@ class ImportController
 
     private function nullableCleanString(mixed $value): ?string
     {
-        $value = trim((string) ($value ?? ''));
+        $value = trim((string) $this->payloadScalarForStorage($value));
         return $value !== '' ? $value : null;
     }
 

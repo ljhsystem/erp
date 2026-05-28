@@ -1,7 +1,7 @@
 // Path: PROJECT_ROOT . '/public/assets/js/pages/ledger/account.js'
 
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
-import { createDataTable, setTableSelectedRow } from '/public/assets/js/components/data-table.js';
+import { createDataTable, setTableSelectedRow } from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { formatNumber } from '/public/assets/js/common/format.js';
@@ -99,6 +99,12 @@ window.AdminPicker = AdminPicker;
     let accountFormInitialSnapshot = '';
     let skipAccountCloseConfirm = false;
     let accountModalInitializing = false;
+    let accountModalControlsPromise = null;
+    let parentAccountsRefreshPromise = null;
+    let parentAccountsLoadedAt = 0;
+    let accountModalPostOpenTimer = 0;
+    let subAccountLoadTimer = 0;
+    let subAccountLoadSeq = 0;
 
     window.TrashColumns = window.TrashColumns || {};
     window.TrashColumns.account = function (row = {}) {
@@ -120,7 +126,6 @@ window.AdminPicker = AdminPicker;
         initAccountCodeFormat();
         initDataTable();
         bindEvents();
-        initCodeSelectControls(document);
     });
 
     document.addEventListener('trash:changed', (event) => {
@@ -167,6 +172,17 @@ window.AdminPicker = AdminPicker;
                     markAccountFormClean();
                     accountModalInitializing = false;
                 }, 0);
+            });
+            modalEl.addEventListener('hidden.bs.modal', () => {
+                if (accountModalPostOpenTimer) {
+                    window.clearTimeout(accountModalPostOpenTimer);
+                    accountModalPostOpenTimer = 0;
+                }
+                if (subAccountLoadTimer) {
+                    window.clearTimeout(subAccountLoadTimer);
+                    subAccountLoadTimer = 0;
+                }
+                subAccountLoadSeq += 1;
             });
             modalEl.addEventListener('hide.bs.modal', (event) => {
                 if (!confirmAccountModalClose()) {
@@ -256,10 +272,16 @@ window.AdminPicker = AdminPicker;
             pageLength: 100,
             autoWidth: false,
             searchTableId: 'ledgerAccount',
+            pageLoading: false,
             buttons: [
                 { text: '엑셀 관리', className: 'btn btn-success btn-sm', action: () => excelModal?.show() },
-                { text: '휴지통', className: 'btn btn-danger btn-sm', action: openTrashModal },
-                { text: '새 계정과목', className: 'btn btn-warning btn-sm', action: openCreateModal }
+                {
+                    text: '휴지통',
+                    className: 'btn btn-danger btn-sm dt-trash-btn account-trash-btn',
+                    attr: { 'data-trash-modal': '#accountTrashModal' },
+                    action: openTrashModal
+                },
+                { text: '새 계정과목', className: 'btn btn-warning btn-sm', action: () => { void openCreateModal().catch((error) => notify('error', error.message)); } }
             ]
         });
 
@@ -272,7 +294,6 @@ window.AdminPicker = AdminPicker;
             tableId: 'ledgerAccount',
             defaultSearchField: 'account_name',
             dateOptions: DATE_OPTIONS,
-            initialCollapsed: true,
             excludeFields: ['id', 'parent_id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'deleted_at', 'deleted_by', 'deleted_by_name', 'has_sub_account']
         });
 
@@ -290,6 +311,7 @@ window.AdminPicker = AdminPicker;
 
         accountTable.on('xhr.dt', (event, settings, json) => {
             mergeParentAccounts(Array.isArray(json?.data) ? json.data : []);
+            parentAccountsLoadedAt = Date.now();
         });
 
         accountTable.on('init.dt draw.dt xhr.dt', () => {
@@ -487,7 +509,7 @@ window.AdminPicker = AdminPicker;
             .off('dblclick.accountEdit')
             .on('dblclick.accountEdit', 'tr', function () {
                 const row = accountTable?.row(this).data();
-                if (row) openEditModal(row);
+                if (row) void openEditModal(row).catch((error) => notify('error', error.message));
             });
 
         $('#account-table tbody')
@@ -502,7 +524,7 @@ window.AdminPicker = AdminPicker;
             .on('click.accountEditBtn', '.account-edit-btn', function (event) {
                 event.stopPropagation();
                 const row = accountTable?.row($(this).closest('tr')).data();
-                if (row) openEditModal(row);
+                if (row) void openEditModal(row).catch((error) => notify('error', error.message));
             });
 
         $('#account-edit-form')
@@ -664,7 +686,7 @@ window.AdminPicker = AdminPicker;
         $('#modal_allow_sub_account_label').text(enabled ? '사용' : '미사용');
     }
 
-    function updateModalSubAccountSection() {
+    function updateModalSubAccountSection(options = {}) {
         const enabled = $('#modal_allow_sub_account').val() === '1';
         const section = document.getElementById('modal_subaccount_section');
         if (section) {
@@ -675,7 +697,9 @@ window.AdminPicker = AdminPicker;
 
         const accountId = $('#modal_account_id').val();
         if (accountId) {
-            loadSubAccounts(accountId);
+            if (!options.deferLoad) {
+                scheduleSubAccountsLoad(accountId);
+            }
             return;
         }
 
@@ -754,22 +778,90 @@ window.AdminPicker = AdminPicker;
         }
     }
 
-    function openCreateModal() {
+    function ensureAccountModalControls() {
+        if (accountModalControlsPromise) return accountModalControlsPromise;
+        const modalEl = document.getElementById('accountModal') || document;
+        accountModalControlsPromise = initCodeSelectControls(modalEl)
+            .catch((error) => {
+                accountModalControlsPromise = null;
+                throw error;
+            });
+        return accountModalControlsPromise;
+    }
+
+    function warmAccountModalControls() {
+        void ensureAccountModalControls().catch((error) => {
+            console.error('[ledger-account] modal controls failed:', error);
+        });
+    }
+
+    function refreshParentAccountsInBackground({ force = false } = {}) {
+        const now = Date.now();
+        if (!force && parentAccounts.length > 0 && now - parentAccountsLoadedAt < 60000) {
+            renderParentAccountOptions();
+            return parentAccountsRefreshPromise || Promise.resolve();
+        }
+
+        if (parentAccountsRefreshPromise) return parentAccountsRefreshPromise;
+
+        parentAccountsRefreshPromise = loadParentAccounts()
+            .finally(() => {
+                parentAccountsRefreshPromise = null;
+            });
+
+        return parentAccountsRefreshPromise;
+    }
+
+    function scheduleAccountModalPostOpenWork() {
+        if (accountModalPostOpenTimer) {
+            window.clearTimeout(accountModalPostOpenTimer);
+        }
+
+        accountModalPostOpenTimer = window.setTimeout(() => {
+            accountModalPostOpenTimer = 0;
+            warmAccountModalControls();
+            void refreshParentAccountsInBackground();
+        }, 120);
+    }
+
+    function setAccountModalLoading(isLoading = false, disableControls = false) {
+        const loading = Boolean(isLoading);
+        const modalEl = document.getElementById('accountModal');
+        modalEl?.classList.toggle('is-loading-detail', loading);
+        modalEl?.setAttribute('aria-busy', loading ? 'true' : 'false');
+        if (!disableControls) return;
+
+        document.getElementById('account-edit-form')
+            ?.querySelectorAll('input, select, textarea, button')
+            .forEach((control) => {
+                if (control.matches('[data-bs-dismiss="modal"], .btn-close')) return;
+                control.disabled = loading;
+            });
+    }
+
+    async function openCreateModal() {
         accountModalInitializing = true;
         resetAccountForm();
-        loadParentAccounts();
         $('#accountModalLabel').text('계정과목 등록');
         $('#btnDeleteAccount').hide();
+        renderParentAccountOptions();
         accountModal?.show();
+        scheduleAccountModalPostOpenWork();
     }
 
     async function openEditModal(row) {
         const id = row.id || '';
         if (!id) return;
 
+        accountModalInitializing = true;
+        fillAccountForm(row, { deferSubAccounts: true });
+        $('#accountModalLabel').text('계정과목 수정');
+        $('#btnDeleteAccount').show();
+        setAccountModalLoading(true);
+        accountModal?.show();
+        scheduleAccountModalPostOpenWork();
+
         try {
-            accountModalInitializing = true;
-            await loadParentAccounts();
             const json = await fetchJson(`${API.DETAIL}?id=${encodeURIComponent(id)}`);
             if (!json.success) {
                 accountModalInitializing = false;
@@ -777,14 +869,21 @@ window.AdminPicker = AdminPicker;
                 return;
             }
 
-            fillAccountForm(json.data || row);
+            fillAccountForm(json.data || row, { deferSubAccounts: true });
             $('#accountModalLabel').text('계정과목 수정');
             $('#btnDeleteAccount').show();
-            accountModal?.show();
+            if ($('#modal_allow_sub_account').val() === '1') {
+                await loadSubAccounts($('#modal_account_id').val());
+            } else {
+                accountModalInitializing = false;
+                markAccountFormClean();
+            }
         } catch (err) {
             accountModalInitializing = false;
             console.error('[ledger-account] detail failed:', err);
             notify('error', '계정과목 상세 조회 중 오류가 발생했습니다.');
+        } finally {
+            setAccountModalLoading(false);
         }
     }
     function setNormalBalance(value) {
@@ -792,7 +891,7 @@ window.AdminPicker = AdminPicker;
         $(`input[name="normal_balance"][value="${normalized}"]`).prop('checked', true);
     }
 
-    function fillAccountForm(data = {}) {
+    function fillAccountForm(data = {}, options = {}) {
         resetAccountForm();
 
         $('#modal_account_id').val(data.id || '');
@@ -807,7 +906,7 @@ window.AdminPicker = AdminPicker;
         $('#modal_note').val(data.note || '');
         $('#modal_memo').val(data.memo || '');
 
-        updateModalSubAccountSection();
+        updateModalSubAccountSection({ deferLoad: options.deferSubAccounts === true });
     }
 
     function resetAccountForm() {
@@ -893,6 +992,7 @@ window.AdminPicker = AdminPicker;
         try {
             const json = await fetchJson(`${API.LIST}?_=${Date.now()}`);
             mergeParentAccounts(Array.isArray(json?.data) ? json.data : []);
+            parentAccountsLoadedAt = Date.now();
         } catch (err) {
             console.error('[ledger-account] parent accounts load failed:', err);
         }
@@ -1071,11 +1171,13 @@ window.AdminPicker = AdminPicker;
         if (!tbody) return;
 
         if (!accountId) {
-            renderModalDraftSubAccounts();
+            await renderModalDraftSubAccounts();
             return;
         }
 
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">불러오는 중...</td></tr>';
+        if (!document.getElementById('accountModal')?.classList.contains('is-loading-detail')) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">불러오는 중...</td></tr>';
+        }
 
         try {
             const json = await fetchJson(`${API.SUB_LIST}?account_id=${encodeURIComponent(accountId)}`);
@@ -1088,7 +1190,7 @@ window.AdminPicker = AdminPicker;
                 is_required: Number(row.is_required ?? 0),
             }));
             ensureModalDraftInput();
-            renderModalDraftSubAccounts();
+            await renderModalDraftSubAccounts();
             if (accountModalInitializing) {
                 markAccountFormClean();
                 accountModalInitializing = false;
@@ -1097,6 +1199,22 @@ window.AdminPicker = AdminPicker;
             console.error('[ledger-account] sub list failed:', err);
             tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">보조계정을 불러오지 못했습니다.</td></tr>';
         }
+    }
+
+    function scheduleSubAccountsLoad(accountId) {
+        const id = String(accountId || '').trim();
+        if (!id) return;
+
+        if (subAccountLoadTimer) {
+            window.clearTimeout(subAccountLoadTimer);
+        }
+
+        const seq = ++subAccountLoadSeq;
+        subAccountLoadTimer = window.setTimeout(() => {
+            subAccountLoadTimer = 0;
+            if (seq !== subAccountLoadSeq) return;
+            void loadSubAccounts(id);
+        }, 80);
     }
 
     function addSubAccount() {
@@ -1112,9 +1230,11 @@ window.AdminPicker = AdminPicker;
 
     function renderModalDraftSubAccounts() {
         const tbody = document.querySelector('#modal-subaccount-table tbody');
-        if (!tbody) return;
+        if (!tbody) return Promise.resolve();
 
         ensureModalDraftInput();
+        const section = document.getElementById('modal_subaccount_section');
+        section?.classList.add('is-hydrating');
 
         tbody.innerHTML = modalDraftSubAccounts.map((row, index) => `
             <tr>
@@ -1135,7 +1255,10 @@ window.AdminPicker = AdminPicker;
             </tr>
         `).join('');
 
-        initSubAccountCodeSelects(tbody);
+        return initSubAccountCodeSelects(tbody)
+            .finally(() => {
+                section?.classList.remove('is-hydrating');
+            });
     }
     function ensureModalDraftInput() {
         if (!modalDraftSubAccounts.length) {

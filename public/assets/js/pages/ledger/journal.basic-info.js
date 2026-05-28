@@ -1,6 +1,11 @@
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import { checkBusinessStatus } from '/public/assets/js/common/biz_api.js';
-import {
+import { openClientQuickCreate } from '/public/assets/js/pages/dashboard/settings/base/client.js';
+import { resolveDisplayText } from '/public/assets/js/pages/ledger/shared/utils.js';
+import * as NumberFormat from '/public/assets/js/common/format.js';
+
+const onlyNumber = NumberFormat.onlyNumber || ((value) => String(value ?? '').replace(/\D/g, ''));
+const {
     formatBizNumber,
     formatCorpNumber,
     formatDateDisplay,
@@ -8,8 +13,7 @@ import {
     formatMobile,
     unformatAmount,
     formatPhone,
-    onlyNumber,
-} from '/public/assets/js/common/format.js';
+} = NumberFormat;
 
 const QUICK_CREATE_MODAL_ID = 'journalQuickCreateModal';
 let sharedTodayPicker = null;
@@ -223,7 +227,8 @@ function initProjectModalSelect2(modalEl) {
                     results: rows
                         .map((row) => ({
                             id: String(row.id ?? ''),
-                            text: row.text ?? row.employee_name ?? row.username ?? row.id,
+                            text: resolveDisplayText(row)
+                                || row.text || row.employee_name || row.username || '-',
                             raw: row,
                         }))
                         .filter((item) => item.id !== ''),
@@ -255,7 +260,8 @@ function initProjectModalSelect2(modalEl) {
                     results: rows
                         .map((row) => ({
                             id: String(row.id ?? ''),
-                            text: row.text ?? row.client_name ?? row.name ?? row.id,
+                            text: resolveDisplayText(row)
+                                || row.text || row.client_name || row.name || '-',
                             raw: row,
                         }))
                         .filter((item) => item.id !== ''),
@@ -464,9 +470,9 @@ function ensureQuickCreateModal() {
                     <div class="modal-body" data-role="quick-create-body"></div>
                     <div class="modal-footer">
                         <div class="me-auto small text-danger" data-role="quick-create-message"></div>
-                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
                         <button type="button" class="btn btn-outline-primary btn-sm btn-detail-open" data-role="quick-create-detail" data-target="">상세입력</button>
                         <button type="submit" class="btn btn-success btn-sm" data-role="quick-create-submit">저장</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
                     </div>
                 </form>
             </div>
@@ -475,6 +481,25 @@ function ensureQuickCreateModal() {
 
     document.body.appendChild(modalEl);
     return modalEl;
+}
+
+function bringQuickModalToFront(modalEl) {
+    if (!modalEl) return;
+
+    const modalZ = 20000;
+    const backdropZ = modalZ - 10;
+    const apply = () => {
+        modalEl.style.setProperty('z-index', String(modalZ), 'important');
+        modalEl.querySelector('.modal-dialog')?.style?.setProperty('z-index', String(modalZ + 1), 'important');
+        const backdrops = Array.from(document.querySelectorAll('.modal-backdrop'));
+        const latestBackdrop = backdrops[backdrops.length - 1];
+        if (latestBackdrop) {
+            latestBackdrop.style.setProperty('z-index', String(backdropZ), 'important');
+        }
+    };
+
+    apply();
+    [0, 16, 50, 120].forEach((delay) => window.setTimeout(apply, delay));
 }
 
 function renderQuickField(field, values = {}) {
@@ -501,11 +526,12 @@ function renderQuickField(field, values = {}) {
     }
 
     const formatAttr = field.format ? ` data-format="${escapeHtml(field.format)}"` : '';
+    const inputType = field.type && field.type !== 'select' ? field.type : 'text';
 
     return `
         <div class="mb-3">
             <label class="form-label">${escapeHtml(field.label)}</label>
-            <input type="text"
+            <input type="${escapeHtml(inputType)}"
                    class="form-control form-control-sm"
                    name="${escapeHtml(field.name)}"
                    value="${escapeHtml(value)}"${placeholder}${required}${formatAttr}>
@@ -1305,27 +1331,7 @@ export function createJournalBasicInfoBridge({ notify }) {
         : (_type, message) => window.alert(message);
 
     const configs = ensureQuickCreateConfigs();
-    if (configs.account) {
-        configs.account.quickTitle = '계정과목 빠른 등록';
-        configs.account.quickFields = [
-            { name: 'account_code', label: '계정코드', required: true, placeholder: '계정코드를 입력하세요' },
-            { name: 'account_name', label: '계정과목명', required: true, placeholder: '계정과목명을 입력하세요' },
-            {
-                name: 'account_group',
-                label: '계정구분',
-                type: 'select',
-                required: true,
-                options: [
-                    { value: '', label: '선택' },
-                    { value: '자산', label: '자산' },
-                    { value: '부채', label: '부채' },
-                    { value: '자본', label: '자본' },
-                    { value: '수익', label: '수익' },
-                    { value: '비용', label: '비용' },
-                ],
-            },
-        ];
-    }
+    delete configs.account;
     const quickModalEl = ensureQuickCreateModal();
     const quickModal = new bootstrap.Modal(quickModalEl, { focus: false });
     const quickForm = quickModalEl.querySelector('[data-role="quick-create-form"]');
@@ -1441,6 +1447,46 @@ export function createJournalBasicInfoBridge({ notify }) {
         quickSubmitButton.disabled = false;
         quickDetailButton.disabled = false;
         quickDetailButton.dataset.target = '';
+    }
+
+    function openClientQuickModal(context = {}) {
+        const sourceEl = context.sourceEl || context.select || context.targetSelect || null;
+
+        openClientQuickCreate({
+            templateId: 'journal-client-modal-template',
+            select: sourceEl,
+            targetSelect: sourceEl,
+            title: '거래처 빠른 등록',
+            initialValues: context.initialValues || {},
+            getOptionText(values, json) {
+                return String(
+                    values.client_name
+                    || json?.data?.client_name
+                    || json?.client_name
+                    || json?.text
+                    || ''
+                );
+            },
+            async onSuccess(json, values) {
+                const value = String(json?.id ?? json?.data?.id ?? '').trim();
+                const text = String(
+                    values.client_name
+                    || json?.data?.client_name
+                    || json?.client_name
+                    || json?.text
+                    || value
+                );
+
+                await context.onSaved?.({
+                    type: 'client',
+                    value,
+                    text,
+                    sourceEl,
+                    json,
+                    values,
+                });
+            },
+        });
     }
 
     async function openDetailModal(type, context = {}) {
@@ -1611,6 +1657,11 @@ export function createJournalBasicInfoBridge({ notify }) {
             bindModalDateInputs(modalEl);
         },
         openQuickCreate(type, context = {}) {
+            if (type === 'client') {
+                openClientQuickModal(context);
+                return;
+            }
+
             const config = configs[type];
             if (!config) {
                 safeNotify('error', '지원하지 않는 빠른 등록 유형입니다.');
@@ -1629,9 +1680,12 @@ export function createJournalBasicInfoBridge({ notify }) {
                 .join('');
             setQuickMessage('');
             quickDetailButton.dataset.target = config.detailModalId || '';
+            quickDetailButton.hidden = !config.detailModalId;
 
             bindScopedFormatters(quickModalEl);
+            quickModalEl.addEventListener('shown.bs.modal', () => bringQuickModalToFront(quickModalEl), { once: true });
             quickModal.show();
+            bringQuickModalToFront(quickModalEl);
         },
         openDetailModal,
     };

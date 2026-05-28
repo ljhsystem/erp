@@ -173,7 +173,7 @@ export function renderCalendar({ picker, container, options = {} }) {
             date.getFullYear(),
             date.getMonth(),
             date.getDate()
-          ));
+          ), { force: true });
         };
 
         grid.appendChild(btn);
@@ -198,7 +198,7 @@ export function renderCalendar({ picker, container, options = {} }) {
       event.stopPropagation();
       const today = new Date();
       picker.setView(today.getFullYear(), today.getMonth());
-      picker.setDate(today);
+      picker.setDate(today, { force: true });
     };
     footer.appendChild(todayBtn);
 

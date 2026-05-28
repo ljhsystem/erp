@@ -130,8 +130,8 @@
                                             <th>라인 적요</th>
                                             <th width="64" class="journal-table-action-head">
                                                 <button type="button"
-                                                        class="btn btn-outline-primary btn-sm"
-                                                        id="btnAddVoucherLine">라인추가</button>
+                                                        class="btn btn-link btn-sm voucher-line-add-btn"
+                                                        id="btnAddVoucherLine">+추가</button>
                                             </th>
                                         </tr>
                                     </thead>
@@ -192,8 +192,8 @@
                                         <th width="160">금액</th>
                                         <th width="64" class="journal-table-action-head">
                                             <button type="button"
-                                                    class="btn btn-outline-primary btn-sm"
-                                                    id="btnAddVoucherPayment">결제추가</button>
+                                                    class="btn btn-link btn-sm bank-payment-add-btn"
+                                                    id="btnAddVoucherPayment">+추가</button>
                                         </th>
                                     </tr>
                                 </thead>
@@ -320,26 +320,27 @@
                     <input type="search"
                            class="form-control form-control-sm"
                            id="journal_evidence_search_keyword"
-                           placeholder="자료유형, 원본키, 일자, 거래처로 검색">
+                           placeholder="자료유형, 일자, 거래처, 금액, 적요로 검색">
                     <button type="button"
                             class="btn btn-outline-secondary btn-sm"
                             id="btnSearchEvidence">검색</button>
                 </div>
 
-                <div class="table-responsive">
+                <div class="table-responsive journal-search-table-wrap">
                     <table class="table table-bordered align-middle mb-0 journal-transaction-search-table">
                         <thead class="table-light">
                             <tr>
-                                <th width="120">표준일자</th>
-                                <th width="150">자료유형</th>
-                                <th>원본키</th>
-                                <th width="160">거래처</th>
+                                <th width="120">증빙일자</th>
+                                <th width="170">자료유형</th>
+                                <th width="150">거래처</th>
+                                <th width="120">금액</th>
+                                <th>적요</th>
                                 <th width="90">선택</th>
                             </tr>
                         </thead>
                         <tbody id="journal_evidence_search_body">
                             <tr>
-                                <td colspan="5" class="text-center text-muted py-4">
+                                    <td colspan="6" class="text-center text-muted py-4">
                                     증빙을 검색해 주세요.
                                 </td>
                             </tr>
@@ -373,20 +374,21 @@
                             id="btnSearchTransaction">검색</button>
                 </div>
 
-                <div class="table-responsive">
+                <div class="table-responsive journal-search-table-wrap">
                     <table class="table table-bordered align-middle mb-0 journal-transaction-search-table">
                         <thead class="table-light">
                             <tr>
-                                <th width="120">거래일자</th>
-                                <th width="180">거래처</th>
-                                <th>거래 적요</th>
-                                <th width="140">금액</th>
+                                <th width="130">거래일시</th>
+                                <th width="90">구분</th>
+                                <th width="160">거래처</th>
+                                <th width="130">금액</th>
+                                <th>거래내용</th>
                                 <th width="90">선택</th>
                             </tr>
                         </thead>
                         <tbody id="journal_transaction_search_body">
                             <tr>
-                                <td colspan="5" class="text-center text-muted py-4">
+                                    <td colspan="6" class="text-center text-muted py-4">
                                     거래를 검색해 주세요.
                                 </td>
                             </tr>

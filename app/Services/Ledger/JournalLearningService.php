@@ -12,6 +12,8 @@ class JournalLearningService
 
     /** @var array<string,bool> */
     private array $columnCache = [];
+    /** @var array<string,array|null> */
+    private array $accountCache = [];
 
     public function __construct(private readonly PDO $pdo)
     {
@@ -28,7 +30,9 @@ class JournalLearningService
 
         $this->recordLearningEvents($context, $voucherId, $lines, $actor, $timestamp);
         $this->recordRecentPattern($context, $lines, $timestamp);
+        $this->autoSetMissingClientDefaultAccount($context, $lines);
         $this->recordClientAccountPatterns($context, $lines, $timestamp);
+        $this->upsertSystemJournalRule($context, $lines, $actor, $timestamp);
         $this->reinforceJournalRules($lines, $timestamp);
     }
 
@@ -180,7 +184,12 @@ class JournalLearningService
         foreach ($lines as $line) {
             $accountId = (string) ($line['account_id'] ?? '');
             $lineType = (string) ($line['line_type'] ?? '');
-            if ($accountId === '' || !in_array($lineType, ['DEBIT', 'CREDIT'], true) || $this->isVatLine($line)) {
+            if (
+                $accountId === ''
+                || !in_array($lineType, ['DEBIT', 'CREDIT'], true)
+                || $this->isVatLine($line)
+                || $this->isPaymentLikeAccount($accountId)
+            ) {
                 continue;
             }
 
@@ -197,6 +206,73 @@ class JournalLearningService
         }
 
         $this->maybeUpdateClientDefaultAccount($context['client_id']);
+    }
+
+    private function autoSetMissingClientDefaultAccount(array $context, array $lines): void
+    {
+        $clientId = trim((string) ($context['client_id'] ?? ''));
+        if ($clientId === '') {
+            return;
+        }
+
+        $currentStmt = $this->pdo->prepare("SELECT default_account_id FROM system_clients WHERE id = :id AND deleted_at IS NULL LIMIT 1");
+        $currentStmt->execute([':id' => $clientId]);
+        if (trim((string) ($currentStmt->fetchColumn() ?: '')) !== '') {
+            return;
+        }
+
+        $accountId = $this->defaultAccountCandidate($context, $lines);
+        if ($accountId === null) {
+            return;
+        }
+
+        $update = $this->pdo->prepare("
+            UPDATE system_clients
+            SET default_account_id = :account_id,
+                updated_at = NOW()
+            WHERE id = :id
+              AND deleted_at IS NULL
+              AND (default_account_id IS NULL OR default_account_id = '')
+        ");
+        $update->execute([
+            ':id' => $clientId,
+            ':account_id' => $accountId,
+        ]);
+    }
+
+    private function defaultAccountCandidate(array $context, array $lines): ?string
+    {
+        $direction = strtoupper(trim((string) ($context['transaction_direction'] ?? '')));
+        $preferredSide = match ($direction) {
+            'OUT', 'PURCHASE' => 'DEBIT',
+            'IN', 'SALES' => 'CREDIT',
+            default => '',
+        };
+
+        if ($preferredSide !== '') {
+            $candidate = $this->firstBusinessAccount($lines, $preferredSide);
+            if ($candidate !== null) {
+                return $candidate;
+            }
+        }
+
+        return $this->firstBusinessAccount($lines, 'DEBIT')
+            ?? $this->firstBusinessAccount($lines, 'CREDIT');
+    }
+
+    private function firstBusinessAccount(array $lines, string $lineType): ?string
+    {
+        foreach ($lines as $line) {
+            $accountId = (string) ($line['account_id'] ?? '');
+            if (($line['line_type'] ?? '') === $lineType
+                && $accountId !== ''
+                && !$this->isVatLine($line)
+                && !$this->isPaymentLikeAccount($accountId)) {
+                return $accountId;
+            }
+        }
+
+        return null;
     }
 
     private function reinforceJournalRules(array $lines, string $timestamp): void
@@ -234,6 +310,129 @@ class JournalLearningService
                 ':last_used_at' => $timestamp,
             ]);
         }
+    }
+
+    private function upsertSystemJournalRule(array $context, array $lines, string $actor, string $timestamp): void
+    {
+        if (!$this->tableExists('ledger_journal_rules')) {
+            return;
+        }
+
+        $debit = $this->firstMainAccount($lines, 'DEBIT');
+        $credit = $this->firstMainAccount($lines, 'CREDIT');
+        if ($debit === null || $credit === null) {
+            return;
+        }
+
+        $vat = $this->firstVatAccount($lines);
+        $hash = substr(sha1(implode('|', [
+            $context['business_unit'],
+            $context['transaction_type'],
+            $context['transaction_direction'],
+            $context['client_type'],
+            $context['import_type'],
+        ])), 0, 12);
+        $ruleCode = 'SYS-' . strtoupper($hash);
+
+        $find = $this->pdo->prepare("
+            SELECT id
+            FROM ledger_journal_rules
+            WHERE rule_code = :rule_code
+              AND deleted_at IS NULL
+            LIMIT 1
+        ");
+        $find->execute([':rule_code' => $ruleCode]);
+        $existingId = (string) ($find->fetchColumn() ?: '');
+
+        if ($existingId !== '') {
+            $usageSql = $this->columnExists('ledger_journal_rules', 'usage_count') ? ', usage_count = usage_count + 1' : '';
+            $lastUsedSql = $this->columnExists('ledger_journal_rules', 'last_used_at') ? ', last_used_at = :last_used_at' : '';
+            $confidenceSql = $this->columnExists('ledger_journal_rules', 'confidence_score') ? ', confidence_score = LEAST(100.00, confidence_score + 0.50)' : '';
+            $update = $this->pdo->prepare("
+                UPDATE ledger_journal_rules
+                SET debit_account_id = :debit_account_id,
+                    credit_account_id = :credit_account_id,
+                    vat_account_id = :vat_account_id,
+                    is_active = 1,
+                    description = :description,
+                    updated_by = :updated_by
+                    {$usageSql}
+                    {$lastUsedSql}
+                    {$confidenceSql}
+                WHERE id = :id
+                  AND deleted_at IS NULL
+            ");
+            $params = [
+                ':id' => $existingId,
+                ':debit_account_id' => $debit,
+                ':credit_account_id' => $credit,
+                ':vat_account_id' => $vat,
+                ':description' => '시스템 학습으로 갱신된 분개규칙',
+                ':updated_by' => $actor,
+            ];
+            if ($lastUsedSql !== '') {
+                $params[':last_used_at'] = $timestamp;
+            }
+            $update->execute($params);
+            return;
+        }
+
+        $columns = [
+            'id', 'sort_no', 'rule_code', 'rule_name', 'business_unit', 'transaction_type',
+            'transaction_direction', 'client_type', 'import_type', 'debit_account_id',
+            'credit_account_id', 'vat_account_id', 'description', 'is_active', 'created_by', 'updated_by',
+        ];
+        $values = [
+            ':id', ':sort_no', ':rule_code', ':rule_name', ':business_unit', ':transaction_type',
+            ':transaction_direction', ':client_type', ':import_type', ':debit_account_id',
+            ':credit_account_id', ':vat_account_id', ':description', ':is_active', ':created_by', ':updated_by',
+        ];
+        $params = [
+            ':id' => UuidHelper::generate(),
+            ':sort_no' => $this->nextJournalRuleSortNo(),
+            ':rule_code' => $ruleCode,
+            ':rule_name' => '시스템 학습 분개규칙',
+            ':business_unit' => $context['business_unit'],
+            ':transaction_type' => $context['transaction_type'],
+            ':transaction_direction' => $context['transaction_direction'],
+            ':client_type' => $context['client_type'],
+            ':import_type' => $context['import_type'],
+            ':debit_account_id' => $debit,
+            ':credit_account_id' => $credit,
+            ':vat_account_id' => $vat,
+            ':description' => '전표 확정 이력에서 자동 생성된 분개규칙',
+            ':is_active' => 1,
+            ':created_by' => 'SYSTEM:journal-learning',
+            ':updated_by' => $actor,
+        ];
+
+        if ($this->columnExists('ledger_journal_rules', 'usage_count')) {
+            $columns[] = 'usage_count';
+            $values[] = ':usage_count';
+            $params[':usage_count'] = 1;
+        }
+        if ($this->columnExists('ledger_journal_rules', 'last_used_at')) {
+            $columns[] = 'last_used_at';
+            $values[] = ':last_used_at';
+            $params[':last_used_at'] = $timestamp;
+        }
+        if ($this->columnExists('ledger_journal_rules', 'confidence_score')) {
+            $columns[] = 'confidence_score';
+            $values[] = ':confidence_score';
+            $params[':confidence_score'] = 50.00;
+        }
+
+        $stmt = $this->pdo->prepare("
+            INSERT INTO ledger_journal_rules (" . implode(', ', $columns) . ")
+            VALUES (" . implode(', ', $values) . ")
+        ");
+        $stmt->execute($params);
+    }
+
+    private function nextJournalRuleSortNo(): int
+    {
+        $stmt = $this->pdo->query("SELECT COALESCE(MAX(sort_no), 0) + 1 FROM ledger_journal_rules");
+        return (int) ($stmt->fetchColumn() ?: 1);
     }
 
     private function maybeUpdateClientDefaultAccount(string $clientId): void
@@ -342,6 +541,43 @@ class JournalLearningService
         }
 
         return null;
+    }
+
+    private function isPaymentLikeAccount(string $accountId): bool
+    {
+        $account = $this->accountById($accountId);
+        if ($account === null) {
+            return false;
+        }
+
+        $code = (string) ($account['account_code'] ?? '');
+        $name = (string) ($account['account_name'] ?? '');
+
+        return in_array($code, ['111100', '111200'], true)
+            || str_contains($name, '현금')
+            || str_contains($name, '예금');
+    }
+
+    private function accountById(string $accountId): ?array
+    {
+        if ($accountId === '') {
+            return null;
+        }
+        if (array_key_exists($accountId, $this->accountCache)) {
+            return $this->accountCache[$accountId];
+        }
+
+        $stmt = $this->pdo->prepare("
+            SELECT id, account_code, account_name
+            FROM ledger_accounts
+            WHERE id = :id
+              AND deleted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->execute([':id' => $accountId]);
+        $account = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+        return $this->accountCache[$accountId] = $account;
     }
 
     private function isVatLine(array $line): bool

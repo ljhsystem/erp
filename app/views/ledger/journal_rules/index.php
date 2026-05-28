@@ -163,10 +163,6 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journalRules.js');
 
     <?php include PROJECT_ROOT . '/app/views/dashboard/settings/system/partials/code_modal.php'; ?>
 
-    <template id="journal-account-modal-template">
-        <?php include PROJECT_ROOT . '/app/views/ledger/account/partials/account_modal.php'; ?>
-    </template>
-
     <?php
     $templateUrl = '/api/ledger/journal-rules/template';
     $downloadUrl = '/api/ledger/journal-rules/excel';

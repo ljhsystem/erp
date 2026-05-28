@@ -22,6 +22,9 @@ class VoucherModel
         $hasSeedRows = $this->hasTable('ledger_data_evidences');
         $hasEvidenceLinks = $this->hasTable('ledger_data_evidence_links');
         $hasEvidenceTransactionId = $hasSeedRows && $this->tableColumnExists('ledger_data_evidences', 'transaction_id');
+        $hasEvidenceFormat = $hasSeedRows
+            && $this->hasTable('ledger_data_formats')
+            && $this->tableColumnExists('ledger_data_evidences', 'format_id');
         $seedSources = [];
         $seedIds = [];
         if ($hasEvidenceLinks) {
@@ -87,6 +90,39 @@ class VoucherModel
             {$evidenceLinkJoinSql}
             {$transactionSeedJoinSql}
         " : "";
+        $formatJoinSql = $hasEvidenceFormat
+            ? "LEFT JOIN ledger_data_formats f ON f.id = e.format_id AND f.deleted_at IS NULL"
+            : "";
+        $formatNameSelect = $hasEvidenceFormat
+            ? "GROUP_CONCAT(DISTINCT NULLIF(f.format_name, '') ORDER BY f.format_name SEPARATOR ',')"
+            : "NULL";
+        $evidenceBundleJoinSql = ($hasSeedRows && $hasEvidenceLinks) ? "
+            LEFT JOIN (
+                SELECT
+                    el.voucher_id,
+                    COUNT(DISTINCT e.id) AS evidence_count,
+                    GROUP_CONCAT(DISTINCT e.source_type ORDER BY e.source_type SEPARATOR ',') AS evidence_source_types,
+                    {$formatNameSelect} AS evidence_format_names
+                FROM ledger_data_evidence_links el
+                INNER JOIN ledger_data_evidences e
+                    ON e.id = el.evidence_id
+                   AND e.deleted_at IS NULL
+                {$formatJoinSql}
+                WHERE el.deleted_at IS NULL
+                  AND el.voucher_id IS NOT NULL
+                GROUP BY el.voucher_id
+            ) evidence_bundle
+                ON evidence_bundle.voucher_id = v.id
+        " : "";
+        $evidenceCountExpr = ($hasSeedRows && $hasEvidenceLinks)
+            ? "COALESCE(evidence_bundle.evidence_count, CASE WHEN {$evidenceIdExpr} IS NULL THEN 0 ELSE 1 END)"
+            : "CASE WHEN {$evidenceIdExpr} IS NULL THEN 0 ELSE 1 END";
+        $evidenceSourceTypesExpr = ($hasSeedRows && $hasEvidenceLinks)
+            ? "evidence_bundle.evidence_source_types"
+            : "NULL";
+        $evidenceFormatNamesExpr = ($hasSeedRows && $hasEvidenceLinks)
+            ? "evidence_bundle.evidence_format_names"
+            : "NULL";
 
         $sql = "
             SELECT
@@ -112,6 +148,9 @@ class VoucherModel
                 transaction_links.match_status,
                 {$importTypeExpr} AS import_type,
                 {$evidenceIdExpr} AS evidence_id,
+                {$evidenceCountExpr} AS evidence_count,
+                {$evidenceSourceTypesExpr} AS evidence_source_types,
+                {$evidenceFormatNamesExpr} AS evidence_format_names,
                 CASE
                     WHEN {$evidenceIdExpr} IS NULL THEN 'unlinked'
                     ELSE 'linked'
@@ -125,6 +164,7 @@ class VoucherModel
                     ELSE 'linked'
                 END AS linked_status
             FROM {$this->table} v
+            {$evidenceBundleJoinSql}
             LEFT JOIN (
                 SELECT
                     l.voucher_id,
@@ -310,6 +350,16 @@ class VoucherModel
                     $params[$key] = $this->normalizeJournalStatusFilter($rawValue);
                     break;
 
+                case 'review_status':
+                    $sql .= " AND (CASE
+                        WHEN ROUND(COALESCE(voucher_line_accounts.debit_total, 0), 2) <> ROUND(COALESCE(voucher_line_accounts.credit_total, 0), 2) THEN 'error'
+                        WHEN v.status IN ('posted', 'closed') THEN 'done'
+                        WHEN v.status = 'reviewed' THEN 'ready'
+                        ELSE 'pending'
+                    END) = {$key}";
+                    $params[$key] = $this->normalizeReviewStatusFilter($rawValue);
+                    break;
+
                 case 'type':
                     $sql .= " AND 'VOUCHER' = {$key}";
                     $params[$key] = strtoupper($rawValue);
@@ -462,6 +512,19 @@ class VoucherModel
             '분개완료', 'ready' => 'READY',
             '승인완료', 'posted' => 'POSTED',
             default => strtoupper($value),
+        };
+    }
+
+    private function normalizeReviewStatusFilter(string $value): string
+    {
+        $normalized = mb_strtolower(trim($value), 'UTF-8');
+
+        return match ($normalized) {
+            'error', '오류', '차액', '불일치' => 'error',
+            'pending', '대기', '검토대기', '임시저장', '검토요청' => 'pending',
+            'ready', '검토완료', '완료' => 'ready',
+            'done', '승인', '승인완료', '마감', 'posted', 'closed' => 'done',
+            default => $normalized,
         };
     }
 

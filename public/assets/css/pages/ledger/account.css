@@ -12,6 +12,10 @@
     height:100%;
 }
 
+html {
+    scrollbar-gutter: stable;
+}
+
 .account-page{
     width:100%;
     max-width:none;
@@ -52,6 +56,28 @@
     margin-left:2px;
     font-weight:500;
     line-height:1;
+}
+
+#accountModal .modal-content {
+    position: relative;
+}
+
+#accountModal.is-loading-detail .account-modal-body {
+    pointer-events: none;
+}
+
+#accountModal.is-loading-detail .modal-content::after {
+    content: "계정과목 정보를 불러오는 중입니다.";
+    position: absolute;
+    inset: 52px 0 58px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, .72);
+    color: var(--color-primary);
+    font-size: 14px;
+    font-weight: 700;
+    z-index: 20;
 }
 
 
@@ -304,14 +330,20 @@
     background:#2f72d6;
 }
 
+#modal_subaccount_section.is-hydrating .modal-subaccount-table-wrap{
+    visibility:hidden;
+}
+
 .modal-subaccount-table-wrap{
-    overflow:visible;
+    overflow-x:hidden;
+    overflow-y:visible;
     border:1px solid #e5edf8;
     border-radius:8px;
 }
 
 #modal-subaccount-table{
-    min-width:760px;
+    width:100%;
+    min-width:0;
     table-layout:fixed;
 }
 
@@ -919,4 +951,3 @@
 /* =========================
    獄쏆꼷???
 ========================= */
-

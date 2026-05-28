@@ -18,13 +18,11 @@ $layoutOptions = [
     'wrapper' => 'single',
 ];
 
-$pageStyles = AssetHelper::css('https://cdn.jsdelivr.net/npm/handsontable@14.6.1/dist/handsontable.full.min.css')
-    . AssetHelper::css('/assets/css/pages/dashboard/settings/system/code.css')
+$pageStyles = AssetHelper::css('/assets/css/pages/dashboard/settings/system/code.css')
     . AssetHelper::css('/assets/css/pages/dashboard/settings/client.css')
     . AssetHelper::css('/assets/css/pages/ledger/voucher-recommendation-modal.css')
     . AssetHelper::css('/assets/css/pages/ledger/transaction.css');
-$pageScripts = AssetHelper::js('https://cdn.jsdelivr.net/npm/handsontable@14.6.1/dist/handsontable.full.min.js')
-    . AssetHelper::module('/assets/js/pages/ledger/transaction.js');
+$pageScripts = AssetHelper::module('/assets/js/pages/ledger/transaction.js');
 ?>
 
 <main class="transaction-page" id="transaction-main">

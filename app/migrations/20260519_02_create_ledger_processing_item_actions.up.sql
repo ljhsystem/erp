@@ -1,0 +1,36 @@
+CREATE TABLE `ledger_processing_item_actions` (
+    `id` VARCHAR(36) COLLATE utf8mb4_general_ci NOT NULL COMMENT '고유 ID(UUID)',
+    `processing_item_id` VARCHAR(36) COLLATE utf8mb4_general_ci NOT NULL COMMENT '처리 Item ID(ledger_processing_items.id)',
+    `action_type` VARCHAR(40) COLLATE utf8mb4_general_ci NOT NULL COMMENT '작업유형(CREATED,SPLIT,MERGE,CORRECTION,READY_CHANGE,STATUS_CHANGE,TRANSACTION_CREATED,VOUCHER_CREATED,LINKED,UNLINKED,REOPENED,REGENERATED,ROLLBACK,IGNORED,RESTORED 등)',
+    `action_group_id` VARCHAR(36) COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '동일 작업 묶음 ID(split/merge 등 복수 item 동시 처리 그룹)',
+    `related_processing_item_id` VARCHAR(36) COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '관련 처리 Item ID(split/merge/연결 상대 item)',
+    `related_transaction_id` VARCHAR(36) COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '관련 거래 ID(거래 생성/연결/재생성 시)',
+    `related_voucher_id` VARCHAR(36) COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '관련 전표 ID(전표 생성/연결/재생성 시)',
+    `source_domain` VARCHAR(30) COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '원천 도메인(EVIDENCE,BANK,CARD,ORDER,IMPORT 등)',
+    `source_table` VARCHAR(100) COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '원천 테이블명(내부 추적용)',
+    `source_type` VARCHAR(50) COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '원천 자료유형 또는 업무유형',
+    `source_id` VARCHAR(36) COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '원천 row ID',
+    `before_status_json` LONGTEXT COLLATE utf8mb4_general_ci NULL COMMENT '작업 전 상태 JSON(item_status/readiness_status/correction_status/transaction_status/voucher_status 등)',
+    `after_status_json` LONGTEXT COLLATE utf8mb4_general_ci NULL COMMENT '작업 후 상태 JSON(item_status/readiness_status/correction_status/transaction_status/voucher_status 등)',
+    `before_payload_json` LONGTEXT COLLATE utf8mb4_general_ci NULL COMMENT '작업 전 업무 payload JSON(거래처/계정/금액/적요/보조계정 등)',
+    `after_payload_json` LONGTEXT COLLATE utf8mb4_general_ci NULL COMMENT '작업 후 업무 payload JSON(사용자 보정 또는 시스템 처리 결과)',
+    `action_reason` TEXT COLLATE utf8mb4_general_ci NULL COMMENT '작업 사유 또는 사용자 입력 사유',
+    `action_source` VARCHAR(30) COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '작업 발생 경로(UI,API,IMPORT,AUTO_RULE,AI,BATCH 등)',
+    `actor_type` VARCHAR(30) COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'USER' COMMENT '작업 주체 유형(USER,SYSTEM,AI,BATCH)',
+    `actor_user_id` VARCHAR(100) COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '작업 사용자 ID 또는 시스템 주체 ID',
+    `error_message` TEXT COLLATE utf8mb4_general_ci NULL COMMENT '실패/rollback/오류 사유',
+    `metadata_json` LONGTEXT COLLATE utf8mb4_general_ci NULL COMMENT '확장 메타데이터 JSON',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '작업 발생일시',
+    PRIMARY KEY (`id`),
+    INDEX `idx_processing_item_actions_item` (`processing_item_id`, `created_at`),
+    INDEX `idx_processing_item_actions_type` (`action_type`, `created_at`),
+    INDEX `idx_processing_item_actions_group` (`action_group_id`),
+    INDEX `idx_processing_item_actions_related_item` (`related_processing_item_id`),
+    INDEX `idx_processing_item_actions_transaction` (`related_transaction_id`),
+    INDEX `idx_processing_item_actions_voucher` (`related_voucher_id`),
+    INDEX `idx_processing_item_actions_source` (`source_domain`, `source_type`, `source_id`),
+    INDEX `idx_processing_item_actions_actor` (`actor_type`, `actor_user_id`, `created_at`)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_general_ci
+  COMMENT='생성센터 처리 Item 작업 이력';

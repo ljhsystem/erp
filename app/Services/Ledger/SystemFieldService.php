@@ -6,6 +6,8 @@ use PDO;
 
 class SystemFieldService
 {
+    private array $fieldOptionsCache = [];
+
     private const AUTO_MANAGED_COLUMNS = [
         'id',
         'sort_no',
@@ -95,8 +97,9 @@ class SystemFieldService
         'evidence_date' => '증빙일자',
         'client_id' => '거래처 ID',
         'project_id' => '프로젝트 ID',
-        'currency' => '통화',
+        'currency' => '기본통화',
         'supply_amount' => '공급가액',
+        'adjustment_amount' => '가감금액',
         'vat_amount' => '부가세',
         'total_amount' => '합계금액',
         'transaction_date' => '표준일자',
@@ -113,7 +116,7 @@ class SystemFieldService
         'balance_status' => '거래후잔액상태',
         'check_bill_amount' => '수표어음금액',
         'currency_code' => '통화',
-        'exchange_rate' => '환율',
+        'exchange_rate' => '기본환율',
         'description' => '거래내용',
         'counterparty_name' => '상대계좌예금주명',
         'counterparty_account_number' => '상대계좌번호',
@@ -166,7 +169,8 @@ class SystemFieldService
         ['value' => 'bank_direction', 'label' => '거래구분', 'group' => '은행입출금 원본컬럼'],
         ['value' => 'transaction_date', 'label' => '표준일자', 'group' => '기준정보(JSON)'],
         ['value' => 'currency_code', 'label' => '통화', 'group' => '기준정보(JSON)'],
-        ['value' => 'exchange_rate', 'label' => '환율', 'group' => '기준정보(JSON)'],
+        ['value' => 'exchange_rate', 'label' => '기본환율', 'group' => '기준정보(JSON)'],
+        ['value' => 'adjustment_amount', 'label' => '가감금액', 'group' => '금액 후보(JSON)'],
         ['value' => 'business_unit', 'label' => '사업구분', 'group' => '기준정보(JSON)'],
         ['value' => 'transaction_type', 'label' => '거래유형', 'group' => '기준정보(JSON)'],
         ['value' => 'client_id', 'label' => '거래처 ID', 'group' => '업무 기준정보(JSON)'],
@@ -229,6 +233,7 @@ class SystemFieldService
         ['value' => 'merchant_zip_code', 'label' => '가맹점 우편번호', 'group' => '카드/현금영수증 거래처 후보(JSON)'],
         ['value' => 'card_number', 'label' => '카드번호', 'group' => '카드 원본 후보(JSON)'],
         ['value' => 'card_type', 'label' => '카드종류', 'group' => '카드 원본 후보(JSON)'],
+        ['value' => 'source_card_company_name', 'label' => '카드사', 'group' => '카드(홈택스) 원본 속성(JSON)'],
         ['value' => 'card_company_name', 'label' => '카드사', 'group' => '카드 원본 후보(JSON)'],
         ['value' => 'payment_account_number', 'label' => '결제계좌번호', 'group' => '카드 원본 후보(JSON)'],
         ['value' => 'payment_bank_name', 'label' => '결제계좌은행명', 'group' => '카드 원본 후보(JSON)'],
@@ -244,6 +249,7 @@ class SystemFieldService
         ['value' => 'previous_notice_amount', 'label' => '기통지액', 'group' => '카드(카드사)원본'],
         ['value' => 'billing_amount', 'label' => '청구금액', 'group' => '카드 금액 후보(JSON)'],
         ['value' => 'service_amount', 'label' => '봉사료', 'group' => '카드 금액 후보(JSON)'],
+        ['value' => 'withholding_amount', 'label' => '원천세', 'group' => '카드 금액 후보(JSON)'],
         ['value' => 'fee_amount', 'label' => '수수료', 'group' => '카드 금액 후보(JSON)'],
         ['value' => 'actual_billing_amount', 'label' => '실청구금액', 'group' => '카드 금액 후보(JSON)'],
         ['value' => 'installment_period', 'label' => '할부기간', 'group' => '카드 원본 후보(JSON)'],
@@ -277,6 +283,10 @@ class SystemFieldService
     public function fieldOptions(string $dataType): array
     {
         $dataType = $this->normalizeDataType($dataType);
+        if (isset($this->fieldOptionsCache[$dataType])) {
+            return $this->fieldOptionsCache[$dataType];
+        }
+
         $tableName = $this->targetTableForDataType($dataType);
         $usesCurrency = $this->dataTypeUsesCurrency($dataType);
         $isManualTaxInvoice = $this->isManualTaxInvoiceDataType($dataType);
@@ -310,7 +320,6 @@ class SystemFieldService
             'bank_account_name',
             'card_name',
         ];
-        $this->ensureTargetTableColumns($tableName);
         $stmt = $this->pdo->prepare("
             SELECT COLUMN_NAME, COLUMN_COMMENT, DATA_TYPE, IS_NULLABLE, ORDINAL_POSITION
             FROM information_schema.COLUMNS
@@ -353,7 +362,7 @@ class SystemFieldService
             ];
         }, $rows);
 
-        return $this->mergeFieldOptions(
+        return $this->fieldOptionsCache[$dataType] = $this->mergeFieldOptions(
             $dataType,
             $this->referenceFieldOptions($dataType),
             $physicalFields,
@@ -391,15 +400,16 @@ class SystemFieldService
                     'code_group' => 'TRANSACTION_DIRECTION',
                 ])
                 : null,
-            !$isCardCompany
-                ? $this->tableFieldOption(
-                    'client_name',
-                    $dataType === 'CARD_HOMETAX' ? '카드사(거래처명)' : '거래처',
-                    '기초정보',
-                    'system_clients',
-                    $this->firstExistingColumn('system_clients', ['client_name', 'company_name'])
-                )
+            $isCardHometax
+                ? $this->fixedFieldOption('source_card_company_name', '카드사', '원본정보', 'mapped_payload_json', 'source_card_company_name', 'json')
                 : null,
+            $this->tableFieldOption(
+                'client_name',
+                '거래처명',
+                '기초정보',
+                'system_clients',
+                'client_name'
+            ),
             in_array($dataType, ['CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES'], true)
                 ? $this->tableFieldOption('user_name', '사용자명', '기초정보', 'system_company', 'company_name_ko')
                 : null,
@@ -810,6 +820,7 @@ class SystemFieldService
             'business_unit',
             'transaction_type',
             'transaction_direction',
+            'client_name',
             'project_name',
             'card_name',
         ];
@@ -835,6 +846,7 @@ class SystemFieldService
             'business_unit',
             'transaction_type',
             'transaction_direction',
+            'source_card_company_name',
             'client_name',
             'merchant_business_number',
             'merchant_company_name',
@@ -893,6 +905,7 @@ class SystemFieldService
         ];
         $cardAmounts = [
             'service_amount',
+            'withholding_amount',
             'billing_date',
             'billing_amount',
             'fee_amount',
@@ -908,6 +921,7 @@ class SystemFieldService
             'issue_method',
             'deduction_status',
             'service_amount',
+            'withholding_amount',
         ];
         $cashReceipt = [
             'cash_receipt_transaction_type',
@@ -918,6 +932,7 @@ class SystemFieldService
             'card_transaction_type',
             'deduction_status',
             'service_amount',
+            'withholding_amount',
             'note',
         ];
         $transactionLine = [

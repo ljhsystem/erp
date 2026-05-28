@@ -34,9 +34,7 @@
 
 <?php include __DIR__ . '/partials/work_team_modal.php'; ?>
 
-<template id="work-team-client-modal-template">
-    <?php include __DIR__ . '/partials/client_modal.php'; ?>
-</template>
+<?php include __DIR__ . '/partials/client_modal.php'; ?>
 
 <?php
 $modalId = 'workTeamTrashModal';

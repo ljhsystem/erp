@@ -76,9 +76,16 @@
 
 .role-permission-page #role-list-table > thead > tr > th {
     position: sticky !important;
-    top: var(--dt-sticky-top, 0) !important;
+    top: var(--dt-sticky-header-top, var(--dt-sticky-top, 0)) !important;
     z-index: 65 !important;
     background: var(--table-header-bg) !important;
+}
+
+.role-permission-page #role-list-table_wrapper .dataTables_scrollHead {
+    position: sticky !important;
+    top: var(--dt-sticky-header-top, var(--dt-sticky-top, 0)) !important;
+    z-index: 65 !important;
+    background: var(--color-surface, #fff) !important;
 }
 
 .role-permission-page #role-list-table tbody tr.rp-role-spacer td {

@@ -20,10 +20,11 @@ $layoutOptions = [
     'wrapper' => 'single',
 ];
 
-$pageStyles = AssetHelper::css('https://cdn.jsdelivr.net/npm/handsontable@14.6.1/dist/handsontable.full.min.css')
+$pageStyles = AssetHelper::css('https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/styles/ag-grid.css')
+    . AssetHelper::css('https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/styles/ag-theme-quartz.css')
     . AssetHelper::css('/assets/css/pages/dashboard/settings/system/code.css')
     . AssetHelper::css('/assets/css/pages/ledger/data-upload.css');
-$pageScripts = AssetHelper::js('https://cdn.jsdelivr.net/npm/handsontable@14.6.1/dist/handsontable.full.min.js')
+$pageScripts = AssetHelper::js('https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/dist/ag-grid-community.min.js')
     . AssetHelper::module('/assets/js/pages/ledger/dataUpload.js');
 ?>
 

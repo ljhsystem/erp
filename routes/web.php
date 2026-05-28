@@ -1132,7 +1132,7 @@ $router->get('/ledger/data/create', 'LedgerController@webDataCreate', [
 $router->get('/ledger/transactions/input', 'TransactionController@webLedgerTransaction', [
     'key'         => 'web.ledger.transactions.input',
     'name' => '거래입력',
-    'description' => '회계관리 > 거래관리 > 거래입력',
+    'description' => '회계관리 > 전표관리 > 거래입력',
     'category' => '회계관리',
     'auth'        => true,
     'permissions' => ['view'],
@@ -1142,7 +1142,7 @@ $router->get('/ledger/transactions/input', 'TransactionController@webLedgerTrans
 $router->get('/ledger/transactions', 'TransactionController@webLedgerTransaction', [
     'key'         => 'web.ledger.transactions.index',
     'name' => '거래입력',
-    'description' => '회계관리 > 거래관리 > 거래입력',
+    'description' => '회계관리 > 전표관리 > 거래입력',
     'category' => '회계관리',
     'auth'        => true,
     'permissions' => ['view'],
@@ -1152,7 +1152,7 @@ $router->get('/ledger/transactions', 'TransactionController@webLedgerTransaction
 $router->get('/ledger/transactions/create', 'TransactionController@webLedgerCreate', [
     'key'         => 'web.ledger.transactions.create',
     'name' => '거래입력',
-    'description' => '회계관리 > 거래관리 > 거래입력',
+    'description' => '회계관리 > 전표관리 > 거래입력',
     'category' => '회계관리',
     'auth'        => true,
     'permissions' => ['view'],
@@ -1274,6 +1274,26 @@ $router->get('/ledger/data', 'LedgerController@webDataIndex', [
     'log'         => false,
 ]);
 
+$router->get('/ledger/funds/account-transactions', 'BankTransactionReportController@index', [
+    'key'         => 'web.ledger.funds.account_transactions',
+    'name' => '계좌별거래내역',
+    'description' => '회계관리 > 자금관리 > 계좌별거래내역',
+    'category' => '회계관리',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
+$router->get('/ledger/funds/payment-info', 'PaymentInfoReportController@index', [
+    'key'         => 'web.ledger.funds.payment_info',
+    'name' => '결제정보',
+    'description' => '회계관리 > 자금관리 > 결제정보',
+    'category' => '회계관리',
+    'auth'        => true,
+    'permissions' => ['view'],
+    'log'         => false,
+]);
+
 $ledgerPlaceholderRoutes = [
     ['/ledger/opening-balances', 'web.ledger.opening_balances', '기초금액', '회계관리 > 기초정보관리 > 기초금액'],
     ['/ledger/book/journal', 'web.ledger.book.journal', 'route', 'route'],
@@ -1284,6 +1304,12 @@ $ledgerPlaceholderRoutes = [
     ['/ledger/book/daily', 'web.ledger.book.daily', 'route', 'route'],
     ['/ledger/book/purchase-sales', 'web.ledger.book.purchase_sales', 'route', 'route'],
     ['/ledger/book/vehicle-log', 'web.ledger.book.vehicle_log', 'route', 'route'],
+    ['/ledger/funds/deposit-ledger', 'web.ledger.funds.deposit_ledger', '예금출납장', '회계관리 > 자금관리 > 예금출납장'],
+    ['/ledger/funds/cash-ledger', 'web.ledger.funds.cash_ledger', '현금출납장', '회계관리 > 자금관리 > 현금출납장'],
+    ['/ledger/funds/daily-report', 'web.ledger.funds.daily_report', '자금일보', '회계관리 > 자금관리 > 자금일보'],
+    ['/ledger/funds/account-balances', 'web.ledger.funds.account_balances', '계좌잔액현황', '회계관리 > 자금관리 > 계좌잔액현황'],
+    ['/ledger/funds/unlinked-transactions', 'web.ledger.funds.unlinked_transactions', '미연결입출금', '회계관리 > 자금관리 > 미연결입출금'],
+    ['/ledger/funds/payment-schedule', 'web.ledger.funds.payment_schedule', '지급예정현황', '회계관리 > 자금관리 > 지급예정현황'],
     ['/ledger/financial/trial-balance', 'web.ledger.financial.trial_balance', 'route', 'route'],
     ['/ledger/financial/income-statement', 'web.ledger.financial.income_statement', 'route', 'route'],
     ['/ledger/financial/statement-position', 'web.ledger.financial.statement_position', 'route', 'route'],
@@ -1306,8 +1332,10 @@ $ledgerPlaceholderRoutes = [
 foreach ($ledgerPlaceholderRoutes as [$path, $key, $name, $description]) {
     $router->get($path, 'LedgerController@webPlaceholder', [
         'key'         => $key,
-        'name' => 'route',
-        'description' => 'route',
+        'name' => $name,
+        'description' => $description,
+        'page_title' => $name,
+        'menu_label' => $name,
         'category' => 'system',
         'auth'        => true,
         'permissions' => ['view'],
@@ -1509,7 +1537,4 @@ $router->get('/profile', 'ProfileController@webProfile', [
     'permissions' => ['view'],
     'log'         => true,
 ]);
-
-
-
 

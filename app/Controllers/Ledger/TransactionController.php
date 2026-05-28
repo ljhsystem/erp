@@ -591,19 +591,22 @@ class TransactionController
                   AND deleted_at IS NULL
             ");
             $actor = ActorHelper::user();
+            $actorId = is_array($actor) ? (string) ($actor['id'] ?? 'SYSTEM') : (string) $actor;
 
             foreach ($ids as $id) {
+                $transaction = $this->transactionModel->getById($id) ?: [];
                 foreach ($this->transactionFileModel->getByTransactionId($id) as $file) {
                     if (!empty($file['file_path'])) {
                         $filePaths[] = (string) $file['file_path'];
                     }
                 }
 
+                $this->service->resetGeneratedTransactionState($id, $actorId, $transaction);
                 $deleteItems->execute([':id' => $id]);
                 $softDeleteLinks->execute([
                     ':id' => $id,
-                    ':deleted_by' => $actor,
-                    ':updated_by' => $actor,
+                    ':deleted_by' => $actorId,
+                    ':updated_by' => $actorId,
                 ]);
                 $this->transactionModel->hardDelete($id);
             }
@@ -758,6 +761,7 @@ class TransactionController
         }
 
         $this->journalLearningService->recordVoucherDraft($transaction, $voucherId, $learningLines, $actor);
+        $this->syncEvidenceVoucherCreation($transactionId, $voucherId, $actor);
         $this->service->recalculateMatchStatus($transactionId, $actor);
         $this->pdo->commit();
 
@@ -865,6 +869,144 @@ class TransactionController
         if (($voucher['status'] ?? '') === 'posted') {
             throw new \RuntimeException('posted 상태의 전표는 연결을 변경할 수 없습니다.');
         }
+    }
+
+    private function syncEvidenceVoucherCreation(string $transactionId, string $voucherId, string $actor): void
+    {
+        if ($transactionId === '' || $voucherId === '' || !$this->tableExists('ledger_data_evidences')) {
+            return;
+        }
+
+        $evidenceIds = [];
+        if ($this->tableColumnExists('ledger_data_evidences', 'transaction_id')) {
+            $stmt = $this->pdo->prepare("
+                SELECT id
+                FROM ledger_data_evidences
+                WHERE transaction_id = :transaction_id
+                  AND deleted_at IS NULL
+            ");
+            $stmt->execute([':transaction_id' => $transactionId]);
+            $evidenceIds = array_merge($evidenceIds, array_map(
+                static fn(array $row): string => trim((string) ($row['id'] ?? '')),
+                $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []
+            ));
+        }
+
+        if ($this->tableExists('ledger_data_evidence_links')) {
+            $stmt = $this->pdo->prepare("
+                SELECT e.id
+                FROM ledger_data_evidence_links l
+                INNER JOIN ledger_data_evidences e
+                    ON e.id = l.evidence_id
+                   AND e.deleted_at IS NULL
+                WHERE l.transaction_id = :transaction_id
+                  AND l.deleted_at IS NULL
+            ");
+            $stmt->execute([':transaction_id' => $transactionId]);
+            $evidenceIds = array_merge($evidenceIds, array_map(
+                static fn(array $row): string => trim((string) ($row['id'] ?? '')),
+                $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []
+            ));
+        }
+
+        $evidenceIds = array_values(array_filter(array_unique($evidenceIds)));
+
+        foreach ($evidenceIds as $evidenceId) {
+            $this->linkVoucherToEvidence($evidenceId, $transactionId, $voucherId, $actor);
+            $this->updateEvidenceVoucherStatus($evidenceId, 'CREATED', $actor);
+        }
+    }
+
+    private function linkVoucherToEvidence(string $evidenceId, string $transactionId, string $voucherId, string $actor): void
+    {
+        if ($evidenceId === '' || $voucherId === '' || !$this->tableExists('ledger_data_evidence_links')) {
+            return;
+        }
+
+        $existing = $this->pdo->prepare("
+            SELECT id
+            FROM ledger_data_evidence_links
+            WHERE evidence_id = :evidence_id
+              AND voucher_id = :voucher_id
+              AND deleted_at IS NULL
+            LIMIT 1
+        ");
+        $existing->execute([
+            ':evidence_id' => $evidenceId,
+            ':voucher_id' => $voucherId,
+        ]);
+        if ($existing->fetchColumn()) {
+            return;
+        }
+
+        $stmt = $this->pdo->prepare("
+            INSERT INTO ledger_data_evidence_links
+                (id, sort_no, evidence_id, transaction_id, voucher_id, link_type, match_amount, is_primary, created_at, created_by, updated_at, updated_by)
+            VALUES
+                (:id, :sort_no, :evidence_id, :transaction_id, :voucher_id, 'AUTO', 0, 1, NOW(), :created_by, NOW(), :updated_by)
+        ");
+        $stmt->execute([
+            ':id' => UuidHelper::generate(),
+            ':sort_no' => SequenceHelper::next('ledger_data_evidence_links', 'sort_no'),
+            ':evidence_id' => $evidenceId,
+            ':transaction_id' => $transactionId !== '' ? $transactionId : null,
+            ':voucher_id' => $voucherId,
+            ':created_by' => $actor,
+            ':updated_by' => $actor,
+        ]);
+    }
+
+    private function updateEvidenceVoucherStatus(string $evidenceId, string $voucherStatus, string $actor): void
+    {
+        if ($evidenceId === '') {
+            return;
+        }
+
+        $stmt = $this->pdo->prepare("
+            UPDATE ledger_data_evidences
+            SET voucher_status = :voucher_status,
+                updated_at = NOW(),
+                updated_by = :updated_by
+            WHERE id = :id
+              AND deleted_at IS NULL
+        ");
+        $stmt->execute([
+            ':id' => $evidenceId,
+            ':voucher_status' => $voucherStatus,
+            ':updated_by' => $actor,
+        ]);
+    }
+
+    private function tableExists(string $table): bool
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT 1
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = :table
+            LIMIT 1
+        ");
+        $stmt->execute([':table' => $table]);
+
+        return (bool) $stmt->fetchColumn();
+    }
+
+    private function tableColumnExists(string $table, string $column): bool
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT 1
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = :table
+              AND COLUMN_NAME = :column
+            LIMIT 1
+        ");
+        $stmt->execute([
+            ':table' => $table,
+            ':column' => $column,
+        ]);
+
+        return (bool) $stmt->fetchColumn();
     }
 
     private function nextVoucherNo(string $voucherDate): string

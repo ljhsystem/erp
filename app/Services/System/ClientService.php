@@ -13,6 +13,7 @@ use App\Services\File\FileService;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\DataHelper;
+use Core\Helpers\SequenceHelper;
 use Core\Security\Crypto;
 use Core\LoggerFactory;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -488,7 +489,10 @@ class ClientService
             * INSERT
             * ========================================================= */
             $newId   = UuidHelper::generate();
-            $newSortNo = null;
+            $newSortNo = (int)($data['sort_no'] ?? 0);
+            if ($newSortNo <= 0) {
+                $newSortNo = SequenceHelper::next('system_clients', 'sort_no');
+            }
 
             $insertData = array_merge($data, [
                 'id'         => $newId,

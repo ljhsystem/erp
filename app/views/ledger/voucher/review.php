@@ -30,47 +30,35 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/voucherReview.js');
             <span id="voucherReviewCount" class="text-primary page-count"></span>
         </div>
 
+        <?php
+        $searchId = 'voucherReview';
+
+        $dateOptions = '
+            <option value="voucher_date">전표일자</option>
+            <option value="updated_at">수정일시</option>
+        ';
+
+        $searchFieldOptions = '
+            <option value="">선택</option>
+        ';
+
+        $periodGuideTitle = '전표검토 기간 조건 안내';
+        $periodGuideItems = [
+            '전표일자 또는 수정일시 기준으로 검토 대상 전표를 조회합니다.',
+            '빠른 기간 버튼 또는 직접 입력으로 조회 기간을 지정할 수 있습니다.',
+        ];
+
+        $searchGuideTitle = '전표검토 검색 조건 안내';
+        $searchGuideItems = [
+            '전표번호, 전표상태, 검토상태, 적요, 금액 조건을 조합해 조회할 수 있습니다.',
+            '검토상태는 error, pending, ready, done 값으로 검색할 수 있습니다.',
+        ];
+
+        include PROJECT_ROOT . '/app/views/components/ui-search.php';
+        ?>
+
         <div class="voucher-review-layout">
             <section class="voucher-review-list-panel">
-                <div class="voucher-review-toolbar">
-                    <form class="voucher-review-filter" id="voucherReviewFilterForm">
-                        <div class="voucher-review-filter-group voucher-review-filter-period">
-                            <span class="voucher-review-filter-label">기간</span>
-                            <input type="date" class="form-control form-control-sm" name="date_from" aria-label="시작일">
-                            <span class="voucher-review-date-separator">~</span>
-                            <input type="date" class="form-control form-control-sm" name="date_to" aria-label="종료일">
-                        </div>
-                        <div class="voucher-review-filter-group">
-                            <span class="voucher-review-filter-label">전표상태</span>
-                            <select class="form-select form-select-sm" name="status" aria-label="전표상태">
-                                <option value="">전체</option>
-                                <option value="draft">임시저장</option>
-                                <option value="confirmed">검토요청</option>
-                                <option value="reviewed">검토완료</option>
-                                <option value="posted">승인</option>
-                                <option value="closed">마감</option>
-                            </select>
-                        </div>
-                        <div class="voucher-review-filter-group">
-                            <span class="voucher-review-filter-label">검토상태</span>
-                            <select class="form-select form-select-sm" name="review_status" aria-label="검토상태">
-                                <option value="">전체</option>
-                                <option value="error">오류</option>
-                                <option value="pending">검토대기</option>
-                                <option value="ready">검토완료</option>
-                            </select>
-                        </div>
-                        <div class="voucher-review-filter-group voucher-review-filter-keyword">
-                            <span class="voucher-review-filter-label">검색어</span>
-                            <input type="search" class="form-control form-control-sm" name="keyword" placeholder="전표번호 / 거래처 / 적요" aria-label="키워드">
-                        </div>
-                        <div class="voucher-review-filter-actions">
-                            <button type="submit" class="btn btn-primary btn-sm">조회</button>
-                            <button type="button" class="btn btn-outline-secondary btn-sm" id="btnResetVoucherReview">초기화</button>
-                        </div>
-                    </form>
-                </div>
-
                 <div class="table-responsive voucher-review-table-wrap">
                     <table class="table table-bordered table-hover align-middle voucher-review-table" id="voucherReviewTable"></table>
                 </div>
@@ -116,6 +104,30 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/voucherReview.js');
         </div>
     </div>
 </main>
+
+<?php
+$modalId = 'journalTrashModal';
+$type = 'journal';
+$modalTitle = '전표 휴지통';
+$tableId = 'journal-trash-table';
+$checkAllId = 'journalTrashCheckAll';
+$tableHead = '
+    <th>전표번호</th>
+    <th>전표일자</th>
+    <th>상태</th>
+    <th>금액</th>
+    <th>전표 적요</th>
+    <th>삭제일시</th>
+    <th>삭제자</th>
+    <th width="150">관리</th>
+';
+$emptyMessage = '휴지통 전표를 선택하면 상세 정보가 표시됩니다.';
+$listUrl = '/api/ledger/voucher/trash';
+$restoreUrl = '/api/ledger/voucher/restore';
+$deleteUrl = '/api/ledger/voucher/purge';
+$deleteAllUrl = '/api/ledger/voucher/purge-all';
+include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
+?>
 
 <div class="modal fade" id="voucherRejectModal" tabindex="-1" aria-labelledby="voucherRejectModalLabel" aria-hidden="true">
     <div class="modal-dialog">

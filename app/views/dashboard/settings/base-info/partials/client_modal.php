@@ -287,15 +287,10 @@
                   <label class="form-label">거래처분류</label>
                   <select name="client_category"
                           id="modal_client_category"
-                          class="form-select form-select-sm">
-                    <option value="">선택</option>
-                    <option value="발주처">발주처(건축주)</option>
-                    <option value="제공자">제공자/외주</option>
-                    <option value="자재업체">자재업체</option>
-                    <option value="시공업체">시공업체</option>
-                    <option value="장비업체">장비업체</option>
-                    <option value="운송업체">운송업체</option>
-                    <option value="기타">기타</option>
+                          class="form-select form-select-sm"
+                          data-code-group="CLIENT_CATEGORY"
+                          data-code-searchable="true">
+                    <option value=""></option>
                   </select>
                 </div>
               </div>
@@ -305,12 +300,18 @@
                   <div class="row g-2">
                     <div class="col-md-4">
                       <label class="form-label">은행명</label>
-                      <input type="text" name="bank_name" id="modal_bank_name" class="form-control form-control-sm">
+                      <select name="bank_name"
+                              id="modal_bank_name"
+                              class="form-select form-select-sm"
+                              data-code-group="BANK"
+                              data-code-searchable="true">
+                        <option value=""></option>
+                      </select>
                     </div>
 
                     <div class="col-md-4">
                       <label class="form-label">계좌번호</label>
-                      <input type="text" name="account_number" id="modal_account_number" class="form-control form-control-sm">
+                      <input type="text" name="account_number" id="modal_account_number" data-format="account_number" class="form-control form-control-sm">
                     </div>
 
                     <div class="col-md-4">

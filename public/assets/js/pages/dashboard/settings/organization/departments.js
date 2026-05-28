@@ -4,7 +4,7 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import {
     createDataTable,
     bindTableHighlight
-} from '/public/assets/js/components/data-table.js';
+} from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 
@@ -47,6 +47,8 @@ window.AdminPicker = AdminPicker;
     let departmentModal = null;
     let todayPicker = null;
     let globalBound = false;
+    let managerOptionsPromise = null;
+    let managerOptionsCache = null;
 
     document.addEventListener('DOMContentLoaded', () => {
         if (!window.jQuery) {
@@ -74,6 +76,7 @@ window.AdminPicker = AdminPicker;
         bindTableEvents($);
         bindModalEvents($);
         bindGlobalEvents();
+        void preloadManagerOptions();
     }
 
     function initModal() {
@@ -198,7 +201,6 @@ window.AdminPicker = AdminPicker;
                 tableId: 'department',
                 defaultSearchField: 'dept_name',
                 dateOptions: DATE_OPTIONS,
-                initialCollapsed: true
             });
             bindTableHighlight('#department-table', departmentTable);
 
@@ -350,14 +352,14 @@ window.AdminPicker = AdminPicker;
             });
     }
 
-    async function openCreateModal() {
+    function openCreateModal() {
         resetDepartmentForm();
         setDepartmentModalMode('create');
-        await loadManagerOptions('');
         departmentModal?.show();
+        deferManagerOptions('');
     }
 
-    async function openEditModal(row) {
+    function openEditModal(row) {
         resetDepartmentForm();
         setDepartmentModalMode('edit');
 
@@ -366,8 +368,8 @@ window.AdminPicker = AdminPicker;
         $('#dept_edit_description').val(row.description || '');
         $('#dept_edit_is_active').prop('checked', String(row.is_active) === '1');
 
-        await loadManagerOptions(row.manager_id || '');
         departmentModal?.show();
+        deferManagerOptions(row.manager_id || '');
     }
 
     function setDepartmentModalMode(mode) {
@@ -482,24 +484,7 @@ window.AdminPicker = AdminPicker;
         selectedValue = selectedValue != null ? String(selectedValue) : '';
 
         try {
-            const res = await fetch(API.EMPLOYEE_LIST, {
-                method: 'GET',
-                credentials: 'include'
-            });
-            const json = await res.json();
-            const rows = Array.isArray(json?.data) ? json.data : [];
-            const items = [
-                { id: MANAGER_NONE_VALUE, text: '선택(없음)' }
-            ];
-
-            rows.forEach(row => {
-                if (!row.user_id) return;
-
-                items.push({
-                    id: String(row.user_id),
-                    text: String(row.employee_name || row.username || row.user_id)
-                });
-            });
+            const items = await getManagerOptions();
 
             AdminPicker.destroySelect2(select);
             AdminPicker.reloadSelect2(select, items, 'id', 'text', null);
@@ -522,6 +507,73 @@ window.AdminPicker = AdminPicker;
         } catch (err) {
             console.error('[departments.js] manager load failed:', err);
         }
+    }
+
+    function preloadManagerOptions() {
+        if (!managerOptionsPromise) {
+            managerOptionsPromise = fetchManagerOptions()
+                .then((items) => {
+                    managerOptionsCache = items;
+                    return items;
+                })
+                .catch((err) => {
+                    managerOptionsPromise = null;
+                    console.error('[departments.js] manager preload failed:', err);
+                    return null;
+                });
+        }
+
+        return managerOptionsPromise;
+    }
+
+    async function getManagerOptions() {
+        if (managerOptionsCache) return managerOptionsCache;
+
+        const items = await preloadManagerOptions();
+        if (items) return items;
+
+        return [
+            { id: MANAGER_NONE_VALUE, text: '선택(없음)' }
+        ];
+    }
+
+    async function fetchManagerOptions() {
+        const res = await fetch(API.EMPLOYEE_LIST, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        const json = await res.json();
+        const rows = Array.isArray(json?.data) ? json.data : [];
+        const items = [
+            { id: MANAGER_NONE_VALUE, text: '선택(없음)' }
+        ];
+
+        rows.forEach(row => {
+            if (!row.user_id) return;
+
+            items.push({
+                id: String(row.user_id),
+                text: String(row.employee_name || row.username || row.user_id)
+            });
+        });
+
+        return items;
+    }
+
+    function deferManagerOptions(selectedValue = '') {
+        const run = () => {
+            loadManagerOptions(selectedValue).catch((err) => {
+                console.error('[departments.js] manager prepare failed:', err);
+                notify('error', '부서장 목록 준비 중 오류가 발생했습니다.');
+            });
+        };
+
+        if (typeof window.requestAnimationFrame === 'function') {
+            window.requestAnimationFrame(() => window.setTimeout(run, 0));
+            return;
+        }
+
+        window.setTimeout(run, 0);
     }
 
     function normalizeManagerId(value) {

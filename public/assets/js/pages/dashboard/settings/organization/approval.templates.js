@@ -1,4 +1,4 @@
-import { createDataTable, setTableSelectedRow } from '/public/assets/js/components/data-table.js';
+import { createDataTable, setTableSelectedRow } from '/public/assets/js/common/table/data-table.js';
 import { bindSortableRowReorder } from '/public/assets/js/common/row-reorder.js';
 
 const API = {

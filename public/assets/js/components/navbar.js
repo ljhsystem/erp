@@ -1,4 +1,14 @@
 (function () {
+  const AppEvents = window.AppEvents || {};
+  const onDocument = AppEvents.onDocument || ((type, handler, options = false) => {
+    document.addEventListener(type, handler, options);
+    return () => document.removeEventListener(type, handler, options);
+  });
+  const onWindow = AppEvents.onWindow || ((type, handler, options = false) => {
+    window.addEventListener(type, handler, options);
+    return () => window.removeEventListener(type, handler, options);
+  });
+
   const drawer = document.getElementById('mobile-nav-drawer');
   const overlay = document.getElementById('mobile-nav-overlay');
   const openButton = document.getElementById('mobile-nav-toggle');
@@ -57,13 +67,13 @@
     link.addEventListener('click', closeDrawer);
   });
 
-  document.addEventListener('keydown', (event) => {
+  onDocument('keydown', (event) => {
     if (event.key === 'Escape' && drawer.classList.contains('is-open')) {
       closeDrawer();
     }
   });
 
-  window.addEventListener('resize', () => {
+  onWindow('resize', () => {
     if (window.innerWidth > 768 && drawer.classList.contains('is-open')) {
       closeDrawer();
     }

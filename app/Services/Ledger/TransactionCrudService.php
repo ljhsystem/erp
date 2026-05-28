@@ -87,7 +87,6 @@ class TransactionCrudService
             'project_name',
             'client_id',
             'client_name',
-            'base_amount',
             'adjustment_amount',
             'supply_amount',
             'vat_amount',
@@ -230,6 +229,7 @@ class TransactionCrudService
 
             $this->assertTransactionDeleteAllowed($transactionId);
             $this->deleteLinkedVouchersForTransaction($transactionId, $actor);
+            $this->resetGeneratedTransactionState($transactionId, (string) $actor, $transaction);
 
             $this->pdo->prepare("
                 UPDATE ledger_transaction_links
@@ -257,8 +257,6 @@ class TransactionCrudService
                 throw new \RuntimeException('거래 삭제에 실패했습니다.');
             }
 
-            $this->restoreSeedRowsForDeletedTransaction($transactionId, $actor, $transaction);
-
             $this->pdo->commit();
 
             return [
@@ -275,6 +273,11 @@ class TransactionCrudService
                 'message' => $e->getMessage(),
             ];
         }
+    }
+
+    public function resetGeneratedTransactionState(string $transactionId, string $actor, array $transaction = []): void
+    {
+        $this->restoreSeedRowsForDeletedTransaction($transactionId, $actor, $transaction);
     }
 
     private function restoreSeedRowsForDeletedTransaction(string $transactionId, string $actor, array $transaction = []): void
@@ -316,6 +319,48 @@ class TransactionCrudService
                 ':actor' => $actor,
             ]);
         }
+
+        $this->restoreProcessingItemsForDeletedTransaction($transactionId, $actor);
+    }
+
+    private function restoreProcessingItemsForDeletedTransaction(string $transactionId, string $actor): void
+    {
+        if (!$this->tableExists('ledger_processing_items')) {
+            return;
+        }
+
+        $ids = [];
+        if ($this->tableExists('ledger_transaction_lines')
+            && $this->tableColumnExists('ledger_transaction_lines', 'processing_item_id')
+        ) {
+            $stmt = $this->pdo->prepare("
+                SELECT processing_item_id
+                FROM ledger_transaction_lines
+                WHERE transaction_id = :transaction_id
+                  AND processing_item_id IS NOT NULL
+            ");
+            $stmt->execute([':transaction_id' => $transactionId]);
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+                $ids[] = (string) ($row['processing_item_id'] ?? '');
+            }
+        }
+
+        $ids = array_values(array_unique(array_filter($ids)));
+        if ($ids === []) {
+            return;
+        }
+
+        [$inSql, $params] = $this->placeholders($ids, 'processing_item_id');
+        $params[':actor'] = $actor;
+        $this->pdo->prepare("
+            UPDATE ledger_processing_items
+            SET transaction_status = 'NONE',
+                updated_at = NOW(),
+                updated_by = :actor
+            WHERE id IN ({$inSql})
+              AND deleted_at IS NULL
+              AND transaction_status NOT IN ('NONE', 'PROCESSING')
+        ")->execute($params);
     }
 
     private function assertTransactionDeleteAllowed(string $transactionId): void
@@ -691,7 +736,6 @@ class TransactionCrudService
             'project_id' => $this->nullable($data['project_id'] ?? null),
             'currency' => trim((string) ($data['currency'] ?? 'KRW')) ?: 'KRW',
             'exchange_rate' => $this->numericOrNull($data['exchange_rate'] ?? null),
-            'base_amount' => $totals['base_amount'],
             'adjustment_amount' => $totals['adjustment_amount'],
             'supply_amount' => $totals['supply_amount'],
             'vat_amount' => $totals['vat_amount'],
@@ -728,6 +772,7 @@ class TransactionCrudService
                 'id' => UuidHelper::generate(),
                 'sort_no' => $index + 1,
                 'transaction_id' => $transactionId,
+                'processing_item_id' => $item['processing_item_id'] ?? null,
                 'line_type' => $item['line_type'],
                 'item_date' => $item['item_date'],
                 'item_name' => $item['item_name'],
@@ -735,6 +780,8 @@ class TransactionCrudService
                 'unit_name' => $item['unit_name'],
                 'quantity' => $item['quantity'],
                 'unit_price' => $item['unit_price'],
+                'currency_code' => $item['currency_code'],
+                'exchange_rate' => $item['exchange_rate'],
                 'foreign_unit_price' => $item['foreign_unit_price'],
                 'foreign_amount' => $item['foreign_amount'],
                 'amount' => $item['amount'],
@@ -770,17 +817,15 @@ class TransactionCrudService
 
     private function calculateTotals(array $items): array
     {
-        $baseAmount = 0.0;
         $adjustmentAmount = 0.0;
         $supplyAmount = 0.0;
         $vatAmount = 0.0;
         $totalAmount = 0.0;
 
         foreach ($items as $item) {
-            $lineType = strtoupper(trim((string) ($item['line_type'] ?? 'ITEM'))) ?: 'ITEM';
+            $lineType = strtoupper(trim((string) ($item['line_type'] ?? 'GOODS'))) ?: 'GOODS';
             $amount = (float) ($item['amount'] ?? $item['total_amount'] ?? 0);
-            if ($lineType === 'ITEM') {
-                $baseAmount += $amount;
+            if ($this->isBaseLineType($lineType)) {
                 $supplyAmount += $amount;
             } else {
                 $adjustmentAmount += $amount;
@@ -792,12 +837,22 @@ class TransactionCrudService
         }
 
         return [
-            'base_amount' => round($baseAmount, 2),
             'adjustment_amount' => round($adjustmentAmount, 2),
             'supply_amount' => round($supplyAmount, 2),
             'vat_amount' => round($vatAmount, 2),
-            'total_amount' => round($totalAmount ?: ($baseAmount + $adjustmentAmount), 2),
+            'total_amount' => round($totalAmount ?: ($supplyAmount + $adjustmentAmount), 2),
         ];
+    }
+
+    private function isBaseLineType(string $lineType): bool
+    {
+        return in_array(strtoupper($lineType), ['GOODS', 'ITEM', 'SERVICE'], true);
+    }
+
+    private function normalizeCurrencyCode(mixed $value): string
+    {
+        $currency = strtoupper(trim((string) ($value ?? 'KRW')));
+        return preg_match('/^[A-Z]{3}$/', $currency) ? $currency : 'KRW';
     }
 
     private function resolveTransactionTotals(array $data, array $lineTotals): array
@@ -806,7 +861,7 @@ class TransactionCrudService
             return $lineTotals;
         }
 
-        $baseAmount = (float) ($this->numericOrNull($data['base_amount'] ?? null) ?? $this->numericOrNull($data['supply_amount'] ?? null) ?? 0);
+        $baseAmount = (float) ($this->numericOrNull($data['supply_amount'] ?? null) ?? 0);
         $adjustmentAmount = (float) ($this->numericOrNull($data['adjustment_amount'] ?? null) ?? $this->numericOrNull($data['vat_amount'] ?? null) ?? 0);
         $supplyAmount = (float) ($this->numericOrNull($data['supply_amount'] ?? null) ?? 0);
         $vatAmount = (float) ($this->numericOrNull($data['vat_amount'] ?? null) ?? 0);
@@ -819,7 +874,6 @@ class TransactionCrudService
         }
 
         return [
-            'base_amount' => round($baseAmount, 2),
             'adjustment_amount' => round($adjustmentAmount, 2),
             'supply_amount' => round($supplyAmount, 2),
             'vat_amount' => round($vatAmount, 2),
@@ -969,8 +1023,9 @@ class TransactionCrudService
                 continue;
             }
 
-            $quantity = (float) ($this->numericOrNull($item['quantity'] ?? 0) ?? 0);
-            $exchangeRate = (float) ($this->numericOrNull($data['exchange_rate'] ?? 0) ?? 0);
+            $quantity = (float) ($this->numericOrNull($item['quantity'] ?? $item['item_qty'] ?? 0) ?? 0);
+            $currencyCode = $this->normalizeCurrencyCode($item['currency_code'] ?? $item['currency'] ?? 'KRW');
+            $exchangeRate = (float) ($this->numericOrNull($item['exchange_rate'] ?? null) ?? 0);
             $foreignUnitPrice = $this->numericOrNull($item['foreign_unit_price'] ?? null);
             $foreignAmount = $this->numericOrNull($item['foreign_amount'] ?? null);
             $usesForeignAmount = $exchangeRate > 0 && ($foreignUnitPrice !== null || $foreignAmount !== null);
@@ -1016,9 +1071,29 @@ class TransactionCrudService
             $lineType = $this->normalizeLineType($item['line_type'] ?? $item['amount_type'] ?? '');
             $givenAmount = $this->numericOrNull($item['amount'] ?? null);
             if ($lineType === '') {
-                $lineType = 'ITEM';
+                $lineType = 'GOODS';
             }
-            $lineAmount = round((float) ($givenAmount ?? ($lineType === 'ITEM' ? $supplyAmount : $totalAmount)), 2);
+            $lineAmount = round((float) ($givenAmount ?? (
+                $lineType === 'VAT'
+                    ? ($givenVatAmount ?? $givenTotalAmount ?? $vatAmount)
+                    : ($this->isBaseLineType($lineType) ? $supplyAmount : ($givenTotalAmount ?? $supplyAmount))
+            )), 2);
+
+            if (!$this->isBaseLineType($lineType)) {
+                if ($quantity <= 0) {
+                    $quantity = 1.0;
+                }
+                if ($unitPrice <= 0 && $quantity > 0) {
+                    $unitPrice = round($lineAmount / $quantity, 2);
+                }
+                $supplyAmount = 0.0;
+                $vatAmount = $lineType === 'VAT' ? $lineAmount : 0.0;
+                $totalAmount = $lineAmount;
+            } else {
+                $supplyAmount = $lineAmount;
+                $vatAmount = 0.0;
+                $totalAmount = $lineAmount;
+            }
 
             $rows[] = [
                 'line_type' => $lineType,
@@ -1028,14 +1103,17 @@ class TransactionCrudService
                 'unit_name' => $this->nullable($item['unit_name'] ?? null),
                 'quantity' => $quantity,
                 'unit_price' => $unitPrice,
+                'currency_code' => $currencyCode,
+                'exchange_rate' => $exchangeRate > 0 ? $exchangeRate : null,
                 'foreign_unit_price' => $usesForeignAmount ? (float) ($foreignUnitPrice ?? 0) : null,
                 'foreign_amount' => $usesForeignAmount ? (float) ($foreignAmount ?? 0) : null,
                 'amount' => $lineAmount,
                 'supply_amount' => $supplyAmount,
-                'vat_amount' => $lineType === 'VAT' ? $lineAmount : ($givenAmount === null ? 0.0 : $vatAmount),
+                'vat_amount' => $vatAmount,
                 'total_amount' => $lineAmount,
                 'tax_type' => $taxType,
                 'description' => $this->nullable($item['description'] ?? null),
+                'processing_item_id' => $this->nullable($item['processing_item_id'] ?? null),
             ];
 
             if (!isset($item['line_type'], $item['amount_type'], $item['amount']) && abs($vatAmount) > 0) {
@@ -1047,6 +1125,8 @@ class TransactionCrudService
                     'unit_name' => null,
                     'quantity' => 1,
                     'unit_price' => $vatAmount,
+                    'currency_code' => 'KRW',
+                    'exchange_rate' => null,
                     'foreign_unit_price' => null,
                     'foreign_amount' => null,
                     'amount' => $vatAmount,
@@ -1064,7 +1144,23 @@ class TransactionCrudService
 
     private function normalizeLineType(mixed $value): string
     {
-        $type = strtoupper(trim((string) ($value ?? '')));
+        $raw = trim((string) ($value ?? ''));
+        $mapped = match ($raw) {
+            '품목' => 'ITEM',
+            '부가세', '부가가치세' => 'VAT',
+            '봉사료', '서비스료', '용역수수료' => 'SERVICE',
+            '원천세', '원천징수', '소득세', '지방세' => 'WITHHOLDING',
+            'WITHHOLDING_INCOME', 'WITHHOLDING_LOCAL' => 'WITHHOLDING',
+            default => $raw,
+        };
+        $type = strtoupper($mapped);
+        if ($type === 'ITEM') {
+            $type = 'GOODS';
+        }
+        if (in_array($type, ['DEBIT', 'CREDIT', 'CASH', 'SALES', 'COGS'], true)) {
+            error_log('[TransactionCrudService] forbidden transaction line_type normalized: ' . $type);
+            return '';
+        }
         return preg_match('/^[A-Z0-9_]+$/', $type) ? $type : '';
     }
 

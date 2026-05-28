@@ -44,28 +44,28 @@ class DocumentController
     public function webFileRegister(): void
     {
         $this->renderPage('/app/views/sukhyang/file_register.php', [
-            'pageTitle' => '?대?臾몄꽌',
+            'pageTitle' => '문서등록',
         ]);
     }
 
     public function webView(): void
     {
         $this->renderPage('/app/views/sukhyang/view.php', [
-            'pageTitle' => '?대?臾몄꽌',
+            'pageTitle' => '문서조회',
         ]);
     }
 
     public function webEdit(): void
     {
         $this->renderPage('/app/views/sukhyang/edit.php', [
-            'pageTitle' => '?대?臾몄꽌',
+            'pageTitle' => '문서수정',
         ]);
     }
 
     public function webStats(): void
     {
         $this->renderPage('/app/views/sukhyang/stats.php', [
-            'pageTitle' => '?대?臾몄꽌',
+            'pageTitle' => '문서통계',
         ]);
     }
 }

@@ -1,18 +1,21 @@
-import { formatNumber, onlyNumber } from '/public/assets/js/common/format.js';
+import * as NumberFormat from '/public/assets/js/common/format.js';
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import {
     bindTableHighlight,
     createDataTable,
-} from '/public/assets/js/components/data-table.js';
+} from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { createJournalBasicInfoBridge } from '/public/assets/js/pages/ledger/journal.basic-info.js';
 import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+import { resolveDisplayText } from '/public/assets/js/pages/ledger/shared/utils.js';
 import '/public/assets/js/components/trash-manager.js';
 
 window.AdminPicker = AdminPicker;
 
 (() => {
+    const onlyNumber = NumberFormat.onlyNumber || ((value) => String(value ?? '').replace(/\D/g, ''));
+    const { formatNumber } = NumberFormat;
     const journalTableEl = document.getElementById('journal-table');
     const tableBody = document.getElementById('journal-table-body') || journalTableEl?.querySelector('tbody');
     const form = document.getElementById('journal-edit-form');
@@ -61,7 +64,7 @@ window.AdminPicker = AdminPicker;
     const searchEvidenceBtn = document.getElementById('btnSearchEvidence');
     const transactionNoticeEl = document.getElementById('journalTransactionNotice');
 
-    if (!tableBody || !journalTableEl || !form || !modalEl || !lineBody || !voucherDateEl) {
+    if (!form || !modalEl || !lineBody || !voucherDateEl) {
         return;
     }
 
@@ -86,6 +89,7 @@ window.AdminPicker = AdminPicker;
         list: '/api/ledger/voucher/list',
         detail: '/api/ledger/voucher/detail',
         save: '/api/ledger/voucher/save',
+        changeNumber: '/api/ledger/voucher/number',
         linkTransaction: '/api/ledger/voucher/link-transaction',
         linkEvidence: '/api/ledger/voucher/link-evidence',
         unlinkEvidence: '/api/ledger/voucher/unlink-evidence',
@@ -159,7 +163,8 @@ window.AdminPicker = AdminPicker;
         { value: 'updated_at', label: '수정일시' },
     ];
 
-    const QUICK_CREATE_ACCOUNT_VALUE = '__quick_create_account__';
+    const VOUCHER_NUMBER_PATTERN = /^\d{8}-\d{4}$/;
+    const VOUCHER_NUMBER_LOCKED_STATUSES = new Set(['posted', 'closed']);
     const modal = window.bootstrap ? new bootstrap.Modal(modalEl, { focus: false }) : null;
     const transactionModal = window.bootstrap && transactionModalEl
         ? new bootstrap.Modal(transactionModalEl, { focus: false })
@@ -182,6 +187,8 @@ window.AdminPicker = AdminPicker;
     let summaryAutocompleteActiveIndex = -1;
     let summaryAutocompleteAbort = null;
     let importTypeRows = [];
+    let transactionSearchTimer = null;
+    let evidenceSearchTimer = null;
 
     function escapeHtml(value) {
         return String(value ?? '')
@@ -199,6 +206,20 @@ window.AdminPicker = AdminPicker;
         }
 
         console[type === 'error' ? 'error' : 'log'](message);
+    }
+
+    function queueTransactionSearch() {
+        window.clearTimeout(transactionSearchTimer);
+        transactionSearchTimer = window.setTimeout(() => {
+            void loadTransactionSearch();
+        }, 250);
+    }
+
+    function queueEvidenceSearch() {
+        window.clearTimeout(evidenceSearchTimer);
+        evidenceSearchTimer = window.setTimeout(() => {
+            void loadEvidenceSearch();
+        }, 250);
     }
 
     function formatActorName(value) {
@@ -571,6 +592,22 @@ window.AdminPicker = AdminPicker;
         return TYPE_LABELS[key] || value || '-';
     }
 
+    function refTypeAliases(value) {
+        const key = String(value || '').toUpperCase();
+        return {
+            CLIENT: ['CLIENT', 'CUSTOMER', 'VENDOR', 'COUNTERPARTY'],
+            CUSTOMER: ['CLIENT', 'CUSTOMER', 'VENDOR', 'COUNTERPARTY'],
+            VENDOR: ['CLIENT', 'CUSTOMER', 'VENDOR', 'COUNTERPARTY'],
+            COUNTERPARTY: ['CLIENT', 'CUSTOMER', 'VENDOR', 'COUNTERPARTY'],
+            ACCOUNT: ['ACCOUNT', 'BANK', 'BANK_ACCOUNT'],
+            BANK: ['ACCOUNT', 'BANK', 'BANK_ACCOUNT'],
+            BANK_ACCOUNT: ['ACCOUNT', 'BANK', 'BANK_ACCOUNT'],
+            CARD: ['CARD'],
+            PROJECT: ['PROJECT'],
+            EMPLOYEE: ['EMPLOYEE'],
+        }[key] || [key];
+    }
+
     function translateSourceType(value) {
         const key = String(value || '').toUpperCase();
         return SOURCE_TYPE_LABELS[key] || value || '-';
@@ -719,6 +756,51 @@ window.AdminPicker = AdminPicker;
         return translateSourceType(row.source_type);
     }
 
+    function splitCsvValues(value = '') {
+        return String(value || '')
+            .split(',')
+            .map((item) => item.trim())
+            .filter(Boolean);
+    }
+
+    function sourceTypeBadgeLabel(sourceType = '', formatName = '', { preferFormat = true } = {}) {
+        const formatLabel = String(formatName || '').trim();
+        if (preferFormat && formatLabel !== '') {
+            return formatLabel;
+        }
+
+        const type = String(sourceType || '').trim().toUpperCase();
+        const label = importTypeLabel(type);
+        const source = importSourceLabel(type);
+        if (type === 'BANK_TRANSACTION') {
+            return label;
+        }
+        if (source && source !== '-' && source !== label) {
+            return `${label}(${source})`;
+        }
+
+        return label || '-';
+    }
+
+    function evidenceLinkLabels(row = {}) {
+        const formatNames = splitCsvValues(row.evidence_format_names);
+        const sourceTypes = splitCsvValues(row.evidence_source_types);
+        const max = Math.max(formatNames.length, sourceTypes.length);
+        const labels = [];
+
+        for (let index = 0; index < max; index += 1) {
+            labels.push(sourceTypeBadgeLabel(sourceTypes[index] || row.import_type || '', formatNames[index] || '', {
+                preferFormat: false,
+            }));
+        }
+
+        if (labels.length === 0 && row.import_type) {
+            labels.push(sourceTypeBadgeLabel(row.import_type, '', { preferFormat: false }));
+        }
+
+        return Array.from(new Set(labels.filter((label) => label && label !== '-')));
+    }
+
     function translateLinkedStatus(value) {
         return LINKED_STATUS_LABELS[value] || value || '미연결';
     }
@@ -746,8 +828,77 @@ window.AdminPicker = AdminPicker;
             return '<span class="journal-link-badge journal-link-unlinked">미연결</span>';
         }
 
-        const label = row.import_type ? `연결 ${importTypeLabel(row.import_type)}` : '연결';
+        const labels = evidenceLinkLabels(row);
+        const label = labels.length > 0 ? `연결(${labels.join(',')})` : '연결';
         return `<span class="journal-link-badge journal-link-linked">${escapeHtml(label)}</span>`;
+    }
+
+    function normalizeEvidenceLinkBadgeLabel(label = '', sourceType = '') {
+        const type = String(sourceType || '').trim().toUpperCase();
+        const text = `${type} ${String(label || '').trim()}`.toUpperCase();
+
+        if (type === 'BANK_TRANSACTION' || text.includes('BANK') || text.includes('\uC785\uCD9C\uAE08')) {
+            return '\uC785\uCD9C\uAE08';
+        }
+        if (type.includes('TAX_INVOICE') || text.includes('TAX_INVOICE') || text.includes('\uC138\uAE08\uACC4\uC0B0\uC11C')) {
+            return '\uC138\uAE08\uACC4\uC0B0\uC11C';
+        }
+        if (type.includes('CASH_RECEIPT') || text.includes('CASH_RECEIPT') || text.includes('\uD604\uAE08\uC601\uC218\uC99D')) {
+            return '\uD604\uAE08\uC601\uC218\uC99D';
+        }
+        if (type.includes('CARD') || text.includes('CARD') || text.includes('\uCE74\uB4DC')) {
+            return '\uCE74\uB4DC\uB9E4\uC785';
+        }
+
+        return String(label || '').trim() || '\uC99D\uBE59';
+    }
+
+    function evidenceLinkBadgeItems(row = {}) {
+        const formatNames = splitCsvValues(row.evidence_format_names);
+        const sourceTypes = splitCsvValues(row.evidence_source_types);
+        const max = Math.max(formatNames.length, sourceTypes.length, 1);
+        const labels = [];
+
+        for (let index = 0; index < max; index += 1) {
+            const sourceType = sourceTypes[index] || row.import_type || '';
+            const rawLabel = sourceTypeBadgeLabel(sourceType, formatNames[index] || '', {
+                preferFormat: false,
+            });
+            labels.push(normalizeEvidenceLinkBadgeLabel(rawLabel, sourceType));
+        }
+
+        return Array.from(new Set(labels.filter((label) => label && label !== '-')));
+    }
+
+    function renderJournalLinkedStatus(row = {}) {
+        const hasTransaction = String(row.transaction_id || '').trim() !== ''
+            || String(row.linked_status || '').toLowerCase() === 'linked';
+        const matchStatus = String(row.match_status || '').toLowerCase();
+
+        if (!hasTransaction) {
+            return '<span class="journal-link-badge journal-link-unlinked">\uBBF8\uC5F0\uACB0</span>';
+        }
+
+        if (matchStatus === 'matched') {
+            return '<span class="journal-link-badge journal-link-matched">\uB300\uC0AC\uC644\uB8CC</span>';
+        }
+
+        return '<span class="journal-link-badge journal-link-linked">\uC5F0\uACB0</span>';
+    }
+
+    function renderEvidenceLinkedStatus(row = {}) {
+        const linked = String(row.evidence_link_status || '').toLowerCase() === 'linked'
+            || String(row.evidence_id || '').trim() !== '';
+        if (!linked) {
+            return '<span class="journal-link-badge journal-link-unlinked">\uBBF8\uC5F0\uACB0</span>';
+        }
+
+        const labels = evidenceLinkBadgeItems(row);
+        if (labels.length === 0) {
+            return '<span class="journal-link-badge journal-link-linked">\uC5F0\uACB0</span>';
+        }
+
+        return `<span class="journal-evidence-link-badges">${labels.map((label) => `<span class="journal-link-badge journal-link-linked">${escapeHtml(label)}</span>`).join('')}</span>`;
     }
 
     function renderJournalStatusState(value) {
@@ -755,7 +906,7 @@ window.AdminPicker = AdminPicker;
         const map = {
             EMPTY: ['분개없음', 'journal-status-empty'],
             UNBALANCED: ['차대불일치', 'journal-status-unbalanced'],
-            READY: ['분개완료', 'journal-status-ready'],
+            READY: ['완료', 'journal-status-ready'],
             POSTED: ['승인완료', 'journal-status-posted'],
         };
         const [label, className] = map[key] || [value || '-', 'journal-status-empty'];
@@ -791,7 +942,7 @@ window.AdminPicker = AdminPicker;
             return fallbackId ? `원본 거래: ${fallbackId}` : '';
         }
 
-        const sortNo = row.sort_no ? `#${row.sort_no}` : (row.id || fallbackId || '');
+        const sortNo = row.sort_no ? `#${row.sort_no}` : (fallbackId || '-');
         const date = row.transaction_date || '-';
         const description = row.description || row.client_name || '';
 
@@ -803,7 +954,7 @@ window.AdminPicker = AdminPicker;
             return '연결거래: 없음';
         }
 
-        const sortNo = row.sort_no ? `TX-${row.sort_no}` : (row.transaction_no || row.id || '');
+        const sortNo = row.sort_no ? `TX-${row.sort_no}` : (row.transaction_no || '');
         const date = row.transaction_date || '';
         const description = row.description || row.client_name || '';
 
@@ -852,18 +1003,50 @@ window.AdminPicker = AdminPicker;
             || null;
     }
 
-    function buildEvidenceSummary(voucher = {}) {
+    function evidencesFromVoucher(voucher = {}) {
+        const rows = Array.isArray(voucher.linked_evidences) ? voucher.linked_evidences : [];
+        if (rows.length > 0) {
+            return rows;
+        }
+
         const evidence = evidenceFromVoucher(voucher);
-        if (!evidence) {
+        return evidence ? [evidence] : [];
+    }
+
+    function buildEvidenceSummary(voucher = {}) {
+        const evidences = evidencesFromVoucher(voucher);
+        if (evidences.length === 0) {
             return '연결증빙: 없음';
         }
 
-        const importType = String(evidence.source_type || voucher.import_type || '').trim();
-        const sourceLabel = importType ? importTypeLabel(importType) : '증빙';
-        const sourceKey = evidence.source_key || evidence.id || voucher.evidence_id || '';
-        const date = evidence.evidence_date || evidence.processed_at || evidence.created_at || '';
+        const formatAmount = (value) => {
+            const amount = Number(String(value ?? '').replace(/,/g, ''));
+            return Number.isFinite(amount) && amount !== 0 ? `${formatNumber(amount)}원` : '';
+        };
+        const labels = Array.from(new Set(evidences.map((evidence) => sourceTypeBadgeLabel(
+            evidence.source_type || voucher.import_type || '',
+            evidence.format_name || '',
+            { preferFormat: false }
+        )).filter((label) => label && label !== '-')));
+        const sourceKeys = evidences
+            .map((evidence) => evidence.display_key || evidence.source_key || '')
+            .filter(Boolean)
+            .slice(0, 3);
+        const date = evidences[0]?.evidence_date || evidences[0]?.processed_at || evidences[0]?.created_at || '';
+        const client = evidences[0]?.client_name || evidences[0]?.counterparty_name || '';
+        const summary = evidences[0]?.display_summary || evidences[0]?.description || '';
+        const amount = formatAmount(evidences[0]?.display_amount ?? evidences[0]?.total_amount ?? '');
+        const bundleLabel = labels.length > 1 ? '묶음증빙:' : '연결증빙:';
 
-        return ['연결증빙:', sourceLabel, sourceKey ? `#${sourceKey}` : '', date].filter(Boolean).join(' ');
+        return [
+            bundleLabel,
+            labels.length > 0 ? labels.join(', ') : '증빙',
+            sourceKeys.length > 0 ? `#${sourceKeys.join(', #')}` : '',
+            date,
+            client,
+            amount,
+            summary,
+        ].filter(Boolean).join(' ');
     }
 
     function setLinkedEvidence(voucher = {}) {
@@ -882,10 +1065,11 @@ window.AdminPicker = AdminPicker;
         }
 
         if (linkedEvidenceOriginEl) {
-            const importType = String(evidence?.source_type || voucher.import_type || '').trim();
-            const originText = importType
-                ? `${importSourceLabel(importType)} / ${importTypeLabel(importType)}`
-                : '';
+            const evidences = evidencesFromVoucher(voucher);
+            const originText = Array.from(new Set(evidences.map((item) => sourceTypeBadgeLabel(
+                item.source_type || voucher.import_type || '',
+                item.format_name || ''
+            )).filter(Boolean))).join(', ');
             linkedEvidenceOriginEl.textContent = originText;
             linkedEvidenceOriginEl.classList.toggle('d-none', originText === '');
         }
@@ -935,17 +1119,34 @@ window.AdminPicker = AdminPicker;
         modalDeleteBtn?.classList.toggle('d-none', mode !== 'edit');
     }
 
+    function voucherEditLockMessage(status = voucherStatusEl?.value || 'draft') {
+        const normalizedStatus = String(status || 'draft').toLowerCase();
+        if (normalizedStatus === 'confirmed') {
+            return '\uAC80\uD1A0\uC694\uCCAD\uB41C \uC804\uD45C\uB294 \uC218\uC815\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4. \uAC80\uD1A0\uC694\uCCAD \uCDE8\uC18C \uD6C4\uC5D0\uB9CC \uC218\uC815\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.';
+        }
+        if (normalizedStatus === 'reviewed') {
+            return '\uAC80\uD1A0\uC644\uB8CC\uB41C \uC804\uD45C\uB294 \uC218\uC815\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.';
+        }
+        if (normalizedStatus === 'posted') {
+            return '\uC2B9\uC778\uB41C \uC804\uD45C\uB294 \uC218\uC815\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.';
+        }
+        if (normalizedStatus === 'closed') {
+            return '\uB9C8\uAC10\uB41C \uC804\uD45C\uB294 \uC218\uC815\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.';
+        }
+        if (normalizedStatus === 'deleted') {
+            return '\uC0AD\uC81C\uB41C \uC804\uD45C\uB294 \uC218\uC815\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.';
+        }
+        return '';
+    }
+
     function setModalEditability(status = 'draft') {
         const normalizedStatus = String(status || 'draft').toLowerCase();
         const isDraft = normalizedStatus === 'draft';
         const isConfirmed = normalizedStatus === 'confirmed';
-        const isPosted = normalizedStatus === 'posted';
-        const isClosed = normalizedStatus === 'closed';
-        const isLocked = ['posted', 'closed', 'deleted'].includes(normalizedStatus);
         const canEditHeader = isDraft;
         const canEditLines = isDraft;
-        const canLinkTransaction = isDraft || isPosted || isClosed;
-        const canClearTransaction = isDraft || isPosted;
+        const canLinkTransaction = isDraft;
+        const canClearTransaction = isDraft;
         const canLinkEvidence = canLinkTransaction;
         const canClearEvidence = canClearTransaction;
 
@@ -970,7 +1171,8 @@ window.AdminPicker = AdminPicker;
 
         addLineBtn.disabled = !canEditLines;
         addPaymentBtn.disabled = !canEditLines;
-        modalSaveBtn.disabled = !isDraft;
+        modalSaveBtn.disabled = false;
+        modalSaveBtn.dataset.lockMessage = isDraft ? '' : voucherEditLockMessage(normalizedStatus);
         if (modalRequestReviewBtn) {
             modalRequestReviewBtn.disabled = !isDraft;
             modalRequestReviewBtn.classList.toggle('d-none', !isDraft);
@@ -1000,10 +1202,19 @@ window.AdminPicker = AdminPicker;
             setValidationBadge('ok', '검토요청 전표입니다. 분개라인 수정은 제한됩니다.');
         }
 
+        if (!isDraft) {
+            const lockMessage = voucherEditLockMessage(normalizedStatus);
+            if (lockMessage) {
+                setValidationBadge('error', lockMessage);
+            }
+        }
+
         if (transactionNoticeEl) {
-            const message = isPosted
+            const message = isDraft ? '' : voucherEditLockMessage(normalizedStatus);
+            /*
                 ? '거래 연결은 가능하지만 회계에는 영향이 없습니다.'
                 : (isClosed ? '마감 상태입니다. 거래 연결은 가능하지만 연결해제는 할 수 없습니다.' : '');
+            */
             transactionNoticeEl.textContent = message;
             transactionNoticeEl.classList.toggle('d-none', message === '');
         }
@@ -1013,19 +1224,15 @@ window.AdminPicker = AdminPicker;
         const span = document.createElement('span');
         span.textContent = data?.text || '';
 
-        if (data?.id === QUICK_CREATE_ACCOUNT_VALUE) {
-            span.className = 'journal-quick-create-option';
-        }
-
         return span;
     }
 
     function renderPickerSelection(data) {
-        if (!data || !data.id || data.id === QUICK_CREATE_ACCOUNT_VALUE) {
+        if (!data || !data.id) {
             return '계정과목 선택';
         }
 
-        return data.text || data.id;
+        return data.text || '-';
     }
 
     function setSelect2Option(selectEl, value, text) {
@@ -1042,7 +1249,7 @@ window.AdminPicker = AdminPicker;
         }
 
         $select.find(`option[value="${normalizedValue}"]`).remove();
-        $select.append(new Option(text || normalizedValue, normalizedValue, true, true));
+        $select.append(new Option(text || '-', normalizedValue, true, true));
         $select.val(normalizedValue).trigger('change');
     }
 
@@ -1089,7 +1296,6 @@ window.AdminPicker = AdminPicker;
         return [
             { id: '', text: '계정과목 선택' },
             ...mappedRows,
-            { id: QUICK_CREATE_ACCOUNT_VALUE, text: '+ 빠른 등록' },
         ];
     }
 
@@ -1129,11 +1335,21 @@ window.AdminPicker = AdminPicker;
     }
 
     function getAccountLabelFromLine(line = {}) {
-        return line.account_text
-            || line.account_label
+        return (
+            resolveDisplayText({
+                display_name: line.account_text || line.account_label || '',
+                account_name: line.account_name || '',
+                bank_account_name: line.bank_account_name || '',
+                card_name: line.card_name || '',
+                project_name: line.project_name || '',
+                client_name: line.client_name || '',
+                name: line.name || '',
+                text: line.account_code || '',
+                code_name: line.code_name || '',
+            })
             || [line.account_code, line.account_name].filter(Boolean).join(' - ')
-            || line.account_id
-            || '';
+            || '-'
+        );
     }
 
     const REF_PICKER_CONFIG = {
@@ -1141,77 +1357,83 @@ window.AdminPicker = AdminPicker;
             url: API.clientList,
             placeholder: '거래처 선택',
             label(row) {
-                return row.client_name || row.business_name || row.name || row.company_name || row.id || '';
+                return resolveDisplayText(row)
+                    || row.client_name || row.business_name || row.name || row.company_name || '-';
             },
         },
         PROJECT: {
             url: API.projectList,
             placeholder: '프로젝트 선택',
             label(row) {
-                return row.project_name || row.name || row.project_code || row.id || '';
+                return resolveDisplayText(row)
+                    || row.project_name || row.name || row.project_code || '-';
             },
         },
         EMPLOYEE: {
             url: API.employeeList,
             placeholder: '직원 선택',
             label(row) {
-                return row.employee_name || row.name || row.user_name || row.id || '';
+                return resolveDisplayText(row)
+                    || row.employee_name || row.name || row.user_name || '-';
             },
         },
         ACCOUNT: {
             url: API.bankAccountList,
             placeholder: '계좌 선택',
             label(row) {
-                return row.account_name || row.bank_name || row.account_no || row.account_number || row.id || '';
+                return resolveDisplayText(row)
+                    || row.account_name || row.bank_name || row.account_no || row.account_number || '-';
             },
         },
         BANK_ACCOUNT: {
             url: API.bankAccountList,
             placeholder: '계좌 선택',
             label(row) {
-                return row.account_name || row.bank_name || row.account_no || row.account_number || row.id || '';
+                return resolveDisplayText(row)
+                    || row.account_name || row.bank_name || row.account_no || row.account_number || '-';
             },
         },
         CARD: {
             url: API.cardList,
             placeholder: '카드 선택',
             label(row) {
-                return row.card_name || row.card_no || row.card_number || row.client_name || row.id || '';
+                return resolveDisplayText(row)
+                    || row.card_name || row.card_no || row.card_number || row.client_name || '-';
             },
         },
         TRANSACTION: {
             url: API.transactionSearch,
             placeholder: '거래 선택',
             label(row) {
-                return row.item_summary || row.description || row.transaction_date || row.id || '';
+                return row.item_summary || row.description || row.transaction_date || '-';
             },
         },
         ORDER: {
             url: API.transactionSearch,
             placeholder: '주문 선택',
             label(row) {
-                return row.order_ref || row.document_no || row.item_summary || row.summary_text || row.id || '';
+                return row.order_ref || row.document_no || row.item_summary || row.summary_text || '-';
             },
         },
         VOUCHER: {
             url: API.list,
             placeholder: '전표 선택',
             label(row) {
-                return row.voucher_no || row.summary_text || row.id || '';
+                return row.voucher_no || row.summary_text || '-';
             },
         },
         CONTRACT: {
             url: API.transactionSearch,
             placeholder: '계약 선택',
             label(row) {
-                return row.document_no || row.item_summary || row.description || row.id || '';
+                return row.document_no || row.item_summary || row.description || '-';
             },
         },
         PAYMENT: {
             url: API.list,
             placeholder: '결제 선택',
             label(row) {
-                return row.voucher_no || row.summary_text || row.id || '';
+                return row.voucher_no || row.summary_text || '-';
             },
         },
     };
@@ -1262,22 +1484,7 @@ window.AdminPicker = AdminPicker;
         });
 
         const items = await ensurePickerOptions(type);
-        const selectItems = options.includeNone
-            ? [
-                { id: '__none__', text: '선택(없음)' },
-                ...items.filter((item) => String(item.id ?? '') !== ''),
-            ]
-            : items;
-
-        AdminPicker.reloadSelect2(selectEl, selectItems, 'id', 'text', selectedValue || '');
-
-        window.jQuery(selectEl)
-            .off('select2:select.journalRefNone')
-            .on('select2:select.journalRefNone', function (event) {
-                if (event.params?.data?.id === '__none__') {
-                    window.jQuery(this).val('').trigger('change');
-                }
-            });
+        AdminPicker.reloadSelect2(selectEl, items, 'id', 'text', selectedValue || '');
     }
 
     async function loadAccountPolicies(accountId) {
@@ -1336,56 +1543,15 @@ window.AdminPicker = AdminPicker;
             AdminPicker.reloadSelect2(selectEl, items, 'id', 'text', currentValue || '');
 
             if (selectEl === sourceEl && selectedValue) {
-                setSelect2Option(selectEl, selectedValue, selectedText || selectedValue);
+                setSelect2Option(selectEl, selectedValue, selectedText);
             }
         });
-    }
-
-    function bindAccountQuickCreate(selectEl) {
-        if (!selectEl || !window.jQuery || selectEl.dataset.quickCreateBound === 'true') {
-            return;
-        }
-
-        const $select = window.jQuery(selectEl);
-        $select.on('select2:select', async (event) => {
-            const selectedId = String(event?.params?.data?.id || '').trim();
-            if (selectedId !== QUICK_CREATE_ACCOUNT_VALUE) {
-                return;
-            }
-
-            event.preventDefault();
-            window.setTimeout(() => {
-                clearSelect2Value(selectEl);
-
-                basicInfoBridge.openQuickCreate('account', {
-                    sourceEl: selectEl,
-                    async onSaved(payload) {
-                        await reloadAllAccountPickers({
-                            selectedValue: payload.value,
-                            selectedText: payload.text,
-                            sourceEl: selectEl,
-                        });
-                    },
-                    async onDeleted(payload) {
-                        await reloadAllAccountPickers();
-
-                        if (payload.value && String(selectEl.value || '').trim() === payload.value) {
-                            clearSelect2Value(selectEl);
-                        }
-                    },
-                });
-            }, 0);
-        });
-
-        selectEl.dataset.quickCreateBound = 'true';
     }
 
     async function initLineAccountPicker(selectEl, selectedValue = '') {
         if (!selectEl || !window.jQuery) {
             return;
         }
-
-        bindAccountQuickCreate(selectEl);
 
         AdminPicker.select2(selectEl, {
             placeholder: '계정과목 선택',
@@ -1419,9 +1585,119 @@ window.AdminPicker = AdminPicker;
             .forEach((row, index) => {
                 const numberCell = row.querySelector('.line-no');
                 if (numberCell) {
-                    numberCell.textContent = String(index + 1);
+                    let displayNo = numberCell.querySelector('.journal-line-display-no');
+                    if (!displayNo) {
+                        numberCell.innerHTML = `
+                            <span class="journal-line-order-cell">
+                                <button type="button"
+                                        class="journal-line-drag-handle"
+                                        aria-label="순서 변경"
+                                        title="순서 변경">
+                                    <i class="bi bi-grip-vertical" aria-hidden="true"></i>
+                                </button>
+                                <span class="journal-line-display-no"></span>
+                            </span>
+                        `;
+                        displayNo = numberCell.querySelector('.journal-line-display-no');
+                    }
+                    displayNo.textContent = String(index + 1);
                 }
             });
+    }
+
+    function initJournalLineReorder() {
+        if (!lineBody || lineBody.dataset.reorderReady === '1') {
+            return;
+        }
+
+        lineBody.dataset.reorderReady = '1';
+        let draggingRow = null;
+
+        const getLineRow = (target) => target?.closest?.('tr:not(.voucher-line-empty)') || null;
+        const getAfterElement = (container, y) => {
+            const rows = Array.from(container.querySelectorAll('tr:not(.voucher-line-empty)'))
+                .filter((row) => row !== draggingRow);
+
+            return rows.reduce((closest, row) => {
+                const box = row.getBoundingClientRect();
+                const offset = y - box.top - (box.height / 2);
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset, element: row };
+                }
+                return closest;
+            }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
+        };
+
+        lineBody.addEventListener('pointerdown', (event) => {
+            const handle = event.target.closest('.journal-line-drag-handle');
+            if (!handle) {
+                return;
+            }
+
+            const row = getLineRow(handle);
+            if (row) {
+                row.draggable = true;
+                row.dataset.dragHandleActive = '1';
+            }
+        });
+
+        lineBody.addEventListener('pointerup', () => {
+            if (draggingRow) {
+                return;
+            }
+            lineBody.querySelectorAll('tr[data-drag-handle-active="1"]').forEach((row) => {
+                row.draggable = false;
+                delete row.dataset.dragHandleActive;
+            });
+        });
+
+        lineBody.addEventListener('dragstart', (event) => {
+            const row = getLineRow(event.target);
+            if (!row || row.dataset.dragHandleActive !== '1') {
+                event.preventDefault();
+                return;
+            }
+
+            draggingRow = row;
+            row.classList.add('journal-line-is-dragging');
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', '');
+        });
+
+        lineBody.addEventListener('dragover', (event) => {
+            if (!draggingRow) {
+                return;
+            }
+
+            event.preventDefault();
+            const afterElement = getAfterElement(lineBody, event.clientY);
+            if (afterElement) {
+                lineBody.insertBefore(draggingRow, afterElement);
+            } else {
+                lineBody.appendChild(draggingRow);
+            }
+        });
+
+        const finishDrag = () => {
+            if (!draggingRow) {
+                return;
+            }
+
+            draggingRow.classList.remove('journal-line-is-dragging');
+            draggingRow.draggable = false;
+            delete draggingRow.dataset.dragHandleActive;
+            draggingRow = null;
+            syncLineNumbers();
+            calculateTotals();
+        };
+
+        lineBody.addEventListener('drop', (event) => {
+            if (draggingRow) {
+                event.preventDefault();
+            }
+            finishDrag();
+        });
+        lineBody.addEventListener('dragend', finishDrag);
     }
 
     function calculateTotals() {
@@ -1499,7 +1775,7 @@ window.AdminPicker = AdminPicker;
         container.className = 'journal-line-subaccounts journal-line-subaccount-grid';
         container.innerHTML = policies.map((policy, index) => `
             <label class="journal-line-subaccount-field">
-                <span>${escapeHtml(translateType(policy.ref_type))}${policy.is_required ? ' *' : ''}</span>
+                <span>${escapeHtml(translateType(policy.ref_type))}${policy.is_required ? ' <b class="journal-line-subaccount-required">*</b>' : ''}</span>
                 <select class="form-select form-select-sm line-ref-picker"
                         data-ref-type="${escapeHtml(policy.ref_type)}"
                         data-required="${policy.is_required ? '1' : '0'}"
@@ -1512,15 +1788,25 @@ window.AdminPicker = AdminPicker;
         const selectedRefs = Array.isArray(line.refs) && line.refs.length > 0
             ? line.refs
             : [{ ref_type: line.ref_type || '', ref_id: line.ref_id || '' }];
-        const selectedMap = new Map(selectedRefs
-            .map((ref) => [
-                String(ref.ref_type || '').toUpperCase(),
-                String(ref.ref_id || '').trim(),
-            ])
-            .filter(([refType, refId]) => refType !== '' && refId !== ''));
+        const selectedMap = new Map();
+        selectedRefs.forEach((ref) => {
+            const refType = String(ref.ref_type || ref.line_ref_type || '').toUpperCase();
+            const refId = String(ref.ref_id || ref.line_ref_id || '').trim();
+            if (refType === '' || refId === '') {
+                return;
+            }
+            refTypeAliases(refType).forEach((alias) => {
+                if (alias && !selectedMap.has(alias)) {
+                    selectedMap.set(alias, refId);
+                }
+            });
+        });
         for (const selectEl of container.querySelectorAll('.line-ref-picker')) {
             const refType = selectEl.dataset.refType || '';
-            const selectedValue = selectedMap.get(refType) || '';
+            const selectedValue = refTypeAliases(refType)
+                .map((alias) => selectedMap.get(alias))
+                .find((value) => String(value || '').trim() !== '')
+                || '';
             await initRefPicker(selectEl, refType, selectedValue);
         }
         updateLineSubAccountColumnVisibility();
@@ -1531,7 +1817,17 @@ window.AdminPicker = AdminPicker;
 
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td class="text-center line-no"></td>
+            <td class="text-center line-no">
+                <span class="journal-line-order-cell">
+                    <button type="button"
+                            class="journal-line-drag-handle"
+                            aria-label="순서 변경"
+                            title="순서 변경">
+                        <i class="bi bi-grip-vertical" aria-hidden="true"></i>
+                    </button>
+                    <span class="journal-line-display-no"></span>
+                </span>
+            </td>
             <td>
                 <select class="form-select form-select-sm line-account-code-picker">
                     <option value="">계정과목 선택</option>
@@ -1561,7 +1857,7 @@ window.AdminPicker = AdminPicker;
                        placeholder="라인 적요">
             </td>
             <td class="text-center">
-                <button type="button" class="btn btn-outline-danger btn-sm btn-remove-line">삭제</button>
+                <button type="button" class="btn btn-outline-danger btn-sm btn-remove-line">-삭제</button>
             </td>
         `;
 
@@ -1590,6 +1886,7 @@ window.AdminPicker = AdminPicker;
     function resetModal() {
         form.reset();
         document.getElementById('journal_id').value = '';
+        setJournalModalLoading(false);
         if (voucherNoDisplayEl) {
             voucherNoDisplayEl.value = '자동발번';
         }
@@ -1609,6 +1906,20 @@ window.AdminPicker = AdminPicker;
         updateLineSubAccountColumnVisibility();
         setModalEditability('draft');
         calculateTotals();
+    }
+
+    function setJournalModalLoading(isLoading = false) {
+        const loading = Boolean(isLoading);
+        modalEl.classList.toggle('is-loading-detail', loading);
+        modalEl.setAttribute('aria-busy', loading ? 'true' : 'false');
+        if (!loading) {
+            return;
+        }
+        [modalSaveBtn, modalRequestReviewBtn, modalDeleteBtn].forEach((button) => {
+            if (button) {
+                button.disabled = true;
+            }
+        });
     }
 
     function ensureSourceTypeOption(sourceType) {
@@ -1662,18 +1973,6 @@ window.AdminPicker = AdminPicker;
             option.textContent = row.code_name || row.name || row.label || row.code || '';
             voucherImportTypeEl.appendChild(option);
         });
-
-        if (rows.length > 0) {
-            const separator = document.createElement('option');
-            separator.disabled = true;
-            separator.textContent = '──────────';
-            voucherImportTypeEl.appendChild(separator);
-        }
-
-        const addOption = document.createElement('option');
-        addOption.value = '__CODE_QUICK_ADD__';
-        addOption.textContent = '+ 기준추가';
-        voucherImportTypeEl.appendChild(addOption);
 
         const normalizedSelected = String(selectedValue || '').toUpperCase();
         if (normalizedSelected && rows.some((row) => String(row.code || '').toUpperCase() === normalizedSelected)) {
@@ -1833,7 +2132,7 @@ window.AdminPicker = AdminPicker;
                        placeholder="0">
             </td>
             <td class="text-center">
-                <button type="button" class="btn btn-outline-danger btn-sm btn-remove-payment">삭제</button>
+                <button type="button" class="btn btn-outline-danger btn-sm btn-remove-payment">-삭제</button>
             </td>
         `;
 
@@ -1973,12 +2272,109 @@ window.AdminPicker = AdminPicker;
         return Number.isFinite(numericSortNo) ? numericSortNo : 0;
     }
 
+    function renderDragHandle() {
+        return '<i class="bi bi-list"></i>';
+    }
+
+    function renderVoucherNumberButton(row = {}) {
+        const voucherNo = String(row.voucher_no || '').trim();
+        const id = String(row.id || '').trim();
+        const label = voucherNo || '-';
+
+        return `<button type="button" class="btn btn-link btn-sm p-0 journal-voucher-no-btn" data-journal-action="change-number" data-id="${escapeHtml(id)}" title="\uC804\uD45C\uBC88\uD638 \uBCC0\uACBD">${escapeHtml(label)}</button>`;
+    }
+
+    function renderEllipsisText(value = '') {
+        const text = String(value ?? '').trim();
+        if (!text) {
+            return '';
+        }
+
+        return `<span class="journal-ellipsis" title="${escapeHtml(text)}">${escapeHtml(text)}</span>`;
+    }
+
+    function renderSourceText(value = '') {
+        const text = String(value ?? '').trim();
+        if (!text) {
+            return '';
+        }
+
+        return `<span class="journal-source-text" title="${escapeHtml(text)}">${escapeHtml(text)}</span>`;
+    }
+
+    function sourceLabel(row = {}) {
+        const formatNames = splitCsvValues(row.evidence_format_names);
+        if (formatNames.length > 0) {
+            return formatNames.join(', ');
+        }
+
+        const importType = String(row.import_type || row.source_type || '').trim().toUpperCase();
+        const origin = String(renderImportOrigin(row) || '').trim();
+
+        if (['BANK', 'BANK_TRANSACTION', 'ACCOUNT_TRANSACTION'].includes(importType)) {
+            return '은행/입출금';
+        }
+        if (['TAX', 'TAX_INVOICE', 'HOMETAX', 'ETAX'].includes(importType)) {
+            return '홈택스/세금계산서';
+        }
+        if (['CARD', 'CORP_CARD', 'CREDIT_CARD'].includes(importType)) {
+            return '카드사/법인카드';
+        }
+        if (importType === 'MANUAL' || (!importType && (!origin || origin === '-'))) {
+            return '직접입력';
+        }
+
+        return origin || importType || '직접입력';
+    }
+
+    function renderAmountCell(value = 0, extraClass = '') {
+        const amount = Number(value || 0);
+        const classes = ['journal-money'];
+        if (extraClass) {
+            classes.push(extraClass);
+        }
+        if (amount < 0) {
+            classes.push('journal-money-negative');
+        }
+
+        return `<span class="${classes.join(' ')}">${escapeHtml(formatAmountValue(amount) || '0')}</span>`;
+    }
+
+    function renderDiffCell(row = {}) {
+        const diff = Number(row.debit_total || 0) - Number(row.credit_total || 0);
+        return renderAmountCell(diff, diff === 0 ? 'journal-diff-zero' : 'journal-diff-nonzero');
+    }
+
+    function renderManageActions(row = {}) {
+        const id = escapeHtml(row?.id ?? '');
+        return `
+            <button type="button"
+                    class="btn btn-outline-primary btn-sm seed-row-edit-btn journal-edit-row-btn"
+                    data-id="${id}"
+                    data-journal-action="edit">
+                수정
+            </button>
+        `;
+    }
+
     function buildJournalColumns() {
         return [
             {
+                data: null,
+                title: '<i class="bi bi-arrows-move"></i>',
+                className: 'reorder-handle no-sort no-colvis text-center no-export',
+                headerClassName: 'no-colvis text-center no-export',
+                orderable: false,
+                searchable: false,
+                defaultContent: '<i class="bi bi-list"></i>',
+                render() {
+                    return renderDragHandle();
+                },
+            },
+            {
                 data: 'sort_no',
                 title: '순번',
-                className: 'text-center journal-sort-no-cell reorder-handle',
+                className: 'text-center journal-sort-no-cell',
                 render(data, type, row) {
                     const sortNo = getVoucherSortNo(row);
 
@@ -1992,12 +2388,18 @@ window.AdminPicker = AdminPicker;
             {
                 data: 'voucher_no',
                 title: '전표번호',
-                render(data) {
-                    return escapeHtml(data || '');
+                className: 'journal-voucher-no-cell',
+                render(data, type, row) {
+                    if (type === 'sort' || type === 'type') {
+                        return String(data || '');
+                    }
+
+                    return renderVoucherNumberButton(row);
                 },
             },
             {
                 data: 'voucher_date',
+                className: 'journal-voucher-date-cell',
                 title: '전표일자',
                 defaultContent: '',
                 render(data) {
@@ -2006,6 +2408,7 @@ window.AdminPicker = AdminPicker;
             },
             {
                 data: 'status',
+                className: 'text-center journal-voucher-status-cell',
                 title: '전표상태',
                 defaultContent: '',
                 render(data, type, row) {
@@ -2019,7 +2422,7 @@ window.AdminPicker = AdminPicker;
             {
                 data: 'transaction_id',
                 title: '거래연결',
-                className: 'text-center',
+                className: 'text-center journal-transaction-link-cell',
                 defaultContent: '',
                 render(data, type, row) {
                     if (type === 'sort' || type === 'type') {
@@ -2032,7 +2435,7 @@ window.AdminPicker = AdminPicker;
             {
                 data: 'evidence_link_status',
                 title: '증빙연결',
-                className: 'text-center',
+                className: 'journal-evidence-link-cell',
                 defaultContent: '',
                 render(data, type, row) {
                     if (type === 'sort' || type === 'type') {
@@ -2044,16 +2447,22 @@ window.AdminPicker = AdminPicker;
             },
             {
                 data: null,
+                className: 'journal-source-cell',
                 title: '자료출처',
                 defaultContent: '',
-                render(_data, _type, row) {
-                    return escapeHtml(renderImportOrigin(row));
+                render(_data, type, row) {
+                    const label = sourceLabel(row);
+                    if (type === 'sort' || type === 'type') {
+                        return label;
+                    }
+
+                    return renderSourceText(label);
                 },
             },
             {
                 data: 'journal_status',
                 title: '분개상태',
-                className: 'text-center',
+                className: 'text-center journal-balance-status-cell',
                 defaultContent: 'EMPTY',
                 render(data, type) {
                     if (type === 'sort' || type === 'type') {
@@ -2074,10 +2483,14 @@ window.AdminPicker = AdminPicker;
             {
                 data: 'debit_total',
                 title: '금액(차변합계)',
-                className: 'text-end',
+                className: 'text-end journal-amount-cell',
                 defaultContent: 0,
-                render(data) {
-                    return escapeHtml(formatAmountValue(data || 0) || '0');
+                render(data, type) {
+                    if (type === 'sort' || type === 'type') {
+                        return Number(data || 0);
+                    }
+
+                    return renderAmountCell(data || 0);
                 },
             },
             {
@@ -2093,14 +2506,14 @@ window.AdminPicker = AdminPicker;
             {
                 data: null,
                 title: '차액',
-                className: 'text-end',
+                className: 'text-end journal-diff-cell',
                 defaultContent: 0,
                 render(_data, type, row) {
                     const diff = Number(row.debit_total || 0) - Number(row.credit_total || 0);
                     if (type === 'sort' || type === 'type') {
                         return diff;
                     }
-                    return escapeHtml(formatAmountValue(diff) || '0');
+                    return renderDiffCell(row);
                 },
             },
             {
@@ -2139,15 +2552,29 @@ window.AdminPicker = AdminPicker;
                 className: 'journal-summary-cell',
                 defaultContent: '',
                 render(data) {
-                    return escapeHtml(data || '');
+                    return renderEllipsisText(data || '');
                 },
             },
             {
                 data: 'note',
                 title: '비고',
+                className: 'journal-note-cell',
+                visible: false,
                 defaultContent: '',
-                render(data) {
-                    return escapeHtml(data || '');
+                render(data, _type, row) {
+                    return renderEllipsisText(data || displayMemo(row.memo) || '');
+                },
+            },
+            {
+                data: null,
+                title: '관리',
+                className: 'text-center journal-manage-cell no-export',
+                headerClassName: 'text-center journal-manage-cell no-export',
+                orderable: false,
+                searchable: false,
+                defaultContent: '',
+                render(_data, _type, row) {
+                    return renderManageActions(row);
                 },
             },
             {
@@ -2248,6 +2675,40 @@ window.AdminPicker = AdminPicker;
         ];
     }
 
+    function takeJournalColumn(columns, predicate) {
+        const index = columns.findIndex(predicate);
+        if (index < 0) {
+            return null;
+        }
+
+        return columns.splice(index, 1)[0];
+    }
+
+    function orderJournalColumns(columns = []) {
+        const rest = [...columns];
+        const ordered = [
+            takeJournalColumn(rest, (column) => String(column.className || '').includes('reorder-handle')),
+            takeJournalColumn(rest, (column) => column.data === 'sort_no'),
+            takeJournalColumn(rest, (column) => column.data === 'status'),
+            takeJournalColumn(rest, (column) => column.data === 'journal_status'),
+            takeJournalColumn(rest, (column) => column.data === 'voucher_no'),
+            takeJournalColumn(rest, (column) => column.data === 'voucher_date'),
+            takeJournalColumn(rest, (column) => column.data === 'summary_text'),
+            takeJournalColumn(rest, (column) => column.data === 'debit_total'),
+            takeJournalColumn(rest, (column) => column.data === null
+                && column.defaultContent === 0
+                && String(column.className || '').includes('text-end')),
+            takeJournalColumn(rest, (column) => column.data === null
+                && column.defaultContent === ''
+                && !String(column.className || '').includes('journal-manage-cell')),
+            takeJournalColumn(rest, (column) => column.data === 'evidence_link_status'),
+            takeJournalColumn(rest, (column) => column.data === 'transaction_id'),
+            takeJournalColumn(rest, (column) => String(column.className || '').includes('journal-manage-cell')),
+        ].filter(Boolean);
+
+        return [...ordered, ...rest];
+    }
+
     function updateJournalCount() {
         if (!journalTable?.page) {
             return;
@@ -2273,7 +2734,7 @@ window.AdminPicker = AdminPicker;
         $('#journal-table tbody')
             .off('click.journalSearchFill')
             .on('click.journalSearchFill', 'td', function (event) {
-                if (event.target.closest('button, .reorder-handle')) {
+                if (event.target.closest('button, .dropdown-menu, .journal-manage-menu, .reorder-handle')) {
                     return;
                 }
 
@@ -2295,9 +2756,26 @@ window.AdminPicker = AdminPicker;
             });
 
         $('#journal-table tbody')
+            .off('click.journalAction')
+            .on('click.journalAction', '[data-journal-action]', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                const button = this;
+                const action = String(button.dataset.journalAction || '').trim();
+                const row = findJournalRowData(button);
+                if (!row) {
+                    notify('error', '전표 행 정보를 확인할 수 없습니다.');
+                    return;
+                }
+
+                void handleJournalAction(action, row, button);
+            });
+
+        $('#journal-table tbody')
             .off('dblclick.journalEdit')
             .on('dblclick.journalEdit', 'tr', function (event) {
-                if (event.target.closest('button, .reorder-handle')) {
+                if (event.target.closest('button, .dropdown-menu, .journal-manage-menu, .reorder-handle')) {
                     return;
                 }
 
@@ -2313,14 +2791,14 @@ window.AdminPicker = AdminPicker;
     }
 
     function initJournalTable() {
-        if (journalTable || !window.jQuery?.fn?.DataTable) {
+        if (journalTable || !journalTableEl || !tableBody || !window.jQuery?.fn?.DataTable) {
             return Boolean(journalTable);
         }
 
         journalTable = createDataTable({
             tableSelector: '#journal-table',
             api: API.list,
-            columns: buildJournalColumns(),
+            columns: orderJournalColumns(buildJournalColumns()),
             buttons: [
                 {
                     extend: 'excelHtml5',
@@ -2347,6 +2825,7 @@ window.AdminPicker = AdminPicker;
             ],
             defaultOrder: [[1, 'asc']],
             pageLength: 10,
+            deleteApi: API.remove,
         });
 
         bindRowReorder(journalTable, {
@@ -2400,18 +2879,22 @@ window.AdminPicker = AdminPicker;
 
     async function openCreateModal() {
         resetModal();
-        await addLineRow();
-        await addLineRow();
         modal?.show();
+        await addLineRow();
+        await addLineRow();
     }
 
     async function loadDetail(id) {
+        setModalTitle('edit');
+        setJournalModalLoading(true);
+        modal?.show();
+
         try {
-            setModalTitle('edit');
             const json = await fetchJson(`${API.detail}?id=${encodeURIComponent(id)}`);
 
             if (!json.success || !json.data) {
                 notify('error', json.message || '전표 상세 정보를 불러오지 못했습니다.');
+                modal?.hide();
                 return;
             }
 
@@ -2454,11 +2937,12 @@ window.AdminPicker = AdminPicker;
                 }
             }
             setModalEditability(data.status || 'draft');
-            modal?.show();
         } catch (error) {
             console.error('[ledger-journal] loadDetail failed', error);
-            setModalTitle('create');
             notify('error', '전표 상세 정보를 불러오지 못했습니다.');
+            modal?.hide();
+        } finally {
+            setJournalModalLoading(false);
         }
     }
 
@@ -2467,6 +2951,11 @@ window.AdminPicker = AdminPicker;
         const shouldReload = options.reload !== false;
         const shouldNotify = options.notify !== false;
         const successMessage = options.successMessage || '전표가 저장되었습니다.';
+        const lockMessage = voucherEditLockMessage();
+        if (lockMessage !== '') {
+            notify('warning', lockMessage);
+            return null;
+        }
         const formData = new FormData(form);
         formData.delete('ref_type');
         formData.delete('ref_id');
@@ -2500,6 +2989,9 @@ window.AdminPicker = AdminPicker;
         if (shouldReload) {
             reloadJournalTable();
         }
+        document.dispatchEvent(new CustomEvent('journal:voucher-saved', {
+            detail: { data: json.data || null },
+        }));
         return json.data || null;
     }
 
@@ -2607,9 +3099,27 @@ window.AdminPicker = AdminPicker;
         return json.data || null;
     }
 
+    function confirmUnlink(type) {
+        const voucherNo = voucherNoEl?.value || form.querySelector('[name="voucher_no"]')?.value || '현재 전표';
+        if (type === 'transaction') {
+            const summary = linkedTransactionSummaryEl?.textContent?.trim() || '연결된 거래';
+            return window.confirm(
+                `${voucherNo}에 연결된 거래를 해제합니다.\n\n현재 연결: ${summary}\n\n해제하면 이 전표는 거래 미연결 상태가 되며, 필요 시 다시 거래를 선택해야 합니다. 계속 해제하시겠습니까?`
+            );
+        }
+
+        const summary = linkedEvidenceSummaryEl?.textContent?.trim() || '연결된 증빙';
+        return window.confirm(
+            `${voucherNo}에 연결된 증빙을 해제합니다.\n\n현재 연결: ${summary}\n\n해제하면 이 전표는 증빙 미연결 상태가 되며, 필요 시 다시 증빙을 선택해야 합니다. 계속 해제하시겠습니까?`
+        );
+    }
+
     async function clearEvidenceLinkOnly() {
         const voucherId = form.querySelector('[name="id"]')?.value || '';
         const evidenceId = linkedEvidenceIdEl?.value || '';
+        if (evidenceId && !confirmUnlink('evidence')) {
+            return null;
+        }
         setLinkedEvidence({});
         if (!voucherId || !evidenceId) {
             return null;
@@ -2678,6 +3188,122 @@ window.AdminPicker = AdminPicker;
         reloadJournalTable();
     }
 
+    function findJournalRowData(element) {
+        if (!journalTable || !element) {
+            return null;
+        }
+
+        const tr = element.closest('tr');
+        const row = tr ? journalTable.row(tr).data() : null;
+        if (row) {
+            return row;
+        }
+
+        const id = String(element.dataset.id || '').trim();
+        if (!id) {
+            return null;
+        }
+
+        return journalTable
+            .rows()
+            .data()
+            .toArray()
+            .find((item) => String(item.id || '') === id) || null;
+    }
+
+    async function changeVoucherNumber(row = {}) {
+        const id = String(row.id || '').trim();
+        if (!id) {
+            notify('error', '전표 ID를 확인할 수 없습니다.');
+            return;
+        }
+
+        const status = String(row.status || '').toLowerCase();
+        if (VOUCHER_NUMBER_LOCKED_STATUSES.has(status)) {
+            notify('warning', '승인 또는 마감 상태의 전표번호는 변경할 수 없습니다.');
+            return;
+        }
+
+        const currentNo = String(row.voucher_no || '').trim();
+        const nextNo = window.prompt('변경할 전표번호를 입력하세요. 예: 20260522-0001', currentNo);
+        if (nextNo === null) {
+            return;
+        }
+
+        const normalizedNo = String(nextNo || '').trim();
+        if (!VOUCHER_NUMBER_PATTERN.test(normalizedNo)) {
+            notify('warning', '전표번호 형식은 YYYYMMDD-XXXX 입니다.');
+            return;
+        }
+
+        if (normalizedNo === currentNo) {
+            notify('info', '변경된 전표번호가 없습니다.');
+            return;
+        }
+
+        const json = await fetchJson(API.changeNumber, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({
+                id,
+                voucher_no: normalizedNo,
+            }),
+        });
+
+        if (!json.success) {
+            notify('error', json.message || '전표번호 변경에 실패했습니다.');
+            return;
+        }
+
+        notify('success', json.message || '전표번호가 변경되었습니다.');
+        reloadJournalTable();
+    }
+
+    async function handleJournalAction(action, row = {}, button = null) {
+        const id = String(row.id || button?.dataset.id || '').trim();
+        if (!id) {
+            notify('error', '전표 ID를 확인할 수 없습니다.');
+            return;
+        }
+
+        if (action === 'edit' || action === 'view') {
+            resetModal();
+            await loadDetail(id);
+            return;
+        }
+
+        if (action === 'change-number') {
+            await changeVoucherNumber(row);
+            return;
+        }
+
+        if (action === 'copy') {
+            notify('info', '전표 복사는 전표 상세 화면의 저장 정책과 함께 연결될 예정입니다.');
+            return;
+        }
+
+        if (action === 'evidence') {
+            const evidenceId = String(button?.dataset.evidenceId || row.evidence_id || row.source_id || '').trim();
+            if (!evidenceId) {
+                notify('warning', '연결된 원본증빙을 찾을 수 없습니다.');
+                return;
+            }
+
+            notify('info', '원본증빙 보기 연결은 자료관리 공용 모달과 연동 예정입니다.');
+            return;
+        }
+
+        if (action === 'delete') {
+            if (!window.confirm('선택한 전표를 삭제하시겠습니까?')) {
+                return;
+            }
+            await deleteVoucher(id);
+        }
+    }
+
     function renderTransactionSearchRows(rows = []) {
         if (!transactionSearchBody) {
             return;
@@ -2686,21 +3312,42 @@ window.AdminPicker = AdminPicker;
         if (!rows.length) {
             transactionSearchBody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="text-center text-muted py-4">선택한 거래가 없습니다.</td>
+                    <td colspan="6" class="text-center text-muted py-4">선택한 거래가 없습니다.</td>
                 </tr>
             `;
             return;
         }
 
+        const linkedRowClass = (row) => {
+            if (row.is_linked_to_current_voucher) return ' class="journal-search-row-linked-current"';
+            if (row.is_linked_to_other_voucher) return ' class="journal-search-row-linked-other"';
+            return '';
+        };
+        const linkedBadge = (row) => {
+            const voucher = row.linked_voucher || {};
+            const voucherNo = voucher.voucher_no || '';
+            if (row.is_linked_to_current_voucher) {
+                return '<span class="journal-search-link-badge current">현재 전표 연결</span>';
+            }
+            if (row.is_linked_to_other_voucher) {
+                return `<span class="journal-search-link-badge other">다른 전표 연결${voucherNo ? `: ${escapeHtml(voucherNo)}` : ''}</span>`;
+            }
+            return '';
+        };
+
         transactionSearchBody.innerHTML = rows.map((row, index) => `
-            <tr data-index="${index}">
+            <tr data-index="${index}"${linkedRowClass(row)}>
                 <td>${escapeHtml(row.transaction_date || '')}</td>
-                <td>${escapeHtml(row.client_name || '-')}</td>
-                <td>${escapeHtml(row.item_summary || row.description || row.sort_no || '')}</td>
-                <td class="text-end">${escapeHtml(formatAmountValue(row.total_amount || 0) || '0')}</td>
+                <td>${escapeHtml(row.display_type || row.transaction_type || '-')}</td>
+                <td>${escapeHtml(row.client_name || row.project_name || '-')}</td>
+                <td class="text-end">${escapeHtml(formatAmountValue(row.display_amount ?? row.total_amount ?? 0) || '0')}</td>
+                <td>
+                    <div class="journal-search-main">${escapeHtml(row.display_summary || row.item_summary || row.description || '-')}</div>
+                    ${linkedBadge(row)}
+                </td>
                 <td class="text-center">
                     <button type="button"
-                            class="btn btn-outline-primary btn-sm btn-pick-transaction">선택</button>
+                            class="btn btn-outline-primary btn-sm btn-pick-transaction">${row.is_linked_to_current_voucher ? '선택됨' : '선택'}</button>
                 </td>
             </tr>
         `).join('');
@@ -2713,7 +3360,7 @@ window.AdminPicker = AdminPicker;
 
         transactionSearchBody.innerHTML = `
             <tr>
-                <td colspan="5" class="text-center text-muted py-4">거래를 불러오는 중입니다.</td>
+                <td colspan="6" class="text-center text-muted py-4">거래를 불러오는 중입니다.</td>
             </tr>
         `;
 
@@ -2722,6 +3369,10 @@ window.AdminPicker = AdminPicker;
             const keyword = transactionSearchKeywordEl?.value?.trim() || '';
             if (keyword) {
                 query.set('q', keyword);
+            }
+            const voucherId = form.querySelector('[name="id"]')?.value || '';
+            if (voucherId) {
+                query.set('voucher_id', voucherId);
             }
 
             const json = await fetchJson(`${API.transactionSearch}?${query.toString()}`);
@@ -2736,7 +3387,7 @@ window.AdminPicker = AdminPicker;
             transactionRows = [];
             transactionSearchBody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="text-center text-danger py-4">거래 목록을 불러오지 못했습니다.</td>
+                    <td colspan="6" class="text-center text-danger py-4">거래 목록을 불러오지 못했습니다.</td>
                 </tr>
             `;
         }
@@ -2750,21 +3401,43 @@ window.AdminPicker = AdminPicker;
         if (!rows.length) {
             evidenceSearchBody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="text-center text-muted py-4">선택할 증빙이 없습니다.</td>
+                    <td colspan="6" class="text-center text-muted py-4">선택할 증빙이 없습니다.</td>
                 </tr>
             `;
             return;
         }
 
+        const linkedRowClass = (row) => {
+            if (row.is_linked_to_current_voucher) return ' class="journal-search-row-linked-current"';
+            if (row.is_linked_to_other_voucher) return ' class="journal-search-row-linked-other"';
+            return '';
+        };
+        const linkedBadge = (row) => {
+            const voucher = row.linked_voucher || {};
+            const voucherNo = voucher.voucher_no || '';
+            if (row.is_linked_to_current_voucher) {
+                return '<span class="journal-search-link-badge current">현재 전표 연결</span>';
+            }
+            if (row.is_linked_to_other_voucher) {
+                return `<span class="journal-search-link-badge other">다른 전표 연결${voucherNo ? `: ${escapeHtml(voucherNo)}` : ''}</span>`;
+            }
+            return '';
+        };
+
         evidenceSearchBody.innerHTML = rows.map((row, index) => `
-            <tr data-index="${index}">
+            <tr data-index="${index}"${linkedRowClass(row)}>
                 <td>${escapeHtml(row.evidence_date || row.processed_at || row.created_at || '')}</td>
-                <td>${escapeHtml(importTypeLabel(row.source_type || ''))}</td>
-                <td>${escapeHtml(row.source_key || row.id || '')}</td>
+                <td>${escapeHtml(row.display_type || row.format_name || importTypeLabel(row.source_type || ''))}</td>
                 <td>${escapeHtml(row.client_name || row.counterparty_name || '-')}</td>
+                <td class="text-end">${escapeHtml(formatAmountValue(row.display_amount || 0) || '0')}</td>
+                <td>
+                    <div class="journal-search-main">${escapeHtml(row.display_summary || '-')}</div>
+                    ${row.display_key ? `<div class="journal-search-sub">${escapeHtml(row.display_key)}</div>` : ''}
+                    ${linkedBadge(row)}
+                </td>
                 <td class="text-center">
                     <button type="button"
-                            class="btn btn-outline-primary btn-sm btn-pick-evidence">선택</button>
+                            class="btn btn-outline-primary btn-sm btn-pick-evidence">${row.is_linked_to_current_voucher ? '선택됨' : '선택'}</button>
                 </td>
             </tr>
         `).join('');
@@ -2777,7 +3450,7 @@ window.AdminPicker = AdminPicker;
 
         evidenceSearchBody.innerHTML = `
             <tr>
-                <td colspan="5" class="text-center text-muted py-4">증빙을 불러오는 중입니다.</td>
+                <td colspan="6" class="text-center text-muted py-4">증빙을 불러오는 중입니다.</td>
             </tr>
         `;
 
@@ -2804,7 +3477,7 @@ window.AdminPicker = AdminPicker;
             evidenceRows = [];
             evidenceSearchBody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="text-center text-danger py-4">증빙 목록을 불러오지 못했습니다.</td>
+                    <td colspan="6" class="text-center text-danger py-4">증빙 목록을 불러오지 못했습니다.</td>
                 </tr>
             `;
         }
@@ -2912,8 +3585,9 @@ window.AdminPicker = AdminPicker;
             calculateTotals();
 
             const currentStatus = String(voucherStatusEl?.value || 'draft').toLowerCase();
-            if (['posted', 'closed'].includes(currentStatus)) {
-                void saveTransactionLinkOnly();
+            const lockMessage = voucherEditLockMessage(currentStatus);
+            if (lockMessage !== '') {
+                notify('warning', lockMessage);
                 return;
             }
 
@@ -3048,6 +3722,9 @@ window.AdminPicker = AdminPicker;
         });
 
         clearTransactionLinkBtn?.addEventListener('click', () => {
+            if ((linkedTransactionIdEl?.value || '') && !confirmUnlink('transaction')) {
+                return;
+            }
             setLinkedTransaction(null);
             if (form.querySelector('[name="id"]')?.value) {
                 void saveTransactionLinkOnly();
@@ -3072,12 +3749,30 @@ window.AdminPicker = AdminPicker;
             void clearEvidenceLinkOnly();
         });
 
-        searchTransactionBtn?.addEventListener('click', () => {
+        searchTransactionBtn?.addEventListener('click', (event) => {
+            event.preventDefault();
             void loadTransactionSearch();
         });
 
-        searchEvidenceBtn?.addEventListener('click', () => {
+        searchEvidenceBtn?.addEventListener('click', (event) => {
+            event.preventDefault();
             void loadEvidenceSearch();
+        });
+
+        transactionSearchKeywordEl?.addEventListener('input', () => {
+            queueTransactionSearch();
+        });
+
+        transactionSearchKeywordEl?.addEventListener('search', () => {
+            queueTransactionSearch();
+        });
+
+        evidenceSearchKeywordEl?.addEventListener('input', () => {
+            queueEvidenceSearch();
+        });
+
+        evidenceSearchKeywordEl?.addEventListener('search', () => {
+            queueEvidenceSearch();
         });
 
         transactionSearchKeywordEl?.addEventListener('keydown', (event) => {
@@ -3106,6 +3801,13 @@ window.AdminPicker = AdminPicker;
             if (!row) {
                 return;
             }
+            if (row.is_linked_to_other_voucher) {
+                const voucherNo = row.linked_voucher?.voucher_no || '다른 전표';
+                const ok = window.confirm(
+                    `이 거래는 이미 ${voucherNo}에 연결되어 있습니다.\n\n현재 전표로 연결을 변경하려면 기존 연결 상태를 먼저 확인하는 것이 좋습니다. 그래도 선택하시겠습니까?`
+                );
+                if (!ok) return;
+            }
 
             setLinkedTransaction(row);
             transactionModal?.hide();
@@ -3125,6 +3827,13 @@ window.AdminPicker = AdminPicker;
             const row = evidenceRows[index];
             if (!row) {
                 return;
+            }
+            if (row.is_linked_to_other_voucher) {
+                const voucherNo = row.linked_voucher?.voucher_no || '다른 전표';
+                const ok = window.confirm(
+                    `이 증빙은 이미 ${voucherNo}에 연결되어 있습니다.\n\n현재 전표로 연결을 변경하려면 기존 연결 상태를 먼저 확인하는 것이 좋습니다. 그래도 선택하시겠습니까?`
+                );
+                if (!ok) return;
             }
 
             setLinkedEvidence({
@@ -3179,6 +3888,27 @@ window.AdminPicker = AdminPicker;
         `;
     });
 
+    window.LedgerJournalModal = {
+        async openVoucher(id, options = {}) {
+            const voucherId = String(id || '').trim();
+            if (!voucherId) {
+                notify('warning', '?곌껐??꾪몴媛 ?놁뒿?덈떎.');
+                return;
+            }
+            if (typeof options.onClosed === 'function') {
+                modalEl.addEventListener('hidden.bs.modal', options.onClosed, { once: true });
+            }
+            resetModal();
+            await loadDetail(voucherId);
+        },
+        async openCreate(options = {}) {
+            if (typeof options.onClosed === 'function') {
+                modalEl.addEventListener('hidden.bs.modal', options.onClosed, { once: true });
+            }
+            await openCreateModal();
+        },
+    };
+
     async function boot() {
         await initCodeSelectControls(modalEl);
         initSourceTypeSelect2();
@@ -3191,6 +3921,7 @@ window.AdminPicker = AdminPicker;
             journalTable?.rows().invalidate('data').draw(false);
         });
         initJournalTable();
+        initJournalLineReorder();
         bindEvents();
     }
 

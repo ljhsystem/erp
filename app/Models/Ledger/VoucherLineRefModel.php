@@ -19,8 +19,29 @@ class VoucherLineRefModel
     public function getByVoucherLineId(string $voucherLineId): array
     {
         $stmt = $this->db->prepare("
-            SELECT *
-            FROM {$this->table}
+            SELECT
+                r.*,
+                sc.client_name,
+                sp.project_name,
+                ue.employee_name AS employee_name,
+                ba.account_name AS bank_account_name,
+                sca.card_name
+            FROM {$this->table} r
+            LEFT JOIN system_clients sc
+                ON sc.id = r.ref_id
+               AND r.ref_type IN ('CLIENT', 'CUSTOMER', 'VENDOR', 'COUNTERPARTY')
+            LEFT JOIN system_projects sp
+                ON sp.id = r.ref_id
+               AND r.ref_type IN ('PROJECT')
+            LEFT JOIN user_employees ue
+                ON ue.id = r.ref_id
+               AND r.ref_type IN ('EMPLOYEE')
+            LEFT JOIN system_bank_accounts ba
+                ON ba.id = r.ref_id
+               AND r.ref_type IN ('ACCOUNT', 'BANK_ACCOUNT')
+            LEFT JOIN system_cards sca
+                ON sca.id = r.ref_id
+               AND r.ref_type IN ('CARD')
             WHERE voucher_line_id = :voucher_line_id
             ORDER BY created_at ASC, ref_type ASC
         ");
@@ -45,8 +66,29 @@ class VoucherLineRefModel
         }
 
         $stmt = $this->db->prepare("
-            SELECT *
-            FROM {$this->table}
+            SELECT
+                r.*,
+                sc.client_name,
+                sp.project_name,
+                ue.employee_name AS employee_name,
+                ba.account_name AS bank_account_name,
+                sca.card_name
+            FROM {$this->table} r
+            LEFT JOIN system_clients sc
+                ON sc.id = r.ref_id
+               AND r.ref_type IN ('CLIENT', 'CUSTOMER', 'VENDOR', 'COUNTERPARTY')
+            LEFT JOIN system_projects sp
+                ON sp.id = r.ref_id
+               AND r.ref_type IN ('PROJECT')
+            LEFT JOIN user_employees ue
+                ON ue.id = r.ref_id
+               AND r.ref_type IN ('EMPLOYEE')
+            LEFT JOIN system_bank_accounts ba
+                ON ba.id = r.ref_id
+               AND r.ref_type IN ('ACCOUNT', 'BANK_ACCOUNT')
+            LEFT JOIN system_cards sca
+                ON sca.id = r.ref_id
+               AND r.ref_type IN ('CARD')
             WHERE voucher_line_id IN (" . implode(', ', $placeholders) . ")
             ORDER BY voucher_line_id ASC, created_at ASC, ref_type ASC
         ");

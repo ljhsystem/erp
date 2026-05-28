@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS `ledger_journal_learning_events` (
   `recommend_reason` VARCHAR(255) NULL DEFAULT NULL,
   `is_user_modified` TINYINT(1) NOT NULL DEFAULT 0,
   `failure_type` VARCHAR(100) NULL DEFAULT NULL,
-  `source_payload` JSON NULL DEFAULT NULL,
+  `source_payload` LONGTEXT NULL DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `created_by` VARCHAR(100) NULL DEFAULT NULL,
   PRIMARY KEY (`id`),

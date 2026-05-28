@@ -1,34 +1,33 @@
-// 경로: /public/assets/js/common/esc-manager.js
-(function(){
+// Path: /public/assets/js/common/esc-manager.js
+(function () {
+    'use strict';
 
-    "use strict";
+    const AppCore = window.AppCore = window.AppCore || {};
+    const AppEvents = window.AppEvents || null;
+    const handlers = [];
 
-    window.ESCStack = {
-
-        handlers: [],
-
-        push(fn){
+    AppCore.ESCStack = AppCore.ESCStack || {
+        handlers,
+        push(fn) {
+            if (typeof fn !== 'function') return;
             this.handlers.push(fn);
         },
-
-        remove(fn){
-            this.handlers = this.handlers.filter(h => h !== fn);
+        remove(fn) {
+            const normalized = this.handlers.filter((handler) => handler !== fn);
+            this.handlers.length = 0;
+            normalized.forEach((handler) => this.handlers.push(handler));
         },
+        trigger() {
+            for (let i = this.handlers.length - 1; i >= 0; i -= 1) {
+                const handler = this.handlers[i];
 
-        trigger(){
-
-            for(let i = this.handlers.length - 1; i >= 0; i -= 1){
-
-                const top = this.handlers[i];
-
-                if(!top){
+                if (!handler) {
                     this.handlers.splice(i, 1);
                     continue;
                 }
 
-                const result = top();
-
-                if(result === false){
+                const handled = handler();
+                if (handled === false) {
                     this.handlers.splice(i, 1);
                     continue;
                 }
@@ -37,53 +36,90 @@
             }
 
             return false;
-        }
+        },
     };
 
-    /* 전역 ESC (단 하나만 존재해야 함) */
-    window.addEventListener('keydown', function(e){
+    const EscapeCore = {
+        push: (fn) => {
+            if (typeof fn !== 'function') return;
 
-        if(e.key !== 'Escape') return;
-    
-        /* 1️⃣ picker 먼저 */
-        const handled = window.ESCStack.trigger();
-    
-        if(handled){
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            return;
-        }
-    
-        /* 2️⃣ modal */
-        const openModal = getTopVisibleModal();
-    
-        if(openModal){
-            const beforeCloseEvent = new CustomEvent('esc:modal-before-close', {
-                cancelable: true,
-                detail: { modal: openModal }
-            });
-            openModal.dispatchEvent(beforeCloseEvent);
-
-            if(beforeCloseEvent.defaultPrevented){
-                e.preventDefault();
-                e.stopPropagation();
-                e.stopImmediatePropagation();
+            if (AppEvents?.pushEscape) {
+                AppEvents.pushEscape(fn);
                 return;
             }
 
-            bootstrap.Modal.getOrCreateInstance(openModal, { focus: false })?.hide();
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-        }
-    
-    }, true);   // 🔥🔥🔥 캡처 단계
+            AppCore.ESCStack.push(fn);
+        },
+        pop: (fn) => {
+            if (typeof fn !== 'function') return;
 
-    function getTopVisibleModal(){
+            if (AppEvents?.popEscape) {
+                AppEvents.popEscape(fn);
+                return;
+            }
+
+            AppCore.ESCStack.remove(fn);
+        },
+        trigger: () => {
+            if (AppEvents?.triggerEscape) {
+                return AppEvents.triggerEscape();
+            }
+            return AppCore.ESCStack.trigger();
+        },
+    };
+
+    const onKeydown = AppEvents?.onWindow
+        ? (handler) => AppEvents.onWindow('keydown', handler, true)
+        : (handler) => {
+            window.addEventListener('keydown', handler, true);
+            return () => window.removeEventListener('keydown', handler, true);
+        };
+
+    const unbindEscape = onKeydown(function (event) {
+        if (event.key !== 'Escape') return;
+
+        if (closeOpenSelect2Dropdowns()) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+            return;
+        }
+
+        const handled = EscapeCore.trigger();
+        if (handled) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+            return;
+        }
+
+        const openModal = getTopVisibleModal();
+        if (!openModal) return;
+
+        const beforeCloseEvent = new CustomEvent('esc:modal-before-close', {
+            cancelable: true,
+            detail: { modal: openModal }
+        });
+
+        openModal.dispatchEvent(beforeCloseEvent);
+
+        if (beforeCloseEvent.defaultPrevented) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+            return;
+        }
+
+        bootstrap?.Modal?.getOrCreateInstance(openModal, { focus: false })?.hide();
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+    });
+
+    function getTopVisibleModal() {
         const modals = Array.from(document.querySelectorAll('.modal.show'));
 
-        if(modals.length === 0) return null;
+        if (modals.length === 0) return null;
 
         return modals
             .map((modal, index) => ({
@@ -92,9 +128,38 @@
                 zIndex: Number.parseInt(window.getComputedStyle(modal).zIndex, 10) || 0
             }))
             .sort((a, b) => {
-                if(a.zIndex !== b.zIndex) return b.zIndex - a.zIndex;
+                if (a.zIndex !== b.zIndex) return b.zIndex - a.zIndex;
                 return b.index - a.index;
             })[0].modal;
     }
 
+    function closeOpenSelect2Dropdowns() {
+        if (!document.querySelector('.select2-container--open')) {
+            return false;
+        }
+
+        const $ = window.jQuery || window.$;
+        if (!$?.fn?.select2) {
+            return false;
+        }
+
+        document.querySelectorAll('select.select2-hidden-accessible').forEach((select) => {
+            try {
+                $(select).select2('close');
+            } catch (error) {
+                console.warn('[esc-manager] Select2 close failed', error);
+            }
+        });
+
+        return true;
+    }
+
+    window.ESCStack = AppCore.ESCStack;
+    window.__escManagerOff = unbindEscape;
+    window.EscapeManager = {
+        push: EscapeCore.push,
+        pop: EscapeCore.pop,
+        trigger: EscapeCore.trigger,
+        off: unbindEscape,
+    };
 })();

@@ -147,6 +147,155 @@ class JournalRecommendationService
         ];
     }
 
+    public function recommendForPayload(array $payload): array
+    {
+        $withdraw = $this->amountOrNull($payload['withdraw_amount'] ?? null);
+        $deposit = $this->amountOrNull($payload['deposit_amount'] ?? null);
+        $amount = abs((float) (
+            $withdraw
+            ?? $deposit
+            ?? $this->amountOrNull($payload['total_amount'] ?? null)
+            ?? $this->amountOrNull($payload['amount'] ?? null)
+            ?? 0
+        ));
+        $direction = strtoupper(trim((string) ($payload['transaction_direction'] ?? $payload['bank_direction'] ?? '')));
+        if ($direction === '') {
+            $direction = ($withdraw !== null && abs($withdraw) > 0) ? 'OUT' : (($deposit !== null && abs($deposit) > 0) ? 'IN' : 'GENERAL');
+        }
+
+        $vat = abs((float) ($this->amountOrNull($payload['vat_amount'] ?? null) ?? 0));
+        $supply = abs((float) ($this->amountOrNull($payload['supply_amount'] ?? null) ?? 0));
+        if ($supply <= 0 && $amount > 0) {
+            $supply = max(0.0, $amount - $vat);
+        }
+
+        $transaction = [
+            'id' => '',
+            'client_id' => $this->clientIdFromPayload($payload),
+            'project_id' => trim((string) ($payload['project_id'] ?? '')),
+            'business_unit' => strtoupper(trim((string) ($payload['business_unit'] ?? 'HQ'))) ?: 'HQ',
+            'transaction_type' => strtoupper(trim((string) ($payload['transaction_type'] ?? 'GENERAL'))) ?: 'GENERAL',
+            'transaction_direction' => $direction,
+            'import_type' => strtoupper(trim((string) ($payload['import_type'] ?? $payload['source_type'] ?? 'BANK_TRANSACTION'))) ?: 'BANK_TRANSACTION',
+            'description' => trim((string) ($payload['description'] ?? $payload['summary_text'] ?? $payload['voucher_summary_text'] ?? '')),
+        ];
+        $context = $this->transactionContext($transaction);
+        $amounts = [
+            'supply' => round($supply, 2),
+            'vat' => round($vat, 2),
+            'total' => round($amount ?: ($supply + $vat), 2),
+        ];
+
+        $rule = $this->findJournalRule($context);
+        $clientDefault = $this->clientDefaultAccount((string) ($transaction['client_id'] ?? ''));
+        $mainDebitAccount = null;
+        $mainCreditAccount = null;
+        $debitSource = null;
+        $creditSource = null;
+
+        if ($clientDefault !== null) {
+            $side = $this->sideForClientDefault($context['transaction_direction'], $clientDefault);
+            if ($side === 'DEBIT') {
+                $mainDebitAccount = $clientDefault;
+                $debitSource = ['source' => 'CLIENT_DEFAULT', 'confidence' => 100, 'reason' => '거래처 기본계정'];
+            } else {
+                $mainCreditAccount = $clientDefault;
+                $creditSource = ['source' => 'CLIENT_DEFAULT', 'confidence' => 100, 'reason' => '거래처 기본계정'];
+            }
+        }
+
+        if ($rule !== null) {
+            if ($mainDebitAccount === null && !empty($rule['debit_account_id'])) {
+                $mainDebitAccount = $this->accountById((string) $rule['debit_account_id']);
+                $debitSource = ['source' => 'JOURNAL_RULE', 'confidence' => 90, 'reason' => '분개규칙 매칭', 'rule_id' => (string) $rule['id']];
+            }
+            if ($mainCreditAccount === null && !empty($rule['credit_account_id'])) {
+                $mainCreditAccount = $this->accountById((string) $rule['credit_account_id']);
+                $creditSource = ['source' => 'JOURNAL_RULE', 'confidence' => 90, 'reason' => '분개규칙 매칭', 'rule_id' => (string) $rule['id']];
+            }
+        }
+
+        if ($mainDebitAccount === null || $mainCreditAccount === null) {
+            $recentPair = $this->recentPatternPair($transaction, $context);
+            if ($mainDebitAccount === null && !empty($recentPair['debit_account'])) {
+                $mainDebitAccount = $recentPair['debit_account'];
+                $debitSource = ['source' => 'RECENT_PATTERN', 'confidence' => 75, 'reason' => '최근 확정 분개 패턴'];
+            }
+            if ($mainCreditAccount === null && !empty($recentPair['credit_account'])) {
+                $mainCreditAccount = $recentPair['credit_account'];
+                $creditSource = ['source' => 'RECENT_PATTERN', 'confidence' => 75, 'reason' => '최근 확정 분개 패턴'];
+            }
+        }
+
+        if ($mainDebitAccount === null) {
+            $mainDebitAccount = $this->fallbackAccount($context['transaction_direction'], 'DEBIT');
+            if ($mainDebitAccount !== null) {
+                $debitSource = ['source' => 'SYSTEM_FALLBACK', 'confidence' => 60, 'reason' => '시스템 기본 추천'];
+            }
+        }
+        if ($mainCreditAccount === null) {
+            $mainCreditAccount = $this->fallbackAccount($context['transaction_direction'], 'CREDIT');
+            if ($mainCreditAccount !== null) {
+                $creditSource = ['source' => 'SYSTEM_FALLBACK', 'confidence' => 60, 'reason' => '시스템 기본 추천'];
+            }
+        }
+
+        $recommendations = [];
+        $summary = (string) ($transaction['description'] ?? '');
+        if (in_array($context['transaction_direction'], ['PURCHASE', 'OUT'], true)) {
+            if ($mainDebitAccount !== null && $amounts['supply'] > 0) {
+                $recommendations[] = $this->line('DEBIT', $mainDebitAccount, $amounts['supply'], $debitSource, $summary);
+            }
+            $vatAccount = $this->vatAccount($context['transaction_direction'], $rule);
+            if ($vatAccount !== null && $amounts['vat'] > 0) {
+                $recommendations[] = $this->line('DEBIT', $vatAccount, $amounts['vat'], [
+                    'source' => !empty($rule['vat_account_id']) ? 'JOURNAL_RULE' : 'VAT_RULE',
+                    'confidence' => 100,
+                    'reason' => !empty($rule['vat_account_id']) ? '분개규칙 부가세계정' : '거래라인 부가세',
+                    'rule_id' => (string) ($rule['id'] ?? ''),
+                ], $summary);
+            }
+            if ($mainCreditAccount !== null && $amounts['total'] > 0) {
+                $recommendations[] = $this->line('CREDIT', $mainCreditAccount, $amounts['total'], $creditSource, $summary);
+            }
+        } else {
+            if ($mainDebitAccount !== null && $amounts['total'] > 0) {
+                $recommendations[] = $this->line('DEBIT', $mainDebitAccount, $amounts['total'], $debitSource, $summary);
+            }
+            if ($mainCreditAccount !== null && $amounts['supply'] > 0) {
+                $recommendations[] = $this->line('CREDIT', $mainCreditAccount, $amounts['supply'], $creditSource, $summary);
+            }
+            $vatAccount = $this->vatAccount($context['transaction_direction'], $rule);
+            if ($vatAccount !== null && $amounts['vat'] > 0) {
+                $recommendations[] = $this->line('CREDIT', $vatAccount, $amounts['vat'], [
+                    'source' => !empty($rule['vat_account_id']) ? 'JOURNAL_RULE' : 'VAT_RULE',
+                    'confidence' => 100,
+                    'reason' => !empty($rule['vat_account_id']) ? '분개규칙 부가세계정' : '거래라인 부가세',
+                    'rule_id' => (string) ($rule['id'] ?? ''),
+                ], $summary);
+            }
+        }
+
+        $recommendationSet = [
+            'set_id' => 'SET-1',
+            'set_name' => '학습 기반 추천 분개세트',
+            'line_count' => count($recommendations),
+            'balanced' => $this->isBalanced($recommendations),
+        ];
+        foreach ($recommendations as $index => $line) {
+            $recommendations[$index]['set_id'] = $recommendationSet['set_id'];
+        }
+
+        return [
+            'transaction_id' => '',
+            'context' => $context,
+            'journal_rule_id' => $rule['id'] ?? null,
+            'recommendation_sets' => [$recommendationSet],
+            'recommendations' => $recommendations,
+            'balanced' => $recommendationSet['balanced'],
+        ];
+    }
+
     private function transactionContext(array $transaction): array
     {
         $transactionId = (string) ($transaction['id'] ?? '');
@@ -311,6 +460,62 @@ class JournalRecommendationService
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
+    private function recentPatternPair(array $transaction, array $context): array
+    {
+        if (!$this->tableExists('ledger_recent_journal_patterns')) {
+            return [];
+        }
+
+        $clientId = trim((string) ($transaction['client_id'] ?? ''));
+        $clientFilter = $clientId !== '' ? 'p.client_id = :client_id' : 'p.client_id IS NULL';
+        $stmt = $this->pdo->prepare("
+            SELECT
+                da.id AS debit_id,
+                da.account_code AS debit_code,
+                da.account_name AS debit_name,
+                da.account_group AS debit_group,
+                ca.id AS credit_id,
+                ca.account_code AS credit_code,
+                ca.account_name AS credit_name,
+                ca.account_group AS credit_group
+            FROM ledger_recent_journal_patterns p
+            INNER JOIN ledger_accounts da
+                ON BINARY da.id = BINARY p.debit_account_id
+               AND da.deleted_at IS NULL
+            INNER JOIN ledger_accounts ca
+                ON BINARY ca.id = BINARY p.credit_account_id
+               AND ca.deleted_at IS NULL
+            WHERE {$clientFilter}
+              AND BINARY p.transaction_direction = BINARY :transaction_direction
+            ORDER BY p.usage_count DESC, p.last_used_at DESC
+            LIMIT 1
+        ");
+        $params = [':transaction_direction' => $context['transaction_direction']];
+        if ($clientId !== '') {
+            $params[':client_id'] = $clientId;
+        }
+        $stmt->execute($params);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        if ($row === null) {
+            return [];
+        }
+
+        return [
+            'debit_account' => [
+                'id' => $row['debit_id'],
+                'account_code' => $row['debit_code'],
+                'account_name' => $row['debit_name'],
+                'account_group' => $row['debit_group'],
+            ],
+            'credit_account' => [
+                'id' => $row['credit_id'],
+                'account_code' => $row['credit_code'],
+                'account_name' => $row['credit_name'],
+                'account_group' => $row['credit_group'],
+            ],
+        ];
+    }
+
     private function vatAccount(string $direction, ?array $rule): ?array
     {
         if (!empty($rule['vat_account_id'])) {
@@ -395,6 +600,65 @@ class JournalRecommendationService
         $type = strtoupper(trim((string) ($stmt->fetchColumn() ?: '')));
 
         return $type !== '' ? $type : 'CLIENT';
+    }
+
+    private function clientIdFromPayload(array $payload): string
+    {
+        $clientId = trim((string) ($payload['client_id'] ?? ''));
+        if ($clientId !== '') {
+            return $clientId;
+        }
+
+        $name = trim((string) (
+            $payload['client_name']
+            ?? $payload['client_company_name']
+            ?? $payload['counterparty_name']
+            ?? $payload['counterparty_account_holder_name']
+            ?? $payload['counterparty_account_holder']
+            ?? ''
+        ));
+        if ($name === '') {
+            return '';
+        }
+
+        $stmt = $this->pdo->prepare("
+            SELECT id
+            FROM system_clients
+            WHERE deleted_at IS NULL
+              AND (
+                  client_name = :name_exact_client
+                  OR company_name = :name_exact_company
+                  OR :name_like_client LIKE CONCAT('%', client_name, '%')
+                  OR :name_like_company LIKE CONCAT('%', company_name, '%')
+              )
+            ORDER BY updated_at DESC, created_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute([
+            ':name_exact_client' => $name,
+            ':name_exact_company' => $name,
+            ':name_like_client' => $name,
+            ':name_like_company' => $name,
+        ]);
+
+        return (string) ($stmt->fetchColumn() ?: '');
+    }
+
+    private function amountOrNull(mixed $value): ?float
+    {
+        if (is_int($value) || is_float($value)) {
+            return is_finite((float) $value) ? (float) $value : null;
+        }
+
+        $normalized = preg_replace('/[,\s]/', '', trim((string) $value));
+        if ($normalized === '' || $normalized === '-') {
+            return null;
+        }
+        if (!is_numeric($normalized)) {
+            return null;
+        }
+
+        return (float) $normalized;
     }
 
     private function transactionAmounts(array $transaction, array $items): array

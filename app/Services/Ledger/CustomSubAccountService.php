@@ -169,6 +169,11 @@ class CustomSubAccountService
         return $this->model->countByAccountId($accountId, 'custom');
     }
 
+    public function countByAccountIds(array $accountIds): array
+    {
+        return $this->model->countByAccountIds($accountIds, 'custom');
+    }
+
     public function replaceForAccount(string $accountId, array $rows): array
     {
         try {

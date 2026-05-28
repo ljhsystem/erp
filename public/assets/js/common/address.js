@@ -3,6 +3,13 @@
 
     "use strict";
 
+    const AppEvents = window.AppEvents || {};
+    const onJQDocument = AppEvents.onJQDocument || null;
+    const onDocument = AppEvents.onDocument || ((type, handler, options = false) => {
+        document.addEventListener(type, handler, options);
+        return () => document.removeEventListener(type, handler, options);
+    });
+
     window.KakaoAddress = {
 
         layer: null,
@@ -191,30 +198,33 @@
         =============================== */
 
         bind(){
-
-            if(!window.jQuery){
-                console.warn("jQuery not loaded (KakaoAddress.bind)");
-                return;
-            }
-
-            $(document).on("click", "[data-addr-picker]", function(){
+            const bindClickHandler = function (event) {
+                const target = event.target.closest("[data-addr-picker]");
+                if (!target) {
+                    return;
+                }
 
                 const opts = {
-                    address: this.dataset.address || this.dataset.target,
-                    sido: this.dataset.sido || null,
-                    sigungu: this.dataset.sigungu || null,
-                    detail: this.dataset.detail || null
+                    address: target.dataset.address || target.dataset.target,
+                    sido: target.dataset.sido || null,
+                    sigungu: target.dataset.sigungu || null,
+                    detail: target.dataset.detail || null
                 };
 
-                if(!opts.address){
+                if (!opts.address) {
                     console.warn("address target missing");
                     return;
                 }
 
                 window.KakaoAddress.open(opts);
+            };
 
-            });
+            if (onJQDocument) {
+                onJQDocument('click', bindClickHandler);
+                return;
+            }
 
+            onDocument('click', bindClickHandler);
         }
 
     };

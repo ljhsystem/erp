@@ -1,7 +1,7 @@
-import {
-    onlyNumber,
-    formatMobile
-} from '/public/assets/js/common/format.js';
+import * as NumberFormat from '/public/assets/js/common/format.js';
+
+const onlyNumber = NumberFormat.onlyNumber || ((value) => String(value ?? '').replace(/\D/g, ''));
+const { formatMobile } = NumberFormat;
 
 (() => {
     'use strict';

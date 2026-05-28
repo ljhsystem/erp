@@ -14,14 +14,12 @@ $layoutOptions = [
     'header' => true,
     'navbar' => true,
     'sidebar' => true,
-    'footer' => false,
+    'footer' => true,
     'wrapper' => 'single',
 ];
 
-$pageStyles = AssetHelper::css('https://cdn.jsdelivr.net/npm/handsontable@14.6.1/dist/handsontable.full.min.css')
-    . AssetHelper::css('/assets/css/pages/ledger/data-create.css');
-$pageScripts = AssetHelper::js('https://cdn.jsdelivr.net/npm/handsontable@14.6.1/dist/handsontable.full.min.js')
-    . AssetHelper::module('/assets/js/pages/ledger/dataCreate.js');
+$pageStyles = AssetHelper::css('/assets/css/pages/ledger/data-create.css');
+$pageScripts = AssetHelper::module('/assets/js/pages/ledger/dataCreate.js');
 ?>
 
 <main class="ledger-data-create-page" id="ledgerDataCreatePage">
@@ -45,7 +43,12 @@ $pageScripts = AssetHelper::js('https://cdn.jsdelivr.net/npm/handsontable@14.6.1
             </div>
             <div class="col-6 col-md-4 col-xl">
                 <div class="border rounded p-3 h-100 bg-white">
-                    <button type="button" class="seed-summary-filter seed-summary-evidence" data-seed-status-filter="evidenceReady" data-seed-summary="evidenceReady" data-seed-summary-label="증빙준비">증빙준비 0건</button>
+                    <button type="button" class="seed-summary-filter seed-summary-evidence" data-seed-status-filter="evidenceReady" data-seed-summary="evidenceReady" data-seed-summary-label="증빙완료">증빙완료 0건</button>
+                </div>
+            </div>
+            <div class="col-6 col-md-4 col-xl">
+                <div class="border rounded p-3 h-100 bg-white">
+                    <button type="button" class="seed-summary-filter seed-summary-correction" data-seed-status-filter="correctionNeeded" data-seed-summary="correctionNeeded" data-seed-summary-label="보정필요">보정필요 0건</button>
                 </div>
             </div>
             <div class="col-6 col-md-4 col-xl">
@@ -55,12 +58,12 @@ $pageScripts = AssetHelper::js('https://cdn.jsdelivr.net/npm/handsontable@14.6.1
             </div>
             <div class="col-6 col-md-4 col-xl">
                 <div class="border rounded p-3 h-100 bg-white">
-                    <button type="button" class="seed-summary-filter seed-summary-voucher" data-seed-status-filter="voucherCreated" data-seed-summary="voucherCreated" data-seed-summary-label="전표발행">전표발행 0건</button>
+                    <button type="button" class="seed-summary-filter seed-summary-journal" data-seed-status-filter="journalIncomplete" data-seed-summary="journalIncomplete" data-seed-summary-label="분개미정">분개미정 0건</button>
                 </div>
             </div>
             <div class="col-6 col-md-4 col-xl">
                 <div class="border rounded p-3 h-100 bg-white">
-                    <button type="button" class="seed-summary-filter seed-summary-correction" data-seed-status-filter="correctionNeeded" data-seed-summary="correctionNeeded" data-seed-summary-label="보정필요">보정필요 0건</button>
+                    <button type="button" class="seed-summary-filter seed-summary-voucher" data-seed-status-filter="voucherCreated" data-seed-summary="voucherCreated" data-seed-summary-label="전표발행">전표발행 0건</button>
                 </div>
             </div>
         </section>

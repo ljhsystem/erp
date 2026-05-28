@@ -41,7 +41,8 @@ $dateInputAttrs = $dateInputAttrs ?? '';
 
 $showPeriodTooltip = $showPeriodTooltip ?? true;
 $showSearchTooltip = $showSearchTooltip ?? true;
-$searchInitialCollapsed = !empty($searchInitialCollapsed);
+$searchInitialCollapsed = $searchInitialCollapsed ?? true;
+$searchInitialCollapsed = filter_var($searchInitialCollapsed, FILTER_VALIDATE_BOOLEAN);
 $searchContainerClass = 'search-form-container' . ($searchInitialCollapsed ? ' collapsed' : '');
 $searchBodyClass = 'search-form-body' . ($searchInitialCollapsed ? ' hidden' : '');
 $searchToggleText = $searchInitialCollapsed ? '열기' : '접기';
@@ -90,7 +91,7 @@ $searchToggleText = $searchInitialCollapsed ? '열기' : '접기';
                     <?php foreach ($periodButtons as $btn): ?>
                         <button type="button"
                                 class="btn btn-outline-secondary btn-sm"
-                                onclick="setPeriod('<?= htmlspecialchars($btn['key'], ENT_QUOTES, 'UTF-8') ?>', this)">
+                                onclick="SearchForm.setPeriod('<?= htmlspecialchars($btn['key'], ENT_QUOTES, 'UTF-8') ?>', this)">
                             <?= htmlspecialchars($btn['label'], ENT_QUOTES, 'UTF-8') ?>
                         </button>
                     <?php endforeach; ?>

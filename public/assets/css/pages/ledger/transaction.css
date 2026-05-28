@@ -85,6 +85,28 @@
     display: flex;
 }
 
+#transactionModal .modal-content {
+    position: relative;
+}
+
+#transactionModal.is-loading-detail .transaction-modal-body {
+    pointer-events: none;
+}
+
+#transactionModal.is-loading-detail .modal-content::after {
+    content: "거래 정보를 불러오는 중입니다.";
+    position: absolute;
+    inset: 72px 0 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, .72);
+    color: var(--color-primary);
+    font-size: 14px;
+    font-weight: 700;
+    z-index: 20;
+}
+
 #transactionModal .transaction-modal-card {
     height: 100%;
     max-height: calc(100vh - 40px);
@@ -165,12 +187,12 @@
 
 #transactionModal .transaction-card {
     background: #fff;
-    border: 1px solid #e1e6ef;
-    border-radius: 10px;
+    border: 1px solid #111827;
+    border-radius: 4px;
     min-width: 0;
     padding: 0;
-    margin-bottom: 12px;
-    box-shadow: 0 3px 8px rgba(0,0,0,.04);
+    margin-bottom: 8px;
+    box-shadow: none;
     overflow: hidden;
 }
 
@@ -184,39 +206,46 @@
 
 #transactionModal .transaction-card-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 8px;
     margin: 0;
-    height: 30px;
-    min-height: 30px;
-    padding: 3px 8px;
+    min-height: 0;
+    padding: 8px 8px 4px;
     color: #111827;
-    background: #c5c5c5;
-    border-bottom: 1px solid #e1e6ef;
-    border-radius: 10px 10px 0 0;
+    background: #fff;
+    border-bottom: 0;
+    border-radius: 4px 4px 0 0;
 }
 
 #transactionModal .transaction-card-header h6 {
     margin: 0;
-    color: #374151;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 20px;
+    color: #111827;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 16px;
     white-space: nowrap;
+}
+
+#transactionModal .transaction-card-header p {
+    margin: 1px 0 0;
+    color: #64748b;
+    font-size: 10px;
+    line-height: 1.2;
 }
 
 #transactionModal .transaction-card-header h6::before {
     content: none;
 }
 
+#transactionModal .transaction-business-card > .transaction-business-grid,
 #transactionModal .transaction-overview-card > .transaction-toggle-row,
 #transactionModal .transaction-overview-card > .transaction-modal-grid,
 #transactionModal .transaction-overview-card > .transaction-file-panel,
-#transactionModal .transaction-lines-section > .transaction-hot-wrap,
+#transactionModal .transaction-lines-section > .transaction-grid-wrap,
 #transactionModal .transaction-lines-section > .transaction-lines-footer,
 #transactionModal .transaction-voucher-card > .transaction-voucher-layout {
-    margin: 10px;
+    margin: 8px;
 }
 
 #transactionModal .transaction-toggle-row {
@@ -252,7 +281,12 @@
 }
 
 #transactionModal .transaction-modal-grid-main {
-    grid-template-columns: 150px 190px 210px minmax(150px, 0.75fr) minmax(140px, 0.85fr);
+    grid-template-columns: minmax(150px, 220px);
+}
+
+#transactionModal .transaction-business-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 5px 7px;
 }
 
 #transactionModal .transaction-modal-grid-summary {
@@ -273,12 +307,33 @@
     gap: 4px;
     min-width: 0;
     overflow: visible;
+    padding: 7px;
+    border: 1px solid transparent;
+    border-radius: 6px;
 }
 
 #transactionModal .transaction-field-label {
     color: #334155;
     font-size: 12px;
-    font-weight: 800;
+    font-weight: 700;
+}
+
+#transactionModal .transaction-field-standard {
+    border-color: #a855f7;
+    background: #f1e4ff;
+    box-shadow: inset 0 0 0 1px rgba(168, 85, 247, .18);
+}
+
+#transactionModal .transaction-field-basic {
+    border-color: #65a30d;
+    background: #dcf7c9;
+    box-shadow: inset 0 0 0 1px rgba(101, 163, 13, .18);
+}
+
+#transactionModal .transaction-field-date {
+    border-color: #38bdf8;
+    background: #e0f7ff;
+    box-shadow: inset 0 0 0 1px rgba(14, 165, 233, .18);
 }
 
 #transactionModal .date-input {
@@ -487,19 +542,19 @@
     justify-content: center;
 }
 
-#transactionModal .transaction-hot-wrap {
+#transactionModal .transaction-grid-wrap {
     border: 1px solid #dbe3ee;
     border-radius: 8px;
     background: #fff;
     overflow: visible;
 }
 
-#transactionModal .transaction-line-hot {
+#transactionModal .transaction-line-grid {
     position: relative;
     min-height: 58px;
 }
 
-#transactionModal .transaction-line-hot.is-empty::after {
+#transactionModal .transaction-line-grid.is-empty::after {
     content: "내역 없음";
     position: absolute;
     top: 30px;
@@ -516,17 +571,13 @@
     pointer-events: none;
 }
 
-#transactionModal .transaction-line-hot,
-#transactionModal .transaction-line-hot > .handsontable,
-#transactionModal .transaction-line-hot .ht_master,
-#transactionModal .transaction-line-hot .wtHolder,
-#transactionModal .transaction-line-hot .wtHider,
-#transactionModal .transaction-line-hot .wtSpreader {
+#transactionModal .transaction-line-grid,
+#transactionModal .transaction-line-grid > .ag-root-wrapper {
     height: auto !important;
     overflow: visible !important;
 }
 
-#transactionModal .handsontable th {
+#transactionModal .ag-header-cell {
     background: #f8fafc;
     color: #334155;
     font-size: 12px;
@@ -538,7 +589,7 @@
     box-shadow: 0 1px 0 #dbe3ee;
 }
 
-#transactionModal .handsontable td {
+#transactionModal .ag-cell {
     font-size: 12px;
     padding: 0 4px;
     overflow: hidden;
@@ -607,8 +658,8 @@
     background: transparent;
 }
 
-#transactionModal .handsontable th.transaction-line-move-head,
-#transactionModal .handsontable td.transaction-line-move-cell {
+#transactionModal .ag-header-cell.transaction-line-move-head,
+#transactionModal .ag-cell.transaction-line-move-cell {
     width: 28px;
     min-width: 28px;
     max-width: 28px;
@@ -618,42 +669,31 @@
     vertical-align: middle;
 }
 
-#transactionModal .handsontable td.transaction-line-row-no-cell {
+#transactionModal .ag-cell.transaction-line-row-no-cell {
     color: #475569;
     text-align: center;
     vertical-align: middle;
     background: #f8fafc;
 }
 
-#transactionModal .handsontable th.transaction-line-move-head {
+#transactionModal .ag-header-cell.transaction-line-move-head {
     background: #eef2f7;
 }
 
-#transactionModal .handsontable th.transaction-line-move-head i {
-    color: #6b7280;
-    font-size: 14px;
-    line-height: 1;
-}
-
-#transactionModal .handsontable td.transaction-line-move-cell {
+#transactionModal .ag-cell.transaction-line-move-cell {
     cursor: grab;
     user-select: none;
     touch-action: none;
     background: #f8fafc;
 }
 
-#transactionModal .handsontable td.transaction-line-move-cell.is-dragging {
+#transactionModal .ag-cell.transaction-line-move-cell.is-dragging {
     opacity: 0.55;
     cursor: grabbing;
 }
 
-#transactionModal .transaction-line-hot.is-line-dragging {
+#transactionModal .transaction-line-grid.is-line-dragging {
     cursor: grabbing;
-}
-
-#transactionModal .handsontable tr.is-drop-target td {
-    background: #eff6ff;
-    box-shadow: inset 0 2px 0 #3b82f6;
 }
 
 #transactionModal .transaction-line-move-handle {
@@ -671,8 +711,8 @@
     pointer-events: none;
 }
 
-#transactionModal .handsontable th.transaction-line-add-head,
-#transactionModal .handsontable td.transaction-line-action-cell {
+#transactionModal .ag-header-cell.transaction-line-add-head,
+#transactionModal .ag-cell.transaction-line-action-cell {
     width: 44px;
     min-width: 44px;
     max-width: 44px;
@@ -681,7 +721,7 @@
     vertical-align: middle;
 }
 
-#transactionModal .handsontable th.transaction-line-add-head {
+#transactionModal .ag-header-cell.transaction-line-add-head {
     background: #eef2f7;
 }
 
@@ -897,9 +937,7 @@ body.modal-open .select2-container--open {
     display: none !important;
 }
 
-.pika-single,
-.htDatepickerHolder,
-.handsontableInputHolder {
+.pika-single {
     z-index: 30060 !important;
 }
 

@@ -14,6 +14,7 @@ const NEW_CODE_GROUP_VALUE = '__new_code_group__';
 
 const state = {
     options: {},
+    optionPromises: {},
     fieldGroups: {},
     previousValues: {},
     codeGroups: [],
@@ -96,12 +97,10 @@ export async function refreshCodeSelect(selectOrId, codeGroup, selectedValue = '
         select.appendChild(emptyOption);
     }
 
-    if (select.dataset.noneOptionLabel) {
-        const noneOption = document.createElement('option');
-        noneOption.value = NONE_OPTION_VALUE;
-        noneOption.textContent = select.dataset.noneOptionLabel;
-        select.appendChild(noneOption);
-    }
+    const noneOption = document.createElement('option');
+    noneOption.value = NONE_OPTION_VALUE;
+    noneOption.textContent = select.dataset.noneOptionLabel || '선택(없음)';
+    select.appendChild(noneOption);
 
     rows.forEach((row) => {
         const option = document.createElement('option');
@@ -110,19 +109,14 @@ export async function refreshCodeSelect(selectOrId, codeGroup, selectedValue = '
         select.appendChild(option);
     });
 
-    if (rows.length > 0) {
-        const separator = document.createElement('option');
-        separator.disabled = true;
-        separator.textContent = '──────────';
-        select.appendChild(separator);
-    }
-
     const addOption = document.createElement('option');
     addOption.value = QUICK_ADD_VALUE;
-    addOption.textContent = '+ 기준추가';
+    addOption.textContent = '+추가';
     select.appendChild(addOption);
 
-    select.value = currentValue;
+    select.value = shouldPreserveRawCodeValue(select)
+        ? currentValue
+        : resolveCodeSelectValue(rows, currentValue);
     state.previousValues[select.id] = select.value || '';
     enhanceSelect2(select);
     notifyOptionsLoaded();
@@ -154,8 +148,8 @@ export async function openCodeQuickModal(args, legacyTargetSelectId = null) {
 
     const groupName = await getGroupNameForCodeGroup(codeGroup);
 
-    setFormValue(modal, '[name="code_group"]', codeGroup);
-    setFormValue(modal, '[name="group_name"]', groupName);
+    setQuickCodeGroupValue(modal, codeGroup, groupName);
+    setFormValue(modal, '[name="group_name"]', groupName || codeGroup);
     setFormValue(modal, '[name="code"]', '');
     setFormValue(modal, '[name="code_name"]', '');
     setFormValue(modal, '[name="note"]', '');
@@ -166,6 +160,25 @@ export async function openCodeQuickModal(args, legacyTargetSelectId = null) {
     state.quickModal = bootstrap.Modal.getOrCreateInstance(modal, { focus: false });
     state.quickModal.show();
     setTimeout(() => modal.querySelector('[name="code"]')?.focus(), 150);
+}
+
+function setQuickCodeGroupValue(modal, codeGroup, groupName = '') {
+    const group = normalizeCodeGroup(codeGroup);
+    const field = modal?.querySelector('[name="code_group"]');
+    if (!field) return;
+
+    if (field.tagName === 'SELECT') {
+        const hasOption = Array.from(field.options).some((option) => option.value === group);
+        if (group && !hasOption) {
+            const option = document.createElement('option');
+            option.value = group;
+            option.textContent = groupName ? `${groupName} (${group})` : group;
+            field.appendChild(option);
+        }
+    }
+
+    field.value = group;
+    field.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
 function bindCodeSelectModalCleanup() {
@@ -184,10 +197,25 @@ function bindCodeSelectModalCleanup() {
 function bindSelect2SearchFocus() {
     if (state.searchFocusBound || !window.jQuery) return;
     state.searchFocusBound = true;
+    const focusSearch = () => {
+        const search = document.querySelector('.select2-container--open .select2-search__field');
+        if (!search) return false;
+        search.focus?.();
+        search.select?.();
+        return document.activeElement === search;
+    };
     window.jQuery(document).on('select2:open.codeSelectFocus', () => {
-        window.setTimeout(() => {
-            document.querySelector('.select2-container--open .select2-search__field')?.focus?.();
-        }, 0);
+        [0, 16, 50, 120].forEach((delay) => window.setTimeout(focusSearch, delay));
+        window.requestAnimationFrame?.(focusSearch);
+    });
+    document.addEventListener('focusin', (event) => {
+        const openContainer = document.querySelector('.select2-container--open');
+        if (!openContainer) return;
+        const search = openContainer.querySelector('.select2-search__field');
+        if (!search) return;
+        const target = event.target;
+        if (target === search || openContainer.contains(target)) return;
+        window.setTimeout(focusSearch, 0);
     });
 }
 
@@ -265,6 +293,16 @@ function enhanceSelect2(select) {
     }
 
     $select.select2(options);
+    $select.off('select2:open.codeSelectFocusLocal')
+        .on('select2:open.codeSelectFocusLocal', () => {
+            [0, 16, 50, 120].forEach((delay) => {
+                window.setTimeout(() => {
+                    const search = document.querySelector('.select2-container--open .select2-search__field');
+                    search?.focus?.();
+                    search?.select?.();
+                }, delay);
+            });
+        });
 }
 
 function handleNoneSelection(select, force = false) {
@@ -309,27 +347,36 @@ function restoreSelectValue(select, value) {
 async function fetchCodeOptions(codeGroup) {
     const group = normalizeCodeGroup(codeGroup);
     if (!group) return [];
-
-    const response = await fetch(`${API.LIST}?code_group=${encodeURIComponent(group)}`, { cache: 'no-store' });
-    const json = await response.json();
-    const rows = Array.isArray(json) ? json : (json.data || []);
-
-    state.options[group] = rows
-        .map((row) => ({
-            id: String(row.id ?? '').trim(),
-            code: String(row.code ?? '').trim(),
-            code_name: String(row.code_name ?? row.code ?? '').trim(),
-            group_name: String(row.group_name ?? '').trim(),
-            is_active: Number(row.is_active ?? 1),
-        }))
-        .filter((row) => row.code && row.is_active === 1);
-
-    const groupName = state.options[group].find((row) => row.group_name)?.group_name || '';
-    if (groupName) {
-        state.codeGroupNames[group] = groupName;
+    if (state.optionPromises[group]) {
+        return state.optionPromises[group];
     }
 
-    return state.options[group];
+    state.optionPromises[group] = (async () => {
+        const response = await fetch(`${API.LIST}?code_group=${encodeURIComponent(group)}`, { cache: 'no-store' });
+        const json = await response.json();
+        const rows = Array.isArray(json) ? json : (json.data || []);
+
+        state.options[group] = rows
+            .map((row) => ({
+                id: String(row.id ?? '').trim(),
+                code: String(row.code ?? '').trim(),
+                code_name: String(row.code_name ?? row.code ?? '').trim(),
+                group_name: String(row.group_name ?? '').trim(),
+                is_active: Number(row.is_active ?? 1),
+            }))
+            .filter((row) => row.code && row.is_active === 1);
+
+        const groupName = state.options[group].find((row) => row.group_name)?.group_name || '';
+        if (groupName) {
+            state.codeGroupNames[group] = groupName;
+        }
+
+        return state.options[group];
+    })().finally(() => {
+        delete state.optionPromises[group];
+    });
+
+    return state.optionPromises[group];
 }
 
 async function fetchCodeRows(codeGroup) {
@@ -819,4 +866,27 @@ function normalizeCodeGroup(value) {
 
 function normalizeCode(value) {
     return String(value || '').trim().toUpperCase();
+}
+
+function normalizeCodeLookupValue(value) {
+    return String(value ?? '').trim().replace(/\s+/g, ' ').toUpperCase();
+}
+
+function resolveCodeSelectValue(rows = [], value = '') {
+    const raw = String(value ?? '').trim();
+    if (raw === '') return '';
+
+    const exactCode = rows.find((row) => String(row.code || '').trim() === raw);
+    if (exactCode) return exactCode.code;
+
+    const normalized = normalizeCodeLookupValue(raw);
+    const byCode = rows.find((row) => normalizeCodeLookupValue(row.code) === normalized);
+    if (byCode) return byCode.code;
+
+    const byName = rows.find((row) => normalizeCodeLookupValue(row.code_name) === normalized);
+    return byName?.code || raw;
+}
+
+function shouldPreserveRawCodeValue(select) {
+    return select?.dataset?.preserveRawCodeValue === 'true';
 }

@@ -17,6 +17,101 @@ class CodeService
     private CodeModel $model;
     private $logger;
 
+    private const REFERENCE_MAP = [
+        'BANK' => [
+            ['table' => 'system_bank_accounts', 'column' => 'bank_name', 'label' => '계좌 은행명'],
+            ['table' => 'system_clients', 'column' => 'bank_name', 'label' => '거래처 은행명'],
+            ['table' => 'user_employees', 'column' => 'bank_name', 'label' => '직원 은행명'],
+            ['table' => 'ledger_bank_transactions', 'column' => 'bank_name', 'label' => '계좌별거래내역 은행명'],
+        ],
+        'BANK_ACCOUNT_TYPE' => [
+            ['table' => 'system_bank_accounts', 'column' => 'account_type', 'label' => '계좌구분'],
+        ],
+        'BID_TYPE' => [
+            ['table' => 'system_projects', 'column' => 'bid_type', 'label' => '프로젝트 입찰방법'],
+        ],
+        'BUSINESS_UNIT' => [
+            ['table' => 'ledger_transactions', 'column' => 'business_unit', 'label' => '거래 사업구분'],
+            ['table' => 'ledger_journal_rules', 'column' => 'business_unit', 'label' => '분개규칙 사업구분'],
+        ],
+        'CLIENT_CATEGORY' => [
+            ['table' => 'system_clients', 'column' => 'client_category', 'label' => '거래처분류'],
+        ],
+        'CLIENT_TYPE' => [
+            ['table' => 'system_clients', 'column' => 'client_type', 'label' => '거래처구분'],
+            ['table' => 'system_projects', 'column' => 'client_type', 'label' => '프로젝트 거래처구분'],
+            ['table' => 'ledger_journal_rules', 'column' => 'client_type', 'label' => '분개규칙 거래처구분'],
+        ],
+        'CONSTRUCTION_TYPE' => [
+            ['table' => 'system_projects', 'column' => 'construction_type', 'label' => '프로젝트 공사구분'],
+        ],
+        'CONTRACT_METHOD' => [
+            ['table' => 'system_projects', 'column' => 'contract_method', 'label' => '프로젝트 계약방식'],
+        ],
+        'CONTRACT_TYPE' => [
+            ['table' => 'system_projects', 'column' => 'contract_type', 'label' => '프로젝트 계약종류'],
+        ],
+        'CURRENCY' => [
+            ['table' => 'system_bank_accounts', 'column' => 'currency', 'label' => '계좌 통화'],
+            ['table' => 'ledger_transactions', 'column' => 'currency', 'label' => '거래 통화'],
+            ['table' => 'ledger_vouchers', 'column' => 'currency', 'label' => '전표 통화'],
+        ],
+        'IMPORT_TYPE' => [
+            ['table' => 'ledger_transactions', 'column' => 'import_type', 'label' => '거래 자료유형'],
+            ['table' => 'ledger_vouchers', 'column' => 'import_type', 'label' => '전표 자료유형'],
+            ['table' => 'ledger_journal_rules', 'column' => 'import_type', 'label' => '분개규칙 자료유형'],
+            ['table' => 'ledger_data_imports', 'column' => 'import_type', 'label' => '자료업로드 유형'],
+            ['table' => 'ledger_data_sources', 'column' => 'source_type', 'label' => '자료출처 유형'],
+            ['table' => 'ledger_import_sources', 'column' => 'source_type', 'label' => '자료출처 유형'],
+            ['table' => 'ledger_data_evidences', 'column' => 'source_type', 'label' => '증빙원본 유형'],
+        ],
+        'PAYMENT_TERM' => [
+            ['table' => 'system_clients', 'column' => 'payment_term', 'label' => '거래처 결제조건'],
+        ],
+        'SOURCE_TYPE' => [
+            ['table' => 'ledger_vouchers', 'column' => 'source_type', 'label' => '전표 자료출처'],
+            ['table' => 'ledger_transactions', 'column' => 'source_type', 'label' => '거래 자료출처'],
+            ['table' => 'ledger_data_sources', 'column' => 'source_type', 'label' => '자료출처'],
+            ['table' => 'ledger_import_sources', 'column' => 'source_type', 'label' => '자료출처'],
+            ['table' => 'ledger_data_evidences', 'column' => 'source_type', 'label' => '증빙원본 자료출처'],
+        ],
+        'TAX_TYPE' => [
+            ['table' => 'system_clients', 'column' => 'tax_type', 'label' => '거래처 과세구분'],
+        ],
+        'TRANSACTION_DIRECTION' => [
+            ['table' => 'ledger_transactions', 'column' => 'transaction_direction', 'label' => '거래구분'],
+            ['table' => 'ledger_journal_rules', 'column' => 'transaction_direction', 'label' => '분개규칙 거래구분'],
+            ['table' => 'system_clients', 'column' => 'trade_category', 'label' => '거래처 거래구분'],
+        ],
+        'TRANSACTION_LINE_TYPE' => [
+            ['table' => 'ledger_transaction_lines', 'column' => 'line_type', 'label' => '거래라인 유형'],
+        ],
+        'TRANSACTION_TYPE' => [
+            ['table' => 'ledger_transactions', 'column' => 'transaction_type', 'label' => '거래유형'],
+            ['table' => 'ledger_journal_rules', 'column' => 'transaction_type', 'label' => '분개규칙 거래유형'],
+        ],
+        'WORK_TYPE' => [
+            ['table' => 'system_projects', 'column' => 'work_type', 'label' => '프로젝트 공종'],
+        ],
+    ];
+
+    private const MAPPED_PAYLOAD_TABLES = [
+        'ledger_data_evidences',
+        'ledger_data_import_rows',
+        'ledger_data_upload_rows',
+        'ledger_import_rows',
+        'ledger_processing_items',
+    ];
+
+    private const MAPPED_PAYLOAD_KEYS = [
+        'BUSINESS_UNIT' => ['business_unit'],
+        'CURRENCY' => ['currency'],
+        'IMPORT_TYPE' => ['import_type', 'data_type'],
+        'SOURCE_TYPE' => ['source_type'],
+        'TRANSACTION_DIRECTION' => ['transaction_direction'],
+        'TRANSACTION_TYPE' => ['transaction_type'],
+    ];
+
     public function __construct(PDO $pdo)
     {
         $this->pdo = $pdo;
@@ -99,6 +194,8 @@ class CodeService
                     $data['sort_no'] = (int)($before['sort_no'] ?? 0);
                 }
 
+                $this->assertUpdateAllowed($before, $data);
+
                 $data['updated_by'] = $actor;
                 unset($data['id']);
 
@@ -161,9 +258,12 @@ class CodeService
         $actor = ActorHelper::resolve($actorType);
 
         try {
-            if (!$this->model->getById($id)) {
+            $row = $this->model->getById($id);
+            if (!$row) {
                 return ['success' => false, 'message' => '기준정보를 찾을 수 없습니다.'];
             }
+
+            $this->assertDeleteAllowed($row);
 
             return [
                 'success' => $this->model->deleteById($id, $actor),
@@ -225,6 +325,13 @@ class CodeService
         ActorHelper::resolve($actorType);
 
         try {
+            $row = $this->model->getById($id);
+            if (!$row) {
+                return ['success' => false, 'message' => '기준정보를 찾을 수 없습니다.'];
+            }
+
+            $this->assertDeleteAllowed($row, true);
+
             return ['success' => $this->model->hardDeleteById($id)];
         } catch (\Throwable $e) {
             return ['success' => false, 'message' => $e->getMessage()];
@@ -240,10 +347,22 @@ class CodeService
             return ['success' => false, 'message' => '삭제할 항목을 선택하세요.'];
         }
 
+        $blocked = [];
+
         foreach ($ids as $id) {
-            if ($this->model->hardDeleteById((string)$id)) {
+            $result = $this->purge((string)$id, $actorType);
+            if (!empty($result['success'])) {
                 $count++;
+                continue;
             }
+
+            if (!empty($result['message'])) {
+                $blocked[] = $result['message'];
+            }
+        }
+
+        if ($count === 0 && !empty($blocked)) {
+            return ['success' => false, 'message' => $blocked[0]];
         }
 
         return ['success' => true, 'message' => "영구삭제 완료 ({$count}건)"];
@@ -287,7 +406,7 @@ class CodeService
         $data['code_name'] = trim((string)($data['code_name'] ?? ''));
         $data['note'] = $this->blankToNull($data['note'] ?? null);
         $data['memo'] = $this->blankToNull($data['memo'] ?? null);
-        $data['extra_data'] = $this->blankToNull($data['extra_data'] ?? null);
+        $data['extra_data'] = $this->normalizeExtraData($data['code_group'], $data['extra_data'] ?? null);
         $data['is_active'] = (int)($data['is_active'] ?? 1);
         $data['sort_no'] = isset($data['sort_no']) && $data['sort_no'] !== ''
             ? (int)$data['sort_no']
@@ -312,6 +431,280 @@ class CodeService
 
         $value = trim((string)$value);
         return $value === '' ? null : $value;
+    }
+
+    private function normalizeExtraData(string $codeGroup, mixed $value): ?string
+    {
+        $json = $this->blankToNull($value);
+        if ($json === null) {
+            return null;
+        }
+
+        $decoded = json_decode($json, true);
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+            throw new \InvalidArgumentException('추가 속성은 올바른 JSON 객체로 입력해야 합니다.');
+        }
+
+        if ($codeGroup === 'BANK') {
+            $this->validateBankExtraData($decoded);
+        }
+
+        return json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    private function validateBankExtraData(array $extraData): void
+    {
+        $formatValue = null;
+        foreach (['account_format', 'account_formats', 'accountNumberFormat', 'account_number_format', 'format', 'formats'] as $key) {
+            if (array_key_exists($key, $extraData)) {
+                $formatValue = $extraData[$key];
+                break;
+            }
+        }
+
+        if ($formatValue === null) {
+            return;
+        }
+
+        if (is_string($formatValue)) {
+            $this->assertBankFormatPattern($formatValue);
+            return;
+        }
+
+        if (is_array($formatValue)) {
+            if ($this->isListArray($formatValue)) {
+                $this->assertBankFormatParts($formatValue);
+                return;
+            }
+
+            foreach ($formatValue as $length => $pattern) {
+                if (!ctype_digit((string)$length) || (int)$length <= 0) {
+                    throw new \InvalidArgumentException('은행 계좌번호 포맷의 자릿수 키는 양수 숫자여야 합니다.');
+                }
+
+                if (is_string($pattern)) {
+                    $this->assertBankFormatPattern($pattern);
+                    continue;
+                }
+
+                if (is_array($pattern)) {
+                    $this->assertBankFormatParts($pattern);
+                    continue;
+                }
+
+                throw new \InvalidArgumentException('은행 계좌번호 포맷은 문자열 패턴 또는 숫자 배열로 입력해야 합니다.');
+            }
+
+            return;
+        }
+
+        throw new \InvalidArgumentException('은행 계좌번호 포맷은 문자열, 배열 또는 자릿수별 객체로 입력해야 합니다.');
+    }
+
+    private function assertBankFormatPattern(string $pattern): void
+    {
+        $pattern = trim($pattern);
+        if ($pattern === '' || preg_match('/^[#0]+(?:-[#0]+)*$/', $pattern) !== 1) {
+            throw new \InvalidArgumentException('은행 계좌번호 포맷은 # 또는 0과 하이픈만 사용할 수 있습니다.');
+        }
+    }
+
+    private function assertBankFormatParts(array $parts): void
+    {
+        if (empty($parts)) {
+            throw new \InvalidArgumentException('은행 계좌번호 포맷 배열은 비어 있을 수 없습니다.');
+        }
+
+        foreach ($parts as $part) {
+            if (!is_int($part) && !ctype_digit((string)$part)) {
+                throw new \InvalidArgumentException('은행 계좌번호 포맷 배열은 숫자만 입력해야 합니다.');
+            }
+
+            if ((int)$part <= 0) {
+                throw new \InvalidArgumentException('은행 계좌번호 포맷 배열의 각 값은 양수여야 합니다.');
+            }
+        }
+    }
+
+    private function isListArray(array $values): bool
+    {
+        return array_keys($values) === range(0, count($values) - 1);
+    }
+
+    private function assertUpdateAllowed(array $before, array $after): void
+    {
+        $references = $this->collectReferences(
+            (string)($before['code_group'] ?? ''),
+            (string)($before['code'] ?? ''),
+            (string)($before['code_name'] ?? '')
+        );
+        if (empty($references)) {
+            return;
+        }
+
+        if ((string)($before['code_group'] ?? '') !== (string)($after['code_group'] ?? '')) {
+            throw new \RuntimeException($this->buildReferenceMessage('사용 중인 기준정보라 코드그룹을 변경할 수 없습니다.', $references));
+        }
+
+        if ((string)($before['code'] ?? '') !== (string)($after['code'] ?? '')) {
+            throw new \RuntimeException($this->buildReferenceMessage('사용 중인 기준정보라 코드를 변경할 수 없습니다.', $references));
+        }
+
+        if ((string)($before['code_name'] ?? '') !== (string)($after['code_name'] ?? '')) {
+            $nameReferences = $this->collectDisplayNameReferences(
+                (string)($before['code_group'] ?? ''),
+                (string)($before['code_name'] ?? '')
+            );
+
+            if (!empty($nameReferences)) {
+                throw new \RuntimeException($this->buildReferenceMessage('사용 중인 기준정보라 코드명을 변경할 수 없습니다.', $nameReferences));
+            }
+        }
+
+        if ((int)($before['is_active'] ?? 1) === 1 && (int)($after['is_active'] ?? 1) === 0) {
+            throw new \RuntimeException($this->buildReferenceMessage('사용 중인 기준정보라 미사용으로 변경할 수 없습니다.', $references));
+        }
+    }
+
+    private function assertDeleteAllowed(array $row, bool $hardDelete = false): void
+    {
+        $references = $this->collectReferences(
+            (string)($row['code_group'] ?? ''),
+            (string)($row['code'] ?? ''),
+            (string)($row['code_name'] ?? '')
+        );
+        if (empty($references)) {
+            return;
+        }
+
+        $message = $hardDelete
+            ? '사용 중인 기준정보라 영구삭제할 수 없습니다.'
+            : '사용 중인 기준정보라 삭제할 수 없습니다.';
+
+        throw new \RuntimeException($this->buildReferenceMessage($message, $references));
+    }
+
+    private function collectReferences(string $codeGroup, string $code, string $codeName = ''): array
+    {
+        $codeGroup = strtoupper(trim($codeGroup));
+        $code = trim($code);
+        $codeName = trim($codeName);
+
+        if ($codeGroup === '' || $code === '') {
+            return [];
+        }
+
+        $references = [];
+        $values = [$code];
+        if ($codeName !== '' && $codeName !== $code) {
+            $values[] = $codeName;
+        }
+
+        foreach (self::REFERENCE_MAP[$codeGroup] ?? [] as $target) {
+            $count = 0;
+            foreach ($values as $value) {
+                $count += $this->model->countValueReferences($target['table'], $target['column'], $value);
+            }
+            if ($count > 0) {
+                $references[] = [
+                    'label' => $target['label'],
+                    'count' => $count,
+                ];
+            }
+        }
+
+        foreach (self::MAPPED_PAYLOAD_KEYS[$codeGroup] ?? [] as $jsonKey) {
+            foreach (self::MAPPED_PAYLOAD_TABLES as $table) {
+                foreach (['mapped_payload_json', 'mapped_payload'] as $column) {
+                    $count = 0;
+                    foreach ($values as $value) {
+                        $count += $this->model->countJsonValueReferences($table, $column, $jsonKey, $value);
+                    }
+                    if ($count > 0) {
+                        $references[] = [
+                            'label' => "증빙 매핑 {$jsonKey}",
+                            'count' => $count,
+                        ];
+                    }
+                }
+            }
+        }
+
+        return $this->mergeReferenceCounts($references);
+    }
+
+    private function collectDisplayNameReferences(string $codeGroup, string $codeName): array
+    {
+        $codeGroup = strtoupper(trim($codeGroup));
+        $codeName = trim($codeName);
+
+        if ($codeGroup === '' || $codeName === '') {
+            return [];
+        }
+
+        $references = [];
+        foreach (self::REFERENCE_MAP[$codeGroup] ?? [] as $target) {
+            $count = $this->model->countValueReferences($target['table'], $target['column'], $codeName);
+            if ($count > 0) {
+                $references[] = [
+                    'label' => $target['label'],
+                    'count' => $count,
+                ];
+            }
+        }
+
+        foreach (self::MAPPED_PAYLOAD_KEYS[$codeGroup] ?? [] as $jsonKey) {
+            foreach (self::MAPPED_PAYLOAD_TABLES as $table) {
+                foreach (['mapped_payload_json', 'mapped_payload'] as $column) {
+                    $count = $this->model->countJsonValueReferences($table, $column, $jsonKey, $codeName);
+                    if ($count > 0) {
+                        $references[] = [
+                            'label' => "증빙 매핑 {$jsonKey}",
+                            'count' => $count,
+                        ];
+                    }
+                }
+            }
+        }
+
+        return $this->mergeReferenceCounts($references);
+    }
+
+    private function mergeReferenceCounts(array $references): array
+    {
+        $merged = [];
+        foreach ($references as $reference) {
+            $label = (string)($reference['label'] ?? '');
+            if ($label === '') {
+                continue;
+            }
+
+            $merged[$label] = ($merged[$label] ?? 0) + (int)($reference['count'] ?? 0);
+        }
+
+        $result = [];
+        foreach ($merged as $label => $count) {
+            if ($count > 0) {
+                $result[] = ['label' => $label, 'count' => $count];
+            }
+        }
+
+        return $result;
+    }
+
+    private function buildReferenceMessage(string $message, array $references): string
+    {
+        $summary = array_map(
+            fn(array $reference) => "{$reference['label']} {$reference['count']}건",
+            array_slice($references, 0, 5)
+        );
+
+        $remaining = count($references) - count($summary);
+        if ($remaining > 0) {
+            $summary[] = "외 {$remaining}개";
+        }
+
+        return $message . ' 참조: ' . implode(', ', $summary);
     }
 
     public function downloadTemplate(): void

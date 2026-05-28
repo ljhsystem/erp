@@ -1,16 +1,45 @@
 .voucher-review-page .page-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
+    gap: 8px;
     margin-bottom: 12px;
+}
+
+.voucher-review-page .page-count {
+    display: inline-flex;
+    align-items: center;
+    font-size: 1rem;
+    font-weight: 500;
+    line-height: 1;
+}
+
+.voucher-review-page {
+    --voucher-review-sticky-top: 12px;
+    --voucher-review-filter-sticky-height: 34px;
+    --voucher-review-tools-sticky-height: 62px;
+}
+
+.voucher-review-page:has(#voucherReviewSearchFormContainer:not(.collapsed)) {
+    --voucher-review-filter-sticky-height: 176px;
+}
+
+.voucher-review-page #voucherReviewSearchFormContainer {
+    position: sticky;
+    top: var(--voucher-review-sticky-top);
+    z-index: 30;
+    margin-bottom: 14px;
+    background: var(--color-bg, #f6f8fb);
 }
 
 .voucher-review-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(360px, 0.42fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 14px;
     align-items: start;
+}
+
+.voucher-review-layout.is-detail-open {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 0.42fr);
 }
 
 .voucher-review-list-panel,
@@ -21,64 +50,18 @@
     background: #fff;
 }
 
-.voucher-review-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 10px;
-    border-bottom: 1px solid #e2e8f0;
-}
-
-.voucher-review-filter {
-    display: grid;
-    grid-template-columns: minmax(250px, auto) minmax(150px, auto) minmax(150px, auto) minmax(220px, 1fr) auto;
-    gap: 8px;
-    align-items: end;
-    flex: 1 1 auto;
-    min-width: 0;
-}
-
-.voucher-review-filter-group {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    min-width: 0;
-}
-
-.voucher-review-filter-period {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    column-gap: 5px;
-}
-
-.voucher-review-filter-period .voucher-review-filter-label {
-    grid-column: 1 / -1;
-}
-
-.voucher-review-filter-label {
-    color: #475569;
-    font-size: 11px;
-    font-weight: 700;
-    line-height: 1;
-}
-
-.voucher-review-date-separator {
-    color: #64748b;
-    font-size: 12px;
-    font-weight: 700;
-}
-
-.voucher-review-filter-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 6px;
-    white-space: nowrap;
-}
-
 .voucher-review-table-wrap {
-    padding: 10px;
+    padding: 10px 0 10px 10px;
+    overflow: visible;
+}
+
+.voucher-review-list-panel .dataTables_wrapper {
+    --dt-sticky-top: calc(var(--voucher-review-sticky-top) + var(--voucher-review-filter-sticky-height));
+    --dt-sticky-header-top: calc(
+        var(--voucher-review-sticky-top)
+        + var(--voucher-review-filter-sticky-height)
+        + var(--voucher-review-tools-sticky-height)
+    );
 }
 
 .voucher-review-table {
@@ -87,10 +70,63 @@
     font-size: 12px;
 }
 
+.voucher-review-list-panel .dataTables_wrapper .dt-top {
+    margin: -10px 0 0 -10px;
+    padding: 10px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
 .voucher-review-table th,
 .voucher-review-table td {
     white-space: nowrap;
     vertical-align: middle;
+}
+
+.voucher-review-table th.dt-select-column,
+.voucher-review-table td.dt-select-column {
+    width: 36px !important;
+    min-width: 36px;
+    max-width: 36px;
+    box-sizing: border-box !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    text-align: center !important;
+}
+
+.voucher-review-table th.dt-reorder-column,
+.voucher-review-table td.dt-reorder-column,
+.voucher-review-table th.reorder-handle,
+.voucher-review-table td.reorder-handle {
+    width: 36px !important;
+    min-width: 36px;
+    max-width: 36px;
+    box-sizing: border-box !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    text-align: center !important;
+}
+
+.voucher-review-table th.dt-sequence-column,
+.voucher-review-table td.dt-sequence-column,
+.voucher-review-table th.voucher-review-sort-no-cell,
+.voucher-review-table td.voucher-review-sort-no-cell {
+    width: 48px !important;
+    min-width: 48px;
+    max-width: 48px;
+    box-sizing: border-box !important;
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+    text-align: center !important;
+}
+
+.voucher-review-table td.reorder-handle {
+    cursor: move;
+    color: #64748b;
+    font-size: 16px;
+}
+
+.voucher-review-table td.reorder-handle:hover {
+    color: #0f172a;
 }
 
 .voucher-review-table .voucher-review-summary-cell {
@@ -164,8 +200,13 @@
 
 .voucher-review-detail-panel {
     position: sticky;
-    top: 12px;
+    top: var(--voucher-review-sticky-top);
+    display: none;
     overflow: hidden;
+}
+
+.voucher-review-layout.is-detail-open .voucher-review-detail-panel {
+    display: block;
 }
 
 .voucher-review-detail-head {
@@ -287,7 +328,17 @@
 }
 
 @media (max-width: 1100px) {
+    .voucher-review-page {
+        --voucher-review-sticky-top: 0px;
+        --voucher-review-filter-sticky-height: 0px;
+        --voucher-review-tools-sticky-height: 0px;
+    }
+
     .voucher-review-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .voucher-review-layout.is-detail-open {
         grid-template-columns: 1fr;
     }
 
@@ -295,13 +346,12 @@
         position: static;
     }
 
-    .voucher-review-toolbar,
-    .voucher-review-filter {
-        grid-template-columns: 1fr;
-        align-items: stretch;
+    .voucher-review-list-panel .dataTables_wrapper {
+        --dt-sticky-top: 0px;
+        --dt-sticky-header-top: 0px;
     }
 
-    .voucher-review-toolbar {
-        display: grid;
+    .voucher-review-page #voucherReviewSearchFormContainer {
+        position: static;
     }
 }

@@ -14,7 +14,7 @@ $layoutOptions = [
     'header' => true,
     'navbar' => true,
     'sidebar' => true,
-    'footer' => false,
+    'footer' => true,
     'wrapper' => 'single',
 ];
 

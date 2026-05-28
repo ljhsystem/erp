@@ -263,6 +263,35 @@ class SubChartAccountModel
         return (int) $stmt->fetchColumn();
     }
 
+    public function countByAccountIds(array $accountIds, ?string $subType = null): array
+    {
+        $accountIds = array_values(array_unique(array_filter(array_map(
+            static fn ($accountId): string => trim((string) $accountId),
+            $accountIds
+        ))));
+
+        if (empty($accountIds)) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($accountIds), '?'));
+        $stmt = $this->db->prepare("
+            SELECT account_id, COUNT(*) AS sub_account_count
+            FROM ledger_sub_accounts
+            WHERE account_id IN ({$placeholders})
+            GROUP BY account_id
+        ");
+
+        $stmt->execute($accountIds);
+
+        $counts = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $counts[(string) ($row['account_id'] ?? '')] = (int) ($row['sub_account_count'] ?? 0);
+        }
+
+        return $counts;
+    }
+
     public function getAccountIdById(string $id): ?string
     {
         $stmt = $this->db->prepare("

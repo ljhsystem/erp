@@ -4,7 +4,7 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import {
     createDataTable,
     bindTableHighlight
-} from '/public/assets/js/components/data-table.js';
+} from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 
@@ -43,6 +43,7 @@ window.AdminPicker = AdminPicker;
     let roleModal = null;
     let todayPicker = null;
     let globalBound = false;
+    let roleModalEls = {};
 
     document.addEventListener('DOMContentLoaded', () => {
         if (!window.jQuery) {
@@ -77,9 +78,20 @@ window.AdminPicker = AdminPicker;
         if (!modalEl) return;
 
         roleModal = new bootstrap.Modal(modalEl, { focus: false });
+        roleModalEls = {
+            modal: modalEl,
+            form: document.getElementById('role-edit-form'),
+            title: document.getElementById('roleEditModalLabel'),
+            id: document.getElementById('role_edit_id'),
+            key: document.getElementById('role_edit_key'),
+            name: document.getElementById('role_edit_name'),
+            description: document.getElementById('role_edit_description'),
+            isActive: document.getElementById('role_edit_is_active'),
+            deleteBtn: document.getElementById('role_edit_delete_btn')
+        };
 
         modalEl.addEventListener('shown.bs.modal', () => {
-            document.getElementById('role_edit_key')?.focus();
+            roleModalEls.key?.focus();
         });
 
         modalEl.addEventListener('hidden.bs.modal', () => {
@@ -193,7 +205,6 @@ window.AdminPicker = AdminPicker;
                 tableId: 'role',
                 defaultSearchField: 'role_name',
                 dateOptions: DATE_OPTIONS,
-                initialCollapsed: true
             });
             bindTableHighlight('#role-table', roleTable);
 
@@ -353,30 +364,32 @@ window.AdminPicker = AdminPicker;
         resetRoleForm();
         setRoleModalMode('edit');
 
-        $('#role_edit_id').val(row.id || '');
-        $('#role_edit_key').val(row.role_key || '');
-        $('#role_edit_name').val(row.role_name || '');
-        $('#role_edit_description').val(row.description || '');
-        $('#role_edit_is_active').prop('checked', String(row.is_active) === '1');
+        if (roleModalEls.id) roleModalEls.id.value = row.id || '';
+        if (roleModalEls.key) roleModalEls.key.value = row.role_key || '';
+        if (roleModalEls.name) roleModalEls.name.value = row.role_name || '';
+        if (roleModalEls.description) roleModalEls.description.value = row.description || '';
+        if (roleModalEls.isActive) roleModalEls.isActive.checked = String(row.is_active) === '1';
 
         roleModal?.show();
     }
 
     function setRoleModalMode(mode) {
         const isCreate = mode === 'create';
-        $('#roleEditModal .modal-title').text(isCreate ? '역할 등록' : '역할 수정');
-        $('#role_edit_delete_btn')
-            .text('영구 삭제')
-            .toggle(!isCreate);
-        $('#role_edit_delete_btn').text('영구삭제');
+        if (roleModalEls.title) {
+            roleModalEls.title.textContent = isCreate ? '역할 등록' : '역할 수정';
+        }
+        if (roleModalEls.deleteBtn) {
+            roleModalEls.deleteBtn.textContent = '영구삭제';
+            roleModalEls.deleteBtn.style.display = isCreate ? 'none' : '';
+        }
     }
 
     function resetRoleForm() {
-        const form = document.getElementById('role-edit-form');
+        const form = roleModalEls.form || document.getElementById('role-edit-form');
         form?.reset();
 
-        $('#role_edit_id').val('');
-        $('#role_edit_is_active').prop('checked', true);
+        if (roleModalEls.id) roleModalEls.id.value = '';
+        if (roleModalEls.isActive) roleModalEls.isActive.checked = true;
         setRoleModalMode('create');
     }
 

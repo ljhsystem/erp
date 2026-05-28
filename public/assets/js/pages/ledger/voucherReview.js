@@ -1,13 +1,16 @@
 import {
     bindTableHighlight,
     createDataTable,
-} from '/public/assets/js/components/data-table.js';
+} from '/public/assets/js/common/table/data-table.js';
+import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
+import { SearchForm } from '/public/assets/js/components/search-form.js';
+import '/public/assets/js/components/trash-manager.js';
 
 (() => {
     const tableEl = document.getElementById('voucherReviewTable');
-    const filterForm = document.getElementById('voucherReviewFilterForm');
     const countEl = document.getElementById('voucherReviewCount');
-    const resetFilterBtn = document.getElementById('btnResetVoucherReview');
+    const layoutEl = document.querySelector('.voucher-review-layout');
+    const detailPanel = document.querySelector('.voucher-review-detail-panel');
     const rejectBtn = document.getElementById('rejectBtn');
     const confirmBtn = document.getElementById('confirmBtn');
     const cancelConfirmBtn = document.getElementById('cancelConfirmBtn');
@@ -36,6 +39,12 @@ import {
         post: '/api/ledger/voucher/post',
         reverse: '/api/ledger/voucher/reverse',
         reject: '/api/ledger/voucher/reject',
+        reorder: '/api/ledger/voucher/reorder',
+        remove: '/api/ledger/voucher/delete',
+        trash: '/api/ledger/voucher/trash',
+        restore: '/api/ledger/voucher/restore',
+        purge: '/api/ledger/voucher/purge',
+        purgeAll: '/api/ledger/voucher/purge-all',
     };
 
     const STATUS_LABELS = {
@@ -49,7 +58,6 @@ import {
     let table = null;
     let selectedVoucher = null;
     let pendingRejectIds = [];
-    const checkedIds = new Set();
     const rejectModal = rejectModalEl && window.bootstrap?.Modal
         ? new window.bootstrap.Modal(rejectModalEl)
         : null;
@@ -68,6 +76,60 @@ import {
         return Number(value || 0).toLocaleString('ko-KR');
     }
 
+    function notify(type = 'info', message = '') {
+        const notifier = window.AppNotify || window.AppCore?.AppNotify || window.AppCore;
+        if (typeof notifier?.notify === 'function') {
+            notifier.notify(type, message);
+            return;
+        }
+        if (type === 'error') {
+            console.error(message);
+        } else {
+            console.log(message);
+        }
+    }
+
+    function getVoucherSortNo(row = {}) {
+        const numericSortNo = Number(String(row.sort_no ?? '').replace(/,/g, ''));
+        return Number.isFinite(numericSortNo) ? numericSortNo : 0;
+    }
+
+    window.TrashColumns = window.TrashColumns || {};
+    window.TrashColumns.journal = function (row = {}) {
+        return `
+            <td>${escapeHtml(row.voucher_no ?? '')}</td>
+            <td>${escapeHtml(row.voucher_date ?? '')}</td>
+            <td>${statusBadge(row.status ?? 'draft')}</td>
+            <td class="text-end">${escapeHtml(formatNumber(row.voucher_amount ?? row.debit_total ?? 0))}</td>
+            <td>${escapeHtml(row.summary_text ?? '')}</td>
+            <td>${escapeHtml(row.deleted_at ?? '')}</td>
+            <td>${escapeHtml(row.deleted_by_name ?? row.deleted_by ?? '')}</td>
+            <td class="text-nowrap">
+                <button type="button" class="btn btn-success btn-sm btn-restore" data-id="${escapeHtml(row.id ?? '')}">복원</button>
+                <button type="button" class="btn btn-danger btn-sm btn-purge" data-id="${escapeHtml(row.id ?? '')}">영구삭제</button>
+            </td>
+        `;
+    };
+
+    function renderDragHandle() {
+        return '<i class="bi bi-list"></i>';
+    }
+
+    function openTrashModal() {
+        const modalEl = document.getElementById('journalTrashModal');
+        if (!modalEl) {
+            notify('warning', '전표 휴지통 모달을 찾을 수 없습니다.');
+            return;
+        }
+
+        modalEl.dataset.listUrl = API.trash;
+        modalEl.dataset.restoreUrl = API.restore;
+        modalEl.dataset.deleteUrl = API.purge;
+        modalEl.dataset.deleteAllUrl = API.purgeAll;
+
+        window.bootstrap?.Modal?.getOrCreateInstance(modalEl, { focus: false })?.show();
+    }
+
     async function fetchJson(url, options = {}) {
         const response = await fetch(url, {
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
@@ -78,37 +140,6 @@ import {
             throw new Error(json.message || '요청 처리에 실패했습니다.');
         }
         return json;
-    }
-
-    function currentFilters() {
-        const formData = new FormData(filterForm);
-        return {
-            date_from: String(formData.get('date_from') || '').trim(),
-            date_to: String(formData.get('date_to') || '').trim(),
-            status: String(formData.get('status') || '').trim(),
-            review_status: String(formData.get('review_status') || '').trim(),
-            keyword: String(formData.get('keyword') || '').trim(),
-        };
-    }
-
-    function defaultDateRange() {
-        return {
-            date_from: '',
-            date_to: '',
-        };
-    }
-
-    function resetFilters() {
-        const defaults = defaultDateRange();
-        filterForm.elements.date_from.value = defaults.date_from;
-        filterForm.elements.date_to.value = defaults.date_to;
-        filterForm.elements.status.value = '';
-        filterForm.elements.review_status.value = '';
-        filterForm.elements.keyword.value = '';
-
-        checkedIds.clear();
-        renderEmptyDetail();
-        table.ajax.reload();
     }
 
     function reviewState(row = {}) {
@@ -165,10 +196,11 @@ import {
 
     function selectedRows() {
         if (!table) return [];
+        const ids = new Set(table.getSelectedIds?.().map((id) => String(id)) || []);
         const selected = [];
         table.rows().every(function () {
             const row = this.data();
-            if (row?.id && checkedIds.has(String(row.id))) {
+            if (row?.id && ids.has(String(row.id))) {
                 selected.push(row);
             }
         });
@@ -185,7 +217,7 @@ import {
     function actionIds(statuses = []) {
         const ids = selectedIdsByStatus(statuses);
         if (ids.length) return ids;
-        if (checkedIds.size > 0) return [];
+        if ((table?.getSelectedIds?.() || []).length > 0) return [];
 
         const status = String(selectedVoucher?.status || '').toLowerCase();
         if (!selectedVoucher?.id) return [];
@@ -201,7 +233,7 @@ import {
             .map((row) => String(row.id));
 
         if (ids.length) return ids;
-        if (checkedIds.size > 0) return [];
+        if ((table?.getSelectedIds?.() || []).length > 0) return [];
 
         const status = String(selectedVoucher?.status || '').toLowerCase();
         if (!selectedVoucher?.id || status !== 'posted') return [];
@@ -279,8 +311,21 @@ import {
         }
     }
 
+    function closeDetailPanel() {
+        layoutEl?.classList.remove('is-detail-open');
+        tableEl.querySelectorAll('tbody tr').forEach((tr) => tr.classList.remove('is-selected'));
+    }
+
+    function openDetailPanel(rowEl = null) {
+        layoutEl?.classList.add('is-detail-open');
+        if (!rowEl) return;
+        tableEl.querySelectorAll('tbody tr').forEach((tr) => tr.classList.remove('is-selected'));
+        rowEl.classList.add('is-selected');
+    }
+
     function renderEmptyDetail() {
         selectedVoucher = null;
+        closeDetailPanel();
         titleEl.textContent = '전표를 선택해 주세요.';
         subEl.textContent = '목록에서 전표를 클릭하면 상세가 표시됩니다.';
         statusEl.textContent = '-';
@@ -289,6 +334,7 @@ import {
         linesEl.innerHTML = '';
         totalEl.innerHTML = '';
         linkedInfoEl.textContent = '연결 정보를 불러오지 않았습니다.';
+
         updateActionButtons();
     }
 
@@ -307,6 +353,7 @@ import {
     }
 
     async function loadDetail(id) {
+        layoutEl?.classList.add('is-detail-open');
         const json = await fetchJson(`${API.detail}?id=${encodeURIComponent(id)}`);
         const voucher = json.data || {};
         selectedVoucher = voucher;
@@ -347,9 +394,21 @@ import {
             <div class="voucher-review-total-row"><span>차이</span><strong>${formatNumber(debit - credit)}</strong></div>
         `;
 
-        linkedInfoEl.textContent = voucher.linked_transaction
-            ? `${voucher.linked_transaction.transaction_date || ''} / ${voucher.linked_transaction.client_name || ''} / ${voucher.linked_transaction.description || ''}`
-            : '⚠ 미연결';
+        const linkedEvidences = Array.isArray(voucher.linked_evidences) ? voucher.linked_evidences : [];
+        const linkedEvidenceText = linkedEvidences.map((evidence) => [
+            evidence.source_type || '',
+            evidence.evidence_date || '',
+            evidence.client_name || '',
+            evidence.source_key || evidence.id || '',
+        ].filter(Boolean).join(' / '));
+        linkedInfoEl.innerHTML = [
+            voucher.linked_transaction
+                ? `거래: ${escapeHtml([voucher.linked_transaction.transaction_date || '', voucher.linked_transaction.client_name || '', voucher.linked_transaction.description || ''].filter(Boolean).join(' / '))}`
+                : '거래: 미연결',
+            linkedEvidenceText.length
+                ? `증빙: ${linkedEvidenceText.map((text) => '<span class="d-block">' + escapeHtml(text) + '</span>').join('')}`
+                : '증빙: 미연결',
+        ].join('<br>');
 
         updateActionButtons();
     }
@@ -366,14 +425,7 @@ import {
             node.dataset.voucherId = id;
             node.classList.toggle('has-error', rowClass(row) === 'has-error');
             node.classList.toggle('is-selected', selectedVoucher?.id && id === String(selectedVoucher.id));
-            const checkbox = node.querySelector('.voucher-review-check');
-            if (checkbox) checkbox.checked = checkedIds.has(id);
         });
-        const checkAll = document.getElementById('voucherReviewCheckAll');
-        if (checkAll) {
-            const currentRows = table.rows({ page: 'current' }).data().toArray();
-            checkAll.checked = currentRows.length > 0 && currentRows.every((row) => checkedIds.has(String(row.id || '')));
-        }
         countEl.textContent = `총 ${table.page.info()?.recordsDisplay ?? 0}건`;
         updateActionButtons();
     }
@@ -384,18 +436,43 @@ import {
             api: API.list,
             columns: [
                 {
-                    data: 'id',
-                    title: '<input type="checkbox" id="voucherReviewCheckAll">',
+                    data: null,
+                    title: '<i class="bi bi-arrows-move"></i>',
+                    className: 'reorder-handle no-sort no-colvis text-center no-export',
+                    headerClassName: 'no-colvis text-center no-export',
                     orderable: false,
                     searchable: false,
-                    className: 'text-center',
-                    render(id) {
-                        const value = escapeHtml(id || '');
-                        return `<input type="checkbox" class="voucher-review-check" value="${value}">`;
+                    defaultContent: '<i class="bi bi-list"></i>',
+                    render() {
+                        return renderDragHandle();
+                    },
+                },
+                {
+                    data: 'sort_no',
+                    title: '순번',
+                    className: 'text-center voucher-review-sort-no-cell',
+                    render(data, type, row) {
+                        const sortNo = getVoucherSortNo(row);
+                        if (type === 'sort' || type === 'type') {
+                            return sortNo;
+                        }
+
+                        return escapeHtml(data || sortNo || '');
                     },
                 },
                 { data: 'status', title: '전표상태', render: statusBadge },
-                { data: null, title: '검토상태', render: reviewBadge },
+                {
+                    data: 'review_status',
+                    title: '\uAC80\uD1A0\uC0C1\uD0DC',
+                    render(_data, type, row) {
+                        const state = reviewState(row).key;
+                        if (type === 'sort' || type === 'type') {
+                            return state;
+                        }
+
+                        return reviewBadge(_data, type, row);
+                    },
+                },
                 { data: 'voucher_no', title: '전표번호', defaultContent: '' },
                 { data: 'voucher_date', title: '전표일자', defaultContent: '' },
                 {
@@ -424,26 +501,69 @@ import {
                     },
                 },
             ],
-            ajaxData(request) {
-                const filters = currentFilters();
-                Object.entries(filters).forEach(([key, value]) => {
-                    if (key !== 'review_status' && value) request[key] = value;
-                });
-                return request;
-            },
+            buttons: [
+                {
+                    extend: 'excelHtml5',
+                    text: '엑셀 다운로드',
+                    className: 'btn btn-outline-success btn-sm',
+                    title: '전표검토승인',
+                    filename: '전표검토승인',
+                    exportOptions: {
+                        columns: ':visible:not(.no-export):not(.no-colvis)',
+                    },
+                },
+                {
+                    text: '휴지통',
+                    className: 'btn btn-danger btn-sm',
+                    action: openTrashModal,
+                },
+            ],
+            deleteApi: API.remove,
             dataSrc(json) {
-                const rows = Array.isArray(json?.data) ? json.data : [];
-                const reviewStatus = currentFilters().review_status;
-                return reviewStatus
-                    ? rows.filter((row) => reviewState(row).key === reviewStatus)
-                    : rows;
+                return Array.isArray(json?.data) ? json.data : [];
             },
-            defaultOrder: [[4, 'desc']],
+            defaultOrder: [[1, 'asc']],
             pageLength: 100,
         });
 
         table.on('draw.dt xhr.dt', syncRowsAfterDraw);
+        bindRowReorder(table, {
+            api: API.reorder,
+            onSuccess() {
+                notify('success', '전표 순번이 변경되었습니다.');
+                table?.ajax.reload(null, false);
+            },
+            onError(json) {
+                notify('error', json?.message || '전표 순번 변경에 실패했습니다.');
+                table?.ajax.reload(null, false);
+            },
+        });
         bindTableHighlight('#voucherReviewTable', table);
+    }
+
+    function initSearchForm() {
+        SearchForm({
+            table,
+            apiList: API.list,
+            tableId: 'voucherReview',
+            defaultSearchField: 'voucher_no',
+            dateOptions: [
+                { value: 'voucher_date', label: '전표일자' },
+                { value: 'updated_at', label: '수정일시' },
+            ],
+            excludeFields: ['id'],
+        });
+
+        const searchForm = document.getElementById('voucherReviewSearchConditionsForm');
+        const resetButton = document.getElementById('voucherReviewResetButton');
+        searchForm?.addEventListener('submit', () => {
+            table?.clearSelectedIds?.();
+            renderEmptyDetail();
+        });
+        resetButton?.addEventListener('click', () => {
+            table?.clearSelectedIds?.();
+            renderEmptyDetail();
+        });
     }
 
     async function runAction(action, ids, payload = {}) {
@@ -460,7 +580,7 @@ import {
             });
         }
 
-        checkedIds.clear();
+        table?.clearSelectedIds?.();
         table.ajax.reload(null, false);
         if (selectedVoucher?.id) {
             await loadDetail(selectedVoucher.id).catch(renderEmptyDetail);
@@ -502,52 +622,43 @@ import {
 
     function bindEvents() {
         window.jQuery(tableEl).on('click', 'tbody tr', (event) => {
-            if (event.target.closest('input')) return;
+            if (event.target.closest('input, .reorder-handle')) return;
             const row = event.currentTarget;
             const data = table.row(row).data();
             if (!data?.id) return;
 
-            tableEl.querySelectorAll('tbody tr').forEach((tr) => tr.classList.remove('is-selected'));
-            row.classList.add('is-selected');
+            openDetailPanel(row);
             void loadDetail(data.id);
         });
 
         window.jQuery(tableEl).on('dblclick', 'tbody tr', (event) => {
+            if (event.target.closest('input, .reorder-handle')) return;
+            openDetailPanel(event.currentTarget);
             const data = table.row(event.currentTarget).data();
             if (data?.id) void loadDetail(data.id);
         });
 
-        tableEl.addEventListener('change', (event) => {
-            const checkbox = event.target.closest('.voucher-review-check');
-            if (!checkbox) return;
-            if (checkbox.checked) {
-                checkedIds.add(String(checkbox.value));
-            } else {
-                checkedIds.delete(String(checkbox.value));
-            }
-            syncRowsAfterDraw();
-        });
-
-        tableEl.addEventListener('change', (event) => {
-            if (event.target.id !== 'voucherReviewCheckAll') return;
-            const checked = event.target.checked;
-            table.rows({ page: 'current' }).every(function () {
-                const id = String(this.data()?.id || '');
-                if (!id) return;
-                if (checked) checkedIds.add(id);
-                else checkedIds.delete(id);
-            });
-            syncRowsAfterDraw();
-        });
-
-        filterForm?.addEventListener('submit', (event) => {
-            event.preventDefault();
-            checkedIds.clear();
+        document.addEventListener('click', (event) => {
+            if (!layoutEl?.classList.contains('is-detail-open')) return;
+            if (event.target.closest('#voucherReviewTable tbody tr')) return;
+            if (detailPanel?.contains(event.target)) return;
             renderEmptyDetail();
-            table.ajax.reload();
         });
 
-        resetFilterBtn?.addEventListener('click', resetFilters);
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') return;
+            if (!layoutEl?.classList.contains('is-detail-open')) return;
+            renderEmptyDetail();
+        });
+
+        tableEl.addEventListener('datatable:selection-changed', () => {
+            updateActionButtons();
+        });
+
+        tableEl.addEventListener('datatable:soft-delete-completed', () => {
+            renderEmptyDetail();
+        });
+
         rejectBtn?.addEventListener('click', () => openRejectModal(actionIds(['confirmed'])));
         confirmRejectBtn?.addEventListener('click', () => void confirmReject());
         rejectReasonEl?.addEventListener('input', () => {
@@ -573,7 +684,50 @@ import {
         });
     }
 
+    document.addEventListener('trash:changed', (event) => {
+        if (event.detail?.type === 'journal') {
+            table?.clearSelectedIds?.();
+            table?.ajax.reload(null, false);
+            renderEmptyDetail();
+        }
+    });
+
+    document.addEventListener('trash:detail-render', (event) => {
+        const detail = event.detail || {};
+        if (detail.type !== 'journal') {
+            return;
+        }
+
+        const detailEl = detail.modal?.querySelector('#journal-trash-detail');
+        const row = detail.data || {};
+        if (!detailEl) {
+            return;
+        }
+
+        detailEl.innerHTML = `
+            <div class="voucher-review-trash-detail">
+                <dl class="row mb-0 small">
+                    <dt class="col-4">전표번호</dt>
+                    <dd class="col-8">${escapeHtml(row.voucher_no ?? '-')}</dd>
+                    <dt class="col-4">전표일자</dt>
+                    <dd class="col-8">${escapeHtml(row.voucher_date ?? '-')}</dd>
+                    <dt class="col-4">상태</dt>
+                    <dd class="col-8">${statusBadge(row.status ?? 'draft')}</dd>
+                    <dt class="col-4">전표금액</dt>
+                    <dd class="col-8">${escapeHtml(formatNumber(row.voucher_amount ?? row.debit_total ?? 0))}</dd>
+                    <dt class="col-4">전표적요</dt>
+                    <dd class="col-8">${escapeHtml(row.summary_text ?? '-')}</dd>
+                    <dt class="col-4">삭제일시</dt>
+                    <dd class="col-8">${escapeHtml(row.deleted_at ?? '-')}</dd>
+                    <dt class="col-4">삭제자</dt>
+                    <dd class="col-8">${escapeHtml(row.deleted_by_name ?? row.deleted_by ?? '-')}</dd>
+                </dl>
+            </div>
+        `;
+    });
+
     initTable();
+    initSearchForm();
     bindEvents();
     renderEmptyDetail();
 })();

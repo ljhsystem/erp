@@ -1662,8 +1662,10 @@ class CalendarController
             /* ===============================
             * 사용자
             * =============================== */
-            $profile = $profileService->getDetail($userId) ?? [];
-            $user    = $profileService->getDetail($userId) ?? [];
+            $profile = $profileService->getById($userId) ?? [];
+            $user    = $profileService->getById($userId) ?? [];
+
+
 
             $profileImagePath = $profile['profile_image'] ?? null;
 

@@ -1,4 +1,4 @@
-import { createDataTable, bindTableHighlight } from '/public/assets/js/components/data-table.js';
+import { createDataTable, bindTableHighlight } from '/public/assets/js/common/table/data-table.js';
 
 const API_ROLE_LIST = '/api/settings/organization/role/list';
 const API_PERM_LIST = '/api/settings/organization/permission/list';

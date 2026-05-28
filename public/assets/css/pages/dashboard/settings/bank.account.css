@@ -156,6 +156,25 @@
     vertical-align:middle;
 }
 
+#account-table .account-nowrap{
+    white-space:nowrap;
+}
+
+#account-table .account-note-cell{
+    min-width:120px;
+    max-width:260px;
+    overflow:hidden;
+    white-space:nowrap;
+}
+
+#account-table .account-note-text{
+    display:block;
+    width:100%;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+
 /* 통장사본 영역 강화 */
 #accountModal #bankBookUpload{
     min-height:120px;

@@ -170,8 +170,17 @@
               <div class="row">
                 <div class="col-md-6">
                   <div class="bank-left-wrap">
-                    <div class="mb-3"><label class="form-label">은행명</label><input type="text" name="bank_name" id="edit_bank_name" class="form-control form-control-sm"></div>
-                    <div class="mb-3"><label class="form-label">계좌번호</label><input type="text" name="account_number" id="edit_account_number" class="form-control form-control-sm"></div>
+                    <div class="mb-3">
+                      <label class="form-label">은행명</label>
+                      <select name="bank_name"
+                              id="edit_bank_name"
+                              class="form-select form-select-sm"
+                              data-code-group="BANK"
+                              data-code-searchable="true">
+                        <option value=""></option>
+                      </select>
+                    </div>
+                    <div class="mb-3"><label class="form-label">계좌번호</label><input type="text" name="account_number" id="edit_account_number" data-format="account_number" class="form-control form-control-sm"></div>
                     <div class="mb-3"><label class="form-label">예금주</label><input type="text" name="account_holder" id="edit_account_holder" class="form-control form-control-sm"></div>
                   </div>
                 </div>

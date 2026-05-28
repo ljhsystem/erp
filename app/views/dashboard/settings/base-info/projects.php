@@ -127,9 +127,12 @@ include PROJECT_ROOT . '/app/views/dashboard/settings/system/partials/code_modal
 ?>
 
 
-<template id="project-client-modal-template">
-  <?php include __DIR__ . '/partials/client_modal.php'; ?>
-</template>
+<?php
+/* =========================================================
+   거래처 빠른 등록 모달
+========================================================= */
+include __DIR__ . '/partials/client_modal.php';
+?>
 
 
 <?php

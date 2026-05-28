@@ -14,13 +14,15 @@ $layoutOptions = [
     'header' => true,
     'navbar' => true,
     'sidebar' => true,
-    'footer' => false,
+    'footer' => true,
     'wrapper' => 'single',
 ];
 
 $pageStyles = AssetHelper::css('/assets/css/pages/ledger/data-status.css')
     . AssetHelper::css('/assets/css/pages/dashboard/settings/system/code.css');
-$pageScripts = AssetHelper::module('/assets/js/pages/ledger/dataStatus.js');
+$dataStatusScript = AssetHelper::url('/assets/js/pages/ledger/dataStatus.js')
+    . '&pagev=' . filemtime(PROJECT_ROOT . '/public/assets/js/pages/ledger/dataStatus.js');
+$pageScripts = '<script type="module" src="' . htmlspecialchars($dataStatusScript, ENT_QUOTES, 'UTF-8') . '"></script>';
 ?>
 
 <main class="ledger-data-status-page" id="ledgerDataStatusPage">
@@ -76,7 +78,6 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/dataStatus.js');
                 json_decode('"\\uAC70\\uB798\\uCC98, \\uC801\\uC694, \\uAE08\\uC561, \\uC790\\uB8CC\\uC720\\uD615 \\uB4F1 \\uC99D\\uBE59\\uC6D0\\uBCF8\\uC758 \\uC8FC\\uC694 \\uD544\\uB4DC\\uB85C \\uAC80\\uC0C9\\uD560 \\uC218 \\uC788\\uC2B5\\uB2C8\\uB2E4."'),
                 json_decode('"\\uC6D0\\uBCF8 \\uD30C\\uC77C \\uC5C5\\uB85C\\uB4DC \\uD6C4 \\uC774 \\uD654\\uBA74\\uC5D0\\uC11C \\uAC70\\uB798 \\uC0DD\\uC131\\uC5D0 \\uD544\\uC694\\uD55C \\uAE30\\uC900\\uC815\\uBCF4\\uC640 \\uAE30\\uCD08\\uC815\\uBCF4\\uB97C \\uBCF4\\uC644\\uD569\\uB2C8\\uB2E4."'),
             ];
-            $searchInitialCollapsed = true;
             include PROJECT_ROOT . '/app/views/components/ui-search.php';
 
             $tableId = 'evidenceStatusTable';
@@ -100,7 +101,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/dataStatus.js');
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="&#45803;&#44592;"></button>
             </div>
             <div class="modal-body p-0">
-                <iframe class="data-management-frame" src="/ledger/data/upload?modal=1" title="&#51088;&#47308; &#50629;&#47196;&#46300;"></iframe>
+                <iframe class="data-management-frame" data-src="/ledger/data/upload?modal=1" title="&#51088;&#47308; &#50629;&#47196;&#46300;"></iframe>
             </div>
         </div>
     </div>
@@ -114,7 +115,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/dataStatus.js');
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="&#45803;&#44592;"></button>
             </div>
             <div class="modal-body p-0">
-                <iframe class="data-management-frame" src="/ledger/data/formats?modal=1" title="&#50577;&#49885; &#44288;&#47532;"></iframe>
+                <iframe class="data-management-frame" data-src="/ledger/data/formats?modal=1" title="&#50577;&#49885; &#44288;&#47532;"></iframe>
             </div>
         </div>
     </div>
@@ -182,7 +183,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/dataStatus.js');
 <?php
 $modalId = 'dataExcelModal';
 $formId = 'dataExcelForm';
-$modalTitle = json_decode('"\\uC591\\uC2DD \\uAD00\\uB9AC"');
+$modalTitle = json_decode('"\\uC5D1\\uC140 \\uAD00\\uB9AC"');
 $modalSubtitle = json_decode('"\\uD604\\uC7AC \\uC790\\uB8CC\\uC720\\uD615\\uC758 \\uC591\\uC2DD\\uC744 \\uC120\\uD0DD\\uD558\\uC138\\uC694."');
 $templateUrl = '';
 $downloadUrl = '';

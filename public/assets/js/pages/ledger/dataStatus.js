@@ -1,4 +1,4 @@
-import { createDataTable } from '/public/assets/js/components/data-table.js';
+import { createDataTable, refreshDataTableLayout } from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import {
@@ -10,6 +10,7 @@ import {
 } from '/public/assets/js/common/format.js';
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+import { EVIDENCE_REF_PICKERS, evidenceRefPickerForColumnLike, initEvidenceRefSelect } from '/public/assets/js/pages/ledger/shared/evidence-ref-picker.js';
 import '/public/assets/js/components/trash-manager.js';
 import '/public/assets/js/components/excel-manager.js';
 
@@ -21,12 +22,16 @@ import '/public/assets/js/components/excel-manager.js';
         formats: '/api/import/formats',
         preview: '/api/import/preview',
         upload: '/api/import/evidence-upload',
+        uploadCancel: '/api/import/evidence-upload/cancel',
         download: '/api/import/evidences/download',
         trash: '/api/import/evidences/trash',
         deleteRows: '/api/import/evidences/delete',
         reorder: '/api/import/evidences/reorder',
         saveSeedRow: '/api/import/evidence/save',
         createEvidence: '/api/import/evidence/create',
+        splitChild: '/api/import/evidence/split-child',
+        updateProcessingChild: '/api/import/evidence/processing-child/update',
+        deleteProcessingChild: '/api/import/evidence/processing-child/delete',
         bulkSaveSeedRows: '/api/import/evidences/bulk-save',
         clientSearch: '/api/settings/base-info/client/search-picker',
         projectSearch: '/api/settings/base-info/project/search-picker',
@@ -35,6 +40,7 @@ import '/public/assets/js/components/excel-manager.js';
         cardSearch: '/api/settings/base-info/card/search-picker',
         codeList: '/api/settings/system/code/list',
     };
+    const MAX_EXCEL_UPLOAD_BYTES = 25 * 1024 * 1024;
 
     const EVIDENCE_UPLOAD_TYPES = new Set([
         'TAX_INVOICE',
@@ -244,107 +250,11 @@ import '/public/assets/js/components/excel-manager.js';
         evidence: 0,
     };
     let uploadingExcel = false;
+    let excelUploadCanceled = false;
+    let excelUploadAbortController = null;
+    let excelUploadCancelToken = '';
+    let excelUploadPreviewToken = '';
 
-    function clientCompanyText(row = {}) {
-        return row.company_name || row.client_name || row.text || '';
-    }
-
-    function clientAutofillPayload(row = {}) {
-        return {
-            business_number: formatBizNumber(row.business_number || ''),
-            ceo_name: row.ceo_name || '',
-            address: [row.address || '', row.address_detail || ''].filter(Boolean).join(' '),
-            email: row.email || '',
-            phone: formatPhone(row.phone || ''),
-        };
-    }
-
-    const BANK_REF_PICKERS = {
-        SUPPLIER_COMPANY: {
-            picker: 'supplierCompany',
-            url: API.clientSearch,
-            idKey: '',
-            nameKey: 'supplier_company_name',
-            placeholder: '공급자 상호 선택',
-            keys: ['supplier_company_name', 'supplier_name', '공급자상호', '공급자명'],
-            allowText: true,
-            label: clientCompanyText,
-            result: clientAutofillPayload,
-            autofill: {
-                supplier_business_number: 'business_number',
-                supplier_ceo_name: 'ceo_name',
-                supplier_address: 'address',
-                supplier_email: 'email',
-                supplier_phone: 'phone',
-                supplier_ceo_phone: 'phone',
-            },
-        },
-        CUSTOMER_COMPANY: {
-            picker: 'customerCompany',
-            url: API.clientSearch,
-            idKey: '',
-            nameKey: 'customer_company_name',
-            placeholder: '공급받는자 상호 선택',
-            keys: ['customer_company_name', 'customer_name', '공급받는자상호', '공급받는자명'],
-            allowText: true,
-            label: clientCompanyText,
-            result: clientAutofillPayload,
-            autofill: {
-                customer_business_number: 'business_number',
-                customer_ceo_name: 'ceo_name',
-                customer_address: 'address',
-                customer_email_1: 'email',
-                customer_phone: 'phone',
-                customer_ceo_phone: 'phone',
-            },
-        },
-        CLIENT: {
-            picker: 'client',
-            url: API.clientSearch,
-            idKey: 'client_id',
-            nameKey: 'client_name',
-            placeholder: '거래처 선택',
-            keys: ['client_id', 'client_name', 'client_company_name', '거래처명', '거래처'],
-            allowText: true,
-            label: (row) => row.text || row.client_name || row.company_name || '',
-        },
-        PROJECT: {
-            picker: 'project',
-            url: API.projectSearch,
-            idKey: 'project_id',
-            nameKey: 'project_name',
-            placeholder: '프로젝트 선택',
-            keys: ['project_id', 'project_name', 'project_code', '프로젝트명', '프로젝트'],
-            label: (row) => row.text || row.project_name || row.construction_name || row.project_code || '',
-        },
-        EMPLOYEE: {
-            picker: 'employee',
-            url: API.employeeSearch,
-            idKey: 'employee_id',
-            nameKey: 'employee_name',
-            placeholder: '직원 선택',
-            keys: ['employee_id', 'employee_name', 'user_name', 'user_id', '직원명', '직원'],
-            label: (row) => row.text || row.employee_name || row.name || row.username || '',
-        },
-        ACCOUNT: {
-            picker: 'bankAccount',
-            url: API.bankAccountSearch,
-            idKey: 'bank_account_id',
-            nameKey: 'bank_account_name',
-            placeholder: '계좌 선택',
-            keys: ['bank_account_id', 'bank_account_name', 'bank_account', 'account_name', 'payment_account_name', 'account_number', 'payment_account_number', '계좌명', '계좌'],
-            label: (row) => row.text || row.account_name || row.bank_account_name || row.account_number || row.bank_name || '',
-        },
-        CARD: {
-            picker: 'card',
-            url: API.cardSearch,
-            idKey: 'card_id',
-            nameKey: 'card_name',
-            placeholder: '카드 선택',
-            keys: ['card_id', 'card_name', 'card_number', 'card_company_name', '카드명', '카드'],
-            label: (row) => row.text || row.card_name || row.card_number || row.card_company_name || '',
-        },
-    };
     const BANK_CODE_PICKERS = {
         business_unit: {
             codeGroup: 'BUSINESS_UNIT',
@@ -402,11 +312,83 @@ import '/public/assets/js/components/excel-manager.js';
         return row.mapped_payload && typeof row.mapped_payload === 'object' ? row.mapped_payload : {};
     }
 
+    function valueText(value) {
+        if (value === undefined || value === null) return '';
+        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+            const text = String(value).trim();
+            if (isNoneSelectionValue(text)) return '';
+            return text === '[object Object]' ? '' : text;
+        }
+        if (Array.isArray(value)) {
+            return value.map((item) => valueText(item)).filter(Boolean).join(', ');
+        }
+        if (typeof value === 'object') {
+            for (const key of ['text', 'label', 'name', 'value', 'code_name', 'code', 'client_name', 'company_name', 'project_name', 'employee_name', 'account_name', 'bank_name']) {
+                const text = valueText(value[key]);
+                if (text !== '') return text;
+            }
+            return '';
+        }
+        return String(value).trim();
+    }
+
+    function isNoneSelectionValue(value) {
+        const text = String(value ?? '').trim();
+        if (text === '') return true;
+        return [
+            '__none__',
+            '__CODE_NONE__',
+            '_none_',
+            '__none',
+            'none__',
+            '--none--',
+            '선택(없음)',
+        ].includes(text);
+    }
+
+    function isEmptySelectionLabel(value) {
+        const text = String(value ?? '').trim();
+        if (isNoneSelectionValue(text)) return true;
+        return [
+            '선택',
+            '직접 선택',
+            '거래처 선택',
+            '프로젝트 선택',
+            '직원 선택',
+            '계좌 선택',
+            '카드 선택',
+            '사업구분 선택',
+            '거래구분 선택',
+            '거래유형 선택',
+            '자료출처 선택',
+            '자료유형 선택',
+            '라인유형 선택',
+            '차변구분 선택',
+        ].includes(text);
+    }
+
+    function selectValueForSave(input) {
+        const value = String(input?.value ?? '').trim();
+        return isNoneSelectionValue(value) ? '' : value;
+    }
+
+    function selectTextForSave(input, { includeCurrentText = false } = {}) {
+        if (!input) return '';
+        if (isNoneSelectionValue(input.value)) return '';
+        const text = String(
+            input.dataset.refSelectedText
+            || input.selectedOptions?.[0]?.textContent
+            || (includeCurrentText ? input.dataset.refCurrentText : '')
+            || ''
+        ).trim();
+        return isEmptySelectionLabel(text) ? '' : text;
+    }
+
     function firstPayloadValue(payload = {}, keys = []) {
         for (const key of keys) {
             if (!key) continue;
             const value = payload[key];
-            if (value !== undefined && value !== null && String(value) !== '') {
+            if (valueText(value) !== '') {
                 return value;
             }
         }
@@ -432,7 +414,7 @@ import '/public/assets/js/components/excel-manager.js';
     }
 
     function amount(value) {
-        const number = Number(String(value ?? '0').replaceAll(',', ''));
+        const number = Number(valueText(value || '0').replaceAll(',', ''));
         return Number.isFinite(number) ? number : 0;
     }
 
@@ -464,16 +446,16 @@ import '/public/assets/js/components/excel-manager.js';
 
     function clientName(row = {}) {
         const payload = mapped(row);
-        return row.client_name
-            || payload.client_company_name
-            || payload.supplier_name
-            || payload.customer_name
-            || payload.supplier_company_name
-            || payload.customer_company_name
-            || payload['공급자 상호']
-            || payload['공급받는자 상호']
-            || payload.employee_name
-            || payload.client_business_number
+        return valueText(row.client_name)
+            || valueText(payload.client_company_name)
+            || valueText(payload.supplier_name)
+            || valueText(payload.customer_name)
+            || valueText(payload.supplier_company_name)
+            || valueText(payload.customer_company_name)
+            || valueText(payload['공급자 상호'])
+            || valueText(payload['공급받는자 상호'])
+            || valueText(payload.employee_name)
+            || valueText(payload.client_business_number)
             || '';
     }
 
@@ -633,6 +615,8 @@ import '/public/assets/js/components/excel-manager.js';
             data,
             title,
             defaultContent: '',
+            className: 'evidence-data-column text-start text-nowrap',
+            headerClassName: 'evidence-data-column text-start text-nowrap',
             render: (_value, _type, row) => escapeHtml(renderer(row)),
             ...options,
         };
@@ -642,27 +626,28 @@ import '/public/assets/js/components/excel-manager.js';
         return {
             data,
             title,
-            className: 'text-end',
+            className: 'evidence-data-column text-end text-nowrap',
+            headerClassName: 'evidence-data-column text-start text-nowrap',
             render: (_value, _type, row) => formatNumber(renderer(row)),
         };
     }
 
     function normalizeCodeKey(value) {
-        return String(value ?? '').trim().toUpperCase();
+        return valueText(value).toUpperCase();
     }
 
     function codeDisplayName(field, value) {
         const code = normalizeCodeKey(value);
         if (code === '') return '';
         const group = DISPLAY_CODE_FIELDS[field] || '';
-        if (group === '') return String(value ?? '');
+        if (group === '') return valueText(value);
 
         const found = (codeOptions[group] || []).find((row) => normalizeCodeKey(row.code) === code);
-        return found?.code_name || String(value ?? '');
+        return found?.code_name || valueText(value);
     }
 
     function codeValueForField(field, value) {
-        const raw = String(value ?? '').trim();
+        const raw = valueText(value);
         if (raw === '') return '';
         const group = DISPLAY_CODE_FIELDS[field] || '';
         if (group === '') return raw;
@@ -675,6 +660,46 @@ import '/public/assets/js/components/excel-manager.js';
         if (found?.code) return found.code;
 
         return CODE_NAME_ALIASES[field]?.[raw] || raw;
+    }
+
+    function businessUnitRuleType(payload = {}) {
+        const raw = valueText(payload.business_unit || payload.business_unit_code);
+        const label = codeDisplayName('business_unit', raw);
+        const normalized = `${raw} ${label}`.replace(/\s+/g, '').toUpperCase();
+        if (normalized.includes('HQ') || normalized.includes('본사')) return 'HQ';
+        if (normalized.includes('CONSTRUCTION') || normalized.includes('전문건설')) return 'CONSTRUCTION';
+        return '';
+    }
+
+    function hasProjectSelection(payload = {}) {
+        return valueText(payload.project_id) !== '' || valueText(payload.project_name) !== '';
+    }
+
+    function focusBusinessProjectRuleTarget(key) {
+        const input = editInputByKey(key);
+        input?.classList.add('is-invalid');
+        input?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        input?.focus?.();
+    }
+
+    function validateBusinessProjectRule(payload = {}) {
+        const type = businessUnitRuleType(payload);
+        const hasProject = hasProjectSelection(payload);
+        editInputByKey('business_unit')?.classList.remove('is-invalid');
+        editInputByKey('project_name')?.classList.remove('is-invalid');
+        editInputByKey('project_id')?.classList.remove('is-invalid');
+
+        if (type === 'HQ' && hasProject) {
+            focusBusinessProjectRuleTarget('project_name');
+            notify('warning', '사업구분이 본사일 때는 프로젝트명을 선택할 수 없습니다.');
+            return false;
+        }
+        if (type === 'CONSTRUCTION' && !hasProject) {
+            focusBusinessProjectRuleTarget('project_name');
+            notify('warning', '사업구분이 전문건설업일 때는 프로젝트명을 선택해야 합니다.');
+            return false;
+        }
+        return true;
     }
 
     function formatValue(row = {}, column = {}) {
@@ -694,14 +719,14 @@ import '/public/assets/js/components/excel-manager.js';
                 '승인일시',
                 '매입일시',
             ]);
-            if (explicit !== undefined && explicit !== null && String(explicit) !== '') {
-                const explicitText = String(explicit);
+            if (valueText(explicit) !== '') {
+                const explicitText = valueText(explicit);
                 if (/\d{1,2}:\d{2}/.test(explicitText)) {
                     return explicitText;
                 }
                 const rawDateTime = raw[excelName] ?? raw[systemField] ?? '';
-                if (rawDateTime !== '' && /\d{1,2}:\d{2}/.test(String(rawDateTime))) {
-                    return rawDateTime;
+                if (valueText(rawDateTime) !== '' && /\d{1,2}:\d{2}/.test(valueText(rawDateTime))) {
+                    return valueText(rawDateTime);
                 }
             }
 
@@ -724,15 +749,15 @@ import '/public/assets/js/components/excel-manager.js';
                 '매입시간',
             ]) ?? raw['거래시간'] ?? raw['승인시간'] ?? raw['매입시간'] ?? '';
 
-            if (String(dateValue) !== '' && String(timeValue) !== '') {
-                return `${dateValue} ${timeValue}`;
+            if (valueText(dateValue) !== '' && valueText(timeValue) !== '') {
+                return `${valueText(dateValue)} ${valueText(timeValue)}`;
             }
-            if (explicit !== undefined && explicit !== null && String(explicit) !== '') {
-                return explicit;
+            if (valueText(explicit) !== '') {
+                return valueText(explicit);
             }
         }
         const value = firstPayloadValue(payload, columnAliasKeys(column));
-        if (value !== undefined && value !== null && String(value) !== '') {
+        if (valueText(value) !== '') {
             return codeDisplayName(systemField, value);
         }
 
@@ -744,6 +769,12 @@ import '/public/assets/js/components/excel-manager.js';
         const field = String(column.system_field_name || '').toLowerCase();
         const title = String(column.excel_column_name || '').toLowerCase();
         return /(^|_)date$|_date_|date|datetime|일자|날짜|일시/.test(`${field} ${title}`);
+    }
+
+    function isTimeColumn(column = {}) {
+        const field = String(column.system_field_name || '').toLowerCase();
+        const title = String(column.excel_column_name || '').toLowerCase();
+        return !isDateColumn(column) && /(^|_)time$|time|시간|시각/.test(`${field} ${title}`);
     }
 
     function isDateTimeColumn(column = {}) {
@@ -758,7 +789,7 @@ import '/public/assets/js/components/excel-manager.js';
     }
 
     function formatDateValue(value) {
-        const raw = String(value ?? '').trim();
+        const raw = valueText(value);
         if (raw === '' || raw === '-') return '-';
 
         const normalized = formatDateInputValue(raw);
@@ -785,7 +816,7 @@ import '/public/assets/js/components/excel-manager.js';
     }
 
     function formatDateTimeValue(value) {
-        const raw = String(value ?? '').trim();
+        const raw = valueText(value);
         if (raw === '' || raw === '-') return '-';
 
         const date = formatDateValue(raw);
@@ -798,7 +829,7 @@ import '/public/assets/js/components/excel-manager.js';
     }
 
     function normalizeDateInputValue(value, keepTime = false) {
-        const raw = String(value ?? '').trim();
+        const raw = valueText(value);
         if (raw === '' || raw === '-') return '';
         if (!/\d{4}[-/.]?\d{1,2}[-/.]?\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}/.test(raw)) {
             return '';
@@ -817,6 +848,49 @@ import '/public/assets/js/components/excel-manager.js';
         return `${datePart} ${pad2(timeMatch[1])}:${timeMatch[2]}${timeMatch[3] ? `:${timeMatch[3]}` : ''}`;
     }
 
+    function normalizeTimeInputValue(value) {
+        const raw = valueText(value);
+        const clockMatch = raw.match(/(?:^|\D)(\d{1,2}):(\d{2})(?::\d{2})?(?:\D|$)/);
+        let hourText = clockMatch?.[1] || '';
+        let minuteText = clockMatch?.[2] || '';
+        if (!clockMatch) {
+            const digits = raw.replace(/\D/g, '');
+            const timeDigits = digits.length >= 4 ? digits.slice(-4) : digits;
+            if (!/^\d{3,4}$/.test(timeDigits)) return '';
+            hourText = timeDigits.length === 3 ? timeDigits.slice(0, 1) : timeDigits.slice(0, 2);
+            minuteText = timeDigits.slice(-2);
+        }
+        const hour = Math.min(23, Math.max(0, Number(hourText || 0)));
+        const minute = Math.min(59, Math.max(0, Number(minuteText || 0)));
+        return `${pad2(hour)}:${pad2(minute)}`;
+    }
+
+    function explicitDateTimeValueForColumn(column = {}, row = {}, payload = {}) {
+        const key = String(column.key || '').toLowerCase();
+        const candidates = [];
+        if (key === 'transaction_date' || key === 'transaction_datetime' || key === 'transaction_at') {
+            candidates.push('transaction_datetime', 'transaction_at');
+        }
+        if (key === 'approval_date' || key === 'approval_datetime') {
+            candidates.push('approval_datetime');
+        }
+        if (key === 'purchase_date' || key === 'purchase_datetime') {
+            candidates.push('purchase_datetime');
+        }
+        if (isDateTimeColumn(column.column || {})) {
+            candidates.push(column.key, 'transaction_datetime', 'transaction_at');
+        }
+
+        for (const candidate of Array.from(new Set(candidates.filter(Boolean)))) {
+            const value = row[candidate] ?? payload[candidate];
+            const text = valueText(value);
+            if (text !== '' && /\d{1,2}:\d{2}/.test(text)) {
+                return text;
+            }
+        }
+        return '';
+    }
+
     function formatPickerDate(date) {
         if (!(date instanceof Date)) return '';
         return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
@@ -829,7 +903,7 @@ import '/public/assets/js/components/excel-manager.js';
     }
 
     function parseEditDateValue(value, keepTime = false) {
-        const raw = String(value ?? '').trim();
+        const raw = valueText(value);
         const now = new Date();
         if (raw === '' || raw === '-') {
             return {
@@ -912,8 +986,8 @@ import '/public/assets/js/components/excel-manager.js';
                 column.system_field_name,
                 key,
             ]);
-            if (dateTimeValue !== undefined && dateTimeValue !== null && String(dateTimeValue).trim() !== '') {
-                return dateTimeValue;
+            if (valueText(dateTimeValue) !== '') {
+                return valueText(dateTimeValue);
             }
 
             const dateValue = firstPayloadValue(payload, [
@@ -927,41 +1001,37 @@ import '/public/assets/js/components/excel-manager.js';
                 'approval_time',
                 'purchase_time',
             ]);
-            if (dateValue !== undefined && dateValue !== null && String(dateValue).trim() !== '') {
-                return `${dateValue}${timeValue !== undefined && timeValue !== null && String(timeValue).trim() !== '' ? ` ${timeValue}` : ''}`;
+            if (valueText(dateValue) !== '') {
+                const timeText = valueText(timeValue);
+                return `${valueText(dateValue)}${timeText !== '' ? ` ${timeText}` : ''}`;
             }
         }
         const value = firstPayloadValue(payload, columnAliasKeys(column));
-        if (value !== undefined && value !== null && String(value).trim() !== '') {
-            return value;
+        if (valueText(value) !== '') {
+            return valueText(value);
         }
 
-        return raw[column.excel_column_name]
-            ?? raw[column.system_field_name]
-            ?? '';
+        return valueText(raw[column.excel_column_name] ?? raw[column.system_field_name] ?? '');
     }
 
     function editInputType(column = {}, value = '') {
         const key = editFieldKey(column).toLowerCase();
         if (businessRefPickerForColumn(column)) return 'ref';
         if (bankCodePickerForColumn(column)) return 'code';
+        if (isTimeColumn(column)) return 'time';
         if (isDateColumn(column)) return 'date';
         if (isAmountColumn(column)) return 'number';
         if (isBusinessNumberColumn(column)) return 'business_number';
         if (isPhoneColumn(column)) return 'phone';
-        if (String(value ?? '').length > 80 || /memo|note|description|address|비고|메모|주소|적요/.test(key)) return 'textarea';
+        if (valueText(value).length > 80 || /memo|note|description|address|비고|메모|주소|적요/.test(key)) return 'textarea';
         return 'text';
     }
 
     function businessRefPickerForColumn(column = {}) {
-        const field = String(column.system_field_name || '').trim().toLowerCase();
-        const excel = String(column.excel_column_name || '').trim().replace(/\s+/g, '').toLowerCase();
-        const key = editFieldKey(column).toLowerCase();
-        const tokens = [field, excel, key].filter(Boolean);
-
-        return Object.values(BANK_REF_PICKERS).find((config) => (
-            config.keys.some((candidate) => tokens.includes(candidate.toLowerCase()))
-        )) || null;
+        return evidenceRefPickerForColumnLike({
+            ...column,
+            key: editFieldKey(column),
+        });
     }
 
     function bankCodePickerForColumn(column = {}) {
@@ -1039,8 +1109,9 @@ import '/public/assets/js/components/excel-manager.js';
     function firstPayloadText(payload = {}, keys = []) {
         for (const key of keys) {
             const value = payload[key];
-            if (value !== undefined && value !== null && String(value).trim() !== '') {
-                return String(value).trim();
+            const text = valueText(value);
+            if (text !== '') {
+                return text;
             }
         }
         return '';
@@ -1051,7 +1122,11 @@ import '/public/assets/js/components/excel-manager.js';
         const key = editFieldKey(column);
         const payload = mapped(editingRow);
         const selectedId = firstPayloadText(payload, [config.idKey]);
-        const selectedText = firstPayloadText(payload, [config.nameKey, ...config.keys, key]) || String(value ?? '').trim();
+        const selectedText = (
+            config.picker === 'client' && selectedId !== ''
+                ? valueText(editingRow?.client_name)
+                : ''
+        ) || firstPayloadText(payload, [config.nameKey, ...config.keys, key]) || valueText(value);
         const optionValue = selectedId || selectedText;
         const textOnly = selectedId === '' && selectedText !== '';
         const option = optionValue !== ''
@@ -1104,7 +1179,7 @@ import '/public/assets/js/components/excel-manager.js';
                     ? formatBizNumber(value)
                     : type === 'phone'
                     ? formatPhone(value)
-                    : String(value ?? '');
+                    : valueText(value);
         const safeValue = escapeHtml(displayValue === '-' ? '' : displayValue);
         const required = Number(column.is_required || 0) === 1 ? 'required' : '';
 
@@ -1239,17 +1314,30 @@ import '/public/assets/js/components/excel-manager.js';
         if (!select || select.dataset.refSelectBound === 'true') return;
         if (!window.jQuery?.fn?.select2) return;
 
-        const config = Object.values(BANK_REF_PICKERS).find((item) => item.picker === select.dataset.refPicker);
+        const config = Object.values(EVIDENCE_REF_PICKERS).find((item) => item.picker === select.dataset.refPicker);
         if (!config) return;
+        const url = {
+            supplierCompany: API.clientSearch,
+            customerCompany: API.clientSearch,
+            client: API.clientSearch,
+            project: API.projectSearch,
+            employee: API.employeeSearch,
+            bankAccount: API.bankAccountSearch,
+            card: API.cardSearch,
+        }[config.picker];
+        if (!url) return;
 
         AdminPicker.select2Ajax(select, {
-            url: config.url,
+            url,
             placeholder: config.placeholder,
             allowClear: true,
             tags: !!config.allowText,
             minimumInputLength: 0,
             dropdownParent: window.jQuery(refs.bulkModal),
             width: '100%',
+            templateSelection(item) {
+                return item.selectionText || item.refText || item.text || '';
+            },
             createTag(params) {
                 if (!config.allowText) return null;
                 const term = String(params.term || '').trim();
@@ -1268,10 +1356,13 @@ import '/public/assets/js/components/excel-manager.js';
                     results: [
                         { id: '', text: '선택(없음)' },
                         ...rows.map((row) => {
-                            const text = config.label(row);
+                            const text = typeof config.listText === 'function' ? config.listText(row) : config.label(row);
+                            const refText = typeof config.saveText === 'function' ? config.saveText(row) : text;
                             return {
                                 id: String(row.id ?? text ?? ''),
                                 text,
+                                refText,
+                                selectionText: refText,
                                 ...(typeof config.result === 'function' ? config.result(row) : {}),
                             };
                         }).filter((item) => item.id !== '' && item.text !== ''),
@@ -1283,7 +1374,8 @@ import '/public/assets/js/components/excel-manager.js';
         window.jQuery(select)
             .off('select2:select.evidenceBulkRef')
             .on('select2:select.evidenceBulkRef', function (event) {
-                this.dataset.refSelectedText = event.params?.data?.text || '';
+                const data = event.params?.data || {};
+                this.dataset.refSelectedText = data.refText || data.selectionText || data.text || '';
             })
             .off('select2:clear.evidenceBulkRef')
             .on('select2:clear.evidenceBulkRef', function () {
@@ -1366,9 +1458,8 @@ import '/public/assets/js/components/excel-manager.js';
                 const idKey = input.dataset.refIdKey || '';
                 const nameKey = input.dataset.refNameKey || key;
                 const allowsText = input.dataset.refAllowText === '1';
-                const selectedId = String(input.value || '').trim();
-                const selectedOption = input.selectedOptions?.[0] || null;
-                const selectedText = String(input.dataset.refSelectedText || selectedOption?.textContent || '').trim();
+                const selectedId = selectValueForSave(input);
+                const selectedText = selectTextForSave(input);
                 const isFreeTextSelection = allowsText && selectedId !== '' && selectedText !== '' && selectedId === selectedText;
                 patch[key] = selectedId === '' ? '' : selectedText;
                 if (nameKey) patch[nameKey] = selectedId === '' ? '' : selectedText;
@@ -1392,7 +1483,7 @@ import '/public/assets/js/components/excel-manager.js';
                 patch[key] = formatPhone(input.value);
                 return;
             }
-            patch[key] = input.value;
+            patch[key] = input.matches('select') ? selectValueForSave(input) : input.value;
         });
         return patch;
     }
@@ -1557,7 +1648,7 @@ import '/public/assets/js/components/excel-manager.js';
     function formatValueForEditInput(input, value) {
         if (input?.dataset?.valueKind === 'business_number') return formatBizNumber(value);
         if (input?.dataset?.valueKind === 'phone') return formatPhone(value);
-        return String(value ?? '').trim();
+        return valueText(value);
     }
 
     function applyEditValueIfBlank(key, value, options = {}) {
@@ -1579,65 +1670,15 @@ import '/public/assets/js/components/excel-manager.js';
     }
 
     function initEditRefSelect(select) {
-        if (!select || select.dataset.refSelectBound === 'true') return;
-        if (!window.jQuery?.fn?.select2) return;
-
-        const config = Object.values(BANK_REF_PICKERS).find((item) => item.picker === select.dataset.refPicker);
+        const config = Object.values(EVIDENCE_REF_PICKERS).find((item) => item.picker === select.dataset.refPicker);
         if (!config) return;
-
-        AdminPicker.select2Ajax(select, {
-            url: config.url,
-            placeholder: config.placeholder,
-            allowClear: true,
-            tags: !!config.allowText,
-            minimumInputLength: 0,
-            dropdownParent: window.jQuery(refs.editModal),
-            width: '100%',
-            createTag(params) {
-                if (!config.allowText) return null;
-                const term = String(params.term || '').trim();
-                if (term === '') return null;
-                return { id: term, text: term, isNew: true };
-            },
-            insertTag(data, tag) {
-                data.unshift(tag);
-            },
-            dataBuilder(params) {
-                return { q: params.term || '', limit: 20, is_active: 1 };
-            },
-            processResults(data) {
-                const rows = data?.results ?? data?.data ?? [];
-                return {
-                    results: [
-                        { id: '', text: '선택(없음)' },
-                        ...rows.map((row) => {
-                            const text = config.label(row);
-                            return {
-                                id: String(row.id ?? text ?? ''),
-                                text,
-                                ...(typeof config.result === 'function' ? config.result(row) : {}),
-                            };
-                        }).filter((item) => item.id !== '' && item.text !== ''),
-                    ],
-                };
+        initEvidenceRefSelect(select, {
+            modal: refs.editModal,
+            api: API,
+            onSelect(_select, data) {
+                applyRefAutofill(config, data);
             },
         });
-
-        window.jQuery(select)
-            .off('select2:select.evidenceEditRef')
-            .on('select2:select.evidenceEditRef', function (event) {
-                const data = event.params?.data || {};
-                this.dataset.refSelectedText = data.text || '';
-                this.dataset.refCurrentTextOnly = '0';
-                applyRefAutofill(config, data);
-            })
-            .off('select2:clear.evidenceEditRef')
-            .on('select2:clear.evidenceEditRef', function () {
-                this.dataset.refSelectedText = '';
-                this.dataset.refCurrentTextOnly = '0';
-            });
-
-        select.dataset.refSelectBound = 'true';
     }
 
     function bindEditFieldBehaviors() {
@@ -1767,6 +1808,772 @@ import '/public/assets/js/components/excel-manager.js';
         editModal.show();
     }
 
+    function splitRowsForEvidence(row = {}) {
+        const evidenceId = String(row?.evidence_id || row?.id || '').trim();
+        if (Array.isArray(row?.processing_children)) {
+            const parent = { ...row };
+            delete parent.processing_children;
+            const children = row.processing_children
+                .filter((item) => item && typeof item === 'object')
+                .sort((a, b) => String(a.processing_display_path || a.row_no || '').localeCompare(String(b.processing_display_path || b.row_no || ''), 'ko-KR', { numeric: true }));
+            return { evidenceId, parent, children };
+        }
+        const rows = lastRows.filter((item) => String(item.evidence_id || item.id || '').trim() === evidenceId);
+        const parent = rows.find((item) => item.processing_has_children)
+            || rows.find((item) => !item.processing_is_child)
+            || row;
+        const children = rows
+            .filter((item) => item.processing_is_child)
+            .sort((a, b) => String(a.processing_display_path || a.row_no || '').localeCompare(String(b.processing_display_path || b.row_no || ''), 'ko-KR', { numeric: true }));
+        return { evidenceId, parent, children };
+    }
+
+    function ensureSplitModal() {
+        let modal = document.getElementById('evidenceProcessingSplitModal');
+        if (modal) return modal;
+        document.body.insertAdjacentHTML('beforeend', `
+            <div class="modal fade" id="evidenceProcessingSplitModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                    <div class="modal-content evidence-split-modal">
+                        <div class="modal-header">
+                            <div>
+                                <h5 class="modal-title">분할 항목 수정</h5>
+                                <div class="small text-muted evidence-split-subtitle"></div>
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-info py-2 small">부모 금액과 자식행 금액 합계가 같아야 저장됩니다.</div>
+                            <div class="table-responsive evidence-split-scroll">
+                                <table class="table table-sm align-middle evidence-split-table mb-2">
+                                    <thead>
+                                        <tr>
+                                            <th style="width:72px;">순번</th>
+                                            <th>금액</th>
+                                            <th>적요</th>
+                                            <th style="width:70px;">관리</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-sm evidence-split-add">+ 추가</button>
+                        </div>
+                        <div class="modal-footer">
+                            <span class="me-auto small evidence-split-total"></span>
+                            <button type="button" class="btn btn-primary btn-sm evidence-split-save">저장</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `);
+        modal = document.getElementById('evidenceProcessingSplitModal');
+        modal.querySelector('.evidence-split-add')?.addEventListener('click', () => {
+            const tbody = modal.querySelector('tbody');
+            const parentPayload = modal._splitParentPayload && typeof modal._splitParentPayload === 'object'
+                ? { ...modal._splitParentPayload }
+                : {};
+            const amountKeys = splitAmountKeys();
+            const childCount = tbody?.querySelectorAll('tr[data-split-role="child"]').length || 0;
+            tbody?.insertAdjacentHTML('beforeend', splitRowHtml({
+                sort_no: childCount + 1,
+                mapped_payload: splitPayloadWithAmounts(parentPayload, amountKeys, 0),
+            }));
+            bindSplitModalInputs(modal);
+            refreshSplitModalRows(modal);
+        });
+        modal.querySelector('tbody')?.addEventListener('click', (event) => {
+            const button = event.target.closest('.evidence-split-remove');
+            if (!button) return;
+            button.closest('tr')?.remove();
+            refreshSplitModalRows(modal);
+        });
+        modal.querySelector('tbody')?.addEventListener('input', () => refreshSplitModalRows(modal));
+        modal.querySelector('.evidence-split-save')?.addEventListener('click', () => saveSplitModal(modal));
+        bindSplitModalHorizontalWheel(modal);
+        return modal;
+    }
+
+    function ensureChildEditModal() {
+        let modal = document.getElementById('evidenceProcessingChildEditModal');
+        if (modal) return modal;
+        document.body.insertAdjacentHTML('beforeend', `
+            <div class="modal fade" id="evidenceProcessingChildEditModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                    <div class="modal-content evidence-split-modal">
+                        <div class="modal-header">
+                            <div>
+                                <h5 class="modal-title">자식 항목 수정</h5>
+                                <div class="small text-muted evidence-child-edit-subtitle"></div>
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="table-responsive evidence-split-scroll">
+                                <table class="table table-sm align-middle evidence-split-table mb-0">
+                                    <thead><tr></tr></thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-primary btn-sm evidence-child-edit-save">저장</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `);
+        modal = document.getElementById('evidenceProcessingChildEditModal');
+        modal.querySelector('.evidence-child-edit-save')?.addEventListener('click', () => saveProcessingChildEdit(modal));
+        bindSplitModalHorizontalWheel(modal);
+        return modal;
+    }
+
+    function splitModalColumns() {
+        const formatColumns = Array.isArray(activeFormat?.columns) ? activeFormat.columns.slice().sort(compareFormatColumns) : [];
+        const columns = formatColumns.map((column) => ({
+            column,
+            key: splitColumnKey(column),
+            title: String(column.excel_column_name || column.system_field_name || '').trim(),
+            amount: isAmountColumn(column),
+            tone: infoColumnTone(column),
+            type: editInputType(column, ''),
+        })).filter((column) => column.key && column.title && !isSplitExcludedColumn(column));
+        return columns;
+    }
+
+    function splitColumnKey(column = {}) {
+        const key = editFieldKey(column);
+        if (currentType === 'BANK_TRANSACTION' && key === 'withdrawal_amount') {
+            return 'withdraw_amount';
+        }
+        return key;
+    }
+
+    function isSplitExcludedColumn(column = {}) {
+        const key = String(column.key || column.column?.system_field_name || '').toLowerCase();
+        const title = String(column.title || column.column?.excel_column_name || '').trim();
+        const text = `${key} ${title}`;
+        if (/balance_amount|check_bill_amount|balance|거래후잔액|잔액|수표어음/.test(text)) {
+            return true;
+        }
+        if (currentType === 'BANK_TRANSACTION' && column.amount) {
+            return !/(^|_)(deposit|withdraw|withdrawal)(_|$)|입금|출금/.test(text);
+        }
+        return false;
+    }
+
+    function splitAmountColumns() {
+        return splitModalColumns().filter((column) => {
+            const field = String(column.key || column.column?.system_field_name || '').toLowerCase();
+            const title = String(column.title || column.column?.excel_column_name || '').trim();
+            const text = `${field} ${title}`;
+            if (/unit_price|foreign_unit_price|exchange_rate|rate|quantity|qty|balance_amount|단가|수량|환율|잔액/.test(text)) {
+                return false;
+            }
+            return /amount|total|vat|tax|fee|charge|duty|deposit|withdraw|withdrawal|supply|settlement|gross|withholding|공급가액|부가세|세액|합계|합계금액|금액|관세|수수료|봉사료|매출|정산액|지급액|원천세|입금|출금/.test(text);
+        });
+    }
+
+    function splitAmountKeys() {
+        return splitAmountColumns().map((column) => column.key).filter(Boolean);
+    }
+
+    function splitPayloadWithAmounts(payload = {}, amountKeys = [], value = 0) {
+        const next = { ...payload };
+        amountKeys.forEach((key) => {
+            next[key] = value;
+        });
+        return next;
+    }
+
+    function splitAmountSummary(modal) {
+        const parentPayload = modal._splitParentPayload && typeof modal._splitParentPayload === 'object'
+            ? modal._splitParentPayload
+            : {};
+        return splitAmountColumns().map((column) => {
+            const parentValue = amount(parentPayload[column.key]);
+            let childValue = 0;
+            modal.querySelectorAll('tbody tr[data-split-role="child"]').forEach((tr) => {
+                const input = Array.from(tr.querySelectorAll('.evidence-split-field'))
+                    .find((field) => field.dataset.key === column.key);
+                childValue += amount(input?.value || 0);
+            });
+            return {
+                title: column.title,
+                parentValue,
+                childValue,
+                valid: Math.abs(parentValue - childValue) <= 0.01,
+            };
+        });
+    }
+
+    function splitRequiredColumns() {
+        return splitModalColumns().filter((column) => requirementMode(column.column || {}) === 1);
+    }
+
+    function renderSplitModalHeader(modal) {
+        const headerRow = modal.querySelector('.evidence-split-table thead tr');
+        if (!headerRow) return;
+        headerRow.innerHTML = `
+            <th style="width:36px;"></th>
+            <th style="width:72px;">순번</th>
+            ${splitModalColumns().map((column) => `<th>${escapeHtml(column.title)}${requirementStar(column.column || {})}</th>`).join('')}
+            <th style="width:70px;">관리</th>
+        `;
+    }
+
+    function renderChildEditModalHeader(modal) {
+        const headerRow = modal.querySelector('.evidence-split-table thead tr');
+        if (!headerRow) return;
+        headerRow.innerHTML = `
+            <th style="width:72px;">순번</th>
+            ${splitModalColumns().map((column) => `<th>${escapeHtml(column.title)}${requirementStar(column.column || {})}</th>`).join('')}
+        `;
+    }
+
+    function splitSelectOption(value = '', text = '') {
+        const optionValue = valueText(value);
+        const optionText = valueText(text) || optionValue;
+        return optionValue !== ''
+            ? `<option value="${escapeHtml(optionValue)}" selected>${escapeHtml(optionText || optionValue)}</option>`
+            : '';
+    }
+
+    function splitCodeValue(column, value) {
+        const raw = valueText(value);
+        if (raw === '') return '';
+        const group = bankCodePickerForColumn(column.column || {})?.codeGroup || DISPLAY_CODE_FIELDS[column.key] || '';
+        if (group === '') return codeValueForField(column.key, raw);
+        const normalized = normalizeCodeKey(raw);
+        const found = (codeOptions[group] || []).find((row) => (
+            normalizeCodeKey(row.code) === normalized
+            || String(row.code_name ?? '').trim() === raw
+        ));
+        return found?.code || CODE_NAME_ALIASES[column.key]?.[raw] || raw;
+    }
+
+    function splitCodeDisplayName(column, value) {
+        const code = normalizeCodeKey(value);
+        if (code === '') return '';
+        const group = bankCodePickerForColumn(column.column || {})?.codeGroup || DISPLAY_CODE_FIELDS[column.key] || '';
+        if (group === '') return codeDisplayName(column.key, value);
+        const found = (codeOptions[group] || []).find((row) => normalizeCodeKey(row.code) === code);
+        return found?.code_name || valueText(value);
+    }
+
+    function splitTimeForColumn(column, row = {}, payload = {}) {
+        const key = String(column.key || '');
+        const keys = Array.from(new Set([
+            key.replace(/datetime/i, 'time'),
+            key.replace(/date/i, 'time'),
+            key.replace(/일시/g, '시간'),
+            key.replace(/일자/g, '시간'),
+            'transaction_time',
+            'approval_time',
+            'purchase_time',
+            'time',
+            '거래시간',
+            '승인시간',
+            '매입시간',
+        ].filter(Boolean)));
+        for (const candidate of keys) {
+            const value = row[candidate] ?? payload[candidate];
+            const normalized = normalizeTimeInputValue(value);
+            if (normalized !== '') return normalized;
+        }
+        return '';
+    }
+
+    function splitValueForColumn(column, row = {}, payload = {}) {
+        let rawValue = row[column.key] ?? payload[column.key] ?? '';
+        if (currentType === 'BANK_TRANSACTION' && column.key === 'withdraw_amount' && valueText(rawValue) === '') {
+            rawValue = row.withdrawal_amount ?? payload.withdrawal_amount ?? '';
+        }
+        if (column.type === 'date') {
+            const explicitDateTime = explicitDateTimeValueForColumn(column, row, payload);
+            if (explicitDateTime !== '') {
+                return normalizeDateInputValue(explicitDateTime, true);
+            }
+            const raw = valueText(rawValue);
+            const hasInlineTime = /\d{1,2}:\d{2}/.test(raw);
+            const timeValue = splitTimeForColumn(column, row, payload);
+            const keepTime = isDateTimeColumn(column.column || {}) || hasInlineTime || timeValue !== '';
+            const source = keepTime && !hasInlineTime && timeValue !== '' ? `${raw} ${timeValue}` : raw;
+            return normalizeDateInputValue(source, keepTime);
+        }
+        if (column.type === 'time') {
+            return normalizeTimeInputValue(rawValue);
+        }
+        if (column.type === 'code') {
+            return splitCodeValue(column, rawValue);
+        }
+        if (column.amount && rawValue !== '') {
+            return formatNumber(rawValue);
+        }
+        return valueText(rawValue);
+    }
+
+    function splitCellHtml(column, child = {}, payload = {}) {
+        const value = splitValueForColumn(column, child, payload);
+        const toneClass = column.tone ? ` evidence-split-cell-${escapeHtml(column.tone)}` : '';
+        const safeKey = escapeHtml(column.key);
+        const editType = column.type || (column.amount ? 'number' : 'text');
+        const keepTime = editType === 'date' && /\d{1,2}:\d{2}/.test(value);
+        const required = requirementMode(column.column || {}) === 1 ? 'required' : '';
+        let control = `<input type="text"
+                       class="form-control form-control-sm evidence-split-field ${column.amount ? 'text-end evidence-split-amount' : ''}"
+                       data-key="${safeKey}"
+                       data-value-kind="${column.amount ? 'number' : 'text'}"
+                       data-amount="${column.amount ? '1' : '0'}"
+                       value="${escapeHtml(value)}" ${required}>`;
+        if (editType === 'ref') {
+            const config = businessRefPickerForColumn(column.column || {});
+            const selectedId = firstPayloadText(payload, [config?.idKey]);
+            const selectedText = firstPayloadText(payload, [config?.nameKey, ...(config?.keys || []), column.key]) || value;
+            const optionValue = selectedId || selectedText;
+            control = `
+                <select class="form-select form-select-sm evidence-split-field evidence-split-ref"
+                    data-key="${safeKey}"
+                    data-value-kind="ref"
+                    data-ref-picker="${escapeHtml(config?.picker || '')}"
+                    data-ref-id-key="${escapeHtml(config?.idKey || '')}"
+                    data-ref-name-key="${escapeHtml(config?.nameKey || column.key)}"
+                    data-ref-allow-text="${config?.allowText ? '1' : '0'}"
+                    data-amount="0" ${required}>
+                    <option value=""></option>
+                    ${splitSelectOption(optionValue, selectedText)}
+                </select>
+            `;
+        } else if (editType === 'code') {
+            const config = bankCodePickerForColumn(column.column || {});
+            const selectedValue = splitCodeValue(column, value);
+            const selectedText = splitCodeDisplayName(column, selectedValue);
+            control = `
+                <select class="form-select form-select-sm evidence-split-field evidence-split-code"
+                    data-key="${safeKey}"
+                    data-code-group="${escapeHtml(config?.codeGroup || '')}"
+                    data-empty-label="${escapeHtml(config?.emptyLabel || '선택(없음)')}"
+                    data-code-searchable="true"
+                    data-value-kind="code"
+                    data-amount="0" ${required}>
+                    ${splitSelectOption(selectedValue, selectedText || selectedValue)}
+                </select>
+            `;
+        } else if (editType === 'date') {
+            control = `
+                <div class="evidence-edit-date-wrap">
+                    <input type="text"
+                       inputmode="numeric"
+                       class="form-control form-control-sm evidence-split-field evidence-split-date evidence-edit-date"
+                       data-key="${safeKey}"
+                       data-value-kind="date"
+                       data-keep-time="${keepTime ? '1' : '0'}"
+                       data-amount="0"
+                       value="${escapeHtml(normalizeDateInputValue(value, keepTime))}"
+                       placeholder="${keepTime ? 'YYYY-MM-DD HH:mm:ss' : 'YYYY-MM-DD'}" ${required}>
+                    <button type="button" class="btn btn-outline-secondary btn-sm evidence-split-date-btn evidence-edit-date-btn" aria-label="${keepTime ? '일시 선택' : '날짜 선택'}">
+                        <i class="bi bi-calendar3"></i>
+                    </button>
+                </div>
+            `;
+        } else if (editType === 'time') {
+            control = `
+                <div class="evidence-edit-date-wrap">
+                    <input type="text"
+                       inputmode="numeric"
+                       class="form-control form-control-sm evidence-split-field evidence-split-time"
+                       data-key="${safeKey}"
+                       data-value-kind="time"
+                       data-amount="0"
+                       value="${escapeHtml(normalizeTimeInputValue(value))}"
+                       placeholder="HH:mm" ${required}>
+                    <button type="button" class="btn btn-outline-secondary btn-sm evidence-split-time-btn" aria-label="시간 선택">
+                        <i class="bi bi-clock"></i>
+                    </button>
+                </div>
+            `;
+        }
+        return `
+            <td class="${toneClass}">
+                ${control}
+            </td>
+        `;
+    }
+
+    function splitDisplayCellHtml(column, row = {}, payload = {}) {
+        const value = column.type === 'code'
+            ? splitCodeDisplayName(column, splitValueForColumn(column, row, payload))
+            : splitValueForColumn(column, row, payload);
+        const toneClass = column.tone ? ` evidence-split-cell-${escapeHtml(column.tone)}` : '';
+        return `
+            <td class="${toneClass}">
+                <span class="evidence-split-parent-value ${column.amount ? 'text-end' : ''}">${escapeHtml(value)}</span>
+            </td>
+        `;
+    }
+
+    function splitParentRowHtml(parent = {}, parentPayload = {}) {
+        const columns = splitModalColumns();
+        const displayNo = parent.processing_display_path || parent.row_no || '부모';
+        return `
+            <tr class="evidence-split-parent-row" data-split-role="parent">
+                <td class="text-center"><span class="evidence-split-parent-label">부모</span></td>
+                <td class="text-center"><span>${escapeHtml(displayNo)}</span></td>
+                ${columns.map((column) => splitDisplayCellHtml(column, parent, parentPayload)).join('')}
+                <td class="text-center">-</td>
+            </tr>
+        `;
+    }
+
+    function splitRowHtml(child = {}) {
+        const columns = splitModalColumns();
+        const payload = mapped(child);
+        const sortNo = child.sort_no || '';
+        return `
+            <tr data-id="${escapeHtml(child.processing_item_id || child.id || '')}" data-split-role="child">
+                <td class="evidence-split-drag text-center"><span class="bi bi-list" title="순서변경"></span></td>
+                <td class="text-center"><span class="evidence-split-sort">${escapeHtml(sortNo)}</span></td>
+                ${columns.map((column) => splitCellHtml(column, child, payload)).join('')}
+                <td class="text-center"><button type="button" class="btn btn-outline-danger btn-sm evidence-split-remove">삭제</button></td>
+            </tr>
+        `;
+    }
+
+    function childEditRowHtml(child = {}) {
+        const columns = splitModalColumns();
+        const payload = mapped(child);
+        const sortNo = child.processing_display_path || child.row_no || child.sort_no || '';
+        return `
+            <tr data-id="${escapeHtml(child.processing_item_id || child.id || '')}" data-split-role="child">
+                <td class="text-center"><span class="evidence-split-sort">${escapeHtml(sortNo)}</span></td>
+                ${columns.map((column) => splitCellHtml(column, child, payload)).join('')}
+            </tr>
+        `;
+    }
+    function refreshSplitModalRows(modal) {
+        const rows = Array.from(modal.querySelectorAll('tbody tr[data-split-role="child"]'));
+        rows.forEach((tr, index) => {
+            const sortNode = tr.querySelector('.evidence-split-sort');
+            if (sortNode) sortNode.textContent = String(index + 1);
+        });
+        const total = modal.querySelector('.evidence-split-total');
+        if (total) {
+            const summaries = splitAmountSummary(modal);
+            total.textContent = summaries.length > 0
+                ? summaries.map((item) => `${item.title} 부모 ${formatNumber(item.parentValue)} / 자식합계 ${formatNumber(item.childValue)}`).join(' · ')
+                : '분할 기준 금액 컬럼이 없습니다.';
+            total.classList.toggle('text-danger', summaries.some((item) => !item.valid));
+        }
+    }
+
+    function openProcessingSplitModal(row = {}) {
+        const modal = ensureSplitModal();
+        const { evidenceId, parent, children } = splitRowsForEvidence(row);
+        const parentPayload = mapped(parent);
+        modal._splitParentPayload = { ...parentPayload };
+        modal.dataset.evidenceId = evidenceId;
+        modal.dataset.parentProcessingItemId = parent.processing_item_id || row.processing_parent_item_id || row.processing_item_id || '';
+        const subtitle = modal.querySelector('.evidence-split-subtitle');
+        if (subtitle) {
+            subtitle.textContent = `순번 ${parent.processing_display_path || parent.row_no || '-'}`;
+        }
+        const amountKeys = splitAmountKeys();
+        const initialChildren = children.length > 0 ? children : [
+            { sort_no: 1, mapped_payload: { ...parentPayload } },
+            { sort_no: 2, mapped_payload: splitPayloadWithAmounts(parentPayload, amountKeys, 0) },
+        ];
+        renderSplitModalHeader(modal);
+        bindSplitModalReorder(modal);
+        const tbody = modal.querySelector('tbody');
+        if (tbody) {
+            const childRows = initialChildren.map((child, index) => splitRowHtml({
+                ...child,
+                sort_no: child.sort_no || index + 1,
+            })).join('');
+            tbody.innerHTML = splitParentRowHtml(parent, parentPayload) + childRows;
+        }
+        bindSplitModalInputs(modal);
+        refreshSplitModalRows(modal);
+        bootstrap.Modal.getOrCreateInstance(modal, { focus: false }).show();
+    }
+
+    function openProcessingChildEditModal(row = {}) {
+        const modal = ensureChildEditModal();
+        modal.dataset.processingItemId = row.processing_item_id || row.id || '';
+        const subtitle = modal.querySelector('.evidence-child-edit-subtitle');
+        if (subtitle) {
+            subtitle.textContent = `순번 ${row.processing_display_path || row.row_no || '-'}`;
+        }
+        renderChildEditModalHeader(modal);
+        const tbody = modal.querySelector('tbody');
+        if (tbody) {
+            tbody.innerHTML = childEditRowHtml(row);
+        }
+        bindSplitModalInputs(modal);
+        bootstrap.Modal.getOrCreateInstance(modal, { focus: false }).show();
+    }
+
+    function bindSplitModalHorizontalWheel(modal) {
+        const scroll = modal.querySelector('.evidence-split-scroll');
+        if (!scroll || scroll.dataset.horizontalWheelBound === 'true') return;
+        scroll.addEventListener('wheel', (event) => {
+            if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+            if (scroll.scrollWidth <= scroll.clientWidth) return;
+            event.preventDefault();
+            scroll.scrollLeft += event.deltaY;
+        }, { passive: false });
+        scroll.dataset.horizontalWheelBound = 'true';
+    }
+
+    function bindSplitTimeInput(input) {
+        if (!input || input.dataset.timeInputBound === 'true') return;
+        const normalize = () => {
+            input.value = normalizeTimeInputValue(input.value);
+        };
+        input.addEventListener('change', normalize);
+        input.addEventListener('blur', normalize);
+        input.dataset.timeInputBound = 'true';
+    }
+
+    function bindSplitTimePicker(button) {
+        if (!button || button.dataset.timePickerBound === 'true') return;
+
+        button.addEventListener('click', (event) => {
+            event.preventDefault();
+            const input = button.closest('.evidence-edit-date-wrap')?.querySelector('.evidence-split-time');
+            if (!input || input.disabled) return;
+
+            const layer = document.createElement('div');
+            layer.className = 'picker is-hidden evidence-edit-picker-layer';
+            document.body.appendChild(layer);
+            editPickerLayers.push(layer);
+
+            const picker = AdminPicker.create({ type: 'time-list', container: layer, options: { step: 10, rows: 8 } });
+            const currentTime = normalizeTimeInputValue(input.value);
+            if (currentTime) {
+                const [hour, minute] = currentTime.split(':').map((item) => Number(item));
+                picker.setTime?.({ hour, minute, meridiem: hour >= 12 ? 'PM' : 'AM' });
+            }
+            const closePicker = picker.close?.bind(picker);
+            picker.close = () => {
+                closePicker?.();
+                window.setTimeout(() => layer.remove(), 0);
+            };
+            picker.subscribe((state) => {
+                if (typeof state?.hour !== 'number' || typeof state?.minute !== 'number') return;
+                input.value = `${pad2(state.hour)}:${pad2(state.minute)}`;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+                picker.close?.();
+            });
+            picker.open?.({ anchor: input });
+        });
+
+        button.dataset.timePickerBound = 'true';
+    }
+
+    function bindSplitModalInputs(modal) {
+        modal.querySelectorAll('.evidence-split-amount').forEach((input) => bindCommonNumberInput(input));
+        modal.querySelectorAll('.evidence-edit-date-wrap').forEach((wrap) => {
+            bindDateEditInput(
+                wrap.querySelector('.evidence-split-date'),
+                wrap.querySelector('.evidence-split-date-btn')
+            );
+        });
+        modal.querySelectorAll('.evidence-split-time').forEach((input) => bindSplitTimeInput(input));
+        modal.querySelectorAll('.evidence-split-time-btn').forEach((button) => bindSplitTimePicker(button));
+        modal.querySelectorAll('.evidence-split-ref').forEach((select) => initEvidenceRefSelect(select, {
+            modal,
+            api: API,
+        }));
+        if (modal.querySelector('select.evidence-split-code')) {
+            void initCodeSelectControls(modal);
+        }
+    }
+    function bindSplitModalReorder(modal) {
+        const tbody = modal.querySelector('.evidence-split-table tbody');
+        if (!tbody || !window.jQuery || typeof window.jQuery(tbody).sortable !== 'function') return;
+        const $tbody = window.jQuery(tbody);
+        if ($tbody.data('ui-sortable')) {
+            $tbody.sortable('destroy');
+        }
+        $tbody.sortable({
+            handle: '.evidence-split-drag',
+            items: '> tr[data-split-role="child"]',
+            axis: 'y',
+            containment: 'parent',
+            tolerance: 'pointer',
+            stop: () => refreshSplitModalRows(modal),
+        });
+    }
+
+    function collectSplitChildPayload(tr) {
+        const payload = {};
+        tr.querySelectorAll('.evidence-split-field').forEach((input) => {
+            const key = input.dataset.key || '';
+            if (!key) return;
+            if (input.dataset.valueKind === 'ref') {
+                const idKey = input.dataset.refIdKey || '';
+                const nameKey = input.dataset.refNameKey || key;
+                const selectedId = selectValueForSave(input);
+                const selectedText = selectTextForSave(input);
+                payload[key] = selectedText;
+                if (nameKey) {
+                    payload[nameKey] = selectedText;
+                }
+                if (idKey) {
+                    payload[idKey] = selectedId && selectedId !== selectedText ? selectedId : '';
+                }
+                return;
+            }
+            if (input.dataset.valueKind === 'date') {
+                const keepTime = input.dataset.keepTime === '1';
+                const normalized = normalizeDateInputValue(input.value, keepTime);
+                payload[key] = normalized;
+                if (keepTime && /transaction_(date|time|datetime|at)$/i.test(key)) {
+                    payload.transaction_datetime = normalized;
+                    payload.transaction_date = normalized.slice(0, 10);
+                }
+                return;
+            }
+            payload[key] = input.dataset.amount === '1'
+                ? amount(input.value || 0)
+                : (input.matches('select') ? selectValueForSave(input) : input.value);
+        });
+        return payload;
+    }
+
+    function splitChildFromRow(tr, index = 0) {
+        const payload = collectSplitChildPayload(tr);
+        const child = {
+            id: tr.dataset.id || '',
+            sort_no: Number(tr.querySelector('.evidence-split-sort')?.textContent || index + 1),
+            description: payload.description || payload.memo || '',
+            mapped_payload: payload,
+        };
+        ['quantity', 'unit_price', 'supply_amount', 'vat_amount', 'total_amount', 'deposit_amount', 'withdraw_amount', 'withdrawal_amount'].forEach((key) => {
+            if (Object.prototype.hasOwnProperty.call(payload, key)) {
+                child[key] = payload[key];
+            }
+        });
+        return child;
+    }
+
+    function splitMissingRequiredForRow(tr, index = 0) {
+        const payload = collectSplitChildPayload(tr);
+        const missing = [];
+        splitRequiredColumns().forEach((column) => {
+            if (valueText(payload[column.key]) === '') {
+                missing.push(`${index + 1}행 ${column.title}`);
+            }
+        });
+        return missing;
+    }
+
+    async function saveSplitModal(modal) {
+        const evidenceId = String(modal.dataset.evidenceId || '').trim();
+        const processingItemId = String(modal.dataset.parentProcessingItemId || '').trim();
+        const missing = [];
+        const children = Array.from(modal.querySelectorAll('tbody tr[data-split-role="child"]')).map((tr, index) => {
+            missing.push(...splitMissingRequiredForRow(tr, index));
+            return splitChildFromRow(tr, index);
+        });
+        if (missing.length > 0) {
+            notify('warning', `필수 항목을 입력해야 저장할 수 있습니다: ${missing.slice(0, 5).join(', ')}${missing.length > 5 ? ` 외 ${missing.length - 5}건` : ''}`);
+            return;
+        }
+        const response = await fetch(API.splitChild, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                id: evidenceId,
+                evidence_id: evidenceId,
+                processing_item_id: processingItemId,
+                children,
+            }),
+        });
+        const text = await response.text();
+        let json = {};
+        try {
+            json = text ? JSON.parse(text) : {};
+        } catch (error) {
+            const cleaned = text
+                .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+                .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+                .replace(/<[^>]+>/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+            throw new Error(/Fatal error|Call to undefined method|Parse error|Exception/i.test(cleaned)
+                ? '\uc11c\ubc84 \ucc98\ub9ac \uc911 \uc624\ub958\uac00 \ubc1c\uc0dd\ud588\uc2b5\ub2c8\ub2e4. \uad00\ub9ac\uc790\uc5d0\uac8c \ubb38\uc758\ud558\uc138\uc694.'
+                : (cleaned || '\uc5c5\ub85c\ub4dc \ucc98\ub9ac \uc911 \uc11c\ubc84 \uc624\ub958\uac00 \ubc1c\uc0dd\ud588\uc2b5\ub2c8\ub2e4.').slice(0, 240));
+        }
+        if (!response.ok || json.success === false) {
+            notify('error', json.message || '분할 항목 저장에 실패했습니다.');
+            return;
+        }
+        notify('success', json.message || '분할 항목을 저장했습니다.');
+        bootstrap.Modal.getInstance(modal)?.hide();
+        table?.ajax.reload(() => {
+            updateSummary(lastRows);
+            refreshDataTableLayout(table);
+            window.setTimeout(() => refreshDataTableLayout(table), 150);
+        }, false);
+    }
+
+    async function saveProcessingChildEdit(modal) {
+        const row = modal.querySelector('tbody tr[data-split-role="child"]');
+        if (!row) return;
+        const missing = splitMissingRequiredForRow(row, 0);
+        if (missing.length > 0) {
+            notify('warning', `필수 항목을 입력해야 저장할 수 있습니다: ${missing.slice(0, 5).join(', ')}`);
+            return;
+        }
+        const child = splitChildFromRow(row, 0);
+        const response = await fetch(API.updateProcessingChild, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                processing_item_id: modal.dataset.processingItemId || child.id || '',
+                child,
+            }),
+        });
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok || json.success === false) {
+            notify('error', json.message || '자식 항목 수정에 실패했습니다.');
+            return;
+        }
+        notify('success', json.message || '자식 항목을 수정했습니다.');
+        bootstrap.Modal.getInstance(modal)?.hide();
+        table?.ajax.reload(() => {
+            updateSummary(lastRows);
+            refreshDataTableLayout(table);
+            window.setTimeout(() => refreshDataTableLayout(table), 150);
+        }, false);
+    }
+
+    async function deleteProcessingChild(button) {
+        const processingItemId = String(button?.dataset.processingItemId || '').trim();
+        if (!processingItemId) return;
+        if (!window.confirm('자식행을 삭제하시겠습니까? 이 삭제는 되돌릴 수 없습니다.')) {
+            return;
+        }
+
+        const response = await fetch(API.deleteProcessingChild, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ processing_item_id: processingItemId }),
+        });
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok || json.success === false) {
+            throw new Error(json.message || '자식행 삭제에 실패했습니다.');
+        }
+        notify('success', json.message || '자식행을 삭제했습니다.');
+        table?.ajax.reload(() => updateSummary(lastRows), false);
+    }
+
     function collectEditPayload() {
         const next = { ...mapped(editingRow) };
         refs.editFields?.querySelectorAll('.evidence-edit-input').forEach((input) => {
@@ -1776,14 +2583,8 @@ import '/public/assets/js/components/excel-manager.js';
                 const idKey = input.dataset.refIdKey || '';
                 const nameKey = input.dataset.refNameKey || key;
                 const allowsText = input.dataset.refAllowText === '1';
-                const selectedId = String(input.value || '').trim();
-                const selectedOption = input.selectedOptions?.[0] || null;
-                let selectedText = String(
-                    input.dataset.refSelectedText
-                    || selectedOption?.textContent
-                    || input.dataset.refCurrentText
-                    || ''
-                ).trim();
+                const selectedId = selectValueForSave(input);
+                let selectedText = selectTextForSave(input, { includeCurrentText: true });
                 const isTextOnlyInitialValue = input.dataset.refCurrentTextOnly === '1'
                     && selectedId !== ''
                     && selectedId === String(input.dataset.refCurrentText || '').trim();
@@ -1823,7 +2624,17 @@ import '/public/assets/js/components/excel-manager.js';
                 next[key] = formatPhone(input.value);
                 return;
             }
-            next[key] = input.value;
+            next[key] = valueText(input.matches('select') ? selectValueForSave(input) : input.value);
+        });
+        Object.keys(next).forEach((key) => {
+            if (key.startsWith('_')) return;
+            const value = next[key];
+            if (value && typeof value === 'object') {
+                next[key] = valueText(value);
+            }
+            if (next[key] === '[object Object]') {
+                next[key] = '';
+            }
         });
         return next;
     }
@@ -1842,8 +2653,8 @@ import '/public/assets/js/components/excel-manager.js';
             const input = editInputByKey(key);
             const value = input
                 ? (input.dataset.valueKind === 'ref'
-                    ? String(input.dataset.refSelectedText || input.selectedOptions?.[0]?.textContent || input.value || '').trim()
-                    : String(input.value ?? '').trim())
+                    ? (selectTextForSave(input, { includeCurrentText: true }) || selectValueForSave(input))
+                    : (input.matches('select') ? selectValueForSave(input) : String(input.value ?? '').trim()))
                 : '';
             input?.classList.remove('is-invalid');
             if (value !== '') return;
@@ -1862,6 +2673,8 @@ import '/public/assets/js/components/excel-manager.js';
     async function saveEditingRow() {
         if (!editingRow) return;
         if (!validateRequiredEditFields()) return;
+        const payload = collectEditPayload();
+        if (!validateBusinessProjectRule(payload)) return;
         const isNew = editingRow.__isNew === true;
         const json = await fetch(isNew ? API.createEvidence : API.saveSeedRow, {
             method: 'POST',
@@ -1870,7 +2683,7 @@ import '/public/assets/js/components/excel-manager.js';
                 id: editingRow.id || '',
                 format_id: activeFormat?.id || editingRow.format_id || '',
                 import_type: currentType,
-                parsed_json: collectEditPayload(),
+                parsed_json: payload,
             }),
         }).then(async (response) => {
             const body = await response.json().catch(() => ({}));
@@ -1905,13 +2718,14 @@ import '/public/assets/js/components/excel-manager.js';
                     sourceField: field,
                     excelColumnName: title,
                     visible: Number(column.is_visible ?? 1) === 1,
-                    className: isAmount ? 'text-end' : '',
+                    className: `evidence-data-column ${isAmount ? 'text-end' : 'text-start'} text-nowrap`,
+                    headerClassName: 'evidence-data-column text-start text-nowrap',
                     render: (_value, type, row) => {
                         const value = formatValue(row, column);
                         if (type === 'sort' || type === 'type') {
                             if (isDate) return normalizeDateInputValue(value, isDateTimeColumn(column)) || '';
                             if (isAmount) return parseCommonNumber(value);
-                            return String(value ?? '');
+                            return valueText(value);
                         }
                         if (isDate) {
                             return escapeHtml(isDateTimeColumn(column) ? formatDateTimeValue(value) : formatDateValue(value));
@@ -1934,7 +2748,7 @@ import '/public/assets/js/components/excel-manager.js';
     }
 
     function normalizeSortText(value) {
-        return String(value ?? '')
+        return valueText(value)
             .trim()
             .toLowerCase()
             .replace(/[\s_()/-]/g, '');
@@ -1959,7 +2773,7 @@ import '/public/assets/js/components/excel-manager.js';
     }
 
     function defaultOrderForConfig() {
-        return [[0, 'asc']];
+        return [[1, 'asc']];
     }
 
     function applyDefaultTableOrder(tableInstance, config = {}) {
@@ -1983,24 +2797,55 @@ import '/public/assets/js/components/excel-manager.js';
                 searchable: false,
                 className: 'reorder-handle no-sort no-colvis text-center',
                 headerClassName: 'no-colvis text-center',
-                defaultContent: '<i class="bi bi-list"></i>',
+                width: '36px',
+                render: (_value, type, row) => {
+                    if (type !== 'display') return '';
+                    if (row?.processing_is_child) {
+                        return '<i class="bi bi-arrow-return-right processing-child-branch" title="자식행"></i>';
+                    }
+                    return '<i class="bi bi-list"></i>';
+                },
             },
             {
                 data: 'row_no',
                 title: '순번',
                 className: 'text-center text-nowrap',
-                render(value, _type, _row, meta) {
-                    return escapeHtml(value || (meta.row + meta.settings._iDisplayStart + 1));
+                headerClassName: 'text-center text-nowrap',
+                width: '56px',
+                render(value, type, row, meta) {
+                    const display = value || row?.processing_display_path || (meta.row + meta.settings._iDisplayStart + 1);
+                    if (type === 'sort' || type === 'type') {
+                        return String(display)
+                            .split('-')
+                            .reduce((total, part, index) => total + (Number(part) || 0) / Math.pow(1000, index), 0);
+                    }
+                    if (type !== 'display') return escapeHtml(display);
+                    const depth = Math.max(1, Number(row?.processing_level || 1));
+                    return `<span class="processing-row-no depth-${depth}">${escapeHtml(display)}</span>`;
                 },
             },
             ...config.evidenceColumns,
             {
                 data: null,
-                title: '관리',
-                className: 'text-center no-colvis',
-                headerClassName: 'text-center no-colvis',
+                title: '증빙상태',
+                className: 'dt-status-column text-center text-nowrap no-colvis',
+                headerClassName: 'dt-status-column text-center text-nowrap no-colvis',
                 orderable: false,
                 searchable: false,
+                width: '86px',
+                render: (_value, type, row) => {
+                    if (type !== 'display') return evidenceStatusState(row);
+                    return renderEvidenceStatusSimple(row);
+                },
+            },
+            {
+                data: null,
+                title: '관리',
+                className: 'dt-action-column text-center no-colvis',
+                headerClassName: 'dt-action-column text-center no-colvis',
+                orderable: false,
+                searchable: false,
+                width: '64px',
                 render: (_value, type, row) => {
                     if (type !== 'display') return '';
                     return `
@@ -2008,6 +2853,38 @@ import '/public/assets/js/components/excel-manager.js';
                                 class="btn btn-outline-primary btn-sm evidence-edit-row-btn"
                                 data-id="${escapeHtml(row?.id || '')}">
                             수정
+                        </button>
+                    `;
+                },
+            },
+            {
+                data: null,
+                title: '추가',
+                className: 'dt-action-column text-center no-colvis',
+                headerClassName: 'dt-action-column text-center no-colvis',
+                orderable: false,
+                searchable: false,
+                width: '52px',
+                render: (_value, type, row) => {
+                    if (type !== 'display') return '';
+                    if (row?.processing_is_child) {
+                        return `
+                            <button type="button"
+                                    class="btn btn-outline-danger btn-sm evidence-delete-child-row-btn"
+                                    data-processing-item-id="${escapeHtml(row?.processing_item_id || '')}"
+                                    title="자식행 삭제"
+                                    aria-label="자식행 삭제">
+                                -
+                            </button>
+                        `;
+                    }
+                    return `
+                        <button type="button"
+                                class="btn btn-outline-primary btn-sm evidence-add-child-row-btn"
+                                data-id="${escapeHtml(row?.id || '')}"
+                                title="자식행 추가"
+                                aria-label="자식행 추가">
+                            +
                         </button>
                     `;
                 },
@@ -2025,12 +2902,144 @@ import '/public/assets/js/components/excel-manager.js';
         ];
     }
 
+    function processingChildrenForParent(row = {}) {
+        const parentId = String(row.processing_item_id || '').trim();
+        if (!parentId) return [];
+        return lastRows.filter((item) => (
+            item?.processing_is_child
+            && String(item.processing_parent_item_id || '').trim() === parentId
+        ));
+    }
+
+    function explicitMissingFieldResolved(row = {}, item = '') {
+        const field = valueText(item);
+        if (field === '') return false;
+        const payload = mapped(row);
+        if (valueText(payload[field]) !== '' || valueText(row[field]) !== '') {
+            return true;
+        }
+        const aliases = {
+            counterparty_name: ['counterparty_account_holder_name', 'counterparty_account_holder', 'client_id', 'client_name', 'client_company_name'],
+            counterparty_account_holder_name: ['counterparty_name', 'counterparty_account_holder', 'client_id', 'client_name', 'client_company_name'],
+            client_id: ['client_name', 'client_company_name', 'counterparty_name'],
+            client_name: ['client_id', 'client_company_name', 'counterparty_name'],
+        }[field] || [];
+        if (aliases.some((key) => valueText(payload[key]) !== '' || valueText(row[key]) !== '')) {
+            return true;
+        }
+
+        const columns = Array.isArray(activeFormat?.columns) ? activeFormat.columns : [];
+        const column = columns.find((candidate) => {
+            const systemField = String(candidate.system_field_name || '').trim();
+            const excelName = String(candidate.excel_column_name || '').replace(/\s*\*$/u, '').trim();
+            return systemField === field || excelName === field || editFieldKey(candidate) === field;
+        });
+        if (!column) return false;
+
+        const value = formatValue(row, column);
+        return valueText(value) !== '' && valueText(value) !== '-';
+    }
+
+    function ownEvidenceStatusMissingMessages(row = {}) {
+        const explicit = [
+            row.evidence_missing_required,
+            row.required_missing_fields,
+            row.missing_required,
+            row.missing_fields,
+        ];
+        const messages = [];
+        if (!row.processing_is_child && !row.processing_has_children) {
+            explicit.forEach((value) => {
+                if (Array.isArray(value)) {
+                    value.forEach((item) => {
+                        const text = valueText(item);
+                        if (text !== '' && !explicitMissingFieldResolved(row, text)) messages.push(text);
+                    });
+                    return;
+                }
+                const text = valueText(value);
+                if (text !== '') {
+                    text.split(/[,\n]/)
+                        .map((item) => item.trim())
+                        .filter(Boolean)
+                        .filter((item) => !explicitMissingFieldResolved(row, item))
+                        .forEach((item) => messages.push(item));
+                }
+            });
+        }
+
+        const columns = Array.isArray(activeFormat?.columns) ? activeFormat.columns : [];
+        columns
+            .filter((column) => requirementMode(column) === 1 && editFieldKey(column) !== 'balance_amount')
+            .forEach((column) => {
+                const key = editFieldKey(column);
+                if (!key) return;
+                const value = formatValue(row, column);
+                if (valueText(value) !== '' && valueText(value) !== '-') return;
+                messages.push(String(column.excel_column_name || column.system_field_name || key).replace(/\s*\*$/u, ''));
+            });
+
+        return Array.from(new Set(messages.map((item) => String(item || '').trim()).filter(Boolean)));
+    }
+
+    function evidenceStatusMissingMessages(row = {}) {
+        if (row.processing_has_children) {
+            const children = processingChildrenForParent(row);
+            if (children.length === 0) return ['분할 자식행 없음'];
+            const messages = [];
+            children.forEach((child) => {
+                const childMessages = ownEvidenceStatusMissingMessages(child);
+                if (childMessages.length === 0) return;
+                const no = valueText(child.processing_display_path || child.row_no || child.sort_no || '');
+                childMessages.forEach((message) => {
+                    messages.push(`${no ? `${no} ` : ''}${message}`);
+                });
+            });
+            return Array.from(new Set(messages));
+        }
+        return ownEvidenceStatusMissingMessages(row);
+    }
+
+    function ownEvidenceStatusState(row = {}) {
+        const status = String(row.evidence_status || row.process_status || row.status || '').trim().toUpperCase();
+        if (['ERROR', 'FAILED', 'NOT_READY', 'INCOMPLETE', 'MISSING'].includes(status)) return 'INCOMPLETE';
+        if (ownEvidenceStatusMissingMessages(row).length > 0) return 'INCOMPLETE';
+        if (['READY', 'COMPLETE', 'COMPLETED', 'DONE', 'NORMAL', 'PROCESSED'].includes(status)) return 'COMPLETE';
+        return valueText(row.id) !== '' ? 'COMPLETE' : 'INCOMPLETE';
+    }
+
+    function evidenceStatusState(row = {}) {
+        if (row.processing_has_children) {
+            const children = processingChildrenForParent(row);
+            if (children.length === 0) return 'INCOMPLETE';
+            return children.every((child) => ownEvidenceStatusState(child) === 'COMPLETE')
+                ? 'COMPLETE'
+                : 'INCOMPLETE';
+        }
+        return ownEvidenceStatusState(row);
+    }
+
+    function renderEvidenceStatusSimple(row = {}) {
+        const missing = evidenceStatusMissingMessages(row);
+        const state = evidenceStatusState(row);
+        if (state === 'COMPLETE') {
+            return '<span class="badge evidence-origin-status-badge evidence-origin-status-complete">완료</span>';
+        }
+        const title = missing.length > 0 ? ` title="${escapeHtml(missing.join(', '))}"` : '';
+        return `<span class="badge evidence-origin-status-badge evidence-origin-status-incomplete"${title}>미완료</span>`;
+    }
+
+    function splitGenerationRows(rows = []) {
+        return rows.filter((row) => row?.processing_is_child || !row?.processing_has_children);
+    }
+
     function updateSummary(rows = []) {
+        const generationRows = splitGenerationRows(rows);
         const summary = {
             total: rows.length,
-            transactionPending: rows.filter((row) => String(row.transaction_id || '').trim() === '').length,
-            transactionCreated: rows.filter((row) => String(row.transaction_id || '').trim() !== '').length,
-            voucherReview: rows.filter((row) => String(row.transaction_id || '').trim() !== '').length,
+            transactionPending: generationRows.filter((row) => String(row.transaction_id || '').trim() === '').length,
+            transactionCreated: generationRows.filter((row) => String(row.transaction_id || '').trim() !== '').length,
+            voucherReview: generationRows.filter((row) => String(row.transaction_id || '').trim() !== '').length,
             errors: rows.filter((row) => processStatus(row) === 'ERROR' || row.error_message).length,
             duplicates: rows.filter((row) => processStatus(row) === 'DUPLICATED').length,
         };
@@ -2278,17 +3287,107 @@ import '/public/assets/js/components/excel-manager.js';
         }
     }
 
-    async function postJson(url, payload = {}) {
+    async function postJson(url, payload = {}, options = {}) {
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
+            signal: options.signal,
         });
         const json = await response.json().catch(() => ({}));
         if (!response.ok || json.success === false) {
             throw new Error(json.message || '요청 처리에 실패했습니다.');
         }
         return json;
+    }
+
+    function createUploadCancelToken() {
+        if (window.crypto?.randomUUID) {
+            return window.crypto.randomUUID().replace(/-/g, '');
+        }
+        return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 14)}`;
+    }
+
+    function requestExcelUploadCancel() {
+        if (!excelUploadCancelToken) return;
+        const payload = JSON.stringify({
+            upload_cancel_token: excelUploadCancelToken,
+            preview_token: excelUploadPreviewToken || '',
+        });
+        const blob = new Blob([payload], { type: 'application/json' });
+        if (navigator.sendBeacon?.(API.uploadCancel, blob)) {
+            return;
+        }
+        fetch(API.uploadCancel, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: payload,
+            keepalive: true,
+        }).catch(() => {});
+    }
+
+    function validateExcelUploadFile(file) {
+        const extension = String(file?.name || '').split('.').pop()?.toLowerCase() || '';
+        if (!['xlsx', 'xls'].includes(extension)) {
+            return '\uc5d1\uc140 \ud30c\uc77c(.xlsx, .xls)\ub9cc \uc5c5\ub85c\ub4dc\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.';
+        }
+        const size = Number(file?.size || 0);
+        if (size > MAX_EXCEL_UPLOAD_BYTES) {
+            const mb = (size / 1024 / 1024).toFixed(1);
+            return `\uc5c5\ub85c\ub4dc \ud30c\uc77c\uc774 \ub108\ubb34 \ud07d\ub2c8\ub2e4. \ud604\uc7ac ${mb}MB\uc774\uba70, \uc5d1\uc140 \uc591\uc2dd \uc5c5\ub85c\ub4dc\ub294 25MB \uc774\ud558\ub9cc \ud5c8\uc6a9\ud569\ub2c8\ub2e4. \uc120\ud0dd\ud55c \uc790\ub8cc\uc720\ud615\uc758 \uc591\uc2dd \ud30c\uc77c\uc778\uc9c0 \ud655\uc778\ud558\uc138\uc694.`;
+        }
+        return '';
+    }
+
+    function refreshAfterUploadCancel() {
+        window.setTimeout(() => {
+            table?.ajax.reload(() => updateSummary(lastRows), false);
+            void refreshEvidenceTypeCounts().catch(() => {});
+        }, 400);
+        window.setTimeout(() => {
+            table?.ajax.reload(() => updateSummary(lastRows), false);
+            void refreshEvidenceTypeCounts().catch(() => {});
+        }, 1800);
+    }
+
+    function uploadResultProgressMessage(result = {}, fallback = '') {
+        const totalRows = Number(result.total_rows || 0);
+        const processed = Number(result.processed_count || 0)
+            || Number(result.new_count || 0)
+            + Number(result.updated_count || 0)
+            + Number(result.unchanged_count || 0)
+            + Number(result.error_count || 0);
+        const skipped = Number(result.skipped_count || Math.max(0, totalRows - processed));
+        const parts = [
+            `\uc2e4\uc81c \ucc98\ub9ac ${processed.toLocaleString('ko-KR')}\uac74`,
+            `\uc2e0\uaddc ${Number(result.new_count || 0).toLocaleString('ko-KR')}\uac74`,
+            `\ubcc0\uacbd ${Number(result.updated_count || 0).toLocaleString('ko-KR')}\uac74`,
+            `\ub3d9\uc77c ${Number(result.unchanged_count || 0).toLocaleString('ko-KR')}\uac74`,
+        ];
+        if (Number(result.error_count || 0) > 0) {
+            parts.push(`\uc624\ub958 ${Number(result.error_count || 0).toLocaleString('ko-KR')}\uac74`);
+        }
+        if (Number(result.protected_update_count || 0) > 0) {
+            const protectedParts = [];
+            if (Number(result.protected_transaction_count || 0) > 0) {
+                protectedParts.push(`거래생성 ${Number(result.protected_transaction_count || 0).toLocaleString('ko-KR')}건`);
+            }
+            if (Number(result.protected_voucher_count || 0) > 0) {
+                protectedParts.push(`전표생성 ${Number(result.protected_voucher_count || 0).toLocaleString('ko-KR')}건`);
+            }
+            parts.push(`생성완료 수정제외 ${Number(result.protected_update_count || 0).toLocaleString('ko-KR')}건${protectedParts.length > 0 ? `(${protectedParts.join(', ')})` : ''}`);
+        }
+        const otherSkipped = Math.max(0, skipped - Number(result.protected_update_count || 0));
+        if (otherSkipped > 0) {
+            parts.push(`\uc81c\uc678 ${otherSkipped.toLocaleString('ko-KR')}\uac74`);
+        }
+        if (totalRows > 0 && totalRows !== processed) {
+            return `\uc5d1\uc140 \uac10\uc9c0 ${totalRows.toLocaleString('ko-KR')}\ud589 / ${parts.join(', ')}`;
+        }
+        if (processed > 0) {
+            return `\uc5c5\ub85c\ub4dc \uc644\ub8cc: ${parts.join(', ')}`;
+        }
+        return fallback || '\uc5c5\ub85c\ub4dc\uac00 \uc644\ub8cc\ub418\uc5b4 \ubaa9\ub85d\uc744 \uc0c8\ub85c\uace0\uce68\ud569\ub2c8\ub2e4.';
     }
 
     async function uploadExcelFromModal(button) {
@@ -2298,6 +3397,37 @@ import '/public/assets/js/components/excel-manager.js';
         const file = fileInput?.files?.[0] || null;
         const formatId = String(form?.dataset.formatId || activeFormat?.id || '').trim();
         const progress = window.ExcelManagerProgress;
+        let saveStartedAt = 0;
+        let saveTimer = null;
+        const formatElapsed = (ms) => {
+            const totalSeconds = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        };
+        const stopSaveTimer = () => {
+            if (saveTimer) {
+                clearInterval(saveTimer);
+                saveTimer = null;
+            }
+        };
+        const startSaveTimer = (totalRows = 0) => {
+            saveStartedAt = Date.now();
+            stopSaveTimer();
+            const render = () => {
+                progress?.set(refs.excelModal, {
+                    percent: 100,
+                    percentLabel: '\uc800\uc7a5 \uc911',
+                    title: '\uc11c\ubc84 \uc800\uc7a5 \uc911',
+                    message: totalRows > 0
+                        ? `\uba38\ub9bf\uae00 \uc81c\uc678 \ub370\uc774\ud130 ${totalRows.toLocaleString('ko-KR')}\ud589\uc744 \uc800\uc7a5\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4. \uacbd\uacfc ${formatElapsed(Date.now() - saveStartedAt)}`
+                        : `\uc774\ubbf8 \uac80\uc99d\ud55c \uc5d1\uc140 \ub370\uc774\ud130\ub97c \uc800\uc7a5\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4. \uacbd\uacfc ${formatElapsed(Date.now() - saveStartedAt)}`,
+                    indeterminate: true,
+                });
+            };
+            render();
+            saveTimer = setInterval(render, 1000);
+        };
 
         if (!activeFormat || !formatId) {
             notify('warning', '\uba3c\uc800 \uc790\ub8cc\uc720\ud615\uc758 \uc591\uc2dd\uc744 \uc0dd\uc131\ud558\uc138\uc694.');
@@ -2307,12 +3437,27 @@ import '/public/assets/js/components/excel-manager.js';
             notify('warning', '\uc5c5\ub85c\ub4dc\ud560 \uc5d1\uc140 \ud30c\uc77c\uc744 \uc120\ud0dd\ud558\uc138\uc694.');
             return;
         }
-
-        const formData = new FormData();
-        formData.append('format_id', formatId);
-        formData.append('file', file);
+        const fileMessage = validateExcelUploadFile(file);
+        if (fileMessage) {
+            progress?.set(refs.excelModal, {
+                percent: 100,
+                title: '\uc5c5\ub85c\ub4dc \ubd88\uac00',
+                message: fileMessage,
+            });
+            notify('warning', fileMessage);
+            return;
+        }
 
         uploadingExcel = true;
+        excelUploadCanceled = false;
+        excelUploadAbortController = null;
+        excelUploadCancelToken = createUploadCancelToken();
+        excelUploadPreviewToken = '';
+        progress?.lock?.(refs.excelModal, true);
+        const formData = new FormData();
+        formData.append('upload_cancel_token', excelUploadCancelToken);
+        formData.append('format_id', formatId);
+        formData.append('file', file);
         button.disabled = true;
         const originalText = button.textContent;
         button.textContent = '\uc5c5\ub85c\ub4dc \uc911';
@@ -2330,7 +3475,7 @@ import '/public/assets/js/components/excel-manager.js';
                 message: '\uc5c5\ub85c\ub4dc \ud30c\uc77c\uc744 \uc11c\ubc84\ub85c \ubcf4\ub0b4\uace0 \uc788\uc2b5\ub2c8\ub2e4.',
                 indeterminate: true,
             });
-            const uploadJson = progress?.request
+            let uploadJson = progress?.request
                 ? await progress.request(form?.dataset.uploadUrl || API.upload, formData, refs.excelModal)
                 : await (async () => {
                     const uploadResponse = await fetch(form?.dataset.uploadUrl || API.upload, {
@@ -2343,12 +3488,37 @@ import '/public/assets/js/components/excel-manager.js';
                     }
                     return json;
                 })();
-            progress?.set(refs.excelModal, {
-                percent: 70,
-                title: '\ub370\uc774\ud130 \ucc98\ub9ac \uc911',
-                message: '\uc11c\ubc84\uc5d0\uc11c \uc5d1\uc140 \ub370\uc774\ud130\ub97c \uc77d\uace0 \uc2e0\uaddc/\ubcc0\uacbd/\ub3d9\uc77c \uac74\uc744 \uc815\ub9ac\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4.',
-                indeterminate: true,
-            });
+            if (uploadJson.requires_confirmation && uploadJson.confirmation_code === 'REQUIRED_FIELD_MISSING') {
+                const confirmed = window.confirm(uploadJson.message || '필수요소가 입력되어 있지 않습니다. 생성센터에서 보정필요로 처리됩니다. 그래도 업로드를 진행할까요?');
+                if (!confirmed) {
+                    progress?.set(refs.excelModal, {
+                        percent: 100,
+                        title: '업로드 취소',
+                        message: '필수 누락 항목이 있어 업로드를 취소했습니다.',
+                    });
+                    return;
+                }
+                const previewToken = String(uploadJson.data?.preview_token || '').trim();
+                if (!previewToken) {
+                    throw new Error('검증 결과 토큰이 없습니다. 다시 업로드를 실행하세요.');
+                }
+                excelUploadPreviewToken = previewToken;
+                const totalRows = Number(uploadJson.data?.total_rows || 0);
+                stopSaveTimer();
+                uploadJson = await progress.saveChunks(form?.dataset.uploadUrl || API.upload, {
+                    modal: refs.excelModal,
+                    totalRows,
+                    chunkSize: 5,
+                    initialPayload: {
+                        preview_token: previewToken,
+                        allow_required_missing: true,
+                        upload_cancel_token: excelUploadCancelToken,
+                    },
+                    isCanceled: () => excelUploadCanceled,
+                });
+                stopSaveTimer();
+                excelUploadAbortController = null;
+            }
             if (uploadJson.success === false) {
                 throw new Error(uploadJson.message || '\uc5d1\uc140 \uc5c5\ub85c\ub4dc\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.');
             }
@@ -2356,12 +3526,11 @@ import '/public/assets/js/components/excel-manager.js';
             progress?.set(refs.excelModal, {
                 percent: 100,
                 title: '\uc5c5\ub85c\ub4dc \uc644\ub8cc',
-                message: uploadJson.message || '\uc5c5\ub85c\ub4dc\uac00 \uc644\ub8cc\ub418\uc5b4 \ubaa9\ub85d\uc744 \uc0c8\ub85c\uace0\uce68\ud569\ub2c8\ub2e4.',
+                message: uploadResultProgressMessage(result, uploadJson.message),
             });
             notify(
                 'success',
-                uploadJson.message
-                    || `\uc5c5\ub85c\ub4dc \uc644\ub8cc: \uc2e0\uaddc ${Number(result.new_count || 0).toLocaleString('ko-KR')}\uac74, \ubcc0\uacbd ${Number(result.updated_count || 0).toLocaleString('ko-KR')}\uac74, \ub3d9\uc77c ${Number(result.unchanged_count || 0).toLocaleString('ko-KR')}\uac74`
+                uploadResultProgressMessage(result, uploadJson.message)
             );
 
             setTimeout(() => bootstrap.Modal.getInstance(refs.excelModal)?.hide(), 250);
@@ -2371,6 +3540,18 @@ import '/public/assets/js/components/excel-manager.js';
                 detail: { type: 'evidenceStatus', importType: currentType, result },
             }));
         } catch (error) {
+            stopSaveTimer();
+            if (excelUploadCanceled) {
+                progress?.set(refs.excelModal, {
+                    percent: 100,
+                    percentLabel: '\ucde8\uc18c',
+                    title: '\uc5c5\ub85c\ub4dc \ucde8\uc18c',
+                    message: '\uc5c5\ub85c\ub4dc \uc694\uccad\uc744 \ucde8\uc18c\ud588\uc2b5\ub2c8\ub2e4.',
+                });
+                notify('warning', '\uc5c5\ub85c\ub4dc\ub97c \ucde8\uc18c\ud588\uc2b5\ub2c8\ub2e4.');
+                refreshAfterUploadCancel();
+                return;
+            }
             progress?.set(refs.excelModal, {
                 percent: 100,
                 title: '\uc5c5\ub85c\ub4dc \uc2e4\ud328',
@@ -2378,7 +3559,12 @@ import '/public/assets/js/components/excel-manager.js';
             });
             throw error;
         } finally {
+            stopSaveTimer();
             uploadingExcel = false;
+            excelUploadAbortController = null;
+            excelUploadCancelToken = '';
+            excelUploadPreviewToken = '';
+            progress?.lock?.(refs.excelModal, false);
             button.disabled = false;
             button.textContent = originalText;
         }
@@ -2408,13 +3594,14 @@ import '/public/assets/js/components/excel-manager.js';
             $(selector).empty();
             document.querySelector(selector).innerHTML = '<thead><tr></tr></thead><tbody></tbody>';
         }
+        document.querySelector(selector)?.classList.add('evidence-status-table', 'nowrap');
 
         table = createDataTable({
             tableSelector: selector,
             api: config.api,
             pageLength: 100,
             defaultOrder: defaultOrderForConfig(config),
-            scrollX: true,
+            scrollX: false,
             autoWidth: false,
             paging: true,
             searching: true,
@@ -2423,6 +3610,7 @@ import '/public/assets/js/components/excel-manager.js';
             showCopyButton: true,
             searchTableId: 'evidenceStatus',
             selectable: true,
+            rowIdField: (row) => (row?.processing_is_child ? '' : row?.id),
             deleteButton: true,
             deleteApi: API.deleteRows,
             bulkDelete: true,
@@ -2467,12 +3655,20 @@ import '/public/assets/js/components/excel-manager.js';
         });
         void updateTrashButtonState();
         table.on('draw.dt xhr.dt', () => {
-            void updateTrashButtonState();
+            applyProcessingRowState();
         });
+        table.on('column-visibility.dt responsive-resize.dt', () => {
+            window.setTimeout(applyProcessingRowState, 0);
+        });
+        applyProcessingRowState();
 
         bindRowReorder(table, {
             api: API.reorder,
             sortNoField: 'row_no',
+            includeAppliedRows: true,
+            changedRowsOnly: false,
+            sortableItems: '> tr:not(.processing-child-row)',
+            isReorderableRow: (row) => !row?.processing_is_child,
             extraData: () => ({
                 scope: 'status',
                 import_type: currentType,
@@ -2495,7 +3691,6 @@ import '/public/assets/js/components/excel-manager.js';
             apiList: config.api,
             tableId: 'evidenceStatus',
             defaultSearchField: 'client_name',
-            initialCollapsed: true,
             dateOptions: [
                 ...(config.dateOptions || []),
                 { value: 'created_at', label: '업로드일시' },
@@ -2510,6 +3705,10 @@ import '/public/assets/js/components/excel-manager.js';
     function showModal(id) {
         const modal = document.getElementById(id);
         if (!modal) return;
+        const frame = modal.querySelector('iframe[data-src]');
+        if (frame && !frame.getAttribute('src')) {
+            frame.setAttribute('src', frame.dataset.src || '');
+        }
         bootstrap.Modal.getOrCreateInstance(modal, { focus: false }).show();
     }
 
@@ -2522,22 +3721,102 @@ import '/public/assets/js/components/excel-manager.js';
         bootstrap.Modal.getOrCreateInstance(refs.trashModal, { focus: false }).show();
     }
 
+    function applyProcessingRowState() {
+        if (!table) return;
+        const body = table.table?.().body?.();
+        if (!body) return;
+        body.querySelectorAll('tr.processing-child-display-row').forEach((tr) => tr.remove());
+        Array.from(body.querySelectorAll('tr')).forEach((tr) => {
+            const row = table.row(tr).data();
+            tr.classList.toggle('processing-child-row', Boolean(row?.processing_is_child));
+            tr.classList.toggle('processing-parent-row', Boolean(row?.processing_has_children));
+            if (row?.processing_has_children && Array.isArray(row.processing_children) && row.processing_children.length > 0) {
+                insertProcessingChildRows(tr, row.processing_children);
+            }
+        });
+    }
+
+    function dataTableColumnValue(row = {}, dataSrc = null) {
+        if (typeof dataSrc === 'function') return dataSrc(row, 'display', row);
+        if (dataSrc === null || dataSrc === undefined) return row;
+        if (typeof dataSrc !== 'string' || dataSrc === '') return row[dataSrc] ?? '';
+        return dataSrc.split('.').reduce((value, key) => (
+            value && typeof value === 'object' ? value[key] : undefined
+        ), row);
+    }
+
+    function renderProcessingChildCell(column = {}, row = {}, columnIndex = 0) {
+        const data = dataTableColumnValue(row, column.mData);
+        const meta = {
+            row: 0,
+            col: columnIndex,
+            settings: table?.settings?.()[0] || {},
+        };
+        if (typeof column.mRender === 'function') {
+            return column.mRender(data, 'display', row, meta);
+        }
+        if (typeof column.mRender === 'object' && typeof column.mRender?.display === 'function') {
+            return column.mRender.display(data, 'display', row, meta);
+        }
+        return escapeHtml(data ?? '');
+    }
+
+    function insertProcessingChildRows(parentTr, children = []) {
+        const settings = table?.settings?.()[0];
+        const columns = settings?.aoColumns || [];
+        if (!parentTr || columns.length === 0) return;
+
+        const visibleIndexes = columns
+            .map((column, index) => (column.bVisible === false ? null : index))
+            .filter((index) => index !== null);
+        let anchor = parentTr;
+        children.forEach((child) => {
+            const tr = document.createElement('tr');
+            tr.className = 'processing-child-row processing-child-display-row';
+            tr.__processingRowData = child;
+            visibleIndexes.forEach((columnIndex) => {
+                const column = columns[columnIndex] || {};
+                const td = document.createElement('td');
+                const className = String(column.sClass || '').trim();
+                if (className !== '') {
+                    td.className = className;
+                }
+                td.innerHTML = renderProcessingChildCell(column, child, columnIndex);
+                tr.appendChild(td);
+            });
+            anchor.insertAdjacentElement('afterend', tr);
+            anchor = tr;
+        });
+    }
+
+    function rowDataFromTableNode(rowNode) {
+        if (!rowNode || !table) return null;
+        if (rowNode.__processingRowData) {
+            return rowNode.__processingRowData;
+        }
+        return table.row(rowNode).data() || null;
+    }
+
     async function updateTrashButtonState() {
         const button = document.querySelector('.evidence-status-trash-btn');
         if (!button || !currentType) return;
+        const listUrl = `${API.trash}?import_type=${encodeURIComponent(currentType)}`;
         try {
-            const res = await fetch(`${API.trash}?import_type=${encodeURIComponent(currentType)}`, {
-                credentials: 'same-origin',
-            });
-            const json = await res.json();
-            const rows = json?.success ? (json.data || []) : [];
+            if (refs.trashModal) {
+                refs.trashModal.dataset.listUrl = listUrl;
+                refs.trashModal.dataset.importType = currentType;
+                refs.trashModal.dataset.trashTitle = `${selectedTypeLabel() || currentType} 휴지통`;
+            }
+            const rows = refs.trashModal && window.TrashManager?.preloadTrash
+                ? await window.TrashManager.preloadTrash(refs.trashModal)
+                : [];
             const hasTrash = rows.length > 0;
             button.classList.toggle('btn-trash-has-data', hasTrash);
             button.classList.toggle('btn-outline-danger', !hasTrash);
             button.setAttribute('aria-label', hasTrash ? `휴지통 ${rows.length}건` : '휴지통');
             button.title = hasTrash ? `휴지통 ${rows.length}건` : '휴지통';
         } catch (error) {
-            console.error('[data-status] trash state failed:', error);
+            console.warn('[data-status] trash state failed:', error);
         }
     }
 
@@ -2610,6 +3889,27 @@ import '/public/assets/js/components/excel-manager.js';
             event.stopImmediatePropagation();
             void uploadExcelFromModal(button).catch((error) => notify('error', error.message));
         }, true);
+        refs.excelModal?.addEventListener('hide.bs.modal', (event) => {
+            if (!uploadingExcel) return;
+            const confirmed = window.confirm('\uc5c5\ub85c\ub4dc\uac00 \uc9c4\ud589 \uc911\uc785\ub2c8\ub2e4. \uc694\uccad\uc744 \ucde8\uc18c\ud558\uace0 \ub2eb\uc744\uae4c\uc694?');
+            if (!confirmed) {
+                event.preventDefault();
+                return;
+            }
+            excelUploadCanceled = true;
+            window.ExcelManagerProgress?.abort(refs.excelModal);
+            excelUploadAbortController?.abort();
+            requestExcelUploadCancel();
+            refreshAfterUploadCancel();
+        });
+        window.addEventListener('beforeunload', () => {
+            if (uploadingExcel) {
+                excelUploadCanceled = true;
+                window.ExcelManagerProgress?.abort(refs.excelModal);
+                excelUploadAbortController?.abort();
+                requestExcelUploadCancel();
+            }
+        });
         refs.editSaveBtn?.addEventListener('click', () => {
             void saveEditingRow().catch((error) => notify('error', error.message));
         });
@@ -2637,14 +3937,48 @@ import '/public/assets/js/components/excel-manager.js';
             if (event.target.closest('a, button, input, select, textarea, .dt-select-column')) return;
             const rowNode = event.target.closest('tr');
             if (!rowNode || !table) return;
-            const row = table.row(rowNode).data();
+            const row = rowDataFromTableNode(rowNode);
+            if (row?.processing_is_child) {
+                openProcessingChildEditModal(row);
+                return;
+            }
             openEditModal(row);
         });
+        evidenceTableEl?.addEventListener('mouseover', (event) => {
+            const cell = event.target.closest('td, th');
+            const rowNode = cell?.closest('tr.processing-child-display-row');
+            if (!cell || !rowNode || !evidenceTableEl.contains(rowNode)) return;
+            const wrapper = evidenceTableEl.closest('.dataTables_wrapper');
+            const columnIndex = Array.from(rowNode.children).indexOf(cell);
+            wrapper?.querySelectorAll('tbody tr').forEach((tr) => tr.classList.remove('row-highlight'));
+            rowNode.classList.add('row-highlight');
+            wrapper?.querySelectorAll('td, th').forEach((node) => node.classList.remove('col-highlight'));
+            if (columnIndex >= 0) {
+                wrapper?.querySelectorAll('tbody tr').forEach((tr) => tr.children[columnIndex]?.classList.add('col-highlight'));
+                wrapper?.querySelector(`.dataTables_scrollHead th:nth-child(${columnIndex + 1})`)?.classList.add('col-highlight');
+            }
+        });
         evidenceTableEl?.addEventListener('click', (event) => {
+            const deleteChildButton = event.target.closest('.evidence-delete-child-row-btn');
+            if (deleteChildButton) {
+                void deleteProcessingChild(deleteChildButton).catch((error) => notify('error', error.message));
+                return;
+            }
+            const childButton = event.target.closest('.evidence-add-child-row-btn');
+            if (childButton && table) {
+                const rowNode = childButton.closest('tr');
+                const row = rowDataFromTableNode(rowNode);
+                openProcessingSplitModal(row || {});
+                return;
+            }
             const button = event.target.closest('.evidence-edit-row-btn');
             if (!button || !table) return;
             const rowNode = button.closest('tr');
-            const row = rowNode ? table.row(rowNode).data() : null;
+            const row = rowDataFromTableNode(rowNode);
+            if (row?.processing_is_child) {
+                openProcessingChildEditModal(row);
+                return;
+            }
             openEditModal(row);
         });
 

@@ -9,6 +9,7 @@ use App\Models\Ledger\VoucherLineModel;
 use App\Models\Ledger\VoucherModel;
 use App\Models\Ledger\VoucherPaymentModel;
 use App\Services\Ledger\TransactionCrudService;
+use App\Services\Ledger\VoucherNumberService;
 use App\Services\Ledger\VoucherService;
 use App\Services\Ledger\VoucherValidationException;
 use Core\DbPdo;
@@ -21,6 +22,7 @@ class VoucherController
 {
     private PDO $pdo;
     private VoucherService $service;
+    private VoucherNumberService $voucherNumberService;
     private VoucherModel $voucherModel;
     private VoucherLineModel $voucherLineModel;
     private VoucherLineRefModel $voucherLineRefModel;
@@ -33,6 +35,7 @@ class VoucherController
     {
         $this->pdo = DbPdo::conn();
         $this->service = new VoucherService($this->pdo);
+        $this->voucherNumberService = new VoucherNumberService($this->pdo);
         $this->voucherModel = new VoucherModel($this->pdo);
         $this->voucherLineModel = new VoucherLineModel($this->pdo);
         $this->voucherLineRefModel = new VoucherLineRefModel($this->pdo);
@@ -107,12 +110,43 @@ class VoucherController
 
             $voucher['lines'] = $this->voucherLineModel->getByVoucherId($id);
             $lineRefs = $this->voucherLineRefModel->getGroupedByVoucherLineIds(array_column($voucher['lines'], 'id'));
+            $fallbackRefsByLineNo = $this->evidenceVoucherRefsByLineNo($id);
             foreach ($voucher['lines'] as &$line) {
+                $refs = $lineRefs[$line['id']] ?? [];
+                $fallbackRefs = $fallbackRefsByLineNo[(int) ($line['line_no'] ?? 0)] ?? [];
+                if ($fallbackRefs !== []) {
+                    $existingTypes = [];
+                    foreach ($refs as $ref) {
+                        $type = $this->normalizeVoucherRefType((string) ($ref['ref_type'] ?? $ref['line_ref_type'] ?? ''));
+                        if ($type !== '') {
+                            $existingTypes[$type] = true;
+                        }
+                    }
+                    foreach ($fallbackRefs as $fallbackRef) {
+                        $type = $this->normalizeVoucherRefType((string) ($fallbackRef['ref_type'] ?? $fallbackRef['line_ref_type'] ?? ''));
+                        if ($type === '' || isset($existingTypes[$type])) {
+                            continue;
+                        }
+                        $refs[] = $fallbackRef;
+                        $existingTypes[$type] = true;
+                    }
+                }
+
                 $line['refs'] = array_map(static fn(array $ref): array => [
                     'ref_type' => $ref['ref_type'] ?? '',
                     'ref_id' => $ref['ref_id'] ?? '',
+                    'line_ref_type' => $ref['line_ref_type'] ?? $ref['ref_type'] ?? '',
+                    'line_ref_id' => $ref['line_ref_id'] ?? $ref['ref_id'] ?? '',
+                    'line_ref_label' => $ref['line_ref_label'] ?? $ref['ref_label'] ?? '',
+                    'ref_label' => $ref['ref_label'] ?? $ref['line_ref_label'] ?? '',
+                    'client_name' => $ref['client_name'] ?? '',
+                    'project_name' => $ref['project_name'] ?? '',
+                    'employee_name' => $ref['employee_name'] ?? '',
+                    'bank_account_name' => $ref['bank_account_name'] ?? '',
+                    'account_name' => $ref['bank_account_name'] ?? $ref['account_name'] ?? '',
+                    'card_name' => $ref['card_name'] ?? '',
                     'is_primary' => (int) ($ref['is_primary'] ?? 0),
-                ], $lineRefs[$line['id']] ?? []);
+                ], $refs);
             }
             unset($line);
             $voucher['payments'] = $this->voucherPaymentModel->getByVoucherId($id);
@@ -126,6 +160,7 @@ class VoucherController
             $voucher['import_type'] = null;
             $voucher['source_type'] = null;
             $voucher['seed_source'] = null;
+            $voucher['linked_evidences'] = $this->voucherSeedSourcesByVoucherId($id);
             $voucher['linked_evidence'] = $this->voucherSeedSourceByVoucherId($id);
             $voucher['evidence_link_status'] = is_array($voucher['linked_evidence']) ? 'linked' : 'unlinked';
             $voucher['evidence_id'] = is_array($voucher['linked_evidence'])
@@ -286,27 +321,42 @@ class VoucherController
     {
         $this->jsonResponse(function (): array {
             $query = trim((string) ($_GET['q'] ?? ''));
+            $currentVoucherId = trim((string) ($_GET['voucher_id'] ?? ''));
             $rows = $this->transactionModel->getList([]);
             foreach ($rows as &$row) {
                 $transactionId = (string) ($row['id'] ?? '');
                 $row['import_type'] = $this->transactionImportType($transactionId);
                 $row['seed_source'] = $this->transactionSeedSource($transactionId);
+                $row['display_type'] = $this->transactionDisplayType($row);
+                $row['display_summary'] = $this->transactionDisplaySummary($row);
+                $row['display_amount'] = (float) ($row['total_amount'] ?? $row['amount'] ?? 0);
+                $row['linked_voucher'] = $this->linkedVoucherInfoForTransaction($transactionId);
+                $row['is_linked_to_current_voucher'] = $currentVoucherId !== ''
+                    && (string) ($row['linked_voucher']['id'] ?? '') === $currentVoucherId;
+                $row['is_linked_to_other_voucher'] = (string) ($row['linked_voucher']['id'] ?? '') !== ''
+                    && !$row['is_linked_to_current_voucher'];
             }
             unset($row);
 
             if ($query !== '') {
-                $rows = array_values(array_filter($rows, static function (array $row) use ($query): bool {
+                $rows = array_values(array_filter($rows, function (array $row) use ($query): bool {
                     $haystack = implode(' ', [
                         $row['sort_no'] ?? '',
                         $row['transaction_date'] ?? '',
+                        $row['transaction_type'] ?? '',
+                        $row['import_type'] ?? '',
+                        $row['display_type'] ?? '',
                         $row['client_name'] ?? '',
                         $row['project_name'] ?? '',
                         $row['item_summary'] ?? '',
                         $row['description'] ?? '',
                         $row['total_amount'] ?? '',
+                        $row['amount'] ?? '',
+                        $row['display_amount'] ?? '',
+                        $row['display_summary'] ?? '',
                     ]);
 
-                    return stripos($haystack, $query) !== false;
+                    return $this->searchTextMatches($haystack, $query);
                 }));
             }
 
@@ -337,43 +387,134 @@ class VoucherController
                 LEFT JOIN system_clients sc
                     ON sc.id = e.client_id
             " : '';
+            $hasFormats = $this->tableExists('ledger_data_formats')
+                && $this->tableColumnExists('ledger_data_evidences', 'format_id');
+            $formatSelect = $hasFormats ? "COALESCE(f.format_name, '')" : "''";
+            $formatJoin = $hasFormats ? "
+                LEFT JOIN ledger_data_formats f
+                    ON f.id = e.format_id
+                   AND f.deleted_at IS NULL
+            " : '';
+            $payloadSelect = $this->tableColumnExists('ledger_data_evidences', 'mapped_payload_json')
+                ? 'e.mapped_payload_json'
+                : 'NULL AS mapped_payload_json';
+            $amountSelect = $this->tableColumnExists('ledger_data_evidences', 'total_amount')
+                ? 'e.total_amount'
+                : 'NULL AS total_amount';
 
             $params = [];
             $where = "e.deleted_at IS NULL";
             if ($query !== '') {
+                $numericQuery = preg_replace('/[^0-9.\-]/', '', $query) ?? '';
                 $where .= "
                     AND (
                         e.source_type LIKE :keyword
                         OR e.source_key LIKE :keyword
                         OR e.evidence_date LIKE :keyword
+                        OR e.client_name LIKE :keyword
+                        " . ($this->tableColumnExists('ledger_data_evidences', 'total_amount') ? "OR e.total_amount LIKE :keyword" : '') . "
+                        " . ($this->tableColumnExists('ledger_data_evidences', 'total_amount') && $numericQuery !== '' ? "OR e.total_amount LIKE :numeric_keyword" : '') . "
+                        " . ($this->tableColumnExists('ledger_data_evidences', 'mapped_payload_json') ? "OR e.mapped_payload_json LIKE :keyword" : '') . "
+                        " . ($this->tableColumnExists('ledger_data_evidences', 'mapped_payload_json') && $numericQuery !== '' ? "OR e.mapped_payload_json LIKE :numeric_keyword" : '') . "
                         " . ($hasClients ? "OR sc.client_name LIKE :keyword" : '') . "
+                        " . ($hasFormats ? "OR f.format_name LIKE :keyword" : '') . "
                     )
                 ";
                 $params[':keyword'] = '%' . $query . '%';
+                if ($numericQuery !== '') {
+                    $params[':numeric_keyword'] = '%' . $numericQuery . '%';
+                }
             }
 
-            $stmt = $this->pdo->prepare("
+            $baseSelectSql = "
                 SELECT
                     e.id,
                     e.source_type,
                     e.source_key,
                     e.evidence_date,
+                    {$formatSelect} AS format_name,
+                    {$amountSelect},
+                    {$payloadSelect},
                     e.latest_imported_at AS processed_at,
                     e.created_at,
                     e.voucher_status,
-                    {$clientSelect} AS client_name
+                    COALESCE(NULLIF(e.client_name, ''), {$clientSelect}) AS client_name
                 FROM ledger_data_evidences e
                 {$clientJoin}
+                {$formatJoin}
                 WHERE {$where}
-                ORDER BY e.evidence_date DESC, e.latest_imported_at DESC, e.created_at DESC
-                LIMIT 50
-            ");
-            $stmt->execute($params);
+            ";
+            $orderSql = " ORDER BY e.evidence_date DESC, e.latest_imported_at DESC, e.created_at DESC";
+
+            if ($query !== '') {
+                $stmt = $this->pdo->prepare($baseSelectSql . $orderSql . " LIMIT 200");
+                $stmt->execute($params);
+                $rawRows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            } else {
+                $rawRows = [];
+                $groupSelect = $hasFormats ? 'e.source_type, e.format_id' : 'e.source_type';
+                $groupOrder = $hasFormats ? 'e.source_type ASC, e.format_id ASC' : 'e.source_type ASC';
+                $groupsStmt = $this->pdo->query("
+                    SELECT {$groupSelect}
+                    FROM ledger_data_evidences e
+                    WHERE e.deleted_at IS NULL
+                    GROUP BY {$groupSelect}
+                    ORDER BY {$groupOrder}
+                ");
+                $groups = $groupsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+                foreach ($groups as $group) {
+                    $groupWhere = $where . " AND e.source_type <=> :group_source_type";
+                    $groupParams = $params;
+                    $groupParams[':group_source_type'] = $group['source_type'] ?? null;
+                    if ($hasFormats) {
+                        $groupWhere .= " AND e.format_id <=> :group_format_id";
+                        $groupParams[':group_format_id'] = $group['format_id'] ?? null;
+                    }
+
+                    $stmt = $this->pdo->prepare(str_replace("WHERE {$where}", "WHERE {$groupWhere}", $baseSelectSql) . $orderSql . " LIMIT 30");
+                    $stmt->execute($groupParams);
+                    $rawRows = array_merge($rawRows, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+                }
+            }
+
+            $currentVoucherId = trim((string) ($_GET['voucher_id'] ?? ''));
+            $rows = array_map(function (array $row) use ($currentVoucherId): array {
+                $row = $this->normalizeEvidenceSearchRow($row);
+                $row['linked_voucher'] = $this->linkedVoucherInfoForEvidence((string) ($row['id'] ?? ''));
+                $row['is_linked_to_current_voucher'] = $currentVoucherId !== ''
+                    && (string) ($row['linked_voucher']['id'] ?? '') === $currentVoucherId;
+                $row['is_linked_to_other_voucher'] = (string) ($row['linked_voucher']['id'] ?? '') !== ''
+                    && !$row['is_linked_to_current_voucher'];
+
+                return $row;
+            }, $rawRows);
+
+            if ($query !== '') {
+                $rows = array_values(array_filter($rows, function (array $row) use ($query): bool {
+                    $haystack = implode(' ', [
+                        $row['source_type'] ?? '',
+                        $row['source_key'] ?? '',
+                        $row['display_key'] ?? '',
+                        $row['evidence_date'] ?? '',
+                        $row['processed_at'] ?? '',
+                        $row['created_at'] ?? '',
+                        $row['format_name'] ?? '',
+                        $row['display_type'] ?? '',
+                        $row['client_name'] ?? '',
+                        $row['display_summary'] ?? '',
+                        $row['total_amount'] ?? '',
+                        $row['display_amount'] ?? '',
+                    ]);
+
+                    return $this->searchTextMatches($haystack, $query);
+                }));
+            }
 
             return [
                 'success' => true,
                 'message' => '조회 완료',
-                'data' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+                'data' => $rows,
             ];
         });
     }
@@ -394,10 +535,14 @@ class VoucherController
     {
         $this->jsonResponse(function (): array {
             $query = trim((string) ($_GET['q'] ?? ''));
+            $scope = strtolower(trim((string) ($_GET['scope'] ?? 'voucher')));
+            $items = $scope === 'line'
+                ? $this->service->searchLineSummaryTexts($query, 10)
+                : $this->service->searchSummaryTexts($query, 10);
 
             return [
                 'success' => true,
-                'items' => $this->service->searchSummaryTexts($query, 10),
+                'items' => $items,
             ];
         });
     }
@@ -419,9 +564,36 @@ class VoucherController
                 );
             }
 
+            if (($result['success'] ?? false)) {
+                $voucherId = (string) ($result['voucher_id'] ?? $result['id'] ?? '');
+                $evidenceId = trim((string) ($payload['linked_evidence_id'] ?? ''))
+                    ?: (string) ($this->voucherSeedSourceByVoucherId($voucherId)['id'] ?? '');
+                $this->syncLinkedEvidenceVoucherPayload($voucherId, $evidenceId, ActorHelper::user());
+            }
+
             return [
                 'success' => (bool) ($result['success'] ?? false),
                 'message' => ($result['success'] ?? false) ? '저장 완료' : ($result['message'] ?? '저장 실패'),
+                'data' => $result,
+            ];
+        });
+    }
+
+    public function apiChangeNumber(): void
+    {
+        $this->jsonResponse(function (): array {
+            $input = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($input)) {
+                $input = [];
+            }
+
+            $id = trim((string) ($_POST['id'] ?? $input['id'] ?? ''));
+            $voucherNo = trim((string) ($_POST['voucher_no'] ?? $input['voucher_no'] ?? ''));
+            $result = $this->voucherNumberService->change($id, $voucherNo, ActorHelper::user());
+
+            return [
+                'success' => true,
+                'message' => ($result['changed'] ?? false) ? '전표번호가 변경되었습니다.' : '변경된 전표번호가 없습니다.',
                 'data' => $result,
             ];
         });
@@ -637,10 +809,19 @@ class VoucherController
     {
         $this->jsonResponse(function (): array {
             $stmt = $this->pdo->query("
-                SELECT *
-                FROM ledger_vouchers
-                WHERE deleted_at IS NOT NULL
-                ORDER BY deleted_at DESC, sort_no DESC
+                SELECT
+                    v.*,
+                    CASE
+                        WHEN v.deleted_by IS NULL THEN NULL
+                        WHEN v.deleted_by LIKE 'SYSTEM:%' THEN v.deleted_by
+                        WHEN ue.employee_name IS NOT NULL AND ue.employee_name <> '' THEN CONCAT('USER:', ue.employee_name)
+                        ELSE v.deleted_by
+                    END AS deleted_by_name
+                FROM ledger_vouchers v
+                LEFT JOIN user_employees ue
+                    ON ue.user_id = REPLACE(v.deleted_by, 'USER:', '')
+                WHERE v.deleted_at IS NOT NULL
+                ORDER BY v.deleted_at DESC, v.sort_no DESC
             ");
 
             return [
@@ -654,7 +835,7 @@ class VoucherController
     public function apiRestore(): void
     {
         $this->jsonResponse(function (): array {
-            $id = trim((string) ($_POST['id'] ?? ''));
+            $id = $this->requestValue('id');
             if ($id === '') {
                 return [
                     'success' => false,
@@ -725,7 +906,7 @@ class VoucherController
     public function apiPurge(): void
     {
         $this->jsonResponse(function (): array {
-            $id = trim((string) ($_POST['id'] ?? ''));
+            $id = $this->requestValue('id');
             if ($id === '') {
                 return [
                     'success' => false,
@@ -845,6 +1026,261 @@ class VoucherController
         return trim((string) ($_POST[$key] ?? $input[$key] ?? $_GET[$key] ?? ''));
     }
 
+    private function transactionDisplayType(array $row): string
+    {
+        $type = strtoupper(trim((string) ($row['transaction_type'] ?? $row['import_type'] ?? '')));
+        return match ($type) {
+            'IN', 'DEPOSIT', 'SALE', 'SALES' => '입금',
+            'OUT', 'WITHDRAW', 'WITHDRAWAL', 'PURCHASE', 'EXPENSE' => '출금',
+            'BANK_TRANSACTION' => '입출금',
+            'TAX_INVOICE' => '세금계산서',
+            'CASH_RECEIPT' => '현금영수증',
+            'CARD_APPROVAL', 'CARD_HOMETAX', 'CARD_STATEMENT' => '카드',
+            default => $type !== '' ? $type : '거래',
+        };
+    }
+
+    private function transactionDisplaySummary(array $row): string
+    {
+        foreach (['item_summary', 'description', 'summary_text', 'note'] as $key) {
+            $value = trim((string) ($row[$key] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return '거래 내역';
+    }
+
+    private function linkedVoucherInfoForTransaction(string $transactionId): ?array
+    {
+        if ($transactionId === '' || !$this->tableExists('ledger_vouchers')) {
+            return null;
+        }
+
+        if ($this->tableExists('ledger_transaction_links')) {
+            $stmt = $this->pdo->prepare("
+                SELECT v.id, v.voucher_no, v.voucher_date, v.status
+                FROM ledger_transaction_links l
+                INNER JOIN ledger_vouchers v
+                    ON v.id = l.voucher_id
+                   AND v.deleted_at IS NULL
+                WHERE l.transaction_id = :transaction_id
+                  AND l.deleted_at IS NULL
+                  AND l.is_active = 1
+                ORDER BY v.voucher_date DESC, v.voucher_no DESC
+                LIMIT 1
+            ");
+            $stmt->execute([':transaction_id' => $transactionId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (is_array($row)) {
+                return $row;
+            }
+        }
+
+        if (!$this->tableColumnExists('ledger_vouchers', 'transaction_id')) {
+            return null;
+        }
+
+        $stmt = $this->pdo->prepare("
+            SELECT id, voucher_no, voucher_date, status
+            FROM ledger_vouchers
+            WHERE transaction_id = :transaction_id
+              AND deleted_at IS NULL
+            ORDER BY voucher_date DESC, voucher_no DESC
+            LIMIT 1
+        ");
+        $stmt->execute([':transaction_id' => $transactionId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : null;
+    }
+
+    private function linkedVoucherInfoForEvidence(string $evidenceId): ?array
+    {
+        if ($evidenceId === '' || !$this->tableExists('ledger_vouchers')) {
+            return null;
+        }
+
+        if ($this->tableExists('ledger_data_evidence_links')) {
+            $stmt = $this->pdo->prepare("
+                SELECT v.id, v.voucher_no, v.voucher_date, v.status
+                FROM ledger_data_evidence_links l
+                INNER JOIN ledger_vouchers v
+                    ON v.id = l.voucher_id
+                   AND v.deleted_at IS NULL
+                WHERE l.evidence_id = :evidence_id
+                  AND l.deleted_at IS NULL
+                ORDER BY v.voucher_date DESC, v.voucher_no DESC
+                LIMIT 1
+            ");
+            $stmt->execute([':evidence_id' => $evidenceId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (is_array($row)) {
+                return $row;
+            }
+        }
+
+        if (!$this->tableColumnExists('ledger_vouchers', 'source_id')) {
+            return null;
+        }
+
+        $stmt = $this->pdo->prepare("
+            SELECT id, voucher_no, voucher_date, status
+            FROM ledger_vouchers
+            WHERE source_id = :evidence_id
+              AND deleted_at IS NULL
+            ORDER BY voucher_date DESC, voucher_no DESC
+            LIMIT 1
+        ");
+        $stmt->execute([':evidence_id' => $evidenceId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : null;
+    }
+
+    private function normalizeEvidenceSearchRow(array $row): array
+    {
+        $payload = $this->decodeJsonObject($row['mapped_payload_json'] ?? null);
+        $sourceType = strtoupper(trim((string) ($row['source_type'] ?? '')));
+        $row['display_type'] = $this->evidenceDisplayType($sourceType, (string) ($row['format_name'] ?? ''));
+        $row['display_key'] = $this->evidenceDisplayKey($row, $payload);
+        $row['display_summary'] = $this->evidenceDisplaySummary($row, $payload);
+        $row['display_amount'] = $this->evidenceDisplayAmount($row, $payload);
+        $row['client_name'] = trim((string) ($row['client_name'] ?? '')) ?: $this->firstPayloadValue($payload, [
+            'client_name',
+            'client_company_name',
+            'company_name',
+            'counterparty_name',
+            'counterparty_account_holder_name',
+            'account_holder',
+        ]);
+        unset($row['mapped_payload_json']);
+
+        return $row;
+    }
+
+    private function evidenceDisplayType(string $sourceType, string $formatName = ''): string
+    {
+        $formatName = trim($formatName);
+        if ($formatName !== '') {
+            return $formatName;
+        }
+
+        return match ($sourceType) {
+            'BANK_TRANSACTION' => '입출금',
+            'TAX_INVOICE' => '세금계산서',
+            'CASH_RECEIPT' => '현금영수증',
+            'CARD_APPROVAL', 'CARD_HOMETAX', 'CARD_STATEMENT', 'CARD_COMPANY' => '카드',
+            default => $sourceType !== '' ? $sourceType : '증빙',
+        };
+    }
+
+    private function evidenceDisplayKey(array $row, array $payload): string
+    {
+        return $this->firstPayloadValue($payload, [
+            'approval_number',
+            'approval_no',
+            'issue_id',
+            'invoice_number',
+            'cash_receipt_no',
+            'card_approval_no',
+            'transaction_no',
+            'document_no',
+        ]) ?: trim((string) ($row['source_key'] ?? ''));
+    }
+
+    private function evidenceDisplaySummary(array $row, array $payload): string
+    {
+        return $this->firstPayloadValue($payload, [
+            'description',
+            'summary_text',
+            'item_summary',
+            'memo',
+            'note',
+            'product_name',
+            'item_name',
+        ]) ?: trim((string) ($row['format_name'] ?? $row['source_type'] ?? '증빙'));
+    }
+
+    private function evidenceDisplayAmount(array $row, array $payload): float
+    {
+        foreach ([
+            $row['total_amount'] ?? null,
+            $payload['total_amount'] ?? null,
+            $payload['amount'] ?? null,
+            $payload['billing_amount'] ?? null,
+            $payload['purchase_amount'] ?? null,
+            $payload['approval_amount'] ?? null,
+            $payload['deposit_amount'] ?? null,
+            $payload['withdraw_amount'] ?? null,
+        ] as $value) {
+            $numeric = $this->numericOrNull($value);
+            if ($numeric !== null) {
+                return $numeric;
+            }
+        }
+
+        return 0.0;
+    }
+
+    private function decodeJsonObject(mixed $value): array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+
+        $decoded = json_decode((string) ($value ?? ''), true);
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private function firstPayloadValue(array $payload, array $keys): string
+    {
+        foreach ($keys as $key) {
+            $value = trim((string) ($payload[$key] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
+    private function searchTextMatches(string $haystack, string $query): bool
+    {
+        $query = trim($query);
+        if ($query === '') {
+            return true;
+        }
+
+        if (function_exists('mb_stripos') && mb_stripos($haystack, $query, 0, 'UTF-8') !== false) {
+            return true;
+        }
+
+        if (stripos($haystack, $query) !== false) {
+            return true;
+        }
+
+        $numericHaystack = preg_replace('/[^0-9.\-]/', '', $haystack) ?? '';
+        $numericQuery = preg_replace('/[^0-9.\-]/', '', $query) ?? '';
+
+        return $numericQuery !== '' && str_contains($numericHaystack, $numericQuery);
+    }
+
+    private function numericOrNull(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $normalized = preg_replace('/[^0-9.\-]/', '', (string) $value);
+        if ($normalized === '' || !is_numeric($normalized)) {
+            return null;
+        }
+
+        return (float) $normalized;
+    }
+
     private function transactionImportType(string $transactionId): ?string
     {
         if ($transactionId === ''
@@ -893,28 +1329,211 @@ class VoucherController
 
     private function voucherSeedSourceByVoucherId(string $voucherId): ?array
     {
+        $rows = $this->voucherSeedSourcesByVoucherId($voucherId);
+
+        return $rows[0] ?? null;
+    }
+
+    private function evidenceVoucherRefsByLineNo(string $voucherId): array
+    {
+        $source = $this->voucherSeedSourceByVoucherId($voucherId);
+        $evidenceId = (string) ($source['id'] ?? '');
+        if ($evidenceId === ''
+            || !$this->tableExists('ledger_data_evidences')
+            || !$this->tableColumnExists('ledger_data_evidences', 'mapped_payload_json')
+        ) {
+            return [];
+        }
+
+        $stmt = $this->pdo->prepare("
+            SELECT mapped_payload_json
+            FROM ledger_data_evidences
+            WHERE id = :id
+              AND deleted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->execute([':id' => $evidenceId]);
+        $mapped = $this->decodeJsonObject($stmt->fetchColumn() ?: null);
+        $rawLines = is_array($mapped['_voucher_lines'] ?? null) ? $mapped['_voucher_lines'] : [];
+        if ($rawLines === []) {
+            return [];
+        }
+
+        $refsByLineNo = [];
+        foreach ($rawLines as $rawLine) {
+            if (!is_array($rawLine)) {
+                continue;
+            }
+
+            $lineNo = (int) ($rawLine['line_no'] ?? 0);
+            if ($lineNo <= 0) {
+                continue;
+            }
+
+            $rowType = strtoupper(trim((string) ($rawLine['line_row_type'] ?? 'JOURNAL')));
+            $inlineRefs = is_array($rawLine['refs'] ?? null) ? $rawLine['refs'] : [];
+            if ($rowType === 'AUX') {
+                $inlineRefs[] = $rawLine;
+            }
+
+            foreach ($inlineRefs as $ref) {
+                if (!is_array($ref)) {
+                    continue;
+                }
+
+                $refType = $this->normalizeVoucherRefType((string) ($ref['ref_type'] ?? $ref['line_ref_type'] ?? ''));
+                $refId = trim((string) ($ref['ref_id'] ?? $ref['line_ref_id'] ?? ''));
+                if ($refType === '' || $refId === '') {
+                    continue;
+                }
+                $refId = $this->resolveVoucherRefId($refType, $refId) ?? $refId;
+
+                $refsByLineNo[$lineNo][] = [
+                    'ref_type' => $refType,
+                    'ref_id' => $refId,
+                    'line_ref_type' => $refType,
+                    'line_ref_id' => $refId,
+                    'ref_label' => (string) ($ref['ref_label'] ?? $ref['line_ref_label'] ?? ''),
+                    'line_ref_label' => (string) ($ref['line_ref_label'] ?? $ref['ref_label'] ?? ''),
+                    'is_primary' => (int) ($ref['is_primary'] ?? 0),
+                ];
+            }
+        }
+
+        return $refsByLineNo;
+    }
+
+    private function normalizeVoucherRefType(string $value): string
+    {
+        $value = strtoupper(trim($value));
+
+        return match ($value) {
+            'CLIENT', 'CUSTOMER', 'VENDOR', 'COUNTERPARTY' => 'CLIENT',
+            'PROJECT' => 'PROJECT',
+            'ACCOUNT', 'BANK', 'BANK_ACCOUNT' => 'ACCOUNT',
+            'CARD' => 'CARD',
+            'EMPLOYEE', 'USER' => 'EMPLOYEE',
+            default => $value,
+        };
+    }
+
+    private function resolveVoucherRefId(string $refType, string $value): ?string
+    {
+        $refType = $this->normalizeVoucherRefType($refType);
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+        if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $value) === 1) {
+            return $value;
+        }
+
+        $table = match ($refType) {
+            'CLIENT' => 'system_clients',
+            'PROJECT' => 'system_projects',
+            'ACCOUNT' => 'system_bank_accounts',
+            'CARD' => 'system_cards',
+            'EMPLOYEE' => 'user_employees',
+            default => null,
+        };
+        if ($table === null || !$this->tableExists($table)) {
+            return null;
+        }
+
+        $columns = match ($table) {
+            'system_clients' => ['id', 'client_name', 'company_name', 'business_number'],
+            'system_projects' => ['id', 'project_name', 'project_code'],
+            'system_bank_accounts' => ['id', 'account_name', 'account_number', 'bank_name'],
+            'system_cards' => ['id', 'card_name', 'card_number'],
+            'user_employees' => ['id', 'employee_name', 'name'],
+            default => ['id'],
+        };
+
+        $where = [];
+        $params = [];
+        foreach ($columns as $column) {
+            if (!$this->tableColumnExists($table, $column)) {
+                continue;
+            }
+            $key = ':ref_' . $column;
+            $where[] = $column . ' = ' . $key;
+            $params[$key] = $value;
+        }
+        if ($where === []) {
+            return null;
+        }
+
+        $deleted = $this->tableColumnExists($table, 'deleted_at') ? ' AND deleted_at IS NULL' : '';
+        $stmt = $this->pdo->prepare("
+            SELECT id
+            FROM {$table}
+            WHERE (" . implode(' OR ', $where) . ")
+              {$deleted}
+            ORDER BY id ASC
+            LIMIT 1
+        ");
+        $stmt->execute($params);
+        $id = $stmt->fetchColumn();
+
+        return $id !== false ? (string) $id : null;
+    }
+
+    private function voucherSeedSourcesByVoucherId(string $voucherId): array
+    {
         if ($voucherId === ''
             || !$this->tableExists('ledger_data_evidence_links')
             || !$this->tableExists('ledger_data_evidences')
         ) {
-            return null;
+            return [];
         }
 
+        $transactionIdSelect = $this->tableColumnExists('ledger_data_evidences', 'transaction_id')
+            ? 'e.transaction_id'
+            : 'NULL AS transaction_id';
+        $payloadSelect = $this->tableColumnExists('ledger_data_evidences', 'mapped_payload_json')
+            ? 'e.mapped_payload_json'
+            : 'NULL AS mapped_payload_json';
+        $amountSelect = $this->tableColumnExists('ledger_data_evidences', 'total_amount')
+            ? 'e.total_amount'
+            : 'NULL AS total_amount';
+        $hasFormat = $this->tableExists('ledger_data_formats')
+            && $this->tableColumnExists('ledger_data_evidences', 'format_id');
+        $formatSelect = $hasFormat
+            ? 'e.format_id, f.format_name,'
+            : 'NULL AS format_id, NULL AS format_name,';
+        $formatJoin = $hasFormat
+            ? 'LEFT JOIN ledger_data_formats f ON f.id = e.format_id AND f.deleted_at IS NULL'
+            : '';
+
         $stmt = $this->pdo->prepare("
-            SELECT e.id, 0 AS row_no, e.source_type, e.source_key, e.latest_imported_at AS processed_at, e.created_at
+            SELECT
+                e.id,
+                0 AS row_no,
+                e.source_type,
+                e.source_key,
+                {$formatSelect}
+                e.evidence_date,
+                e.client_name,
+                {$amountSelect},
+                {$payloadSelect},
+                {$transactionIdSelect},
+                e.latest_imported_at AS processed_at,
+                e.created_at
             FROM ledger_data_evidence_links l
             INNER JOIN ledger_data_evidences e
                 ON e.id = l.evidence_id
                AND e.deleted_at IS NULL
+            {$formatJoin}
             WHERE l.voucher_id = :voucher_id
               AND l.deleted_at IS NULL
             ORDER BY l.is_primary DESC, l.updated_at DESC, l.created_at DESC
-            LIMIT 1
         ");
         $stmt->execute([':voucher_id' => $voucherId]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 
-        return $row ?: null;
+        return array_map(
+            fn(array $row): array => $this->normalizeEvidenceSearchRow($row),
+            $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []
+        );
     }
 
     private function voucherSeedSource(string $evidenceId): ?array
@@ -1126,6 +1745,121 @@ class VoucherController
         ]);
     }
 
+    private function syncLinkedEvidenceVoucherPayload(string $voucherId, string $evidenceId, string $actor): void
+    {
+        if ($voucherId === ''
+            || $evidenceId === ''
+            || !$this->tableExists('ledger_data_evidences')
+            || !$this->tableColumnExists('ledger_data_evidences', 'mapped_payload_json')
+        ) {
+            return;
+        }
+
+        $voucher = $this->voucherModel->getById($voucherId);
+        if (!$voucher) {
+            return;
+        }
+
+        $stmt = $this->pdo->prepare("
+            SELECT mapped_payload_json
+            FROM ledger_data_evidences
+            WHERE id = :id
+              AND deleted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->execute([':id' => $evidenceId]);
+        $evidence = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        if (!$evidence) {
+            return;
+        }
+
+        $mapped = $this->decodeJsonObject($evidence['mapped_payload_json'] ?? null);
+        $lines = $this->voucherLineModel->getByVoucherId($voucherId);
+        $lineRefs = $this->voucherLineRefModel->getGroupedByVoucherLineIds(array_column($lines, 'id'));
+
+        $mapped['voucher_date'] = (string) ($voucher['voucher_date'] ?? '');
+        $mapped['voucher_summary_text'] = (string) ($voucher['summary_text'] ?? '');
+        $mapped['summary_text'] = (string) ($voucher['summary_text'] ?? '');
+        $mapped['note'] = (string) ($voucher['note'] ?? '');
+        $mapped['memo'] = (string) ($voucher['memo'] ?? '');
+        $mapped['_voucher_lines'] = array_map(function (array $line) use ($lineRefs): array {
+            $refs = array_map(function (array $ref): array {
+                $label = $this->voucherLineRefLabel($ref);
+
+                return [
+                    'ref_type' => (string) ($ref['ref_type'] ?? ''),
+                    'ref_id' => (string) ($ref['ref_id'] ?? ''),
+                    'ref_label' => $label,
+                    'line_ref_type' => (string) ($ref['ref_type'] ?? ''),
+                    'line_ref_id' => (string) ($ref['ref_id'] ?? ''),
+                    'line_ref_label' => $label,
+                    'is_primary' => (int) ($ref['is_primary'] ?? 0),
+                ];
+            }, $lineRefs[$line['id']] ?? []);
+
+            return [
+                'line_no' => (int) ($line['line_no'] ?? 0),
+                'line_row_type' => 'JOURNAL',
+                'account_id' => (string) ($line['account_id'] ?? ''),
+                'account_text' => (string) ($line['account_text'] ?? $line['account_name'] ?? ''),
+                'debit' => (string) ($line['debit'] ?? '0'),
+                'credit' => (string) ($line['credit'] ?? '0'),
+                'line_summary' => (string) ($line['line_summary'] ?? ''),
+                'refs' => $refs,
+                'recommended_refs' => $refs,
+                'is_user_modified' => 1,
+            ];
+        }, $lines);
+
+        $sets = ['mapped_payload_json = :mapped_payload_json'];
+        $params = [
+            ':id' => $evidenceId,
+            ':mapped_payload_json' => json_encode($mapped, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        ];
+
+        if ($this->tableColumnExists('ledger_data_evidences', 'voucher_status')) {
+            $sets[] = 'voucher_status = :voucher_status';
+            $params[':voucher_status'] = 'CREATED';
+        }
+        if ($this->tableColumnExists('ledger_data_evidences', 'error_message')) {
+            $sets[] = 'error_message = NULL';
+        }
+        if ($this->tableColumnExists('ledger_data_evidences', 'updated_at')) {
+            $sets[] = 'updated_at = NOW()';
+        }
+        if ($this->tableColumnExists('ledger_data_evidences', 'updated_by')) {
+            $sets[] = 'updated_by = :actor';
+            $params[':actor'] = $actor;
+        }
+
+        $this->pdo->prepare("
+            UPDATE ledger_data_evidences
+            SET " . implode(', ', $sets) . "
+            WHERE id = :id
+        ")->execute($params);
+    }
+
+    private function voucherLineRefLabel(array $ref): string
+    {
+        foreach ([
+            'client_name',
+            'project_name',
+            'employee_name',
+            'bank_account_name',
+            'account_name',
+            'card_name',
+            'ref_label',
+            'line_ref_label',
+        ] as $key) {
+            $value = trim((string) ($ref[$key] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
     private function syncVoucherEvidenceColumns(string $voucherId, string $evidenceId, string $actor): void
     {
         $evidence = $this->voucherSeedSource($evidenceId);
@@ -1268,7 +2002,13 @@ class VoucherController
                 'is_active' => 1,
             ])
         ))));
+        $storedTransactionId = trim((string) ($voucher['transaction_id'] ?? ''));
+        if ($storedTransactionId !== '') {
+            $transactionIds[] = $storedTransactionId;
+            $transactionIds = array_values(array_unique(array_filter($transactionIds)));
+        }
         $evidenceIds = $this->evidenceIdsAffectedByVoucherPurge($voucher, $transactionIds);
+        $processingItemIds = $this->processingItemIdsAffectedByVoucherPurge($id);
 
         foreach ($transactionIds as $transactionId) {
             $this->transactionLinkModel->softDeleteByTransactionAndVoucher($transactionId, $id, $actor);
@@ -1276,10 +2016,57 @@ class VoucherController
         }
 
         $this->resetEvidenceVoucherStatusAfterPurge($evidenceIds, $actor, $id);
+        $this->resetProcessingItemVoucherStatusAfterPurge($processingItemIds, $actor, $id);
+        $this->purgeVoucherEvidenceLinksById($id);
+        $this->purgeTransactionLinksByVoucherId($id);
+        $this->purgeVoucherChildrenById($id);
 
         if (!$this->voucherModel->hardDelete($id)) {
             throw new \RuntimeException('전표 완전 삭제에 실패했습니다.');
         }
+    }
+
+    private function purgeVoucherChildrenById(string $voucherId): void
+    {
+        if ($voucherId === '') {
+            return;
+        }
+
+        foreach ($this->voucherLineModel->getByVoucherId($voucherId) as $line) {
+            $lineId = trim((string) ($line['id'] ?? ''));
+            if ($lineId !== '') {
+                $this->voucherLineRefModel->deleteByVoucherLineId($lineId);
+            }
+        }
+
+        $this->voucherLineModel->purgeByVoucherId($voucherId);
+        $this->voucherPaymentModel->purgeByVoucherId($voucherId);
+    }
+
+    private function purgeVoucherEvidenceLinksById(string $voucherId): void
+    {
+        if ($voucherId === '' || !$this->tableExists('ledger_data_evidence_links')) {
+            return;
+        }
+
+        $stmt = $this->pdo->prepare("
+            DELETE FROM ledger_data_evidence_links
+            WHERE voucher_id = :voucher_id
+        ");
+        $stmt->execute([':voucher_id' => $voucherId]);
+    }
+
+    private function purgeTransactionLinksByVoucherId(string $voucherId): void
+    {
+        if ($voucherId === '' || !$this->tableExists('ledger_transaction_links')) {
+            return;
+        }
+
+        $stmt = $this->pdo->prepare("
+            DELETE FROM ledger_transaction_links
+            WHERE voucher_id = :voucher_id
+        ");
+        $stmt->execute([':voucher_id' => $voucherId]);
     }
 
     private function voucherRowForPurge(string $voucherId): array
@@ -1317,7 +2104,6 @@ class VoucherController
                 SELECT evidence_id
                 FROM ledger_data_evidence_links
                 WHERE voucher_id = :voucher_id
-                  AND deleted_at IS NULL
             ');
             $stmt->execute([':voucher_id' => $voucherId]);
             foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
@@ -1389,11 +2175,77 @@ class VoucherController
                     updated_by = :actor
                 WHERE id = :id
                   AND deleted_at IS NULL
-                  AND source_type = 'BANK_TRANSACTION'
+                  AND voucher_status IN ('CREATED', 'PROCESSED', 'DONE', 'COMPLETED', 'POSTED', 'ERROR')
             ");
             $stmt->execute([
                 ':actor' => $actor,
                 ':id' => $evidenceId,
+            ]);
+        }
+    }
+
+    private function processingItemIdsAffectedByVoucherPurge(string $voucherId): array
+    {
+        if ($voucherId === '' || !$this->tableExists('ledger_processing_items')) {
+            return [];
+        }
+
+        $ids = [];
+        if ($this->tableColumnExists('ledger_voucher_lines', 'processing_item_id')) {
+            $stmt = $this->pdo->prepare('
+                SELECT processing_item_id
+                FROM ledger_voucher_lines
+                WHERE voucher_id = :voucher_id
+                  AND processing_item_id IS NOT NULL
+            ');
+            $stmt->execute([':voucher_id' => $voucherId]);
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+                $ids[] = (string) ($row['processing_item_id'] ?? '');
+            }
+        }
+
+        if ($this->tableExists('ledger_data_evidence_links')
+            && $this->tableColumnExists('ledger_data_evidence_links', 'processing_item_id')
+        ) {
+            $stmt = $this->pdo->prepare('
+                SELECT processing_item_id
+                FROM ledger_data_evidence_links
+                WHERE voucher_id = :voucher_id
+                  AND processing_item_id IS NOT NULL
+            ');
+            $stmt->execute([':voucher_id' => $voucherId]);
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+                $ids[] = (string) ($row['processing_item_id'] ?? '');
+            }
+        }
+
+        return array_values(array_filter(array_unique($ids)));
+    }
+
+    private function resetProcessingItemVoucherStatusAfterPurge(array $processingItemIds, string $actor, string $purgedVoucherId): void
+    {
+        $processingItemIds = array_values(array_filter(array_unique(array_map('strval', $processingItemIds))));
+        if ($processingItemIds === [] || !$this->tableExists('ledger_processing_items')) {
+            return;
+        }
+
+        foreach ($processingItemIds as $processingItemId) {
+            if ($this->activeVoucherExistsForProcessingItem($processingItemId, $purgedVoucherId)) {
+                continue;
+            }
+
+            $stmt = $this->pdo->prepare("
+                UPDATE ledger_processing_items
+                SET voucher_status = 'READY',
+                    updated_at = NOW(),
+                    updated_by = :actor
+                WHERE id = :id
+                  AND deleted_at IS NULL
+                  AND voucher_status IN ('CREATED', 'PROCESSED', 'DONE', 'COMPLETED', 'POSTED', 'ERROR')
+            ");
+            $stmt->execute([
+                ':actor' => $actor,
+                ':id' => $processingItemId,
             ]);
         }
     }
@@ -1459,6 +2311,36 @@ class VoucherController
             LIMIT 1
         ");
         $params[':row_id'] = $evidenceId;
+        $stmt->execute($params);
+
+        return (bool) $stmt->fetchColumn();
+    }
+
+    private function activeVoucherExistsForProcessingItem(string $processingItemId, string $excludeVoucherId = ''): bool
+    {
+        if ($processingItemId === ''
+            || !$this->tableExists('ledger_vouchers')
+            || !$this->tableColumnExists('ledger_voucher_lines', 'processing_item_id')
+        ) {
+            return false;
+        }
+
+        $excludeSql = $excludeVoucherId !== '' ? 'AND v.id <> :exclude_voucher_id' : '';
+        $params = [':processing_item_id' => $processingItemId];
+        if ($excludeVoucherId !== '') {
+            $params[':exclude_voucher_id'] = $excludeVoucherId;
+        }
+
+        $stmt = $this->pdo->prepare("
+            SELECT 1
+            FROM ledger_voucher_lines l
+            INNER JOIN ledger_vouchers v
+                ON v.id = l.voucher_id
+               AND v.deleted_at IS NULL
+            WHERE l.processing_item_id = :processing_item_id
+              {$excludeSql}
+            LIMIT 1
+        ");
         $stmt->execute($params);
 
         return (bool) $stmt->fetchColumn();

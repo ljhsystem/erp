@@ -1,24 +1,22 @@
 // 寃쎈줈: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/organization/employees.js'
 
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
-import {
-    formatMobile,
-    formatPhone,
-    formatCorpNumber,
-    onlyNumber
-} from '/public/assets/js/common/format.js';
+import * as NumberFormat from '/public/assets/js/common/format.js';
 import {
     createDataTable,
     bindTableHighlight
-} from '/public/assets/js/components/data-table.js';
+} from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { openClientQuickCreate } from '/public/assets/js/pages/dashboard/settings/base/client.js';
+import { initCodeSelectControls } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
 
 window.AdminPicker = AdminPicker;
 
 (() => {
     'use strict';
+    const onlyNumber = NumberFormat.onlyNumber || ((value) => String(value ?? '').replace(/\D/g, ''));
+    const { formatMobile, formatPhone, formatCorpNumber, formatAccountNumber, unformatAccountNumber, loadBankAccountFormatRegistry } = NumberFormat;
 
     console.log('[employees.js v2] loaded');
 
@@ -129,6 +127,8 @@ window.AdminPicker = AdminPicker;
     let rrnVisible = false;
     let globalBound = false;
     let employeeClientSelect2Inited = false;
+    const employeeSelectOptionsCache = new Map();
+    let employeeBankControlsPromise = null;
 
     /* =========================================================
        DOM READY
@@ -189,6 +189,7 @@ window.AdminPicker = AdminPicker;
             window.KakaoAddress?.bind?.();
             window.EmployeeManagerSelect?.initCreate?.();
             window.EmployeeManagerSelect?.initEdit?.();
+            void prepareEmployeeBankControls();
         } catch (e) {
             console.error('[employees.js] initEmployeeModules failed:', e);
         }
@@ -393,7 +394,6 @@ window.AdminPicker = AdminPicker;
                 tableId: 'employee',
                 defaultSearchField: 'employee_name',
                 dateOptions: DATE_OPTIONS,
-                initialCollapsed: true
             });
             bindTableHighlight('#employee-table', employeeTable);
 
@@ -657,6 +657,7 @@ window.AdminPicker = AdminPicker;
 
         const formData = new FormData(form);
         formData.set('action', id ? 'update' : 'create');
+        formData.set('account_number', unformatAccountNumber?.(formData.get('account_number') || '') || '');
 
         const rrnReal = onlyNumber($('#edit_employee_rrn').data('real') || $('#edit_employee_rrn').val() || '');
         formData.set('rrn', rrnReal);
@@ -778,15 +779,25 @@ window.AdminPicker = AdminPicker;
         $(document)
             .off('employee:create-open.employees')
             .on('employee:create-open.employees', async function () {
-                await resetEmployeeFormForCreate();
+                void prepareEmployeeBankControls();
+                const prepare = resetEmployeeFormForCreate();
                 employeeEditModal?.show();
+                prepare.catch((error) => {
+                    console.error('[employees] create modal prepare failed', error);
+                    AppCore.notify('error', '직원 입력 항목 준비 중 오류가 발생했습니다.');
+                });
             });
 
         $(document)
             .off('employee:edit-open.employees')
             .on('employee:edit-open.employees', async function (e, row) {
-                await setEmployeeFormData(row);
+                void prepareEmployeeBankControls();
+                const prepare = setEmployeeFormData(row);
                 employeeEditModal?.show();
+                prepare.catch((error) => {
+                    console.error('[employees] edit modal prepare failed', error);
+                    AppCore.notify('error', '직원 정보 준비 중 오류가 발생했습니다.');
+                });
             });
     }
 
@@ -797,6 +808,9 @@ window.AdminPicker = AdminPicker;
         $('#employeeModalTitle').html('<i class="bi bi-person-plus"></i> 새 직원 추가');
         $('#edit_employee_id').val('');
         setRrnField('');
+        setEmployeeBankSelectValue('');
+        $('#edit_account_number').val('');
+        $('#edit_account_holder').val('');
 
         await Promise.all([
             loadSelectOptions('#edit_department_select', API.DEPARTMENT_LIST, ''),
@@ -869,8 +883,9 @@ window.AdminPicker = AdminPicker;
         $('#edit_real_hire_date').val(row.real_hire_date || '');
         $('#edit_doc_retire_date').val(row.doc_retire_date || '');
         $('#edit_real_retire_date').val(row.real_retire_date || '');
-        $('#edit_bank_name').val(row.bank_name || '');
+        setEmployeeBankSelectValue(row.bank_name || '');
         $('#edit_account_number').val(row.account_number || '');
+        formatEmployeeAccountNumberInput();
         $('#edit_account_holder').val(row.account_holder || '');
         $('#edit_certificate_name').val(row.certificate_name || '');
         $('#edit_employee_note').val(row.note || '');
@@ -959,45 +974,25 @@ window.AdminPicker = AdminPicker;
         AdminPicker.select2Ajax(el, {
             url: API.CLIENT_SEARCH,
             placeholder: '\uC120\uD0DD(\uC5C6\uC74C)',
+            includeCommonAdd: true,
             minimumInputLength: 0,
             dropdownParent: window.jQuery('#employeeEditModal'),
             width: '100%',
-            templateResult(item) {
-                if (!item.id) return item.text;
-
-                if (item.isQuickCreate) {
-                    return window.jQuery(
-                        '<div class="select2-action-option"><span class="fw-semibold text-primary">+ \uAC70\uB798\uCC98 \uCD94\uAC00</span></div>'
-                    );
-                }
-
-                return item.text;
-            },
             dataBuilder(params) {
                 return {
                     q: params.term || '',
                     limit: 20
                 };
             },
-            processResults(json, params) {
+            processResults(json) {
                 const rows = json?.results ?? json?.data ?? [];
-                const term = String(params?.term ?? '').trim();
 
                 return {
-                    results: [
-                        { id: '__none__', text: '\uC120\uD0DD(\uC5C6\uC74C)', isNone: true },
-                        ...rows.map(row => ({
-                            id: String(row.id ?? ''),
-                            text: row.text ?? row.client_name ?? '',
-                            raw: row
-                        })).filter(item => item.id !== ''),
-                        {
-                            id: '__quick_client__',
-                            text: '+ \uAC70\uB798\uCC98 \uCD94\uAC00',
-                            isQuickCreate: true,
-                            term
-                        }
-                    ]
+                    results: rows.map(row => ({
+                        id: String(row.id ?? ''),
+                        text: row.text ?? row.client_name ?? '',
+                        raw: row
+                    })).filter(item => item.id !== '')
                 };
             }
         });
@@ -1014,30 +1009,19 @@ window.AdminPicker = AdminPicker;
             handleEmployeeClientSelectOption(this, e.params?.data);
         });
 
-        $el.on('change.employeeClient', function () {
-            if (String(window.jQuery(this).val() || '') !== '__quick_client__') return;
-
-            window.jQuery(this).val(null).trigger('change.select2');
+        el.removeEventListener?.('picker:add', el.__employeeClientPickerAdd);
+        el.__employeeClientPickerAdd = () => {
+            window.jQuery(el).val(null).trigger('change.select2');
+            window.jQuery(el).select2('close');
             openEmployeeClientQuickCreate('');
-        });
+        };
+        el.addEventListener('picker:add', el.__employeeClientPickerAdd);
 
         employeeClientSelect2Inited = true;
     }
 
     function handleEmployeeClientSelectOption(selectEl, item) {
         if (!item) return false;
-
-        if (item.id === '__none__') {
-            window.jQuery(selectEl).val(null).trigger('change');
-            return true;
-        }
-
-        if (item.id === '__quick_client__') {
-            window.jQuery(selectEl).val(null).trigger('change');
-            window.jQuery(selectEl).select2('close');
-            openEmployeeClientQuickCreate(item.term || '');
-            return true;
-        }
 
         window.jQuery(selectEl).val(String(item.id)).trigger('change');
         return false;
@@ -1057,6 +1041,89 @@ window.AdminPicker = AdminPicker;
         $el.find(`option[value="${clientId}"]`).remove();
         $el.append(new Option(clientText, clientId, true, true));
         $el.val(clientId).trigger('change');
+    }
+
+    function prepareEmployeeBankControls() {
+        if (!employeeBankControlsPromise) {
+            employeeBankControlsPromise = Promise.all([
+                loadBankAccountFormatRegistry?.(),
+                initCodeSelectControls(document.getElementById('employeeEditModal'))
+            ])
+                .then(() => {
+                    bindEmployeeBankFormatting();
+                })
+                .catch((error) => {
+                    employeeBankControlsPromise = null;
+                    throw error;
+                });
+        }
+
+        return employeeBankControlsPromise;
+    }
+
+    function getEmployeeBankName() {
+        const bankSelect = document.getElementById('edit_bank_name');
+        if (!bankSelect) return '';
+
+        const selectedText = bankSelect.options?.[bankSelect.selectedIndex]?.textContent || '';
+        return [bankSelect.value, selectedText].filter(Boolean).join(' ');
+    }
+
+    function formatEmployeeAccountNumberInput(options = {}) {
+        const input = document.getElementById('edit_account_number');
+        if (!input) return;
+
+        input.value = formatAccountNumber?.(input.value, getEmployeeBankName()) || input.value;
+
+        void loadBankAccountFormatRegistry?.({ force: options.forceReload === true }).then(() => {
+            input.value = formatAccountNumber?.(input.value, getEmployeeBankName()) || input.value;
+        });
+    }
+
+    function bindEmployeeBankFormatting() {
+        const bankSelect = document.getElementById('edit_bank_name');
+        const accountInput = document.getElementById('edit_account_number');
+        if (!bankSelect || !accountInput) return;
+
+        if (accountInput.dataset.employeeAccountFormatBound !== 'true') {
+            accountInput.addEventListener('input', () => formatEmployeeAccountNumberInput());
+            accountInput.addEventListener('blur', () => formatEmployeeAccountNumberInput());
+            accountInput.dataset.employeeAccountFormatBound = 'true';
+        }
+
+        const reformat = () => {
+            formatEmployeeAccountNumberInput({ forceReload: true });
+            window.requestAnimationFrame?.(() => formatEmployeeAccountNumberInput());
+        };
+
+        if (bankSelect.dataset.employeeBankFormatBound !== 'true') {
+            bankSelect.addEventListener('change', reformat);
+            bankSelect.dataset.employeeBankFormatBound = 'true';
+        }
+
+        if (window.jQuery?.fn?.select2) {
+            window.jQuery(bankSelect)
+                .off('select2:select.employeeBankFormat select2:clear.employeeBankFormat')
+                .on('select2:select.employeeBankFormat select2:clear.employeeBankFormat', reformat);
+        }
+    }
+
+    function setEmployeeBankSelectValue(value = '') {
+        const select = document.getElementById('edit_bank_name');
+        if (!select) return;
+
+        const raw = String(value ?? '').trim();
+        const normalized = raw.toUpperCase();
+        const option = Array.from(select.options || []).find((item) => {
+            const optionValue = String(item.value ?? '').trim();
+            const optionText = String(item.textContent ?? '').trim();
+            return optionValue === raw || optionValue.toUpperCase() === normalized || optionText === raw || optionText.toUpperCase() === normalized;
+        });
+
+        select.value = option?.value ?? raw;
+        if (window.jQuery?.fn?.select2 && window.jQuery(select).hasClass('select2-hidden-accessible')) {
+            window.jQuery(select).trigger('change.select2');
+        }
     }
 
     function openEmployeeClientQuickCreate(defaultName = '') {
@@ -1091,10 +1158,13 @@ window.AdminPicker = AdminPicker;
     /* =========================================================
        Select2 로딩
     ========================================================= */
-    async function loadSelectOptions(selector, apiUrl, selectedValue = '', method = 'GET') {
-        selectedValue = selectedValue != null ? String(selectedValue) : '';
+    async function getEmployeeSelectItems(apiUrl, method = 'GET') {
+        const cacheKey = `${String(method).toUpperCase()}:${apiUrl}`;
+        if (employeeSelectOptionsCache.has(cacheKey)) {
+            return employeeSelectOptionsCache.get(cacheKey);
+        }
 
-        try {
+        const promise = (async () => {
             const fetchOptions = {
                 method,
                 credentials: 'include'
@@ -1112,7 +1182,7 @@ window.AdminPicker = AdminPicker;
                 json = JSON.parse(text);
             } catch (e) {
                 console.error('JSON parse failed:', apiUrl, text);
-                return;
+                return [{ id: '__none__', text: '선택(없음)' }];
             }
 
             const list = Array.isArray(json.data) ? json.data : [];
@@ -1126,6 +1196,22 @@ window.AdminPicker = AdminPicker;
                     items.push({ id: String(id), text: String(text ?? '') });
                 }
             });
+
+            return items;
+        })().catch((error) => {
+            employeeSelectOptionsCache.delete(cacheKey);
+            throw error;
+        });
+
+        employeeSelectOptionsCache.set(cacheKey, promise);
+        return promise;
+    }
+
+    async function loadSelectOptions(selector, apiUrl, selectedValue = '', method = 'GET') {
+        selectedValue = selectedValue != null ? String(selectedValue) : '';
+
+        try {
+            const items = await getEmployeeSelectItems(apiUrl, method);
 
             AdminPicker.destroySelect2(selector);
             AdminPicker.reloadSelect2(selector, items, 'id', 'text', null);

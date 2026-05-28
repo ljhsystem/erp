@@ -89,13 +89,10 @@
                                     <label class="form-label">입찰방법</label>
                                     <select name="bid_type"
                                             id="modal_bid_type"
-                                            class="form-select form-select-sm">
-                                        <option value="">선택</option>
-                                        <option value="일반경쟁">일반경쟁</option>
-                                        <option value="제한경쟁">제한경쟁</option>
-                                        <option value="수의계약">수의계약</option>
-                                        <option value="지명경쟁">지명경쟁</option>
-                                        <option value="기타">기타</option>
+                                            class="form-select form-select-sm"
+                                            data-code-group="BID_TYPE"
+                                            data-code-searchable="true">
+                                        <option value=""></option>
                                     </select>
                                 </div>
 

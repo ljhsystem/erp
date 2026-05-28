@@ -70,7 +70,6 @@ class TransactionService
                 'currency' => $data['currency'] ?? 'KRW',
                 'exchange_rate' => $data['exchange_rate'] ?? null,
                 'order_ref' => $data['order_ref'] ?? null,
-                'base_amount' => $totals['base_amount'],
                 'adjustment_amount' => $totals['adjustment_amount'],
                 'supply_amount' => $totals['supply_amount'],
                 'vat_amount' => $totals['vat_amount'],
@@ -100,13 +99,15 @@ class TransactionService
                     'id' => (string) ($item['id'] ?? UuidHelper::generate()),
                     'transaction_id' => $transactionId,
                     'sort_no' => (int) ($item['sort_no'] ?? ($index + 1)),
-                    'line_type' => $item['line_type'] ?? 'ITEM',
+                    'line_type' => $item['line_type'] ?? 'GOODS',
                     'item_date' => $item['item_date'] ?? ($data['transaction_date'] ?? date('Y-m-d')),
                     'item_name' => $itemName,
                     'specification' => $item['specification'] ?? null,
                     'unit_name' => $item['unit_name'] ?? null,
                     'quantity' => $item['quantity'] ?? 0,
                     'unit_price' => $item['unit_price'] ?? 0,
+                    'currency_code' => $item['currency_code'] ?? null,
+                    'exchange_rate' => $item['exchange_rate'] ?? null,
                     'foreign_unit_price' => $item['foreign_unit_price'] ?? null,
                     'foreign_amount' => $item['foreign_amount'] ?? null,
                     'amount' => $item['amount'] ?? ($item['total_amount'] ?? 0),
@@ -449,14 +450,14 @@ class TransactionService
     private function normalizeTransactionItems(array $items, array $data): array
     {
         $rows = [];
-        $exchangeRate = (float) ($data['exchange_rate'] ?? 0);
-
         foreach ($items as $item) {
             if (!is_array($item)) {
                 continue;
             }
 
-            $quantity = (float) ($item['quantity'] ?? 0);
+            $quantity = (float) ($this->numericOrNull($item['quantity'] ?? $item['item_qty'] ?? 0) ?? 0);
+            $currencyCode = $this->normalizeCurrencyCode($item['currency_code'] ?? $item['currency'] ?? 'KRW');
+            $exchangeRate = (float) ($this->numericOrNull($item['exchange_rate'] ?? null) ?? 0);
             $foreignUnitPrice = $this->numericOrNull($item['foreign_unit_price'] ?? null);
             $foreignAmount = $this->numericOrNull($item['foreign_amount'] ?? null);
             $usesForeignAmount = $exchangeRate > 0 && ($foreignUnitPrice !== null || $foreignAmount !== null);
@@ -473,18 +474,39 @@ class TransactionService
                 ? round((float) $foreignAmount * $exchangeRate, 2)
                 : round($quantity * $unitPrice, 2);
             $vatAmount = $taxType === 'TAXABLE' ? round($supplyAmount * 0.1, 2) : 0.0;
-            $lineType = $this->normalizeLineType($item['line_type'] ?? $item['amount_type'] ?? '') ?: 'ITEM';
+            $lineType = $this->normalizeLineType($item['line_type'] ?? $item['amount_type'] ?? '') ?: 'GOODS';
             $givenAmount = $this->numericOrNull($item['amount'] ?? null);
+            $lineAmount = round((float) ($givenAmount ?? (
+                $lineType === 'VAT'
+                    ? ($this->numericOrNull($item['vat_amount'] ?? null) ?? $this->numericOrNull($item['total_amount'] ?? null) ?? $vatAmount)
+                    : (in_array($lineType, ['GOODS', 'ITEM', 'SERVICE'], true) ? $supplyAmount : ($this->numericOrNull($item['total_amount'] ?? null) ?? $supplyAmount))
+            )), 2);
+
+            if (!in_array($lineType, ['GOODS', 'ITEM', 'SERVICE'], true)) {
+                if ($quantity <= 0) {
+                    $quantity = 1.0;
+                }
+                if ($unitPrice <= 0 && $quantity > 0) {
+                    $unitPrice = round($lineAmount / $quantity, 2);
+                }
+                $supplyAmount = 0.0;
+                $vatAmount = $lineType === 'VAT' ? $lineAmount : 0.0;
+            } else {
+                $supplyAmount = $lineAmount;
+                $vatAmount = 0.0;
+            }
 
             $item['line_type'] = $lineType;
             $item['quantity'] = $quantity;
             $item['unit_price'] = $unitPrice;
+            $item['currency_code'] = $currencyCode;
+            $item['exchange_rate'] = $exchangeRate > 0 ? $exchangeRate : null;
             $item['foreign_unit_price'] = $usesForeignAmount ? (float) ($foreignUnitPrice ?? 0) : null;
             $item['foreign_amount'] = $usesForeignAmount ? (float) ($foreignAmount ?? 0) : null;
-            $item['amount'] = round((float) ($givenAmount ?? ($lineType === 'ITEM' ? $supplyAmount : ($item['total_amount'] ?? $supplyAmount + $vatAmount))), 2);
-            $item['supply_amount'] = $lineType === 'ITEM' ? $item['amount'] : 0.0;
-            $item['vat_amount'] = $lineType === 'VAT' ? $item['amount'] : 0.0;
-            $item['total_amount'] = $item['amount'];
+            $item['amount'] = $lineAmount;
+            $item['supply_amount'] = $supplyAmount;
+            $item['vat_amount'] = $vatAmount;
+            $item['total_amount'] = $lineAmount;
             $item['tax_type'] = $taxType;
             $rows[] = $item;
         }
@@ -495,7 +517,6 @@ class TransactionService
     private function calculateTransactionLineTotals(array $items): array
     {
         $totals = [
-            'base_amount' => 0.0,
             'adjustment_amount' => 0.0,
             'supply_amount' => 0.0,
             'vat_amount' => 0.0,
@@ -503,10 +524,9 @@ class TransactionService
         ];
 
         foreach ($items as $item) {
-            $lineType = strtoupper(trim((string) ($item['line_type'] ?? 'ITEM'))) ?: 'ITEM';
+            $lineType = strtoupper(trim((string) ($item['line_type'] ?? 'GOODS'))) ?: 'GOODS';
             $amount = (float) ($item['amount'] ?? $item['total_amount'] ?? 0);
-            if ($lineType === 'ITEM') {
-                $totals['base_amount'] += $amount;
+            if (in_array($lineType, ['GOODS', 'ITEM', 'SERVICE'], true)) {
                 $totals['supply_amount'] += $amount;
             } else {
                 $totals['adjustment_amount'] += $amount;
@@ -526,7 +546,7 @@ class TransactionService
             return $lineTotals;
         }
 
-        $baseAmount = (float) ($this->numericOrNull($data['base_amount'] ?? null) ?? $this->numericOrNull($data['supply_amount'] ?? null) ?? 0);
+        $baseAmount = (float) ($this->numericOrNull($data['supply_amount'] ?? null) ?? 0);
         $adjustmentAmount = (float) ($this->numericOrNull($data['adjustment_amount'] ?? null) ?? $this->numericOrNull($data['vat_amount'] ?? null) ?? 0);
         $supplyAmount = (float) ($this->numericOrNull($data['supply_amount'] ?? null) ?? 0);
         $vatAmount = (float) ($this->numericOrNull($data['vat_amount'] ?? null) ?? 0);
@@ -539,7 +559,6 @@ class TransactionService
         }
 
         return [
-            'base_amount' => round($baseAmount, 2),
             'adjustment_amount' => round($adjustmentAmount, 2),
             'supply_amount' => round($supplyAmount, 2),
             'vat_amount' => round($vatAmount, 2),
@@ -555,8 +574,30 @@ class TransactionService
 
     private function normalizeLineType(mixed $value): string
     {
-        $type = strtoupper(trim((string) ($value ?? '')));
+        $raw = trim((string) ($value ?? ''));
+        $mapped = match ($raw) {
+            '품목' => 'ITEM',
+            '부가세', '부가가치세' => 'VAT',
+            '봉사료', '서비스료', '용역수수료' => 'SERVICE',
+            '원천세', '원천징수', '소득세', '지방세' => 'WITHHOLDING',
+            'WITHHOLDING_INCOME', 'WITHHOLDING_LOCAL' => 'WITHHOLDING',
+            default => $raw,
+        };
+        $type = strtoupper($mapped);
+        if ($type === 'ITEM') {
+            $type = 'GOODS';
+        }
+        if (in_array($type, ['DEBIT', 'CREDIT', 'CASH', 'SALES', 'COGS'], true)) {
+            error_log('[TransactionService] forbidden transaction line_type normalized: ' . $type);
+            return '';
+        }
         return preg_match('/^[A-Z0-9_]+$/', $type) ? $type : '';
+    }
+
+    private function normalizeCurrencyCode(mixed $value): string
+    {
+        $currency = strtoupper(trim((string) ($value ?? 'KRW')));
+        return preg_match('/^[A-Z]{3}$/', $currency) ? $currency : 'KRW';
     }
 
     private function numericOrNull(mixed $value): float|int|null

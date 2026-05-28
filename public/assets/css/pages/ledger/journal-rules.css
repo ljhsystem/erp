@@ -34,6 +34,28 @@
     overflow-y: auto;
 }
 
+#journalRuleModal .modal-content {
+    position: relative;
+}
+
+#journalRuleModal.is-loading-detail .modal-body {
+    pointer-events: none;
+}
+
+#journalRuleModal.is-loading-detail .modal-content::after {
+    content: "분개규칙 정보를 불러오는 중입니다.";
+    position: absolute;
+    inset: 52px 0 58px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, .72);
+    color: var(--color-primary);
+    font-size: 14px;
+    font-weight: 700;
+    z-index: 20;
+}
+
 #journalRuleModal .select2-container {
     width: 100% !important;
 }
@@ -54,11 +76,6 @@
 #journal-rule-table td,
 #journal-rule-table th {
     vertical-align: middle;
-}
-
-.journal-rule-quick-create-option {
-    color: #0d6efd;
-    font-weight: 700;
 }
 
 .journal-rule-status-switch {

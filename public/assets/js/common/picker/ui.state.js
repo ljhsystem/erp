@@ -36,9 +36,9 @@ export function createPickerCore(options = {}) {
            a.getDate() === b.getDate();
   }
 
-  function setDate(date) {
+  function setDate(date, options = {}) {
     // ✅ 같은 날짜면 emit 금지 (루프/과부하 핵심 차단)
-    if (sameYmd(state.date, date)) return;
+    if (sameYmd(state.date, date) && !options.force) return;
 
     state.date = date instanceof Date ? date : null;
 

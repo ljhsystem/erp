@@ -298,6 +298,15 @@ body.no-sidebar .main-content > .container {
   margin-right: auto;
 }
 
+body.no-footer .app-shell {
+  bottom: 0;
+}
+
+body.no-footer .sidebar,
+body.no-footer .sidebar-right-border {
+  bottom: 0;
+}
+
 /* ==============================
    MODAL LAYER FIX
 ============================== */

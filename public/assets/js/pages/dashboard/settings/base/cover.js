@@ -12,7 +12,7 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import {
     createDataTable,
     bindTableHighlight
-} from '/public/assets/js/components/data-table.js';
+} from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.cover.js';
 import '/public/assets/js/components/excel-manager.js';
@@ -221,6 +221,17 @@ window.AdminPicker = AdminPicker;
         }
 
         window.alert(message);
+    }
+
+    function deferCoverModalWork(callback) {
+        if (typeof callback !== 'function') return;
+
+        if (typeof window.requestAnimationFrame === 'function') {
+            window.requestAnimationFrame(() => window.setTimeout(callback, 0));
+            return;
+        }
+
+        window.setTimeout(callback, 0);
     }
 
     function getSearchFieldSelector() {
@@ -553,19 +564,22 @@ window.AdminPicker = AdminPicker;
                         const form = qs(DOM.form);
                         if (form) form.reset();
 
-                        populateCoverYearOptions();
-                        window.jQuery(DOM.modalIsActive).val('1');
                         setCoverModalMode('create');
-
-                        const preview = qs(DOM.modalImagePreview);
-                        if (preview) {
-                            preview.setAttribute('src', '');
-                            preview.style.display = 'none';
-                        }
 
                         if (coverModal) {
                             coverModal.show();
                         }
+
+                        deferCoverModalWork(() => {
+                            populateCoverYearOptions();
+                            window.jQuery(DOM.modalIsActive).val('1');
+
+                            const preview = qs(DOM.modalImagePreview);
+                            if (preview) {
+                                preview.setAttribute('src', '');
+                                preview.style.display = 'none';
+                            }
+                        });
                     }
                 }
             ],
@@ -736,29 +750,32 @@ window.AdminPicker = AdminPicker;
         if (!rowData) return;
 
         const yearValue = String(rowData.year ?? '').trim();
+        const form = qs(DOM.form);
+        if (form) form.reset();
 
         window.jQuery(DOM.modalId).val(rowData.id || '');
-        populateCoverYearOptions(yearValue);
-        window.jQuery(DOM.modalTitle).val(rowData.title || '');
-        window.jQuery(DOM.modalAlt).val(rowData.alt || '');
-        window.jQuery(DOM.modalDescription).val(rowData.description || '');
-        window.jQuery(DOM.modalIsActive).val(String(Number(rowData.is_active ?? 1) === 1 ? 1 : 0));
-
-        if (rowData.url) {
-            window.jQuery(DOM.modalImagePreview).attr('src', rowData.url).show();
-        } else {
-            window.jQuery(DOM.modalImagePreview).attr('src', '').hide();
-        }
-
+        window.jQuery(DOM.modalImagePreview).attr('src', '').hide();
         setCoverModalMode('edit');
 
         if (coverModal) {
             coverModal.show();
         }
 
-        setTimeout(() => {
+        deferCoverModalWork(() => {
+            populateCoverYearOptions(yearValue);
+            window.jQuery(DOM.modalTitle).val(rowData.title || '');
+            window.jQuery(DOM.modalAlt).val(rowData.alt || '');
+            window.jQuery(DOM.modalDescription).val(rowData.description || '');
+            window.jQuery(DOM.modalIsActive).val(String(Number(rowData.is_active ?? 1) === 1 ? 1 : 0));
+
+            if (rowData.url) {
+                window.jQuery(DOM.modalImagePreview).attr('src', rowData.url).show();
+            } else {
+                window.jQuery(DOM.modalImagePreview).attr('src', '').hide();
+            }
+
             window.jQuery(DOM.modalYear).val(yearValue).trigger('change');
-        }, 0);
+        });
     }
 
     function updateCoverActive(rowData, active, toggleEl) {

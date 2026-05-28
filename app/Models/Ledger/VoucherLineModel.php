@@ -81,12 +81,36 @@ class VoucherLineModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    public function searchLineSummaryTexts(string $keyword, int $limit = 10): array
+    {
+        $limit = max(1, min($limit, 20));
+        $stmt = $this->db->prepare("
+            SELECT
+                TRIM(line_summary) AS summary_text,
+                COUNT(*) AS used_count,
+                MAX(created_at) AS last_used_at
+            FROM {$this->table}
+            WHERE line_summary IS NOT NULL
+              AND TRIM(line_summary) <> ''
+              AND line_summary LIKE :keyword
+            GROUP BY TRIM(line_summary)
+            ORDER BY used_count DESC, last_used_at DESC
+            LIMIT {$limit}
+        ");
+        $stmt->execute([
+            ':keyword' => '%' . $keyword . '%',
+        ]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     public function insert(array $data): bool
     {
         $allowed = [
             'id',
             'sort_no',
             'voucher_id',
+            'processing_item_id',
             'line_no',
             'account_id',
             'debit',
@@ -128,6 +152,7 @@ class VoucherLineModel
     {
         $allowed = [
             'voucher_id',
+            'processing_item_id',
             'line_no',
             'account_id',
             'debit',

@@ -842,11 +842,12 @@ class ChartAccountService
         }
 
         $rows = $this->model->getList($modelFilters);
+        $subAccountCounts = $this->customSubAccountService->countByAccountIds(array_column($rows, 'id'));
 
         foreach ($rows as &$row) {
             $accountId = (string) ($row['id'] ?? '');
             $allowSubAccount = (int) ($row['allow_sub_account'] ?? 0);
-            $hasSubAccounts = $accountId !== '' && $this->customSubAccountService->countByAccountId($accountId) > 0;
+            $hasSubAccounts = $accountId !== '' && ($subAccountCounts[$accountId] ?? 0) > 0;
 
             $row['sub_account_status'] = $hasSubAccounts
                 ? '사용중'

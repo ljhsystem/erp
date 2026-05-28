@@ -33,9 +33,13 @@
 
                 <div class="col-md-3">
                   <label class="form-label">은행명</label>
-                  <input type="text"
-                         name="bank_name"
-                         class="form-control form-control-sm">
+                  <select name="bank_name"
+                          id="modal_bank_name"
+                          class="form-select form-select-sm"
+                          data-code-group="BANK"
+                          data-code-searchable="true">
+                    <option value=""></option>
+                  </select>
                 </div>
 
                 <div class="col-md-4">
@@ -59,14 +63,12 @@
 
                 <div class="col-md-3">
                   <label class="form-label">계좌구분</label>
-                  <select name="account_type" class="form-select form-select-sm">
-                    <option value="">선택</option>
-                    <option value="보통예금">보통예금</option>
-                    <option value="당좌예금">당좌예금</option>
-                    <option value="정기예금">정기예금</option>
-                    <option value="적금">적금</option>
-                    <option value="외화계좌">외화계좌</option>
-                    <option value="기타">기타</option>
+                  <select name="account_type"
+                          id="modal_account_type"
+                          class="form-select form-select-sm"
+                          data-code-group="BANK_ACCOUNT_TYPE"
+                          data-code-searchable="true">
+                    <option value=""></option>
                   </select>
                 </div>
 

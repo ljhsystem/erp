@@ -1,11 +1,11 @@
-import { createDataTable } from '/public/assets/js/components/data-table.js';
+import { createDataTable } from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
+import { PickerSelect2 } from '/public/assets/js/common/picker/picker.select2.js';
 import {
     initCodeSelectControls,
     onCodeOptionsLoaded,
 } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
-import { createJournalBasicInfoBridge } from '/public/assets/js/pages/ledger/journal.basic-info.js';
 import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
 
@@ -27,7 +27,6 @@ import '/public/assets/js/components/trash-manager.js';
         accounts: '/api/ledger/account/list',
     };
 
-    const QUICK_CREATE_ACCOUNT_VALUE = '__quick_create_account__';
     const CODE_GROUPS = {
         BUSINESS_UNIT: 'businessUnits',
         TRANSACTION_TYPE: 'transactionTypes',
@@ -45,8 +44,8 @@ import '/public/assets/js/components/trash-manager.js';
     let transactionDirections = [];
     let clientTypes = [];
     let postingAccounts = [];
-    let basicInfoBridge = null;
     let selectSourcesPromise = null;
+    let pendingTableLabelRefresh = false;
 
     const $ = window.jQuery;
 
@@ -114,11 +113,10 @@ import '/public/assets/js/components/trash-manager.js';
             excelModal = bootstrap.Modal.getOrCreateInstance(excelEl, { focus: false });
         }
 
-        basicInfoBridge = createJournalBasicInfoBridge({ notify });
         initTable();
         bindEvents();
         bindCodeOptionRefresh();
-        selectSourcesPromise = prepareSelectSources(modalEl);
+        warmSelectSources();
     }
 
     async function prepareSelectSources(modalEl) {
@@ -128,7 +126,7 @@ import '/public/assets/js/components/trash-manager.js';
                 initCodeSelectControls(modalEl),
             ]);
             initAccountSelect2();
-            table?.rows().invalidate('data').draw(false);
+            refreshRuleTableLabels();
         } catch (error) {
             console.error('[journal-rules] select source load failed:', error);
             notify('error', error.message || '분개규칙 기준정보를 불러오지 못했습니다.');
@@ -136,9 +134,47 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     async function ensureSelectSourcesReady() {
-        if (selectSourcesPromise) {
-            await selectSourcesPromise;
+        if (!selectSourcesPromise) {
+            const modalEl = document.getElementById('journalRuleModal');
+            selectSourcesPromise = prepareSelectSources(modalEl);
         }
+        await selectSourcesPromise;
+    }
+
+    function warmSelectSources() {
+        const run = () => {
+            void ensureSelectSourcesReady().catch((error) => {
+                console.error('[journal-rules] select source warmup failed:', error);
+            });
+        };
+
+        if (typeof window.requestIdleCallback === 'function') {
+            window.requestIdleCallback(run, { timeout: 1200 });
+            return;
+        }
+
+        window.setTimeout(run, 250);
+    }
+
+    function isRuleModalOpen() {
+        return document.getElementById('journalRuleModal')?.classList.contains('show') === true;
+    }
+
+    function refreshRuleTableLabels() {
+        if (isRuleModalOpen()) {
+            pendingTableLabelRefresh = true;
+            return;
+        }
+
+        pendingTableLabelRefresh = false;
+        table?.rows().invalidate('data').draw(false);
+    }
+
+    function setJournalRuleModalLoading(isLoading = false) {
+        const loading = Boolean(isLoading);
+        const modalEl = document.getElementById('journalRuleModal');
+        modalEl?.classList.toggle('is-loading-detail', loading);
+        modalEl?.setAttribute('aria-busy', loading ? 'true' : 'false');
     }
 
     async function loadSelectSources() {
@@ -183,7 +219,7 @@ import '/public/assets/js/components/trash-manager.js';
                 if (stateName === 'transactionDirections') transactionDirections = rows;
                 if (stateName === 'clientTypes') clientTypes = rows;
             });
-            table?.rows().invalidate('data').draw(false);
+            refreshRuleTableLabels();
         });
     }
 
@@ -192,106 +228,42 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function initAccountSelect2() {
-        const accountItems = [
-            { id: '', text: '선택' },
-            ...postingAccounts.map((row) => ({
-                id: row.id,
-                text: `[${row.full_path || row.account_name || ''}]`,
-            })),
-            { id: QUICK_CREATE_ACCOUNT_VALUE, text: '+ 계정과목추가' },
-        ];
+        const accountItems = postingAccounts.map((row) => ({
+            id: row.id,
+            text: `[${row.full_path || row.account_name || ''}]`,
+        }));
 
         document.querySelectorAll('#journalRuleModal .js-account-select').forEach((select) => {
-            populateOptions(select, accountItems);
+            delete select.dataset.quickAddEnabled;
+            delete select.dataset.hideCommonAdd;
+            PickerSelect2.reloadOptions(select, accountItems, 'id', 'text', null, {
+                quickAddEnabled: false,
+            });
         });
 
         if (!$.fn.select2) return;
 
-        $('#journalRuleModal .js-account-select').each(function () {
-            const $select = $(this);
-            if ($select.hasClass('select2-hidden-accessible')) {
-                $select.select2('destroy');
-            }
-            $select.select2({
+        document.querySelectorAll('#journalRuleModal .js-account-select').forEach((select) => {
+            PickerSelect2.create(select, {
                 dropdownParent: $('#journalRuleModal'),
-                width: '100%',
-                allowClear: !this.required,
                 placeholder: '선택',
-                language: 'ko',
                 templateResult: renderAccountOption,
                 templateSelection: renderAccountSelection,
             });
         });
-
-        bindAccountQuickCreate();
     }
 
     function renderAccountOption(data) {
         const span = document.createElement('span');
         span.textContent = data?.text || '';
-        if (data?.id === QUICK_CREATE_ACCOUNT_VALUE) {
-            span.className = 'journal-rule-quick-create-option';
-        }
         return span;
     }
 
     function renderAccountSelection(data) {
-        if (!data || !data.id || data.id === QUICK_CREATE_ACCOUNT_VALUE) {
+        if (!data || !data.id) {
             return '선택';
         }
         return data.text || data.id;
-    }
-
-    function bindAccountQuickCreate() {
-        if (!$.fn.select2) return;
-
-        $('#journalRuleModal .js-account-select')
-            .off('select2:select.journalRuleAccountQuick')
-            .on('select2:select.journalRuleAccountQuick', function (event) {
-                const selectedId = String(event.params?.data?.id || '');
-                if (selectedId !== QUICK_CREATE_ACCOUNT_VALUE) return;
-
-                const selectEl = this;
-                event.preventDefault();
-                $(selectEl).val('').trigger('change.select2');
-
-                window.setTimeout(() => {
-                    basicInfoBridge?.openQuickCreate('account', {
-                        sourceEl: selectEl,
-                        async onSaved(payload) {
-                            await reloadAccountSelects({
-                                sourceEl: selectEl,
-                                selectedAccountCode: payload.value,
-                            });
-                        },
-                        async onDeleted() {
-                            await reloadAccountSelects({ sourceEl: selectEl });
-                        },
-                    });
-                }, 0);
-            });
-    }
-
-    async function reloadAccountSelects({ sourceEl = null, selectedAccountCode = '' } = {}) {
-        await refreshPostingAccounts();
-        initAccountSelect2();
-
-        if (!sourceEl || !selectedAccountCode) return;
-
-        const created = postingAccounts.find((row) => (
-            String(row.account_code || '').trim() === String(selectedAccountCode || '').trim()
-        ));
-        if (!created?.id) return;
-
-        $(sourceEl).val(created.id).trigger('change');
-    }
-
-    async function refreshPostingAccounts() {
-        const accountJson = await fetchJson(API.accounts);
-        postingAccounts = (accountJson.data || []).filter((row) => (
-            Number(row.is_active ?? 1) === 1
-            && Number(row.is_posting ?? 1) === 1
-        ));
     }
 
     function populateOptions(select, items) {
@@ -309,6 +281,7 @@ import '/public/assets/js/components/trash-manager.js';
             defaultOrder: [[1, 'asc']],
             pageLength: 100,
             searchTableId: 'journalRule',
+            pageLoading: false,
             buttons: [
                 { text: '엑셀관리', className: 'btn btn-success btn-sm', action: () => excelModal?.show() },
                 { text: '휴지통', className: 'btn btn-danger btn-sm', action: openTrash },
@@ -319,7 +292,7 @@ import '/public/assets/js/components/trash-manager.js';
         table.on('init.dt draw.dt', () => {
             const count = table.page.info()?.recordsDisplay ?? 0;
             const countEl = document.getElementById('journalRuleCount');
-            if (countEl) countEl.textContent = `${Number(count).toLocaleString('ko-KR')}건`;
+            if (countEl) countEl.textContent = `\ucd1d ${Number(count).toLocaleString('ko-KR')}\uac74`;
         });
 
         SearchForm({
@@ -327,7 +300,6 @@ import '/public/assets/js/components/trash-manager.js';
             apiList: API.list,
             tableId: 'journalRule',
             defaultSearchField: 'rule_name',
-            initialCollapsed: true,
             dateOptions: [
                 { value: 'created_at', label: '생성일' },
                 { value: 'updated_at', label: '수정일' },
@@ -394,10 +366,16 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function bindEvents() {
+        document.getElementById('journalRuleModal')?.addEventListener('hidden.bs.modal', () => {
+            if (pendingTableLabelRefresh) {
+                refreshRuleTableLabels();
+            }
+        });
+
         $('#journal-rule-table tbody').on('dblclick', 'tr', async function () {
             const row = table.row(this).data();
             if (!row?.id) return;
-            await openEdit(row.id);
+            void openEdit(row.id);
         });
 
         $('#journal-rule-table tbody')
@@ -414,7 +392,7 @@ import '/public/assets/js/components/trash-manager.js';
                 event.stopPropagation();
                 const id = this.dataset.id || '';
                 if (!id) return;
-                await openEdit(id);
+                void openEdit(id);
             });
 
         document.getElementById('journalRuleForm')?.addEventListener('submit', async (event) => {
@@ -460,27 +438,45 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     async function openCreate() {
-        await ensureSelectSourcesReady();
-
         const form = document.getElementById('journalRuleForm');
         form.reset();
         form.querySelector('[name="id"]').value = '';
         form.querySelector('[name="is_active"]').checked = true;
-        $('#journalRuleModal select').val('').trigger('change');
         document.querySelector('#journalRuleModal .modal-title').textContent = '분개규칙 등록';
         document.getElementById('journalRuleDeleteBtn').classList.add('d-none');
+        setJournalRuleModalLoading(true);
         modal.show();
+        try {
+            await ensureSelectSourcesReady();
+            $('#journalRuleModal select').val('').trigger('change');
+        } catch (error) {
+            notify('error', error.message || '분개규칙 입력 준비 중 오류가 발생했습니다.');
+        } finally {
+            setJournalRuleModalLoading(false);
+        }
     }
 
     async function openEdit(id) {
-        await ensureSelectSourcesReady();
-
-        const json = await fetchJson(`${API.detail}?id=${encodeURIComponent(id)}`);
-        if (!json.success) throw new Error(json.message || '분개규칙을 찾을 수 없습니다.');
-        bindForm(json.data || {});
-        document.querySelector('#journalRuleModal .modal-title').textContent = '분개규칙 수정';
-        document.getElementById('journalRuleDeleteBtn').classList.remove('d-none');
+        const title = document.querySelector('#journalRuleModal .modal-title');
+        if (title) title.textContent = '분개규칙 수정';
+        document.getElementById('journalRuleDeleteBtn').classList.add('d-none');
+        setJournalRuleModalLoading(true);
         modal.show();
+
+        try {
+            const [json] = await Promise.all([
+                fetchJson(`${API.detail}?id=${encodeURIComponent(id)}`),
+                ensureSelectSourcesReady(),
+            ]);
+            if (!json.success) throw new Error(json.message || '분개규칙을 찾을 수 없습니다.');
+            bindForm(json.data || {});
+            if (title) title.textContent = '분개규칙 수정';
+            document.getElementById('journalRuleDeleteBtn').classList.remove('d-none');
+        } catch (error) {
+            notify('error', error.message || '분개규칙 상세 조회 중 오류가 발생했습니다.');
+        } finally {
+            setJournalRuleModalLoading(false);
+        }
     }
 
     function bindForm(row) {

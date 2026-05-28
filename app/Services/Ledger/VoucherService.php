@@ -158,6 +158,7 @@ class VoucherService
                     'sort_no' => SequenceHelper::next('ledger_voucher_lines', 'sort_no'),
                     'voucher_id' => $voucherId,
                     'line_no' => $line['line_no'],
+                    'processing_item_id' => $line['processing_item_id'] ?? null,
                     'account_id' => $line['account_id'],
                     'debit' => $line['debit'],
                     'credit' => $line['credit'],
@@ -277,28 +278,6 @@ class VoucherService
         try {
             $this->pdo->beginTransaction();
 
-            $this->deleteVoucherChildren($voucherId);
-
-            $linkedTransactionIds = $this->getActiveTransactionIdsByVoucherId($voucherId);
-
-            $this->pdo->prepare("
-                UPDATE ledger_transaction_links
-                SET is_active = 0,
-                    deleted_at = NOW(),
-                    deleted_by = :deleted_by,
-                    updated_at = NOW(),
-                    updated_by = :updated_by
-                WHERE voucher_id = :voucher_id
-                  AND is_active = 1
-                  AND deleted_at IS NULL
-            ")->execute([
-                ':voucher_id' => $voucherId,
-                ':deleted_by' => $actor,
-                ':updated_by' => $actor,
-            ]);
-
-            $this->recalculateTransactionMatchStatuses($linkedTransactionIds, $actor);
-
             if (!$this->voucherModel->softDelete($voucherId, $actor)) {
                 throw new \RuntimeException('전표 삭제에 실패했습니다.');
             }
@@ -327,6 +306,22 @@ class VoucherService
                 'last_used_at' => $row['last_used_at'] ?? null,
             ];
         }, $this->voucherModel->searchSummaryTexts($keyword, $limit));
+    }
+
+    public function searchLineSummaryTexts(string $keyword, int $limit = 10): array
+    {
+        $keyword = $this->normalizeSummaryText($keyword) ?? '';
+        if (mb_strlen($keyword, 'UTF-8') < 2) {
+            return [];
+        }
+
+        return array_map(static function (array $row): array {
+            return [
+                'summary_text' => (string) ($row['summary_text'] ?? ''),
+                'used_count' => (int) ($row['used_count'] ?? 0),
+                'last_used_at' => $row['last_used_at'] ?? null,
+            ];
+        }, $this->voucherLineModel->searchLineSummaryTexts($keyword, $limit));
     }
 
     public function updateStatus(string $voucherId, string $nextStatus): array
@@ -922,6 +917,7 @@ class VoucherService
 
             $normalized[] = [
                 'line_no' => $lineNo,
+                'processing_item_id' => trim((string) ($line['processing_item_id'] ?? '')) ?: null,
                 'account_id' => (string) $account['id'],
                 'account_name' => (string) $account['account_name'],
                 'refs' => $refs,
@@ -1001,7 +997,7 @@ class VoucherService
         $seenRefs = [];
 
         foreach ($rawRefs as $ref) {
-            $refType = strtoupper(trim((string) ($ref['ref_type'] ?? '')));
+            $refType = $this->normalizeRefTypeAlias((string) ($ref['ref_type'] ?? ''));
             $refId = trim((string) ($ref['ref_id'] ?? ''));
 
             if ($refType === '' && $refId === '') {
@@ -1202,11 +1198,18 @@ class VoucherService
     {
         $status = (string) ($voucher['status'] ?? '');
         if (!in_array($status, self::EDITABLE_STATUS_VALUES, true)) {
-            $this->validationError('해당 전표는 수정할 수 없는 상태입니다.', 'voucher_status');
+            $messages = [
+                'confirmed' => '검토요청된 전표는 수정할 수 없습니다. 검토요청 취소 후에만 수정할 수 있습니다.',
+                'reviewed' => '검토완료된 전표는 수정할 수 없습니다.',
+                'posted' => '승인된 전표는 수정할 수 없습니다.',
+                'closed' => '마감된 전표는 수정할 수 없습니다.',
+                'deleted' => '삭제된 전표는 수정할 수 없습니다.',
+            ];
+            $this->validationError($messages[$status] ?? '해당 전표는 수정할 수 없는 상태입니다.', 'voucher_status');
         }
 
         if (!empty($voucher['deleted_at'])) {
-            $this->validationError('해당 전표는 수정할 수 없는 상태입니다.', 'voucher_status');
+            $this->validationError('삭제된 전표는 수정할 수 없습니다.', 'voucher_status');
         }
     }
 
@@ -1559,6 +1562,3 @@ class VoucherService
         return $string === '' ? null : $string;
     }
 }
-
-
-

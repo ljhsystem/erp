@@ -1,0 +1,95 @@
+/* Common page-entry loading spinner */
+
+#global-loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background:
+        radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 0.78) 46%, rgba(226, 232, 240, 0.52));
+    backdrop-filter: blur(2px);
+}
+
+#global-loading-overlay.is-active {
+    display: flex;
+}
+
+.page-loading-card {
+    min-width: 220px;
+    padding: 22px 26px 20px;
+    border: 1px solid rgba(148, 163, 184, 0.32);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 22px 60px rgba(15, 23, 42, 0.18);
+    text-align: center;
+    color: #1f2937;
+}
+
+.page-loading-mark {
+    position: relative;
+    width: 58px;
+    height: 58px;
+    margin: 0 auto 14px;
+}
+
+.page-loading-ring,
+.page-loading-ring::before,
+.page-loading-ring::after {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+}
+
+.page-loading-ring {
+    background:
+        conic-gradient(from 0deg, #2563eb 0 108deg, transparent 108deg 156deg, #f97316 156deg 238deg, transparent 238deg 360deg);
+    animation: page-loading-spin 720ms linear infinite;
+}
+
+.page-loading-ring::before {
+    content: "";
+    inset: 7px;
+    background: #fff;
+}
+
+.page-loading-ring::after {
+    content: "";
+    inset: 23px;
+    background: #2563eb;
+    box-shadow: 0 0 0 5px rgba(37, 99, 235, 0.12);
+}
+
+.page-loading-title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.page-loading-message,
+#global-loading-overlay .global-loading-message {
+    margin-top: 6px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+#global-loading-overlay .spinner-border {
+    display: none;
+}
+
+@keyframes page-loading-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .page-loading-ring {
+        animation-duration: 1.8s;
+    }
+}

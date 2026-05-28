@@ -1,4 +1,4 @@
-import { createDataTable } from '/public/assets/js/components/data-table.js';
+import { createDataTable } from '/public/assets/js/common/table/data-table.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { openVoucherRecommendationModal } from '/public/assets/js/pages/ledger/voucherRecommendationModal.js';
 import '/public/assets/js/components/trash-manager.js';
@@ -605,7 +605,6 @@ import '/public/assets/js/components/trash-manager.js';
             apiList: API.rows,
             tableId: 'seedRows',
             defaultSearchField: 'client_name',
-            initialCollapsed: true,
             dateOptions: [
                 { value: 'mapped_payload.transaction_date', label: '작성일자' },
                 { value: 'created_at', label: '생성일시' },

@@ -1,9 +1,13 @@
-import { createDataTable } from '/public/assets/js/components/data-table.js';
+import { createDataTable } from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
-import { bindNumberInput, formatDateInputValue } from '/public/assets/js/common/format.js';
+import { bindBizNumberInput, bindNumberInput, formatBizNumber, formatDateInputValue, formatPhone } from '/public/assets/js/common/format.js';
+import { createAgGridInputAdapter } from '/public/assets/js/common/grid/ag-grid-input.js';
+import { selectEditor, dateStringEditor } from '/public/assets/js/common/grid/ag-grid-editors.js';
+import { gridNumberFormatter, gridNumberParser } from '/public/assets/js/common/grid/ag-grid-formatters.js';
 import { initCodeSelectControls } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+import { evidenceRefPickerForColumnLike, initEvidenceRefSelect } from '/public/assets/js/pages/ledger/shared/evidence-ref-picker.js';
 import '/public/assets/js/components/trash-manager.js';
 
 (() => {
@@ -43,7 +47,13 @@ import '/public/assets/js/components/trash-manager.js';
         business_unit: 'BUSINESS_UNIT',
         transaction_type: 'TRANSACTION_TYPE',
         transaction_direction: 'TRANSACTION_DIRECTION',
+        line_type: 'TRANSACTION_LINE_TYPE',
+        unit_name: 'UNIT',
+        currency: 'CURRENCY',
     };
+    const AG_GRID_STYLE_URL = 'https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/styles/ag-grid.css';
+    const AG_GRID_THEME_URL = 'https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/styles/ag-theme-quartz.css';
+    const AG_GRID_SCRIPT_URL = 'https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/dist/ag-grid-community.min.js';
     const codeOptions = {};
     const selectedIds = new Set();
     let evidenceTable = null;
@@ -59,13 +69,17 @@ import '/public/assets/js/components/trash-manager.js';
     const voucherRefOptionCache = {};
     const voucherAccountPolicyCache = {};
     const readinessPickerMeta = new WeakMap();
-    let readinessTransactionLineHot = null;
+    let readinessTransactionLineGrid = null;
     let readinessSummaryAutocompleteTimer = null;
     let readinessSummaryAutocompleteItems = [];
     let readinessSummaryAutocompleteActiveIndex = -1;
     let readinessSummaryAutocompleteAbort = null;
     let readinessSummaryAutocompleteInput = null;
     let readinessSummaryAutocompleteDocumentBound = false;
+    let agGridLoadPromise = null;
+    let typeCountsPromise = null;
+    let trashStatePromise = null;
+
 
     function escapeHtml(value) {
         return String(value ?? '')
@@ -82,6 +96,68 @@ import '/public/assets/js/components/trash-manager.js';
             return;
         }
         console[type === 'error' ? 'error' : 'warn'](message);
+    }
+
+    function numericSequenceValue(value) {
+        const text = String(value ?? '').trim();
+        if (text === '') return 0;
+
+        const parts = text.split('-').map((part) => Number(String(part).replace(/,/g, '').trim()) || 0);
+        return parts.reduce((total, part, index) => total + part / Math.pow(100000, index), 0);
+    }
+
+    function rowsApiUrl(params = {}) {
+        const url = new URL(API.rows, window.location.origin);
+        url.searchParams.set('sequence_scope', 'create');
+        Object.entries(params).forEach(([key, value]) => {
+            if (value === undefined || value === null || value === '') return;
+            url.searchParams.set(key, value);
+        });
+        return `${url.pathname}${url.search}`;
+    }
+
+
+    function loadStylesheetOnce(url) {
+        if (document.querySelector(`link[href="${url}"]`)) {
+            return;
+        }
+
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = url;
+        document.head.appendChild(link);
+    }
+
+    async function ensureAgGrid() {
+        if (window.agGrid?.createGrid) {
+            return true;
+        }
+        if (agGridLoadPromise) {
+            return agGridLoadPromise;
+        }
+
+        loadStylesheetOnce(AG_GRID_STYLE_URL);
+        loadStylesheetOnce(AG_GRID_THEME_URL);
+        agGridLoadPromise = new Promise((resolve, reject) => {
+            const existing = document.querySelector(`script[src="${AG_GRID_SCRIPT_URL}"]`);
+            if (existing) {
+                existing.addEventListener('load', () => resolve(Boolean(window.agGrid?.createGrid)), { once: true });
+                existing.addEventListener('error', () => reject(new Error('AG Grid load failed')), { once: true });
+                return;
+            }
+
+            const script = document.createElement('script');
+            script.src = AG_GRID_SCRIPT_URL;
+            script.async = true;
+            script.onload = () => resolve(Boolean(window.agGrid?.createGrid));
+            script.onerror = () => reject(new Error('AG Grid load failed'));
+            document.head.appendChild(script);
+        }).catch((error) => {
+            agGridLoadPromise = null;
+            throw error;
+        });
+
+        return agGridLoadPromise;
     }
 
     async function fetchJson(url, options = {}) {
@@ -116,8 +192,123 @@ import '/public/assets/js/components/trash-manager.js';
         return json;
     }
 
+    function payloadObject(value) {
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+            return value;
+        }
+        if (typeof value === 'string' && value.trim() !== '') {
+            try {
+                const parsed = JSON.parse(value);
+                return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+            } catch (error) {
+                return {};
+            }
+        }
+        return {};
+    }
+
     function mapped(row) {
-        return row?.mapped_payload || {};
+        return payloadObject(row?.mapped_payload ?? row?.parsed_json ?? row?.mapped_payload_json);
+    }
+
+    function firstPayloadValue(payload = {}, keys = []) {
+        for (const key of keys) {
+            if (!key) continue;
+            const value = payload[key];
+            if (value !== undefined && value !== null && String(value) !== '') {
+                return sourceRawValue(value);
+            }
+        }
+
+        const aliasKeys = new Set(keys.map((key) => sourceAliasKey(key)).filter(Boolean));
+        for (const [key, value] of Object.entries(payload)) {
+            if (!aliasKeys.has(sourceAliasKey(key))) continue;
+            if (value !== undefined && value !== null && String(sourceRawValue(value)) !== '') {
+                return sourceRawValue(value);
+            }
+        }
+        return undefined;
+    }
+
+    function sourceAliasKey(value) {
+        return String(value ?? '')
+            .replace(/\*/g, '')
+            .replace(/[()\[\]{}]/g, '')
+            .replace(/[\s_\-./\\]/g, '')
+            .trim()
+            .toLowerCase();
+    }
+
+    function sourceColumnAliasKeys(column = {}) {
+        const field = String(column.system_field_name || '').trim();
+        const excelName = String(column.excel_column_name || '').trim();
+        const keys = [field, excelName];
+        const aliasMap = {
+            supplier_business_number: ['supplier_biz_number', 'supplier_business_no', 'supplier_registration_number', 'supplier_reg_no', 'supplier_tax_number', 'supplier_vat_number', 'supplier_no', '공급자 사업자등록번호', '공급자사업자등록번호', '공급자 사업자번호', '공급자사업자번호'],
+            supplierbusinessnumber: ['supplier_business_number', 'supplier_biz_number', 'supplier_business_no', 'supplier_registration_number', 'supplier_reg_no', 'supplier_tax_number', 'supplier_vat_number', 'supplier_no', '공급자 사업자등록번호', '공급자사업자등록번호', '공급자 사업자번호', '공급자사업자번호'],
+            공급자사업자등록번호: ['supplier_business_number', 'supplier_biz_number', 'supplier_business_no', 'supplier_registration_number', 'supplier_reg_no', 'supplier_tax_number', 'supplier_vat_number', 'supplier_no'],
+            공급자사업자번호: ['supplier_business_number', 'supplier_biz_number', 'supplier_business_no', 'supplier_registration_number', 'supplier_reg_no', 'supplier_tax_number', 'supplier_vat_number', 'supplier_no'],
+            customer_business_number: ['customer_biz_number', 'customer_business_no', 'customer_registration_number', 'customer_reg_no', 'customer_tax_number', 'customer_vat_number', 'buyer_business_number', 'buyer_registration_number', 'recipient_business_number', 'client_business_number', '공급받는자 사업자등록번호', '공급받는자사업자등록번호', '공급받는자 사업자번호', '공급받는자사업자번호', '매입자 사업자등록번호', '매입자사업자등록번호'],
+            customerbusinessnumber: ['customer_business_number', 'customer_biz_number', 'customer_business_no', 'customer_registration_number', 'customer_reg_no', 'customer_tax_number', 'customer_vat_number', 'buyer_business_number', 'buyer_registration_number', 'recipient_business_number', 'client_business_number', '공급받는자 사업자등록번호', '공급받는자사업자등록번호', '공급받는자 사업자번호', '공급받는자사업자번호', '매입자 사업자등록번호', '매입자사업자등록번호'],
+            공급받는자사업자등록번호: ['customer_business_number', 'customer_biz_number', 'customer_business_no', 'customer_registration_number', 'customer_reg_no', 'customer_tax_number', 'customer_vat_number', 'buyer_business_number', 'buyer_registration_number', 'recipient_business_number', 'client_business_number'],
+            공급받는자사업자번호: ['customer_business_number', 'customer_biz_number', 'customer_business_no', 'customer_registration_number', 'customer_reg_no', 'customer_tax_number', 'customer_vat_number', 'buyer_business_number', 'buyer_registration_number', 'recipient_business_number', 'client_business_number'],
+            supplier_branch_number: ['supplier_branch_no', 'supplier_branch_num', 'supplier_branch', 'supplier_sub_business_number', '공급자 종사업장번호', '공급자종사업장번호'],
+            supplierbranchnumber: ['supplier_branch_number', 'supplier_branch_no', 'supplier_branch_num', 'supplier_branch', 'supplier_sub_business_number', '공급자 종사업장번호', '공급자종사업장번호'],
+            공급자종사업장번호: ['supplier_branch_number', 'supplier_branch_no', 'supplier_branch_num', 'supplier_branch', 'supplier_sub_business_number'],
+            customer_branch_number: ['customer_branch_no', 'customer_branch_num', 'customer_branch', 'customer_sub_business_number', 'buyer_branch_number', 'recipient_branch_number', '공급받는자 종사업장번호', '공급받는자종사업장번호', '매입자 종사업장번호', '매입자종사업장번호'],
+            customerbranchnumber: ['customer_branch_number', 'customer_branch_no', 'customer_branch_num', 'customer_branch', 'customer_sub_business_number', 'buyer_branch_number', 'recipient_branch_number', '공급받는자 종사업장번호', '공급받는자종사업장번호', '매입자 종사업장번호', '매입자종사업장번호'],
+            공급받는자종사업장번호: ['customer_branch_number', 'customer_branch_no', 'customer_branch_num', 'customer_branch', 'customer_sub_business_number', 'buyer_branch_number', 'recipient_branch_number'],
+            supplier_company_name: ['supplier_name', 'supplier', 'supplier_company', 'supplier_corp_name', '공급자 상호', '공급자상호', '공급자명', '공급자'],
+            suppliercompanyname: ['supplier_company_name', 'supplier_name', 'supplier', 'supplier_company', 'supplier_corp_name', '공급자 상호', '공급자상호', '공급자명', '공급자'],
+            supplier_name: ['supplier_company_name', 'supplier', 'supplier_company', 'supplier_corp_name', '공급자 상호', '공급자상호', '공급자명', '공급자'],
+            공급자상호: ['supplier_company_name', 'supplier_name', 'supplier', 'supplier_company', 'supplier_corp_name'],
+            공급자명: ['supplier_company_name', 'supplier_name', 'supplier', 'supplier_company', 'supplier_corp_name'],
+            customer_company_name: ['customer_name', 'customer', 'customer_company', 'customer_corp_name', 'buyer_company_name', 'recipient_company_name', 'client_company_name', '공급받는자 상호', '공급받는자상호', '공급받는자명', '공급받는자', '매입자 상호', '매입자상호'],
+            customercompanyname: ['customer_company_name', 'customer_name', 'customer', 'customer_company', 'customer_corp_name', 'buyer_company_name', 'recipient_company_name', 'client_company_name', '공급받는자 상호', '공급받는자상호', '공급받는자명', '공급받는자', '매입자 상호', '매입자상호'],
+            customer_name: ['customer_company_name', 'customer', 'customer_company', 'customer_corp_name', 'buyer_company_name', 'recipient_company_name', 'client_company_name', '공급받는자 상호', '공급받는자상호', '공급받는자명', '공급받는자', '매입자 상호', '매입자상호'],
+            공급받는자상호: ['customer_company_name', 'customer_name', 'customer', 'customer_company', 'customer_corp_name', 'buyer_company_name', 'recipient_company_name', 'client_company_name'],
+            공급받는자명: ['customer_company_name', 'customer_name', 'customer', 'customer_company', 'customer_corp_name', 'buyer_company_name', 'recipient_company_name', 'client_company_name'],
+            supplier_ceo_name: ['supplier_representative_name', 'supplier_rep_name', 'supplier_ceo', 'supplier_owner_name', '공급자 대표자명', '공급자대표자명', '공급자 대표자', '공급자대표자'],
+            supplierceoname: ['supplier_ceo_name', 'supplier_representative_name', 'supplier_rep_name', 'supplier_ceo', 'supplier_owner_name', '공급자 대표자명', '공급자대표자명', '공급자 대표자', '공급자대표자'],
+            공급자대표자명: ['supplier_ceo_name', 'supplier_representative_name', 'supplier_rep_name', 'supplier_ceo', 'supplier_owner_name'],
+            공급자대표자: ['supplier_ceo_name', 'supplier_representative_name', 'supplier_rep_name', 'supplier_ceo', 'supplier_owner_name'],
+            customer_ceo_name: ['customer_representative_name', 'customer_rep_name', 'customer_ceo', 'customer_owner_name', 'buyer_ceo_name', 'recipient_ceo_name', '공급받는자 대표자명', '공급받는자대표자명', '공급받는자 대표자', '공급받는자대표자'],
+            customerceoname: ['customer_ceo_name', 'customer_representative_name', 'customer_rep_name', 'customer_ceo', 'customer_owner_name', 'buyer_ceo_name', 'recipient_ceo_name', '공급받는자 대표자명', '공급받는자대표자명', '공급받는자 대표자', '공급받는자대표자'],
+            공급받는자대표자명: ['customer_ceo_name', 'customer_representative_name', 'customer_rep_name', 'customer_ceo', 'customer_owner_name', 'buyer_ceo_name', 'recipient_ceo_name'],
+            공급받는자대표자: ['customer_ceo_name', 'customer_representative_name', 'customer_rep_name', 'customer_ceo', 'customer_owner_name', 'buyer_ceo_name', 'recipient_ceo_name'],
+            supplier_address: ['supplier_addr', 'supplier_company_address', 'supplier_location', '공급자 주소', '공급자주소', '공급자 사업장주소', '공급자사업장주소'],
+            supplieraddress: ['supplier_address', 'supplier_addr', 'supplier_company_address', 'supplier_location', '공급자 주소', '공급자주소', '공급자 사업장주소', '공급자사업장주소'],
+            공급자주소: ['supplier_address', 'supplier_addr', 'supplier_company_address', 'supplier_location'],
+            customer_address: ['customer_addr', 'customer_company_address', 'customer_location', 'buyer_address', 'recipient_address', 'client_address', '공급받는자 주소', '공급받는자주소', '공급받는자 사업장주소', '공급받는자사업장주소', '매입자 주소', '매입자주소'],
+            customeraddress: ['customer_address', 'customer_addr', 'customer_company_address', 'customer_location', 'buyer_address', 'recipient_address', 'client_address', '공급받는자 주소', '공급받는자주소', '공급받는자 사업장주소', '공급받는자사업장주소', '매입자 주소', '매입자주소'],
+            공급받는자주소: ['customer_address', 'customer_addr', 'customer_company_address', 'customer_location', 'buyer_address', 'recipient_address', 'client_address'],
+            supplier_email: ['supplier_email_1', 'supplier_mail', 'supplier_email_address', '공급자 이메일', '공급자이메일'],
+            supplier_email_1: ['supplier_email', 'supplier_mail', 'supplier_email_address', '공급자 이메일', '공급자이메일'],
+            supplieremail: ['supplier_email', 'supplier_email_1', 'supplier_mail', 'supplier_email_address', '공급자 이메일', '공급자이메일'],
+            공급자이메일: ['supplier_email', 'supplier_email_1', 'supplier_mail', 'supplier_email_address'],
+            customer_email: ['customer_email_1', 'customer_mail', 'customer_email_address', 'buyer_email', 'recipient_email', '공급받는자 이메일', '공급받는자이메일', '매입자 이메일', '매입자이메일'],
+            customer_email_1: ['customer_email', 'customer_mail', 'customer_email_address', 'buyer_email', 'recipient_email', '공급받는자 이메일', '공급받는자이메일', '매입자 이메일', '매입자이메일'],
+            customeremail: ['customer_email', 'customer_email_1', 'customer_mail', 'customer_email_address', 'buyer_email', 'recipient_email', '공급받는자 이메일', '공급받는자이메일', '매입자 이메일', '매입자이메일'],
+            공급받는자이메일: ['customer_email', 'customer_email_1', 'customer_mail', 'customer_email_address', 'buyer_email', 'recipient_email'],
+            supplier_phone: ['supplier_tel', 'supplier_telephone', 'supplier_mobile', 'supplier_contact', '공급자 전화번호', '공급자전화번호', '공급자 연락처', '공급자연락처'],
+            supplierphone: ['supplier_phone', 'supplier_tel', 'supplier_telephone', 'supplier_mobile', 'supplier_contact', '공급자 전화번호', '공급자전화번호', '공급자 연락처', '공급자연락처'],
+            공급자전화번호: ['supplier_phone', 'supplier_tel', 'supplier_telephone', 'supplier_mobile', 'supplier_contact'],
+            customer_phone: ['customer_tel', 'customer_telephone', 'customer_mobile', 'customer_contact', 'buyer_phone', 'recipient_phone', '공급받는자 전화번호', '공급받는자전화번호', '공급받는자 연락처', '공급받는자연락처', '매입자 전화번호', '매입자전화번호'],
+            customerphone: ['customer_phone', 'customer_tel', 'customer_telephone', 'customer_mobile', 'customer_contact', 'buyer_phone', 'recipient_phone', '공급받는자 전화번호', '공급받는자전화번호', '공급받는자 연락처', '공급받는자연락처', '매입자 전화번호', '매입자전화번호'],
+            공급받는자전화번호: ['customer_phone', 'customer_tel', 'customer_telephone', 'customer_mobile', 'customer_contact', 'buyer_phone', 'recipient_phone'],
+            item_name: ['품목명', '품목'],
+            issue_date: ['발급일자', '발행일자'],
+            transmit_date: ['전송일자'],
+        };
+        const appendAliases = (value) => {
+            const direct = aliasMap[value];
+            const normalized = aliasMap[sourceAliasKey(value)];
+            if (direct) keys.push(...direct);
+            if (normalized) keys.push(...normalized);
+        };
+        appendAliases(field);
+        appendAliases(excelName);
+        return Array.from(new Set(keys.filter(Boolean)));
     }
 
     function numericValue(value) {
@@ -181,7 +372,13 @@ import '/public/assets/js/components/trash-manager.js';
 
     function inputValueKind(key, label = '') {
         const text = `${key || ''} ${label || ''}`;
-        if (/amount|price|qty|quantity|balance|금액|수량|합계|공급|부가|입금|출금|잔액|봉사료|수수료/i.test(text)) {
+        if (/business[_\s-]*number|biz[_\s-]*number|사업자\s*등록\s*번호|사업자등록번호/i.test(text)) {
+            return 'business-number';
+        }
+        if (/phone|tel|mobile|fax|전화|휴대폰|연락처|팩스/i.test(text)) {
+            return 'phone';
+        }
+        if (/amount|price|qty|quantity|balance|금액|수량|합계|공급가액|부가세|세액|입금|출금|잔액|봉사료|수수료/i.test(text)) {
             return 'amount';
         }
         if (/datetime|date_time|일시/i.test(text)) {
@@ -206,6 +403,12 @@ import '/public/assets/js/components/trash-manager.js';
         if (kind === 'time') {
             return normalizeTimeInputValue(value);
         }
+        if (kind === 'business-number') {
+            return formatBizNumber(value);
+        }
+        if (kind === 'phone') {
+            return formatPhone(value);
+        }
         return value ?? '';
     }
 
@@ -226,7 +429,43 @@ import '/public/assets/js/components/trash-manager.js';
         if (kind === 'time') {
             return normalizeTimeInputValue(input.value);
         }
+        if (kind === 'business-number') {
+            return formatBizNumber(input.value);
+        }
+        if (kind === 'phone') {
+            return formatPhone(input.value);
+        }
         return input.value;
+    }
+
+    function isEmptySelectionLabel(value) {
+        const text = String(value ?? '').trim();
+        if (text === '') return true;
+        return [
+            '선택',
+            '선택(없음)',
+            '직접 선택',
+            '거래처 선택',
+            '프로젝트 선택',
+            '직원 선택',
+            '계좌 선택',
+            '카드 선택',
+            '사업구분 선택',
+            '거래구분 선택',
+            '거래유형 선택',
+            '자료출처 선택',
+            '자료유형 선택',
+            '라인유형 선택',
+            '차대구분 선택',
+        ].includes(text) || /선택$/.test(text) || /필수$/.test(text);
+    }
+
+    function selectedTextForSave(input) {
+        if (!input || input.tagName !== 'SELECT') return '';
+        const value = String(input.value || '').trim();
+        if (value === '') return '';
+        const text = String(input.options[input.selectedIndex]?.text || '').trim();
+        return isEmptySelectionLabel(text) ? '' : text;
     }
 
     function dateFromInputValue(value) {
@@ -235,6 +474,20 @@ import '/public/assets/js/components/trash-manager.js';
         if (!match) return null;
         const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
         return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    function bindPhoneInput(input) {
+        if (!input || input.dataset.phoneFormatBound === 'true') return input;
+        const format = () => {
+            input.value = formatPhone(input.value);
+        };
+        input.addEventListener('input', format);
+        input.addEventListener('blur', format);
+        if (String(input.value ?? '').trim() !== '') {
+            format();
+        }
+        input.dataset.phoneFormatBound = 'true';
+        return input;
     }
 
     function pad2(value) {
@@ -373,7 +626,92 @@ import '/public/assets/js/components/trash-manager.js';
         const group = DISPLAY_CODE_FIELDS[field] || '';
         if (group === '') return raw;
         const found = (codeOptions[group] || []).find((row) => normalizeCodeKey(row.code) === normalizeCodeKey(raw));
-        return found?.code_name || raw;
+        return found ? codeOptionDisplayName(group, found) : raw;
+    }
+
+    function codeOptionDisplayName(group, row = {}) {
+        const code = normalizeCodeKey(row.code);
+        const name = String(row.code_name || row.code || '').trim();
+        if (group === 'CURRENCY' && code === 'KRW') {
+            return (name || '원화(₩)').replaceAll('\\', '₩');
+        }
+        return name;
+    }
+
+    function businessUnitRuleType(payload = {}) {
+        const raw = String(payload.business_unit || payload.business_unit_code || '').trim();
+        const label = codeDisplayName('business_unit', raw);
+        const normalized = `${raw} ${label}`.replace(/\s+/g, '').toUpperCase();
+        if (normalized.includes('HQ') || normalized.includes('본사')) return 'HQ';
+        if (normalized.includes('CONSTRUCTION') || normalized.includes('전문건설')) return 'CONSTRUCTION';
+        return '';
+    }
+
+    function hasProjectSelection(payload = {}) {
+        return String(payload.project_id || '').trim() !== '' || String(payload.project_name || '').trim() !== '';
+    }
+
+    function validateBusinessProjectRule(payload = {}, modal = null) {
+        const type = businessUnitRuleType(payload);
+        const hasProject = hasProjectSelection(payload);
+        const projectTarget = modal?.querySelector('[data-readiness-key="project_id"], [data-readiness-key="project_name"], [data-source-system-field="project_id"], [data-source-system-field="project_name"]');
+        projectTarget?.classList.remove('is-invalid');
+
+        if (type === 'HQ' && hasProject) {
+            projectTarget?.classList.add('is-invalid');
+            focusReadinessTarget(modal, projectTarget);
+            notify('warning', '사업구분이 본사일 때는 프로젝트명을 선택할 수 없습니다.');
+            return false;
+        }
+        if (type === 'CONSTRUCTION' && !hasProject) {
+            projectTarget?.classList.add('is-invalid');
+            focusReadinessTarget(modal, projectTarget);
+            notify('warning', '사업구분이 전문건설업일 때는 프로젝트명을 선택해야 합니다.');
+            return false;
+        }
+        return true;
+    }
+
+    function codeDropdownSource(group, fallback = []) {
+        const rows = codeOptions[group] || [];
+        const values = rows
+            .map((row) => codeOptionDisplayName(group, row))
+            .filter(Boolean);
+        return values.length > 0 ? Array.from(new Set(values)) : fallback;
+    }
+
+    function codeOptionByValue(group, value) {
+        const raw = String(value ?? '').trim();
+        if (raw === '') return null;
+        const normalized = normalizeCodeKey(raw);
+        return (codeOptions[group] || []).find((row) => (
+            normalizeCodeKey(row.code) === normalized
+            || normalizeCodeKey(row.code_name) === normalized
+            || normalizeCodeKey(codeOptionDisplayName(group, row)) === normalized
+        )) || null;
+    }
+
+    function currencyCodeFromValue(value) {
+        const raw = String(value ?? '').trim();
+        if (raw === '') return '';
+        const option = codeOptionByValue('CURRENCY', raw);
+        if (option?.code) return normalizeCodeKey(option.code);
+
+        const normalized = normalizeCodeKey(raw);
+        if (normalized === 'KRW' || /원화|대한민국|WON|₩|\\/.test(raw)) return 'KRW';
+        if (normalized === 'CNY' || /위안|RMB|YUAN/.test(raw)) return 'CNY';
+        if (normalized === 'USD' || /달러|DOLLAR|\$/.test(raw)) return 'USD';
+        if (normalized === 'JPY' || /엔화|YEN/.test(raw)) return 'JPY';
+        if (normalized === 'EUR' || /유로|EURO|€/.test(raw)) return 'EUR';
+        return normalized;
+    }
+
+    function currencyDisplayValue(value = '') {
+        const raw = String(value ?? '').trim();
+        if (raw === '') return '';
+        const option = codeOptionByValue('CURRENCY', raw)
+            || (codeOptions.CURRENCY || []).find((row) => normalizeCodeKey(row.code) === currencyCodeFromValue(raw));
+        return option ? codeOptionDisplayName('CURRENCY', option) : raw;
     }
 
     async function loadDisplayCodeOptions() {
@@ -393,6 +731,9 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function statusBadge(status) {
+        if (status === 'PROTECTED_UPDATE') {
+            return '<span class="badge text-bg-warning" title="거래/전표 생성완료 증빙은 업로드로 수정할 수 없음">제외</span>';
+        }
         const meta = {
             READY: ['READY', 'text-bg-success', '거래 생성 가능'],
             PROCESSED: ['PROCESSED', 'text-bg-primary', '거래 생성 완료'],
@@ -565,6 +906,11 @@ import '/public/assets/js/components/trash-manager.js';
     function readinessValue(row, field) {
         const payload = mapped(row);
         const normalizedField = canonicalReadinessField(field);
+        if (normalizedField === 'adjustment_amount') {
+            const existing = payload.adjustment_amount ?? row?.adjustment_amount;
+            if (String(existing ?? '').trim() !== '') return existing;
+            return derivedAdjustmentAmount(payload);
+        }
         const aliases = {
             client_id: ['client_id', 'client_name', 'client_company_name'],
             amount: ['amount', 'item_supply_amount', 'total_amount', 'supply_amount'],
@@ -583,6 +929,13 @@ import '/public/assets/js/components/trash-manager.js';
             if (String(value ?? '').trim() !== '') return value;
         }
         return '';
+    }
+
+    function derivedAdjustmentAmount(payload = {}) {
+        const total = numericValue(payload.total_amount);
+        const supply = numericValue(payload.supply_amount);
+        if (total === null || supply === null) return '';
+        return total - supply;
     }
 
     function derivedMissingFields(row) {
@@ -703,7 +1056,8 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function voucherStateBadge(state) {
-        if (state === 'CREATED') return '<span class="badge seed-status-badge seed-status-voucher">발행</span>';
+        if (state === 'CREATED') return '<span class="badge seed-status-badge seed-status-voucher">완료</span>';
+        if (state === 'JOURNAL_INCOMPLETE') return '<span class="badge text-bg-info">분개미정</span>';
         return '<span class="badge text-bg-primary">준비</span>';
     }
 
@@ -720,8 +1074,13 @@ import '/public/assets/js/components/trash-manager.js';
     function voucherCreateState(row) {
         const status = String(row?.voucher_status || '').trim().toUpperCase();
         if (['CREATED', 'PROCESSED', 'DONE', 'COMPLETED', 'POSTED'].includes(status)) return 'CREATED';
-        if (status === 'READY') return 'READY';
-        return 'NOT_READY';
+        if (!hasPreparedVoucherLines(row)) return 'JOURNAL_INCOMPLETE';
+        return 'READY';
+    }
+
+    function hasPreparedVoucherLines(row = {}) {
+        const payload = mapped(row);
+        return hasJournalVoucherLineGroups(voucherLineGroups(payload));
     }
 
     function sourceEditable(row = {}) {
@@ -743,8 +1102,8 @@ import '/public/assets/js/components/trash-manager.js';
     function voucherCreateStatusText(row) {
         const state = voucherCreateState(row);
         if (state === 'CREATED') return '전표 생성 완료';
-        if (state === 'READY') return '전표 생성 가능';
-        return '전표 생성 대기';
+        if (state === 'JOURNAL_INCOMPLETE') return '분개미정';
+        return '전표 생성 준비';
     }
 
     function transactionCreateStatusBadge(row) {
@@ -756,10 +1115,21 @@ import '/public/assets/js/components/trash-manager.js';
     function voucherCreateStatusBadge(row) {
         const state = voucherCreateState(row);
         const raw = String(row?.voucher_status || '').trim();
-        const reason = state === 'NOT_READY'
-            ? (raw || (readinessStatus(row) === 'READY' ? '분개라인 미확정' : readinessMessages(row).join('\n')))
-            : raw;
+        const reason = state === 'JOURNAL_INCOMPLETE' ? '분개라인 미확정' : raw;
         return `<span title="${escapeHtml(reason)}">${voucherStateBadge(state)}</span>`;
+    }
+
+    function voucherCreateStatusControlHtml(row = {}) {
+        const journalItem = journalCorrectionIssueItems(row)[0] || null;
+        if (!journalItem) return voucherCreateStatusBadge(row);
+        return `
+            <button type="button"
+                    class="readiness-summary-status-link readiness-correction-link readiness-correction-link-journal"
+                    data-correction-field="${escapeHtml(journalItem.field || '')}"
+                    title="${escapeHtml(journalItem.message || '')}">
+                ${voucherCreateStatusBadge(row)}
+            </button>
+        `;
     }
 
     function correctionMissingSummary(row) {
@@ -827,6 +1197,14 @@ import '/public/assets/js/components/trash-manager.js';
         return canonicalReadinessField(field) === 'balance_amount';
     }
 
+    function isOptionalEvidenceCorrectionField(field) {
+        return [
+            'balance_amount',
+            'supplier_address',
+            'customer_address',
+        ].includes(canonicalReadinessField(field));
+    }
+
     function evidenceRequiredEntries(row = {}) {
         const raw = rawPayload(row);
         const entries = Object.entries(raw).map(([key, value]) => sourceEntry(key, value, null, row));
@@ -835,11 +1213,27 @@ import '/public/assets/js/components/trash-manager.js';
         formatColumns.forEach((column) => {
             const systemField = String(column.system_field_name || '').trim();
             const excelName = String(column.excel_column_name || column.column_name || '').trim();
-            const exists = entries.some((entry) => {
+            const existingIndex = entries.findIndex((entry) => {
                 return String(entry.systemField || '').trim() === systemField
                     || String(entry.label || '').trim() === excelName;
             });
-            if (exists) return;
+            if (existingIndex >= 0) {
+                const existing = entries[existingIndex] || {};
+                const requirementMode = Number(column.is_required || column.requirement_mode || existing.requirementMode || 0);
+                entries[existingIndex] = {
+                    ...existing,
+                    label: excelName || existing.label,
+                    order: Number(column.column_order ?? column.excel_column_index ?? existing.order ?? 0),
+                    columnIndex: Number(column.excel_column_index ?? existing.columnIndex ?? column.column_order ?? 0),
+                    systemField: systemField || existing.systemField,
+                    systemFieldGroup: String(column.system_field_group || existing.systemFieldGroup || '').trim(),
+                    requirementMode,
+                    required: requirementMode === 1 || Boolean(existing.required),
+                    isReference: Number(column.is_reference_column || existing.isReference || 0) === 1,
+                    column,
+                };
+                return;
+            }
             entries.push(sourceEntry(excelName || systemField, {
                 column_name: excelName,
                 system_field_name: systemField,
@@ -849,7 +1243,9 @@ import '/public/assets/js/components/trash-manager.js';
             }, column, row));
         });
 
-        return entries.filter((entry) => entry.required || Number(entry.requirementMode || 0) === 1);
+        return entries
+            .filter((entry) => !isOptionalEvidenceCorrectionField(entry.systemField || entry.key || entry.label || ''))
+            .filter((entry) => entry.required || Number(entry.requirementMode || 0) === 1);
     }
 
     function evidenceRequiredEntryResolvedValue(row = {}, entry = {}) {
@@ -873,7 +1269,7 @@ import '/public/assets/js/components/trash-manager.js';
                     const field = canonicalReadinessField(readinessFieldFromMessage(message) || fallbackSystemFieldForLabel(message));
                     return { field, message };
                 })
-                .filter((item) => !isOptionalBankBalanceField(item.field || item.message))
+                .filter((item) => !isOptionalEvidenceCorrectionField(item.field || item.message))
                 .filter((item) => !hasConfiguredColumns || item.field === '' || configuredCorrection.has(canonicalReadinessField(item.field)));
         }
 
@@ -882,7 +1278,7 @@ import '/public/assets/js/components/trash-manager.js';
             return readinessIssueItems(row);
         }
         return entries
-            .filter((entry) => !isOptionalBankBalanceField(entry.systemField || entry.key || ''))
+            .filter((entry) => !isOptionalEvidenceCorrectionField(entry.systemField || entry.key || ''))
             .filter((entry) => isBlankEvidenceValue(evidenceRequiredEntryResolvedValue(row, entry)))
             .map((entry) => {
                 const field = canonicalReadinessField(entry.systemField || entry.key || '');
@@ -910,21 +1306,13 @@ import '/public/assets/js/components/trash-manager.js';
         };
 
         evidenceRequiredIssueItems(row).forEach((item) => addIssue(item.field, item.message));
-        readinessIssueItems(row).forEach((item) => addIssue(item.field, item.message));
-
-        if (voucherCreateState(row) === 'NOT_READY') {
-            const voucherStatus = String(row?.voucher_status || '').trim().toUpperCase();
-            if (readinessStatus(row) === 'READY' && ['', 'WAITING', 'NONE'].includes(voucherStatus)) {
-                addIssue('line_no', '분개라인 미확정');
-            } else if (['ERROR', 'FAILED'].includes(voucherStatus)) {
-                const message = row?.error_message || '전표 생성 오류';
-                addIssue(readinessFieldFromMessage(message), message);
-            } else if (readinessStatus(row) === 'READY') {
-                addIssue('', row?.voucher_status || '전표 생성 상태 확인 필요');
-            }
-        }
 
         return items;
+    }
+
+    function journalCorrectionIssueItems(row = {}) {
+        if (voucherCreateState(row) !== 'JOURNAL_INCOMPLETE') return [];
+        return [{ field: 'line_no', message: '분개미정' }];
     }
 
     function evidenceStatusBadge(row = {}) {
@@ -933,15 +1321,14 @@ import '/public/assets/js/components/trash-manager.js';
             return '<span class="badge seed-status-badge seed-status-evidence">완료</span>';
         }
         const statusTitle = statusIssues.join(', ');
-        return `<span class="badge text-bg-secondary" title="${escapeHtml(statusTitle)}">미완료</span>`;
-
-        const missing = correctionIssueItems(row).map((item) => item.message);
-        if (missing.length === 0) {
-            return '<span class="badge text-bg-success">완료</span>';
-        }
-
-        const title = missing.join(', ');
-        return `<span class="badge text-bg-secondary" title="${escapeHtml(title)}">미완료</span>`;
+        return `
+            <span class="seed-evidence-correction-status" title="${escapeHtml(statusTitle)}">
+                <span class="badge text-bg-warning seed-evidence-correction-badge">
+                    <span>보정필요</span>
+                    <span class="seed-evidence-correction-count">${statusIssues.length.toLocaleString('ko-KR')}</span>
+                </span>
+            </span>
+        `;
     }
 
     function manageButton(row = {}) {
@@ -969,15 +1356,28 @@ import '/public/assets/js/components/trash-manager.js';
         });
     }
 
+    function selectedBundleVoucherIds() {
+        const rows = evidenceTable?.rows().data().toArray() || [];
+        return Array.from(selectedIds).filter((id) => {
+            const row = rows.find((item) => String(item.id) === String(id));
+            if (!row || normalizedStatus(row) === 'DELETED') return false;
+            if (readinessStatus(row) !== 'READY') return false;
+            if (correctionIssueItems(row).length > 0) return false;
+            return voucherCreateState(row) === 'READY';
+        });
+    }
+
     function isSelectableForBulk(row) {
         return normalizedStatus(row) !== 'DELETED';
     }
 
     function updateButtons() {
         const createCount = selectedReadyIds().length;
+        const bundleCount = selectedBundleVoucherIds().length;
         const wrapper = evidenceTable?.table().container();
 
         wrapper?.querySelector('.btn-create-selected-evidences')?.toggleAttribute('disabled', isCreating || createCount === 0);
+        wrapper?.querySelector('.btn-create-bundled-voucher')?.toggleAttribute('disabled', isCreating || bundleCount < 2);
     }
 
     function updateSummary(rows = []) {
@@ -1013,6 +1413,13 @@ import '/public/assets/js/components/trash-manager.js';
         return true;
     }
 
+    function serverStatusFilterValue() {
+        if (selectedStatusFilter === 'evidenceReady') return 'READY';
+        if (selectedStatusFilter === 'correctionNeeded') return 'NOT_READY';
+        if (selectedStatusFilter === 'transactionCreated' || selectedStatusFilter === 'voucherCreated') return 'PROCESSED';
+        return '';
+    }
+
     function rowTypeKey(row) {
         return String(row?.import_type || row?.source_type || row?.seed_source_type || '').trim().toUpperCase();
     }
@@ -1024,8 +1431,10 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     async function refreshSeedRowsTypeCounts() {
+        if (typeCountsPromise) return typeCountsPromise;
+        typeCountsPromise = (async () => {
         try {
-            const response = await fetch(`${API.rows}?type_counts=1`, { cache: 'no-store' });
+            const response = await fetch(rowsApiUrl({ type_counts: '1' }), { cache: 'no-store' });
             const json = await response.json().catch(() => ({}));
             if (!response.ok || json.success === false) {
                 throw new Error(json.message || '자료유형별 건수를 불러오지 못했습니다.');
@@ -1040,7 +1449,11 @@ import '/public/assets/js/components/trash-manager.js';
             renderTypeSummary(evidenceTable?.rows().data().toArray() || []);
         } catch (error) {
             console.warn('[dataCreate] type counts failed', error);
+        } finally {
+            typeCountsPromise = null;
         }
+        })();
+        return typeCountsPromise;
     }
 
     function renderTypeSummary(rows = []) {
@@ -1107,7 +1520,7 @@ import '/public/assets/js/components/trash-manager.js';
         selectedTypeFilter = String(type || '').trim().toUpperCase();
         selectedIds.clear();
         evidenceTable?.clearSelectedIds?.();
-        evidenceTable?.draw(false);
+        evidenceTable?.ajax.reload(null, true);
         updateButtons();
         updateSummary(evidenceTable?.rows().data().toArray() || []);
     }
@@ -1116,7 +1529,7 @@ import '/public/assets/js/components/trash-manager.js';
         selectedStatusFilter = String(type || '').trim();
         selectedIds.clear();
         evidenceTable?.clearSelectedIds?.();
-        evidenceTable?.draw(false);
+        evidenceTable?.ajax.reload(null, true);
         updateButtons();
         updateSummary(evidenceTable?.rows().data().toArray() || []);
     }
@@ -1128,6 +1541,36 @@ import '/public/assets/js/components/trash-manager.js';
             updateButtons();
             updateSummary(evidenceTable?.rows().data().toArray() || []);
         }, false);
+    }
+
+    function updateSeedRowInTable(rowId, patch = {}) {
+        if (!evidenceTable || !rowId || !patch || typeof patch !== 'object') return false;
+        let updated = false;
+        evidenceTable.rows().every(function () {
+            const current = this.data();
+            if (String(current?.id || '') !== String(rowId)) return;
+            const next = {
+                ...current,
+                ...patch,
+                mapped_payload: {
+                    ...(current.mapped_payload || {}),
+                    ...(patch.mapped_payload || {}),
+                },
+                raw_payload: {
+                    ...(current.raw_payload || {}),
+                    ...(patch.raw_payload || {}),
+                },
+            };
+            this.data(next);
+            updated = true;
+        });
+        if (updated) {
+            evidenceTable.draw(false);
+            updateButtons();
+            updateSummary(evidenceTable.rows().data().toArray());
+            void refreshSeedRowsTypeCounts();
+        }
+        return updated;
     }
 
     async function postSelected(url, extraPayload = {}) {
@@ -1261,6 +1704,7 @@ import '/public/assets/js/components/trash-manager.js';
             currency: '통화',
             exchange_rate: '환율',
             supply_amount: '공급가액',
+            adjustment_amount: '가감금액(합계금액-공급가액)',
             vat_amount: '부가세',
             total_amount: '합계금액',
             line_type: '라인유형',
@@ -1515,6 +1959,7 @@ import '/public/assets/js/components/trash-manager.js';
             bank_account_name: ['bank_account_name', 'bank_account_id', 'account_name'],
             bank_account_id: ['bank_account_id', 'bank_account_name', 'account_name'],
             card_id: ['card_id', 'card_name', 'card_number'],
+            adjustment_amount: ['adjustment_amount'],
             counterparty_name: ['counterparty_name', 'counterparty_account_holder_name', 'counterparty_account_holder', 'account_holder'],
             counterparty_account_number: ['counterparty_account_number', 'counterparty_account_no'],
             counterparty_bank: ['counterparty_bank', 'counterparty_bank_name'],
@@ -1572,14 +2017,17 @@ import '/public/assets/js/components/trash-manager.js';
             ? '<span class="readiness-required-star">*</span>'
             : (requirementMode === 2 ? '<span class="readiness-optional-star">*</span>' : '');
         const fieldToneClass = meta.tone ? ` readiness-field-${meta.tone}` : '';
-        const correctionIssue = correctionIssueItems(row).find((item) => item.field === key)
-            || readinessIssueItems(row).find((item) => item.field === key)
-            || evidenceRequiredIssueItems(row).find((item) => item.field === key);
-        const correctionClass = correctionIssue ? ' readiness-field-correction' : '';
-        const correctionTitle = correctionIssue ? ` title="${escapeHtml(correctionIssue.message)}"` : '';
+        const correctionIssue = null;
+        const correctionClass = '';
+        const correctionTitle = '';
         const config = readinessFieldConfig(key);
         const kind = inputValueKind(key, displayLabel);
         const commonAttrs = `class="form-control form-control-sm ${kind === 'amount' ? 'number-input' : ''}" data-readiness-key="${escapeHtml(key)}" data-value-kind="${escapeHtml(kind)}"`;
+        const inputMode = {
+            amount: 'decimal',
+            'business-number': 'numeric',
+            phone: 'tel',
+        }[kind] || '';
         const pickerPlaceholder = requirementMode === 1 ? `${displayLabel}필수` : (config.placeholder || '');
         let control = '';
         if (config.kind === 'code') {
@@ -1665,7 +2113,7 @@ import '/public/assets/js/components/trash-manager.js';
                 </div>
             `;
         } else {
-            control = `<input type="text" ${commonAttrs} value="${escapeHtml(valueForInput(kind, value))}" placeholder="${escapeHtml(config.placeholder || '')}" ${kind === 'amount' ? 'inputmode="decimal"' : ''}>`;
+            control = `<input type="text" ${commonAttrs} value="${escapeHtml(valueForInput(kind, value))}" placeholder="${escapeHtml(config.placeholder || '')}" ${inputMode ? `inputmode="${escapeHtml(inputMode)}"` : ''}>`;
         }
         return `
             <label class="readiness-field${fieldToneClass}${correctionClass}" data-readiness-system-field="${escapeHtml(key)}"${correctionTitle}>
@@ -1720,7 +2168,7 @@ import '/public/assets/js/components/trash-manager.js';
             {
                 type: 'CLIENT',
                 id: payload.client_id || '',
-                label: payload.client_name || payload.client_company_name || payload.counterparty_name || payload.merchant_company_name || payload.supplier_company_name || '',
+                label: payload.client_name || '',
             },
             {
                 type: 'PROJECT',
@@ -2727,41 +3175,138 @@ import '/public/assets/js/components/trash-manager.js';
         );
     }
 
-    function recommendedTransactionLine(payload = {}) {
-        const amount = numericValue(payload.total_amount)
-            ?? numericValue(payload.supply_amount)
-            ?? numericValue(payload.amount)
-            ?? 0;
+    function transactionLineTypeLabel(code, fallback = '') {
+        const normalized = normalizeCodeKey(code);
+        const found = (codeOptions.TRANSACTION_LINE_TYPE || []).find((row) => normalizeCodeKey(row.code) === normalized);
+        return found ? codeOptionDisplayName('TRANSACTION_LINE_TYPE', found) : (fallback || code || '');
+    }
+
+    function transactionLineDefaultUnit() {
+        const units = codeDropdownSource('UNIT', ['식']);
+        return units.find((unit) => String(unit).trim() === '식') || units.find((unit) => String(unit).includes('식')) || units[0] || '식';
+    }
+
+    function firstPayloadTextValue(payload = {}, keys = []) {
+        for (const key of keys) {
+            const value = payload[key];
+            if (value !== undefined && value !== null && String(value).trim() !== '') {
+                return String(value).trim();
+            }
+        }
+        return '';
+    }
+
+    function firstPayloadAmount(payload = {}, keys = []) {
+        for (const key of keys) {
+            const amount = numericValue(payload[key]);
+            if (amount !== null && amount !== 0) return amount;
+        }
+        return null;
+    }
+
+    function transactionLineDateFromPayload(payload = {}) {
+        return firstPayloadTextValue(payload, ['item_date', 'transaction_date', 'issue_date', 'write_date', 'evidence_date', '작성일자', '거래일자', '발급일자', '발행일자']);
+    }
+
+    function transactionLineNameFromPayload(payload = {}) {
+        return firstPayloadTextValue(payload, [
+            'item_name',
+            '품명',
+            '품목명',
+            '품목',
+            'description',
+            '적요',
+            'summary_text',
+            'client_name',
+            'client_company_name',
+            'supplier_company_name',
+            'customer_company_name',
+        ]) || '거래내역';
+    }
+
+    function recommendationAmountLine(typeCode, itemName, amount, payload = {}, options = {}) {
+        const numericAmount = Number(amount || 0);
+        const qty = options.qty ?? '';
+        const unitPrice = options.unitPrice ?? '';
         return normalizeTransactionLine({
-            line_type: '품목',
-            item_date: payload.item_date || payload.transaction_date || '',
-            item_name: payload.item_name || payload.description || payload.client_name || payload.client_company_name || '거래내역',
-            item_spec: payload.item_spec || '',
-            unit_name: payload.unit_name || '',
-            item_qty: payload.item_qty || (amount ? 1 : ''),
-            item_price: payload.item_price || amount || '',
-            amount: payload.amount || amount || '',
-            item_note: payload.item_note || payload.description || '',
-            foreign_unit_price: payload.foreign_unit_price || '',
-            foreign_amount: payload.foreign_amount || '',
+            line_type: transactionLineTypeLabel(typeCode, itemName),
+            item_date: transactionLineDateFromPayload(payload),
+            item_name: itemName,
+            item_spec: options.itemSpec ?? '',
+            unit_name: options.unitName ?? '',
+            item_qty: qty,
+            currency: '',
+            exchange_rate: payload.exchange_rate || '',
+            foreign_unit_price: unitPrice,
+            foreign_amount: '',
+            item_price: unitPrice,
+            amount: numericAmount,
+            item_note: options.note ?? payload.item_note ?? payload.description ?? '',
         }, payload);
     }
 
+    function transactionRecommendationDeductionItems(payload = {}) {
+        return [
+            { keys: ['withholding_amount', 'withholding_tax_amount', 'withholding_income_tax_amount', '원천세', '원천징수', '원천징수세액'], label: '원천세' },
+            { keys: ['income_tax_amount', 'income_tax', '소득세', '근로소득세'], label: '소득세' },
+            { keys: ['local_income_tax_amount', 'resident_tax_amount', 'local_tax_amount', 'resident_tax', '지방소득세', '주민세'], label: '지방소득세' },
+            { keys: ['national_pension_amount', 'national_pension', '국민연금'], label: '국민연금' },
+            { keys: ['health_insurance_amount', 'health_insurance', '건강보험', '건강보험료'], label: '건강보험' },
+            { keys: ['long_term_care_amount', 'long_term_care_insurance_amount', '장기요양보험', '장기요양보험료'], label: '장기요양보험' },
+            { keys: ['employment_insurance_amount', 'employment_insurance', '고용보험', '고용보험료'], label: '고용보험' },
+        ].map((item) => ({
+            ...item,
+            amount: firstPayloadAmount(payload, item.keys),
+        })).filter((item) => item.amount !== null);
+    }
+
+    function recommendedTransactionLines(payload = {}) {
+        const vat = firstPayloadAmount(payload, ['vat_amount', 'item_vat_amount', 'tax_amount', '부가세', '세액', '품목세액']) || 0;
+        const service = firstPayloadAmount(payload, ['service_amount', 'service_fee_amount', 'tip_amount', '봉사료', '서비스료']) || 0;
+        const deductions = transactionRecommendationDeductionItems(payload);
+        const deductionTotal = deductions.reduce((sum, item) => sum + Math.abs(item.amount || 0), 0);
+        const total = firstPayloadAmount(payload, ['total_amount', 'amount', 'billing_amount', '합계금액', '총액', '청구금액']);
+        let itemAmount = firstPayloadAmount(payload, ['item_supply_amount', 'supply_amount', 'base_amount', 'gross_pay_amount', 'gross_salary_amount', '공급가액', '공급가', '품목공급가액', '급여총액', '지급총액']);
+        if (itemAmount === null && total !== null) {
+            itemAmount = total - vat - service + deductionTotal;
+        }
+        if (itemAmount === null) itemAmount = 0;
+
+        const qty = numericValue(payload.item_qty ?? payload.quantity ?? payload.수량) || (itemAmount ? 1 : '');
+        const unitPrice = numericValue(payload.foreign_unit_price ?? payload.item_price ?? payload.unit_price ?? payload.단가) || (qty ? itemAmount / qty : itemAmount);
+        const itemLine = recommendationAmountLine('ITEM', transactionLineNameFromPayload(payload), itemAmount, payload, {
+            itemSpec: payload.item_spec || payload.specification || payload.규격 || '',
+            unitName: payload.unit_name || payload.단위 || transactionLineDefaultUnit(),
+            qty,
+            unitPrice,
+        });
+
+        const lines = [itemLine];
+        if (vat) lines.push(recommendationAmountLine('VAT', '부가세', vat, payload));
+        if (service) lines.push(recommendationAmountLine('SERVICE', '봉사료', service, payload));
+        deductions.forEach((item) => {
+            lines.push(recommendationAmountLine('WITHHOLDING', item.label, -Math.abs(item.amount || 0), payload));
+        });
+
+        return lines.filter((line) => numericValue(line.amount) !== null || String(line.item_name || '').trim() !== '');
+    }
+
     function transactionLineRecommendationsHtml(payload = {}) {
-        const line = recommendedTransactionLine(payload);
-        const encoded = escapeHtml(encodeURIComponent(JSON.stringify([line])));
-        const title = line.item_name || '거래내역';
-        const amount = numericValue(line.amount) || 0;
+        const lines = recommendedTransactionLines(payload);
+        const encoded = escapeHtml(encodeURIComponent(JSON.stringify(lines)));
+        const title = lines[0]?.item_name || '거래내역';
+        const amount = transactionLineTotalAmount(lines);
+        const lineSummary = lines.map((line) => `${line.line_type || '-'} ${formatNumber(line.amount || 0)}`).join(' / ');
         return `
             <div class="transaction-line-recommendations">
                 <div class="transaction-line-recommendations-head">
                     <strong>추천거래</strong>
-                    <span>기본정보와 금액을 기준으로 거래내역 1라인을 제안합니다.</span>
+                    <span>증빙원본의 금액 항목을 분석해 거래내역을 제안합니다.</span>
                 </div>
                 <div class="transaction-line-recommendation-item">
                     <div>
                         <div class="transaction-line-recommendation-title">${escapeHtml(title)}</div>
-                        <div class="transaction-line-recommendation-meta">${escapeHtml(line.item_date || '-')} / ${escapeHtml(formatNumber(amount))}</div>
+                        <div class="transaction-line-recommendation-meta">${escapeHtml(lines[0]?.item_date || '-')} / ${escapeHtml(formatNumber(amount))} / ${escapeHtml(lineSummary)}</div>
                     </div>
                     <button type="button" class="btn btn-outline-primary btn-sm transaction-line-recommend-apply-btn" data-recommendation="${encoded}">적용</button>
                 </div>
@@ -2772,8 +3317,8 @@ import '/public/assets/js/components/trash-manager.js';
     function transactionLineWorkspaceHtml(row, payload = {}, format = null) {
         return `
             <div class="readiness-transaction-lines">
-                <div class="transaction-hot-wrap">
-                    <div class="transaction-line-hot readiness-transaction-line-hot" data-readiness-transaction-line-hot></div>
+                <div class="transaction-grid-wrap">
+                    <div class="transaction-line-grid readiness-transaction-line-grid" data-readiness-transaction-line-grid></div>
                 </div>
                 <div class="transaction-lines-footer">
                     <div class="transaction-summary-grid">
@@ -2789,22 +3334,12 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function transactionWorkspaceHtml(row, payload = {}, format = null) {
-        const hasForeign = String(payload.currency || '').trim().toUpperCase() !== ''
-            && String(payload.currency || '').trim().toUpperCase() !== 'KRW'
-            || (numericValue(payload.exchange_rate) || 0) > 0
-            || transactionLineRows(payload).some((line) => (numericValue(line.foreign_unit_price) || 0) !== 0 || (numericValue(line.foreign_amount) || 0) !== 0);
         const hasFiles = Array.isArray(payload._transaction_files) && payload._transaction_files.length > 0;
         const mainFields = [
             'transaction_date',
-            'business_unit',
-            'transaction_direction',
-            'transaction_type',
-            'client_id',
-            'project_id',
-            'employee_id',
+            'description',
         ];
-        const summaryFields = ['description', 'currency', 'exchange_rate'];
-        const amountFields = ['supply_amount', 'vat_amount', 'total_amount'];
+        const amountFields = ['supply_amount', 'adjustment_amount', 'total_amount'];
         const noteFields = ['note', 'memo'];
 
         return `
@@ -2815,19 +3350,12 @@ import '/public/assets/js/components/trash-manager.js';
                     `
                         <div class="transaction-toggle-row readiness-transaction-toggle-row">
                             <div class="form-check form-switch transaction-switch">
-                                <input class="form-check-input" type="checkbox" role="switch" data-readiness-foreign-toggle value="1" ${hasForeign ? 'checked' : ''}>
-                                <label class="form-check-label">외화사용여부</label>
-                            </div>
-                            <div class="form-check form-switch transaction-switch">
                                 <input class="form-check-input" type="checkbox" role="switch" data-readiness-file-toggle value="1" ${hasFiles ? 'checked' : ''}>
                                 <label class="form-check-label">파일참조</label>
                             </div>
                         </div>
                         <div class="readiness-field-grid workspace-field-grid transaction-main-field-grid">
                             ${mainFields.map((key) => readinessFieldHtml(row, payload, key, format)).join('')}
-                        </div>
-                        <div class="readiness-field-grid workspace-field-grid transaction-summary-field-grid">
-                            ${summaryFields.map((key) => readinessFieldHtml(row, payload, key, format)).join('')}
                         </div>
                         <div class="readiness-field-grid workspace-field-grid transaction-amount-field-grid">
                             ${amountFields.map((key) => readinessFieldHtml(row, payload, key, format)).join('')}
@@ -2866,27 +3394,9 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function bankVoucherWorkspaceHtml(row, payload = {}, format = null) {
-        const businessFields = configuredReadinessFields(row, format, [
-            'business_unit',
-            'transaction_direction',
-            'transaction_type',
-            'client_id',
-            'project_id',
-            'employee_id',
-            'bank_account_name',
-            'card_id',
-        ]);
         const headerFields = ['voucher_date', 'voucher_summary_text', 'note', 'memo'];
         return `
             <div class="workspace-flow bank-voucher-workspace">
-                ${workspaceSectionHtml(
-                    '기준정보 및 기초정보',
-                    '거래/전표 생성에 필요한 기준정보와 기초정보를 확인합니다.',
-                    businessFields.length > 0
-                        ? `<div class="readiness-field-grid workspace-field-grid business-ref-field-grid">${businessFields.map((key) => readinessFieldHtml(row, payload, key, format)).join('')}</div>`
-                        : '<div class="text-muted small">이 형식에서 설정된 기준정보 및 기초정보 항목이 없습니다.</div>',
-                    'workspace-section-business'
-                )}
                 ${workspaceSectionHtml(
                     '전표 헤더',
                     '전표 생성에 필요한 기본 정보를 확인합니다.',
@@ -2910,55 +3420,85 @@ import '/public/assets/js/components/trash-manager.js';
         `;
     }
 
-    function transactionLineMoveRenderer(_instance, td) {
-        window.Handsontable?.dom?.empty?.(td);
-        td.className = `${td.className || ''} transaction-line-move-cell`.trim();
-        td.innerHTML = '<span class="transaction-line-move-handle" aria-label="순서 변경"><i class="bi bi-list"></i></span>';
-        return td;
+    function transactionLineRowNoRenderer(params = {}) {
+        return String(Number(params.node?.rowIndex ?? 0) + 1);
     }
 
-    function transactionLineRowNoRenderer(_instance, td, row) {
-        window.Handsontable?.dom?.empty?.(td);
-        td.className = `${td.className || ''} transaction-line-row-no-cell`.trim();
-        td.textContent = String(row + 1);
-        return td;
+    function transactionLineActionRenderer() {
+        return '<button type="button" class="transaction-line-delete-action">-삭제</button>';
     }
 
-    function transactionLineActionRenderer(_instance, td) {
-        window.Handsontable?.dom?.empty?.(td);
-        td.className = `${td.className || ''} transaction-line-action-cell`.trim();
-        td.innerHTML = '<button type="button" class="transaction-line-delete-action">-삭제</button>';
-        return td;
+    function transactionLineCurrency(value) {
+        return currencyCodeFromValue(value);
     }
 
-    function readinessUsesForeignCurrency(modal = document.getElementById('seedRowReadinessModal')) {
-        return Boolean(modal?.querySelector('[data-readiness-foreign-toggle]')?.checked);
-    }
-
-    function transactionLineColumns(modal = document.getElementById('seedRowReadinessModal')) {
-        const columns = [
-            { data: '__move', title: '<i class="bi bi-arrows-move"></i>', readOnly: true, width: 24, renderer: transactionLineMoveRenderer },
-            { data: '__row_no', title: '순번', readOnly: true, width: 32, renderer: transactionLineRowNoRenderer },
-            { data: 'line_type', title: '라인유형', type: 'dropdown', source: ['품목', '부가세', '봉사료'], width: 88 },
-            { data: 'item_date', title: '발생일', type: 'date', dateFormat: 'YYYY-MM-DD', correctFormat: true, width: 74 },
-            { data: 'item_name', title: '품명', width: 88 },
-            { data: 'item_spec', title: '규격', width: 58 },
-            { data: 'unit_name', title: '단위', width: 44 },
-            { data: 'item_qty', title: '수량', type: 'numeric', numericFormat: { pattern: '0,0.000' }, width: 56 },
-            { data: 'item_price', title: '단가', type: 'numeric', numericFormat: { pattern: '0,0' }, width: 62 },
-            { data: 'amount', title: '금액', type: 'numeric', numericFormat: { pattern: '0,0' }, width: 68 },
-            { data: 'item_note', title: '적요', width: 84 },
-            { data: '__actions', title: '+추가', readOnly: true, width: 40, renderer: transactionLineActionRenderer },
+    function isEmptyTransactionLineArtifact(line = {}) {
+        if (!line || typeof line !== 'object') return true;
+        const keys = [
+            'line_type',
+            'item_date',
+            'item_name',
+            'item_spec',
+            'unit_name',
+            'item_qty',
+            'currency',
+            'exchange_rate',
+            'foreign_unit_price',
+            'foreign_amount',
+            'item_price',
+            'amount',
+            'item_note',
         ];
-        if (!readinessUsesForeignCurrency(modal)) return columns;
-        const priceIndex = columns.findIndex((column) => column.data === 'item_price');
-        columns.splice(
-            priceIndex,
-            0,
-            { data: 'foreign_unit_price', title: '외화단가', type: 'numeric', numericFormat: { pattern: '0,0.00' }, width: 58 },
-            { data: 'foreign_amount', title: '외화금액', type: 'numeric', numericFormat: { pattern: '0,0.00' }, width: 72 },
-        );
-        return columns.filter((column) => !['item_price', 'amount'].includes(column.data));
+        return keys.every((key) => String(line[key] ?? '').trim() === '');
+    }
+
+    function sanitizeTransactionLineRows(rows = []) {
+        return (Array.isArray(rows) ? rows : [])
+            .filter((row) => !isEmptyTransactionLineArtifact(row));
+    }
+
+    function transactionLineColumns(modal = document.getElementById('seedRowReadinessModal'), rows = null) {
+        const numericColumn = {
+            type: 'numericColumn',
+            valueFormatter: gridNumberFormatter,
+            valueParser: gridNumberParser,
+            cellClass: 'text-end',
+        };
+        const columns = [
+            {
+                field: '__row_no',
+                headerName: '순번',
+                editable: false,
+                width: 52,
+                minWidth: 52,
+                rowDrag: true,
+                valueGetter: transactionLineRowNoRenderer,
+                cellClass: 'transaction-line-row-no-cell transaction-line-row-drag-cell text-center',
+            },
+            { field: 'line_type', headerName: '라인유형', width: 66, minWidth: 66, ...selectEditor(codeDropdownSource('TRANSACTION_LINE_TYPE', ['품목', '부가세', '봉사료'])) },
+            { field: 'item_date', headerName: '발생일', width: 76, minWidth: 76, ...dateStringEditor() },
+            { field: 'item_name', headerName: '품명', width: 72, minWidth: 64 },
+            { field: 'item_spec', headerName: '규격', width: 54, minWidth: 50 },
+            { field: 'unit_name', headerName: '단위', width: 48, minWidth: 46, ...selectEditor(codeDropdownSource('UNIT', ['개', '식'])) },
+            { field: 'item_qty', headerName: '수량', width: 54, minWidth: 52, ...numericColumn },
+            { field: 'currency', headerName: '통화', width: 50, minWidth: 48, ...selectEditor(codeDropdownSource('CURRENCY', ['원화(₩)', '위안화(¥)', '달러($)'])) },
+            { field: 'exchange_rate', headerName: '환율', width: 58, minWidth: 54, ...numericColumn },
+            { field: 'foreign_unit_price', headerName: '단가', width: 68, minWidth: 66, ...numericColumn },
+            { field: 'foreign_amount', headerName: '외화금액', width: 74, minWidth: 72, ...numericColumn },
+            { field: 'amount', headerName: '금액', width: 74, minWidth: 72, ...numericColumn },
+            { field: 'item_note', headerName: '적요', width: 70, minWidth: 64 },
+            {
+                field: '__actions',
+                headerName: '+추가',
+                editable: false,
+                width: 44,
+                minWidth: 44,
+                maxWidth: 44,
+                cellClass: 'transaction-line-action-cell text-center',
+                cellRenderer: transactionLineActionRenderer,
+            },
+        ];
+        return columns;
     }
 
     function blankTransactionLine(payload = {}) {
@@ -2969,6 +3509,8 @@ import '/public/assets/js/components/trash-manager.js';
             item_spec: '',
             unit_name: '',
             item_qty: '',
+            currency: '',
+            exchange_rate: payload.exchange_rate || '',
             foreign_unit_price: '',
             foreign_amount: '',
             item_price: '',
@@ -2981,6 +3523,7 @@ import '/public/assets/js/components/trash-manager.js';
         const amount = numericValue(line.amount ?? line.total_amount ?? line.supply_amount ?? '');
         const qty = numericValue(line.item_qty ?? line.quantity ?? '');
         const price = numericValue(line.item_price ?? line.unit_price ?? '');
+        const exchangeRate = numericValue(line.exchange_rate ?? payload.exchange_rate ?? '');
         const foreignPrice = numericValue(line.foreign_unit_price ?? '');
         const foreignAmount = numericValue(line.foreign_amount ?? '');
         return {
@@ -2990,6 +3533,8 @@ import '/public/assets/js/components/trash-manager.js';
             item_spec: line.item_spec || line.specification || '',
             unit_name: line.unit_name || '',
             item_qty: qty ?? '',
+            currency: currencyDisplayValue(line.currency || ''),
+            exchange_rate: exchangeRate ?? '',
             foreign_unit_price: foreignPrice ?? '',
             foreign_amount: foreignAmount ?? '',
             item_price: price ?? '',
@@ -2998,33 +3543,85 @@ import '/public/assets/js/components/trash-manager.js';
         };
     }
 
+    function serializeTransactionLine(line = {}, payload = {}) {
+        const normalized = normalizeTransactionLine(line, payload);
+        const currencyCode = transactionLineCurrency(normalized.currency);
+        return {
+            ...normalized,
+            currency: currencyCode,
+            currency_code: currencyCode,
+        };
+    }
+
     function transactionLineRows(payload = {}) {
         if (Array.isArray(payload._transaction_lines) && payload._transaction_lines.length > 0) {
-            return payload._transaction_lines.map((line) => normalizeTransactionLine(line, payload));
+            return sanitizeTransactionLineRows(payload._transaction_lines)
+                .map((line) => normalizeTransactionLine(line, payload));
         }
-        const hasManualLine = ['line_type', 'item_date', 'item_name', 'item_spec', 'unit_name', 'item_qty', 'item_price', 'amount', 'item_note']
+        const hasManualLine = ['line_type', 'item_date', 'item_name', 'item_spec', 'unit_name', 'item_qty', 'currency', 'exchange_rate', 'foreign_unit_price', 'foreign_amount', 'amount', 'item_note']
             .some((key) => String(payload[key] ?? '').trim() !== '');
         if (hasManualLine) {
             return [normalizeTransactionLine(payload, payload)];
         }
-        return [blankTransactionLine(payload)];
+        return [];
     }
 
     function syncReadinessTransactionLineTotal(modal) {
         const totalEl = modal?.querySelector('[data-readiness-transaction-line-total]');
         syncReadinessTransactionLineEmptyState(modal);
-        if (!totalEl || !readinessTransactionLineHot) return;
-        const total = readinessTransactionLineHot.getSourceData()
-            .reduce((sum, row) => sum + (numericValue(row?.amount) || 0), 0);
+        if (!totalEl || !readinessTransactionLineGrid) return;
+        const total = transactionLineTotalAmount(readinessTransactionLineGrid.getSourceData());
         totalEl.value = total ? formatNumber(total) : '';
     }
 
+    function transactionLineTotalAmount(rows = []) {
+        return sanitizeTransactionLineRows(rows)
+            .reduce((sum, row) => sum + (numericValue(row?.amount) || 0), 0);
+    }
+
+    function recalculateTransactionLine(row = {}) {
+        const next = { ...(row || {}) };
+        const qty = numericValue(next.item_qty);
+        const unitPrice = numericValue(next.foreign_unit_price);
+        const exchangeRate = numericValue(next.exchange_rate);
+        if (qty === null || unitPrice === null) {
+            return next;
+        }
+
+        const lineAmount = qty * unitPrice;
+        if (exchangeRate !== null) {
+            next.foreign_amount = lineAmount;
+            next.amount = lineAmount * exchangeRate;
+            return next;
+        }
+
+        next.amount = lineAmount;
+        return next;
+    }
+
+    function recalculateTransactionLineAt(rowIndex) {
+        if (!readinessTransactionLineGrid || !Number.isInteger(rowIndex) || rowIndex < 0) return;
+        const rows = readinessTransactionLineGrid.getSourceData();
+        if (!rows[rowIndex]) return;
+        rows[rowIndex] = recalculateTransactionLine(rows[rowIndex]);
+        readinessTransactionLineGrid.loadData(rows);
+    }
+
+    function syncReadinessAdjustmentAmount(modal) {
+        const adjustmentInput = modal?.querySelector('[data-readiness-key="adjustment_amount"]');
+        if (!adjustmentInput) return;
+        const supply = numericValue(modal.querySelector('[data-readiness-key="supply_amount"]')?.value);
+        const total = numericValue(modal.querySelector('[data-readiness-key="total_amount"]')?.value);
+        if (supply === null || total === null) return;
+        adjustmentInput.value = formatNumber(total - supply);
+    }
+
     function syncReadinessTransactionLineEmptyState(modal) {
-        const host = modal?.querySelector('[data-readiness-transaction-line-hot]');
-        if (!host || !readinessTransactionLineHot) return;
-        const rows = readinessTransactionLineHot.getSourceData()
-            .filter((row) => Object.values(row || {}).some((value) => String(value ?? '').trim() !== ''));
-        host.classList.toggle('is-empty', rows.length === 0);
+        const host = modal?.querySelector('[data-readiness-transaction-line-grid]');
+        if (!host || !readinessTransactionLineGrid) return;
+        const rowCount = readinessTransactionLineGrid.countRows?.() || 0;
+        host.classList.toggle('is-empty', rowCount === 0);
+        modal?.querySelector('.transaction-line-recommendations')?.classList.toggle('d-none', rowCount > 0);
     }
 
     function activateReadinessPanelForTarget(modal, target) {
@@ -3039,7 +3636,7 @@ import '/public/assets/js/components/trash-manager.js';
         });
         if (stageId === 'transaction') {
             window.requestAnimationFrame(() => {
-                readinessTransactionLineHot?.render();
+                readinessTransactionLineGrid?.render();
                 syncReadinessTransactionLineTotal(modal);
             });
         }
@@ -3088,17 +3685,17 @@ import '/public/assets/js/components/trash-manager.js';
         focusReadinessTarget(modal, target);
     }
 
-    function focusReadinessHotColumn(modal, field) {
-        if (!readinessTransactionLineHot) return false;
+    function focusReadinessGridColumn(modal, field) {
+        if (!readinessTransactionLineGrid) return false;
         const columns = transactionLineColumns(modal);
-        const colIndex = columns.findIndex((column) => column.data === field);
+        const colIndex = columns.findIndex((column) => column.field === field);
         if (colIndex < 0) return false;
-        const hotHost = modal.querySelector('[data-readiness-transaction-line-hot]');
-        activateReadinessPanelForTarget(modal, hotHost);
+        const gridHost = modal.querySelector('[data-readiness-transaction-line-grid]');
+        activateReadinessPanelForTarget(modal, gridHost);
         window.requestAnimationFrame(() => {
-            readinessTransactionLineHot.selectCell(0, colIndex);
-            readinessTransactionLineHot.scrollViewportTo(0, colIndex);
-            focusReadinessTarget(modal, hotHost);
+            readinessTransactionLineGrid.selectCell(0, colIndex);
+            readinessTransactionLineGrid.scrollViewportTo(0, colIndex);
+            focusReadinessTarget(modal, gridHost);
         });
         return true;
     }
@@ -3111,7 +3708,7 @@ import '/public/assets/js/components/trash-manager.js';
             return;
         }
         if (!key) {
-            focusReadinessTarget(modal, modal.querySelector('.readiness-field-correction, .readiness-voucher-lines, .transaction-line-hot'));
+            focusReadinessTarget(modal, modal.querySelector('.readiness-field-correction, .readiness-voucher-lines, .transaction-line-grid'));
             return;
         }
 
@@ -3127,14 +3724,14 @@ import '/public/assets/js/components/trash-manager.js';
         }[key] || [key];
 
         for (const alias of aliases) {
-            const target = modal.querySelector(`[data-readiness-system-field="${CSS.escape(alias)}"]`)
-                || modal.querySelector(`[data-readiness-key="${CSS.escape(alias)}"]`)?.closest('.readiness-field')
-                || modal.querySelector(`[data-source-system-field="${CSS.escape(alias)}"]`)?.closest('.readiness-source-field');
+            const target = modal.querySelector(`[data-source-system-field="${CSS.escape(alias)}"]`)?.closest('.readiness-source-field')
+                || modal.querySelector(`[data-readiness-system-field="${CSS.escape(alias)}"]`)
+                || modal.querySelector(`[data-readiness-key="${CSS.escape(alias)}"]`)?.closest('.readiness-field');
             if (focusReadinessTarget(modal, target)) return;
         }
 
-        if (['item_date', 'line_type', 'item_name', 'item_spec', 'unit_name', 'item_qty', 'item_price', 'amount', 'item_note', 'foreign_unit_price', 'foreign_amount'].includes(key)
-            && focusReadinessHotColumn(modal, key)) {
+        if (['item_date', 'line_type', 'item_name', 'item_spec', 'unit_name', 'item_qty', 'currency', 'exchange_rate', 'foreign_unit_price', 'foreign_amount', 'amount', 'item_note'].includes(key)
+            && focusReadinessGridColumn(modal, key)) {
             return;
         }
 
@@ -3184,123 +3781,108 @@ import '/public/assets/js/components/trash-manager.js';
         }
     }
 
-    function initReadinessTransactionLineHot(modal, row = {}) {
-        const host = modal?.querySelector('[data-readiness-transaction-line-hot]');
+    async function initReadinessTransactionLineGrid(modal, row = {}) {
+        const host = modal?.querySelector('[data-readiness-transaction-line-grid]');
         if (!host) {
-            readinessTransactionLineHot?.destroy?.();
-            readinessTransactionLineHot = null;
+            readinessTransactionLineGrid?.destroy?.();
+            readinessTransactionLineGrid = null;
             return;
         }
-        if (!window.Handsontable) {
+        const agGridReady = await ensureAgGrid().catch(() => false);
+        if (!agGridReady || !window.agGrid?.createGrid) {
             host.innerHTML = '<div class="alert alert-warning py-2 mb-0">거래내역 표 라이브러리를 불러오지 못했습니다.</div>';
             return;
         }
         const payload = mapped(row);
         const rows = transactionLineRows(payload);
-        if (readinessTransactionLineHot) {
-            const currentHost = readinessTransactionLineHot.rootElement;
+        if (readinessTransactionLineGrid) {
+            const currentHost = readinessTransactionLineGrid.rootElement;
             if (currentHost !== host) {
-                readinessTransactionLineHot.destroy();
-                readinessTransactionLineHot = null;
+                readinessTransactionLineGrid.destroy();
+                readinessTransactionLineGrid = null;
             }
         }
-        if (!readinessTransactionLineHot) {
-            readinessTransactionLineHot = new window.Handsontable(host, {
-                data: rows,
-                columns: transactionLineColumns(modal),
-                colHeaders: transactionLineColumns(modal).map((column) => column.title),
-                rowHeaders: false,
-                minRows: 0,
-                stretchH: 'all',
-                width: '100%',
-                height: 'auto',
-                renderAllRows: true,
-                licenseKey: 'non-commercial-and-evaluation',
-                contextMenu: ['row_above', 'row_below', 'remove_row'],
-                manualColumnResize: true,
-                afterGetColHeader(column, th) {
-                    if (column === 0) {
-                        th.classList.add('transaction-line-move-head');
-                        th.innerHTML = '<i class="bi bi-arrows-move"></i>';
+        if (!readinessTransactionLineGrid) {
+            readinessTransactionLineGrid = createAgGridInputAdapter(host, {
+                rowData: rows,
+                columnDefs: transactionLineColumns(modal, rows),
+                className: 'transaction-line-ag-grid ag-theme-quartz',
+                deleteColumnField: '__actions',
+                deleteButtonSelector: 'button',
+                gridOptions: {
+                    suppressNoRowsOverlay: true,
+                    headerHeight: 28,
+                    rowHeight: 28,
+                },
+                onChanged(_data, event) {
+                    if (['item_qty', 'foreign_unit_price', 'exchange_rate'].includes(event?.colDef?.field)) {
+                        recalculateTransactionLineAt(Number(event.rowIndex));
                     }
-                    if (column === transactionLineColumns(modal).length - 1) {
-                        th.classList.add('transaction-line-add-head');
-                        th.innerHTML = '<button type="button" class="transaction-line-add-action">+추가</button>';
+                    if (event?.colDef?.field === '__actions') {
+                        syncReadinessTransactionPanels(modal);
                     }
-                },
-                afterChange(changes, source) {
-                    if (!changes || source === 'loadData') return;
                     syncReadinessTransactionLineTotal(modal);
                 },
-                afterRemoveRow() {
-                    syncReadinessTransactionLineTotal(modal);
-                },
-                afterCreateRow() {
-                    syncReadinessTransactionLineTotal(modal);
-                },
-            });
-            host.addEventListener('click', (event) => {
-                if (event.target.closest('.transaction-line-add-action')) {
-                    const count = readinessTransactionLineHot?.countRows() || 0;
-                    readinessTransactionLineHot?.alter('insert_row_below', Math.max(count - 1, 0), 1);
-                    Object.entries(blankTransactionLine(payload)).forEach(([key, value]) => {
-                        readinessTransactionLineHot?.setSourceDataAtCell(Math.max(count, 0), key, value, 'add-line');
-                    });
-                    syncReadinessTransactionLineTotal(modal);
-                    return;
-                }
-                if (event.target.closest('.transaction-line-delete-action')) {
-                    const cell = event.target.closest('td');
-                    const coords = cell ? readinessTransactionLineHot?.getCoords(cell) : null;
-                    if (coords && coords.row >= 0) {
-                        readinessTransactionLineHot?.alter('remove_row', coords.row, 1);
-                        syncReadinessTransactionLineTotal(modal);
-                    }
-                }
             });
         } else {
-            readinessTransactionLineHot.loadData(rows);
+            readinessTransactionLineGrid.loadData(rows);
         }
         syncReadinessTransactionLineEmptyState(modal);
         window.requestAnimationFrame(() => {
-            readinessTransactionLineHot?.render();
+            readinessTransactionLineGrid?.render();
             syncReadinessTransactionLineTotal(modal);
         });
     }
 
     function serializeTransactionLinesFromModal(modal, next) {
-        if (!modal?.querySelector('[data-readiness-transaction-line-hot]') || !readinessTransactionLineHot) return;
-        next.is_import = readinessUsesForeignCurrency(modal) ? '1' : '0';
+        if (!modal?.querySelector('[data-readiness-transaction-line-grid]') || !readinessTransactionLineGrid) return;
+        readinessTransactionLineGrid.stopEditing?.(false);
         next.auto_create_lines_1set = '0';
-        const rows = readinessTransactionLineHot.getSourceData()
-            .map((row) => normalizeTransactionLine(row, next))
-            .filter((row) => ['item_name', 'item_spec', 'unit_name', 'item_note'].some((key) => String(row[key] ?? '').trim() !== '')
-                || (numericValue(row.item_qty) || 0) !== 0
-                || (numericValue(row.item_price) || 0) !== 0
-                || (numericValue(row.amount) || 0) !== 0);
+        const rows = sanitizeTransactionLineRows(readinessTransactionLineGrid.getSourceData())
+            .map((row) => serializeTransactionLine(row, next));
+        next.is_import = rows.some((row) => {
+            const currency = transactionLineCurrency(row.currency);
+            return currency !== '' && currency !== 'KRW';
+        }) ? '1' : '0';
         next._transaction_lines = rows;
         const first = rows[0] || {};
-        ['line_type', 'item_date', 'item_name', 'item_spec', 'unit_name', 'item_qty', 'foreign_unit_price', 'foreign_amount', 'item_price', 'amount', 'item_note'].forEach((key) => {
+        ['line_type', 'item_date', 'item_name', 'item_spec', 'unit_name', 'item_qty', 'currency', 'currency_code', 'exchange_rate', 'foreign_unit_price', 'foreign_amount', 'item_price', 'amount', 'item_note'].forEach((key) => {
             next[key] = first[key] ?? '';
         });
     }
 
     function syncReadinessTransactionPanels(modal) {
         if (!modal) return;
-        const foreignEnabled = readinessUsesForeignCurrency(modal);
-        modal.querySelectorAll('[data-readiness-system-field="currency"], [data-readiness-system-field="exchange_rate"]').forEach((field) => {
-            field.classList.toggle('d-none', !foreignEnabled);
+        const rows = sanitizeTransactionLineRows(readinessTransactionLineGrid?.getSourceData?.() || []);
+        readinessTransactionLineGrid?.updateSettings({
+            columns: transactionLineColumns(modal, rows),
+            rowData: rows,
         });
-        readinessTransactionLineHot?.updateSettings({
-            columns: transactionLineColumns(modal),
-            colHeaders: transactionLineColumns(modal).map((column) => column.title),
-        });
-        readinessTransactionLineHot?.render();
+        readinessTransactionLineGrid?.render();
 
         const fileEnabled = Boolean(modal.querySelector('[data-readiness-file-toggle]')?.checked);
         modal.querySelector('[data-readiness-file-panel]')?.classList.toggle('d-none', !fileEnabled);
         const fileInput = modal.querySelector('[data-readiness-transaction-files]');
         if (fileInput) fileInput.disabled = !fileEnabled;
+    }
+
+    function addReadinessTransactionLine(modal) {
+        if (!modal || !readinessTransactionLineGrid) return;
+        const rowId = modal.dataset.rowId || '';
+        const row = modal.__readinessRow
+            || (evidenceTable?.rows().data().toArray() || []).find((item) => String(item.id || '') === String(rowId))
+            || {};
+        const payload = mapped(row);
+        const rows = sanitizeTransactionLineRows(readinessTransactionLineGrid.getSourceData());
+        const focused = readinessTransactionLineGrid.getSelectedLast?.()?.[0];
+        const insertAt = Number.isInteger(focused) && focused >= 0 && focused < rows.length
+            ? focused + 1
+            : rows.length;
+        rows.splice(insertAt, 0, blankTransactionLine(payload));
+        readinessTransactionLineGrid.loadData(rows);
+        syncReadinessTransactionPanels(modal);
+        readinessTransactionLineGrid.focusCell(insertAt, 'line_type');
+        syncReadinessTransactionLineTotal(modal);
     }
 
     function selectedReadinessFiles(modal) {
@@ -3516,70 +4098,6 @@ import '/public/assets/js/components/trash-manager.js';
             } else {
                 next.withdraw_amount = String((numericValue(next.withdraw_amount) || 0) + amount);
             }
-        });
-    }
-
-    function sourceVoucherLinesHtml(payload = {}) {
-        const groups = voucherLineGroups(payload);
-        if (groups.length === 0) return '';
-
-        return `
-            <div class="readiness-source-voucher-lines">
-                <div class="readiness-source-voucher-title">원본 분개라인</div>
-                <div class="table-responsive">
-                    <table class="table table-sm readiness-source-voucher-table">
-                        <thead>
-                            <tr>
-                                <th>순번</th>
-                                <th>계정과목</th>
-                                <th>차변</th>
-                                <th>대변</th>
-                                <th>적요</th>
-                                <th>참조</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${groups.map((group) => `
-                                <tr>
-                                    <td>${escapeHtml(group.sourceLineNo)}</td>
-                                    <td><span data-source-account-id="${escapeHtml(group.account_id || '')}">${escapeHtml(voucherAccountDisplayText(group))}</span></td>
-                                    <td class="text-end">${escapeHtml(formatNumber(group.debit || 0))}</td>
-                                    <td class="text-end">${escapeHtml(formatNumber(group.credit || 0))}</td>
-                                    <td>${escapeHtml(group.line_summary || '-')}</td>
-                                    <td>${[...(group.refs || []), ...(group.auto_refs || [])].length > 0
-                                        ? [...(group.refs || []), ...(group.auto_refs || [])].map((ref) => `<span class="readiness-source-ref" data-source-ref-type="${escapeHtml(ref.line_ref_type || ref.ref_type || '')}" data-source-ref-id="${escapeHtml(ref.line_ref_id || ref.ref_id || '')}">${escapeHtml(voucherRefTypeLabel(ref.line_ref_type || ref.ref_type || '-'))}: ${escapeHtml(voucherRefDisplayText(ref))}</span>`).join('')
-                                        : 'Evidence 기준 자동 참조'}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
-    }
-
-    async function hydrateSourceVoucherLineLabels(modal) {
-        const sourcePane = modal?.querySelector('#seedRowSourcePane');
-        if (!sourcePane) return;
-
-        const accountNodes = Array.from(sourcePane.querySelectorAll('[data-source-account-id]'));
-        if (accountNodes.length > 0) {
-            await loadVoucherAccountOptions();
-            accountNodes.forEach((node) => {
-                const accountId = String(node.dataset.sourceAccountId || '').trim();
-                const text = voucherAccountById.get(accountId)?.text || voucherAccountByCode.get(accountId)?.text || '';
-                if (text) node.textContent = text;
-            });
-        }
-
-        const refNodes = Array.from(sourcePane.querySelectorAll('[data-source-ref-type][data-source-ref-id]'));
-        const refTypes = Array.from(new Set(refNodes.map((node) => String(node.dataset.sourceRefType || '').trim().toUpperCase()).filter(Boolean)));
-        await Promise.all(refTypes.map((type) => ensureVoucherRefOptions(type)));
-        refNodes.forEach((node) => {
-            const type = String(node.dataset.sourceRefType || '').trim().toUpperCase();
-            const id = String(node.dataset.sourceRefId || '').trim();
-            const text = (voucherRefOptionCache[type] || []).find((item) => String(item.id) === id)?.text || '';
-            if (text) node.textContent = `${voucherRefTypeLabel(type)}: ${text}`;
         });
     }
 
@@ -3843,6 +4361,12 @@ import '/public/assets/js/components/trash-manager.js';
         modal.querySelectorAll('[data-value-kind="amount"]').forEach((input) => {
             bindNumberInput(input);
         });
+        modal.querySelectorAll('input[data-value-kind="business-number"]').forEach((input) => {
+            bindBizNumberInput(input);
+        });
+        modal.querySelectorAll('input[data-value-kind="phone"]').forEach((input) => {
+            bindPhoneInput(input);
+        });
         modal.querySelectorAll('input[data-value-kind="date"], input[data-value-kind="datetime"]').forEach((input) => {
             bindReadinessDateInput(input, modal);
         });
@@ -3866,10 +4390,14 @@ import '/public/assets/js/components/trash-manager.js';
         restoreUnmatchedSourceCodeSelects(modal);
         const rowId = modal?.dataset.rowId || '';
         const row = (evidenceTable?.rows().data().toArray() || []).find((item) => String(item.id) === String(rowId));
-        initReadinessTransactionLineHot(modal, row || {});
+        await initReadinessTransactionLineGrid(modal, row || {});
         syncReadinessTransactionPanels(modal);
         renderReadinessFileList(modal);
         if (!window.jQuery?.fn?.select2) return;
+
+        modal.querySelectorAll('select.readiness-source-ref').forEach((select) => {
+            initSourceRefSelect(select, modal);
+        });
 
         modal.querySelectorAll('[data-readiness-picker="client"]').forEach((select) => {
             AdminPicker.select2Ajax(select, {
@@ -3924,7 +4452,7 @@ import '/public/assets/js/components/trash-manager.js';
 
         [
             ['employee', API.employeeSearch, (row) => row.text || row.employee_name || row.name || ''],
-            ['bankAccount', API.bankAccountSearch, (row) => row.text || row.account_name || row.account_number || row.bank_name || ''],
+            ['bankAccount', API.bankAccountSearch, (row) => row.account_name || row.bank_account_name || row.name || ''],
             ['card', API.cardSearch, (row) => row.text || row.card_name || row.card_number || row.card_company_name || ''],
         ].forEach(([picker, url, labelForRow]) => {
             modal.querySelectorAll(`[data-readiness-picker="${picker}"]`).forEach((select) => {
@@ -3984,15 +4512,21 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function rawPayload(row = {}) {
-        if (row.raw_payload && typeof row.raw_payload === 'object' && !Array.isArray(row.raw_payload)) {
-            return row.raw_payload;
-        }
+        const raw = payloadObject(row.raw_payload ?? row.raw_json);
+        if (Object.keys(raw).length > 0) return raw;
         const mappedRaw = mapped(row)._raw_payload;
-        return mappedRaw && typeof mappedRaw === 'object' && !Array.isArray(mappedRaw) ? mappedRaw : {};
+        return payloadObject(mappedRaw);
     }
 
     async function loadFormatForRow(row = {}) {
         const formatId = String(row.format_id || row.formatId || '').trim();
+        if (Array.isArray(row?.format_columns)) {
+            const cached = { id: formatId, columns: row.format_columns };
+            if (formatId) formatCache.set(`id:${formatId}`, cached);
+            const type = String(row.import_type || row.seed_source_type || row.source_type || '').trim().toUpperCase();
+            if (type) formatCache.set(type, cached);
+            return cached;
+        }
         if (formatId) {
             const cacheKey = `id:${formatId}`;
             if (formatCache.has(cacheKey)) return formatCache.get(cacheKey);
@@ -4020,6 +4554,25 @@ import '/public/assets/js/components/trash-manager.js';
         const format = formats.find((item) => Number(item.is_default || 0) === 1) || formats[0] || null;
         formatCache.set(type, format);
         return format;
+    }
+
+    async function fetchSeedRowById(id) {
+        const rowId = String(id || '').trim();
+        if (!rowId) return null;
+        const json = await fetchJson(rowsApiUrl({ id: rowId, length: '1' }));
+        const rows = Array.isArray(json.data) ? json.data : [];
+        return rows.find((item) => String(item.id || '') === rowId) || rows[0] || null;
+    }
+
+    function cachedFormatForRow(row = {}) {
+        const formatId = String(row.format_id || row.formatId || '').trim();
+        if (formatId && formatCache.has(`id:${formatId}`)) return formatCache.get(`id:${formatId}`);
+        const type = String(row.import_type || row.seed_source_type || row.source_type || '').trim().toUpperCase();
+        if (type && formatCache.has(type)) return formatCache.get(type);
+        if (Array.isArray(row?.format_columns)) {
+            return { id: formatId, columns: row.format_columns };
+        }
+        return null;
     }
 
     const SOURCE_SYSTEM_FIELD_KEYS = [
@@ -4140,13 +4693,15 @@ import '/public/assets/js/components/trash-manager.js';
             return {
                 key: String(key),
                 label: String(column.excel_column_name || rawObject?.column_name || key).trim(),
-                value: rawObject ? (rawObject.value ?? '') : (value ?? ''),
+                value: sourceRawValue(value),
                 order: Number(column.column_order ?? column.excel_column_index ?? rawObject?.column_index ?? key),
                 columnIndex: Number(column.excel_column_index ?? rawObject?.column_index ?? column.column_order ?? key),
                 systemField: inferSystemField(key, value, column, row),
+                systemFieldGroup: String(column.system_field_group || '').trim(),
                 requirementMode,
                 required: requirementMode === 1,
                 isReference: Number(column.is_reference_column || rawObject?.is_reference_column || 0) === 1,
+                column,
                 meta: rawObject,
             };
         }
@@ -4160,13 +4715,15 @@ import '/public/assets/js/components/trash-manager.js';
             return {
                 key: String(key),
                 label: label || String(key),
-                value: value.value ?? '',
+                value: sourceRawValue(value),
                 order: Number(value.column_index ?? key),
                 columnIndex: Number(value.column_index ?? key),
                 systemField,
+                systemFieldGroup: String(value.system_field_group || '').trim(),
                 requirementMode,
                 required,
                 isReference: Number(value.is_reference_column || 0) === 1,
+                column: null,
                 meta: value,
             };
         }
@@ -4177,11 +4734,105 @@ import '/public/assets/js/components/trash-manager.js';
             order: Number(key),
             columnIndex: Number(key),
             systemField: inferSystemField(key, value, null, row),
+            systemFieldGroup: '',
             requirementMode: 0,
             required: false,
             isReference: false,
+            column: null,
             meta: null,
         };
+    }
+
+    function compareFormatColumns(a, b) {
+        const aOrder = Number(a?.column_order || 0);
+        const bOrder = Number(b?.column_order || 0);
+        const aExcel = Number(a?.excel_column_index || 0);
+        const bExcel = Number(b?.excel_column_index || 0);
+        const aPrimary = aOrder > 0 ? aOrder : aExcel;
+        const bPrimary = bOrder > 0 ? bOrder : bExcel;
+        return (aPrimary - bPrimary) || (aExcel - bExcel);
+    }
+
+    function sourceRawValue(value) {
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+            return value.value ?? value.raw_value ?? value.display_value ?? '';
+        }
+        return value ?? '';
+    }
+
+    function normalizeSourceColumnName(value) {
+        return sourceAliasKey(value);
+    }
+
+    function sourceRawValueForColumn(raw = {}, column = {}) {
+        const keys = sourceColumnAliasKeys(column);
+        const aliasKeys = new Set(keys.map((key) => sourceAliasKey(key)).filter(Boolean));
+        for (const key of keys) {
+            if (Object.prototype.hasOwnProperty.call(raw, key)) {
+                const value = sourceRawValue(raw[key]);
+                if (String(value ?? '').trim() !== '') return value;
+            }
+        }
+
+        const excelName = normalizeSourceColumnName(column.excel_column_name);
+        const systemField = String(column.system_field_name || '').trim();
+        const index = String(column.excel_column_index ?? column.column_order ?? '').trim();
+        for (const [key, value] of Object.entries(raw)) {
+            const rawObject = value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+            const rawColumnName = normalizeSourceColumnName(rawObject?.column_name ?? key);
+            const rawSystemField = String(rawObject?.system_field_name || '').trim();
+            const rawSystemFieldKey = sourceAliasKey(rawSystemField);
+            const rawIndex = String(rawObject?.column_index ?? key).trim();
+            if ((excelName && rawColumnName === excelName)
+                || (rawColumnName && aliasKeys.has(rawColumnName))
+                || (systemField && rawSystemField === systemField)
+                || (rawSystemFieldKey && aliasKeys.has(rawSystemFieldKey))
+                || (index && rawIndex === index)) {
+                const rawValue = sourceRawValue(value);
+                if (String(rawValue ?? '').trim() !== '') return rawValue;
+            }
+        }
+        return '';
+    }
+
+    function sourceDirectRawValueForColumn(raw = {}, column = {}) {
+        const keys = sourceColumnAliasKeys(column);
+        const aliasKeys = new Set(keys.map((key) => sourceAliasKey(key)).filter(Boolean));
+        for (const key of keys) {
+            if (Object.prototype.hasOwnProperty.call(raw, key)) {
+                const value = sourceRawValue(raw[key]);
+                if (String(value ?? '').trim() !== '') return value;
+            }
+        }
+
+        for (const [key, value] of Object.entries(raw)) {
+            const rawObject = value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+            const rawColumnName = normalizeSourceColumnName(rawObject?.column_name ?? key);
+            const rawSystemFieldKey = sourceAliasKey(rawObject?.system_field_name || '');
+            if ((rawColumnName && aliasKeys.has(rawColumnName))
+                || (rawSystemFieldKey && aliasKeys.has(rawSystemFieldKey))) {
+                const rawValue = sourceRawValue(value);
+                if (String(rawValue ?? '').trim() !== '') return rawValue;
+            }
+        }
+
+        return '';
+    }
+
+    function sourceEvidenceFieldValue(row = {}, column = {}) {
+        const payload = mapped(row);
+        const raw = rawPayload(row);
+        const value = firstPayloadValue(payload, sourceColumnAliasKeys(column));
+        if (value !== undefined && value !== null && String(value).trim() !== '') {
+            return value;
+        }
+        return sourceDirectRawValueForColumn(raw, column);
+    }
+
+    function sourceDisplayValueForColumn(row = {}, column = {}, fallback = '') {
+        const rawValue = sourceEvidenceFieldValue(row, column);
+        if (String(rawValue ?? '').trim() !== '') return rawValue;
+        return sourceRawValue(fallback);
     }
 
     function rawValueForColumn(raw, column) {
@@ -4212,52 +4863,70 @@ import '/public/assets/js/components/trash-manager.js';
 
     function sourceEntriesForRow(row = {}, format = null) {
         const raw = rawPayload(row);
-        const payload = mapped(row);
-        const usedKeys = new Set();
         const columns = Array.isArray(format?.columns) ? format.columns.slice() : [];
         const entries = columns
             .filter((column) => !BANK_VOUCHER_LINE_FIELDS.has(String(column.system_field_name || '').trim()))
-            .sort((a, b) => Number(a.column_order || a.excel_column_index || 0) - Number(b.column_order || b.excel_column_index || 0))
+            .sort(compareFormatColumns)
             .map((column) => {
                 const [key, value] = rawValueForColumn(raw, column);
-                usedKeys.add(String(key));
-                return sourceEntry(key, value, column, row);
+                const entry = sourceEntry(key, value, column, row);
+                entry.key = String(column.system_field_name || column.excel_column_name || entry.key || '').trim();
+                entry.value = sourceEvidenceFieldValue(row, column);
+                const refConfig = sourceRefPickerForEntry(entry);
+                if (refConfig) {
+                    const payload = mapped(row);
+                    entry.refId = String(payload[refConfig.idKey] || row?.[refConfig.idKey] || '').trim();
+                    entry.refText = String(
+                        refConfig.picker === 'client'
+                            ? (row?.client_name || payload.client_name || entry.value || '')
+                            : (payload[refConfig.nameKey] || row?.[refConfig.nameKey] || entry.value || '')
+                    ).trim();
+                }
+                return entry;
             });
-
-        Object.entries(raw).forEach(([key, value]) => {
-            if (!usedKeys.has(String(key))) {
-                entries.push(sourceEntry(key, value, null, row));
-            }
-        });
-        if (false && Array.isArray(payload._voucher_lines)) {
-            payload._voucher_lines.forEach((line, index) => {
-                if (!line || typeof line !== 'object' || Array.isArray(line)) return;
-                BANK_VOUCHER_LINE_FIELDS.forEach((field) => {
-                    if (!Object.prototype.hasOwnProperty.call(line, field)) return;
-                    const value = line[field] ?? '';
-                    if (String(value ?? '').trim() === '') return;
-                    entries.push({
-                        key: `voucher_line_${index + 1}_${field}`,
-                        label: `분개라인 ${index + 1} ${legacyReadinessFieldLabel(field)}`,
-                        value,
-                        order: 10000 + (index * 100) + Array.from(BANK_VOUCHER_LINE_FIELDS).indexOf(field),
-                        columnIndex: '',
-                        systemField: field,
-                        required: ['header_row_no', 'account_id'].includes(field),
-                        meta: line,
-                    });
-                });
-            });
-        }
         return entries;
     }
 
     function sourceFieldInputType(label, value, key = '') {
         const text = String(value ?? '');
         const kind = inputValueKind(key, label);
-        if (['amount', 'date', 'datetime', 'time'].includes(kind)) return kind;
+        if (['amount', 'business-number', 'phone', 'date', 'datetime', 'time'].includes(kind)) return kind;
         if (text.length > 80 || /memo|note|description|비고|메모|적요/i.test(label)) return 'textarea';
         return 'text';
+    }
+
+    function sourceRefPickerForEntry(entry = {}) {
+        return evidenceRefPickerForColumnLike({
+            system_field_name: entry.systemField,
+            excel_column_name: entry.label,
+            key: entry.key,
+        });
+    }
+
+    function sourceRefOptionHtml(entry = {}, config = null) {
+        const value = String(entry.refId || entry.value || '').trim();
+        const text = String(entry.refText || entry.value || value).trim();
+        if (value === '' && text === '') return '<option value=""></option>';
+        return `<option value="${escapeHtml(value || text)}" selected>${escapeHtml(text || value)}</option>`;
+    }
+
+    function sourceInfoColumnTone(entry = {}) {
+        const column = entry.column || {};
+        const group = String(column.system_field_group || entry.systemFieldGroup || '').trim();
+        if (group.includes('기준정보')) return 'standard';
+        if (group.includes('기초정보')) return 'basic';
+        if (group !== '') return '';
+        if (Number(column.is_reference_column || entry.isReference || 0) === 1 && sourceRefPickerForEntry(entry)) return 'basic';
+
+        const field = String(entry.systemField || column.system_field_name || '').trim();
+        const title = String(entry.label || column.excel_column_name || '').trim().replace(/\s+/g, '');
+        const standardFields = new Set(['business_unit', 'transaction_type', 'transaction_direction']);
+        const standardTitles = new Set(['사업구분', '거래유형']);
+        if (standardFields.has(field) || standardTitles.has(title) || !!readinessFieldConfig(field).codeGroup) return 'standard';
+
+        const basicFields = new Set(['client_name', 'project_name', 'employee_name', 'bank_account_name', 'card_name']);
+        const basicTitles = new Set(['사업구분', '거래유형', '거래처명', '거래처', '프로젝트명', '프로젝트', '직원명', '직원', '계좌명', '계좌', '카드명', '카드']);
+        return basicFields.has(field) || basicTitles.has(title) || !!sourceRefPickerForEntry(entry) ? 'basic' : '';
     }
 
     function restoreUnmatchedSourceCodeSelects(modal) {
@@ -4277,6 +4946,10 @@ import '/public/assets/js/components/trash-manager.js';
         });
     }
 
+    function initSourceRefSelect(select, modal) {
+        initEvidenceRefSelect(select, { modal, api: API });
+    }
+
     function sourceFieldHtml(entry, editable = true) {
         const safeKey = escapeHtml(entry.key);
         const safeLabel = escapeHtml(entry.label);
@@ -4285,6 +4958,7 @@ import '/public/assets/js/components/trash-manager.js';
         const type = sourceFieldInputType(entry.label, entry.value, entry.systemField || entry.key);
         const safeValue = escapeHtml(valueForInput(type, entry.value));
         const config = readinessFieldConfig(entry.systemField || '');
+        const refConfig = editable ? sourceRefPickerForEntry(entry) : null;
         const requirementMode = Number(entry.requirementMode || 0);
         const requirementStar = requirementMode === 1
             ? '<span class="readiness-required-star">*</span>'
@@ -4294,10 +4968,35 @@ import '/public/assets/js/components/trash-manager.js';
             ? `<span class="readiness-source-system-field">${safeSystemField}</span>`
             : '<span class="readiness-source-system-field text-danger">system_field_name 없음</span>';
         const labelTitle = [entry.label, entry.required ? '필수' : '', entry.systemField].filter(Boolean).join(' ');
+        const infoTone = sourceInfoColumnTone(entry);
+        const infoToneClass = infoTone ? ` evidence-edit-field-${infoTone}` : '';
         let control = '';
         const lockAttrs = editable ? '' : ' readonly aria-readonly="true" tabindex="-1"';
+        const inputMode = {
+            amount: 'decimal',
+            'business-number': 'numeric',
+            phone: 'tel',
+        }[type] || '';
         const sourceAttrs = `class="form-control form-control-sm readiness-source-input ${type === 'amount' ? 'number-input' : ''}" data-source-key="${safeKey}" data-source-column-name="${safeLabel}" data-source-column-index="${escapeHtml(safeColumnIndex)}" data-source-system-field="${safeSystemField}" data-source-required="${requirementMode}" data-value-kind="${escapeHtml(type)}"${lockAttrs}`;
-        if (editable && config.kind === 'code' && config.codeGroup) {
+        if (editable && refConfig) {
+            control = `
+                <select class="form-select form-select-sm readiness-source-input readiness-source-ref"
+                        data-source-key="${safeKey}"
+                        data-source-column-name="${safeLabel}"
+                        data-source-column-index="${escapeHtml(safeColumnIndex)}"
+                        data-source-system-field="${safeSystemField}"
+                        data-source-required="${requirementMode}"
+                        data-value-kind="ref"
+                        data-ref-picker="${escapeHtml(refConfig.picker)}"
+                        data-ref-id-key="${escapeHtml(refConfig.idKey || '')}"
+                        data-ref-name-key="${escapeHtml(refConfig.nameKey || entry.systemField || entry.key || '')}"
+                        data-ref-allow-text="${refConfig.allowText ? '1' : '0'}"
+                        data-ref-current-text="${safeValue}"
+                        data-ref-current-text-only="${entry.refId ? '0' : '1'}">
+                    ${sourceRefOptionHtml(entry, refConfig)}
+                </select>
+            `;
+        } else if (editable && config.kind === 'code' && config.codeGroup) {
             control = `
                 <select class="form-select form-select-sm readiness-source-input"
                         data-source-key="${safeKey}"
@@ -4328,10 +5027,10 @@ import '/public/assets/js/components/trash-manager.js';
                 </div>
             `;
         } else {
-            control = `<input type="text" ${sourceAttrs} value="${safeValue}" ${type === 'amount' ? 'inputmode="decimal"' : ''}>`;
+            control = `<input type="text" ${sourceAttrs} value="${safeValue}" ${inputMode ? `inputmode="${escapeHtml(inputMode)}"` : ''}>`;
         }
         return `
-            <label class="readiness-source-field${entry.isReference ? ' readiness-source-field-reference' : ''}">
+            <label class="readiness-source-field evidence-edit-field${infoToneClass}">
                 <span class="form-label small mb-1 readiness-source-label" title="${escapeHtml(labelTitle)}">
                     <span>${safeLabel}${requirementStar}</span>
                     ${requiredBadge}
@@ -4346,8 +5045,7 @@ import '/public/assets/js/components/trash-manager.js';
         const container = document.getElementById('seedRowSourceFields');
         if (!container) return;
         const entries = sourceEntriesForRow(row, format);
-        const voucherLinesHtml = sourceVoucherLinesHtml(mapped(row));
-        if (entries.length === 0 && voucherLinesHtml === '') {
+        if (entries.length === 0) {
             container.innerHTML = '<div class="text-muted small py-3 text-center">표시할 원본 데이터가 없습니다.</div>';
             return;
         }
@@ -4364,7 +5062,7 @@ import '/public/assets/js/components/trash-manager.js';
             .map((entry) => sourceFieldHtml(entry, editable))
             .join('')
             : '';
-        container.innerHTML = sourceFieldsHtml + voucherLinesHtml;
+        container.innerHTML = sourceFieldsHtml;
 
         initReadinessValueInputs(document.getElementById('seedRowReadinessModal'));
     }
@@ -4405,13 +5103,17 @@ import '/public/assets/js/components/trash-manager.js';
         const summary = modal.querySelector('#seedRowReadinessSummary');
         const tabs = modal.querySelector('#seedRowReadinessTabs');
         const payload = mapped(row);
-        const messages = correctionIssueItems(row).map((item) => item.message);
+        const validationRow = Array.isArray(format?.columns)
+            ? { ...row, format_columns: format.columns }
+            : row;
+        const correctionItems = correctionIssueItems(validationRow);
+        const hasCorrectionAlert = correctionItems.length > 0;
         const stages = readinessStageDefinitions(row);
 
         modal.dataset.rowId = row.id || '';
         modal.dataset.mode = row.__isNew ? 'create' : 'edit';
         modal.dataset.formatId = String(format?.id || row.format_id || '');
-        modal.__readinessRow = row.__isNew ? row : null;
+        modal.__readinessRow = row;
         configureReadinessCreateButtons(modal, row);
         if (subtitle) {
             subtitle.textContent = row.__isNew
@@ -4440,25 +5142,23 @@ import '/public/assets/js/components/trash-manager.js';
                     <strong>${transactionCreateStatusBadge(row)}</strong>
                 </div>
                 <div class="readiness-summary-item">
-                    <span>전표생성상태</span>
-                    <strong>${voucherCreateStatusBadge(row)}</strong>
+                    <span>전표발행상태</span>
+                    <strong>${voucherCreateStatusControlHtml(row)}</strong>
                 </div>
             `;
         }
         if (alerts) {
             alerts.innerHTML = row.__isNew
                 ? '<div class="alert alert-info py-2 mb-0">양식을 선택한 뒤 원본 항목을 입력하고 저장하세요.</div>'
-                : (messages.length
+                : (hasCorrectionAlert
                 ? `
                     <details class="readiness-correction-panel">
                         <summary>
                             <span class="badge text-bg-warning">보정 필요</span>
-                            <strong data-correction-count>${messages.length}개 항목</strong>
+                            <strong data-correction-count>${correctionItems.length}개 항목</strong>
                         </summary>
                         <div class="readiness-correction-body">
-                            <ol>
-                                ${correctionIssueLinksHtml(row)}
-                            </ol>
+                            <ol class="readiness-correction-list">${correctionIssueLinksHtml(validationRow)}</ol>
                         </div>
                     </details>
                 `
@@ -4504,7 +5204,6 @@ import '/public/assets/js/components/trash-manager.js';
         renderSourceFields(row, format);
         setSourcePaneVisible(true);
         pruneResolvedCorrectionLinks(modal);
-        void hydrateSourceVoucherLineLabels(modal);
 
         return modal;
     }
@@ -4529,13 +5228,14 @@ import '/public/assets/js/components/trash-manager.js';
                 bank_account_id: 'bank_account_name',
                 card_id: 'card_name',
             }[key];
-            const selectedText = input.tagName === 'SELECT'
-                ? String(input.options[input.selectedIndex]?.text || '').trim()
-                : '';
-            if (nameKey && selectedText !== '' && selectedText !== '선택(없음)' && selectedText !== '직접 선택') {
+            const selectedText = selectedTextForSave(input);
+            if (nameKey && selectedText !== '') {
                 next[nameKey] = selectedText;
             }
-            if (key === 'bank_account_name' && input.dataset.readinessPicker === 'bankAccount' && selectedText !== '' && selectedText !== '선택(없음)') {
+            if (nameKey && String(value || '').trim() === '') {
+                next[nameKey] = '';
+            }
+            if (key === 'bank_account_name' && input.dataset.readinessPicker === 'bankAccount' && selectedText !== '') {
                 const selectedMeta = readinessPickerMeta.get(input) || {};
                 next.bank_account_id = value;
                 next.bank_account_name = selectedMeta.account_name || selectedText;
@@ -4550,14 +5250,47 @@ import '/public/assets/js/components/trash-manager.js';
             return null;
         }
         serializeTransactionLinesFromModal(modal, next);
+        const derivedAdjustment = derivedAdjustmentAmount(next);
+        if (derivedAdjustment !== '') {
+            next.adjustment_amount = derivedAdjustment;
+        }
+        const headerTotal = numericValue(next.total_amount);
+        const lineTotal = transactionLineTotalAmount(next._transaction_lines || []);
+        if ((next._transaction_lines || []).length > 0 && headerTotal !== null && Math.abs(headerTotal - lineTotal) >= 0.01) {
+            notify('error', `거래라인 합계금액(${formatNumber(lineTotal)})과 거래헤더 합계금액(${formatNumber(headerTotal)})이 일치하지 않습니다.`);
+            focusReadinessTarget(modal, modal.querySelector('[data-readiness-transaction-line-grid]'));
+            return null;
+        }
         serializeTransactionFilesFromModal(modal, next);
         serializeBankPaymentsFromModal(modal, next);
         modal.querySelectorAll('[data-source-key]').forEach((input) => {
             const key = input.dataset.sourceKey;
-            const value = valueForSave(input);
+            let value = valueForSave(input);
             if (!key) return;
             const mappedKey = String(input.dataset.sourceSystemField || '').trim()
                 || (/^[a-z][a-z0-9_]*$/i.test(key) && !String(key).startsWith('_') ? key : '');
+            if (input.dataset.valueKind === 'ref') {
+                const idKey = input.dataset.refIdKey || '';
+                const nameKey = input.dataset.refNameKey || mappedKey || key;
+                const allowsText = input.dataset.refAllowText === '1';
+                const selectedId = String(input.value || '').trim();
+                const selectedOption = input.selectedOptions?.[0] || null;
+                let selectedText = String(
+                    input.dataset.refSelectedText
+                    || selectedOption?.textContent
+                    || input.dataset.refCurrentText
+                    || ''
+                ).trim();
+                const isTextOnlyInitialValue = input.dataset.refCurrentTextOnly === '1'
+                    && selectedId !== ''
+                    && selectedId === String(input.dataset.refCurrentText || '').trim();
+                const isFreeTextSelection = allowsText && selectedId !== '' && selectedText !== '' && selectedId === selectedText;
+                if (selectedId === '' || isEmptySelectionLabel(selectedText)) selectedText = '';
+                value = selectedText;
+                if (nameKey) next[nameKey] = selectedText;
+                if (mappedKey) next[mappedKey] = selectedText;
+                if (idKey) next[idKey] = selectedId !== '' && !isTextOnlyInitialValue && !isFreeTextSelection ? selectedId : '';
+            }
             if (mappedKey) {
                 next[mappedKey] = value;
             }
@@ -4580,6 +5313,10 @@ import '/public/assets/js/components/trash-manager.js';
         });
 
         const originalText = button?.textContent || '저장';
+        if (!validateBusinessProjectRule(next, modal)) {
+            return null;
+        }
+
         if (button) {
             button.disabled = true;
             button.textContent = '저장 중';
@@ -4592,7 +5329,11 @@ import '/public/assets/js/components/trash-manager.js';
             });
             notify('success', '수정사항을 저장했습니다.');
             if (hide) bootstrap.Modal.getOrCreateInstance(modal).hide();
-            if (reload) reloadRows();
+            if (json?.data && updateSeedRowInTable(rowId, json.data)) {
+                modal.dataset.rowPayload = JSON.stringify(json.data.mapped_payload || next);
+            } else if (reload) {
+                reloadRows();
+            }
             return json;
         } finally {
             if (button) {
@@ -4677,17 +5418,47 @@ import '/public/assets/js/components/trash-manager.js';
         }
     }
 
-    function openReadinessModal(row) {
+    async function openReadinessModal(row) {
         if (!row?.id) return;
-        const modal = renderReadinessModal(row);
-        bootstrap.Modal.getOrCreateInstance(modal, { focus: false }).show();
-        void initReadinessModalControls(modal).catch((error) => notify('error', error.message));
-        void loadFormatForRow(row)
-            .then(async (format) => {
-                renderReadinessModal(row, format);
-                await initReadinessModalControls(modal);
-            })
-            .catch((error) => notify('error', error.message));
+        try {
+            const initialFormat = cachedFormatForRow(row);
+            const initialRow = Array.isArray(initialFormat?.columns)
+                ? { ...row, format_columns: initialFormat.columns }
+                : row;
+            const modal = renderReadinessModal(initialRow, initialFormat);
+            bootstrap.Modal.getOrCreateInstance(modal, { focus: false }).show();
+            const initialInit = initReadinessModalControls(modal).catch((error) => notify('error', error.message));
+
+            const [freshRowResult, formatResult] = await Promise.allSettled([
+                fetchSeedRowById(row.id),
+                loadFormatForRow(row),
+            ]);
+            const freshRow = freshRowResult.status === 'fulfilled' && freshRowResult.value
+                ? freshRowResult.value
+                : row;
+            const format = formatResult.status === 'fulfilled'
+                ? formatResult.value
+                : initialFormat;
+            const hydratedRow = Array.isArray(format?.columns)
+                ? { ...freshRow, format_columns: format.columns }
+                : freshRow;
+            const tableRow = (evidenceTable?.rows().data().toArray() || [])
+                .find((item) => String(item.id) === String(hydratedRow.id));
+            if (tableRow) {
+                Object.assign(tableRow, hydratedRow);
+                evidenceTable.rows().invalidate('data').draw(false);
+                updateSummary(evidenceTable.rows().data().toArray());
+            }
+
+            await initialInit;
+            if (String(modal.dataset.rowId || '') !== String(row.id || '') || !modal.classList.contains('show')) {
+                return;
+            }
+            renderReadinessModal(hydratedRow, format);
+            await initReadinessModalControls(modal);
+        } catch (error) {
+            notify('error', error.message);
+        }
     }
 
     function buildLegacyColumns() {
@@ -4705,16 +5476,20 @@ import '/public/assets/js/components/trash-manager.js';
                 data: 'row_no',
                 title: '순번',
                 className: 'text-center text-nowrap',
-                render(value, _type, _row, meta) {
-                    return escapeHtml(value || (meta.row + meta.settings._iDisplayStart + 1));
+                render(value, type, _row, meta) {
+                    const display = value || (meta.row + meta.settings._iDisplayStart + 1);
+                    if (type === 'sort' || type === 'type') {
+                        return numericSequenceValue(display);
+                    }
+                    return escapeHtml(display);
                 },
             },
             { data: 'process_status', title: '상태', visible: false, className: 'text-nowrap', render: (_value, _type, row) => statusBadge(normalizedStatus(row)) },
             { data: 'source_type', title: '자료출처', className: 'text-nowrap seed-compact-cell seed-source-cell', render: (value, _type, row) => labelBadge(row.source_type_name || importSourceLabel(value)) },
             { data: 'import_type', title: '자료유형', className: 'text-nowrap seed-compact-cell seed-type-cell', render: (value, _type, row) => labelBadge(row.import_type_name || importTypeLabel(value || row.seed_source_type)) },
+            { data: null, title: '증빙상태', className: 'text-nowrap seed-compact-cell seed-status-cell', render: (_value, _type, row) => evidenceStatusBadge(row) },
             { data: null, title: '거래생성상태', className: 'text-nowrap seed-compact-cell', render: (_value, _type, row) => transactionCreateStatusBadge(row) },
-            { data: 'voucher_status', title: '전표생성상태', className: 'text-nowrap seed-compact-cell', render: (_value, _type, row) => voucherCreateStatusBadge(row) },
-            { data: null, title: '보정필요', className: 'text-nowrap seed-missing-summary-cell seed-correction-cell', render: (_value, _type, row) => correctionMissingSummary(row) },
+            { data: 'voucher_status', title: '전표발행상태', className: 'text-nowrap seed-compact-cell', render: (_value, _type, row) => voucherCreateStatusBadge(row) },
             { data: 'processing_type', title: '처리방식', visible: false, className: 'text-nowrap', render: (_value, _type, row) => labelBadge(processingLabel(row)) },
             { data: 'source_type', title: '자료출처', className: 'text-nowrap', render: (value, _type, row) => labelBadge(row.source_type_name || importSourceLabel(value)) },
             { data: 'import_type', title: '자료유형', className: 'text-nowrap', render: (value, _type, row) => labelBadge(row.import_type_name || importTypeLabel(value || row.seed_source_type)) },
@@ -4754,8 +5529,12 @@ import '/public/assets/js/components/trash-manager.js';
                 data: 'row_no',
                 title: '순번',
                 className: 'text-center text-nowrap',
-                render(value, _type, _row, meta) {
-                    return escapeHtml(value || (meta.row + meta.settings._iDisplayStart + 1));
+                render(value, type, _row, meta) {
+                    const display = value || (meta.row + meta.settings._iDisplayStart + 1);
+                    if (type === 'sort' || type === 'type') {
+                        return numericSequenceValue(display);
+                    }
+                    return escapeHtml(display);
                 },
             },
             { data: null, title: '표준일자', className: 'text-nowrap seed-compact-cell', render: (_value, _type, row) => escapeHtml(formatDate(standardDate(row))) },
@@ -4768,8 +5547,7 @@ import '/public/assets/js/components/trash-manager.js';
             { data: null, title: '프로젝트', className: 'text-nowrap seed-compact-cell seed-name-cell', render: (_value, _type, row) => `<span title="${escapeHtml(rowProjectName(row))}">${escapeHtml(rowProjectName(row) || '-')}</span>` },
             { data: null, title: '증빙상태', className: 'text-nowrap seed-compact-cell seed-status-cell', render: (_value, _type, row) => evidenceStatusBadge(row) },
             { data: null, title: '거래생성상태', className: 'text-nowrap seed-compact-cell', render: (_value, _type, row) => transactionCreateStatusBadge(row) },
-            { data: 'voucher_status', title: '전표생성상태', className: 'text-nowrap seed-compact-cell', render: (_value, _type, row) => voucherCreateStatusBadge(row) },
-            { data: null, title: '보정필요', className: 'text-nowrap seed-missing-summary-cell seed-correction-cell', render: (_value, _type, row) => correctionMissingSummary(row) },
+            { data: 'voucher_status', title: '전표발행상태', className: 'text-nowrap seed-compact-cell', render: (_value, _type, row) => voucherCreateStatusBadge(row) },
             {
                 data: null,
                 title: '관리',
@@ -4799,6 +5577,8 @@ import '/public/assets/js/components/trash-manager.js';
     async function updateTrashButtonState() {
         const button = document.querySelector('.seed-rows-trash-btn');
         if (!button) return;
+        if (trashStatePromise) return trashStatePromise;
+        trashStatePromise = (async () => {
         try {
             const res = await fetch(API.trash, { credentials: 'same-origin' });
             const json = await res.json();
@@ -4810,7 +5590,11 @@ import '/public/assets/js/components/trash-manager.js';
             button.title = hasTrash ? `휴지통 ${rows.length}건` : '휴지통';
         } catch (error) {
             console.error('[data-create] trash state failed:', error);
+        } finally {
+            trashStatePromise = null;
         }
+        })();
+        return trashStatePromise;
     }
 
     function markTrashButtonHasData(count = 1) {
@@ -4925,12 +5709,6 @@ import '/public/assets/js/components/trash-manager.js';
         });
 
         document.addEventListener('change', (event) => {
-            const foreignToggle = event.target.closest('#seedRowReadinessModal [data-readiness-foreign-toggle]');
-            if (foreignToggle) {
-                syncReadinessTransactionPanels(foreignToggle.closest('#seedRowReadinessModal'));
-                return;
-            }
-
             const fileToggle = event.target.closest('#seedRowReadinessModal [data-readiness-file-toggle]');
             if (fileToggle) {
                 const modal = fileToggle.closest('#seedRowReadinessModal');
@@ -4993,6 +5771,11 @@ import '/public/assets/js/components/trash-manager.js';
         });
 
         document.addEventListener('change', (event) => {
+            const amountInput = event.target.closest('#seedRowReadinessModal [data-readiness-key="supply_amount"], #seedRowReadinessModal [data-readiness-key="total_amount"]');
+            if (amountInput) {
+                syncReadinessAdjustmentAmount(amountInput.closest('#seedRowReadinessModal'));
+            }
+
             const typeSelect = event.target.closest('#seedRowReadinessModal [data-bank-payment-type]');
             if (!typeSelect) return;
             const row = typeSelect.closest('tr[data-bank-payment-row]');
@@ -5009,6 +5792,12 @@ import '/public/assets/js/components/trash-manager.js';
             void initReadinessModalControls(modal).catch((error) => notify('error', error.message));
         });
 
+        document.addEventListener('input', (event) => {
+            const amountInput = event.target.closest('#seedRowReadinessModal [data-readiness-key="supply_amount"], #seedRowReadinessModal [data-readiness-key="total_amount"]');
+            if (!amountInput) return;
+            syncReadinessAdjustmentAmount(amountInput.closest('#seedRowReadinessModal'));
+        });
+
         document.addEventListener('click', (event) => {
             const dropzone = event.target.closest('#seedRowReadinessModal [data-readiness-file-dropzone]');
             if (!dropzone) return;
@@ -5016,8 +5805,14 @@ import '/public/assets/js/components/trash-manager.js';
         });
 
         document.addEventListener('click', (event) => {
+            const addHeader = event.target.closest('#seedRowReadinessModal .transaction-line-ag-grid .ag-header-cell[col-id="__actions"]');
+            if (addHeader) {
+                addReadinessTransactionLine(addHeader.closest('#seedRowReadinessModal'));
+                return;
+            }
+
             const applyButton = event.target.closest('#seedRowReadinessModal .transaction-line-recommend-apply-btn');
-            if (!applyButton || !readinessTransactionLineHot) return;
+            if (!applyButton || !readinessTransactionLineGrid) return;
             let lines = [];
             try {
                 lines = JSON.parse(decodeURIComponent(applyButton.dataset.recommendation || '[]'));
@@ -5025,8 +5820,9 @@ import '/public/assets/js/components/trash-manager.js';
                 notify('error', '추천거래 정보를 읽을 수 없습니다.');
                 return;
             }
-            readinessTransactionLineHot.loadData(lines.map((line) => normalizeTransactionLine(line, {})));
-            readinessTransactionLineHot.render();
+            readinessTransactionLineGrid.loadData(lines.map((line) => normalizeTransactionLine(line, {})));
+            syncReadinessTransactionPanels(applyButton.closest('#seedRowReadinessModal'));
+            readinessTransactionLineGrid.render();
             syncReadinessTransactionLineTotal(applyButton.closest('#seedRowReadinessModal'));
         });
 
@@ -5118,7 +5914,7 @@ import '/public/assets/js/components/trash-manager.js';
             });
             if (stageId === 'transaction') {
                 window.requestAnimationFrame(() => {
-                    readinessTransactionLineHot?.render();
+                    readinessTransactionLineGrid?.render();
                     syncReadinessTransactionLineTotal(modal);
                 });
             }
@@ -5171,13 +5967,35 @@ import '/public/assets/js/components/trash-manager.js';
         }
     }
 
+    async function createSelectedBundledVoucher(button) {
+        const ids = selectedBundleVoucherIds();
+        if (ids.length < 2) {
+            notify('warning', '묶음전표발행은 전표발행 가능한 자료를 2건 이상 선택해주세요.');
+            return;
+        }
+
+        isCreating = true;
+        updateButtons();
+        const originalText = button?.textContent || '묶음전표발행';
+        if (button) button.textContent = '발행 중';
+        try {
+            const json = await requestCreateTransactions(ids, { bundled_voucher: true });
+            notify('success', json.message || '선택한 자료의 묶음전표를 발행했습니다.');
+        } finally {
+            isCreating = false;
+            if (button) button.textContent = originalText;
+            reloadRows();
+        }
+    }
+
     function initTable() {
         registerTypeFilterSearch();
 
         evidenceTable = createDataTable({
             tableSelector: '#seedRowsTable',
-            api: API.rows,
+            api: rowsApiUrl(),
             pageLength: 100,
+            serverSide: true,
             defaultOrder: [[1, 'asc']],
             scrollX: true,
             autoWidth: false,
@@ -5186,10 +6004,24 @@ import '/public/assets/js/components/trash-manager.js';
             bulkDelete: true,
             columns: buildColumns(),
             isRowSelectable: isSelectableForBulk,
+            ajaxData(request) {
+                const next = { ...request };
+                if (selectedTypeFilter) next.import_type = selectedTypeFilter;
+                const statusFilter = serverStatusFilterValue();
+                if (statusFilter) next.process_status = statusFilter;
+                return next;
+            },
             dataSrc(json) {
                 const rows = Array.isArray(json.data) ? json.data : [];
                 updateSummary(rows);
-                void refreshSeedRowsTypeCounts();
+                if (Number.isFinite(Number(json.recordsTotal))) {
+                    const el = document.querySelector('[data-seed-summary="total"]');
+                    if (el) {
+                        const label = el.dataset.seedSummaryLabel || '';
+                        const countText = `${Number(json.recordsTotal || 0).toLocaleString('ko-KR')}嫄?`;
+                        el.textContent = label ? `${label} ${countText}` : countText;
+                    }
+                }
                 return rows;
             },
             buttons: [
@@ -5198,6 +6030,13 @@ import '/public/assets/js/components/trash-manager.js';
                     className: 'btn btn-success btn-sm btn-create-selected-evidences',
                     action: (_event, _dt, node) => {
                         void createSelectedTransactions(node?.get(0)).catch((error) => notify('error', error.message));
+                    },
+                },
+                {
+                    text: '묶음전표발행',
+                    className: 'btn btn-outline-success btn-sm btn-create-bundled-voucher',
+                    action: (_event, _dt, node) => {
+                        void createSelectedBundledVoucher(node?.get(0)).catch((error) => notify('error', error.message));
                     },
                 },
                 {
@@ -5211,15 +6050,13 @@ import '/public/assets/js/components/trash-manager.js';
         evidenceTable.on('draw.dt xhr.dt', () => {
             updateButtons();
             updateSummary(evidenceTable?.rows().data().toArray() || []);
-            void updateTrashButtonState();
         });
 
         SearchForm({
             table: evidenceTable,
-            apiList: API.rows,
+            apiList: rowsApiUrl(),
             tableId: 'seedRows',
             defaultSearchField: 'client_name',
-            initialCollapsed: true,
             dateOptions: [
                 { value: 'mapped_payload.transaction_date', label: '거래일자' },
                 { value: 'created_at', label: '생성시간' },
@@ -5233,7 +6070,7 @@ import '/public/assets/js/components/trash-manager.js';
             api: API.reorder,
             sortNoField: 'row_no',
             includeAppliedRows: true,
-            extraData: () => ({ scope: 'create' }),
+            extraData: () => ({ scope: 'create', sequence_scope: 'create' }),
             onSuccess(json) {
                 notify('success', json?.message || '생성센터 순서가 변경되었습니다.');
                 evidenceTable?.ajax.reload(null, false);
@@ -5246,6 +6083,7 @@ import '/public/assets/js/components/trash-manager.js';
 
         bindEvents();
         updateButtons();
+        void refreshSeedRowsTypeCounts();
         void updateTrashButtonState();
     }
 
@@ -5267,7 +6105,11 @@ import '/public/assets/js/components/trash-manager.js';
         `;
     };
 
-    loadDisplayCodeOptions()
-        .catch((error) => console.warn('[dataCreate] code labels failed', error))
-        .finally(initTable);
+    initTable();
+    void loadDisplayCodeOptions()
+        .then(() => {
+            updateSummary(evidenceTable?.rows().data().toArray() || []);
+            evidenceTable?.rows().invalidate('data').draw(false);
+        })
+        .catch((error) => console.warn('[dataCreate] code labels failed', error));
 })();
