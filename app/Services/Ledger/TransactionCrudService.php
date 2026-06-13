@@ -398,11 +398,14 @@ class TransactionCrudService
         }
 
         $stmt = $this->pdo->prepare("
-            SELECT id, evidence_date, mapped_payload_json
-            FROM ledger_data_evidences
-            WHERE source_type = :source_type
-              AND deleted_at IS NULL
-              AND transaction_status NOT IN ('NONE', 'PROCESSING', 'ERROR', 'DUPLICATED')
+            SELECT e.id, e.evidence_date, p.mapped_payload_json
+            FROM ledger_data_evidences e
+            JOIN ledger_evidence_payloads p
+              ON p.evidence_type = e.source_type COLLATE utf8mb4_unicode_ci
+             AND p.evidence_id = e.id COLLATE utf8mb4_unicode_ci
+            WHERE e.source_type = :source_type
+              AND e.deleted_at IS NULL
+              AND e.transaction_status NOT IN ('NONE', 'PROCESSING', 'ERROR', 'DUPLICATED')
         ");
         $stmt->execute([':source_type' => $importType]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];

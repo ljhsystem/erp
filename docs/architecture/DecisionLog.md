@@ -1,0 +1,81 @@
+# Decision Log
+
+- 2026-06-05: Employee sequence SSOT fixed to `user_employees.sort_no`
+  - Why: `auth_users.sort_no` is already used as account code in approval mail/token and account lookup flows, while employee list ordering, reorder, and external `employee_code` flows use `user_employees.sort_no`.
+  - Impact: employee UI/docs must not interpret `auth_users.sort_no` as employee sequence; `user_sort_no` remains optional account-code metadata only.
+
+- 2026-06-04: `BundledVoucherService` split phase 1
+  - Scope: `createBundledVoucherFromEvidenceRows`, `tagBundledVoucher`
+  - Reused services/helpers: `VoucherCreateService`, `VoucherPolicyService`, `VoucherService`, `EvidenceRuleEngineService`, `EvidenceBankHelperService`, `EvidencePayloadNormalizeService`, `EvidenceStatusHelperService`
+
+- 2026-06-04: `EvidenceUploadParserService` ?釉뚯뫊??1嶺?  - ?뺢퀡??? `parseUploadedRows`, `parseUploadedBankWorkbook`, `parseSheetMappedRows`, `loadUploadedSpreadsheet`
+  - ????helper: `hasBankVoucherLineColumns`, `bankLineSheetHasRowTypeColumn`, `normalizeBankVoucherLineRowType`, `uploadHeaderColumnsByName`, `uploadSheetColumnForFormatColumn`, `payloadKeyFromExcelColumn`, `detectCsvEncoding`
+  - ??戮곕뇶: `storeUploadBatch`, `enrichUploadRows`, `validatePreviewRowsV2`, `assertNoUploadValidationErrors`
+- 2026-06-04: `EvidenceBatchSaveService` ?釉뚯뫊??1嶺?  - ?뺢퀡??? `commitUploadChunkIfNeeded`, `uploadStatusFromValidation`, `assignEvidenceJsonSortNo`, `nextEvidenceJsonSortNo`
+  - ??戮곕뇶: `storeUploadBatch`
+- 2026-06-04: `EvidenceBatchSaveService` ?筌먦끉??2嶺?  - ?뺢퀡??? validation/status 繞벿뮻?? duplicate lookup ??臾먮쫭, payload build, persist parameter assembly
+  - ??戮곕뇶: `storeUploadBatch` 嶺뚣끉裕뉑묾??嶺뚯쉳???? transaction ?롪퍔??? schema ensure, bank side effect
+
+- 2026-06-04: `VoucherPolicyService` ?브쑬??1筌?  - 甕곕뗄?? `applyEvidenceRefsToVoucherLines`, `missingRequiredEvidenceRefsMessage`, `lineHasRefType`, `evidenceRefIdForType`, `voucherRefPoliciesForAccount`, `policyRefTypeFromRow`, `policyRefTypeFromSubPolicy`, `resolveLedgerAccountId`, `voucherRefTypeLabel`, `normalizeVoucherRefType`, `normalizeAccountInput`
+  - ??뽰뇚: `createVoucherFromBankPayload`, `createBundledVoucherFromEvidenceRows`, `tagBundledVoucher`
+
+- 2026-06-04: `VoucherCreateService` 遺꾨━ 1李?  - 踰붿쐞: `createVoucherFromBankPayload`, existing voucher check 4媛? bank voucher line/payment build 5媛? voucher link/status helper 4媛?  - ?쒖쇅: `createBundledVoucherFromEvidenceRows`, `tagBundledVoucher`, learning helper
+- 2026-06-04: `TransactionPayloadBuildService` split phase 1
+  - Scope: `buildTransactionCreatePayload`, `transactionLinePayloadsForUpload`, `oneSetTransactionLine`, `shouldRetryTransactionHeaderOnly`
+  - Helpers kept as callbacks: `amountOrNull`, `normalizeDataType`, `dateValue`, `businessRefIdForStorage`, `normalizeBankTransactionPayload`, `transactionDirectionForStorage`, `businessUnitForUpload`
+- 2026-06-04: `Template/Format` split phase 1
+  - Added: `EvidenceTemplateService`, `EvidenceTemplateDropdownService`, `EvidenceFormatMappingService`
+  - Scope: template download/fill/spec/sample, template dropdown build/apply, format lookup/mapping
+  - Kept in controller: `apiTemplate`, `apiFieldOptions` entrypoints only
+- 2026-06-04: `EvidenceBusinessRefService` split phase 1
+  - Scope: `businessRefIdForStorage`, `businessRefNameForStorage`, `businessRefCandidateValues`, `isEmptySelectionLabel`, `normalizeBusinessRefPayload`, `businessRefPayloadKeyMap`
+  - Reused helpers: `EvidenceReferenceResolverService`, `VoucherPolicyService`, `payloadScalarForStorage`
+- 2026-06-04: `EvidenceClientSyncService` split phase 1
+  - Scope: tax invoice client sync, import client sync, client upsert/update helper, import party/name normalization
+  - Reused helpers: `normalizeBusinessNumber`, `cleanCompanyName`, `normalizeCompanyNameForCompare`, `payloadScalarForStorage`
+- 2026-06-04: `EvidenceBankHelperService` split phase 1
+  - Scope: bank payload normalize, bank evidence sync, bank transaction upsert, bank voucher validation helper
+  - Reused services/helpers: `EvidenceReferenceResolverService`, `EvidenceTransactionContextService`, `VoucherCreateService`, `EvidenceBusinessRefService`
+- 2026-06-04: `EvidenceStatusHelperService` split phase 1
+  - Scope: readiness apply helper, active output detection, transaction/voucher existence helper, evidence status SQL helper
+  - Reused services/helpers: `EvidenceRuleEngineService`, `VoucherCreateService`, `EvidenceBankHelperService`
+- 2026-06-04: `EvidencePayloadHelperService` split phase 1
+  - Scope: evidence payload scalar normalization, storage JSON encode helper, seed row id extraction, evidence total amount calculation, blank value detection
+  - Reused helpers: `amountOrNull`, `isEmptySelectionLabel`, `dateValue`, `normalizeDataType`
+- 2026-06-04: `EvidenceDeleteRestoreService` split phase 1
+  - Scope: evidence soft delete helper, evidence restore helper, evidence body delete/restore helper
+  - Reused helpers: `placeholdersForIds`, `tableExists`
+- 2026-06-04: `EvidenceLifecycleService` split phase 1
+  - Scope: evidence purge lifecycle, evidence processing delete lifecycle, bank transaction sync lifecycle, evidence hard delete lifecycle
+  - Reused services/helpers: `EvidenceDeleteRestoreService`, `EvidenceLinkHelperService`, `placeholdersForIds`, `tableExists`
+- 2026-06-04: `EvidenceUploadValidationService` split phase 1
+  - Scope: upload row enrichment, upload amount normalization, preview validation, business/project validation, upload validation error assertion
+  - Reused services/helpers: `EvidenceTransactionContextService`, `EvidenceRuleEngineService`, `EvidenceBusinessRefService`, `EvidencePayloadNormalizeService`
+- 2026-06-04: `EvidenceLinkHelperService` split phase 1
+  - Scope: evidence purge dependency helper, evidence link soft-delete/delete helper, evidence source reference detach, processing item detach on evidence purge
+  - Reused helpers: `placeholdersForIds`, `tableExists`, `tableColumnExists`
+- 2026-06-04: `EvidenceSortHelperService` split phase 1
+  - Scope: evidence payload sort value helper, evidence sort column ensure helper
+  - Reused helpers: `normalizeDataType`
+- 2026-06-04: `Upload API Entry` split phase 1
+  - Scope: `apiSeedUpload`, `apiSeedUploadCancel`, `apiUploadBatches`, `apiUploadBatchRows`, `apiUploadBatchDelete`
+  - Kept in `ImportController` as internal handlers: `handleSeedUpload`, `handleSeedUploadCancel`, `handleUploadBatches`, `handleUploadBatchRows`, `handleUploadBatchDelete`
+  - Route change: none
+- 2026-06-04: `EvidenceBatchSaveService` phase 3
+  - Scope: batch counter aggregation, protected/error/new-updated count wrapping, cached seed array build, final upload batch result assembly
+  - Kept in `ImportController`: transaction boundary, SQL prepare/execute, schema ensure
+- 2026-06-04: `VoucherLearningService` split phase 1
+  - Scope: `recordBankVoucherLearning`, `bankVoucherLearningLines`, `normalizedRefPayload`, `amountBucket`
+  - Reused services/helpers: `JournalLearningService`, `VoucherPolicyService`, `EvidenceBusinessRefService`, `transactionDirectionForStorage`, `businessUnitForUpload`
+- 2026-06-04: `EvidenceTypePolicyService` split phase 1
+  - Scope: `transactionDirectionForStorage`, `processingPlanForDataType`, `allowedDataTypes`, `isManualTaxInvoiceDataType`
+  - Reused helpers: `normalizeDataType`, `amountOrNull`
+- 2026-06-04: `Upload Policy helper consolidation`
+  - Scope: `seedSourceKey`, `updateUploadRowStatus`, `isGenerationCorrectionMessage`, `businessUnitForUpload`
+  - Reused services/helpers: `EvidenceUploadService`, `EvidenceTypePolicyService`, `EvidenceBusinessRefService`, `amountOrNull`, `dateValue`, `dateTimeValue`, `tableColumnExists`
+- 2026-06-04: `handleSeedUpload` phase 1
+  - Scope: preview confirm orchestration, required-missing confirmation response build, chunk upload progress/result build
+  - Kept in `ImportController`: request branching, HTTP response final return, `storeUploadBatch` call decision
+- 2026-06-04: `handleSeedUpload` phase 2
+  - Scope: upload file path orchestration, trace payload build, validation response build, preview confirm response build
+  - Kept in `ImportController`: request branching, HTTP response final return, `storeUploadBatch` call decision

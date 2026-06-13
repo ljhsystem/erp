@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Services/Mail/Mailer.php'
 namespace App\Services\Mail;
 
 use PHPMailer\PHPMailer\PHPMailer;
@@ -19,7 +18,6 @@ class Mailer
         if (file_exists($configFile)) {
             $raw = file_get_contents($configFile);
 
-            // 주석 제거
             $raw = preg_replace('#^\s*//.*$#m', '', $raw);
             $raw = preg_replace('#/\*.*?\*/#s', '', $raw);
 
@@ -65,15 +63,10 @@ class Mailer
         try {
             $mail = $this->createMailer();
 
-            // 구성된 발신자
             $configuredFromEmail = $this->smtp['FromEmail'] ?? $this->smtp['UserName'] ?? '';
             $configuredFromName  = $this->smtp['FromName'] ?? $this->smtp['SenderName'] ?? 'SUHKYANG ERP';
 
-            // From: 는 서버 설정을 우선으로 사용(보안/스팸 대응)
-            // 만약 호출자가 fromEmail을 전달하면 Reply‑To로 추가하여 회신이 사용자로 가도록 한다.
             if (!empty($fromEmail)) {
-                // setFrom은 createMailer()에서 이미 적용되어 있음(구성값이 있는 경우)
-                // Reply‑To 추가 (중복 방지)
                 if (filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
                     $mail->addReplyTo($fromEmail, $fromName ?: $configuredFromName);
                 }

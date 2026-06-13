@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Models/User/ApprovalRequestStepModel.php'
 namespace App\Models\User;
 
 use PDO;
@@ -7,18 +6,14 @@ use Core\Database;
 
 class ApprovalRequestStepModel
 {
-    // PDO 보관
+
     private PDO $db;
 
-    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
-    /* ============================================================
-     * 1) 특정 요청의 모든 스텝 조회
-     * ============================================================ */
     public function getSteps(string $requestId): array
     {
         $stmt = $this->db->prepare("
@@ -32,9 +27,6 @@ class ApprovalRequestStepModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    /* ============================================================
-     * 2) 단일 스텝 조회 (id 기준)
-     * ============================================================ */
     public function getById(string $id): ?array
     {
         $stmt = $this->db->prepare("
@@ -48,9 +40,6 @@ class ApprovalRequestStepModel
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
-    /* ============================================================
-     * 3) 요청 스텝 생성 (※ UUID는 서비스에서 생성해서 전달)
-     * ============================================================ */
     public function create(array $data): bool
     {
         $stmt = $this->db->prepare("
@@ -71,14 +60,11 @@ class ApprovalRequestStepModel
         return $stmt->execute($data);
     }
 
-    /* ============================================================
-     * 4) 스텝 상태 변경 (승인 / 반려 etc)
-     * ============================================================ */
     public function updateStatus(string $id, string $status, ?string $comment, ?string $updatedBy): bool
     {
         $stmt = $this->db->prepare("
             UPDATE user_approval_request_steps
-            SET 
+            SET
                 status      = :status,
                 comment     = :comment,
                 updated_by  = :updated_by,
@@ -96,9 +82,6 @@ class ApprovalRequestStepModel
         ]);
     }
 
-    /* ============================================================
-     * 5) 스텝 삭제 (실제 삭제)
-     * ============================================================ */
     public function delete(string $id): bool
     {
         $stmt = $this->db->prepare("

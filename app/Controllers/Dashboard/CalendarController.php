@@ -1,6 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Controllers/Dashboard/CalendarController.php'
-// 대시보드>일정/캘린더 API 컨트롤러
 declare(strict_types=1);
 
 namespace App\Controllers\Dashboard;
@@ -119,10 +117,6 @@ class CalendarController
         return $this->synologyLoginId;
     }
 
-    /* ============================================================
-     * 공통
-     * ============================================================ */
-
     protected function guardApi(): void
     {
         if (!$this->authSession->isAuthenticated()) {
@@ -140,14 +134,6 @@ class CalendarController
         exit;
     }
 
-    /* ============================================================
-     * 📅 Calendar (Synology 그대로)
-     * ============================================================ */
-
-    /**
-     * 캘린더 목록
-     * GET /api/dashboard/calendar/list
-     */
     public function apiList(): void
     {
         $this->guardApi();
@@ -156,7 +142,6 @@ class CalendarController
 
         $synologyLoginId = $this->getSynologyLoginId();
 
-        // 🔥 TTL 기반 자동 Sync
         if ($synologyLoginId) {
 
             $this->sync->syncIfNeeded(
@@ -178,7 +163,6 @@ class CalendarController
             $list = [];
         }
 
-        // 🔥 개인 캘린더 정책 필터
         $list = $this->filterByPersonalPolicy($list);
 
         $this->json([
@@ -187,8 +171,6 @@ class CalendarController
         ]);
     }
 
-
-    // 클래스 내부, 다른 apiXXX 메서드들과 같은 레벨
     public function apiCacheRebuild(): void
     {
         $this->guardApi();
@@ -206,7 +188,6 @@ class CalendarController
             ], 401);
         }
 
-        // 🔥 외부계정 없으면 동기화 실행 안함
         if (!$this->hasSynology()) {
             $this->json([
                 'success' => false,
@@ -214,7 +195,6 @@ class CalendarController
             ], 403);
         }
 
-        // 🔥 Synology 로그인 ID 조회 (현재 연결된 외부계정 기준)
         $synologyLoginId = $this->getSynologyLoginId();
 
         if (!$synologyLoginId) {
@@ -226,10 +206,8 @@ class CalendarController
 
         $ownerUserId = $actor;
 
-        // 세션 잠금 해제
         session_write_close();
 
-        // 1️⃣ 먼저 JSON 응답 출력
         http_response_code(200);
         header('Content-Type: application/json; charset=utf-8');
 
@@ -238,7 +216,6 @@ class CalendarController
             'status'  => 'started'
         ], JSON_UNESCAPED_UNICODE);
 
-        // 2️⃣ 클라이언트 응답 종료
         if (function_exists('fastcgi_finish_request')) {
             fastcgi_finish_request();
         } else {
@@ -246,7 +223,6 @@ class CalendarController
             @flush();
         }
 
-        // 3️⃣ 백그라운드 작업 실행
         $service = new SyncService(DbPdo::conn());
 
         $service->rebuildFullCache(
@@ -258,11 +234,6 @@ class CalendarController
         exit;
     }
 
-
-
-    /* ============================================================
-    * 📌 Events + Tasks (FullCalendar 표시용)
-    * ============================================================ */
     public function apiEventsAll(): void
     {
         $this->guardApi();
@@ -272,7 +243,6 @@ class CalendarController
 
         try {
 
-            // 1️⃣ 기간 파라미터 확인
             $from = isset($_GET['start'])
                 ? date('Y-m-d', strtotime($_GET['start']))
                 : null;
@@ -288,7 +258,6 @@ class CalendarController
                 ], 400);
             }
 
-            // 2️⃣ DB 기준 이벤트/태스크 조회
             $events = $this->query->getEventsByPeriodMapped(
                 $from,
                 $to,
@@ -310,11 +279,8 @@ class CalendarController
                 $tasks = [];
             }
 
-
-            // 5️⃣ 병합
             $data = array_merge($events, $tasks);
 
-            // 6️⃣ 반환
             $this->json([
                 'success' => true,
                 'data'    => $data,
@@ -332,10 +298,6 @@ class CalendarController
         }
     }
 
-    /**
-     * 전체 태스크 조회 (DB 캐시 기반 + Lazy Sync)
-     * GET /api/dashboard/calendar/tasks-all
-     */
     public function apiTasksAll(): void
     {
         $this->guardApi();
@@ -360,8 +322,6 @@ class CalendarController
             ], 400);
         }
 
-
-        // 2️⃣ 먼저 DB 기준 조회 (ERP 캐시 기준)
         $tasks = $this->query->getTasksByPeriodMapped(
             $from,
             $to,
@@ -374,17 +334,12 @@ class CalendarController
 
         $tasks = $this->filterByPersonalPolicy($tasks);
 
-        // 5️⃣ 최종 반환
         $this->json([
             'success' => true,
             'data'    => $tasks,
         ]);
     }
 
-    /**
-     * 📋 우측 패널 전용 전체 태스크 조회 (범위 무관)
-     * GET /api/dashboard/calendar/tasks-panel
-     */
     public function apiTasksPanel(): void
     {
         $this->guardApi();
@@ -395,10 +350,8 @@ class CalendarController
 
             $userId = $this->currentUserId();
 
-            // 1️⃣ Synology 연결 여부 한 번만 확인
             $hasSynology = $this->hasSynology();
 
-            // 2️⃣ DB 기준 전체 태스크 조회 (기간 무관)
             $synologyLoginId = $this->getSynologyLoginId();
 
             $tasks = $this->query->getAllTasksMapped(
@@ -410,10 +363,8 @@ class CalendarController
                 $tasks = [];
             }
 
-            // 3️⃣ 연결이 없으면 external만 제거
             $tasks = $this->filterByPersonalPolicy($tasks);
 
-            // 4️⃣ 반환
             $this->json([
                 'success' => true,
                 'data'    => array_values($tasks),
@@ -433,7 +384,6 @@ class CalendarController
 
         $payload = json_decode(file_get_contents('php://input'), true);
 
-        // 1️⃣ payload 먼저 검증
         if (!$payload || empty($payload['calendar_id'])) {
             $this->json([
                 'success' => false,
@@ -443,7 +393,6 @@ class CalendarController
 
         $calendarId = $payload['calendar_id'];
 
-        // 4️⃣ external + Synology 미연결 → 생성 차단
         $this->assertCalendarWritePermission($calendarId);
 
         try {
@@ -496,14 +445,13 @@ class CalendarController
 
         $payload = json_decode(file_get_contents('php://input'), true) ?? [];
 
-        // 1️⃣ 기본 검증
         if (empty($payload['id'])) {
             $this->json([
                 'success' => false,
                 'message' => 'id required'
             ], 400);
         }
-        // 🔥 권한 체크
+
         $calendarId = $payload['calendar_id'] ?? null;
 
         if (!$calendarId) {
@@ -546,7 +494,6 @@ class CalendarController
                 }
             }
 
-            // 🔥 출력 오염 방지
             if (ob_get_level() > 0) {
                 ob_clean();
             }
@@ -558,7 +505,6 @@ class CalendarController
                 ], 400);
             }
 
-            // ✅ id / etag 안전 회수
             $uidForReturn =
                 $res['data']['id'] ??
                 $res['id'] ??
@@ -604,7 +550,6 @@ class CalendarController
 
         $id = $payload['id'] ?? null;
 
-        // 🔥 배열 방어
         if (is_array($id)) {
             $id = $id[0] ?? null;
         }
@@ -616,7 +561,6 @@ class CalendarController
             ], 400);
         }
 
-        // 🔥 prefix 정규화
         $id = (string)$id;
         $id = preg_replace('/^(event_|task_)/', '', $id);
 
@@ -666,10 +610,6 @@ class CalendarController
         }
     }
 
-
-    /* ============================================================
-     * ☑️ Tasks (VTODO)
-     * ============================================================ */
     public function apiTaskCreate(): void
     {
         $this->guardApi();
@@ -687,8 +627,6 @@ class CalendarController
         $calendarId  = $payload['calendar_id'];
         $hasSynology = $this->hasSynology();
 
-
-        // 3️⃣ external + Synology 미연결 → 생성 차단
         $this->assertCalendarWritePermission($calendarId);
 
         try {
@@ -705,7 +643,6 @@ class CalendarController
 
             $id = $res['data']['id'] ?? null;
 
-            // 4️⃣ 단건 즉시 동기화 (Synology 연결된 경우만 의미 있음)
             if ($id && $hasSynology) {
                 $synologyLoginId = $this->getSynologyLoginId();
                 $actorUserId     = $this->currentUserId();
@@ -750,7 +687,6 @@ class CalendarController
 
         try {
 
-            // 1️⃣ id 정규화
             if (!empty($payload['id'])) {
                 $payload['id'] = preg_replace('/^task_/', '', (string)$payload['id']);
             }
@@ -762,7 +698,6 @@ class CalendarController
                 ], 400);
             }
 
-            // 2️⃣ calendar_id 누락 시 DB에서 보정
             if (empty($payload['calendar_id'])) {
                 $calendarId = $this->query->getTaskCalendarId($payload['id']);
 
@@ -770,12 +705,11 @@ class CalendarController
                     $payload['calendar_id'] = $calendarId;
                 }
             }
-            // 🔥 권한 체크
+
             if (!empty($payload['calendar_id'])) {
                 $this->assertCalendarWritePermission($payload['calendar_id']);
             }
 
-            // 3️⃣ DB 업데이트 (항상 허용)
             $crud =  new CrudService(DbPdo::conn());
             $res  = $crud->updateTask($payload);
 
@@ -788,7 +722,6 @@ class CalendarController
 
             $id = $res['data']['id'] ?? null;
 
-            // 4️⃣ Synology 연결된 경우에만 동기화
             if ($id && $this->hasSynology()) {
 
                 $collectionHref = $payload['collection_href'] ?? null;
@@ -838,7 +771,6 @@ class CalendarController
 
         $payload = json_decode(file_get_contents('php://input'), true);
 
-        // 1️⃣ 기본 검증
         if (!$payload || empty($payload['id'])) {
             $this->json([
                 'success' => false,
@@ -846,7 +778,6 @@ class CalendarController
             ], 400);
         }
 
-        // 🔥 calendar_id 조회 (Service)
         $calendarId = $this->query->getTaskCalendarId($payload['id']);
 
         if ($calendarId) {
@@ -901,7 +832,6 @@ class CalendarController
 
             $crud =  new CrudService(DbPdo::conn());
 
-            // 🔥 calendar_id 조회 (QueryService)
             $calendarId = $this->query->getCalendarIdByHref($payload['collection_href']);
 
             if ($calendarId) {
@@ -947,7 +877,6 @@ class CalendarController
             ], 400);
         }
 
-        // 🔥 권한체크 (QueryService)
         $calendarId = $this->query->getEventCalendarId((string)$payload['id']);
 
         if ($calendarId) {
@@ -1008,7 +937,6 @@ class CalendarController
             ], 400);
         }
 
-        // 🔥 권한 체크 (QueryService)
         $calendarId = $this->query->getTaskCalendarId((string)$payload['id']);
 
         if ($calendarId) {
@@ -1069,7 +997,6 @@ class CalendarController
             ], 400);
         }
 
-        // 1️⃣ id 정규화
         $id = isset($payload['id'])
             ? preg_replace('/^task_/', '', (string)$payload['id'])
             : null;
@@ -1099,7 +1026,6 @@ class CalendarController
         $this->assertCalendarWritePermission($calendarId);
         try {
 
-            // 2️⃣ DB 업데이트
             $crud =  new CrudService(DbPdo::conn());
             $res  = $crud->toggleTaskComplete($id, $calendarId, $completed);
 
@@ -1110,7 +1036,6 @@ class CalendarController
                 ], 400);
             }
 
-            // 3️⃣ Synology 연결된 경우에만 동기화
             if ($this->hasSynology()) {
                 $synologyLoginId = $this->getSynologyLoginId();
                 $actorUserId     = $this->currentUserId();
@@ -1149,11 +1074,6 @@ class CalendarController
         }
     }
 
-
-    /* ============================================================
-    * 🎨 Admin Calendar Color Update
-    * POST /api/dashboard/calendar/update-admin-color
-    * ============================================================ */
     public function apiUpdateAdminColor(): void
     {
         $this->guardApi();
@@ -1177,7 +1097,6 @@ class CalendarController
             ], 400);
         }
 
-        // normalize
         $color = strtolower(trim((string)$color));
 
         if (!preg_match('/^#[0-9a-f]{6}$/', $color)) {
@@ -1187,7 +1106,6 @@ class CalendarController
             ], 400);
         }
 
-        // ✅ synology_login_id 필수
         $synologyLoginId = $this->getSynologyLoginId();
         if (!$synologyLoginId) {
             $this->json([
@@ -1201,7 +1119,7 @@ class CalendarController
 
             $model->updateAdminColor(
                 $calendarId,
-                $synologyLoginId,                  // ✅ 추가
+                $synologyLoginId,
                 $color,
                 $this->currentUserId()
             );
@@ -1226,10 +1144,6 @@ class CalendarController
         }
     }
 
-    /* ============================================================
-    * 🗑️ Deleted Events (휴지통)
-    * GET /api/dashboard/calendar/events-deleted
-    * ============================================================ */
     public function apiEventsDeleted(): void
     {
         $this->guardApi();
@@ -1269,11 +1183,6 @@ class CalendarController
         }
     }
 
-
-    /* ============================================================
-    * 🗑️ Deleted Tasks (휴지통)
-    * GET /api/dashboard/calendar/tasks-deleted
-    * ============================================================ */
     public function apiTasksDeleted(): void
     {
         $this->guardApi();
@@ -1382,14 +1291,12 @@ class CalendarController
                 ]);
             }
 
-            // 1️⃣ 휴지통 태스크 조회
             $rows = $service->getDeletedTasks($synologyLoginId);
 
             if (!is_array($rows)) {
                 $rows = [];
             }
 
-            // 2️⃣ 개인/공유 정책 필터
             $rows = $this->filterByPersonalPolicy($rows);
 
             $deletedCount = 0;
@@ -1403,10 +1310,8 @@ class CalendarController
                     continue;
                 }
 
-                // 3️⃣ 권한 재확인
                 $this->assertCalendarWritePermission($calendarId);
 
-                // 4️⃣ 실제 영구삭제
                 $ok = $service->hardDeleteTask($id, $synologyLoginId);
 
                 if ($ok) {
@@ -1432,10 +1337,7 @@ class CalendarController
             ], 500);
         }
     }
-    /* ============================================================
-    * ♻️ Restore Event
-    * POST /api/dashboard/calendar/event/restore
-    * ============================================================ */
+
     public function apiEventRestore(): void
     {
         $this->guardApi();
@@ -1464,7 +1366,6 @@ class CalendarController
 
             $service = new TrashService(DbPdo::conn());
 
-            // 🔥 QueryService 사용
             $calendarId = $this->query->getEventCalendarId($id);
 
             if ($calendarId) {
@@ -1501,11 +1402,6 @@ class CalendarController
         }
     }
 
-
-    /* ============================================================
-    * ♻️ Restore Task
-    * POST /api/dashboard/calendar/task/restore
-    * ============================================================ */
     public function apiTaskRestore(): void
     {
         $this->guardApi();
@@ -1533,7 +1429,7 @@ class CalendarController
             $id = (string)$payload['id'];
 
             $service = new TrashService(DbPdo::conn());
-            // 🔥 QueryService 사용
+
             $calendarId = $this->query->getTaskCalendarId($id);
 
             if ($calendarId) {
@@ -1570,10 +1466,6 @@ class CalendarController
         }
     }
 
-    /* ============================================================
-    * 🧹 Bulk Task Delete
-    * POST /api/dashboard/calendar/task/delete-bulk
-    * ============================================================ */
     public function apiTaskDeleteBulk(): void
     {
         $this->guardApi();
@@ -1635,11 +1527,6 @@ class CalendarController
         }
     }
 
-
-    /* ============================================================
-    * 👤 Profile Summary (Topbar Info)
-    * GET /api/dashboard/profile-summary
-    * ============================================================ */
     public function apiProfileSummary(): void
     {
         $this->guardApi();
@@ -1659,9 +1546,6 @@ class CalendarController
             $settingService = new SettingService(DbPdo::conn());
             $externalService = new ExternalAccountService(DbPdo::conn());
 
-            /* ===============================
-            * 사용자
-            * =============================== */
             $profile = $profileService->getById($userId) ?? [];
             $user    = $profileService->getById($userId) ?? [];
 
@@ -1673,9 +1557,6 @@ class CalendarController
                 ? '/api/file/preview?path=' . rawurlencode($profileImagePath)
                 : null;
 
-            /* ===============================
-            * Synology 시스템 설정
-            * =============================== */
             $host       = $settingService->get('synology_host', '');
             $caldavPath = $settingService->get('synology_caldav_path', '/caldav.php/');
             $sslVerify  = (int)$settingService->get('synology_ssl_verify', 1);
@@ -1686,9 +1567,6 @@ class CalendarController
                 $baseUrl = rtrim($host, '/') . '/' . ltrim($caldavPath, '/');
             }
 
-            /* ===============================
-            * 사용자 계정 연결 여부
-            * =============================== */
             $external = $externalService->getMyAccount('synology');
 
             $connected       = false;

@@ -1,176 +1,220 @@
 <?php
 // 경로: PROJECT_ROOT . '/app/views/dashboard/settings.php'
-use Core\Helpers\AssetHelper;
-use Core\Database;
-use Core\Helpers\ConfigHelper;
+use App\Models\System\MenuRegistryModel;
 use App\Services\Auth\AuthSessionService;
 use App\Services\Auth\PermissionService;
+use Core\Database;
+use Core\Helpers\AssetHelper;
 
 $hasSettingsPermission = static function (string $permissionKey): bool {
-    if (ConfigHelper::get('IsDevelopment') === true) {
-        return true;
-    }
-
     try {
         $user = (new AuthSessionService())->getCurrentUser();
         if (!$user || empty($user['id'])) {
             return false;
         }
 
-        $roles = $user['roles'] ?? [];
-        if (!is_array($roles)) {
-            $roles = [];
-        }
-
-        $roleKey = strtolower(trim((string)($user['role_key'] ?? '')));
-        if (in_array('super_admin', $roles, true) || $roleKey === 'super_admin') {
-            return true;
-        }
-
         return (new PermissionService(Database::getInstance()->getConnection()))
-            ->hasPermission((string)$user['id'], $permissionKey);
+            ->hasPermission((string) $user['id'], $permissionKey);
     } catch (\Throwable $e) {
         return false;
     }
 };
 
-// 1) cat/sub 처리
 $cat = $cat ?? 'base-info';
 $sub = $sub ?? 'company';
 
-// 2) 라벨 매핑
-$labels = [
+$fallbackLabels = [
     'base-info' => [
         'label' => '기초정보관리',
-        'subs'  => [
-            'company'     => '회사정보',
-            'brand-logo'  => '브랜드',
-            'cover'       => '커버이미지',
-            'clients'     => '거래처',
-            'projects'    => '프로젝트',
-            'bank-accounts'    => '계좌',
-            'cards'    => '카드'
-        ]
+        'subs' => [
+            'company' => '회사정보',
+            'brand' => '브랜드',
+            'cover' => '커버이미지',
+            'client' => '거래처',
+            'project' => '프로젝트',
+            'bank-account' => '계좌',
+            'card' => '카드',
+            'work-team' => '팀',
+        ],
     ],
     'organization' => [
         'label' => '조직관리',
-        'subs'  => [
-            'employees'        => '직원',
-            'departments'      => '부서',
-            'positions'        => '직책',
-            'roles'            => '역할',
-            'role_permissions' => '권한부여',
-            'approval'         => '결재템플릿'
-        ]
+        'subs' => [
+            'employee' => '직원',
+            'department' => '부서',
+            'position' => '직책',
+            'role' => '역할',
+            'permission-assignment' => '권한부여',
+            'approval-template' => '결재템플릿',
+        ],
     ],
     'system' => [
         'label' => '시스템설정',
-        'subs'  => [
-            'site'              => '사이트정보',
-            'session'           => '세션관리',
-            'security'          => '보안정책',
-            'codes'             => '기준정보',
-            'api'               => '외부연동(API)',
+        'subs' => [
+            'site' => '사이트정보',
+            'session' => '세션관리',
+            'security' => '보안정책',
+            'codes' => '기준정보',
+            'api' => '외부연동(API)',
             'external_services' => '외부서비스연동',
-            'storage'           => '파일저장소',
-            'databasebackup'    => '데이터백업',
-            'logs'              => '시스템로그'
-        ]
-    ]
+            'storage' => '파일저장소',
+            'databasebackup' => '데이터백업',
+            'logs' => '시스템로그',
+        ],
+    ],
 ];
 
-// 3) 유효성 체크
-$labels['base-info']['subs'] = [
-    'company' => '회사정보',
-    'brand-logo' => '브랜드',
-    'cover' => '커버이미지',
-    'clients' => '거래처',
-    'projects' => '프로젝트',
-    'bank-accounts' => '계좌',
-    'cards' => '카드',
-    'work-teams' => '팀',
+$settingsCategoryMeta = [
+    'base-info' => ['prefix' => 'settings.base_info.', 'label' => '기초정보관리'],
+    'organization' => ['prefix' => 'settings.organization.', 'label' => '조직관리'],
+    'system' => ['prefix' => 'settings.system.', 'label' => '시스템설정'],
 ];
 
-$systemPermissionMap = [
-    'codes' => 'code.view',
+$settingsSubKeyMap = [
+    'settings.base_info.company' => 'company',
+    'settings.base_info.brand' => 'brand',
+    'settings.base_info.cover' => 'cover',
+    'settings.base_info.clients' => 'client',
+    'settings.base_info.projects' => 'project',
+    'settings.base_info.bank_accounts' => 'bank-account',
+    'settings.base_info.cards' => 'card',
+    'settings.base_info.work_teams' => 'work-team',
+    'settings.organization.employees' => 'employee',
+    'settings.organization.departments' => 'department',
+    'settings.organization.positions' => 'position',
+    'settings.organization.roles' => 'role',
+    'settings.organization.role_permissions' => 'permission-assignment',
+    'settings.organization.permissions' => 'permissions',
+    'settings.organization.approval' => 'approval-template',
+    'settings.system.site' => 'site',
+    'settings.system.session' => 'session',
+    'settings.system.security' => 'security',
+    'settings.system.codes' => 'codes',
+    'settings.system.api' => 'api',
+    'settings.system.external_services' => 'external_services',
+    'settings.system.storage' => 'storage',
+    'settings.system.database_backup' => 'databasebackup',
+    'settings.system.logs' => 'logs',
 ];
 
-$baseInfoPermissionMap = [
-    'work-teams' => 'work_team.view',
-];
-
-foreach ($systemPermissionMap as $subKey => $permissionKey) {
-    if (isset($labels['system']['subs'][$subKey]) && !$hasSettingsPermission($permissionKey)) {
-        unset($labels['system']['subs'][$subKey]);
+$resolveSettingsCategoryKey = static function (string $pageKey) use ($settingsCategoryMeta): ?string {
+    foreach ($settingsCategoryMeta as $categoryKey => $meta) {
+        if (str_starts_with($pageKey, $meta['prefix'])) {
+            return $categoryKey;
+        }
     }
+
+    return null;
+};
+
+$labels = [];
+$settingsPermissionMap = [];
+
+try {
+    $settingsMenuRows = (new MenuRegistryModel())->getSettingsMenus();
+} catch (\Throwable $e) {
+    $settingsMenuRows = [];
 }
 
-foreach ($baseInfoPermissionMap as $subKey => $permissionKey) {
-    if (isset($labels['base-info']['subs'][$subKey]) && !$hasSettingsPermission($permissionKey)) {
-        unset($labels['base-info']['subs'][$subKey]);
+foreach ($settingsMenuRows as $row) {
+    $pageKey = trim((string) ($row['page_key'] ?? ''));
+    if ($pageKey === '') {
+        continue;
+    }
+
+    $categoryKey = $resolveSettingsCategoryKey($pageKey);
+    $subKey = $settingsSubKeyMap[$pageKey] ?? null;
+    if ($categoryKey === null || $subKey === null) {
+        continue;
+    }
+
+    if (!isset($labels[$categoryKey])) {
+        $labels[$categoryKey] = [
+            'label' => $settingsCategoryMeta[$categoryKey]['label'],
+            'subs' => [],
+        ];
+    }
+
+    $labels[$categoryKey]['subs'][$subKey] = (string) ($row['page_label'] ?? $row['menu_label'] ?? $subKey);
+    $settingsPermissionMap[$categoryKey][$subKey] = trim((string) ($row['default_route_key'] ?? ''));
+}
+
+if (empty($labels)) {
+    $labels = $fallbackLabels;
+    $settingsPermissionMap = [
+        'base-info' => [
+            'work-team' => 'work_team.view',
+        ],
+        'organization' => [],
+        'system' => [
+            'codes' => 'code.view',
+        ],
+    ];
+}
+
+foreach ($labels as $categoryKey => &$categoryInfo) {
+    foreach ($categoryInfo['subs'] as $subKey => $label) {
+        $permissionKey = trim((string) ($settingsPermissionMap[$categoryKey][$subKey] ?? ''));
+        if ($permissionKey !== '' && !$hasSettingsPermission($permissionKey)) {
+            unset($categoryInfo['subs'][$subKey]);
+        }
+    }
+
+    if (empty($categoryInfo['subs'])) {
+        unset($labels[$categoryKey]);
     }
 }
+unset($categoryInfo);
 
 if (!array_key_exists($cat, $labels)) {
-    $cat = 'base-info';
+    $cat = array_key_first($labels) ?: 'base-info';
 }
 
-if (!array_key_exists($sub, $labels[$cat]['subs'])) {
+if (!isset($labels[$cat]['subs']) || !array_key_exists($sub, $labels[$cat]['subs'])) {
     $sub = array_key_first($labels[$cat]['subs']);
 }
 
-// 4) include 경로
 $viewFile = __DIR__ . "/settings/{$cat}/{$sub}.php";
 if (!file_exists($viewFile)) {
-    $viewFile = __DIR__ . "/settings/base-info/company.php";
+    $viewFile = __DIR__ . '/settings/base-info/company.php';
 }
 
-// 5) 공통 CSS
-$pageStyles  = $pageStyles  ?? '';
+$pageStyles = $pageStyles ?? '';
 $pageScripts = $pageScripts ?? '';
 
 $pageStyles .=
     AssetHelper::css('/assets/css/pages/dashboard/settings.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/company.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/brand-logo.css') .
+    AssetHelper::css('/assets/css/pages/dashboard/settings/brand.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/cover.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/system/code.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/client.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/project.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/bank.account.css') .
+    AssetHelper::css('/assets/css/pages/dashboard/settings/bank-account.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/card.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/work-team.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/databasebackup.css') .
     AssetHelper::css('/assets/css/pages/dashboard/settings/employee.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/departments.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/positions.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/roles.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/role_permissions.css') .
-    AssetHelper::css('/assets/css/pages/dashboard/settings/approval.css');
+    AssetHelper::css('/assets/css/pages/dashboard/settings/department.css') .
+    AssetHelper::css('/assets/css/pages/dashboard/settings/position.css') .
+    AssetHelper::css('/assets/css/pages/dashboard/settings/role.css') .
+    AssetHelper::css('/assets/css/pages/dashboard/settings/permission-assignment.css') .
+    AssetHelper::css('/assets/css/pages/dashboard/settings/approval-template.css');
 
-// 6) 공통 JS
-$pageScripts .= '';
-
-// 7) 페이지 캐싱 방지
 if (!headers_sent()) {
     header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
     header('Pragma: no-cache');
     header('Expires: 0');
 }
 
-// 8) cat/sub 별 전용 스크립트 로드
-
-// 8-1-1) 기초정보관리 - 회사정보
 if ($cat === 'base-info' && $sub === 'company') {
     $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/base/company.js');
 }
 
-// 8-1-2) 기초정보관리 - 브랜드
-if ($cat === 'base-info' && $sub === 'brand-logo') {
+if ($cat === 'base-info' && $sub === 'brand') {
     $pageScripts .= AssetHelper::js('/assets/js/pages/dashboard/settings/base/brand.js');
 }
 
-// 8-1-3) 기초정보관리 - 커버이미지
 if ($cat === 'base-info' && $sub === 'cover') {
     $coverJsVersion = file_exists(PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/base/cover.js')
         ? filemtime(PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/base/cover.js')
@@ -179,81 +223,58 @@ if ($cat === 'base-info' && $sub === 'cover') {
     $pageScripts .= '<script type="module" src="/public/assets/js/pages/dashboard/settings/base/cover.js?v=' . $coverJsVersion . '&ym=1"></script>';
 }
 
-// 8-1-4) 기초정보관리 - 거래처
-if ($cat === 'base-info' && $sub === 'clients') {
+if ($cat === 'base-info' && $sub === 'client') {
     $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/base/client.js');
 }
 
-// 8-1-5) 기초정보관리 - 프로젝트
-if ($cat === 'base-info' && $sub === 'projects') {
+if ($cat === 'base-info' && $sub === 'project') {
     $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/base/project.js');
 }
 
-// 8-1-6) 기초정보관리 - 계좌
-if ($cat === 'base-info' && $sub === 'bank-accounts') {
-    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/base/bank.account.js');
+if ($cat === 'base-info' && $sub === 'bank-account') {
+    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/base/bank-account.js');
 }
 
-// 8-1-7) 기초정보관리 - 카드
-if ($cat === 'base-info' && $sub === 'cards') {
+if ($cat === 'base-info' && $sub === 'card') {
     $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/base/card.js');
 }
 
-if ($cat === 'base-info' && $sub === 'work-teams') {
+if ($cat === 'base-info' && $sub === 'work-team') {
     $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/base/work-team.js');
 }
 
-// // 8-2-0) 조직관리 - 공통 
-// if ($cat === 'organization') {
-//     $pageScripts .= '
-//         <script src="' . asset('/assets/js/pages/dashboard/settings/organization/common.utils.js') . '"></script>
-//         <script src="' . asset('/assets/js/pages/dashboard/settings/organization/common.manager.select.js') . '"></script>
-//         <script src="' . asset('/assets/js/pages/dashboard/settings/organization/common.main.js') . '"></script>
-//     ';
-// }
-
-
-// 8-2-1) 조직관리 - 직원
-if ($cat === 'organization' && $sub === 'employees') {
-    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/organization/employees.js');
+if ($cat === 'organization' && $sub === 'employee') {
+    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/organization/employee.js');
 }
 
-// 8-2-2) 조직관리 - 부서
-if ($cat === 'organization' && $sub === 'departments') {
-    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/organization/departments.js');
+if ($cat === 'organization' && $sub === 'department') {
+    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/organization/department.js');
 }
 
-// 8-2-3) 조직관리 - 직책
-if ($cat === 'organization' && $sub === 'positions') {
-   $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/organization/positions.js');
+if ($cat === 'organization' && $sub === 'position') {
+    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/organization/position.js');
 }
 
-// 8-2-4) 조직관리 - 역할
-if ($cat === 'organization' && $sub === 'roles') {
-    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/organization/roles.js');
+if ($cat === 'organization' && $sub === 'role') {
+    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/organization/role.js');
 }
 
-// 8-2-6) 조직관리 - 권한부여
-if ($cat === 'organization' && $sub === 'role_permissions') {
-    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/organization/role_permissions.js');
+if ($cat === 'organization' && $sub === 'permission-assignment') {
+    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/organization/permission-assignment.js');
 }
 
-// 8-2-7) 조직관리 - 결재
-if ($cat === 'organization' && $sub === 'approval') {
-    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/organization/approval.templates.js');
+if ($cat === 'organization' && $sub === 'approval-template') {
+    $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/organization/approval-template.js');
 }
 
-// 8-3-1) 시스템설정 - 사이트정보
 if ($cat === 'system' && $sub === 'site') {
     $pageScripts .= AssetHelper::js('/assets/js/pages/dashboard/settings/system/site.js');
 }
 
-// 8-3-2) 시스템설정 - 세션관리
 if ($cat === 'system' && $sub === 'session') {
     $pageScripts .= AssetHelper::js('/assets/js/pages/dashboard/settings/system/session.js');
 }
 
-// 8-3-3) 시스템설정 - 보안정책
 if ($cat === 'system' && $sub === 'security') {
     $pageScripts .= AssetHelper::js('/assets/js/pages/dashboard/settings/system/security.js');
 }
@@ -262,39 +283,31 @@ if ($cat === 'system' && $sub === 'codes') {
     $pageScripts .= AssetHelper::module('/assets/js/pages/dashboard/settings/system/code.js');
 }
 
-// 8-3-4) 시스템설정 - 외부연동(API)
 if ($cat === 'system' && $sub === 'api') {
     $pageScripts .= AssetHelper::js('/assets/js/pages/dashboard/settings/system/api.js');
 }
 
-// 8-3-5) 시스템설정 - 외부서비스연동
 if ($cat === 'system' && $sub === 'external_services') {
     $pageScripts .= AssetHelper::js('/assets/js/pages/dashboard/settings/system/external_services.js');
 }
 
-// 8-3-6) 시스템설정 - 파일저장소
 if ($cat === 'system' && $sub === 'storage') {
     $pageScripts .= AssetHelper::js('/assets/js/pages/dashboard/settings/system/storage.js');
 }
 
-// 8-3-7) 시스템설정 - 데이터백업
 if ($cat === 'system' && $sub === 'databasebackup') {
     $pageScripts .= AssetHelper::js('/assets/js/pages/dashboard/settings/system/databasebackup.js');
 }
 
-// 8-3-8) 시스템설정 - 로그관리
 if ($cat === 'system' && $sub === 'logs') {
     $pageScripts .= AssetHelper::js('/assets/js/pages/dashboard/settings/system/logs.js');
 }
-
-// 9) Breadcrumb
 ?>
 <main class="settings-main container-fluid">
     <div class="settings-page-header">
-        <h5 class="settings-title">⚙️ 설정</h5>
+        <h5 class="settings-title">설정</h5>
     </div>
 
-    <!-- 1차 탭: 카테고리 -->
     <div class="settings-cat-tabs-wrap">
         <ul class="nav nav-pills settings-cat-tabs">
             <?php foreach ($labels as $catKey => $catInfo): ?>
@@ -309,7 +322,6 @@ if ($cat === 'system' && $sub === 'logs') {
         </ul>
     </div>
 
-    <!-- 2차 탭: 서브메뉴 -->
     <div class="settings-sub-tabs-wrap">
         <ul class="nav nav-tabs settings-sub-tabs">
             <?php foreach ($labels[$cat]['subs'] as $key => $label): ?>
@@ -323,7 +335,6 @@ if ($cat === 'system' && $sub === 'logs') {
         </ul>
     </div>
 
-    <!-- 본문 -->
     <div class="settings-content-card">
         <?php include $viewFile; ?>
     </div>

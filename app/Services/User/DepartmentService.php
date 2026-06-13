@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT/app/Services/User/DepartmentService.php
 namespace App\Services\User;
 
 use PDO;
@@ -22,9 +21,6 @@ class DepartmentService
         $this->logger = LoggerFactory::getLogger('service-user.DepartmentService');
     }
 
-    /* ============================================================
-     * 1) 전체 조회
-     * ============================================================ */
     public function getAll(array $filters = []): array
     {
         return $this->model->getAll($filters);
@@ -35,17 +31,11 @@ class DepartmentService
         return $this->getAll($filters);
     }
 
-    /* ============================================================
-     * 2) 단일 조회
-     * ============================================================ */
     public function getById(string $id): ?array
     {
         return $this->model->getById($id);
     }
 
-    /* ============================================================
-     * 3) 생성 (UUID + sort_no + 중복검사)
-     * ============================================================ */
     public function create(array $data)
     {
         if (empty($data['dept_name'])) {
@@ -56,21 +46,15 @@ class DepartmentService
             return "duplicate";
         }
 
-        // UUID 생성
         $data['id'] = UuidHelper::generate();
 
-        // 코드 생성
-        $data['sort_no'] = null;
+        $data['sort_no'] = SequenceHelper::next('user_departments', 'sort_no');
 
-        // created_by 설정
         $data['created_by'] = ActorHelper::user();
 
         return $this->model->create($data);
     }
 
-    /* ============================================================
-     * 4) 수정
-     * ============================================================ */
     public function update(string $id, array $data)
     {
         if (empty($id)) return false;
@@ -90,18 +74,12 @@ class DepartmentService
         return $this->model->update($id, $data);
     }
 
-    /* ============================================================
-     * 5) 삭제
-     * ============================================================ */
     public function delete(string $id): bool
     {
         if (empty($id)) return false;
         return $this->model->delete($id);
     }
 
-    /* ============================================================
-     * 6) 부서장 지정
-     * ============================================================ */
     public function assignManager(string $deptId, ?string $managerUserId): bool
     {
         if (empty($deptId)) return false;

@@ -18,7 +18,6 @@ import { createEvidenceSourceEditorModal } from '/public/assets/js/pages/ledger/
 
 const EVIDENCE_API = {
     seedRows: '/api/import/evidences',
-    formats: '/api/import/formats',
     saveSeedRow: '/api/import/evidence/save',
     createEvidence: '/api/import/evidence/create',
     clientSearch: '/api/settings/base-info/client/search-picker',
@@ -375,12 +374,7 @@ export function createFundsEvidenceEditor({ table, notify }) {
             return activeFormat;
         }
 
-        const json = await fetchJson(`${EVIDENCE_API.formats}?data_type=${encodeURIComponent(CURRENT_TYPE)}&include_columns=1`);
-        const formats = Array.isArray(json.data) ? json.data : [];
-        activeFormat = formats.find((format) => String(format.id || '') === String(row.format_id || ''))
-            || formats.find((format) => Number(format.is_default || 0) === 1)
-            || formats[0]
-            || null;
+        activeFormat = null;
         return activeFormat;
     }
 

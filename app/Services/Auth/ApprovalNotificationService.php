@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Services/Auth/ApprovalNotificationService.php'
 namespace App\Services\Auth;
 
 use PDO;
@@ -17,9 +16,6 @@ class ApprovalNotificationService
         $this->logger = LoggerFactory::getLogger('service-auth.ApprovalNotificationService');
     }
 
-    /* ---------------------------------------------------------
-     * 승인 안내 메일 발송
-     * --------------------------------------------------------- */
     public function sendApprovalMail(string $adminEmail, array $user, string $token): void
     {
         $this->logger->info('sendApprovalMail 시작', [
@@ -33,9 +29,7 @@ class ApprovalNotificationService
         }
 
         $url = $baseUrl
-             . '/auth/approval/request?'
-             . 'code=' . urlencode($user['code'])
-             . '&approve_token=' . urlencode($token);
+             . '/auth/approval/request?approve_token=' . urlencode($token);
 
         $payload = [
             'to'      => $adminEmail,

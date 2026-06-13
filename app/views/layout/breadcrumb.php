@@ -13,6 +13,11 @@ $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $path = rtrim($path, '/') ?: '/';
 $meta = Router::currentBreadcrumbMeta();
 
+$routeDescriptionItems = array_values(array_filter(array_map(
+    static fn($value) => trim((string) $value),
+    explode('>', (string) ($meta['description'] ?? ''))
+), static fn($value) => $value !== ''));
+
 $pageMap = [
     '/dashboard' => ['items' => ['메인', '대시보드']],
     '/dashboard/report' => ['items' => ['메인', '통합 보고서']],
@@ -20,7 +25,7 @@ $pageMap = [
     '/dashboard/notifications' => ['items' => ['메인', '공지사항']],
     '/dashboard/kpi' => ['items' => ['메인', '실적 현황']],
     '/dashboard/calendar' => ['items' => ['메인', '일정/캘린더']],
-    '/dashboard/settings/system/codes' => ['items' => ['메인', '설정', '시스템설정', '기준정보']],
+    '/dashboard/settings/system/codes' => ['items' => ['메인', '설정', '시스템설정', '코드관리']],
 
     '/ledger' => ['items' => ['회계관리', '대시보드']],
     '/ledger/settings/accounts' => ['items' => ['회계관리', '기초정보관리', '계정과목']],
@@ -28,8 +33,6 @@ $pageMap = [
     '/ledger/settings/journal-rules' => ['items' => ['회계관리', '기초정보관리', '분개규칙']],
     '/ledger/settings/opening-balances' => ['items' => ['회계관리', '기초정보관리', '기초금액']],
     '/ledger/opening-balances' => ['items' => ['회계관리', '기초정보관리', '기초금액']],
-    '/ledger/data/formats' => ['items' => ['회계관리', '자료관리', '양식관리']],
-    '/ledger/data/format' => ['items' => ['회계관리', '자료관리', '양식관리']],
     '/ledger/data/upload' => ['items' => ['회계관리', '자료관리', '자료업로드']],
     '/ledger/data/list' => ['items' => ['회계관리', '자료관리', '증빙원본']],
     '/ledger/data/raw' => ['items' => ['회계관리', '자료관리', '원본자료']],
@@ -42,7 +45,7 @@ $pageMap = [
     '/ledger/transaction/create' => ['items' => ['회계관리', '전표관리', '거래입력']],
     '/ledger/vouchers/input' => ['items' => ['회계관리', '전표관리', '전표입력']],
     '/ledger/journal' => ['items' => ['회계관리', '전표관리', '전표입력']],
-    '/ledger/vouchers/review' => ['items' => ['회계관리', '전표관리', '전표검토/승인']],
+    '/ledger/vouchers/review' => ['items' => ['회계관리', '전표관리', '전표검토/확인']],
     '/ledger/funds/account-transactions' => ['items' => ['회계관리', '자금관리', '계좌별거래내역']],
     '/ledger/funds/payment-info' => ['items' => ['회계관리', '자금관리', '결제정보']],
     '/ledger/funds/deposit-ledger' => ['items' => ['회계관리', '자금관리', '예금출납장']],
@@ -54,7 +57,7 @@ $pageMap = [
 
     '/document' => ['items' => ['문서관리', '대시보드']],
     '/approval' => ['items' => ['전자결재', '대시보드']],
-    '/institution' => ['items' => ['대관기관업무', '대시보드']],
+    '/institution' => ['items' => ['대외기관업무', '대시보드']],
     '/site' => ['items' => ['현장관리', '대시보드']],
     '/shop' => ['items' => ['쇼핑몰관리', '대시보드']],
     '/notice' => ['items' => ['공지/회의', '대시보드']],
@@ -64,14 +67,16 @@ $pageMap = [
 
 $current = $pageMap[$path] ?? [];
 
-if (!empty($current['items'])) {
+if (!empty($routeDescriptionItems)) {
+    $items = $routeDescriptionItems;
+} elseif (!empty($current['items'])) {
     $items = $current['items'];
 } else {
     $items = array_values(array_filter([
         $meta['category'] ?? '기타',
         $meta['group'] ?? '',
         $meta['name'] ?? '페이지',
-    ], fn($value) => trim((string) $value) !== ''));
+    ], static fn($value) => trim((string) $value) !== ''));
 }
 ?>
 

@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT/app/Models/User/PositionModel.php
 namespace App\Models\User;
 
 use PDO;
@@ -7,18 +6,13 @@ use Core\Database;
 
 class PositionModel
 {
-    // PDO 보관
     private PDO $db;
 
-    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
-    /* ============================================================
-     * 1) 전체 직책 목록 조회
-     * ============================================================ */
     public function getAll(array $filters = []): array
     {
         $sql = "
@@ -155,9 +149,6 @@ class PositionModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /* ============================================================
-     * 2) 단일 조회
-     * ============================================================ */
     public function getById(string $id): ?array
     {
         $sql = "
@@ -173,9 +164,6 @@ class PositionModel
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
-    /* ============================================================
-     * 3) 직책명 중복 검사
-     * ============================================================ */
     public function existsByName(string $name, ?string $excludeId = null): bool
     {
         if ($excludeId) {
@@ -197,9 +185,6 @@ class PositionModel
         return $stmt->fetchColumn() > 0;
     }
 
-    /* ============================================================
-     * 4) 생성 (UUID 및 sort_no 생성은 서비스에서 처리)
-     * ============================================================ */
     public function create(array $data): bool
     {
         $sql = "
@@ -222,9 +207,6 @@ class PositionModel
         ]);
     }
 
-    /* ============================================================
-     * 5) 수정
-     * ============================================================ */
     public function update(string $id, array $data): bool
     {
         $set = [];
@@ -247,9 +229,6 @@ class PositionModel
         return $stmt->execute($params);
     }
 
-    /* ============================================================
-     * 6) 삭제
-     * ============================================================ */
     public function delete(string $id): bool
     {
         $stmt = $this->db->prepare("DELETE FROM user_positions WHERE id = ?");

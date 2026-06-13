@@ -1,0 +1,574 @@
+// 寃쎈줈: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/organization/roles.js'
+
+import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
+import {
+    createDataTable,
+    bindTableHighlight
+} from '/public/assets/js/common/table/data-table.js';
+import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
+import { SearchForm } from '/public/assets/js/components/search-form.js';
+
+window.AdminPicker = AdminPicker;
+
+(() => {
+    'use strict';
+
+    console.log('[roles.js] loaded');
+
+    const API = {
+        LIST: '/api/settings/organization/role/list',
+        SAVE: '/api/settings/organization/role/save',
+        DELETE: '/api/settings/organization/role/delete',
+        REORDER: '/api/settings/organization/role/reorder'
+    };
+
+    const ROLE_COLUMN_MAP = {
+        sort_no:     { label: '\uC21C\uBC88', visible: true },
+        role_key:    { label: 'Role Key', visible: true },
+        role_name:   { label: 'Role Name', visible: true },
+        description: { label: '\uC124\uBA85', visible: true },
+        is_active:   { label: '\uC0C1\uD0DC', visible: true },
+        created_at:  { label: '\uC0DD\uC131\uC77C\uC2DC', visible: false },
+        created_by:  { label: '\uC0DD\uC131\uC790', visible: false },
+        updated_at:  { label: '\uC218\uC815\uC77C\uC2DC', visible: false },
+        updated_by:  { label: '\uC218\uC815\uC790', visible: false }
+    };
+
+    const DATE_OPTIONS = [
+        { value: 'created_at', label: '\uC0DD\uC131\uC77C\uC2DC' },
+        { value: 'updated_at', label: '\uC218\uC815\uC77C\uC2DC' }
+    ];
+
+    let roleTable = null;
+    let roleModal = null;
+    let todayPicker = null;
+    let globalBound = false;
+    let roleModalEls = {};
+
+    document.addEventListener('DOMContentLoaded', () => {
+        if (!window.jQuery) {
+            console.error('[roles.js] jQuery not loaded');
+            return;
+        }
+
+        initRolePage(window.jQuery);
+    });
+
+    function initRolePage($) {
+        initModal();
+        initDataTable($);
+        bindRowReorder(roleTable, {
+            api: API.REORDER,
+            onSuccess() {
+                notify('success', '역할 순번이 저장되었습니다.');
+                roleTable?.ajax.reload(null, false);
+            },
+            onError(json) {
+                notify('error', json?.message || '역할 순번 저장에 실패했습니다.');
+                roleTable?.ajax.reload(null, false);
+            }
+        });
+        bindTableEvents($);
+        bindModalEvents($);
+        bindGlobalEvents();
+    }
+
+    function initModal() {
+        const modalEl = document.getElementById('roleEditModal');
+        if (!modalEl) return;
+
+        roleModal = new bootstrap.Modal(modalEl, { focus: false });
+        roleModalEls = {
+            modal: modalEl,
+            form: document.getElementById('role-edit-form'),
+            title: document.getElementById('roleEditModalLabel'),
+            id: document.getElementById('role_edit_id'),
+            key: document.getElementById('role_edit_key'),
+            name: document.getElementById('role_edit_name'),
+            description: document.getElementById('role_edit_description'),
+            isActive: document.getElementById('role_edit_is_active'),
+            deleteBtn: document.getElementById('role_edit_delete_btn')
+        };
+
+        modalEl.addEventListener('shown.bs.modal', () => {
+            roleModalEls.key?.focus();
+        });
+
+        modalEl.addEventListener('hidden.bs.modal', () => {
+            resetRoleForm();
+        });
+    }
+
+    function initAdminDatePicker() {
+        if (todayPicker) return todayPicker;
+
+        const container = document.getElementById('today-picker');
+        if (!container) return null;
+
+        todayPicker = AdminPicker.create({
+            type: 'today',
+            container
+        });
+
+        todayPicker.subscribe((_, date) => {
+            const input = todayPicker.__target;
+            if (!input || !date) return;
+
+            input.value = formatDate(date);
+            normalizeStartEnd(input.name === 'dateStart' ? 'start' : 'end');
+            todayPicker.close();
+        });
+
+        return todayPicker;
+    }
+
+    function bindAdminDateInputs() {
+        document.querySelectorAll('.admin-date').forEach(input => {
+            if (input.__roleDateBound) return;
+            input.__roleDateBound = true;
+
+            input.addEventListener('click', e => {
+                e.preventDefault();
+                e.stopPropagation();
+                openDatePicker(input);
+            });
+        });
+
+        document.querySelectorAll('.date-icon').forEach(icon => {
+            if (icon.__roleDateBound) return;
+            icon.__roleDateBound = true;
+
+            icon.addEventListener('click', e => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const wrap = icon.closest('.date-input, .date-input-wrap');
+                const input = wrap ? wrap.querySelector('input') : null;
+                if (input) openDatePicker(input);
+            });
+        });
+    }
+
+    function openDatePicker(input) {
+        const picker = initAdminDatePicker();
+        if (!picker) return;
+
+        picker.__target = input;
+
+        if (typeof picker.clearDate === 'function') {
+            picker.clearDate();
+        }
+
+        const value = input.value;
+        if (value) {
+            const date = new Date(value);
+            if (!Number.isNaN(date.getTime())) {
+                picker.setDate(date);
+            }
+        }
+
+        picker.open({ anchor: input });
+    }
+
+    function initDataTable($) {
+        const columns = buildRoleColumns();
+
+        roleTable = createDataTable({
+            tableSelector: '#role-table',
+            api: API.LIST,
+            columns,
+            defaultOrder: [[1, 'asc']],
+            pageLength: 100,
+            selectable: false,
+            deleteButton: false,
+            buttons: [
+                {
+                    text: '\uC0C8 \uC5ED\uD560',
+                    className: 'btn btn-primary btn-sm',
+                    action: function () {
+                        openCreateModal();
+                    }
+                }
+            ]
+        });
+
+        window.RoleTable = roleTable;
+        window.EmployeeRolesTable = {
+            instance: roleTable,
+            reload: () => roleTable?.ajax.reload(null, false)
+        };
+
+        if (roleTable) {
+            SearchForm({
+                table: roleTable,
+                apiList: API.LIST,
+                tableId: 'role',
+                defaultSearchField: 'role_name',
+                dateOptions: DATE_OPTIONS,
+            });
+            bindTableHighlight('#role-table', roleTable);
+
+            roleTable.on('draw', updateRoleCountFromTable);
+            updateRoleCountFromTable();
+        }
+    }
+
+    function buildRoleColumns() {
+        const columns = [];
+
+        columns.push({
+            title: '<i class="bi bi-arrows-move"></i>',
+            className: 'reorder-handle no-sort no-colvis text-center',
+            orderable: false,
+            searchable: false,
+            defaultContent: '<i class="bi bi-list"></i>'
+        });
+
+
+
+        Object.entries(ROLE_COLUMN_MAP).forEach(([field, config]) => {
+            if (field === 'is_active') return;
+
+            columns.push({
+                data: field,
+                title: config.label,
+                visible: config.visible ?? true,
+                className: config.noVis ? 'noVis text-center' : '',
+                defaultContent: '',
+                render: function (data, type) {
+                    if (data == null) return '';
+                    if (type !== 'display') return data;
+
+                    return escapeHtml(data);
+                }
+            });
+        });
+
+        columns.push({
+            data: 'is_active',
+            title: ROLE_COLUMN_MAP.is_active.label,
+            visible: true,
+            className: 'text-center',
+            headerClassName: 'text-center',
+            defaultContent: '',
+            render: function (data, type, row) {
+                if (type !== 'display') return data;
+                const active = String(data) === '1';
+                return `
+                    <div class="form-check form-switch d-inline-flex justify-content-center m-0">
+                        <input type="checkbox"
+                               class="form-check-input role-active-toggle"
+                               data-id="${escapeHtml(row.id || '')}"
+                               ${active ? 'checked' : ''}
+                               aria-label="상태 변경">
+                    </div>
+                `;
+            }
+        });
+
+        columns.push({
+            data: null,
+            title: '관리',
+            className: 'text-center no-colvis',
+            headerClassName: 'text-center no-colvis',
+            orderable: false,
+            searchable: false,
+            defaultContent: '',
+            render: function (_data, type, row) {
+                if (type !== 'display') return '';
+                return `
+                    <button type="button"
+                            class="btn btn-outline-primary btn-sm role-edit-btn"
+                            data-id="${escapeHtml(row.id || '')}">
+                        수정
+                    </button>
+                `;
+            }
+        });
+
+        return columns;
+    }
+
+    function bindTableEvents($) {
+        $('#role-table tbody')
+            .off('dblclick.roleEdit', 'tr')
+            .on('dblclick.roleEdit', 'tr', function () {
+                const data = roleTable.row(this).data();
+                if (data) openEditModal(data);
+            });
+
+        $('#role-table tbody')
+            .off('change.roleActiveToggle', '.role-active-toggle')
+            .on('change.roleActiveToggle', '.role-active-toggle', async function (e) {
+                e.stopPropagation();
+
+                const data = roleTable.row($(this).closest('tr')).data();
+                const active = this.checked;
+                if (!data?.id) return;
+
+                this.disabled = true;
+
+                try {
+                    await updateRoleActive(data, active);
+                    reloadRoleTable();
+                    notify('success', active ? '사용으로 변경되었습니다.' : '미사용으로 변경되었습니다.');
+                } catch (err) {
+                    console.error('[roles.js] status update failed:', err);
+                    this.checked = !active;
+                    notify('error', err.message || '상태 변경에 실패했습니다.');
+                } finally {
+                    this.disabled = false;
+                }
+            });
+
+        $('#role-table tbody')
+            .off('click.roleEditBtn', '.role-edit-btn')
+            .on('click.roleEditBtn', '.role-edit-btn', function (e) {
+                e.stopPropagation();
+
+                const data = roleTable.row($(this).closest('tr')).data();
+                if (data) openEditModal(data);
+            });
+
+    }
+
+    function bindModalEvents($) {
+        $(document)
+            .off('submit.roleForm', '#role-edit-form')
+            .on('submit.roleForm', '#role-edit-form', async function (e) {
+                e.preventDefault();
+                await saveRole();
+            });
+
+        $(document)
+            .off('click.roleDelete', '#role_edit_delete_btn')
+            .on('click.roleDelete', '#role_edit_delete_btn', async function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const id = $('#role_edit_id').val();
+                if (!id) return;
+                if (!confirm('\uC5ED\uD560\uC744 \uC601\uAD6C\uC0AD\uC81C\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?')) return;
+
+                await deleteRole(id);
+            });
+    }
+
+    function openCreateModal() {
+        resetRoleForm();
+        setRoleModalMode('create');
+        roleModal?.show();
+    }
+
+    function openEditModal(row) {
+        resetRoleForm();
+        setRoleModalMode('edit');
+
+        if (roleModalEls.id) roleModalEls.id.value = row.id || '';
+        if (roleModalEls.key) roleModalEls.key.value = row.role_key || '';
+        if (roleModalEls.name) roleModalEls.name.value = row.role_name || '';
+        if (roleModalEls.description) roleModalEls.description.value = row.description || '';
+        if (roleModalEls.isActive) roleModalEls.isActive.checked = String(row.is_active) === '1';
+
+        roleModal?.show();
+    }
+
+    function setRoleModalMode(mode) {
+        const isCreate = mode === 'create';
+        if (roleModalEls.title) {
+            roleModalEls.title.textContent = isCreate ? '역할 등록' : '역할 수정';
+        }
+        if (roleModalEls.deleteBtn) {
+            roleModalEls.deleteBtn.textContent = '영구삭제';
+            roleModalEls.deleteBtn.style.display = isCreate ? 'none' : '';
+        }
+    }
+
+    function resetRoleForm() {
+        const form = roleModalEls.form || document.getElementById('role-edit-form');
+        form?.reset();
+
+        if (roleModalEls.id) roleModalEls.id.value = '';
+        if (roleModalEls.isActive) roleModalEls.isActive.checked = true;
+        setRoleModalMode('create');
+    }
+
+    async function saveRole() {
+        const id = $('#role_edit_id').val();
+        const roleKey = String($('#role_edit_key').val() || '').trim();
+        const roleName = String($('#role_edit_name').val() || '').trim();
+
+        if (!roleKey || !roleName) {
+            notify('warning', 'Role Key와 Role Name을 입력하세요.');
+            return;
+        }
+
+        const fd = new FormData(document.getElementById('role-edit-form'));
+        fd.set('action', id ? 'update' : 'create');
+        fd.set('is_active', $('#role_edit_is_active').is(':checked') ? '1' : '0');
+
+        try {
+            const res = await fetch(API.SAVE, {
+                method: 'POST',
+                body: fd,
+                credentials: 'include'
+            });
+            const json = await res.json();
+
+            if (!json?.success) {
+                notify('error', resolveSaveMessage(json?.message));
+                return;
+            }
+
+            notify('success', '저장되었습니다.');
+            roleModal?.hide();
+            reloadRoleTable();
+        } catch (err) {
+            console.error('[roles.js] save failed:', err);
+            notify('error', '저장 중 오류가 발생했습니다.');
+        }
+    }
+
+    async function deleteRole(id) {
+        const fd = new FormData();
+        fd.append('id', id);
+
+        try {
+            const res = await fetch(API.DELETE, {
+                method: 'POST',
+                body: fd,
+                credentials: 'include'
+            });
+            const json = await res.json();
+
+            if (!json?.success) {
+                notify('error', json?.message || '삭제 실패');
+                return;
+            }
+
+            notify('success', '저장되었습니다.');
+            roleModal?.hide();
+            reloadRoleTable();
+        } catch (err) {
+            console.error('[roles.js] delete failed:', err);
+            notify('error', '저장 중 오류가 발생했습니다.');
+        }
+    }
+
+    async function updateRoleActive(row, active) {
+        const fd = new FormData();
+        fd.set('action', 'update');
+        fd.set('id', row.id || '');
+        fd.set('role_key', row.role_key || '');
+        fd.set('role_name', row.role_name || '');
+        fd.set('description', row.description || '');
+        fd.set('is_active', active ? '1' : '0');
+
+        const res = await fetch(API.SAVE, {
+            method: 'POST',
+            body: fd,
+            credentials: 'include'
+        });
+        const json = await res.json();
+
+        if (!json?.success) {
+            throw new Error(resolveSaveMessage(json?.message));
+        }
+
+        return json;
+    }
+
+    function resolveSaveMessage(message) {
+        if (message === 'duplicate_key') return '이미 등록된 Role Key입니다.';
+        if (message === 'duplicate') return '이미 등록된 Role Key입니다.';
+        return message || '저장 실패';
+    }
+
+    function reloadRoleTable() {
+        roleTable?.ajax.reload(() => {
+            updateRoleCountFromTable();
+        }, false);
+    }
+
+    function updateRoleCountFromTable() {
+        if (!roleTable?.page) return;
+
+        const info = roleTable.page.info();
+        const el = document.getElementById('roleCount');
+        if (el) {
+            el.textContent = '\uCD1D ' + (info?.recordsDisplay ?? 0) + '\uAC74';
+        }
+    }
+
+    
+
+    function bindGlobalEvents() {
+        if (globalBound) return;
+        globalBound = true;
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key !== 'Escape') return;
+
+            if (todayPicker && typeof todayPicker.close === 'function') {
+                const pickerEl = document.getElementById('today-picker');
+                if (pickerEl && !pickerEl.classList.contains('is-hidden')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    todayPicker.close();
+                }
+            }
+        });
+    }
+
+    function formatDate(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    function normalizeStartEnd(type) {
+        const start = document.querySelector('#roleSearchConditionsForm input[name="dateStart"]');
+        const end = document.querySelector('#roleSearchConditionsForm input[name="dateEnd"]');
+
+        if (!start || !end) return;
+        if (!start.value || !end.value) return;
+
+        if (type === 'start' && start.value > end.value) {
+            end.value = start.value;
+        }
+
+        if (type === 'end' && end.value < start.value) {
+            start.value = end.value;
+        }
+    }
+
+    function notify(type, message) {
+        if (window.AppCore?.notify) {
+            window.AppCore.notify(type, message);
+            return;
+        }
+
+        if (type === 'error' || type === 'warning') {
+            alert(message);
+            return;
+        }
+
+        console.log(message);
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function stripHtml(value) {
+        const div = document.createElement('div');
+        div.innerHTML = value;
+        return div.textContent || '';
+    }
+})();

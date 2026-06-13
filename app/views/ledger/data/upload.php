@@ -59,9 +59,6 @@ $pageScripts = AssetHelper::js('https://cdn.jsdelivr.net/npm/ag-grid-community@3
 
                     <div class="col-12 col-lg-auto col-md-5">
                         <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-outline-secondary btn-sm" id="formatManageBtn">
-                                &#50577;&#49885; &#44288;&#47532;
-                            </button>
                             <button type="button" class="btn btn-outline-primary btn-sm" id="downloadTemplateBtn" disabled>
                                 &#50577;&#49885; &#45796;&#50868;&#47196;&#46300;
                             </button>

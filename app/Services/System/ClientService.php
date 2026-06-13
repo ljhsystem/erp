@@ -1,10 +1,4 @@
 <?php
-// 野껋럥以? PROJECT_ROOT . '/app/Services/System/ClientService.php'
-// ??살구:
-//  - 椰꾧퀡?믭㎗?Client) ?온????뺥돩??
-//  - UUID / sort_no ??밴쉐?? Service ???
-//  - DB 泥섎?? ClientModel
-//  - 紐⑤?二쇱???? LoggerFactory ?곸슜
 namespace App\Services\System;
 
 use PDO;
@@ -28,6 +22,8 @@ class ClientService
     private readonly PDO $pdo;
     private ClientModel $model;
     private FileService $fileService;
+    private ClientTrashService $trashService;
+    private ClientExcelService $excelService;
 
     private $logger;
 
@@ -36,15 +32,13 @@ class ClientService
         $this->pdo         = $pdo;
         $this->model  = new ClientModel($this->pdo);
         $this->fileService  = new FileService($this->pdo);
+        $this->trashService = new ClientTrashService($this->pdo, $this->model, $this->fileService);
+        $this->excelService = new ClientExcelService($this->model);
         $this->logger = LoggerFactory::getLogger('service-system.ClientService');
 
         $this->logger->info('ClientService initialized');
     }
 
-
-    /* ============================================================
-     * ?⑷퍥 筌뤴뫖以?鈺곌퀬??
-     * ============================================================ */
     public function getList(array $filters = []): array
     {
         $this->logger->info('getList() called', [
@@ -85,9 +79,6 @@ class ClientService
         }
     }
 
-    /* ============================================================
-     * ??ｊ탷 鈺곌퀬??(id 湲곗?)
-     * ============================================================ */
     public function getById(string $id): ?array
     {
         $this->logger->info('getById() called', ['id' => $id]);
@@ -128,11 +119,6 @@ class ClientService
         }
     }
 
-
-
-    /* =========================================================
-    * 椰꾧퀡?믭㎗?野꺜??(Service - Select2 ????蹂??
-    * ========================================================= */
     public function searchPicker(string $keyword, array $options = []): array
     {
         $this->logger->info('searchPicker() called', [
@@ -154,12 +140,10 @@ class ClientService
 
                 $text = $row['client_name'] ?? '';
 
-                // ?逾???毓?癒?쓰???븐늿?졿묾?
                 if (!empty($row['business_number'])) {
                     $text .= ' (' . $row['business_number'] . ')';
                 }
 
-                // ????????쑝??붽?
                 if (!empty($row['company_name']) && $row['company_name'] !== $row['client_name']) {
                     $text .= ' / ' . $row['company_name'];
                 }
@@ -195,9 +179,39 @@ class ClientService
         }
     }
 
-    /* ============================================================
-    * ????(??밴쉐 + ??륁젟)
-    * ============================================================ */
+    public function deleteCompanyNameHistory(string $historyId): array
+    {
+        $this->logger->info('deleteCompanyNameHistory() called', [
+            'history_id' => $historyId,
+        ]);
+
+        try {
+            $deleted = $this->model->deleteCompanyNameHistory($historyId);
+
+            if (!$deleted) {
+                return [
+                    'success' => false,
+                    'message' => '삭제할 상호 변경 이력을 찾을 수 없습니다.',
+                ];
+            }
+
+            return [
+                'success' => true,
+                'message' => '상호 변경 이력을 삭제했습니다.',
+            ];
+        } catch (\Throwable $e) {
+            $this->logger->error('deleteCompanyNameHistory() failed', [
+                'history_id' => $historyId,
+                'exception' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => '삭제 중 오류가 발생했습니다.',
+            ];
+        }
+    }
+
     public function save(array $data, string $actorType = 'USER', array $files = []): array
     {
         $actor = ActorHelper::resolve($actorType);
@@ -218,7 +232,6 @@ class ClientService
 
             $this->pdo->beginTransaction();
 
-            /* ?逾?normalize ?⑸퓠 ???????삋域밸챶? ?믪눘? ?⑥쥙??*/
             $deleteBusiness = !empty($data['delete_business_certificate']);
             $deleteRrn      = !empty($data['delete_rrn_image']);
             $deleteBank     = !empty($data['delete_bank_file']);
@@ -227,9 +240,6 @@ class ClientService
             $data = DataHelper::normalizeClient($data);
             $data = $this->normalizeNullableClientFields($data);
 
-            /* =========================================================
-            * ??湲곗???곗씠???쇱? 議고??(以묒??
-            * ========================================================= */
             $id   = trim((string)($data['id'] ?? ''));
             $mode = $id === '' ? 'CREATE' : 'UPDATE';
 
@@ -243,9 +253,6 @@ class ClientService
                 }
             }
 
-            /* =========================================================
-            * ?逾?rrn 筌ｌ꼶??(??由경에???猷?
-            * ========================================================= */
             $rrnInput = trim((string)($data['rrn'] ?? ''));
 
             if ($rrnInput === '') {
@@ -270,15 +277,9 @@ class ClientService
                 }
             }
 
-            /* =========================================================
-            * ?逾?ID / 紐⑤?寃곗??
-            * ========================================================= */
             $id   = trim((string)($data['id'] ?? ''));
             $mode = $id === '' ? 'CREATE' : 'UPDATE';
 
-            /* =========================================================
-            * ??湲곗???곗씠???쇱? 議고??(以묒??
-            * ========================================================= */
             $before = [];
 
             if ($id) {
@@ -289,12 +290,6 @@ class ClientService
                 }
             }
 
-
-            /* =========================================================
-            * ???뵬 筌ｌ꼶??
-            * ========================================================= */
-
-            // ?逾??????遺욧퍕
             if ($deleteBusiness && empty($files['business_certificate']['tmp_name'])) {
                 if (!empty($before['business_certificate'])) {
                     $this->fileService->delete($before['business_certificate']);
@@ -316,7 +311,7 @@ class ClientService
                 }
 
                 $data['rrn_image'] = null;
-            // 업로드 오류 확인
+
             if (
                 isset($files['business_certificate']['error']) &&
                 $files['business_certificate']['error'] !== UPLOAD_ERR_NO_FILE &&
@@ -351,8 +346,6 @@ class ClientService
             }
             }
 
-
-            // ?逾???낆쨮??
             if (!empty($files['business_certificate']['tmp_name'])) {
 
                 $oldPath = $before['business_certificate'] ?? null;
@@ -373,7 +366,6 @@ class ClientService
                 }
             }
 
-            // ?逾?rrn_image ??줈??泥섎??
             if (!empty($files['rrn_image']['tmp_name'])) {
 
                 $oldPath = $before['rrn_image'] ?? null;
@@ -387,8 +379,7 @@ class ClientService
                 }
 
                 $data['rrn_image'] = $upload['db_path'];
-                $newRrnPath = $upload['db_path'];   // ???????ｌ뼱??留욌??
-
+                $newRrnPath = $upload['db_path'];
                 if (!empty($oldPath)) {
                     $this->fileService->delete($oldPath);
                 }
@@ -414,7 +405,6 @@ class ClientService
                 }
             }
 
-            // ??湲곗????? ??
             if (
                 !array_key_exists('business_certificate', $data)
                 && !$deleteBusiness
@@ -438,15 +428,10 @@ class ClientService
                     $before['bank_file'] ?? null;
             }
 
-            /* =========================================================
-            * ?逾????????삋域???볤탢 (DB 蹂댄??
-            * ========================================================= */
             unset($data['delete_business_certificate']);
             unset($data['delete_bank_file']);
             unset($data['delete_rrn_image']);
-            /* =========================================================
-            * UPDATE
-            * ========================================================= */
+
             if ($id) {
                 $data['updated_by'] = $actor;
 
@@ -485,9 +470,6 @@ class ClientService
                 ];
             }
 
-            /* =========================================================
-            * INSERT
-            * ========================================================= */
             $newId   = UuidHelper::generate();
             $newSortNo = (int)($data['sort_no'] ?? 0);
             if ($newSortNo <= 0) {
@@ -518,7 +500,6 @@ class ClientService
                 $this->pdo->rollBack();
             }
 
-            // ?逾???낆쨮??뺤춸 ??랁?DB 諛섏????뙣????? ?類ｂ봺
             if (!empty($newBusinessPath)) {
                 $this->fileService->delete($newBusinessPath);
             }
@@ -544,13 +525,10 @@ class ClientService
         }
     }
 
-
-
-    /* ============================================================
-     * ????
-     * ============================================================ */
     public function delete(string $id, string $actorType = 'USER'): array
     {
+        return $this->trashService->delete($id, $actorType);
+
         $actor = ActorHelper::resolve($actorType);
 
         $this->logger->info('delete() called', [
@@ -601,10 +579,10 @@ class ClientService
         }
     }
 
-    /* =========================================================
-    * 휴지통 목록
-    * ========================================================= */    public function getTrashList(): array
+    public function getTrashList(): array
     {
+        return $this->trashService->getTrashList();
+
         $this->logger->info('getTrashList() called');
 
         try {
@@ -621,14 +599,10 @@ class ClientService
         }
     }
 
-
-
-    /* =========================================================
-    蹂듭??
-    ========================================================= */
-
     public function restore(string $id, string $actorType = 'USER'): array
     {
+        return $this->trashService->restore($id, $actorType);
+
         $actor = ActorHelper::resolve($actorType);
 
         $this->logger->info('restore() called', [
@@ -653,14 +627,10 @@ class ClientService
         ];
     }
 
-
-
-
-
-    /* =========================================================
-    * 선택 복원
-    * ========================================================= */    public function restoreBulk(array $ids, string $actorType = 'USER'): array
+    public function restoreBulk(array $ids, string $actorType = 'USER'): array
     {
+        return $this->trashService->restoreBulk($ids, $actorType);
+
         $actor = ActorHelper::resolve($actorType);
 
         $this->logger->info('restoreBulk() called', [
@@ -707,13 +677,10 @@ class ClientService
         }
     }
 
-
-
-    /* =========================================================
-    * 전체 복원
-    * ========================================================= */
     public function restoreAll(string $actorType = 'USER'): array
     {
+        return $this->trashService->restoreAll($actorType);
+
         $actor = ActorHelper::resolve($actorType);
 
         $this->logger->info('restoreAll() called', [
@@ -753,13 +720,10 @@ class ClientService
         }
     }
 
-
-
-    /* =========================================================
-    * 완전 삭제
-    * ========================================================= */
     public function purge(string $id, string $actorType = 'USER'): array
     {
+        return $this->trashService->purge($id, $actorType);
+
         $actor = ActorHelper::resolve($actorType);
 
         $this->logger->info('purge() called', [
@@ -833,11 +797,10 @@ class ClientService
         }
     }
 
-    /* =========================================================
-    * 선택 완전 삭제
-    * ========================================================= */
     public function purgeBulk(array $ids, string $actorType = 'USER'): array
     {
+        return $this->trashService->purgeBulk($ids, $actorType);
+
         $actor = ActorHelper::resolve($actorType);
 
         if (empty($ids)) {
@@ -915,11 +878,10 @@ class ClientService
         }
     }
 
-    /* =========================================================
-    * 전체 완전 삭제
-    * ========================================================= */
     public function purgeAll(string $actorType = 'USER'): array
     {
+        return $this->trashService->purgeAll($actorType);
+
         $actor = ActorHelper::resolve($actorType);
 
         $this->pdo->beginTransaction();
@@ -987,11 +949,10 @@ class ClientService
         }
     }
 
-
-    /* ============================================================
-    * 순서 변경(RowReorder)
-    * ============================================================ */    public function reorder(array $changes): bool
+    public function reorder(array $changes): bool
     {
+        return $this->trashService->reorder($changes);
+
         $this->logger->info('reorder() called', [
             'changes' => $changes
         ]);
@@ -1057,10 +1018,11 @@ class ClientService
         }
     }
 
-    /* ============================================================
-    * 엑셀 양식 다운로드
-    * ============================================================ */    public function downloadTemplate(): void
+    public function downloadTemplate(?string $columnsCsv = null): void
     {
+        $this->excelService->downloadTemplate($columnsCsv);
+        return;
+
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('거래처 업로드');
@@ -1079,6 +1041,11 @@ class ClientService
 
     public function saveFromExcelFile(string $filePath): array
     {
+        return $this->excelService->saveFromExcelFile(
+            $filePath,
+            fn(array $payload, string $actorType = 'SYSTEM'): array => $this->save($payload, $actorType)
+        );
+
         $spreadsheet = IOFactory::load($filePath);
         $rows = $spreadsheet->getActiveSheet()->toArray(null, false, false, false);
         if (empty($rows) || count($rows) < 2) { return ['success' => false, 'message' => '업로드할 데이터가 없습니다.']; }
@@ -1105,8 +1072,11 @@ class ClientService
         return ['success' => true, 'message' => "{$count}건 업로드되었습니다."];
     }
 
-    public function downloadExcel(): void
+    public function downloadExcel(?string $columnsCsv = null): void
     {
+        $this->excelService->downloadExcel($columnsCsv);
+        return;
+
         $clients = $this->model->getList();
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
@@ -1127,17 +1097,23 @@ class ClientService
         exit;
     }
 
-    public function downloadMigrationTemplate(): void { $this->downloadTemplate(); }
-    public function saveFromMigrationExcelFile(string $filePath): array { return $this->saveFromExcelFile($filePath); }
-    public function downloadMigrationExcel(): void { $this->downloadExcel(); }
+    public function downloadMigrationTemplate(?string $columnsCsv = null): void { $this->excelService->downloadMigrationTemplate($columnsCsv); }
+
+    public function saveFromMigrationExcelFile(string $filePath, ?string $columnsCsv = null): array { return $this->excelService->saveFromMigrationExcelFile($filePath, fn(array $payload, string $actorType = 'SYSTEM'): array => $this->save($payload, $actorType), $columnsCsv); }
+    
+    public function downloadMigrationExcel(?string $columnsCsv = null): void { $this->excelService->downloadMigrationExcel($columnsCsv); }
 
     private function getClientMigrationHeaders(): array
     {
+        return $this->excelService->getClientMigrationHeaders();
+
         return ['거래처명', '상호명', '등록일자', '사업자등록번호', '업태', '대표자명', '전화', '이메일', '주소', '메모'];
     }
 
     private function getClientMigrationHeaderMap(): array
     {
+        return $this->excelService->getClientMigrationHeaderMap();
+
         return [
             '거래처명' => 'client_name',
             '상호명' => 'company_name',
@@ -1164,6 +1140,8 @@ class ClientService
 
     private function normalizeMigrationExcelDate(mixed $value): ?string
     {
+        return $this->excelService->normalizeMigrationExcelDate($value);
+
         if ($value === null) {
             return null;
         }
@@ -1183,6 +1161,8 @@ class ClientService
 
     private function parseMigrationExcelActiveValue(mixed $value): int
     {
+        return $this->excelService->parseMigrationExcelActiveValue($value);
+
         $normalized = mb_strtolower(trim((string)$value), 'UTF-8');
         return in_array($normalized, ['1', 'true', 'yes', 'use', 'active', 'y', '사용'], true) ? 1 : 0;
     }

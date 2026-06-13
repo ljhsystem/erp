@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT/app/Services/User/PositionService.php
+
 namespace App\Services\User;
 
 use PDO;
@@ -22,9 +22,6 @@ class PositionService
         $this->logger = LoggerFactory::getLogger('service-user.PositionService');
     }
 
-    /* ============================================================
-     * 1) 전체 조회
-     * ============================================================ */
     public function getAll(array $filters = []): array
     {
         return $this->model->getAll($filters);
@@ -35,17 +32,11 @@ class PositionService
         return $this->getAll($filters);
     }
 
-    /* ============================================================
-     * 2) 단일 조회
-     * ============================================================ */
     public function getById(string $id): ?array
     {
         return $this->model->getById($id);
     }
 
-    /* ============================================================
-     * 3) 생성 (UUID + sort_no + 검증)
-     * ============================================================ */
     public function create(array $data): array
     {
         $name = trim($data['position_name'] ?? '');
@@ -54,14 +45,12 @@ class PositionService
             return ['success' => false, 'message' => 'empty'];
         }
 
-        // 중복 검사
         if ($this->model->existsByName($name)) {
             return ['success' => false, 'message' => 'duplicate'];
         }
 
-        // UUID + sort_no 생성
         $data['id'] = UuidHelper::generate();
-        $data['sort_no'] = null;
+        $data['sort_no'] = SequenceHelper::next('user_positions', 'sort_no');
 
         $data['created_by'] = ActorHelper::user();
 
@@ -73,9 +62,6 @@ class PositionService
         ];
     }
 
-    /* ============================================================
-     * 4) 수정
-     * ============================================================ */
     public function update(string $id, array $data): array
     {
         if (!$id) {
@@ -88,7 +74,6 @@ class PositionService
             return ['success' => false, 'message' => 'empty'];
         }
 
-        // 본인 제외 중복 검사
         if ($this->model->existsByName($name, $id)) {
             return ['success' => false, 'message' => 'duplicate'];
         }
@@ -103,9 +88,6 @@ class PositionService
         ];
     }
 
-    /* ============================================================
-     * 5) 삭제
-     * ============================================================ */
     public function delete(string $id): array
     {
         if (!$id) {

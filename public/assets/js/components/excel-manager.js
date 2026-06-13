@@ -20,6 +20,51 @@
         console[type === 'error' ? 'error' : 'log'](message);
     }
 
+    function readPreparedColumns(form, type) {
+        const datasetKey = type === 'template'
+            ? 'excelTemplateColumns'
+            : 'excelDownloadColumns';
+
+        try {
+            const parsed = JSON.parse(form?.dataset?.[datasetKey] || '[]');
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    }
+
+    function prepareExcelAction(form, type) {
+        const columns = readPreparedColumns(form, type);
+        form.__excelLastPreparedAction = {
+            type,
+            columns,
+        };
+        form.dispatchEvent(new CustomEvent('excel:prepare-action', {
+            detail: {
+                type,
+                columns,
+            },
+        }));
+        return columns;
+    }
+
+    function appendColumnsQuery(url, columns) {
+        const baseUrl = String(url || '').trim();
+        const selectedColumns = Array.isArray(columns)
+            ? columns.map((column) => String(column || '').trim()).filter(Boolean)
+            : [];
+
+        if (!baseUrl || selectedColumns.length === 0) {
+            return baseUrl;
+        }
+
+        const [withoutHash, hash = ''] = baseUrl.split('#', 2);
+        const separator = withoutHash.includes('?') ? '&' : '?';
+        const columnsValue = selectedColumns.map((column) => encodeURIComponent(column)).join(',');
+
+        return `${withoutHash}${separator}columns=${columnsValue}${hash ? `#${hash}` : ''}`;
+    }
+
     function formatBytes(bytes) {
         const size = Number(bytes) || 0;
         if (size >= 1024 * 1024) return `${(size / 1024 / 1024).toFixed(1)}MB`;
@@ -469,14 +514,16 @@
 
         if (btn.classList.contains('btn-template-download')) {
             if (form.dataset.templateUrl) {
-                window.location.href = form.dataset.templateUrl;
+                const columns = prepareExcelAction(form, 'template');
+                window.location.href = appendColumnsQuery(form.dataset.templateUrl, columns);
             }
             return;
         }
 
         if (btn.classList.contains('btn-download-all')) {
             if (form.dataset.downloadUrl) {
-                window.location.href = form.dataset.downloadUrl;
+                const columns = prepareExcelAction(form, 'download');
+                window.location.href = appendColumnsQuery(form.dataset.downloadUrl, columns);
             }
             return;
         }
@@ -492,6 +539,10 @@
 
         const file = fileInput.files[0];
         const formData = new FormData(form);
+        const templateColumns = prepareExcelAction(form, 'template');
+        if (templateColumns.length > 0) {
+            formData.set('excel_template_columns', templateColumns.join(','));
+        }
         setModalBusy(modal, true);
         setUploadProgress(modal, {
             percent: 0,

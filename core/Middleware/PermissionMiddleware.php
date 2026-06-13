@@ -5,7 +5,6 @@ namespace Core\Middleware;
 use App\Services\Auth\AuthSessionService;
 use App\Services\Auth\PermissionService;
 use Core\Database;
-use Core\Helpers\ConfigHelper;
 use Core\LoggerFactory;
 
 class PermissionMiddleware
@@ -20,11 +19,6 @@ class PermissionMiddleware
     {
         $logger = LoggerFactory::getLogger('core.middleware-PermissionMiddleware');
         $path = trim((string)parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/');
-
-        if (ConfigHelper::get('IsDevelopment') === true) {
-            $logger->info('DEV MODE permission bypass');
-            return;
-        }
 
         if (in_array($path, self::$autoAllowed, true)) {
             $logger->info('Autologout route permission bypass', ['path' => $path]);
@@ -51,21 +45,24 @@ class PermissionMiddleware
         }
 
         $userId = (string)$user['id'];
-
-        $sessionRoles = $user['roles'] ?? [];
-        if (!is_array($sessionRoles)) {
-            $sessionRoles = [];
-        }
-
-        $roleKey = strtolower(trim((string)($user['role_key'] ?? '')));
-        if (in_array('super_admin', $sessionRoles, true) || $roleKey === 'super_admin') {
-            return;
-        }
+        error_log(sprintf(
+            '[PermissionMiddleware] check start user_id=%s role_key=%s required=%s path=%s',
+            $userId,
+            (string)($user['role_key'] ?? ''),
+            (string)$required,
+            $path
+        ));
 
         $service = new PermissionService(Database::getInstance()->getConnection());
 
         try {
             $hasPermission = $service->hasPermission($userId, (string)$required);
+            error_log(sprintf(
+                '[PermissionMiddleware] check result user_id=%s required=%s allowed=%s',
+                $userId,
+                (string)$required,
+                $hasPermission ? 'true' : 'false'
+            ));
         } catch (\Throwable $e) {
             $logger->error('PermissionService failure', [
                 'user_id' => $userId,
@@ -76,6 +73,13 @@ class PermissionMiddleware
         }
 
         if (!$hasPermission) {
+            error_log(sprintf(
+                '[PermissionMiddleware] deny user_id=%s role_key=%s required=%s path=%s',
+                $userId,
+                (string)($user['role_key'] ?? ''),
+                (string)$required,
+                $path
+            ));
             self::respondError(403, '접근 권한이 없습니다.');
         }
     }

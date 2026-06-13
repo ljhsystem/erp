@@ -127,7 +127,7 @@ class NotificationService
                AND u.is_active = 1
                AND u.deleted_at IS NULL
                AND r.role_key IN ('super_admin', 'admin')
-             ORDER BY FIELD(r.role_key, 'super_admin', 'admin'), u.sort_no ASC
+             ORDER BY FIELD(r.role_key, 'super_admin', 'admin'), u.username ASC
         ");
 
         return array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);

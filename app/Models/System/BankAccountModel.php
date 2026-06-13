@@ -1,6 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Models/System/BankAccountModel.php'
-
 namespace App\Models\System;
 
 use PDO;
@@ -8,18 +6,14 @@ use Core\Database;
 
 class BankAccountModel
 {
-    // PDO 연결 객체
+
     private PDO $db;
 
-    // 생성자에서 PDO 주입 또는 기본 연결 사용
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
-    /* =========================================================
-    * 계좌 목록 조회
-    * ========================================================= */
     public function getList(array $filters = []): array
     {
         $sql = "
@@ -55,12 +49,8 @@ class BankAccountModel
 
         $params = [];
 
-        /* =========================================================
-         * 검색 필드 매핑
-         * ========================================================= */
         $fieldMap = [
 
-            // 기본 정보
             'id'              => ['col'=>'a.id','type'=>'exact'],
             'sort_no'         => ['col'=>'a.sort_no','type'=>'exact'],
             'account_name'    => ['col'=>'a.account_name','type'=>'like'],
@@ -70,17 +60,13 @@ class BankAccountModel
             'account_type'    => ['col'=>'a.account_type','type'=>'like'],
             'currency'        => ['col'=>'a.currency','type'=>'like'],
 
-            // 첨부 파일
             'bank_file'       => ['col'=>'a.bank_file','type'=>'like'],
 
-            // 기타
             'note'            => ['col'=>'a.note','type'=>'like'],
             'memo'            => ['col'=>'a.memo','type'=>'like'],
 
-            // 상태
             'is_active'       => ['col'=>'a.is_active','type'=>'exact'],
 
-            // 날짜/감사 정보
             'created_at'      => ['col'=>'a.created_at','type'=>'date'],
             'created_by'      => ['col'=>'a.created_by','type'=>'like'],
             'created_by_name' => ['col'=>"COALESCE(CONCAT('USER:', p1.employee_name), a.created_by)",'type'=>'like'],
@@ -94,9 +80,6 @@ class BankAccountModel
 
         $globalSearch = [];
 
-        /* =========================================================
-         * 필터 처리
-         * ========================================================= */
         foreach ($filters as $f) {
 
             $field = $f['field'] ?? '';
@@ -104,7 +87,6 @@ class BankAccountModel
 
             if ($value === '' || $value === null) continue;
 
-            // 전체 검색
             if ($field === '') {
                 $globalSearch[] = $value;
                 continue;
@@ -115,7 +97,6 @@ class BankAccountModel
             $col  = $fieldMap[$field]['col'];
             $type = $fieldMap[$field]['type'];
 
-            // 날짜
             if ($type === 'date') {
 
                 if (is_array($value)) {
@@ -129,14 +110,12 @@ class BankAccountModel
                 continue;
             }
 
-            // LIKE
             if ($type === 'like') {
                 $sql .= " AND $col LIKE ?";
                 $params[] = "%{$value}%";
                 continue;
             }
 
-            // EXACT
             if ($type === 'exact') {
                 $sql .= " AND $col = ?";
                 $params[] = $value;
@@ -144,9 +123,6 @@ class BankAccountModel
             }
         }
 
-        /* =========================================================
-         * 전체 검색(텍스트 컬럼)
-         * ========================================================= */
         if (!empty($globalSearch)) {
 
             $searchCols = [
@@ -204,9 +180,6 @@ class BankAccountModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /* =========================================================
-    * 계좌 단일 조회 (id 기준)
-    * ========================================================= */
     public function getById(string $id): ?array
     {
         $stmt = $this->db->prepare("
@@ -256,9 +229,6 @@ class BankAccountModel
         return $row ?: null;
     }
 
-    /* =========================================================
-    * 계좌 검색 (Model - RAW 데이터 반환)
-    * ========================================================= */
     public function searchPicker(string $keyword = '', int $limit = 20): array
     {
         $limit = max(1, min(100, (int)$limit));
@@ -309,9 +279,6 @@ class BankAccountModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    /* =========================================================
-    * 계좌 생성
-    * ========================================================= */
     public function create(array $data): bool
     {
         $sql = "
@@ -368,9 +335,7 @@ class BankAccountModel
             'updated_by' => $data['updated_by'],
         ]);
     }
-    /* =========================================================
-    * 계좌 수정 (id 기준)
-    * ========================================================= */
+
     public function updateById(string $id, array $data): bool
     {
         $sql = "
@@ -407,9 +372,7 @@ class BankAccountModel
         $stmt = $this->db->prepare($sql);
         return $stmt->execute($params);
     }
-    /* -------------------------------------------------------------
-    * 계좌 삭제 (id 기준)
-    * ------------------------------------------------------------- */
+
     public function deleteById(string $id, string $actor): bool
     {
         $sql = "
@@ -433,9 +396,6 @@ class BankAccountModel
         return $stmt->rowCount() > 0;
     }
 
-    /* -------------------------------------------------------------
-    * 계좌 휴지통 목록
-    * ------------------------------------------------------------- */
     public function getDeleted(): array
     {
         $stmt = $this->db->prepare("
@@ -483,9 +443,6 @@ class BankAccountModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /* -------------------------------------------------------------
-    * 계좌 복원 (id 기준)
-    * ------------------------------------------------------------- */
     public function restoreById(string $id, string $actor): bool
     {
         $sql = "
@@ -506,10 +463,6 @@ class BankAccountModel
         ]);
     }
 
-
-    /* -------------------------------------------------------------
-    * 계좌 영구삭제 (id 기준)
-    * ------------------------------------------------------------- */
     public function hardDeleteById(string $id): bool
     {
         $stmt = $this->db->prepare("
@@ -523,10 +476,6 @@ class BankAccountModel
 
         return $stmt->rowCount() > 0;
     }
-
-    /* -------------------------------------------------------------
-    * ID 기준 sort_no 수정
-    * ------------------------------------------------------------- */
 
     public function updateSortNo(string $id, string $newSortNo): bool
     {

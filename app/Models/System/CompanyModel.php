@@ -1,5 +1,4 @@
 <?php
-// PROJECT_ROOT/app/Models/System/CompanyModel.php
 namespace App\Models\System;
 
 use PDO;
@@ -7,18 +6,13 @@ use Core\Database;
 
 class CompanyModel
 {
-    // PDO 보관
     private PDO $db;
 
-    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
-    /* =========================================================
-     * 회사 정보 단건 조회 (항상 1건)
-     * ========================================================= */
     public function getOne(): ?array
     {
         $stmt = $this->db->prepare("
@@ -38,9 +32,6 @@ class CompanyModel
         return (int) $stmt->fetchColumn();
     }
 
-    /* =========================================================
-     * 회사 정보 신규 생성
-     * ========================================================= */
     public function create(array $data): bool
     {
         $sql = "
@@ -117,9 +108,6 @@ class CompanyModel
         ]);
     }
 
-    /* =========================================================
-     * 회사 정보 수정
-     * ========================================================= */
     public function updateById(string $id, array $data): bool
     {
         $sql = "

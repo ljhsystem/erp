@@ -15,7 +15,7 @@ class DepartmentController
 
     public function webIndex()
     {
-        include PROJECT_ROOT . '/app/views/dashboard/settings/organization/departments.php';
+        include PROJECT_ROOT . '/app/views/dashboard/settings/organization/department.php';
     }
 
     public function apiList()

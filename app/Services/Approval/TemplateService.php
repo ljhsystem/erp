@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT/app/Services/Approval/TemplateService.php
 namespace App\Services\Approval;
 
 use PDO;
@@ -22,17 +21,11 @@ class TemplateService
         $this->logger = LoggerFactory::getLogger('service-approval.ApprovalTemplateService');
     }
 
-    /* ------------------------------------------------------------
-     * 🔥 Normalize Helper
-     * ------------------------------------------------------------ */
     private function normalize(string $value): string
     {
         return trim(preg_replace('/\s+/', ' ', $value));
     }
 
-    /* ------------------------------------------------------------
-     * 템플릿 키 자동 생성
-     * ------------------------------------------------------------ */
     private function generateTemplateKey(string $name): string
     {
         $roman = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $name)
@@ -51,33 +44,23 @@ class TemplateService
         return $key;
     }
 
-    /* ------------------------------------------------------------
-     * 전체 조회
-     * ------------------------------------------------------------ */
     public function getAll(): array
     {
         return $this->model->getAll();
     }
 
-    /* ------------------------------------------------------------
-     * 단건 조회
-     * ------------------------------------------------------------ */
     public function getById(string $id): ?array
     {
         return $this->model->getById($id);
     }
 
-    /* ------------------------------------------------------------
-     * 🔥 템플릿 생성 (중복검사 강화)
-     * ------------------------------------------------------------ */
     public function create(array $data): array
     {
-        // Normalize
+
         $data['template_name'] = $this->normalize($data['template_name']);
         $data['document_type'] = $this->normalize($data['document_type']);
         $this->logger->info('[Template Create] 입력', $data);
 
-        // 중복 검사
         if ($this->model->existsName($data['template_name'], $data['document_type'])) {
 
             $this->logger->warning('[Template Create] 중복 발견', [
@@ -91,7 +74,6 @@ class TemplateService
             ];
         }
 
-        // 생성
         $id  = UuidHelper::generate();
         $key = $this->generateTemplateKey($data['template_name']);
         $data['sort_no'] = SequenceHelper::next('user_approval_templates', 'sort_no');
@@ -112,12 +94,9 @@ class TemplateService
         ];
     }
 
-    /* ------------------------------------------------------------
-     * 🔥 템플릿 수정 (중복 검사 강화 + 로그 유지)
-     * ------------------------------------------------------------ */
     public function update(string $id, array $data): array
     {
-        // Normalize
+
         $data['template_name'] = $this->normalize($data['template_name']);
         $data['document_type'] = $this->normalize($data['document_type']);
         $data['updated_by'] = ActorHelper::user();
@@ -128,7 +107,6 @@ class TemplateService
             'document_type' => $data['document_type']
         ]);
 
-        // 자기 자신 제외 중복 검사
         if ($this->model->existsName($data['template_name'], $data['document_type'], $id)) {
 
             $this->logger->warning('[Template Update] 중복 발견', [
@@ -153,9 +131,6 @@ class TemplateService
         return ['success' => $ok];
     }
 
-    /* ------------------------------------------------------------
-     * 템플릿 삭제
-     * ------------------------------------------------------------ */
     public function delete(string $id): bool
     {
         $this->logger->info('[Template Delete] 요청', ['id' => $id]);

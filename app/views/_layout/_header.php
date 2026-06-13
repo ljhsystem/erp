@@ -1,6 +1,8 @@
 <?php
 // 경로: PROJECT_ROOT . '/app/views/_layout/_header.php'
 use Core\Helpers\AssetHelper;
+
+$pageTitle = $pageTitle ?? 'SUKHYANG ERP';
 ?>
 <!DOCTYPE html>
 <html lang="ko">

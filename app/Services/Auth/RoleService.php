@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Services/Auth/RoleService.php'
 namespace App\Services\Auth;
 
 use PDO;
@@ -22,9 +21,6 @@ class RoleService
         $this->logger = LoggerFactory::getLogger('service-auth.RoleService');
     }
 
-    /* ---------------------------------------------------------------
-     * 1) 전체 역할 조회
-     * --------------------------------------------------------------- */
     public function getAll(array $filters = []): array
     {
         return $this->model->getAll($filters);
@@ -35,9 +31,6 @@ class RoleService
         return $this->getAll($filters);
     }
 
-    /* ---------------------------------------------------------------
-     * 2) 역할 생성 (UUID/코드 생성 책임 서비스)
-     * --------------------------------------------------------------- */
     public function create(array $data): array
     {
         if (empty($data['role_key']) || empty($data['role_name'])) {
@@ -54,7 +47,6 @@ class RoleService
             ];
         }
 
-        // ⭐ Service가 생성해야 하는 값들
         $data['id']         = UuidHelper::generate();
         $data['sort_no']       = SequenceHelper::next('auth_roles', 'sort_no');
         $data['created_by'] = ActorHelper::user();
@@ -69,9 +61,6 @@ class RoleService
         ];
     }
 
-    /* ---------------------------------------------------------------
-     * 3) 역할 수정
-     * --------------------------------------------------------------- */
     public function update(string $id, array $data): array
     {
         if (!$id) {
@@ -99,9 +88,6 @@ class RoleService
         ];
     }
 
-    /* ---------------------------------------------------------------
-     * 4) 역할 삭제
-     * --------------------------------------------------------------- */
     public function delete(string $id): array
     {
         if (!$id) {
@@ -116,17 +102,11 @@ class RoleService
         ];
     }
 
-    /* ---------------------------------------------------------------
-     * 5) 활성화/비활성화
-     * --------------------------------------------------------------- */
     public function toggleActive(string $id, int $active): bool
     {
         return $this->model->toggleActive($id, $active);
     }
 
-    /* ---------------------------------------------------------------
-     * 6) 역할 조회(id 또는 role_key)
-     * --------------------------------------------------------------- */
     public function findByIdOrKey(string $value): ?array
     {
         return $this->model->findByIdOrKey($value);

@@ -1,6 +1,4 @@
 <?php
-// 寃쎈줈: PROJECT_ROOT . '/app/Models/System/CardModel.php'
-
 namespace App\Models\System;
 
 use PDO;
@@ -8,18 +6,14 @@ use Core\Database;
 
 class CardModel
 {
-    // PDO 蹂닿?
+
     private PDO $db;
 
-    // ?앹꽦?????몃??먯꽌 PDO 주입 ?는 ?동 ?결
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
-    /* =========================================================
-    * 카드 ?체 紐⑸줉
-    * ========================================================= */
     public function getList(array $filters = []): array
     {
         $sql = "
@@ -62,38 +56,28 @@ class CardModel
 
         $params = [];
 
-        /* =========================================================
-         * ? ?체 컬럼 留?
-         * ========================================================= */
         $fieldMap = [
 
-            // 湲곕낯
             'sort_no'            => ['col'=>'c.sort_no','type'=>'exact'],
             'card_name'       => ['col'=>'c.card_name','type'=>'like'],
             'card_number'     => ['col'=>'c.card_number','type'=>'like'],
 
-            // ?
             'client_id'       => ['col'=>'c.client_id','type'=>'exact'],
             'account_id'      => ['col'=>'c.account_id','type'=>'exact'],
             'client_name'     => ['col'=>'cl.client_name','type'=>'like'],
             'account_name'    => ['col'=>'b.account_name','type'=>'like'],
 
-            // ?좏슚湲곌컙
             'expiry_year'     => ['col'=>'c.expiry_year','type'=>'exact'],
             'expiry_month'    => ['col'=>'c.expiry_month','type'=>'exact'],
 
-            // 湲덉븸
             'limit_amount'    => ['col'=>'c.limit_amount','type'=>'exact'],
 
-            // 湲고?
             'card_file'       => ['col'=>'c.card_file','type'=>'like'],
             'note'            => ['col'=>'c.note','type'=>'like'],
             'memo'            => ['col'=>'c.memo','type'=>'like'],
 
-            // ?곹깭
             'is_active'       => ['col'=>'c.is_active','type'=>'exact'],
 
-            // ?좎쭨
             'created_at'      => ['col'=>'c.created_at','type'=>'date'],
             'updated_at'      => ['col'=>'c.updated_at','type'=>'date'],
             'created_by_name' => ['col'=>"COALESCE(p1.employee_name, c.created_by)",'type'=>'like'],
@@ -102,9 +86,6 @@ class CardModel
 
         $globalSearch = [];
 
-        /* =========================================================
-         * ?뵦 ?꾪꽣 泥섎━
-         * ========================================================= */
         foreach ($filters as $f) {
 
             $field = $f['field'] ?? '';
@@ -112,7 +93,6 @@ class CardModel
 
             if ($value === '' || $value === null) continue;
 
-            // ? ?체??
             if ($field === '') {
                 $globalSearch[] = $value;
                 continue;
@@ -123,7 +103,6 @@ class CardModel
             $col  = $fieldMap[$field]['col'];
             $type = $fieldMap[$field]['type'];
 
-            // ?좎쭨
             if ($type === 'date') {
 
                 if (is_array($value)) {
@@ -137,14 +116,12 @@ class CardModel
                 continue;
             }
 
-            // LIKE
             if ($type === 'like') {
                 $sql .= " AND $col LIKE ?";
                 $params[] = "%{$value}%";
                 continue;
             }
 
-            // EXACT
             if ($type === 'exact') {
                 $sql .= " AND $col = ?";
                 $params[] = $value;
@@ -152,9 +129,6 @@ class CardModel
             }
         }
 
-        /* =========================================================
-         * ? ?체??(?스??컬럼 + 조인)
-         * ========================================================= */
         if (!empty($globalSearch)) {
 
             $searchCols = [
@@ -206,9 +180,7 @@ class CardModel
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-    /* =========================================================
-    * 移대뱶 ?⑥씪 議고쉶 (id 湲곗?)
-    * ========================================================= */
+
     public function getById(string $id): ?array
     {
         $stmt = $this->db->prepare("
@@ -262,9 +234,7 @@ class CardModel
 
         return $row ?: null;
     }
-    /* =========================================================
-    * 移대뱶 寃??(Model - RAW ?곗씠??諛섑솚)
-    * ========================================================= */
+
     public function searchPicker(string $keyword = '', int $limit = 20): array
     {
         $limit = max(1, min(100, (int)$limit));
@@ -313,9 +283,7 @@ class CardModel
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
-    /* =========================================================
-    * 移대뱶 ?앹꽦
-    * ========================================================= */
+
     public function create(array $data): bool
     {
         $sql = "
@@ -383,9 +351,7 @@ class CardModel
             'updated_by' => $data['updated_by'],
         ]);
     }
-    /* =========================================================
-    * 移대뱶 ?섏젙 (id 湲곗?)
-    * ========================================================= */
+
     public function updateById(string $id, array $data): bool
     {
         $sql = "
@@ -432,9 +398,7 @@ class CardModel
         $stmt = $this->db->prepare($sql);
         return $stmt->execute($params);
     }
-    /* -------------------------------------------------------------
-    * 移대뱶 ??젣 (id 湲곗?)
-    * ------------------------------------------------------------- */
+
     public function deleteById(string $id, string $actor): bool
     {
         $sql = "
@@ -458,9 +422,6 @@ class CardModel
         return $stmt->rowCount() > 0;
     }
 
-    /* -------------------------------------------------------------
-    * 移대뱶 ?댁???紐⑸줉
-    * ------------------------------------------------------------- */
     public function getDeleted(): array
     {
         $stmt = $this->db->prepare("
@@ -513,9 +474,6 @@ class CardModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /* -------------------------------------------------------------
-    * 移대뱶 蹂듭썝 (id 湲곗?)
-    * ------------------------------------------------------------- */
     public function restoreById(string $id, string $actor): bool
     {
         $sql = "
@@ -536,12 +494,9 @@ class CardModel
         ]);
     }
 
-    /* -------------------------------------------------------------
-    * 移대뱶 ?곴뎄??젣 (?뚯씪 ?ы븿)
-    * ------------------------------------------------------------- */
     public function hardDeleteById(string $id): bool
     {
-        // 1. ?뚯씪 寃쎈줈 議고쉶
+
         $stmt = $this->db->prepare("
             SELECT card_file
             FROM system_cards
@@ -550,14 +505,12 @@ class CardModel
         $stmt->execute([':id' => $id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        // 2. DB ??젣
         $stmt = $this->db->prepare("
             DELETE FROM system_cards
             WHERE id = :id
         ");
         $stmt->execute([':id' => $id]);
 
-        // 3. ?뚯씪 ??젣
         if ($row && !empty($row['card_file'])) {
 
             $filePath = PROJECT_ROOT . '/public/uploads/' . str_replace('public://', '', $row['card_file']);
@@ -570,9 +523,6 @@ class CardModel
         return true;
     }
 
-    /* -------------------------------------------------------------
-    * 移대뱶 ?쒖꽌 蹂寃?(異⑸룎 諛⑹?)
-    * ------------------------------------------------------------- */
     public function updateSortNo(string $id, string $newSortNo): bool
     {
         $sql = "UPDATE system_cards SET sort_no = :newSortNo WHERE id = :id";

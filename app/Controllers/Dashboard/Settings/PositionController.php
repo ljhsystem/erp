@@ -15,7 +15,7 @@ class PositionController
 
     public function webIndex()
     {
-        include PROJECT_ROOT . '/app/views/dashboard/settings/organization/positions.php';
+        include PROJECT_ROOT . '/app/views/dashboard/settings/organization/position.php';
     }
 
     public function apiList()

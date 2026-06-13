@@ -19,7 +19,6 @@ import '/public/assets/js/components/excel-manager.js';
 
     const API = {
         seedRows: '/api/import/evidences',
-        formats: '/api/import/formats',
         preview: '/api/import/preview',
         upload: '/api/import/evidence-upload',
         uploadCancel: '/api/import/evidence-upload/cancel',
@@ -666,9 +665,8 @@ import '/public/assets/js/components/excel-manager.js';
         const raw = valueText(payload.business_unit || payload.business_unit_code);
         const label = codeDisplayName('business_unit', raw);
         const normalized = `${raw} ${label}`.replace(/\s+/g, '').toUpperCase();
-        if (normalized.includes('HQ') || normalized.includes('본사')) return 'HQ';
         if (normalized.includes('CONSTRUCTION') || normalized.includes('전문건설')) return 'CONSTRUCTION';
-        return '';
+        return normalized === '' ? '' : 'OTHER';
     }
 
     function hasProjectSelection(payload = {}) {
@@ -682,21 +680,28 @@ import '/public/assets/js/components/excel-manager.js';
         input?.focus?.();
     }
 
-    function validateBusinessProjectRule(payload = {}) {
+    function businessProjectRuleMessage(payload = {}) {
         const type = businessUnitRuleType(payload);
         const hasProject = hasProjectSelection(payload);
+
+        if (type === 'OTHER' && hasProject) {
+            return '사업구분이 전문건설업이 아닐 때는 프로젝트를 선택할 수 없습니다.';
+        }
+        if (type === 'CONSTRUCTION' && !hasProject) {
+            return '사업구분이 전문건설업일 때는 프로젝트를 선택해야 합니다.';
+        }
+        return '';
+    }
+
+    function validateBusinessProjectRule(payload = {}) {
+        const message = businessProjectRuleMessage(payload);
         editInputByKey('business_unit')?.classList.remove('is-invalid');
         editInputByKey('project_name')?.classList.remove('is-invalid');
         editInputByKey('project_id')?.classList.remove('is-invalid');
 
-        if (type === 'HQ' && hasProject) {
+        if (message !== '') {
             focusBusinessProjectRuleTarget('project_name');
-            notify('warning', '사업구분이 본사일 때는 프로젝트명을 선택할 수 없습니다.');
-            return false;
-        }
-        if (type === 'CONSTRUCTION' && !hasProject) {
-            focusBusinessProjectRuleTarget('project_name');
-            notify('warning', '사업구분이 전문건설업일 때는 프로젝트명을 선택해야 합니다.');
+            notify('warning', message);
             return false;
         }
         return true;
@@ -1511,7 +1516,7 @@ import '/public/assets/js/components/excel-manager.js';
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    seed_row_ids: ids,
+                    evidence_ids: ids,
                     parsed_patch: patch,
                     mode,
                 }),
@@ -2481,6 +2486,16 @@ import '/public/assets/js/components/excel-manager.js';
             missing.push(...splitMissingRequiredForRow(tr, index));
             return splitChildFromRow(tr, index);
         });
+        const ruleMessages = children
+            .map((child, index) => {
+                const message = businessProjectRuleMessage(child.mapped_payload || child);
+                return message ? `${index + 1}행 ${message}` : '';
+            })
+            .filter(Boolean);
+        if (ruleMessages.length > 0) {
+            notify('warning', ruleMessages.slice(0, 5).join(' '));
+            return;
+        }
         if (missing.length > 0) {
             notify('warning', `필수 항목을 입력해야 저장할 수 있습니다: ${missing.slice(0, 5).join(', ')}${missing.length > 5 ? ` 외 ${missing.length - 5}건` : ''}`);
             return;
@@ -2532,6 +2547,11 @@ import '/public/assets/js/components/excel-manager.js';
             return;
         }
         const child = splitChildFromRow(row, 0);
+        const ruleMessage = businessProjectRuleMessage(child.mapped_payload || child);
+        if (ruleMessage !== '') {
+            notify('warning', ruleMessage);
+            return;
+        }
         const response = await fetch(API.updateProcessingChild, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2776,18 +2796,6 @@ import '/public/assets/js/components/excel-manager.js';
         return [[1, 'asc']];
     }
 
-    function applyDefaultTableOrder(tableInstance, config = {}) {
-        if (!tableInstance) return;
-
-        const order = defaultOrderForConfig(config);
-        if (!Array.isArray(order) || order.length === 0) return;
-
-        tableInstance.order(order.map((item) => {
-            if (!Array.isArray(item) || typeof item[0] !== 'number') return item;
-            return [item[0] + 1, ...item.slice(1)];
-        })).draw();
-    }
-
     function commonColumns(config) {
         return [
             {
@@ -2807,6 +2815,7 @@ import '/public/assets/js/components/excel-manager.js';
                 },
             },
             {
+                key: 'row_no',
                 data: 'row_no',
                 title: '순번',
                 className: 'text-center text-nowrap',
@@ -3061,14 +3070,7 @@ import '/public/assets/js/components/excel-manager.js';
     }
 
     async function loadActiveFormat(type) {
-        if (!type) return null;
-        const response = await fetch(`${API.formats}?data_type=${encodeURIComponent(type)}&include_columns=1`, { cache: 'no-store' });
-        const json = await response.json().catch(() => ({}));
-        if (!response.ok || json.success === false) {
-            throw new Error(json.message || '양식 정보를 불러오지 못했습니다.');
-        }
-        const formats = Array.isArray(json.data) ? json.data : [];
-        return formats.find((format) => Number(format.is_default || 0) === 1) || formats[0] || null;
+        return null;
     }
 
     function noFormatColumns() {
@@ -3390,6 +3392,14 @@ import '/public/assets/js/components/excel-manager.js';
         return fallback || '\uc5c5\ub85c\ub4dc\uac00 \uc644\ub8cc\ub418\uc5b4 \ubaa9\ub85d\uc744 \uc0c8\ub85c\uace0\uce68\ud569\ub2c8\ub2e4.';
     }
 
+    function dualWriteUploadMessage(result = {}) {
+        const status = String(result?.dual_write_status || '').trim();
+        if (!status) return '';
+        const successCount = Number(result?.dual_write_success_count || 0);
+        const failedCount = Number(result?.dual_write_failed_count || 0);
+        return `Dual write: ${status} (success ${successCount}, failed ${failedCount})`;
+    }
+
     async function uploadExcelFromModal(button) {
         if (uploadingExcel) return;
         const form = refs.excelForm;
@@ -3523,14 +3533,19 @@ import '/public/assets/js/components/excel-manager.js';
                 throw new Error(uploadJson.message || '\uc5d1\uc140 \uc5c5\ub85c\ub4dc\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.');
             }
             const result = uploadJson.data || {};
+            const dualWriteMessage = dualWriteUploadMessage(result);
+            const completedMessage = [
+                uploadResultProgressMessage(result, uploadJson.message),
+                dualWriteMessage,
+            ].filter(Boolean).join('\n');
             progress?.set(refs.excelModal, {
                 percent: 100,
                 title: '\uc5c5\ub85c\ub4dc \uc644\ub8cc',
-                message: uploadResultProgressMessage(result, uploadJson.message),
+                message: completedMessage,
             });
             notify(
                 'success',
-                uploadResultProgressMessage(result, uploadJson.message)
+                completedMessage
             );
 
             setTimeout(() => bootstrap.Modal.getInstance(refs.excelModal)?.hide(), 250);
@@ -3596,6 +3611,8 @@ import '/public/assets/js/components/excel-manager.js';
         }
         document.querySelector(selector)?.classList.add('evidence-status-table', 'nowrap');
 
+        const columns = commonColumns(config);
+
         table = createDataTable({
             tableSelector: selector,
             api: config.api,
@@ -3614,7 +3631,17 @@ import '/public/assets/js/components/excel-manager.js';
             deleteButton: true,
             deleteApi: API.deleteRows,
             bulkDelete: true,
-            columns: commonColumns(config),
+            columns,
+            tableSettings: {
+                enabled: true,
+                pageKey: 'ledger.data.status',
+                tableKey: 'evidence-status',
+                storageKey: 'ledger.data.status.evidence-status.v1',
+                tableLabel: 'Evidence Status',
+                columns,
+                requiredColumns: [],
+                defaultVisibleColumns: [],
+            },
             dataSrc(json) {
                 lastRows = Array.isArray(json.data) ? json.data : [];
                 updateSummary(lastRows);
@@ -3636,11 +3663,6 @@ import '/public/assets/js/components/excel-manager.js';
                     className: 'btn btn-outline-dark btn-sm',
                     action: () => showModal('dataExcelModal'),
                 }] : []),
-                {
-                    text: '양식관리',
-                    className: 'btn btn-outline-secondary btn-sm',
-                    action: () => showModal('dataFormatModal'),
-                },
                 ...(hasFormat ? [{
                     text: '선택 일괄보정',
                     className: 'btn btn-primary btn-sm evidence-bulk-edit-btn',
@@ -3683,8 +3705,6 @@ import '/public/assets/js/components/excel-manager.js';
                 table?.ajax.reload(null, false);
             },
         });
-
-        applyDefaultTableOrder(table, config);
 
         SearchForm({
             table,

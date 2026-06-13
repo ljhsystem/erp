@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS `ledger_evidence_processing_logs`;
+DROP TABLE IF EXISTS `ledger_evidence_processing`;
+DROP TABLE IF EXISTS `ledger_evidence_links`;
+DROP TABLE IF EXISTS `ledger_evidence_card_purchase`;
+DROP TABLE IF EXISTS `ledger_evidence_cash_receipt`;
+DROP TABLE IF EXISTS `ledger_evidence_tax_invoice_items`;
+DROP TABLE IF EXISTS `ledger_evidence_tax_invoice`;
+DROP TABLE IF EXISTS `ledger_evidence_bank`;
+DROP TABLE IF EXISTS `ledger_evidence_number_histories`;
+DROP TABLE IF EXISTS `ledger_evidence_number_sequences`;

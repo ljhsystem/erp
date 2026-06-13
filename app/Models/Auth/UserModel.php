@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Models/Auth/AuthUserModel.php'
 namespace App\Models\Auth;
 
 use PDO;
@@ -10,22 +9,16 @@ class UserModel
     // PDO 보관
     private PDO $db;
 
-    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
-    // ---------------------------------------------------------------
-    // PDO 반환
-    // ---------------------------------------------------------------
+
     public function getPDO(): PDO
     {
         return $this->db;
     }
 
-    // ---------------------------------------------------------------
-    // 아이디 중복 확인
-    // ---------------------------------------------------------------
     public function existsByUsername(string $username): bool
     {
         $stmt = $this->db->prepare("
@@ -36,25 +29,16 @@ class UserModel
         return (int)$stmt->fetchColumn() > 0;
     }
 
-    // ---------------------------------------------------------------
-    // 사용자 생성 (Service 에서 UUID/CODE 생성 → Model 은 INSERT 만 수행)
-    // ---------------------------------------------------------------
     public function createUser(array $data): bool
     {
-        /**
-         * ⚠ 주의
-         * - $data['id'], $data['code'], $data['username'], $data['password']
-         *   등은 SERVICE 에서 생성/검증 후 그대로 전달됨.
-         */
-
         $sql = "
             INSERT INTO auth_users (
-                id, sort_no, username, password, email, role_id,
+                id, username, password, email, role_id,
                 two_factor_enabled, email_notify, sms_notify,
                 is_active, approved, created_by
             )
             VALUES (
-                :id, :sort_no, :username, :password, :email, :role_id,
+                :id, :username, :password, :email, :role_id,
                 :two_factor_enabled, :email_notify, :sms_notify,
                 :is_active, :approved, :created_by
             )
@@ -64,7 +48,6 @@ class UserModel
 
         return $stmt->execute([
             ':id'                => $data['id'],
-            ':sort_no'           => $data['sort_no'] ?? $data['code'] ?? null,
             ':username'          => $data['username'],
             ':password'          => $data['password'],
             ':email'             => $data['email'] ?? null,
@@ -78,9 +61,6 @@ class UserModel
         ]);
     }
 
-    // ---------------------------------------------------------------
-    // 자기가 자기 생성자로 기록
-    // ---------------------------------------------------------------
     public function setCreatedBySelf(string $userId): bool
     {
         $stmt = $this->db->prepare("
@@ -95,15 +75,11 @@ class UserModel
         ]);
     }
 
-    // ---------------------------------------------------------------
-    // 사용자 조회
-    // ---------------------------------------------------------------
     public function getById(string $id): ?array
     {
         $sql = "
-            SELECT 
+            SELECT
                 u.*,
-                u.sort_no AS code,
                 e.employee_name,
                 r.role_key,
                 r.role_name
@@ -120,9 +96,8 @@ class UserModel
     public function getByUsername(string $username): ?array
     {
         $sql = "
-            SELECT 
+            SELECT
                 u.*,
-                u.sort_no AS code,
                 e.employee_name,
                 r.role_key,
                 r.role_name
@@ -136,21 +111,30 @@ class UserModel
         return $this->fetchOne($sql, [$username]);
     }
 
-    public function getByCode(string $code): ?array
+    public function findByUsernameAndEmail(string $username, string $email): ?array
     {
         $sql = "
-            SELECT 
-                u.*,
-                u.sort_no AS code,
-                r.role_key,
-                r.role_name
-            FROM auth_users u
-            LEFT JOIN auth_roles r ON r.id = u.role_id
-            WHERE u.sort_no = ?
-            LIMIT 1
+            SELECT id, username, email
+              FROM auth_users
+             WHERE username = ? AND email = ?
+             LIMIT 1
         ";
 
-        return $this->fetchOne($sql, [$code]);
+        return $this->fetchOne($sql, [$username, $email]);
+    }
+
+    public function findApprovalRequestUser(string $userId): ?array
+    {
+        $sql = "
+            SELECT u.id, u.username, u.approved, u.created_at,
+                   p.employee_name, p.profile_image
+              FROM auth_users u
+         LEFT JOIN user_employees p ON p.user_id = u.id
+             WHERE u.id = ?
+             LIMIT 1
+        ";
+
+        return $this->fetchOne($sql, [$userId]);
     }
 
     private function fetchOne(string $sql, array $params): ?array
@@ -161,15 +145,12 @@ class UserModel
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
-    // ---------------------------------------------------------------
-    // 비밀번호 변경
-    // ---------------------------------------------------------------
     public function updatePassword(string $userId, string $hash, ?string $updatedBy = null): bool
     {
         $stmt = $this->db->prepare("
             UPDATE auth_users
-               SET password = ?, 
-                   password_updated_at = NOW(), 
+               SET password = ?,
+                   password_updated_at = NOW(),
                    password_updated_by = ?
              WHERE id = ?
         ");
@@ -177,9 +158,6 @@ class UserModel
         return $stmt->execute([$hash, $updatedBy, $userId]);
     }
 
-    // ---------------------------------------------------------------
-    // 로그인 실패 기록
-    // ---------------------------------------------------------------
     public function increaseFailCount(string $userId): void
     {
         $this->db->prepare("
@@ -201,9 +179,6 @@ class UserModel
         return (int)$stmt->fetchColumn();
     }
 
-    // ---------------------------------------------------------------
-    // 계정 잠금
-    // ---------------------------------------------------------------
     public function lockAccount(string $userId, int $minutes): bool
     {
         $stmt = $this->db->prepare("
@@ -227,9 +202,6 @@ class UserModel
         return $stmt->execute([$userId]);
     }
 
-    // ---------------------------------------------------------------
-    // 최근 로그인 기록
-    // ---------------------------------------------------------------
     public function updateLastLogin(string $userId, string $ip, ?string $device = null): bool
     {
         $stmt = $this->db->prepare("
@@ -244,9 +216,6 @@ class UserModel
         return $stmt->execute([$ip, $device, $userId]);
     }
 
-    // ---------------------------------------------------------------
-    // 승인 처리
-    // ---------------------------------------------------------------
     public function approve(string $userId, string $approvedBy): bool
     {
         $stmt = $this->db->prepare("
@@ -260,14 +229,11 @@ class UserModel
         return $stmt->execute([$approvedBy, $userId]);
     }
 
-    // ---------------------------------------------------------------
-    // 활성/비활성
-    // ---------------------------------------------------------------
     public function setActive(string $userId, int $active, ?string $updatedBy = null): bool
     {
         $stmt = $this->db->prepare("
             UPDATE auth_users
-               SET is_active = ?, 
+               SET is_active = ?,
                    updated_at = NOW(),
                    updated_by = ?
              WHERE id = ?
@@ -276,9 +242,6 @@ class UserModel
         return $stmt->execute([$active, $updatedBy, $userId]);
     }
 
-    // ---------------------------------------------------------------
-    // Soft Delete / Restore
-    // ---------------------------------------------------------------
     public function softDelete(string $userId, ?string $deletedBy = null): bool
     {
         $stmt = $this->db->prepare("
@@ -303,15 +266,12 @@ class UserModel
         return $stmt->execute([$userId]);
     }
 
-    // ---------------------------------------------------------------
-    // 알림 설정
-    // ---------------------------------------------------------------
     public function updateNotifySettings(string $userId, int $emailNotify, int $smsNotify): bool
     {
         $stmt = $this->db->prepare("
             UPDATE auth_users
-               SET email_notify = ?, 
-                   sms_notify    = ?, 
+               SET email_notify = ?,
+                   sms_notify    = ?,
                    updated_at    = NOW()
              WHERE id = ?
         ");
@@ -319,14 +279,11 @@ class UserModel
         return $stmt->execute([$emailNotify, $smsNotify, $userId]);
     }
 
-    // ---------------------------------------------------------------
-    // 2FA 설정
-    // ---------------------------------------------------------------
     public function update2FA(string $userId, int $enabled): bool
     {
         $stmt = $this->db->prepare("
             UPDATE auth_users
-               SET two_factor_enabled = ?, 
+               SET two_factor_enabled = ?,
                    updated_at          = NOW()
              WHERE id = ?
         ");
@@ -334,9 +291,6 @@ class UserModel
         return $stmt->execute([$enabled, $userId]);
     }
 
-    // ---------------------------------------------------------------
-    // ★ 화이트리스트 기반 업데이트(auth_users만 수정 가능)
-    // ---------------------------------------------------------------
     public function updateUserDirect(string $userId, array $data): bool
     {
         if (empty($data)) {
@@ -395,14 +349,11 @@ class UserModel
         return $stmt->execute($params);
     }
 
-    // ---------------------------------------------------------------
-    // 새로운 비밀번호가 기존 비밀번호와 동일한지 확인
-    // ---------------------------------------------------------------
     public function isSamePassword(string $userId, string $newPassword): bool
     {
         $stmt = $this->db->prepare("
-            SELECT password 
-            FROM auth_users 
+            SELECT password
+            FROM auth_users
             WHERE id = ?
         ");
         $stmt->execute([$userId]);
@@ -415,9 +366,6 @@ class UserModel
         return password_verify($newPassword, $row['password']);
     }
 
-    // ---------------------------------------------------------------
-    // 완료된 승인 처리
-    // ---------------------------------------------------------------
     public function approveUserFull(string $userId, string $approvedBy): bool
     {
         $stmt = $this->db->prepare("
@@ -435,9 +383,6 @@ class UserModel
         ]);
     }
 
-    // ---------------------------------------------------------------
-    // username 조회
-    // ---------------------------------------------------------------
     public function getUsername(string $userId): ?string
     {
         $stmt = $this->db->prepare("
@@ -452,12 +397,8 @@ class UserModel
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
         return $row['username'] ?? null;
-    } 
-    
+    }
 
-    /* =========================================================
-    * 사용자 삭제 (auth_users.id 기준)
-    * ========================================================= */
     public function hardDeleteById(string $id): bool
     {
         $sql = "DELETE FROM auth_users WHERE id = :id";
@@ -468,6 +409,5 @@ class UserModel
             'id' => $id
         ]);
     }
-    
-}
 
+}

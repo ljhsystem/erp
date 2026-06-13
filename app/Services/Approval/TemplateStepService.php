@@ -1,10 +1,10 @@
 <?php
-// 경로: PROJECT_ROOT/app/Services/Approval/TemplateStepService.php
 namespace App\Services\Approval;
 
 use PDO;
 use App\Models\User\ApprovalTemplateStepModel;
 use Core\Helpers\ActorHelper;
+use Core\Helpers\SequenceHelper;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
 
@@ -21,9 +21,6 @@ class TemplateStepService
         $this->logger = LoggerFactory::getLogger('service-approval.ApprovalTemplateStepService');
     }
 
-    /* ============================================================
-     * 📌 스텝 리스트 조회
-     * ============================================================ */
     public function getSteps(string $templateId): array
     {
         try {
@@ -45,9 +42,6 @@ class TemplateStepService
         }
     }
 
-    /* ============================================================
-     * 📌 단건 조회
-     * ============================================================ */
     public function getById(string $id): ?array
     {
         try {
@@ -64,13 +58,9 @@ class TemplateStepService
         }
     }
 
-    /* ============================================================
-     * 📌 생성(Create)
-     * ============================================================ */
     public function create(array $data): array
     {
         try {
-            // 🔥 중복 스텝명 체크
             if ($this->model->existsStepName($data['template_id'], $data['step_name'])) {
                 return [
                     'success' => false,
@@ -78,13 +68,10 @@ class TemplateStepService
                 ];
             }
 
-            // 🔥 UUID 생성 (모델 금지)
             $data['id'] = UuidHelper::generate();
 
-            // 🔥 sort_no 계산
-            $data['sort_no'] = $this->model->getNextSortNo($data['template_id']);
+            $data['sort_no'] = SequenceHelper::next('user_approval_template_steps', 'sort_no');
 
-            // 🔥 기본값
             $data['is_active'] = $data['is_active'] ?? 1;
             $data['created_by'] = ActorHelper::user();
             $data['updated_by'] = $data['created_by'];
@@ -106,9 +93,6 @@ class TemplateStepService
         }
     }
 
-    /* ============================================================
-     * 📌 수정(Update)
-     * ============================================================ */
     public function update(string $id, array $data): array
     {
         try {
@@ -118,7 +102,6 @@ class TemplateStepService
                 return ['success' => false, 'message' => 'not_found'];
             }
 
-            // 🔥 중복 스텝명 체크 (자기 자신 제외)
             if ($this->model->existsStepName($data['template_id'], $data['step_name'], $id)) {
                 return [
                     'success' => false,
@@ -126,7 +109,6 @@ class TemplateStepService
                 ];
             }
 
-            // 기존 데이터 + 새로운 데이터 병합
             $merged = array_merge($existing, $data);
 
             $ok = $this->model->update($id, $merged);
@@ -143,9 +125,6 @@ class TemplateStepService
         }
     }
 
-    /* ============================================================
-     * 📌 삭제(Delete)
-     * ============================================================ */
     public function delete(string $id): bool
     {
         try {

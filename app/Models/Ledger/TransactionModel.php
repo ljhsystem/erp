@@ -53,8 +53,11 @@ class TransactionModel
         }
 
         if (!empty($filters['status'])) {
-            $sql .= " AND t.status = :status";
-            $params[':status'] = $filters['status'];
+            $status = strtolower(trim((string) $filters['status']));
+            if (in_array($status, ['draft', 'approved', 'rejected', 'deleted'], true)) {
+                $sql .= " AND t.status = :status";
+                $params[':status'] = $status;
+            }
         }
 
         if (!empty($filters['match_status'])) {

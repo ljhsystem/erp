@@ -1,6 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Services/Mail/TwoFactorMail.php'
-declare(strict_types=1);//PHP 파일에서 엄격한 타입 검사(Strict Type Checking)를 활성화하는 선언
+declare(strict_types=1);
 namespace App\Services\Mail;
 
 use Core\LoggerFactory;
@@ -10,7 +9,6 @@ class TwoFactorMail
     private Mailer $mailer;
     private array $user = [];
 
-    // 1. 로거 프로퍼티 추가
     private $logger;
 
     public function __construct(Mailer $mailer)
@@ -19,14 +17,10 @@ class TwoFactorMail
         $this->logger = LoggerFactory::getLogger('service-mail.TwoFactorMail');
     }
 
-    /**
-     * $data: ['user' => [...]] 또는 직접 유저 배열
-     */
     public function send(array $data): array
     {
         $this->user = $data['user'] ?? $data;
 
-        // 2. 빌드 전 사용자 정보 로그
         $this->logger->info('2FA 메일 send 호출', [
             'user_id'  => $this->user['id'] ?? null,
             'username' => $this->user['username'] ?? null,
@@ -43,7 +37,6 @@ class TwoFactorMail
             return ['sent' => 0, 'status' => 'missing_to'];
         }
 
-        // 3. 발송 시도 로그
         $this->logger->info('2FA 메일 발송 시도', [
             'to'       => $content['to'],
             'username' => $this->user['username'] ?? null
@@ -56,7 +49,6 @@ class TwoFactorMail
             $content['text']
         );
 
-        // 4. 발송 결과 로그
         $this->logger->info('2FA 메일 발송 결과', [
             'to'     => $content['to'],
             'sent'   => $result['sent'] ?? null,
@@ -74,13 +66,12 @@ class TwoFactorMail
 
         if ($code === '') {
             $this->log("2FA 코드 없음: user=" . json_encode($this->user));
-            // 5. 코드 미존재 로그
+
             $this->logger->warning('2FA 메일 build - 코드 없음', [
                 'user' => $this->user
             ]);
         }
 
-        // ★ ERP 인증 화면 URL (코드를 포함해 전달)
         $verifyUrl = "https://erp.sukhyang.com/auth/2fa?code=" . urlencode($code);
 
         $subject = '[ERP] 2단계 인증 안내';
@@ -108,7 +99,6 @@ class TwoFactorMail
         $text = "2단계 인증 코드: {$code}\n\n"
                ."자동 인증 링크: {$verifyUrl}";
 
-        // 6. build 완료 로그
         $this->logger->info('2FA 메일 build 완료', [
             'to'    => $to,
             'has_code' => $code !== ''
@@ -124,7 +114,6 @@ class TwoFactorMail
 
     public static function dispatch(array $user): array
     {
-        // 하위 호환: 직접 Mailer 생성 후 사용
         $mailer = new Mailer();
         return (new self($mailer))->send(['user' => $user]);
     }

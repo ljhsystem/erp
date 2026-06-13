@@ -5473,6 +5473,7 @@ import '/public/assets/js/components/trash-manager.js';
                 defaultContent: '<i class="bi bi-list"></i>',
             },
             {
+                key: 'row_no',
                 data: 'row_no',
                 title: '순번',
                 className: 'text-center text-nowrap',
@@ -5526,6 +5527,7 @@ import '/public/assets/js/components/trash-manager.js';
                 defaultContent: '<i class="bi bi-list"></i>',
             },
             {
+                key: 'row_no',
                 data: 'row_no',
                 title: '순번',
                 className: 'text-center text-nowrap',
@@ -5537,16 +5539,16 @@ import '/public/assets/js/components/trash-manager.js';
                     return escapeHtml(display);
                 },
             },
-            { data: null, title: '표준일자', className: 'text-nowrap seed-compact-cell', render: (_value, _type, row) => escapeHtml(formatDate(standardDate(row))) },
+            { key: 'standard_date', data: null, title: '표준일자', className: 'text-nowrap seed-compact-cell', render: (_value, _type, row) => escapeHtml(formatDate(standardDate(row))) },
             { data: 'source_type', title: '자료출처', className: 'text-nowrap seed-compact-cell seed-source-cell', render: (value, _type, row) => labelBadge(row.source_type_name || importSourceLabel(value)) },
             { data: 'import_type', title: '자료유형', className: 'text-nowrap seed-compact-cell seed-type-cell', render: (value, _type, row) => labelBadge(row.import_type_name || importTypeLabel(value || row.seed_source_type)) },
-            { data: null, title: '사업구분', className: 'text-nowrap seed-compact-cell seed-code-cell', render: (_value, _type, row) => escapeHtml(codeDisplayName('business_unit', mapped(row).business_unit || mapped(row).business_unit_code) || '-') },
-            { data: null, title: '거래구분', className: 'text-nowrap seed-compact-cell seed-code-cell', render: (_value, _type, row) => escapeHtml(codeDisplayName('transaction_direction', mapped(row).transaction_direction) || directionLabel(mapped(row).transaction_direction || mapped(row).transaction_type || '')) },
-            { data: null, title: '거래유형', className: 'text-nowrap seed-compact-cell seed-code-cell', render: (_value, _type, row) => escapeHtml(codeDisplayName('transaction_type', mapped(row).transaction_type) || '-') },
-            { data: null, title: '거래처', className: 'text-nowrap seed-compact-cell seed-name-cell', render: (_value, _type, row) => `<span title="${escapeHtml(rowClientName(row))}">${escapeHtml(rowClientName(row) || '-')}</span>` },
-            { data: null, title: '프로젝트', className: 'text-nowrap seed-compact-cell seed-name-cell', render: (_value, _type, row) => `<span title="${escapeHtml(rowProjectName(row))}">${escapeHtml(rowProjectName(row) || '-')}</span>` },
-            { data: null, title: '증빙상태', className: 'text-nowrap seed-compact-cell seed-status-cell', render: (_value, _type, row) => evidenceStatusBadge(row) },
-            { data: null, title: '거래생성상태', className: 'text-nowrap seed-compact-cell', render: (_value, _type, row) => transactionCreateStatusBadge(row) },
+            { key: 'business_unit', data: null, title: '사업구분', className: 'text-nowrap seed-compact-cell seed-code-cell', render: (_value, _type, row) => escapeHtml(codeDisplayName('business_unit', mapped(row).business_unit || mapped(row).business_unit_code) || '-') },
+            { key: 'transaction_direction', data: null, title: '거래구분', className: 'text-nowrap seed-compact-cell seed-code-cell', render: (_value, _type, row) => escapeHtml(codeDisplayName('transaction_direction', mapped(row).transaction_direction) || directionLabel(mapped(row).transaction_direction || mapped(row).transaction_type || '')) },
+            { key: 'transaction_type', data: null, title: '거래유형', className: 'text-nowrap seed-compact-cell seed-code-cell', render: (_value, _type, row) => escapeHtml(codeDisplayName('transaction_type', mapped(row).transaction_type) || '-') },
+            { key: 'client_name', data: null, title: '거래처', className: 'text-nowrap seed-compact-cell seed-name-cell', render: (_value, _type, row) => `<span title="${escapeHtml(rowClientName(row))}">${escapeHtml(rowClientName(row) || '-')}</span>` },
+            { key: 'project_name', data: null, title: '프로젝트', className: 'text-nowrap seed-compact-cell seed-name-cell', render: (_value, _type, row) => `<span title="${escapeHtml(rowProjectName(row))}">${escapeHtml(rowProjectName(row) || '-')}</span>` },
+            { key: 'evidence_status', data: null, title: '증빙상태', className: 'text-nowrap seed-compact-cell seed-status-cell', render: (_value, _type, row) => evidenceStatusBadge(row) },
+            { key: 'transaction_create_status', data: null, title: '거래생성상태', className: 'text-nowrap seed-compact-cell', render: (_value, _type, row) => transactionCreateStatusBadge(row) },
             { data: 'voucher_status', title: '전표발행상태', className: 'text-nowrap seed-compact-cell', render: (_value, _type, row) => voucherCreateStatusBadge(row) },
             {
                 data: null,
@@ -5990,6 +5992,7 @@ import '/public/assets/js/components/trash-manager.js';
 
     function initTable() {
         registerTypeFilterSearch();
+        const columns = buildColumns();
 
         evidenceTable = createDataTable({
             tableSelector: '#seedRowsTable',
@@ -6002,7 +6005,17 @@ import '/public/assets/js/components/trash-manager.js';
             searchTableId: 'seedRows',
             deleteApi: API.deleteRows,
             bulkDelete: true,
-            columns: buildColumns(),
+            columns,
+            tableSettings: {
+                enabled: true,
+                pageKey: 'ledger.data.create',
+                tableKey: 'evidence-create',
+                storageKey: 'ledger.data.create.evidence-create.v1',
+                tableLabel: 'Evidence Create',
+                columns,
+                requiredColumns: [],
+                defaultVisibleColumns: [],
+            },
             isRowSelectable: isSelectableForBulk,
             ajaxData(request) {
                 const next = { ...request };
@@ -6018,7 +6031,7 @@ import '/public/assets/js/components/trash-manager.js';
                     const el = document.querySelector('[data-seed-summary="total"]');
                     if (el) {
                         const label = el.dataset.seedSummaryLabel || '';
-                        const countText = `${Number(json.recordsTotal || 0).toLocaleString('ko-KR')}嫄?`;
+                        const countText = `${Number(json.recordsTotal || 0).toLocaleString('ko-KR')}\uac74`;
                         el.textContent = label ? `${label} ${countText}` : countText;
                     }
                 }

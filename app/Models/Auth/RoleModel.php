@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Models/Auth/AuthRoleModel.php'
 namespace App\Models\Auth;
 
 use PDO;
@@ -7,23 +6,19 @@ use Core\Database;
 
 class RoleModel
 {
-    // PDO 보관
+
     private PDO $db;
 
-    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
-    /* ===============================================================
-     * 1) 역할 전체 조회
-     * =============================================================== */
     public function getAll(array $filters = []): array
     {
         try {
             $sql = "
-                SELECT 
+                SELECT
                     id, sort_no, role_key, role_name,
                     description, is_active,
                     created_at, created_by,
@@ -149,21 +144,18 @@ class RoleModel
 
             return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        } catch (\Throwable $e) {            
+        } catch (\Throwable $e) {
             return [];
         }
     }
 
-    /* ===============================================================
-     * 2) 역할 단일 조회
-     * =============================================================== */
     public function getById(string $id): ?array
     {
         if (!$id) return null;
 
         try {
             $stmt = $this->db->prepare("
-                SELECT 
+                SELECT
                     id, sort_no, role_key, role_name,
                     description, is_active,
                     created_at, created_by,
@@ -174,14 +166,11 @@ class RoleModel
             $stmt->execute([$id]);
             return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 
-        } catch (\Throwable $e) {            
+        } catch (\Throwable $e) {
             return null;
         }
     }
 
-    /* ===============================================================
-     * 3) role_key 중복 체크
-     * =============================================================== */
     public function existsKey(string $roleKey, ?string $excludeId = null): bool
     {
         try {
@@ -198,14 +187,11 @@ class RoleModel
 
             return $stmt->fetchColumn() > 0;
 
-        } catch (\Throwable $e) {            
+        } catch (\Throwable $e) {
             return true;
         }
     }
 
-    /* ===============================================================
-     * 4) 역할 생성 (UUID/Code는 Service에서 생성됨)
-     * =============================================================== */
     public function create(array $data): array
     {
         try {
@@ -239,14 +225,11 @@ class RoleModel
 
             return ['success' => $ok];
 
-        } catch (\Throwable $e) {            
+        } catch (\Throwable $e) {
             return ['success' => false, 'message' => 'error'];
         }
     }
 
-    /* ===============================================================
-     * 5) 역할 수정
-     * =============================================================== */
     public function update(string $id, array $data): array
     {
         if (!$id) return ['success' => false, 'message' => 'no_id'];
@@ -276,14 +259,11 @@ class RoleModel
 
             return ['success' => $stmt->execute($params)];
 
-        } catch (\Throwable $e) {           
+        } catch (\Throwable $e) {
             return ['success' => false];
         }
     }
 
-    /* ===============================================================
-     * 6) 역할 삭제
-     * =============================================================== */
     public function delete(string $id): bool
     {
         if (!$id) return false;
@@ -292,14 +272,11 @@ class RoleModel
             $stmt = $this->db->prepare("DELETE FROM auth_roles WHERE id = ?");
             return $stmt->execute([$id]);
 
-        } catch (\Throwable $e) {           
+        } catch (\Throwable $e) {
             return false;
         }
     }
 
-    /* ===============================================================
-     * 7) 활성/비활성 토글
-     * =============================================================== */
     public function toggleActive(string $id, int $active): bool
     {
         try {
@@ -310,32 +287,27 @@ class RoleModel
             ");
             return $stmt->execute([$active, $id]);
 
-        } catch (\Throwable $e) {           
+        } catch (\Throwable $e) {
             return false;
         }
     }
 
-    /* ===============================================================
-     * 8) 역할 조회(id 또는 role_key)
-     * =============================================================== */
     public function findByIdOrKey(?string $value): ?array
     {
         try {
             if (!$value) return null;
 
-            // ID 조회
             $stmt = $this->db->prepare("SELECT * FROM auth_roles WHERE id = ?");
             $stmt->execute([$value]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($row) return $row;
 
-            // role_key 조회
             $stmt = $this->db->prepare("SELECT * FROM auth_roles WHERE role_key = ?");
             $stmt->execute([$value]);
             return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 
-        } catch (\Throwable $e) {            
+        } catch (\Throwable $e) {
             return null;
         }
     }

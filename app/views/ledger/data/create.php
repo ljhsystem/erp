@@ -126,6 +126,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/dataCreate.js');
 
             include PROJECT_ROOT . '/app/views/components/ui-table.php';
             ?>
+
         </div>
     </div>
 </main>

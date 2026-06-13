@@ -338,7 +338,7 @@ import '/public/assets/js/components/trash-manager.js';
         return fetchJson(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ seed_row_ids: ids, ...extraPayload }),
+            body: JSON.stringify({ evidence_ids: ids, ...extraPayload }),
         });
     }
 
@@ -469,7 +469,7 @@ import '/public/assets/js/components/trash-manager.js';
             const json = await fetchJson(API.deleteRows, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ seed_row_ids: [editingRow.id] }),
+                body: JSON.stringify({ evidence_ids: [editingRow.id] }),
             });
             notify('success', json.message || 'Seed Data가 휴지통으로 이동되었습니다.');
             editModal?.hide();
@@ -493,7 +493,7 @@ import '/public/assets/js/components/trash-manager.js';
             const json = await fetchJson(API.createTransactions, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ seed_row_ids: ids }),
+                body: JSON.stringify({ evidence_ids: ids }),
             });
             notify('success', json.message || '선택 Seed Data의 거래 생성이 완료되었습니다.');
         } finally {
@@ -544,6 +544,7 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function initTable() {
+        const columns = buildColumns();
         seedTable = createDataTable({
             tableSelector: '#seedRowsTable',
             api: API.rows,
@@ -551,7 +552,27 @@ import '/public/assets/js/components/trash-manager.js';
             pageLength: 100,
             defaultOrder: [[6, 'desc']],
             searchTableId: 'seedRows',
-            columns: buildColumns(),
+            columns,
+            tableSettings: {
+                enabled: true,
+                pageKey: 'ledger.data.list',
+                tableKey: 'seed-rows',
+                storageKey: 'ledger.data.list.seed-rows.v1',
+                tableLabel: '자료목록',
+                columns,
+                requiredColumns: ['process_status', 'client_name'],
+                defaultVisibleColumns: [
+                    'process_status',
+                    'source_type',
+                    'import_type',
+                    'mapped_payload.transaction_direction',
+                    'client_name',
+                    'mapped_payload.transaction_date',
+                    'mapped_payload.description',
+                    'transaction_id',
+                    'processed_at',
+                ],
+            },
             buttons: [
                 {
                     text: '추천전표생성',

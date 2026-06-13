@@ -1,37 +1,35 @@
 <?php
-// 경로: PROJECT_ROOT/app/Services/Auth/PermissionService.php
 namespace App\Services\Auth;
 
-use PDO;
-use App\Models\Auth\UserModel;
 use App\Models\Auth\PermissionModel;
 use App\Models\Auth\RolePermissionModel;
+use App\Models\Auth\UserModel;
 use Core\Helpers\ActorHelper;
-use Core\Helpers\UuidHelper;
+use Core\Helpers\ConfigHelper;
 use Core\Helpers\SequenceHelper;
+use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
+use PDO;
 
 class PermissionService
 {
     private readonly PDO $pdo;
-    private $permModel;
-    private $rolePermModel;
-    private $userModel;
+    private PermissionModel $permModel;
+    private RolePermissionModel $rolePermModel;
+    private UserModel $userModel;
     private $logger;
+    private array $cache = [];
+    private array $userCache = [];
 
     public function __construct(PDO $pdo)
     {
-        $this->pdo           = $pdo;
-        $this->permModel     = new PermissionModel($pdo);
+        $this->pdo = $pdo;
+        $this->permModel = new PermissionModel($pdo);
         $this->rolePermModel = new RolePermissionModel($pdo);
-        $this->userModel     = new UserModel($pdo);
-        $this->logger        = LoggerFactory::getLogger('service-auth.PermissionService');
+        $this->userModel = new UserModel($pdo);
+        $this->logger = LoggerFactory::getLogger('service-auth.PermissionService');
     }
 
-
-    /* ---------------------------------------------------------------
-     * 권한 전체 조회
-     * --------------------------------------------------------------- */
     public function getAll(array $filters = []): array
     {
         return $this->permModel->getAll($filters);
@@ -42,46 +40,34 @@ class PermissionService
         return $this->getAll($filters);
     }
 
-    /* ---------------------------------------------------------------
-     * 권한 생성 (UUID + SequenceHelper 생성 책임)
-     * --------------------------------------------------------------- */
     public function create(array $data): array
     {
         if (empty($data['permission_key']) || empty($data['permission_name'])) {
-            return ['success' => false, 'message' => '필수값 누락'];
+            return ['success' => false, 'message' => 'required'];
         }
 
-        // 중복 체크
         if ($this->permModel->existsKey($data['permission_key'])) {
             return ['success' => false, 'message' => 'duplicate'];
         }
 
-        // ⭐ UUID 생성
         $data['id'] = UuidHelper::generate();
-
-        // ⭐ 권한 코드 생성
         $data['sort_no'] = SequenceHelper::next('auth_permissions', 'sort_no');
         $data['created_by'] = ActorHelper::user();
         $data['updated_by'] = ActorHelper::user();
 
-        // 생성자 정보
         $ok = $this->permModel->create($data);
 
         return ['success' => $ok, 'id' => $data['id'], 'sort_no' => $data['sort_no']];
     }
 
-    /* ---------------------------------------------------------------
-     * 권한 수정
-     * --------------------------------------------------------------- */
     public function update(string $id, array $data): array
     {
-        if (!$id) return ['success' => false, 'message' => 'ID 없음'];
+        if (!$id) {
+            return ['success' => false, 'message' => 'id required'];
+        }
 
-        // 중복 체크
-        if (!empty($data['permission_key'])) {
-            if ($this->permModel->existsKey($data['permission_key'], $id)) {
-                return ['success' => false, 'message' => 'duplicate'];
-            }
+        if (!empty($data['permission_key']) && $this->permModel->existsKey($data['permission_key'], $id)) {
+            return ['success' => false, 'message' => 'duplicate'];
         }
 
         $data['updated_by'] = ActorHelper::user();
@@ -89,49 +75,72 @@ class PermissionService
         return ['success' => $this->permModel->update($id, $data)];
     }
 
-    /* ---------------------------------------------------------------
-     * 권한 삭제
-     * --------------------------------------------------------------- */
     public function delete(string $id): array
     {
-        if (!$id) return ['success' => false];
+        if (!$id) {
+            return ['success' => false, 'message' => 'permission id required'];
+        }
 
-        return ['success' => $this->permModel->delete($id)];
+        try {
+            $this->pdo->beginTransaction();
+
+            $mappingCountStmt = $this->pdo->prepare('SELECT COUNT(*) FROM auth_role_permissions WHERE permission_id = ?');
+            $mappingCountStmt->execute([$id]);
+            $deletedRolePermissionCount = (int) $mappingCountStmt->fetchColumn();
+
+            if (!$this->rolePermModel->clearPermission($id)) {
+                throw new \RuntimeException('role permission mapping delete failed');
+            }
+
+            if (!$this->permModel->delete($id)) {
+                throw new \RuntimeException('permission delete failed');
+            }
+
+            $this->pdo->commit();
+
+            return [
+                'success' => true,
+                'message' => 'permission deleted',
+                'data' => [
+                    'deleted_count' => 1,
+                    'deleted_role_permission_count' => $deletedRolePermissionCount,
+                ],
+            ];
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage() ?: 'permission delete failed',
+            ];
+        }
     }
 
-    /* ---------------------------------------------------------------
-     * 활성/비활성 토글
-     * --------------------------------------------------------------- */
     public function toggleActive(string $id, int $active): bool
     {
         return $this->permModel->toggleActive($id, $active);
     }
 
-    /* ---------------------------------------------------------------
-     * 특정 사용자 권한 보유 여부 체크
-     * --------------------------------------------------------------- */
-    private array $cache = [];
-
     public function hasPermission(string $userId, string $permissionKey): bool
     {
-        $permissionKey = strtolower(trim($permissionKey)); // 🔥 필수
-
+        $permissionKey = strtolower(trim($permissionKey));
         $cacheKey = $userId . ':' . $permissionKey;
 
         if (isset($this->cache[$cacheKey])) {
             return $this->cache[$cacheKey];
         }
 
+        if (ConfigHelper::get('IsDevelopment') === true) {
+            return $this->cache[$cacheKey] = true;
+        }
+
         try {
-            $user = $this->getUser($userId); // 🔥 캐싱
+            $user = $this->getUser($userId);
 
             if (!$user || empty($user['role_id'])) {
                 return $this->cache[$cacheKey] = false;
-            }
-
-            // 🔥 super admin
-            if (!empty($user['is_super_admin'])) {
-                return $this->cache[$cacheKey] = true;
             }
 
             $result = $this->rolePermModel->roleHasPermission(
@@ -140,25 +149,23 @@ class PermissionService
             );
 
             return $this->cache[$cacheKey] = $result;
-
         } catch (\Throwable $e) {
             $this->logger->error('hasPermission Error', [
                 'user_id' => $userId,
                 'permission_key' => $permissionKey,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
 
             return false;
         }
     }
 
-    private array $userCache = [];
-
     private function getUser(string $userId)
     {
         if (!isset($this->userCache[$userId])) {
             $this->userCache[$userId] = $this->userModel->getById($userId);
         }
+
         return $this->userCache[$userId];
     }
 
@@ -177,7 +184,7 @@ class PermissionService
                 $sortNo = $row['newSortNo'] ?? $row['sort_no'] ?? null;
 
                 if (empty($row['id']) || $sortNo === null) {
-                    throw new \Exception('reorder 데이터 오류');
+                    throw new \Exception('reorder payload is invalid');
                 }
 
                 $row['_sort_no'] = (int) $sortNo;

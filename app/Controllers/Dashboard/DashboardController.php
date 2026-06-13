@@ -1,182 +1,103 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Controllers/Dashboard/DashboardController.php'
-// 대시보드>메인 WEB 컨트롤러
+
 namespace App\Controllers\Dashboard;
 
-use Core\DbPdo;
 use App\Controllers\System\LayoutController;
-// use App\Services\Calendar\QueryService;
-// use App\Services\Calendar\SyncService;
+use App\Models\System\PageRegistryModel;
+use Core\DbPdo;
 
 class DashboardController
 {
     private LayoutController $layout;
-    // private QueryService $queryService;
-    // private SyncService $calendarSync;
 
     public function __construct()
     {
         $this->layout = new LayoutController(DbPdo::conn());
-        // $this->queryService = new QueryService(DbPdo::conn());
-        // $this->calendarSync = new SyncService(DbPdo::conn());
     }
 
-    /* ============================================================
-     * 공통: 로그인 이후 페이지 렌더
-     * - 인증 강제
-     * - view는 본문만 렌더링
-     * - controller: DashboardController@renderPage
-     * ============================================================ */
     private function renderPage(string $viewPath, array $params = []): void
     {
-
-        // 1️⃣ 기본 파라미터만 extract
         if (!empty($params)) {
             extract($params, EXTR_SKIP);
         }
-    
-        // 2️⃣ 기본값만 먼저 정의 (뷰가 덮어쓸 수 있도록)
-        $pageTitle   = $pageTitle   ?? ($params['pageTitle']   ?? '대시보드');
-        $pageStyles  = $pageStyles  ?? ($params['pageStyles']  ?? '');
+
+        $pageTitle = $pageTitle ?? ($params['pageTitle'] ?? '대시보드');
+        $pageStyles = $pageStyles ?? ($params['pageStyles'] ?? '');
         $pageScripts = $pageScripts ?? ($params['pageScripts'] ?? '');
         $layoutOptions = $layoutOptions ?? ($params['layoutOptions'] ?? []);
-    
-        // 3️⃣ 뷰 렌더 (여기서 뷰가 변수 덮어씀)
+
         ob_start();
         require PROJECT_ROOT . $viewPath;
         $content = ob_get_clean();
-    
-        // 4️⃣ 디버그 (필요 시)
-        error_log("Page Title: " . ($pageTitle ?? ''));
-        error_log("Page Styles: " . $pageStyles);
-        error_log("Page Scripts: " . $pageScripts);
-    
-        // 5️⃣ 레이아웃 렌더
+
+        error_log('Page Title: ' . ($pageTitle ?? ''));
+        error_log('Page Styles: ' . $pageStyles);
+        error_log('Page Scripts: ' . $pageScripts);
+
         $this->layout->render([
-            'pageTitle'     => $pageTitle,
-            'content'       => $content,
+            'pageTitle' => $pageTitle,
+            'content' => $content,
             'layoutOptions' => $layoutOptions,
-            'pageStyles'    => $pageStyles,
-            'pageScripts'   => $pageScripts,
+            'pageStyles' => $pageStyles,
+            'pageScripts' => $pageScripts,
         ]);
     }
-    
 
-    // ============================================================
-    // WEB: 대시보드 메인 화면
-    // URL: GET /dashboard
-    // permission: 미설정(공개)
-    // controller: DashboardController@webDashboard
-    // ============================================================
     public function webDashboard(): void
     {
         $this->renderPage('/app/views/dashboard/index.php', [
-            'pageTitle' => '대시보드'
+            'pageTitle' => '대시보드',
         ]);
     }
 
-    // ============================================================
-    // WEB: 보고서 화면
-    // URL: GET /dashboard/report
-    // permission: web.dashboard.report
-    // controller: DashboardController@webReport
-    // ============================================================
     public function webReport(): void
     {
         $this->renderPage('/app/views/dashboard/report.php', [
-            'pageTitle' => '보고서'
+            'pageTitle' => '보고서',
         ]);
     }
 
-
-    // ============================================================
-    // WEB: 활동 로그 화면
-    // URL: GET /dashboard/activity
-    // permission: web.dashboard.activity
-    // controller: DashboardController@webActivity
-    // ============================================================
     public function webActivity(): void
     {
         $this->renderPage('/app/views/dashboard/activity.php', [
-            'pageTitle' => '활동 로그'
+            'pageTitle' => '활동 로그',
         ]);
     }
 
-
-
-       
-
-    // ============================================================
-    // WEB: 알림 화면
-    // URL: GET /dashboard/notifications
-    // permission: web.dashboard.notifications
-    // controller: DashboardController@webNotifications
-    // ============================================================
     public function webNotifications(): void
     {
         $this->renderPage('/app/views/dashboard/notifications.php', [
-            'pageTitle' => '알림'
+            'pageTitle' => '알림',
         ]);
     }
 
-    // ============================================================
-    // WEB: KPI 화면
-    // URL: GET /dashboard/kpi
-    // permission: web.dashboard.kpi
-    // controller: DashboardController@webKpi
-    // ============================================================
     public function webKpi(): void
     {
         $this->renderPage('/app/views/dashboard/kpi.php', [
-            'pageTitle' => 'KPI'
+            'pageTitle' => 'KPI',
         ]);
     }
 
-
-
-    // ============================================================
-    // WEB: 캘린더 화면
-    // URL        : GET /dashboard/calendar
-    // Permission : web.dashboard.calendar
-    // 역할       :
-    //   - 로그인 사용자만 접근
-    //   - 페이지 진입 시 캘린더 데이터 "조건부 동기화"
-    //   - 캘린더 메인 화면 렌더
-    // ============================================================
     public function webCalendar(): void
     {
         $this->renderPage('/app/views/dashboard/calendar.php', [
-            'pageTitle' => '캘린더'
+            'pageTitle' => '캘린더',
         ]);
     }
-
-
-///////// 서브메뉴 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    
-    // ============================================================
-    // WEB: 환경설정 메인 화면
-    // URL: GET /dashboard/settings
-    // permission: web.dashboard.settings
-    // controller: DashboardController@webSettings
-    // ============================================================
 
     public function webSettings(): void
     {
         $this->renderPage('/app/views/dashboard/settings.php', [
-            'pageTitle' => '환경설정'
+            'pageTitle' => '환경설정',
         ]);
     }
-
-
-///////// 서브메뉴 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     public function settingsBaseInfoCompany(): void
     {
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '회사정보',
             'cat' => 'base-info',
-            'sub' => 'company'
+            'sub' => 'company',
         ]);
     }
 
@@ -185,8 +106,13 @@ class DashboardController
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '브랜드',
             'cat' => 'base-info',
-            'sub' => 'brand-logo'
+            'sub' => 'brand',
         ]);
+    }
+
+    public function redirectBaseInfoBrandLegacy(): void
+    {
+        $this->redirect('/dashboard/settings/base-info/brand', 301);
     }
 
     public function settingsBaseInfoCover(): void
@@ -194,7 +120,7 @@ class DashboardController
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '커버이미지',
             'cat' => 'base-info',
-            'sub' => 'cover'
+            'sub' => 'cover',
         ]);
     }
 
@@ -208,7 +134,7 @@ class DashboardController
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '기준정보',
             'cat' => 'system',
-            'sub' => 'codes'
+            'sub' => 'codes',
         ]);
     }
 
@@ -217,43 +143,64 @@ class DashboardController
         if (!headers_sent()) {
             header('Location: ' . $url, true, $status);
         }
+
         exit;
     }
 
-    public function settingsBaseInfoClients(): void
+    public function settingsBaseInfoClient(): void
     {
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '거래처',
             'cat' => 'base-info',
-            'sub' => 'clients'
+            'sub' => 'client',
         ]);
     }
 
-    public function settingsBaseInfoProjects(): void
+    public function redirectBaseInfoClientLegacy(): void
+    {
+        $this->redirect('/dashboard/settings/base-info/client', 301);
+    }
+
+    public function settingsBaseInfoProject(): void
     {
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '프로젝트',
             'cat' => 'base-info',
-            'sub' => 'projects'
+            'sub' => 'project',
         ]);
     }
 
-    public function settingsBaseInfoAccounts(): void
+    public function redirectBaseInfoProjectLegacy(): void
+    {
+        $this->redirect('/dashboard/settings/base-info/project', 301);
+    }
+
+    public function settingsBaseInfoBankAccount(): void
     {
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '계좌',
             'cat' => 'base-info',
-            'sub' => 'bank-accounts'
+            'sub' => 'bank-account',
         ]);
     }
 
-    public function settingsBaseInfoCards(): void
+    public function redirectBaseInfoBankAccountLegacy(): void
+    {
+        $this->redirect('/dashboard/settings/base-info/bank-account', 301);
+    }
+
+    public function settingsBaseInfoCard(): void
     {
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '카드',
             'cat' => 'base-info',
-            'sub' => 'cards'
+            'sub' => 'card',
         ]);
+    }
+
+    public function redirectBaseInfoCardLegacy(): void
+    {
+        $this->redirect('/dashboard/settings/base-info/card', 301);
     }
 
     public function settingsBaseInfoWorkTeams(): void
@@ -261,8 +208,13 @@ class DashboardController
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '팀',
             'cat' => 'base-info',
-            'sub' => 'work-teams'
+            'sub' => 'work-team',
         ]);
+    }
+
+    public function redirectBaseInfoWorkTeamLegacy(): void
+    {
+        $this->redirect('/dashboard/settings/base-info/work-team', 301);
     }
 
     public function settingsOrgEmployees(): void
@@ -270,19 +222,27 @@ class DashboardController
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '직원',
             'cat' => 'organization',
-            'sub' => 'employees'
+            'sub' => 'employee',
         ]);
     }
 
-
+    public function redirectOrgEmployeeLegacy(): void
+    {
+        $this->redirect('/dashboard/settings/organization/employee', 301);
+    }
 
     public function settingsOrgDepartments(): void
     {
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '부서',
             'cat' => 'organization',
-            'sub' => 'departments'
+            'sub' => 'department',
         ]);
+    }
+
+    public function redirectOrgDepartmentLegacy(): void
+    {
+        $this->redirect('/dashboard/settings/organization/department', 301);
     }
 
     public function settingsOrgPositions(): void
@@ -290,8 +250,13 @@ class DashboardController
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '직책',
             'cat' => 'organization',
-            'sub' => 'positions'
+            'sub' => 'position',
         ]);
+    }
+
+    public function redirectOrgPositionLegacy(): void
+    {
+        $this->redirect('/dashboard/settings/organization/position', 301);
     }
 
     public function settingsOrgRoles(): void
@@ -299,35 +264,57 @@ class DashboardController
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '역할',
             'cat' => 'organization',
-            'sub' => 'roles'
+            'sub' => 'role',
         ]);
     }
 
-    public function settingsOrgRolePermissions(): void
+    public function redirectOrgRoleLegacy(): void
     {
+        $this->redirect('/dashboard/settings/organization/role', 301);
+    }
+
+    public function settingsOrgPermissionAssignment(): void
+    {
+        $pageRegistryRows = [];
+        try {
+            $pageRegistryRows = (new PageRegistryModel())->getAll();
+        } catch (\Throwable $e) {
+            $pageRegistryRows = [];
+        }
+
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '권한부여',
             'cat' => 'organization',
-            'sub' => 'role_permissions'
+            'sub' => 'permission-assignment',
+            'pageRegistryRows' => $pageRegistryRows,
         ]);
     }
 
-    public function settingsOrgApproval(): void
+    public function redirectOrgPermissionAssignmentLegacy(): void
+    {
+        $this->redirect('/dashboard/settings/organization/permission-assignment', 301);
+    }
+
+    public function settingsOrgApprovalTemplate(): void
     {
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '결재템플릿',
             'cat' => 'organization',
-            'sub' => 'approval'
+            'sub' => 'approval-template',
         ]);
     }
 
+    public function redirectOrgApprovalLegacy(): void
+    {
+        $this->redirect('/dashboard/settings/organization/approval-template', 301);
+    }
 
     public function settingsSystemSite(): void
     {
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '사이트정보',
             'cat' => 'system',
-            'sub' => 'site'
+            'sub' => 'site',
         ]);
     }
 
@@ -336,7 +323,7 @@ class DashboardController
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '세션관리',
             'cat' => 'system',
-            'sub' => 'session'
+            'sub' => 'session',
         ]);
     }
 
@@ -345,7 +332,7 @@ class DashboardController
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '보안정책',
             'cat' => 'system',
-            'sub' => 'security'
+            'sub' => 'security',
         ]);
     }
 
@@ -354,7 +341,7 @@ class DashboardController
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => 'API',
             'cat' => 'system',
-            'sub' => 'api'
+            'sub' => 'api',
         ]);
     }
 
@@ -363,7 +350,7 @@ class DashboardController
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '외부서비스',
             'cat' => 'system',
-            'sub' => 'external_services'
+            'sub' => 'external_services',
         ]);
     }
 
@@ -372,7 +359,7 @@ class DashboardController
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '파일저장소',
             'cat' => 'system',
-            'sub' => 'storage'
+            'sub' => 'storage',
         ]);
     }
 
@@ -381,7 +368,7 @@ class DashboardController
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '데이터백업',
             'cat' => 'system',
-            'sub' => 'databasebackup'
+            'sub' => 'databasebackup',
         ]);
     }
 
@@ -390,13 +377,7 @@ class DashboardController
         $this->renderPage('/app/views/dashboard/settings.php', [
             'pageTitle' => '로그관리',
             'cat' => 'system',
-            'sub' => 'logs'
+            'sub' => 'logs',
         ]);
     }
-
-
-
-
-
-    
 }

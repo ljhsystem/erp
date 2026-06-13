@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT/app/Models/User/ApprovalTemplateStepModel.php
 namespace App\Models\User;
 
 use PDO;
@@ -7,18 +6,13 @@ use Core\Database;
 
 class ApprovalTemplateStepModel
 {
-    // PDO 보관
     private PDO $db;
 
-    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
-    /* ============================================================
-     * 📌 단건 조회
-     * ============================================================ */
     public function getById(string $id): ?array
     {
         $stmt = $this->db->prepare("
@@ -31,13 +25,10 @@ class ApprovalTemplateStepModel
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
-    /* ============================================================
-     * 📌 템플릿별 스텝 전체 조회 (JOIN 포함)
-     * ============================================================ */
     public function getSteps(string $templateId): array
     {
         $stmt = $this->db->prepare("
-            SELECT 
+            SELECT
                 s.*,
                 r.role_name,
                 r.role_key,
@@ -73,24 +64,6 @@ class ApprovalTemplateStepModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    /* ============================================================
-     * 📌 다음 sort_no 번호 조회
-     * ============================================================ */
-    public function getNextSortNo(string $templateId): int
-    {
-        $stmt = $this->db->prepare("
-            SELECT COALESCE(MAX(sort_no), 0) + 1
-            FROM user_approval_template_steps
-            WHERE template_id = ?
-        ");
-        $stmt->execute([$templateId]);
-        return (int)$stmt->fetchColumn();
-    }
-
-    /* ============================================================
-     * 📌 생성(Create)
-     * ※ UUID 및 sort_no는 Service에서 미리 계산하여 전달한다
-     * ============================================================ */
     public function create(array $data): bool
     {
         $stmt = $this->db->prepare("
@@ -113,14 +86,11 @@ class ApprovalTemplateStepModel
         ]);
     }
 
-    /* ============================================================
-     * 📌 수정(Update)
-     * ============================================================ */
     public function update(string $id, array $data): bool
     {
         $stmt = $this->db->prepare("
             UPDATE user_approval_template_steps
-            SET 
+            SET
                 template_id = :template_id,
                 sort_no     = :sort_no,
                 step_name   = :step_name,
@@ -144,9 +114,6 @@ class ApprovalTemplateStepModel
         ]);
     }
 
-    /* ============================================================
-     * 📌 삭제(Delete)
-     * ============================================================ */
     public function delete(string $id): bool
     {
         $stmt = $this->db->prepare("
@@ -156,9 +123,6 @@ class ApprovalTemplateStepModel
         return $stmt->execute([$id]);
     }
 
-    /* ============================================================
-     * 📌 템플릿 내 스텝명 중복 여부 체크
-     * ============================================================ */
     public function existsStepName(string $templateId, string $stepName, ?string $excludeId = null): bool
     {
         $sql = "

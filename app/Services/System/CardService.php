@@ -1,5 +1,4 @@
 <?php
-// Path: PROJECT_ROOT . '/app/Services/System/CardService.php'
 
 namespace App\Services\System;
 
@@ -8,15 +7,55 @@ use App\Models\System\CardModel;
 use App\Models\System\ClientModel;
 use App\Models\System\BankAccountModel;
 use App\Services\File\FileService;
+use Core\Helpers\SequenceHelper;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\ActorHelper;
 use Core\LoggerFactory;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class CardService
 {
+    private const COLUMN_DEFINITIONS = [
+        ['key' => 'sort_no', 'label' => '순번', 'required' => false, 'template_default' => false, 'download_default' => true, 'allow_upload' => false],
+        ['key' => 'card_name', 'label' => '카드명', 'required' => true, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
+        ['key' => 'client_name', 'label' => '카드사', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true, 'source_key' => 'client_name'],
+        ['key' => 'client_id', 'label' => '카드사 ID', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => true, 'source_key' => 'client_id'],
+        ['key' => 'card_number', 'label' => '카드번호', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
+        ['key' => 'account_name', 'label' => '결제계좌', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true, 'source_key' => 'account_name'],
+        ['key' => 'account_id', 'label' => '결제계좌 ID', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => true, 'source_key' => 'account_id'],
+        ['key' => 'expiry_year', 'label' => '유효기간년', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
+        ['key' => 'expiry_month', 'label' => '유효기간월', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
+        ['key' => 'limit_amount', 'label' => '한도금액', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
+        ['key' => 'card_file', 'label' => '카드이미지', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => false],
+        ['key' => 'note', 'label' => '비고', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
+        ['key' => 'memo', 'label' => '메모', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
+        ['key' => 'is_active', 'label' => '상태', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
+        ['key' => 'created_at', 'label' => '등록일시', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => false],
+        ['key' => 'created_by_name', 'label' => '등록자', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => false],
+        ['key' => 'updated_at', 'label' => '수정일시', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => false],
+        ['key' => 'updated_by_name', 'label' => '수정자', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => false],
+        ['key' => 'deleted_at', 'label' => '삭제일시', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => false],
+        ['key' => 'deleted_by_name', 'label' => '삭제자', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => false],
+    ];
+
+    private const SAMPLE_ROW = [
+        'card_name' => '법인카드',
+        'client_name' => '신한카드',
+        'client_id' => 'client-sample-id',
+        'card_number' => '1234-5678-9012-3456',
+        'account_name' => '법인 운영계좌',
+        'account_id' => 'account-sample-id',
+        'expiry_year' => '2029',
+        'expiry_month' => '12',
+        'limit_amount' => '1000000',
+        'note' => '주사용 카드',
+        'memo' => '샘플 메모',
+        'is_active' => '사용',
+    ];
+
     private PDO $pdo;
     private CardModel $model;
     private ClientModel $clientModel;
@@ -98,6 +137,7 @@ class CardService
 
             if ($isCreate) {
                 $newId = UuidHelper::generate();
+                $newSortNo = SequenceHelper::next('system_cards', 'sort_no');
 
                 $file = $files['card_file'] ?? null;
                 $this->assertUploadOk($file, '카드 이미지');
@@ -112,7 +152,7 @@ class CardService
 
                 $insertData = array_merge($data, [
                     'id' => $newId,
-                    'sort_no' => null,
+                    'sort_no' => $newSortNo,
                     'created_by' => $actor,
                     'updated_by' => $actor,
                 ]);
@@ -126,6 +166,7 @@ class CardService
                 return [
                     'success' => true,
                     'id' => $newId,
+                    'sort_no' => $newSortNo,
                     'message' => '등록되었습니다.',
                 ];
             }
@@ -366,8 +407,15 @@ class CardService
         }
     }
 
-    public function downloadTemplate(): void
+    public function downloadTemplate(?string $columnsCsv = null): void
     {
+        $columns = $this->resolveColumns('template', $columnsCsv);
+        $headers = $this->buildHeaders($columns);
+        $rows = [$this->buildTemplateSampleRow($columns)];
+
+        $this->writeSpreadsheet($headers, $rows, '카드 업로드', 'card_template.xlsx');
+        return;
+
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('카드 업로드');
@@ -388,14 +436,45 @@ class CardService
         exit;
     }
 
-    public function saveFromExcelFile(string $filePath): array
+    public function saveFromExcelFile(string $filePath, ?string $columnsCsv = null): array
     {
+        $columns = $this->resolveColumns('template', $columnsCsv);
         $spreadsheet = IOFactory::load($filePath);
         $rows = $spreadsheet->getActiveSheet()->toArray(null, false, false, false);
 
         if (empty($rows) || count($rows) < 2) {
             return ['success' => false, 'message' => '업로드할 데이터가 없습니다.'];
         }
+
+        $headerRow = array_map(fn($value) => trim((string) $value), array_shift($rows));
+        $headerMap = $this->buildHeaderIndexMap($headerRow, $columns);
+        $missingRequired = $this->findMissingRequiredColumns($columns, $headerMap);
+
+        if ($missingRequired !== []) {
+            return [
+                'success' => false,
+                'message' => '필수 컬럼이 누락되었습니다. ' . implode(', ', $missingRequired),
+            ];
+        }
+
+        $count = 0;
+        foreach ($rows as $row) {
+            if ($this->isBlankRow($row)) {
+                continue;
+            }
+
+            $payload = $this->buildUploadPayload($row, $headerMap, $columns);
+            if (($payload['card_name'] ?? '') === '') {
+                continue;
+            }
+
+            $result = $this->save($payload, 'SYSTEM');
+            if (!empty($result['success'])) {
+                $count++;
+            }
+        }
+
+        return ['success' => true, 'message' => "{$count}건 업로드되었습니다."];
 
         $header = array_map(fn($value) => trim((string)$value), array_shift($rows));
         $map = array_flip($header);
@@ -435,8 +514,24 @@ class CardService
         return ['success' => true, 'message' => "{$count}건 업로드되었습니다."];
     }
 
-    public function downloadExcel(): void
+    public function downloadExcel(?string $columnsCsv = null): void
     {
+        $columns = $this->resolveColumns('download', $columnsCsv);
+        $cards = $this->model->getList();
+        $rows = [];
+
+        foreach ($cards as $card) {
+            $rows[] = $this->buildDownloadRow($card, $columns);
+        }
+
+        $this->writeSpreadsheet(
+            $this->buildHeaders($columns),
+            $rows,
+            '카드 목록',
+            'card_list.xlsx'
+        );
+        return;
+
         $cards = $this->model->getList();
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
@@ -472,6 +567,242 @@ class CardService
         $writer->save('php://output');
         $spreadsheet->disconnectWorksheets();
         exit;
+    }
+
+    private function resolveColumns(string $type, ?string $columnsCsv = null): array
+    {
+        $columnsByKey = [];
+        foreach (self::COLUMN_DEFINITIONS as $column) {
+            $columnsByKey[$column['key']] = $column;
+        }
+
+        $requestedKeys = $this->parseColumnsCsv($columnsCsv);
+        $selectedKeys = [];
+
+        if ($requestedKeys === []) {
+            foreach (self::COLUMN_DEFINITIONS as $column) {
+                if ($column['required'] || $column[$type . '_default']) {
+                    $selectedKeys[] = $column['key'];
+                }
+            }
+        } else {
+            foreach ($requestedKeys as $key) {
+                if (isset($columnsByKey[$key])) {
+                    $selectedKeys[] = $key;
+                }
+            }
+
+            foreach (self::COLUMN_DEFINITIONS as $column) {
+                if ($column['required'] && !in_array($column['key'], $selectedKeys, true)) {
+                    $selectedKeys[] = $column['key'];
+                }
+            }
+        }
+
+        if ($selectedKeys === []) {
+            return $this->resolveColumns($type, '');
+        }
+
+        $selectedColumns = [];
+        foreach ($selectedKeys as $key) {
+            $selectedColumns[] = $columnsByKey[$key];
+        }
+
+        return $this->decorateColumns($selectedColumns);
+    }
+
+    private function parseColumnsCsv(?string $columnsCsv): array
+    {
+        $resolved = trim((string) $columnsCsv);
+        if ($resolved === '') {
+            return [];
+        }
+
+        $keys = array_map('trim', explode(',', $resolved));
+        $keys = array_values(array_filter($keys, static fn($key) => $key !== ''));
+
+        return array_values(array_unique($keys));
+    }
+
+    private function decorateColumns(array $columns): array
+    {
+        return array_map(static function (array $column): array {
+            return $column + [
+                'header' => $column['label'],
+                'source_key' => $column['source_key'] ?? $column['key'],
+                'payload_key' => $column['payload_key'] ?? $column['key'],
+            ];
+        }, $columns);
+    }
+
+    private function buildHeaders(array $columns): array
+    {
+        return array_map(static fn(array $column): string => $column['header'], $columns);
+    }
+
+    private function buildTemplateSampleRow(array $columns): array
+    {
+        $row = [];
+
+        foreach ($columns as $column) {
+            $row[] = self::SAMPLE_ROW[$column['key']] ?? '';
+        }
+
+        return $row;
+    }
+
+    private function buildDownloadRow(array $record, array $columns): array
+    {
+        $row = [];
+
+        foreach ($columns as $column) {
+            $row[] = $this->exportCellValue($record, $column);
+        }
+
+        return $row;
+    }
+
+    private function exportCellValue(array $record, array $column): mixed
+    {
+        $sourceKey = $column['source_key'];
+        $value = $record[$sourceKey] ?? $record[$column['key']] ?? '';
+
+        if ($column['key'] === 'is_active') {
+            return !empty($value) ? '사용' : '미사용';
+        }
+
+        return $value;
+    }
+
+    private function buildHeaderIndexMap(array $headerRow, array $columns): array
+    {
+        $lookup = [];
+        foreach ($columns as $column) {
+            $lookup[$column['header']] = $column['key'];
+            $lookup[$column['label']] = $column['key'];
+            $lookup[$column['key']] = $column['key'];
+        }
+
+        $indexMap = [];
+        foreach ($headerRow as $index => $header) {
+            $trimmed = trim((string) $header);
+            if ($trimmed === '' || !isset($lookup[$trimmed])) {
+                continue;
+            }
+
+            $key = $lookup[$trimmed];
+            if (!array_key_exists($key, $indexMap)) {
+                $indexMap[$key] = $index;
+            }
+        }
+
+        return $indexMap;
+    }
+
+    private function findMissingRequiredColumns(array $columns, array $headerMap): array
+    {
+        $missing = [];
+
+        foreach ($columns as $column) {
+            if ($column['required'] && !array_key_exists($column['key'], $headerMap)) {
+                $missing[] = $column['label'];
+            }
+        }
+
+        return $missing;
+    }
+
+    private function buildUploadPayload(array $row, array $headerMap, array $columns): array
+    {
+        $payload = [];
+
+        foreach ($columns as $column) {
+            if (empty($column['allow_upload']) || !array_key_exists($column['key'], $headerMap)) {
+                continue;
+            }
+
+            $rawValue = $row[$headerMap[$column['key']]] ?? '';
+            $payloadKey = $column['payload_key'];
+
+            if ($payloadKey === 'is_active') {
+                $payload[$payloadKey] = $this->parseExcelActiveValue($rawValue);
+                continue;
+            }
+
+            if ($payloadKey === 'limit_amount') {
+                $payload[$payloadKey] = (float) $rawValue;
+                continue;
+            }
+
+            $payload[$payloadKey] = trim((string) $rawValue);
+        }
+
+        $clientId = trim((string) ($payload['client_id'] ?? ''));
+        $clientName = trim((string) ($payload['client_name'] ?? ''));
+        $accountId = trim((string) ($payload['account_id'] ?? ''));
+        $accountName = trim((string) ($payload['account_name'] ?? ''));
+
+        $payload['client_id'] = $clientId !== '' ? $clientId : $this->findClientIdByName($clientName);
+        $payload['account_id'] = $accountId !== '' ? $accountId : $this->findAccountIdByName($accountName);
+        $payload['card_name'] = trim((string) ($payload['card_name'] ?? ''));
+        $payload['card_number'] = trim((string) ($payload['card_number'] ?? ''));
+        $payload['expiry_year'] = trim((string) ($payload['expiry_year'] ?? ''));
+        $payload['expiry_month'] = trim((string) ($payload['expiry_month'] ?? ''));
+        $payload['note'] = trim((string) ($payload['note'] ?? ''));
+        $payload['memo'] = trim((string) ($payload['memo'] ?? ''));
+
+        if (!array_key_exists('is_active', $payload)) {
+            $payload['is_active'] = 1;
+        }
+
+        unset($payload['client_name'], $payload['account_name']);
+
+        return $payload;
+    }
+
+    private function isBlankRow(array $row): bool
+    {
+        foreach ($row as $value) {
+            if (trim((string) $value) !== '') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function writeSpreadsheet(array $headers, array $rows, string $title, string $filename): void
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle($title);
+        $sheet->fromArray($headers, null, 'A1');
+
+        if ($rows !== []) {
+            $sheet->fromArray($rows, null, 'A2');
+        }
+
+        for ($index = 1; $index <= count($headers); $index++) {
+            $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($index))->setAutoSize(true);
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Cache-Control: max-age=0');
+        $writer->save('php://output');
+        $spreadsheet->disconnectWorksheets();
+        exit;
+    }
+
+    private function parseExcelActiveValue(mixed $value): int
+    {
+        $resolved = trim((string) $value);
+        if ($resolved === '') {
+            return 1;
+        }
+
+        return in_array(mb_strtolower($resolved), ['0', 'n', 'no', 'false', '미사용', '비활성'], true) ? 0 : 1;
     }
 
     private function normalizePayload(array $data): array

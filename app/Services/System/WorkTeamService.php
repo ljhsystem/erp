@@ -7,6 +7,7 @@ use Core\Helpers\ActorHelper;
 use Core\Helpers\SequenceHelper;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -14,6 +15,31 @@ use PDO;
 
 class WorkTeamService
 {
+    private const COLUMN_DEFINITIONS = [
+        ['key' => 'sort_no', 'label' => '순번', 'required' => false, 'template_default' => false, 'download_default' => true, 'allow_upload' => false],
+        ['key' => 'team_name', 'label' => '팀명', 'required' => true, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
+        ['key' => 'team_leader_client_name', 'label' => '팀장', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true, 'source_key' => 'team_leader_client_name'],
+        ['key' => 'team_leader_client_id', 'label' => '팀장 거래처 ID', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => true, 'source_key' => 'team_leader_client_id'],
+        ['key' => 'note', 'label' => '비고', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
+        ['key' => 'memo', 'label' => '메모', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
+        ['key' => 'is_active', 'label' => '상태', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
+        ['key' => 'created_at', 'label' => '등록일시', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => false],
+        ['key' => 'created_by_name', 'label' => '등록자', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => false],
+        ['key' => 'updated_at', 'label' => '수정일시', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => false],
+        ['key' => 'updated_by_name', 'label' => '수정자', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => false],
+        ['key' => 'deleted_at', 'label' => '삭제일시', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => false],
+        ['key' => 'deleted_by_name', 'label' => '삭제자', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => false],
+    ];
+
+    private const SAMPLE_ROW = [
+        'team_name' => '시공팀',
+        'team_leader_client_name' => '홍길동 거래처',
+        'team_leader_client_id' => 'client-sample-id',
+        'note' => '현장 작업팀',
+        'memo' => '관리자 메모',
+        'is_active' => '사용',
+    ];
+
     private readonly PDO $pdo;
     private WorkTeamModel $model;
     private WorkTeamMemberModel $memberModel;
@@ -232,8 +258,15 @@ class WorkTeamService
         return $data;
     }
 
-    public function downloadTemplate(): void
+    public function downloadTemplate(?string $columnsCsv = null): void
     {
+        $columns = $this->resolveColumns('template', $columnsCsv);
+        $headers = $this->buildHeaders($columns);
+        $rows = [$this->buildTemplateSampleRow($columns)];
+
+        $this->writeSpreadsheet($headers, $rows, '작업팀 업로드', 'work-team-template.xlsx');
+        return;
+
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('작업팀 업로드');
@@ -247,16 +280,17 @@ class WorkTeamService
 
         $writer = new Xlsx($spreadsheet);
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="work_team_template.xlsx"');
+        header('Content-Disposition: attachment; filename="work-team-template.xlsx"');
         header('Cache-Control: max-age=0');
         $writer->save('php://output');
         $spreadsheet->disconnectWorksheets();
         exit;
     }
 
-    public function saveFromExcelFile(string $filePath): array
+    public function saveFromExcelFile(string $filePath, ?string $columnsCsv = null): array
     {
         try {
+            $columns = $this->resolveColumns('template', $columnsCsv);
             $spreadsheet = IOFactory::load($filePath);
             $rows = $spreadsheet->getActiveSheet()->toArray(null, false, false, false);
 
@@ -264,14 +298,32 @@ class WorkTeamService
                 return ['success' => false, 'message' => '업로드할 데이터가 없습니다.'];
             }
 
-            $header = array_map(fn($value) => trim((string)$value), array_shift($rows));
-            $map = array_flip($header);
+            $headerRow = array_map(fn($value) => trim((string) $value), array_shift($rows));
+            $headerMap = $this->buildHeaderIndexMap($headerRow, $columns);
+            $missingRequired = $this->findMissingRequiredColumns($columns, $headerMap);
+            if ($missingRequired !== []) {
+                return [
+                    'success' => false,
+                    'message' => '필수 컬럼이 누락되었습니다: ' . implode(', ', $missingRequired),
+                ];
+            }
             $count = 0;
 
             foreach ($rows as $row) {
-                if (count(array_filter($row, fn($value) => trim((string)$value) !== '')) === 0) {
+                if ($this->isBlankRow($row)) {
                     continue;
                 }
+
+                $payload = $this->buildUploadPayload($row, $headerMap, $columns);
+                if (($payload['team_name'] ?? '') === '') {
+                    continue;
+                }
+
+                $result = $this->save($payload, 'SYSTEM');
+                if (!empty($result['success'])) {
+                    $count++;
+                }
+                continue;
 
                 $payload = [
                     'team_name' => trim((string)($row[$map['팀명'] ?? -1] ?? '')),
@@ -300,8 +352,24 @@ class WorkTeamService
         }
     }
 
-    public function downloadExcel(): void
+    public function downloadExcel(?string $columnsCsv = null): void
     {
+        $columns = $this->resolveColumns('download', $columnsCsv);
+        $rows = $this->model->getList();
+        $downloadRows = [];
+
+        foreach ($rows as $row) {
+            $downloadRows[] = $this->buildDownloadRow($row, $columns);
+        }
+
+        $this->writeSpreadsheet(
+            $this->buildHeaders($columns),
+            $downloadRows,
+            '작업팀 목록',
+            'work-team-list.xlsx'
+        );
+        return;
+
         $rows = $this->model->getList();
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
@@ -327,7 +395,214 @@ class WorkTeamService
 
         $writer = new Xlsx($spreadsheet);
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment; filename="work_team_list.xlsx"');
+        header('Content-Disposition: attachment; filename="work-team-list.xlsx"');
+        header('Cache-Control: max-age=0');
+        $writer->save('php://output');
+        $spreadsheet->disconnectWorksheets();
+        exit;
+    }
+
+    private function resolveColumns(string $type, ?string $columnsCsv = null): array
+    {
+        $columnsByKey = [];
+        foreach (self::COLUMN_DEFINITIONS as $column) {
+            $columnsByKey[$column['key']] = $column;
+        }
+
+        $requestedKeys = $this->parseColumnsCsv($columnsCsv);
+        $selectedKeys = [];
+
+        if ($requestedKeys === []) {
+            foreach (self::COLUMN_DEFINITIONS as $column) {
+                if ($column['required'] || $column[$type . '_default']) {
+                    $selectedKeys[] = $column['key'];
+                }
+            }
+        } else {
+            foreach ($requestedKeys as $key) {
+                if (isset($columnsByKey[$key])) {
+                    $selectedKeys[] = $key;
+                }
+            }
+
+            foreach (self::COLUMN_DEFINITIONS as $column) {
+                if ($column['required'] && !in_array($column['key'], $selectedKeys, true)) {
+                    $selectedKeys[] = $column['key'];
+                }
+            }
+        }
+
+        if ($selectedKeys === []) {
+            return $this->resolveColumns($type, '');
+        }
+
+        $selectedColumns = [];
+        foreach ($selectedKeys as $key) {
+            $selectedColumns[] = $columnsByKey[$key];
+        }
+
+        return $this->decorateColumns($selectedColumns);
+    }
+
+    private function parseColumnsCsv(?string $columnsCsv): array
+    {
+        $resolved = trim((string) $columnsCsv);
+        if ($resolved === '') {
+            return [];
+        }
+
+        $keys = array_map('trim', explode(',', $resolved));
+        $keys = array_values(array_filter($keys, static fn($key) => $key !== ''));
+
+        return array_values(array_unique($keys));
+    }
+
+    private function decorateColumns(array $columns): array
+    {
+        return array_map(static function (array $column): array {
+            return $column + [
+                'header' => $column['label'],
+                'source_key' => $column['source_key'] ?? $column['key'],
+                'payload_key' => $column['payload_key'] ?? $column['key'],
+            ];
+        }, $columns);
+    }
+
+    private function buildHeaders(array $columns): array
+    {
+        return array_map(static fn(array $column): string => $column['header'], $columns);
+    }
+
+    private function buildTemplateSampleRow(array $columns): array
+    {
+        $row = [];
+
+        foreach ($columns as $column) {
+            $row[] = self::SAMPLE_ROW[$column['key']] ?? '';
+        }
+
+        return $row;
+    }
+
+    private function buildDownloadRow(array $record, array $columns): array
+    {
+        $row = [];
+
+        foreach ($columns as $column) {
+            $row[] = $this->exportCellValue($record, $column);
+        }
+
+        return $row;
+    }
+
+    private function exportCellValue(array $record, array $column): mixed
+    {
+        $sourceKey = $column['source_key'];
+        $value = $record[$sourceKey] ?? $record[$column['key']] ?? '';
+
+        if ($column['key'] === 'is_active') {
+            return (string) ($value ?? '1') === '1' ? '사용' : '미사용';
+        }
+
+        return $value;
+    }
+
+    private function buildHeaderIndexMap(array $headerRow, array $columns): array
+    {
+        $lookup = [];
+        foreach ($columns as $column) {
+            $lookup[$column['header']] = $column['key'];
+            $lookup[$column['label']] = $column['key'];
+            $lookup[$column['key']] = $column['key'];
+        }
+
+        $indexMap = [];
+        foreach ($headerRow as $index => $header) {
+            $trimmed = trim((string) $header);
+            if ($trimmed === '' || !isset($lookup[$trimmed])) {
+                continue;
+            }
+
+            $key = $lookup[$trimmed];
+            if (!array_key_exists($key, $indexMap)) {
+                $indexMap[$key] = $index;
+            }
+        }
+
+        return $indexMap;
+    }
+
+    private function findMissingRequiredColumns(array $columns, array $headerMap): array
+    {
+        $missing = [];
+
+        foreach ($columns as $column) {
+            if ($column['required'] && !array_key_exists($column['key'], $headerMap)) {
+                $missing[] = $column['label'];
+            }
+        }
+
+        return $missing;
+    }
+
+    private function buildUploadPayload(array $row, array $headerMap, array $columns): array
+    {
+        $payload = [];
+
+        foreach ($columns as $column) {
+            if (empty($column['allow_upload']) || !array_key_exists($column['key'], $headerMap)) {
+                continue;
+            }
+
+            $rawValue = trim((string) ($row[$headerMap[$column['key']]] ?? ''));
+            $payload[$column['payload_key']] = $rawValue;
+        }
+
+        $teamLeaderLookup = trim((string) ($payload['team_leader_client_id'] ?? ''));
+        if ($teamLeaderLookup === '') {
+            $teamLeaderLookup = trim((string) ($payload['team_leader_client_name'] ?? ''));
+        }
+
+        $payload['team_leader_client_id'] = $this->resolveTeamLeaderClientId($teamLeaderLookup);
+        unset($payload['team_leader_client_name']);
+
+        $payload['team_name'] = trim((string) ($payload['team_name'] ?? ''));
+        $payload['note'] = trim((string) ($payload['note'] ?? ''));
+        $payload['memo'] = trim((string) ($payload['memo'] ?? ''));
+        $payload['is_active'] = $this->parseActiveValue($payload['is_active'] ?? '1');
+
+        return $payload;
+    }
+
+    private function isBlankRow(array $row): bool
+    {
+        foreach ($row as $value) {
+            if (trim((string) $value) !== '') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function writeSpreadsheet(array $headers, array $rows, string $title, string $filename): void
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle($title);
+        $sheet->fromArray($headers, null, 'A1');
+
+        if ($rows !== []) {
+            $sheet->fromArray($rows, null, 'A2');
+        }
+
+        for ($index = 1; $index <= count($headers); $index++) {
+            $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($index))->setAutoSize(true);
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
         header('Cache-Control: max-age=0');
         $writer->save('php://output');
         $spreadsheet->disconnectWorksheets();

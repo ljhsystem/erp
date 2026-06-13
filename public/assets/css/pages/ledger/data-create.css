@@ -81,6 +81,12 @@
     border-color: #6f42c1;
 }
 
+.ledger-data-create-page .seed-status-bundled {
+    color: #fff;
+    background-color: #198754;
+    border-color: #198754;
+}
+
 .ledger-data-create-page .seed-status-correction {
     color: #000;
     background-color: #d4a800;
@@ -219,6 +225,27 @@
     line-height: 1;
     background: rgba(17, 24, 39, 0.68);
     border-radius: 999px;
+}
+
+.ledger-data-create-page .seed-bundled-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+}
+
+.ledger-data-create-page .seed-bundle-link {
+    color: #6f42c1;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.ledger-data-create-page .seed-bundle-link:hover {
+    text-decoration: underline;
+}
+
+.ledger-data-create-page #seedRowsTable tbody tr.seed-bundle-row {
+    background: #f5f1ff;
 }
 
 #seedRowReadinessModal .modal-dialog {
@@ -995,6 +1022,79 @@
 #seedRowReadinessModal .readiness-voucher-line-table .voucher-line-amount {
     text-align: right;
     font-variant-numeric: tabular-nums;
+}
+
+#seedRowReadinessModal .voucher-line-summary-panel {
+    display: grid;
+    grid-template-columns: minmax(120px, 1fr) minmax(120px, 1fr) minmax(220px, 2fr);
+    gap: 8px;
+    padding: 8px;
+    border-top: 1px solid #e5edf8;
+    background: #fff;
+}
+
+#seedRowReadinessModal .voucher-line-summary-panel .form-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+    color: #334155;
+}
+
+#seedRowReadinessModal .voucher-line-summary-panel .form-control {
+    height: 34px;
+    min-height: 34px;
+    font-weight: 700;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+#seedRowReadinessModal .voucher-line-summary-panel .voucher-validation-badge {
+    width: 100%;
+    height: 34px;
+    min-height: 34px;
+}
+
+#seedRowReadinessModal .voucher-validation-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-height: 30px;
+    padding: 0 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+#seedRowReadinessModal .voucher-validation-badge::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+#seedRowReadinessModal .voucher-validation-ok {
+    color: #146c43;
+    background: #e6f6eb;
+    border: 1px solid #b8dfc4;
+}
+
+#seedRowReadinessModal .voucher-validation-error {
+    color: #b42318;
+    background: #fee4e2;
+    border: 1px solid #f5a9a3;
+}
+
+@media (max-width: 768px) {
+    #seedRowReadinessModal .voucher-line-summary-panel {
+        grid-template-columns: 1fr;
+    }
 }
 
 #seedRowReadinessModal .voucher-line-actions {
@@ -1874,4 +1974,38 @@
     #seedRowReadinessModal .readiness-field-grid {
         grid-template-columns: 1fr;
     }
+}
+.readiness-bundle-source-cards {
+    display: grid;
+    gap: 8px;
+}
+
+.readiness-bundle-source-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fff;
+    padding: 10px 12px;
+}
+
+.readiness-bundle-source-card-head {
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.readiness-bundle-source-card dl {
+    margin: 0;
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    gap: 2px 8px;
+    font-size: 12px;
+}
+
+.readiness-bundle-source-card dt {
+    color: #6b7280;
+    margin: 0;
+}
+
+.readiness-bundle-source-card dd {
+    margin: 0;
+    color: #111827;
 }

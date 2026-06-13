@@ -1,6 +1,6 @@
 {
-  
-  "IsDevelopment": true,
+
+  "IsDevelopment": false,
 
   "App": {
     "BaseUrl": "http://localhost:8000"
@@ -38,5 +38,5 @@
     "Script": "/app/kakaoserver.js",
     "WorkingDirectory": "/app"
   }
-  
+
 }

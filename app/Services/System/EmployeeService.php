@@ -1,10 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Services/System/EmployeeService.php'
-// 설명:
-//  - 직원(Employee) 관리 서비스
-//  - UUID / sort_no 생성은 Service 책임
-//  - DB 처리: UserProfileModel
-//  - 모든 주요 흐름에 LoggerFactory 적용
 namespace App\Services\System;
 
 use PDO;
@@ -36,9 +30,6 @@ class EmployeeService
         $this->logger->info('EmployeeService initialized');
     }
 
-   /* =========================================================
-    * 직원 목록
-    * ========================================================= */
     public function getList(array $filters = []): array
     {
         $this->logger->info('getList() called', [
@@ -53,9 +44,6 @@ class EmployeeService
                 'count' => count($rows)
             ]);
 
-            /* =========================================================
-            * 주민등록번호 복호화(Service 책임)
-            * ========================================================= */
             if (!empty($rows)) {
 
                 $crypto = new Crypto();
@@ -92,16 +80,12 @@ class EmployeeService
         }
     }
 
-    /* =========================================================
-    * 직원 단건 조회 (user_employees.id 기준)
-    * ========================================================= */
     public function getById(string $id): ?array
     {
         $this->logger->info('getById() called', ['id' => $id]);
 
         try {
 
-            // 반드시 employees 모델 사용
             $row = $this->model->getById($id);
 
             if (!$row) {
@@ -109,16 +93,12 @@ class EmployeeService
                 return null;
             }
 
-            /* =========================================================
-            * 주민등록번호 복호화(Service 책임)
-            * ========================================================= */
             if (!empty($row['rrn'])) {
 
                 $crypto = new \Core\Security\Crypto();
 
                 $rrn = $crypto->decryptResidentNumber($row['rrn']);
 
-                // 숫자만 전달
                 $row['rrn'] = preg_replace('/\D+/', '', $rrn);
 
                 $this->logger->info('rrn decrypted', [
@@ -144,10 +124,6 @@ class EmployeeService
         }
     }
 
-
-    /* =========================================================
-    * 직원 검색(Select2)
-    * ========================================================= */
     public function searchPicker(string $q = '', int $limit = 20): array
     {
         $this->logger->info('searchPicker() called', [
@@ -163,16 +139,12 @@ class EmployeeService
                 return [];
             }
 
-            /* =========================================================
-            * Select2 포맷 변환
-            * ========================================================= */
             $results = [];
 
             foreach ($rows as $row) {
 
                 $text = $row['employee_name'] ?? '';
 
-                // 부서명이 있으면 같이 표시
                 if (!empty($row['department_name'])) {
                     $text .= ' (' . $row['department_name'] . ')';
                 }
@@ -196,10 +168,7 @@ class EmployeeService
             return [];
         }
     }
-    /* =========================================================
-    * 직원 저장(신규/수정) - 파일처리 포함 전체 수정 정보
-    * 기준: user_employees.id
-    * ========================================================= */
+
     public function save(array $data, string $actorType = 'USER', array $files = []): array
     {
         $actor = ActorHelper::resolve($actorType);
@@ -218,9 +187,6 @@ class EmployeeService
 
         try {
 
-            /* =========================================================
-            * 필수값
-            * ========================================================= */
             $username     = trim((string)($data['username'] ?? ''));
             $password     = (string)($data['password'] ?? '');
             $employeeName = trim((string)($data['employee_name'] ?? ''));
@@ -237,9 +203,6 @@ class EmployeeService
                 return ['success' => false, 'message' => '비밀번호는 필수입니다.'];
             }
 
-            /* =========================================================
-            * 수정 시 기존 데이터 조회
-            * ========================================================= */
             $current = null;
             $userId  = null;
 
@@ -261,15 +224,11 @@ class EmployeeService
                     throw new \Exception('사용자 정보 없음');
                 }
 
-                // username 변경 시 DB unique 제약이 처리합니다.
                 if ($username !== '' && $currentUser['username'] !== $username) {
                     // no-op
                 }
             }
 
-            /* =========================================================
-            * AUTH 데이터
-            * ========================================================= */
             $authData = [];
 
             if ($username !== '') {
@@ -304,9 +263,6 @@ class EmployeeService
 
             $authData['updated_by'] = $actor;
 
-            /* =========================================================
-            * EMPLOYEE 데이터
-            * ========================================================= */
             $employeeData = [];
 
             $fields = [
@@ -327,9 +283,6 @@ class EmployeeService
 
             $employeeData['updated_by'] = $actor;
 
-            /* =========================================================
-            * 주민등록번호 암호화
-            * ========================================================= */
             $rrnInput = trim((string)($data['rrn'] ?? ''));
 
             if (strpos($rrnInput, '*') !== false) {
@@ -347,36 +300,26 @@ class EmployeeService
                 $employeeData['rrn'] = $current['rrn'] ?? null;
             }
 
-            /* =========================================================
-            * 파일 삭제 플래그
-            * ========================================================= */
             $deleteProfile      = ((string)($data['profile_image_delete'] ?? '0') === '1');
             $deleteRrnImage     = ((string)($data['rrn_image_delete'] ?? '0') === '1');
             $deleteCertificate  = ((string)($data['certificate_file_delete'] ?? '0') === '1');
             $deleteBankFile     = ((string)($data['bank_file_delete'] ?? '0') === '1');
 
-            /* =========================================================
-            * 기본값 설정 또는 기존 파일 유지
-            * ========================================================= */
             if ($isCreate) {
 
                 $employeeData['profile_image']    = null;
                 $employeeData['rrn_image']        = null;
                 $employeeData['certificate_file'] = null;
                 $employeeData['bank_file']        = null;
-            
+
             } else {
-            
-                // 삭제 플래그를 반영해서 기본값 세팅
+
                 $employeeData['profile_image']    = $deleteProfile ? null : ($current['profile_image'] ?? null);
                 $employeeData['rrn_image']        = $deleteRrnImage ? null : ($current['rrn_image'] ?? null);
                 $employeeData['certificate_file'] = $deleteCertificate ? null : ($current['certificate_file'] ?? null);
                 $employeeData['bank_file']        = $deleteBankFile ? null : ($current['bank_file'] ?? null);
             }
 
-            /* =========================================================
-            * 삭제 플래그 반영
-            * ========================================================= */
             if ($deleteProfile) {
                 if (!$isCreate && !empty($current['profile_image'])) {
                     $deleteAfterCommit[] = $current['profile_image'];
@@ -401,18 +344,11 @@ class EmployeeService
 
             if ($deleteBankFile && !$isCreate && !empty($current['bank_file'])) {
 
-                // ?뵦 DB 媛?癒쇱? NULL 泥섎━
                 $employeeData['bank_file'] = null;
-            
-                // ?뵦 ??젣 ????깅줉
+
                 $deleteAfterCommit[] = $current['bank_file'];
             }
 
-            /* =========================================================
-            * 파일 업로드 처리 (FileService 기준 최종본)
-            * ========================================================= */
-
-            // 1) 프로필 사진
             $file = $files['profile_image'] ?? null;
 
             if ($file && $file['error'] === UPLOAD_ERR_OK) {
@@ -431,8 +367,6 @@ class EmployeeService
                 }
             }
 
-
-            // 2) 신분증 이미지
             $file = $files['rrn_image'] ?? null;
 
             if ($file && $file['error'] === UPLOAD_ERR_OK) {
@@ -451,8 +385,6 @@ class EmployeeService
                 }
             }
 
-
-            // 3) 자격증 파일
             $file = $files['certificate_file'] ?? null;
 
             if ($file && $file['error'] === UPLOAD_ERR_OK) {
@@ -471,8 +403,6 @@ class EmployeeService
                 }
             }
 
-
-            // 4) 통장사본
             $file = $files['bank_file'] ?? null;
 
             if ($file && $file['error'] === UPLOAD_ERR_OK) {
@@ -490,9 +420,7 @@ class EmployeeService
                     $deleteAfterCommit[] = $current['bank_file'];
                 }
             }
-            /* =========================================================
-            * 저장 시작
-            * ========================================================= */
+
             $this->pdo->beginTransaction();
 
             try {
@@ -575,12 +503,7 @@ class EmployeeService
             ];
         }
     }
-    
 
-    /* =========================================================
-    * 직원 상태 변경(활성/비활성)
-    * 기준: user_employees.id 및 auth_users 업데이트
-    * ========================================================= */
     public function updateStatus(string $employeeId, bool $isActive): array
     {
         $actor = ActorHelper::resolve('USER');
@@ -594,9 +517,6 @@ class EmployeeService
                 ];
             }
 
-            /* =========================================================
-            * user_id 조회
-            * ========================================================= */
             $employee = $this->model->getById($employeeId);
 
             if (!$employee || empty($employee['user_id'])) {
@@ -608,9 +528,6 @@ class EmployeeService
 
             $userId = $employee['user_id'];
 
-            /* =========================================================
-            * auth_users 상태 업데이트
-            * ========================================================= */
             $data = [
                 'is_active'  => $isActive ? 1 : 0,
                 'deleted_at' => $isActive ? null : date('Y-m-d H:i:s'),
@@ -642,9 +559,6 @@ class EmployeeService
         }
     }
 
-    /* =========================================================
-    * 직원 영구 삭제
-    * ========================================================= */
     public function purge(string $employeeId, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
@@ -663,9 +577,6 @@ class EmployeeService
 
         try {
 
-            /* =========================
-            * 1단계 직원 조회
-            * ========================= */
             $employee = $this->model->getById($employeeId);
 
             if (!$employee) {
@@ -684,9 +595,6 @@ class EmployeeService
 
             $userId = $employee['user_id'];
 
-            /* =========================
-            * 2단계 삭제할 파일 목록 확보
-            * ========================= */
             $deleteAfterCommit = [];
 
             foreach (['profile_image','rrn_image','certificate_file','bank_file'] as $field) {
@@ -695,9 +603,6 @@ class EmployeeService
                 }
             }
 
-            /* =========================
-            * 3단계 DB 삭제
-            * ========================= */
             $this->pdo->beginTransaction();
 
             try {
@@ -720,9 +625,6 @@ class EmployeeService
                 throw $e;
             }
 
-            /* =========================
-            * 4단계 파일 삭제(commit 이후)
-            * ========================= */
             foreach (array_unique($deleteAfterCommit) as $path) {
 
                 $this->fileService->delete($path);
@@ -749,10 +651,7 @@ class EmployeeService
             ];
         }
     }
-    
-    /* ============================================================
-    * 순번 변경(RowReorder)
-    * ============================================================ */
+
     public function reorder(array $changes): bool
     {
         $this->logger->info('reorder() called', [
@@ -769,7 +668,6 @@ class EmployeeService
                 $this->pdo->beginTransaction();
             }
 
-            /* 1단계 입력값 검증 */
             foreach ($changes as &$row) {
                 $sortNo = $row['newSortNo'] ?? $row['sort_no'] ?? null;
 
@@ -784,10 +682,8 @@ class EmployeeService
             }
             unset($row);
 
-            /* 2단계 temp 이동 (충돌 방지) */
             foreach ($changes as $row) {
 
-                // 먼저 충분히 큰 값으로 이동해 중복 충돌을 피합니다.
                 $tempSortNo = $row['_sort_no'] + 1000000;
 
                 $this->model->updateSortNo(
@@ -796,7 +692,6 @@ class EmployeeService
                 );
             }
 
-            /* 3단계 실제 순번 적용 */
             foreach ($changes as $row) {
 
                 $this->model->updateSortNo(

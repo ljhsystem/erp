@@ -414,6 +414,61 @@ class AuthService
         return ['success' => false, 'message' => '비밀번호 변경 실패'];
     }
 
+    public function recoverPassword(array $data): array
+    {
+        $username = trim((string)($data['username'] ?? ''));
+        $email = trim((string)($data['email'] ?? ''));
+
+        if ($username === '' || $email === '') {
+            return [
+                'success' => false,
+                'alertClass' => 'alert-warning',
+                'resultHtml' => '이메일과 아이디를 모두 입력해 주세요.',
+            ];
+        }
+
+        try {
+            $user = $this->authUserModel->findByUsernameAndEmail($username, $email);
+            if (!$user || empty($user['id'])) {
+                return [
+                    'success' => false,
+                    'alertClass' => 'alert-warning',
+                    'resultHtml' => '입력하신 정보와 일치하는 계정이 없습니다.<br>아이디와 이메일을 다시 확인해 주세요.',
+                ];
+            }
+
+            $tempPassword = bin2hex(random_bytes(4));
+            $hashedPassword = password_hash($tempPassword, PASSWORD_DEFAULT);
+            $updated = $this->authUserModel->updatePassword((string)$user['id'], $hashedPassword, (string)$user['id']);
+
+            if (!$updated) {
+                return [
+                    'success' => false,
+                    'alertClass' => 'alert-warning',
+                    'resultHtml' => 'DB 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
+                ];
+            }
+
+            return [
+                'success' => true,
+                'alertClass' => 'alert-success',
+                'resultHtml' => "임시 비밀번호가 발급되었습니다.<br>임시 비밀번호: <strong>{$tempPassword}</strong><br><small>로그인 후 반드시 비밀번호를 변경해 주세요.</small>",
+            ];
+        } catch (\Throwable $e) {
+            $this->logger->error('recoverPassword failed', [
+                'username' => $username,
+                'email' => $email,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'alertClass' => 'alert-warning',
+                'resultHtml' => 'DB 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
+            ];
+        }
+    }
+
     public function isPasswordExpired(array $user): bool
     {
         $policyEnabled = (int)ConfigHelper::system('security_password_policy_enabled', 0);
@@ -463,7 +518,6 @@ class AuthService
         }
 
         $userId = UuidHelper::generate();
-        $userCode = SequenceHelper::next('auth_users', 'sort_no');
         $passwordHash = password_hash($password, PASSWORD_DEFAULT);
 
         $this->pdo->beginTransaction();
@@ -471,7 +525,6 @@ class AuthService
         try {
             $this->authUserModel->createUser([
                 'id'                 => $userId,
-                'sort_no'            => $userCode,
                 'username'           => $username,
                 'password'           => $passwordHash,
                 'role_id'            => $data['role_id'] ?? null,
@@ -497,7 +550,6 @@ class AuthService
             return [
                 'success' => true,
                 'user_id' => $userId,
-                'code'    => $userCode,
                 'message' => '사용자가 생성되었습니다.',
             ];
         } catch (\Throwable $e) {

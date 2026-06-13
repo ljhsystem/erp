@@ -927,7 +927,7 @@ import '/public/assets/js/components/trash-manager.js';
 
     function normalizeTransactionStatus(value) {
         const status = String(value || 'draft').toLowerCase();
-        return ['draft', 'approved', 'rejected'].includes(status) ? status : 'draft';
+        return ['draft', 'approved', 'rejected', 'deleted'].includes(status) ? status : 'draft';
     }
 
     function renderTransactionStatus(value) {
@@ -936,6 +936,7 @@ import '/public/assets/js/components/trash-manager.js';
             draft: '입력',
             approved: '승인완료',
             rejected: '반려',
+            deleted: '삭제',
         };
         return `<span class="transaction-status transaction-status-${status}">${labels[status]}</span>`;
     }
@@ -964,6 +965,7 @@ import '/public/assets/js/components/trash-manager.js';
             draft: '입력',
             approved: '승인',
             rejected: '반려',
+            deleted: '삭제',
         };
 
         transactionStatusBadgeEl.className = `transaction-modal-state transaction-status-${status}`;
@@ -2606,7 +2608,7 @@ import '/public/assets/js/components/trash-manager.js';
         renderFiles(currentFiles);
         renderVoucherState(data);
         syncConditionalPanels();
-        setTransactionModalEditable(transactionStatus !== 'approved');
+        setTransactionModalEditable(!['approved', 'deleted'].includes(transactionStatus));
         markTransactionModalClean();
         setTransactionModalLoading(false);
         setTimeout(refreshLineGridDimensions, 150);

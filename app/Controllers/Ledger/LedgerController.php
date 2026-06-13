@@ -103,13 +103,6 @@ class LedgerController
         ]);
     }
 
-    public function webDataFormat(): void
-    {
-        $this->renderPage('/app/views/ledger/data/format.php', [
-            'pageTitle' => '양식관리',
-        ]);
-    }
-
     public function webPlaceholder(): void
     {
         $meta = Router::currentRouteMeta();

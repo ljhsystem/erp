@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Controllers/System/ErrorController.php'
 namespace App\Controllers\System;
 
 class ErrorController
@@ -8,7 +7,6 @@ class ErrorController
     {
         http_response_code($code);
 
-        // AJAX 요청이면 JSON으로 응답
         if ($this->isAjax()) {
             echo json_encode([
                 'success' => false,
@@ -18,7 +16,6 @@ class ErrorController
             return;
         }
 
-        // 일반 페이지 렌더링
         $error = [
             'code'    => $code,
             'message' => $message

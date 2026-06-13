@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Services/User/ProfileService.php';
 namespace App\Services\User;
 
 use PDO;
@@ -27,17 +26,11 @@ class ProfileService
         $this->logger      = LoggerFactory::getLogger("service-user.ProfileService");
     }
 
-
-    /* ============================================================
-    * 내 프로필 조회 (getById 기반 수정)
-    * ============================================================ */
     public function getById(string $userId): ?array
     {
-        // 1️⃣ 사용자
         $user = $this->users->getById($userId);
         if (!$user) return null;
 
-        // 2️⃣ employee_id 찾기 (최소 루프)
         $rows = $this->employees->getList();
 
         $employeeId = null;
@@ -48,12 +41,11 @@ class ProfileService
                 break;
             }
         }
-        
+
         if (!$employeeId) {
             throw new \Exception('employee_id 조회 실패');
         }
 
-        // 3️⃣ 단건 조회 (🔥 핵심 변경)
         $employee = null;
         if ($employeeId) {
             $employee = $this->employees->getById($employeeId);
@@ -74,9 +66,6 @@ class ProfileService
         return $this->getById($userId);
     }
 
-   /* ============================================================
-    * 내 프로필 저장 (수정 ONLY)
-    * ============================================================ */
     public function save(array $data, array $files = []): array
     {
         $actor  = ActorHelper::resolve('USER');
@@ -89,9 +78,6 @@ class ProfileService
         $deleteAfterCommit = [];
 
         try {
-            /* ============================================================
-            * 1) 직원 찾기
-            * ============================================================ */
             $rows = $this->employees->getList();
 
             $employee = null;
@@ -108,9 +94,6 @@ class ProfileService
 
             $employeeId = $employee['id'];
 
-            /* ============================================================
-            * 2) auth_users 업데이트 데이터
-            * ============================================================ */
             $authData = [];
 
             if (array_key_exists('email', $data)) {
@@ -147,16 +130,13 @@ class ProfileService
                 $authData['updated_by'] = $actor;
             }
 
-            /* ============================================================
-            * 3) user_employees 업데이트 데이터
-            * ============================================================ */
             $profileData = [];
 
             $fields = [
                 'employee_name',
                 'phone',
                 'address',
-                'address_detail',      
+                'address_detail',
                 'note',
                 'memo',
                 'emergency_phone',
@@ -176,12 +156,6 @@ class ProfileService
                 );
             }
 
-            /* ============================================================
-            * 4) 파일 처리
-            *    - 프로필에서는 파일 삭제 금지
-            *    - 새 파일 업로드 시에만 교체
-            *    - 기존 파일 삭제는 commit 이후
-            * ============================================================ */
             $currentProfile = $employee['profile_image'] ?? null;
             $currentCert    = $employee['certificate_file'] ?? null;
             $deleteCertificate = ((string)($data['certificate_file_delete'] ?? '0') === '1');
@@ -206,7 +180,6 @@ class ProfileService
                 $profileData['profile_image'] = $currentProfile;
             }
 
-            // 자격증 파일
             if ($deleteCertificate && empty($files['certificate_file']['name'])) {
                 if (!empty($currentCert)) {
                     $deleteAfterCommit[] = $currentCert;
@@ -233,7 +206,6 @@ class ProfileService
                 $profileData['certificate_file'] = $currentCert;
             }
 
-            // 안전장치
             $profileData['profile_image']    = $profileData['profile_image']    ?? $currentProfile;
             $profileData['certificate_file'] = $profileData['certificate_file'] ?? $currentCert;
 
@@ -241,9 +213,6 @@ class ProfileService
                 $profileData['updated_by'] = $actor;
             }
 
-            /* ============================================================
-            * 5) DB 저장
-            * ============================================================ */
             $this->pdo->beginTransaction();
 
             if (!empty($authData)) {
@@ -252,36 +221,28 @@ class ProfileService
 
             if (!empty($profileData)) {
 
-                // 🔥 1. 기존 데이터 조회
                 $current = $this->employees->getById($employeeId);
-            
+
                 if (!$current) {
                     throw new \Exception('직원 데이터 없음');
                 }
-            
-                // 🔥 2. 기존 데이터 + 변경 데이터 merge
+
                 $updateData = array_merge($current, $profileData);
-            
-                // 🔥 3. 안전 필드 제거 (절대 덮으면 안되는 것)
+
                 unset(
                     $updateData['id'],
                     $updateData['created_at'],
                     $updateData['created_by'],
                     $updateData['updated_at']
                 );
-            
-                // 🔥 4. updated_by 강제
+
                 $updateData['updated_by'] = $actor;
-            
-                // 🔥 5. FULL UPDATE 호출 (안전)
+
                 $this->employees->updateById($employeeId, $updateData);
             }
 
             $this->pdo->commit();
 
-            /* ============================================================
-            * 6) commit 이후 기존 파일 삭제
-            * ============================================================ */
             foreach ($deleteAfterCommit as $oldFile) {
                 try {
                     $this->fileService->delete($oldFile);
@@ -327,6 +288,6 @@ class ProfileService
 
         return $this->save($data, $files);
     }
- 
+
 
 }

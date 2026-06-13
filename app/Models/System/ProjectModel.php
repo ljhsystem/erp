@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Models/System/ProjectModel.php'
 namespace App\Models\System;
 
 use PDO;
@@ -7,10 +6,7 @@ use Core\Database;
 
 class ProjectModel
 {
-    // PDO 연결 객체
     private PDO $db;
-
-    // 생성자에서 PDO 주입 또는 기본 연결 사용
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
@@ -62,68 +58,52 @@ class ProjectModel
 
         $params = [];
 
-        /* =========================================================
-         * 전체 컬럼 검색 매핑
-         * ========================================================= */
         $fieldMap = [
 
-            // 기본 정보
             'id'                      => ['col'=>'p.id','type'=>'exact'],
             'sort_no'                 => ['col'=>'p.sort_no','type'=>'exact'],
             'project_name'            => ['col'=>'p.project_name','type'=>'like'],
             'construction_name'       => ['col'=>'p.construction_name','type'=>'like'],
 
-            // 관계 정보
             'client_id'               => ['col'=>'p.client_id','type'=>'exact'],
             'employee_id'             => ['col'=>'p.employee_id','type'=>'exact'],
             'linked_client_name'      => ['col'=>'c.client_name','type'=>'like'],
            'client_name'              => ['col'=>'p.client_name','type'=>'like'],
             'employee_name'           => ['col'=>'e.employee_name','type'=>'like'],
 
-            // 인력 정보
             'site_agent'              => ['col'=>'p.site_agent','type'=>'like'],
             'contract_type'           => ['col'=>'p.contract_type','type'=>'like'],
             'contract_method'         => ['col'=>'p.contract_method','type'=>'like'],
             'director'                => ['col'=>'p.director','type'=>'like'],
             'manager'                 => ['col'=>'p.manager','type'=>'like'],
 
-            // 사업 정보
             'business_type'           => ['col'=>'p.business_type','type'=>'like'],
             'housing_type'            => ['col'=>'p.housing_type','type'=>'like'],
 
-            // 위치 정보
             'site_region_city'        => ['col'=>'p.site_region_city','type'=>'like'],
             'site_region_district'    => ['col'=>'p.site_region_district','type'=>'like'],
             'site_region_address'     => ['col'=>'p.site_region_address','type'=>'like'],
             'site_region_address_detail'=>['col'=>'p.site_region_address_detail','type'=>'like'],
 
-            // 공종 정보
             'work_type'               => ['col'=>'p.work_type','type'=>'like'],
             'work_subtype'            => ['col'=>'p.work_subtype','type'=>'like'],
             'work_detail_type'        => ['col'=>'p.work_detail_type','type'=>'like'],
             'contract_work_type'      => ['col'=>'p.contract_work_type','type'=>'like'],
 
-            // 입찰 정보
             'bid_type'                => ['col'=>'p.bid_type','type'=>'like'],
 
-            // 발주자 정보
             'client_type'             => ['col'=>'p.client_type','type'=>'like'],
 
-            // 기관 정보
             'permit_agency'           => ['col'=>'p.permit_agency','type'=>'like'],
 
-            // 금액 정보
             'initial_contract_amount' => ['col'=>'p.initial_contract_amount','type'=>'exact'],
 
-            // 기타 정보
             'authorized_company_seal' => ['col'=>'p.authorized_company_seal','type'=>'like'],
             'note'                    => ['col'=>'p.note','type'=>'like'],
             'memo'                    => ['col'=>'p.memo','type'=>'like'],
 
-            // 상태 정보
             'is_active'               => ['col'=>'p.is_active','type'=>'exact'],
 
-            // 날짜 정보
             'permit_date'             => ['col'=>'p.permit_date','type'=>'date'],
             'contract_date'           => ['col'=>'p.contract_date','type'=>'date'],
             'start_date'              => ['col'=>'p.start_date','type'=>'date'],
@@ -142,9 +122,6 @@ class ProjectModel
 
         $globalSearch = [];
 
-        /* =========================================================
-         * 필터 처리
-         * ========================================================= */
         foreach ($filters as $f) {
 
             $field = $f['field'] ?? '';
@@ -152,7 +129,6 @@ class ProjectModel
 
             if ($value === '' || $value === null) continue;
 
-            // 전체 검색
             if ($field === '') {
                 $globalSearch[] = $value;
                 continue;
@@ -189,9 +165,6 @@ class ProjectModel
             }
         }
 
-        /* =========================================================
-         * 전체 검색(모든 텍스트 컬럼)
-         * ========================================================= */
         if (!empty($globalSearch)) {
 
             $searchCols = [
@@ -252,9 +225,6 @@ class ProjectModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /* -------------------------------------------------------------
-    * 프로젝트 단일 조회 (id 기준)
-    * ------------------------------------------------------------- */
     public function getById(string $id): ?array
     {
         $stmt = $this->db->prepare("
@@ -324,9 +294,6 @@ class ProjectModel
         return $row ?: null;
     }
 
-    /* =========================================================
-    * 프로젝트 검색 (Model - RAW 데이터 반환)
-    * ========================================================= */
     public function searchPicker(string $keyword = '', int $limit = 20): array
     {
         $limit = max(1, min(100, (int)$limit));
@@ -443,10 +410,6 @@ class ProjectModel
         return $id !== false ? (string)$id : null;
     }
 
-
-    /* -------------------------------------------------------------
-    * 프로젝트 생성
-    * ------------------------------------------------------------- */
     public function create(array $data): bool
     {
         $sql = "
@@ -578,7 +541,6 @@ class ProjectModel
             'note' => $data['note'] ?? null,
             'memo' => $data['memo'] ?? null,
 
-            // 기본값 주입
             'is_active' => isset($data['is_active']) ? (int)$data['is_active'] : 1,
 
             'created_by' => $data['created_by'],
@@ -586,10 +548,6 @@ class ProjectModel
         ]);
     }
 
-
-    /* -------------------------------------------------------------
-    * 프로젝트 수정 (id 기준)
-    * ------------------------------------------------------------- */
     public function updateById(string $id, array $data): bool
     {
         $sql = "
@@ -693,7 +651,6 @@ class ProjectModel
             'note' => $data['note'] ?? null,
             'memo' => $data['memo'] ?? null,
 
-            // 기본값 주입
             'is_active' => isset($data['is_active']) ? (int)$data['is_active'] : 1,
 
             'updated_by' => $data['updated_by']
@@ -703,9 +660,6 @@ class ProjectModel
         return $stmt->execute($params);
     }
 
-    /* -------------------------------------------------------------
-    * 프로젝트 삭제 (id 기준)
-    * ------------------------------------------------------------- */
     public function deleteById(string $id, string $actor): bool
     {
         $sql = "
@@ -730,10 +684,6 @@ class ProjectModel
         return $stmt->rowCount() > 0;
     }
 
-
-    /* -------------------------------------------------------------
-    * 프로젝트 휴지통 목록
-    * ------------------------------------------------------------- */
     public function getDeleted(): array
     {
         $stmt = $this->db->prepare("
@@ -790,9 +740,6 @@ class ProjectModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /* -------------------------------------------------------------
-    * 프로젝트 복원 (id 기준)
-    * ------------------------------------------------------------- */
     public function restoreById(string $id, string $actor): bool
     {
         $sql = "
@@ -816,9 +763,6 @@ class ProjectModel
         return $stmt->rowCount() > 0;
     }
 
-    /* -------------------------------------------------------------
-    * 프로젝트 영구삭제
-    * ------------------------------------------------------------- */
     public function hardDeleteById(string $id): bool
     {
         $stmt = $this->db->prepare("
@@ -831,10 +775,6 @@ class ProjectModel
         ]);
     }
 
-
-    /* -------------------------------------------------------------
-    * ID 기준 sort_no 수정
-    * ------------------------------------------------------------- */
     public function updateSortNo(string $id, string $newSortNo): bool
     {
         $sql = "UPDATE system_projects SET sort_no = :newSortNo WHERE id = :id";

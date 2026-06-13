@@ -4,6 +4,7 @@ namespace App\Services\Ledger;
 
 use App\Models\Ledger\ChartAccountModel;
 use Core\Helpers\ActorHelper;
+use Core\Helpers\SequenceHelper;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
 use PDO;
@@ -186,6 +187,7 @@ class ChartAccountService
             $data['parent_id'] = $parentResult['parent_id'] ?? ($data['parent_id'] ?? null);
 
             $data['id'] = UuidHelper::generate();
+            $data['sort_no'] = SequenceHelper::next('ledger_accounts', 'sort_no');
             $data['level'] = $this->resolveLevel($data['parent_id'] ?? null);
             $data['account_level'] = $data['level'];
             $data['is_postable'] = $this->normalizePostable($data['is_postable'] ?? $data['is_posting'] ?? 1);

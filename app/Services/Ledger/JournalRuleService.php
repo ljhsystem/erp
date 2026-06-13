@@ -4,6 +4,7 @@ namespace App\Services\Ledger;
 
 use App\Models\Ledger\JournalRuleModel;
 use Core\Helpers\ActorHelper;
+use Core\Helpers\SequenceHelper;
 use Core\Helpers\UuidHelper;
 use PDO;
 
@@ -51,7 +52,7 @@ class JournalRuleService
         }
 
         $data[':id'] = UuidHelper::generate();
-        $data[':sort_no'] = $this->model->nextSortNo();
+        $data[':sort_no'] = SequenceHelper::next('ledger_journal_rules', 'sort_no');
         $data[':created_by'] = ActorHelper::user();
         $ok = $this->model->create($data);
 

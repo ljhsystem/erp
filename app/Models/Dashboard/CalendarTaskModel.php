@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Models/Dashboard/CalendarTaskModel.php'
 namespace App\Models\Dashboard;
 
 use PDO;
@@ -9,10 +8,8 @@ class CalendarTaskModel
 {
     private string $table = 'dashboard_calendar_tasks';
 
-    // PDO 보관
     private PDO $db;
 
-    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
@@ -21,16 +18,16 @@ class CalendarTaskModel
     public function upsert(array $data): void
     {
         $dueRaw = $data['due'] ?? null;
-    
+
         $existing = $this->findAnyByUid(
             $data['uid'],
             $data['synology_login_id']
         );
-    
+
         $dueYmd = $dueRaw
             ? substr(preg_replace('/[^0-9]/', '', (string)$dueRaw), 0, 8)
             : ($existing['due_ymd'] ?? null);
-    
+
         $sql = "
             INSERT INTO dashboard_calendar_tasks (
                 uid, calendar_id, owner_user_id, synology_login_id,
@@ -68,7 +65,7 @@ class CalendarTaskModel
                 synology_exists = VALUES(synology_exists),
                 updated_by = VALUES(updated_by);
         ";
-    
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
             ':uid'              => $data['uid'],
@@ -104,7 +101,7 @@ class CalendarTaskModel
         string $synologyLoginId,
         ?string $actor = null
     ): void {
-    
+
         $sql = "
             UPDATE {$this->table}
             SET is_active = 0,
@@ -115,7 +112,7 @@ class CalendarTaskModel
               AND synology_login_id = :synology_login_id
               AND is_active = 1
         ";
-    
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
             ':uid' => $uid,
@@ -124,36 +121,36 @@ class CalendarTaskModel
             ':actor' => $actor,
         ]);
     }
-    
+
 
     public function getCalendarIdsByUid(
         string $uid,
         string $synologyLoginId
     ): array {
-    
+
         $sql = "
             SELECT calendar_id
             FROM {$this->table}
             WHERE uid = :uid
               AND synology_login_id = :synology_login_id
         ";
-    
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
             ':uid' => $uid,
             ':synology_login_id' => $synologyLoginId
         ]);
-    
+
         return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
-    
+
 
     public function findByUidAndCalendar(
         string $uid,
         string $calendarId,
         string $synologyLoginId
     ): ?array {
-    
+
         $sql = "
             SELECT *
             FROM {$this->table}
@@ -162,14 +159,14 @@ class CalendarTaskModel
               AND synology_login_id = :synology_login_id
             LIMIT 1
         ";
-    
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
             ':uid' => $uid,
             ':calendar_id' => $calendarId,
             ':synology_login_id' => $synologyLoginId
         ]);
-    
+
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
@@ -177,7 +174,7 @@ class CalendarTaskModel
         string $calendarId,
         string $synologyLoginId
     ): array {
-    
+
         $sql = "
             SELECT uid
             FROM {$this->table}
@@ -185,13 +182,13 @@ class CalendarTaskModel
               AND synology_login_id = :synology_login_id
               AND is_active = 1
         ";
-    
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
             ':calendar_id' => $calendarId,
             ':synology_login_id' => $synologyLoginId
         ]);
-    
+
         return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
@@ -200,7 +197,7 @@ class CalendarTaskModel
         string $uid,
         string $synologyLoginId
     ): ?array {
-    
+
         $sql = "
             SELECT *
             FROM {$this->table}
@@ -209,16 +206,16 @@ class CalendarTaskModel
             ORDER BY updated_at DESC
             LIMIT 1
         ";
-    
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
             ':uid' => $uid,
             ':synology_login_id' => $synologyLoginId
         ]);
-    
+
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
-    
+
     public function findAnyByUidUnsafe(string $uid): ?array
     {
         $stmt = $this->db->prepare("
@@ -236,7 +233,7 @@ class CalendarTaskModel
         string $calendarId,
         string $synologyLoginId
     ): void {
-    
+
         $stmt = $this->db->prepare("
             UPDATE dashboard_calendar_tasks
             SET synology_exists = 0
@@ -244,7 +241,7 @@ class CalendarTaskModel
             AND calendar_id = :calendar
             AND synology_login_id = :login
         ");
-    
+
         $stmt->execute([
             ':uid' => $uid,
             ':calendar' => $calendarId,

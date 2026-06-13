@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Models/User/EmployeeModel.php'
 namespace App\Models\User;
 
 use PDO;
@@ -7,25 +6,17 @@ use Core\Database;
 
 class EmployeeModel
 {
-    // PDO 보관
     private PDO $db;
 
-    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
-    /* =========================================================
-    * 직원 전체 목록 (거래처 구조 기준 통일)
-    * ========================================================= */
     public function getList(array $filters = []): array
     {
         $sql = "
             SELECT
-                /* =========================
-                * user_employees
-                * ========================= */
                 p.id,
                 p.sort_no,
                 p.user_id,
@@ -57,17 +48,10 @@ class EmployeeModel
                 p.updated_at,
                 p.updated_by,
 
-                /* =========================
-                * 조직
-                * ========================= */
                 d.dept_name AS department_name,
                 s.position_name,
                 c.client_name AS client_name,
 
-                /* =========================
-                * auth_users
-                * ========================= */
-                u.sort_no AS user_sort_no,
                 u.username,
                 u.email,
                 u.role_id,
@@ -92,60 +76,51 @@ class EmployeeModel
                 u.deleted_at,
                 u.deleted_by,
 
-                /* =========================
-                * 역할
-                * ========================= */
                 r.role_name,
 
-                /* =========================
-                * 직원 row 기준 표시명
-                * ========================= */
-                CASE 
+                CASE
                     WHEN p.created_by IS NULL THEN NULL
                     WHEN p.created_by LIKE 'SYSTEM:%' THEN p.created_by
                     WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
                     ELSE p.created_by
                 END AS created_by_name,
 
-                CASE 
+                CASE
                     WHEN p.updated_by IS NULL THEN NULL
                     WHEN p.updated_by LIKE 'SYSTEM:%' THEN p.updated_by
                     WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
                     ELSE p.updated_by
                 END AS updated_by_name,
 
-                /* =========================
-                * auth_users 기준 표시명
-                * ========================= */
-                CASE 
+                CASE
                     WHEN u.created_by IS NULL THEN NULL
                     WHEN u.created_by LIKE 'SYSTEM:%' THEN u.created_by
                     WHEN uc.employee_name IS NOT NULL THEN CONCAT('USER:', uc.employee_name)
                     ELSE u.created_by
                 END AS user_created_by_name,
 
-                CASE 
+                CASE
                     WHEN u.updated_by IS NULL THEN NULL
                     WHEN u.updated_by LIKE 'SYSTEM:%' THEN u.updated_by
                     WHEN uu.employee_name IS NOT NULL THEN CONCAT('USER:', uu.employee_name)
                     ELSE u.updated_by
                 END AS user_updated_by_name,
 
-                CASE 
+                CASE
                     WHEN u.password_updated_by IS NULL THEN NULL
                     WHEN u.password_updated_by LIKE 'SYSTEM:%' THEN u.password_updated_by
                     WHEN upw.employee_name IS NOT NULL THEN CONCAT('USER:', upw.employee_name)
                     ELSE u.password_updated_by
                 END AS password_updated_by_name,
 
-                CASE 
+                CASE
                     WHEN u.approved_by IS NULL THEN NULL
                     WHEN u.approved_by LIKE 'SYSTEM:%' THEN u.approved_by
                     WHEN ua.employee_name IS NOT NULL THEN CONCAT('USER:', ua.employee_name)
                     ELSE u.approved_by
                 END AS approved_by_name,
 
-                CASE 
+                CASE
                     WHEN u.deleted_by IS NULL THEN NULL
                     WHEN u.deleted_by LIKE 'SYSTEM:%' THEN u.deleted_by
                     WHEN ud.employee_name IS NOT NULL THEN CONCAT('USER:', ud.employee_name)
@@ -169,7 +144,6 @@ class EmployeeModel
             LEFT JOIN system_clients c
                 ON p.client_id = c.id
 
-            /* 직원 row 기준 */
             LEFT JOIN user_employees p1
                 ON p.created_by NOT LIKE 'SYSTEM:%'
                 AND p1.user_id = REPLACE(p.created_by, 'USER:', '')
@@ -178,7 +152,6 @@ class EmployeeModel
                 ON p.updated_by NOT LIKE 'SYSTEM:%'
                 AND p2.user_id = REPLACE(p.updated_by, 'USER:', '')
 
-            /* auth_users 기준 */
             LEFT JOIN user_employees uc
                 ON u.created_by NOT LIKE 'SYSTEM:%'
                 AND uc.user_id = REPLACE(u.created_by, 'USER:', '')
@@ -208,22 +181,18 @@ class EmployeeModel
 
             $fieldMap = [
 
-                // 기본
                 'sort_no'              => ['expr' => 'p.sort_no', 'type' => 'exact'],
                 'employee_name'     => ['expr' => 'p.employee_name', 'type' => 'like'],
                 'client_id'         => ['expr' => 'p.client_id', 'type' => 'exact'],
                 'client_name'       => ['expr' => 'c.client_name', 'type' => 'like'],
 
-                // 사용자
                 'username'          => ['expr' => 'u.username', 'type' => 'like'],
                 'email'             => ['expr' => 'u.email', 'type' => 'like'],
                 'role_name'         => ['expr' => 'r.role_name', 'type' => 'like'],
 
-                // 조직
                 'department_name'   => ['expr' => 'd.dept_name', 'type' => 'like'],
                 'position_name'     => ['expr' => 's.position_name', 'type' => 'like'],
 
-                // 직원 테이블 전체 주요 컬럼
                 'phone'             => ['expr' => 'p.phone', 'type' => 'like'],
                 'emergency_phone'   => ['expr' => 'p.emergency_phone', 'type' => 'like'],
                 'address'           => ['expr' => 'p.address', 'type' => 'like'],
@@ -235,7 +204,6 @@ class EmployeeModel
                 'note'              => ['expr' => 'p.note', 'type' => 'like'],
                 'memo'              => ['expr' => 'p.memo', 'type' => 'like'],
 
-                // 상태
                 'is_active'           => ['expr' => 'u.is_active', 'type' => 'exact'],
                 'approved'            => ['expr' => 'u.approved', 'type' => 'exact'],
                 'two_factor_enabled'  => ['expr' => 'u.two_factor_enabled', 'type' => 'exact'],
@@ -243,13 +211,11 @@ class EmployeeModel
                 'sms_notify'          => ['expr' => 'u.sms_notify', 'type' => 'exact'],
                 'login_fail_count'    => ['expr' => 'u.login_fail_count', 'type' => 'exact'],
 
-                // 날짜 (DATE)
                 'doc_hire_date'     => ['expr' => 'p.doc_hire_date', 'type' => 'date'],
                 'real_hire_date'    => ['expr' => 'p.real_hire_date', 'type' => 'date'],
                 'doc_retire_date'   => ['expr' => 'p.doc_retire_date', 'type' => 'date'],
                 'real_retire_date'  => ['expr' => 'p.real_retire_date', 'type' => 'date'],
 
-                // 날짜시간 (DATETIME)
                 'approved_at'         => ['expr' => 'u.approved_at', 'type' => 'datetime'],
                 'last_login'          => ['expr' => 'u.last_login', 'type' => 'datetime'],
                 'password_updated_at' => ['expr' => 'u.password_updated_at', 'type' => 'datetime'],
@@ -271,7 +237,6 @@ class EmployeeModel
                     continue;
                 }
 
-                // 전체검색
                 if ($field === '') {
                     $globalSearchValues[] = $value;
                     continue;
@@ -284,7 +249,6 @@ class EmployeeModel
                 $expr = $fieldMap[$field]['expr'];
                 $type = $fieldMap[$field]['type'];
 
-                // DATE
                 if ($type === 'date') {
 
                     if (is_array($value) && isset($value['start'], $value['end'])) {
@@ -299,7 +263,6 @@ class EmployeeModel
                     continue;
                 }
 
-                // DATETIME
                 if ($type === 'datetime') {
 
                     if (is_array($value) && isset($value['start'], $value['end'])) {
@@ -321,7 +284,6 @@ class EmployeeModel
                     } else {
                         $stringValue = trim((string)$value);
 
-                        // 날짜만 들어오면 하루 범위 검색
                         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $stringValue)) {
                             $sql .= " AND $expr BETWEEN ? AND ?";
                             $params[] = $stringValue . ' 00:00:00';
@@ -334,14 +296,13 @@ class EmployeeModel
 
                     continue;
                 }
-                // exact
+
                 if ($type === 'exact') {
                     $sql .= " AND $expr = ?";
                     $params[] = $value;
                     continue;
                 }
 
-                // like
                 if ($type === 'like') {
                     $sql .= " AND $expr LIKE ?";
                     $params[] = "%{$value}%";
@@ -349,7 +310,6 @@ class EmployeeModel
                 }
             }
 
-            // 전체검색
             if (!empty($globalSearchValues)) {
 
                 $searchableColumns = [
@@ -421,17 +381,10 @@ class EmployeeModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-
-    /* =========================================================
-    * 직원 단일 조회 (auth_users + user_employees 완전 조회)
-    * ========================================================= */
     public function getById(string $id): ?array
     {
         $stmt = $this->db->prepare("
             SELECT
-                /* =========================
-                * user_employees
-                * ========================= */
                 p.id,
                 p.sort_no,
                 p.user_id,
@@ -463,17 +416,10 @@ class EmployeeModel
                 p.updated_at,
                 p.updated_by,
 
-                /* =========================
-                * 조직
-                * ========================= */
                 d.dept_name AS department_name,
                 s.position_name,
                 c.client_name AS client_name,
 
-                /* =========================
-                * auth_users
-                * ========================= */
-                u.sort_no AS user_sort_no,
                 u.username,
                 u.email,
                 u.role_id,
@@ -498,60 +444,51 @@ class EmployeeModel
                 u.deleted_at,
                 u.deleted_by,
 
-                /* =========================
-                * 역할
-                * ========================= */
                 r.role_name,
 
-                /* =========================
-                * 직원 테이블 기준 생성/수정 표시명
-                * ========================= */
-                CASE 
+                CASE
                     WHEN p.created_by IS NULL THEN NULL
                     WHEN p.created_by LIKE 'SYSTEM:%' THEN p.created_by
                     WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
                     ELSE p.created_by
                 END AS created_by_name,
 
-                CASE 
+                CASE
                     WHEN p.updated_by IS NULL THEN NULL
                     WHEN p.updated_by LIKE 'SYSTEM:%' THEN p.updated_by
                     WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
                     ELSE p.updated_by
                 END AS updated_by_name,
 
-                /* =========================
-                * auth_users 기준 표시명
-                * ========================= */
-                CASE 
+                CASE
                     WHEN u.created_by IS NULL THEN NULL
                     WHEN u.created_by LIKE 'SYSTEM:%' THEN u.created_by
                     WHEN uc.employee_name IS NOT NULL THEN CONCAT('USER:', uc.employee_name)
                     ELSE u.created_by
                 END AS user_created_by_name,
 
-                CASE 
+                CASE
                     WHEN u.updated_by IS NULL THEN NULL
                     WHEN u.updated_by LIKE 'SYSTEM:%' THEN u.updated_by
                     WHEN uu.employee_name IS NOT NULL THEN CONCAT('USER:', uu.employee_name)
                     ELSE u.updated_by
                 END AS user_updated_by_name,
 
-                CASE 
+                CASE
                     WHEN u.password_updated_by IS NULL THEN NULL
                     WHEN u.password_updated_by LIKE 'SYSTEM:%' THEN u.password_updated_by
                     WHEN upw.employee_name IS NOT NULL THEN CONCAT('USER:', upw.employee_name)
                     ELSE u.password_updated_by
                 END AS password_updated_by_name,
 
-                CASE 
+                CASE
                     WHEN u.approved_by IS NULL THEN NULL
                     WHEN u.approved_by LIKE 'SYSTEM:%' THEN u.approved_by
                     WHEN ua.employee_name IS NOT NULL THEN CONCAT('USER:', ua.employee_name)
                     ELSE u.approved_by
                 END AS approved_by_name,
 
-                CASE 
+                CASE
                     WHEN u.deleted_by IS NULL THEN NULL
                     WHEN u.deleted_by LIKE 'SYSTEM:%' THEN u.deleted_by
                     WHEN ud.employee_name IS NOT NULL THEN CONCAT('USER:', ud.employee_name)
@@ -571,7 +508,6 @@ class EmployeeModel
             LEFT JOIN system_clients c
                 ON p.client_id = c.id
 
-            /* 직원 row 기준 */
             LEFT JOIN user_employees p1
                 ON p.created_by NOT LIKE 'SYSTEM:%'
                 AND p1.user_id = REPLACE(p.created_by, 'USER:', '')
@@ -580,7 +516,6 @@ class EmployeeModel
                 ON p.updated_by NOT LIKE 'SYSTEM:%'
                 AND p2.user_id = REPLACE(p.updated_by, 'USER:', '')
 
-            /* auth row 기준 */
             LEFT JOIN user_employees uc
                 ON u.created_by NOT LIKE 'SYSTEM:%'
                 AND uc.user_id = REPLACE(u.created_by, 'USER:', '')
@@ -658,11 +593,6 @@ class EmployeeModel
         return $row ?: null;
     }
 
-
-    
-    /* =========================================================
-    * 직원 검색 (Select2용 - Model은 RAW만 반환)
-    * ========================================================= */
     public function searchPicker(string $q = '', int $limit = 20): array
     {
         $limit = max(1, min(100, (int)$limit));
@@ -719,13 +649,6 @@ class EmployeeModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-
-
-
-
-    /* =========================================================
-    * 직원 생성 (표준화)
-    * ========================================================= */
     public function create(array $data): bool
     {
         $sql = "
@@ -806,9 +729,6 @@ class EmployeeModel
         ]);
     }
 
-    /* =========================================================
-    * 직원 수정 (employee_id 기준)
-    * ========================================================= */
     public function updateById(string $id, array $data): bool
     {
         $sql = "
@@ -891,10 +811,6 @@ class EmployeeModel
         return $stmt->execute($params);
     }
 
-
-    /* =========================================================
-    * 상태 변경 (활성 / 비활성)
-    * ========================================================= */
     public function updateStatus(string $userId, array $data): bool
     {
         $sql = "
@@ -917,10 +833,6 @@ class EmployeeModel
         ]);
     }
 
-    /* =========================================================
-    * 직원 프로필 삭제 (employee_id 기준)
-    * ⚠️ 일반적으로 직접 호출하지 않음 (CASCADE 사용 권장)
-    * ========================================================= */
     public function hardDeleteById(string $id): bool
     {
         $stmt = $this->db->prepare("
@@ -932,12 +844,7 @@ class EmployeeModel
             'id' => $id
         ]);
     }
-
-
-
-    /* =========================================================
-    * 직원 sort_no 수정 (거래처와 통일)
-    * ========================================================= */
+    
     public function updateSortNo(string $id, int $sortNo): bool
     {
         $sql = "UPDATE user_employees SET sort_no = :sort_no WHERE id = :id";

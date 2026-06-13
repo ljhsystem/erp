@@ -2,6 +2,7 @@
 
 namespace App\Controllers\Ledger;
 
+use App\Controllers\System\LayoutController;
 use App\Models\Ledger\TransactionLinkModel;
 use App\Models\Ledger\TransactionModel;
 use App\Models\Ledger\VoucherLineRefModel;
@@ -21,6 +22,7 @@ use PDO;
 class VoucherController
 {
     private PDO $pdo;
+    private LayoutController $layout;
     private VoucherService $service;
     private VoucherNumberService $voucherNumberService;
     private VoucherModel $voucherModel;
@@ -34,6 +36,7 @@ class VoucherController
     public function __construct()
     {
         $this->pdo = DbPdo::conn();
+        $this->layout = new LayoutController($this->pdo);
         $this->service = new VoucherService($this->pdo);
         $this->voucherNumberService = new VoucherNumberService($this->pdo);
         $this->voucherModel = new VoucherModel($this->pdo);
@@ -43,6 +46,39 @@ class VoucherController
         $this->transactionLinkModel = new TransactionLinkModel($this->pdo);
         $this->transactionModel = new TransactionModel($this->pdo);
         $this->transactionCrudService = new TransactionCrudService($this->pdo);
+    }
+
+    private function renderPage(string $viewPath, array $params = []): void
+    {
+        if ($params !== []) {
+            extract($params, EXTR_SKIP);
+        }
+
+        ob_start();
+        require PROJECT_ROOT . $viewPath;
+        $content = ob_get_clean();
+
+        $this->layout->render([
+            'pageTitle' => $pageTitle ?? '',
+            'content' => $content,
+            'pageStyles' => $pageStyles ?? '',
+            'pageScripts' => $pageScripts ?? '',
+            'layoutOptions' => $layoutOptions ?? [],
+        ]);
+    }
+
+    public function webInput(): void
+    {
+        $this->renderPage('/app/views/ledger/journal/index.php', [
+            'pageTitle' => '전표입력',
+        ]);
+    }
+
+    public function webReview(): void
+    {
+        $this->renderPage('/app/views/ledger/voucher/review.php', [
+            'pageTitle' => '전표검토/승인',
+        ]);
     }
 
     public function apiList(): void
@@ -387,17 +423,19 @@ class VoucherController
                 LEFT JOIN system_clients sc
                     ON sc.id = e.client_id
             " : '';
-            $hasFormats = $this->tableExists('ledger_data_formats')
-                && $this->tableColumnExists('ledger_data_evidences', 'format_id');
-            $formatSelect = $hasFormats ? "COALESCE(f.format_name, '')" : "''";
-            $formatJoin = $hasFormats ? "
-                LEFT JOIN ledger_data_formats f
-                    ON f.id = e.format_id
-                   AND f.deleted_at IS NULL
-            " : '';
-            $payloadSelect = $this->tableColumnExists('ledger_data_evidences', 'mapped_payload_json')
-                ? 'e.mapped_payload_json'
+            $hasFormats = false;
+            $formatSelect = "''";
+            $formatJoin = '';
+            $hasPayload = $this->tableExists('ledger_evidence_payloads')
+                && $this->tableColumnExists('ledger_evidence_payloads', 'mapped_payload_json');
+            $payloadSelect = $hasPayload
+                ? 'p.mapped_payload_json'
                 : 'NULL AS mapped_payload_json';
+            $payloadJoin = $hasPayload ? "
+                LEFT JOIN ledger_evidence_payloads p
+                    ON p.evidence_type = e.source_type COLLATE utf8mb4_unicode_ci
+                   AND p.evidence_id = e.id COLLATE utf8mb4_unicode_ci
+            " : '';
             $amountSelect = $this->tableColumnExists('ledger_data_evidences', 'total_amount')
                 ? 'e.total_amount'
                 : 'NULL AS total_amount';
@@ -414,8 +452,8 @@ class VoucherController
                         OR e.client_name LIKE :keyword
                         " . ($this->tableColumnExists('ledger_data_evidences', 'total_amount') ? "OR e.total_amount LIKE :keyword" : '') . "
                         " . ($this->tableColumnExists('ledger_data_evidences', 'total_amount') && $numericQuery !== '' ? "OR e.total_amount LIKE :numeric_keyword" : '') . "
-                        " . ($this->tableColumnExists('ledger_data_evidences', 'mapped_payload_json') ? "OR e.mapped_payload_json LIKE :keyword" : '') . "
-                        " . ($this->tableColumnExists('ledger_data_evidences', 'mapped_payload_json') && $numericQuery !== '' ? "OR e.mapped_payload_json LIKE :numeric_keyword" : '') . "
+                        " . ($hasPayload ? "OR p.mapped_payload_json LIKE :keyword" : '') . "
+                        " . ($hasPayload && $numericQuery !== '' ? "OR p.mapped_payload_json LIKE :numeric_keyword" : '') . "
                         " . ($hasClients ? "OR sc.client_name LIKE :keyword" : '') . "
                         " . ($hasFormats ? "OR f.format_name LIKE :keyword" : '') . "
                     )
@@ -442,6 +480,7 @@ class VoucherController
                 FROM ledger_data_evidences e
                 {$clientJoin}
                 {$formatJoin}
+                {$payloadJoin}
                 WHERE {$where}
             ";
             $orderSql = " ORDER BY e.evidence_date DESC, e.latest_imported_at DESC, e.created_at DESC";
@@ -1102,14 +1141,15 @@ class VoucherController
             return null;
         }
 
-        if ($this->tableExists('ledger_data_evidence_links')) {
+        if ($this->tableExists('ledger_evidence_links')) {
             $stmt = $this->pdo->prepare("
                 SELECT v.id, v.voucher_no, v.voucher_date, v.status
-                FROM ledger_data_evidence_links l
+                FROM ledger_evidence_links l
                 INNER JOIN ledger_vouchers v
-                    ON v.id = l.voucher_id
+                    ON v.id = l.target_id
                    AND v.deleted_at IS NULL
                 WHERE l.evidence_id = :evidence_id
+                  AND l.target_type = 'VOUCHER'
                   AND l.deleted_at IS NULL
                 ORDER BY v.voucher_date DESC, v.voucher_no DESC
                 LIMIT 1
@@ -1340,16 +1380,20 @@ class VoucherController
         $evidenceId = (string) ($source['id'] ?? '');
         if ($evidenceId === ''
             || !$this->tableExists('ledger_data_evidences')
-            || !$this->tableColumnExists('ledger_data_evidences', 'mapped_payload_json')
+            || !$this->tableExists('ledger_evidence_payloads')
+            || !$this->tableColumnExists('ledger_evidence_payloads', 'mapped_payload_json')
         ) {
             return [];
         }
 
         $stmt = $this->pdo->prepare("
-            SELECT mapped_payload_json
-            FROM ledger_data_evidences
-            WHERE id = :id
-              AND deleted_at IS NULL
+            SELECT p.mapped_payload_json
+            FROM ledger_data_evidences e
+            JOIN ledger_evidence_payloads p
+              ON p.evidence_type = e.source_type COLLATE utf8mb4_unicode_ci
+             AND p.evidence_id = e.id COLLATE utf8mb4_unicode_ci
+            WHERE e.id = :id
+              AND e.deleted_at IS NULL
             LIMIT 1
         ");
         $stmt->execute([':id' => $evidenceId]);
@@ -1481,7 +1525,7 @@ class VoucherController
     private function voucherSeedSourcesByVoucherId(string $voucherId): array
     {
         if ($voucherId === ''
-            || !$this->tableExists('ledger_data_evidence_links')
+            || !$this->tableExists('ledger_evidence_links')
             || !$this->tableExists('ledger_data_evidences')
         ) {
             return [];
@@ -1490,20 +1534,21 @@ class VoucherController
         $transactionIdSelect = $this->tableColumnExists('ledger_data_evidences', 'transaction_id')
             ? 'e.transaction_id'
             : 'NULL AS transaction_id';
-        $payloadSelect = $this->tableColumnExists('ledger_data_evidences', 'mapped_payload_json')
-            ? 'e.mapped_payload_json'
+        $hasPayload = $this->tableExists('ledger_evidence_payloads')
+            && $this->tableColumnExists('ledger_evidence_payloads', 'mapped_payload_json');
+        $payloadSelect = $hasPayload
+            ? 'p.mapped_payload_json'
             : 'NULL AS mapped_payload_json';
+        $payloadJoin = $hasPayload ? '
+            LEFT JOIN ledger_evidence_payloads p
+                ON p.evidence_type = e.source_type COLLATE utf8mb4_unicode_ci
+               AND p.evidence_id = e.id COLLATE utf8mb4_unicode_ci' : '';
         $amountSelect = $this->tableColumnExists('ledger_data_evidences', 'total_amount')
             ? 'e.total_amount'
             : 'NULL AS total_amount';
-        $hasFormat = $this->tableExists('ledger_data_formats')
-            && $this->tableColumnExists('ledger_data_evidences', 'format_id');
-        $formatSelect = $hasFormat
-            ? 'e.format_id, f.format_name,'
-            : 'NULL AS format_id, NULL AS format_name,';
-        $formatJoin = $hasFormat
-            ? 'LEFT JOIN ledger_data_formats f ON f.id = e.format_id AND f.deleted_at IS NULL'
-            : '';
+        $hasFormat = false;
+        $formatSelect = 'NULL AS format_id, NULL AS format_name,';
+        $formatJoin = '';
 
         $stmt = $this->pdo->prepare("
             SELECT
@@ -1519,14 +1564,16 @@ class VoucherController
                 {$transactionIdSelect},
                 e.latest_imported_at AS processed_at,
                 e.created_at
-            FROM ledger_data_evidence_links l
+            FROM ledger_evidence_links l
             INNER JOIN ledger_data_evidences e
                 ON e.id = l.evidence_id
                AND e.deleted_at IS NULL
+            {$payloadJoin}
             {$formatJoin}
-            WHERE l.voucher_id = :voucher_id
+            WHERE l.target_type = 'VOUCHER'
+              AND l.target_id = :voucher_id
               AND l.deleted_at IS NULL
-            ORDER BY l.is_primary DESC, l.updated_at DESC, l.created_at DESC
+            ORDER BY l.updated_at DESC, l.created_at DESC
         ");
         $stmt->execute([':voucher_id' => $voucherId]);
 
@@ -1560,7 +1607,7 @@ class VoucherController
         if ($voucherId === '' || $evidenceId === '') {
             throw new \RuntimeException('전표와 증빙 정보를 확인할 수 없습니다.');
         }
-        if (!$this->tableExists('ledger_data_evidences') || !$this->tableExists('ledger_data_evidence_links')) {
+        if (!$this->tableExists('ledger_data_evidences') || !$this->tableExists('ledger_evidence_links')) {
             throw new \RuntimeException('증빙 연결 테이블을 찾을 수 없습니다.');
         }
 
@@ -1589,7 +1636,7 @@ class VoucherController
 
     private function unlinkVoucherEvidence(string $voucherId, string $evidenceId, string $actor): void
     {
-        if ($voucherId === '' || !$this->tableExists('ledger_data_evidence_links')) {
+        if ($voucherId === '' || !$this->tableExists('ledger_evidence_links')) {
             return;
         }
 
@@ -1613,7 +1660,7 @@ class VoucherController
 
     private function evidenceIdsLinkedToVoucher(string $voucherId, string $exceptEvidenceId = ''): array
     {
-        if ($voucherId === '' || !$this->tableExists('ledger_data_evidence_links')) {
+        if ($voucherId === '' || !$this->tableExists('ledger_evidence_links')) {
             return [];
         }
 
@@ -1626,8 +1673,9 @@ class VoucherController
 
         $stmt = $this->pdo->prepare("
             SELECT evidence_id
-            FROM ledger_data_evidence_links
-            WHERE voucher_id = :voucher_id
+            FROM ledger_evidence_links
+            WHERE target_type = 'VOUCHER'
+              AND target_id = :voucher_id
               AND deleted_at IS NULL
               {$exceptSql}
         ");
@@ -1642,15 +1690,13 @@ class VoucherController
     private function softDeleteVoucherEvidenceLinks(string $voucherId, array $evidenceIds, string $actor): void
     {
         $evidenceIds = array_values(array_filter(array_unique(array_map('strval', $evidenceIds))));
-        if ($voucherId === '' || $evidenceIds === [] || !$this->tableExists('ledger_data_evidence_links')) {
+        if ($voucherId === '' || $evidenceIds === [] || !$this->tableExists('ledger_evidence_links')) {
             return;
         }
 
         $placeholders = [];
         $params = [
             ':voucher_id' => $voucherId,
-            ':deleted_by' => $actor,
-            ':updated_by' => $actor,
         ];
         foreach ($evidenceIds as $index => $linkedEvidenceId) {
             $key = ':evidence_id_' . $index;
@@ -1659,13 +1705,11 @@ class VoucherController
         }
 
         $stmt = $this->pdo->prepare("
-            UPDATE ledger_data_evidence_links
+            UPDATE ledger_evidence_links
             SET deleted_at = NOW(),
-                deleted_by = :deleted_by,
-                is_primary = 0,
-                updated_at = NOW(),
-                updated_by = :updated_by
-            WHERE voucher_id = :voucher_id
+                updated_at = NOW()
+            WHERE target_type = 'VOUCHER'
+              AND target_id = :voucher_id
               AND evidence_id IN (" . implode(', ', $placeholders) . ")
               AND deleted_at IS NULL
         ");
@@ -1676,9 +1720,11 @@ class VoucherController
     {
         $existing = $this->pdo->prepare("
             SELECT id
-            FROM ledger_data_evidence_links
+            FROM ledger_evidence_links
             WHERE evidence_id = :evidence_id
-              AND voucher_id = :voucher_id
+              AND target_type = 'VOUCHER'
+              AND target_id = :voucher_id
+              AND link_type = 'MANUAL'
             ORDER BY deleted_at IS NULL DESC, updated_at DESC, created_at DESC
             LIMIT 1
         ");
@@ -1689,36 +1735,30 @@ class VoucherController
         $row = $existing->fetch(PDO::FETCH_ASSOC) ?: null;
         if ($row) {
             $this->pdo->prepare("
-                UPDATE ledger_data_evidence_links
-                SET transaction_id = NULLIF(:transaction_id, ''),
-                    link_type = 'MANUAL',
-                    is_primary = 1,
+                UPDATE ledger_evidence_links
+                SET amount = 0,
                     deleted_at = NULL,
-                    deleted_by = NULL,
-                    updated_at = NOW(),
-                    updated_by = :actor
+                    updated_at = NOW()
                 WHERE id = :id
             ")->execute([
                 ':id' => (string) $row['id'],
-                ':transaction_id' => $transactionId,
-                ':actor' => $actor,
             ]);
             return;
         }
 
         $this->pdo->prepare("
-            INSERT INTO ledger_data_evidence_links
-                (id, sort_no, evidence_id, transaction_id, voucher_id, link_type, match_amount, is_primary, created_at, created_by, updated_at, updated_by)
-            VALUES
-                (:id, :sort_no, :evidence_id, NULLIF(:transaction_id, ''), :voucher_id, 'MANUAL', 0, 1, NOW(), :created_by, NOW(), :updated_by)
+            INSERT INTO ledger_evidence_links
+                (id, evidence_type, evidence_id, target_type, target_id, link_type, amount, created_at, updated_at)
+            SELECT
+                :id, e.source_type, e.id, 'VOUCHER', :voucher_id, 'MANUAL', 0, NOW(), NOW()
+            FROM ledger_data_evidences e
+            WHERE e.id = :evidence_id
+              AND e.deleted_at IS NULL
+            LIMIT 1
         ")->execute([
             ':id' => UuidHelper::generate(),
-            ':sort_no' => SequenceHelper::next('ledger_data_evidence_links', 'sort_no'),
             ':evidence_id' => $evidenceId,
-            ':transaction_id' => $transactionId,
             ':voucher_id' => $voucherId,
-            ':created_by' => $actor,
-            ':updated_by' => $actor,
         ]);
     }
 
@@ -1750,7 +1790,8 @@ class VoucherController
         if ($voucherId === ''
             || $evidenceId === ''
             || !$this->tableExists('ledger_data_evidences')
-            || !$this->tableColumnExists('ledger_data_evidences', 'mapped_payload_json')
+            || !$this->tableExists('ledger_evidence_payloads')
+            || !$this->tableColumnExists('ledger_evidence_payloads', 'mapped_payload_json')
         ) {
             return;
         }
@@ -1761,15 +1802,20 @@ class VoucherController
         }
 
         $stmt = $this->pdo->prepare("
-            SELECT mapped_payload_json
-            FROM ledger_data_evidences
-            WHERE id = :id
-              AND deleted_at IS NULL
+            SELECT e.source_type, p.mapped_payload_json
+            FROM ledger_data_evidences e
+            JOIN ledger_evidence_payloads p
+              ON p.evidence_type = e.source_type COLLATE utf8mb4_unicode_ci
+             AND p.evidence_id = e.id COLLATE utf8mb4_unicode_ci
+            WHERE e.id = :id
+              AND e.deleted_at IS NULL
+              AND p.deleted_at IS NULL
             LIMIT 1
         ");
         $stmt->execute([':id' => $evidenceId]);
         $evidence = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
         if (!$evidence) {
+            error_log("[VoucherController] Missing ledger_evidence_payloads row for evidence_id={$evidenceId}");
             return;
         }
 
@@ -1811,12 +1857,33 @@ class VoucherController
             ];
         }, $lines);
 
-        $sets = ['mapped_payload_json = :mapped_payload_json'];
+        $mappedPayloadJson = json_encode($mapped, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $payloadStmt = $this->pdo->prepare("
+            UPDATE ledger_evidence_payloads
+            SET mapped_payload_json = :mapped_payload_json,
+                payload_hash = SHA2(COALESCE(:mapped_payload_json_hash, ''), 256),
+                updated_at = NOW(),
+                updated_by = :actor
+            WHERE evidence_type = :evidence_type
+              AND evidence_id = :id
+              AND deleted_at IS NULL
+        ");
+        $payloadStmt->execute([
+            ':id' => $evidenceId,
+            ':evidence_type' => (string) ($evidence['source_type'] ?? ''),
+            ':mapped_payload_json' => $mappedPayloadJson,
+            ':mapped_payload_json_hash' => $mappedPayloadJson,
+            ':actor' => $actor,
+        ]);
+        if ($payloadStmt->rowCount() !== 1) {
+            error_log("[VoucherController] Failed to update ledger_evidence_payloads row for evidence_id={$evidenceId}");
+            return;
+        }
+
+        $sets = [];
         $params = [
             ':id' => $evidenceId,
-            ':mapped_payload_json' => json_encode($mapped, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         ];
-
         if ($this->tableColumnExists('ledger_data_evidences', 'voucher_status')) {
             $sets[] = 'voucher_status = :voucher_status';
             $params[':voucher_status'] = 'CREATED';
@@ -1830,6 +1897,9 @@ class VoucherController
         if ($this->tableColumnExists('ledger_data_evidences', 'updated_by')) {
             $sets[] = 'updated_by = :actor';
             $params[':actor'] = $actor;
+        }
+        if ($sets === []) {
+            return;
         }
 
         $this->pdo->prepare("
@@ -2045,13 +2115,14 @@ class VoucherController
 
     private function purgeVoucherEvidenceLinksById(string $voucherId): void
     {
-        if ($voucherId === '' || !$this->tableExists('ledger_data_evidence_links')) {
+        if ($voucherId === '' || !$this->tableExists('ledger_evidence_links')) {
             return;
         }
 
         $stmt = $this->pdo->prepare("
-            DELETE FROM ledger_data_evidence_links
-            WHERE voucher_id = :voucher_id
+            DELETE FROM ledger_evidence_links
+            WHERE target_type = 'VOUCHER'
+              AND target_id = :voucher_id
         ");
         $stmt->execute([':voucher_id' => $voucherId]);
     }
@@ -2099,11 +2170,12 @@ class VoucherController
 
         $ids = [];
         $voucherId = trim((string) ($voucher['id'] ?? ''));
-        if ($voucherId !== '' && $this->tableExists('ledger_data_evidence_links')) {
+        if ($voucherId !== '' && $this->tableExists('ledger_evidence_links')) {
             $stmt = $this->pdo->prepare('
                 SELECT evidence_id
-                FROM ledger_data_evidence_links
-                WHERE voucher_id = :voucher_id
+                FROM ledger_evidence_links
+                WHERE target_type = \'VOUCHER\'
+                  AND target_id = :voucher_id
             ');
             $stmt->execute([':voucher_id' => $voucherId]);
             foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
@@ -2204,13 +2276,14 @@ class VoucherController
             }
         }
 
-        if ($this->tableExists('ledger_data_evidence_links')
-            && $this->tableColumnExists('ledger_data_evidence_links', 'processing_item_id')
+        if ($this->tableExists('ledger_evidence_links')
+            && $this->tableColumnExists('ledger_evidence_links', 'processing_item_id')
         ) {
             $stmt = $this->pdo->prepare('
                 SELECT processing_item_id
-                FROM ledger_data_evidence_links
-                WHERE voucher_id = :voucher_id
+                FROM ledger_evidence_links
+                WHERE target_type = \'VOUCHER\'
+                  AND target_id = :voucher_id
                   AND processing_item_id IS NOT NULL
             ');
             $stmt->execute([':voucher_id' => $voucherId]);
@@ -2256,7 +2329,7 @@ class VoucherController
             return false;
         }
 
-        if ($this->tableExists('ledger_data_evidence_links')) {
+        if ($this->tableExists('ledger_evidence_links')) {
             $excludeSql = $excludeVoucherId !== '' ? 'AND v.id <> :exclude_voucher_id' : '';
             $params = [':evidence_id' => $evidenceId];
             if ($excludeVoucherId !== '') {
@@ -2265,11 +2338,12 @@ class VoucherController
 
             $stmt = $this->pdo->prepare("
                 SELECT 1
-                FROM ledger_data_evidence_links l
+                FROM ledger_evidence_links l
                 INNER JOIN ledger_vouchers v
-                    ON v.id = l.voucher_id
+                    ON v.id = l.target_id
                    AND v.deleted_at IS NULL
                 WHERE l.evidence_id = :evidence_id
+                  AND l.target_type = 'VOUCHER'
                   AND l.deleted_at IS NULL
                   {$excludeSql}
                 LIMIT 1

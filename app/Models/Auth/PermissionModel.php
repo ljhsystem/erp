@@ -7,25 +7,20 @@ use Core\Database;
 
 class PermissionModel
 {
-    // PDO 보관
     private PDO $db;
 
-    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
-    /* ===============================================================
-     * 1) 권한 전체 조회
-     * =============================================================== */
     public function getAll(array $filters = []): array
     {
         try {
             $sql = "
-                SELECT 
+                SELECT
                     id, sort_no, permission_key, permission_name,
-                    description, category, is_active,
+                    description, category, page_key, is_active,
                     created_at, created_by, updated_at, updated_by
                 FROM auth_permissions
                 WHERE 1=1
@@ -41,6 +36,7 @@ class PermissionModel
                     'permission_name' => ['expr' => 'permission_name', 'type' => 'like'],
                     'category'        => ['expr' => 'category', 'type' => 'like'],
                     'description'     => ['expr' => 'description', 'type' => 'like'],
+                    'page_key'        => ['expr' => 'page_key', 'type' => 'like'],
                     'is_active'       => ['expr' => 'is_active', 'type' => 'exact'],
                     'created_at'      => ['expr' => 'created_at', 'type' => 'datetime'],
                     'created_by'      => ['expr' => 'created_by', 'type' => 'like'],
@@ -130,7 +126,7 @@ class PermissionModel
 
                     $orParts = [];
                     foreach ($keywords as $keyword) {
-                        foreach (['permission_name', 'category', 'permission_key', 'sort_no', 'description', 'created_by', 'updated_by'] as $expr) {
+                        foreach (['permission_name', 'category', 'permission_key', 'page_key', 'sort_no', 'description', 'created_by', 'updated_by'] as $expr) {
                             $orParts[] = "{$expr} LIKE ?";
                             $params[] = '%' . $keyword . '%';
                         }
@@ -149,23 +145,20 @@ class PermissionModel
 
             return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        } catch (\Throwable $e) {            
+        } catch (\Throwable $e) {
             return [];
         }
     }
 
-    /* ===============================================================
-     * 2) 단건 조회
-     * =============================================================== */
     public function getById(string $id): ?array
     {
         if (!$id) return null;
 
         try {
             $stmt = $this->db->prepare("
-                SELECT 
+                SELECT
                     id, sort_no, permission_key, permission_name,
-                    description, category, is_active,
+                    description, category, page_key, is_active,
                     created_at, created_by, updated_at, updated_by
                 FROM auth_permissions
                 WHERE id = ?
@@ -175,14 +168,11 @@ class PermissionModel
 
             return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 
-        } catch (\Throwable $e) {            
+        } catch (\Throwable $e) {
             return null;
         }
     }
 
-    /* ===============================================================
-     * 3) permission_key 중복 체크
-     * =============================================================== */
     public function existsKey(string $key, ?string $excludeId = null): bool
     {
         try {
@@ -199,25 +189,22 @@ class PermissionModel
 
             return $stmt->fetchColumn() > 0;
 
-        } catch (\Throwable $e) {            
+        } catch (\Throwable $e) {
             return true;
         }
     }
 
-    /* ===============================================================
-     * 4) 권한 생성 (Service에서 만들어준 id, sort_no 사용)
-     * =============================================================== */
     public function create(array $data): bool
     {
         try {
             $stmt = $this->db->prepare("
                 INSERT INTO auth_permissions (
                     id, sort_no, permission_key, permission_name,
-                    description, category, is_active,
+                    description, category, page_key, is_active,
                     created_at, created_by, updated_at, updated_by
                 ) VALUES (
                     :id, :sort_no, :pkey, :pname,
-                    :description, :category, :is_active,
+                    :description, :category, :page_key, :is_active,
                     NOW(), :created_by, NOW(), :updated_by
                 )
             ");
@@ -229,19 +216,17 @@ class PermissionModel
                 ':pname'       => $data['permission_name'],
                 ':description' => $data['description'] ?? null,
                 ':category'    => $data['category'] ?? null,
+                ':page_key'    => $data['page_key'] ?? null,
                 ':is_active'   => $data['is_active'] ?? 1,
                 ':created_by'  => $data['created_by'] ?? null,
                 ':updated_by'  => $data['updated_by'] ?? null
             ]);
 
-        } catch (\Throwable $e) {            
+        } catch (\Throwable $e) {
             return false;
         }
     }
 
-    /* ===============================================================
-     * 5) 권한 수정
-     * =============================================================== */
     public function update(string $id, array $data): bool
     {
         if (!$id) return false;
@@ -250,7 +235,7 @@ class PermissionModel
             $fields = [];
             $params = [];
 
-            foreach (['permission_key', 'permission_name', 'description', 'category', 'is_active', 'updated_by'] as $col) {
+            foreach (['permission_key', 'permission_name', 'description', 'category', 'page_key', 'is_active', 'updated_by'] as $col) {
                 if (array_key_exists($col, $data)) {
                     $fields[] = "$col = ?";
                     $params[] = $data[$col];
@@ -266,28 +251,22 @@ class PermissionModel
 
             return $stmt->execute($params);
 
-        } catch (\Throwable $e) {           
+        } catch (\Throwable $e) {
             return false;
         }
     }
 
-    /* ===============================================================
-     * 6) 삭제
-     * =============================================================== */
     public function delete(string $id): bool
     {
         try {
             $stmt = $this->db->prepare("DELETE FROM auth_permissions WHERE id = ?");
             return $stmt->execute([$id]);
 
-        } catch (\Throwable $e) {            
+        } catch (\Throwable $e) {
             return false;
         }
     }
 
-    /* ===============================================================
-     * 7) 활성/비활성 토글
-     * =============================================================== */
     public function toggleActive(string $id, int $active): bool
     {
         try {
@@ -299,7 +278,7 @@ class PermissionModel
 
             return $stmt->execute([$active, $id]);
 
-        } catch (\Throwable $e) {            
+        } catch (\Throwable $e) {
             return false;
         }
     }

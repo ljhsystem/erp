@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Services/Auth/ApprovalService.php'
 namespace App\Services\Auth;
 
 use PDO;
@@ -25,9 +24,6 @@ class ApprovalService
         $this->logger    = LoggerFactory::getLogger('service-auth.ApprovalService');
     }
 
-    /* ---------------------------------------------------------
-     * 1. 승인용 Token 생성
-     * --------------------------------------------------------- */
     public function generateApprovalToken(string $userId, string $adminEmail): string
     {
         $this->logger->info('generateApprovalToken 시작', [
@@ -41,7 +37,6 @@ class ApprovalService
             'ts'      => time(),
         ];
 
-        // ✅ 공용 Secret 헬퍼 사용
         $secret = ConfigHelper::secret();
 
         $raw = json_encode($payload, JSON_UNESCAPED_UNICODE);
@@ -52,27 +47,13 @@ class ApprovalService
         ], JSON_UNESCAPED_UNICODE));
     }
 
-    /* ---------------------------------------------------------
-     * 2. 승인 토큰 검증
-     * --------------------------------------------------------- */
     public function verifyApprovalToken(string $token): ?array
     {
         $secret = ConfigHelper::secret();
 
         $mailTokenData = MailToken::verify($token, $secret);
-        if (is_array($mailTokenData)) {
-            if (!empty($mailTokenData['user_id'])) {
-                return $mailTokenData;
-            }
-
-            $userCode = trim((string)($mailTokenData['user_code'] ?? ''));
-            if ($userCode !== '') {
-                $user = $this->authUsers->getByCode($userCode);
-                if ($user && !empty($user['id'])) {
-                    $mailTokenData['user_id'] = (string)$user['id'];
-                    return $mailTokenData;
-                }
-            }
+        if (is_array($mailTokenData) && !empty($mailTokenData['user_id'])) {
+            return $mailTokenData;
         }
 
         $decoded = json_decode(base64_decode($token), true);
@@ -89,7 +70,6 @@ class ApprovalService
             return null;
         }
 
-        // ⏱ 토큰 유효기간: 24시간
         if (($data['ts'] ?? 0) < (time() - 86400)) {
             return null;
         }
@@ -97,9 +77,43 @@ class ApprovalService
         return $data;
     }
 
-    /* ---------------------------------------------------------
-     * 3. 승인 처리
-     * --------------------------------------------------------- */
+    public function getApprovalRequestViewData(string $token): array
+    {
+        $viewData = [
+            'approveToken'  => $token,
+            'message'       => '',
+            'user'          => null,
+            'formattedDate' => '',
+        ];
+
+        try {
+            if (trim($token) === '') {
+                throw new \InvalidArgumentException('approve_token 파라미터가 필요합니다.');
+            }
+
+            $tokenData = $this->verifyApprovalToken($token);
+            if (!$tokenData || empty($tokenData['user_id'])) {
+                throw new \RuntimeException('유효하지 않은 승인 요청 토큰입니다.');
+            }
+
+            $user = $this->authUsers->findApprovalRequestUser((string) $tokenData['user_id']);
+            if (!$user) {
+                throw new \RuntimeException('해당 사용자를 찾을 수 없습니다.');
+            }
+
+            $user['approved'] = (int) ($user['approved'] ?? 0);
+            $viewData['user'] = $user;
+            $viewData['formattedDate'] = $this->formatApprovalRequestDate($user['created_at'] ?? null);
+            $viewData['message'] = $user['approved'] === 1
+                ? '이미 승인된 사용자입니다.'
+                : '승인 대기중인 사용자입니다.';
+        } catch (\Throwable $e) {
+            $viewData['message'] = '오류 발생: ' . $e->getMessage();
+        }
+
+        return $viewData;
+    }
+
     public function approveUser(string $userId, ?string $approvedBy = null): bool
     {
         try {
@@ -133,9 +147,6 @@ class ApprovalService
         }
     }
 
-    /* ---------------------------------------------------------
-     * 4. 사용자 활성/비활성 변경
-     * --------------------------------------------------------- */
     public function toggleActive(string $userId, int $active): bool
     {
         $this->logger->info('toggleActive 호출', [
@@ -153,9 +164,6 @@ class ApprovalService
         return $ok;
     }
 
-    /* ---------------------------------------------------------
-     * 5. 사용자 삭제 처리 (soft delete)
-     * --------------------------------------------------------- */
     public function softDelete(string $userId, string $adminId): bool
     {
         $this->logger->info('softDelete 호출', [
@@ -171,5 +179,17 @@ class ApprovalService
         ]);
 
         return $ok;
+    }
+    private function formatApprovalRequestDate(?string $createdAt): string
+    {
+        if ($createdAt === null || trim($createdAt) === '') {
+            return '';
+        }
+
+        $dt = new \DateTime($createdAt);
+        $weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+        $dayName = $weekdays[(int) $dt->format('w')];
+
+        return $dt->format('Y-m-d') . "({$dayName}) " . $dt->format('H:i:s');
     }
 }

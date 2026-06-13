@@ -1,7 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Services/Ledger/SubChartAccountService.php'
-// 설명:
-// 
 namespace App\Services\Ledger;
 
 use PDO;
@@ -23,9 +20,6 @@ class SubChartAccountService
         $this->logger->info('SubChartAccountService initialized');
     }
 
-    /* =========================================================
-     * 계정별 보조계정 조회
-     * ========================================================= */
     public function getByAccountId(string $accountId): array
     {
         try {
@@ -43,18 +37,14 @@ class SubChartAccountService
         }
     }
 
-    /* =========================================================
-     * 보조계정 생성
-     * ========================================================= */
     public function create(array $data): array
     {
         try {
-    
+
             $data['id'] = UuidHelper::generate();
-    
-            /* 코드 생성 */
+
             $data['sub_code'] = $this->model->getNextSubCode($data['account_id']);
-    
+
             if (!$this->model->create($data)) {
 
                 return [
@@ -62,22 +52,21 @@ class SubChartAccountService
                     'message' => '보조계정 생성 실패'
                 ];
             }
-            
-            /* 🔥 추가 */
+
             $this->syncAllowSubAccount($data['account_id']);
-            
+
             return [
                 'success' => true,
                 'id' => $data['id']
             ];
-    
+
         } catch (\Throwable $e) {
-    
+
             $this->logger->error('create failed', [
                 'data' => $data,
                 'exception' => $e->getMessage()
             ]);
-    
+
             return [
                 'success' => false,
                 'message' => $e->getMessage()
@@ -85,47 +74,41 @@ class SubChartAccountService
         }
     }
 
-    /* =========================================================
-     * 보조계정 삭제
-     * ========================================================= */
     public function delete(string $id): array
     {
         try {
-    
-            /* 🔥 먼저 account_id 조회 */
+
             $accountId = $this->getAccountIdBySubId($id);
-    
+
             if (!$accountId) {
                 return [
                     'success' => false,
                     'message' => '대상 없음'
                 ];
             }
-    
-            /* 🔥 삭제 */
+
             $ok = $this->model->delete($id);
-    
+
             if (!$ok) {
                 return [
                     'success' => false,
                     'message' => '보조계정 삭제 실패'
                 ];
             }
-    
-            /* 🔥 상태 동기화 */
+
             $this->syncAllowSubAccountAfterDelete($accountId);
-    
+
             return [
                 'success' => true
             ];
-    
+
         } catch (\Throwable $e) {
-    
+
             $this->logger->error('delete failed', [
                 'id' => $id,
                 'exception' => $e->getMessage()
             ]);
-    
+
             return [
                 'success' => false,
                 'message' => $e->getMessage()
@@ -149,9 +132,9 @@ class SubChartAccountService
             SET allow_sub_account = 1
             WHERE id = :id
         ";
-    
+
         $stmt = $this->pdo->prepare($sql);
-    
+
         $stmt->execute([
             ':id' => $accountId
         ]);

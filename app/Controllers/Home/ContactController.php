@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Controllers/Home/ContactController.php'
 namespace App\Controllers\Home;
 
 use App\Services\Mail\MailService;
@@ -17,7 +16,7 @@ class ContactController
             exit("❌ 설정 파일(appsetting.json)을 찾을 수 없습니다.");
         }
 
-        // JSON 주석 제거 후 파싱
+
         $raw = file_get_contents($configFile);
         $raw = preg_replace('#^\s*//.*$#m', '', $raw);
         $raw = preg_replace('#/\*.*?\*/#s', '', $raw);
@@ -28,12 +27,6 @@ class ContactController
         $this->smtp   = $cfg['SmtpSettings'] ?? ($cfg['Smtp'] ?? []);
     }
 
-    //// ============================================================
-    // WEB: 문의 메일 전송 처리
-    // URL: POST /contact/send
-    // permission: 없음
-    // controller: ContactController@apiSend
-    //// ============================================================
     public function apiSend()
     {
         $name    = trim($_POST['FullName']  ?? '');
@@ -45,7 +38,6 @@ class ContactController
             return $this->fail("모든 항목을 입력해주세요.");
         }
 
-        // 관리자 이메일 결정
         $adminEmail = $this->smtp['AdminEmail']
             ?? $this->smtp['SenderEmail']
             ?? $this->smtp['UserName']
@@ -84,9 +76,6 @@ class ContactController
         }
     }
 
-    //// ============================================================
-    // HELPER: 실패 처리
-    //// ============================================================
     private function fail(string $message)
     {
         echo "<script>alert('{$message}'); history.back();</script>";

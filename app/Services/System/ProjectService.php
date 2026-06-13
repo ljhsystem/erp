@@ -1,17 +1,11 @@
 <?php
-// 野껋럥以? PROJECT_ROOT . '/app/Services/System/ProjectService.php'
-// ??챸:
-//  - ?⑥쨮??븍뱜(Project) ?온????뺥돩??
-//  - UUID ??밴쉐?? Service ???
-//  - sort_no???꾨뗀諭???????
-//  - DB 泥섎?? DashboardProjectModel
-//  - 紐⑤?二쇱???? LoggerFactory ?곸슜
 namespace App\Services\System;
 
 use PDO;
 use App\Models\System\ProjectModel;
 use App\Models\System\ClientModel;
 use App\Models\User\EmployeeModel;
+use Core\Helpers\SequenceHelper;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\ActorHelper;
 use Core\LoggerFactory;
@@ -27,21 +21,26 @@ class ProjectService
     private ProjectModel $model;
     private ClientModel $clientModel;
     private EmployeeModel $employeeModel;
+    private ProjectPayloadService $payloadService;
+    private ProjectReferenceResolver $referenceResolver;
+    private ProjectTrashService $trashService;
+    private ProjectExcelService $excelService;
     private $logger;
 
     public function __construct(PDO $pdo)
     {
         $this->pdo         = $pdo;
+        $this->logger = LoggerFactory::getLogger('service-system.ProjectService');
         $this->model  = new ProjectModel($this->pdo);
         $this->clientModel  = new ClientModel($this->pdo);
         $this->employeeModel  = new EmployeeModel($this->pdo);
-        $this->logger = LoggerFactory::getLogger('service-system.ProjectService');
+        $this->payloadService = new ProjectPayloadService();
+        $this->referenceResolver = new ProjectReferenceResolver($this->pdo);
+        $this->excelService = new ProjectExcelService($this->model);
+        $this->trashService = new ProjectTrashService($this->pdo, $this->model, $this->logger);
         $this->logger->info('ProjectService initialized');
     }
 
-    /* ============================================================
-     * ?⑷퍥 筌뤴뫖以?鈺곌퀬??
-     * ============================================================ */
     public function getList(array $filters = []): array
     {
         $this->logger->info('getList() called', [
@@ -69,10 +68,6 @@ class ProjectService
         }
     }
 
-
-    /* ============================================================
-    * ??ｊ탷 鈺곌퀬??(id 湲곗?)
-    * ============================================================ */
     public function getById(string $id): ?array
     {
         $this->logger->info('getById() called', [
@@ -103,11 +98,6 @@ class ProjectService
         }
     }
 
-
-
-    /* =========================================================
-    * ?⑥쨮??븍뱜 野꺜??(Service - Select2 ????
-    * ========================================================= */
     public function searchPicker(string $keyword): array
     {
         $this->logger->info('searchPicker() called', [
@@ -128,13 +118,11 @@ class ProjectService
 
                 $text = $row['project_name'] ?? '';
 
-                // ?逾??⑤벊沅쀯쭗??곕떽?
                 if (!empty($row['construction_name'])
                     && $row['construction_name'] !== $row['project_name']) {
                     $text .= ' / ' . $row['construction_name'];
                 }
 
-                // ???붾??붽? (?좏깮)
                 if (!empty($row['sort_no'])) {
                     $text .= ' [' . $row['sort_no'] . ']';
                 }
@@ -163,16 +151,105 @@ class ProjectService
         return $this->model->distinctValues($field, $keyword, $limit);
     }
 
+    public function normalizePayload(array $input): array
+    {
+        return $this->payloadService->normalizePayload($input);
 
-    /* ============================================================
-     * ????(?좉퇋 + ??젙 ????)
-     * ============================================================ */
+        return [
+            'id' => $input['id'] ?? null,
+            'sort_no' => $input['sort_no'] ?? null,
+            'project_name' => trim((string) ($input['project_name'] ?? '')),
+            'client_id' => $input['client_id'] ?? null,
+            'employee_id' => $input['employee_id'] ?? null,
+            'site_agent' => $input['site_agent'] ?? null,
+            'contract_type' => $input['contract_type'] ?? null,
+            'contract_method' => $input['contract_method'] ?? null,
+            'director' => $input['director'] ?? null,
+            'manager' => $input['manager'] ?? null,
+            'business_type' => $input['business_type'] ?? null,
+            'housing_type' => $input['housing_type'] ?? null,
+            'construction_name' => $input['construction_name'] ?? null,
+            'site_region_city' => $input['site_region_city'] ?? null,
+            'site_region_district' => $input['site_region_district'] ?? null,
+            'site_region_address' => $input['site_region_address'] ?? null,
+            'site_region_address_detail' => $input['site_region_address_detail'] ?? null,
+            'work_type' => $input['work_type'] ?? null,
+            'work_subtype' => $input['work_subtype'] ?? null,
+            'work_detail_type' => $input['work_detail_type'] ?? null,
+            'contract_work_type' => $input['contract_work_type'] ?? null,
+            'bid_type' => $input['bid_type'] ?? null,
+            'client_name' => $input['client_name'] ?? null,
+            'client_type' => $input['client_type'] ?? null,
+            'permit_agency' => $input['permit_agency'] ?? null,
+            'permit_date' => $input['permit_date'] ?? null,
+            'contract_date' => $input['contract_date'] ?? null,
+            'start_date' => $input['start_date'] ?? null,
+            'completion_date' => $input['completion_date'] ?? null,
+            'bid_notice_date' => $input['bid_notice_date'] ?? null,
+            'initial_contract_amount' => $input['initial_contract_amount'] ?? null,
+            'authorized_company_seal' => $input['authorized_company_seal'] ?? null,
+            'note' => $input['note'] ?? null,
+            'memo' => $input['memo'] ?? null,
+            'delete_project_image' => $input['delete_project_image'] ?? '0',
+            'is_active' => isset($input['is_active']) ? (int) $input['is_active'] : 1,
+        ];
+    }
+
+    public function validatePayload(array $payload): array
+    {
+        return $this->payloadService->validatePayload($payload);
+
+        if (($payload['project_name'] ?? '') === '') {
+            return ['success' => false, 'message' => '프로젝트명을 입력해 주세요.'];
+        }
+
+        foreach (['contract_date' => '계약일', 'start_date' => '착공일', 'completion_date' => '준공일'] as $field => $label) {
+            if (!empty($payload[$field]) && !preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $payload[$field])) {
+                return ['success' => false, 'message' => "{$label}은 YYYY-MM-DD 형식이어야 합니다."];
+            }
+        }
+
+        if (!empty($payload['start_date']) && !empty($payload['completion_date']) && (string) $payload['start_date'] > (string) $payload['completion_date']) {
+            return ['success' => false, 'message' => '준공일은 착공일보다 빠를 수 없습니다.'];
+        }
+
+        if (($payload['initial_contract_amount'] ?? null) !== null && ($payload['initial_contract_amount'] ?? '') !== '' && !is_numeric((string) $payload['initial_contract_amount'])) {
+            return ['success' => false, 'message' => '초기 계약 금액은 숫자여야 합니다.'];
+        }
+
+        return ['success' => true];
+    }
+
+    public function saveWithFiles(array $input, array $files = [], string $actorType = 'USER'): array
+    {
+        try {
+            $payload = $this->normalizePayload($input);
+            $validated = $this->validatePayload($payload);
+
+            if (!$validated['success']) {
+                return $validated;
+            }
+
+            return $this->save($payload, $actorType, $files);
+        } catch (\Throwable $e) {
+            return [
+                'success' => false,
+                'message' => $e->getMessage() !== '' ? $e->getMessage() : '저장 중 오류가 발생했습니다.',
+            ];
+        }
+    }
+
     public function save(array $data, string $actorType = 'USER', array $files = []): array
     {
         $actor = ActorHelper::resolve($actorType);
 
         $data['client_id'] = $this->normalizeNullableId($data['client_id'] ?? null);
+        $data['client_name'] = trim((string) ($data['client_name'] ?? ''));
         $data['employee_id'] = $this->normalizeNullableId($data['employee_id'] ?? null);
+
+        if ($data['client_id'] === null && $data['client_name'] !== '') {
+            $data['client_id'] = $this->resolveClientIdByName($data['client_name']);
+        }
 
             $this->logger->info('save() called', [
                 'mode'      => !empty($data['id']) ? 'UPDATE' : 'INSERT',
@@ -188,14 +265,14 @@ class ProjectService
             if ($data['client_id'] !== null && !$this->clientModel->getById($data['client_id'])) {
                 return [
                     'success' => false,
-                    'message' => '?좏깮??嫄곕?泥?? ≪??????뒿??떎. ??떆 ?좏깮??＜?紐슂.'
+                    'message' => '선택한 거래처를 찾을 수 없습니다. 다시 선택해 주세요.'
                 ];
             }
 
             if ($data['employee_id'] !== null && !$this->employeeModel->getById($data['employee_id'])) {
                 return [
                     'success' => false,
-                    'message' => '?좏깮??????곸썝??≪??????뒿??떎. ??떆 ?좏깮??＜?紐슂.'
+                    'message' => '선택한 담당직원을 찾을 수 없습니다. 다시 선택해 주세요.'
                 ];
             }
 
@@ -203,22 +280,16 @@ class ProjectService
 
             $id = trim((string)($data['id'] ?? ''));
 
-            /* =========================================================
-            * 湲곗???곗씠??議고??(UPDATE ???⑸땾)
-            * ========================================================= */
             $before = [];
 
             if ($id) {
                 $before = $this->model->getById($id);
 
                 if (!$before) {
-                    throw new \Exception('議댁???? ??뒗 ?⑥쨮??븍뱜??낅빍??');
+                    throw new \Exception('수정할 프로젝트를 찾을 수 없습니다.');
                 }
             }
 
-            /* =========================================================
-            * UPDATE
-            * ========================================================= */
             if ($id) {
 
                 $data['updated_by'] = $actor;
@@ -234,12 +305,12 @@ class ProjectService
                         'success' => true,
                         'id'      => $id,
                         'sort_no'    => $before['sort_no'] ?? null,
-                        'message' => '蹂寃쎌????쓬'
+                        'message' => '변경사항이 없습니다.'
                     ];
                 }
 
                 if (!$this->model->updateById($id, $updateData)) {
-                    throw new \Exception('?⑥쨮??븍뱜 ??륁젟 ??쎈솭');
+                    throw new \Exception('프로젝트 수정에 실패했습니다.');
                 }
 
                 $this->pdo->commit();
@@ -251,21 +322,18 @@ class ProjectService
                 ];
             }
 
-            /* =========================================================
-            * INSERT
-            * ========================================================= */
-            $newId   = UuidHelper::generate();
-            $newSortNo = null;
+            $newId     = UuidHelper::generate();
+            $newSortNo = SequenceHelper::next('system_projects', 'sort_no');
 
             $insertData = array_merge($data, [
                 'id'         => $newId,
-                'sort_no'       => $newSortNo,
+                'sort_no'    => $newSortNo,
                 'created_by' => $actor,
                 'updated_by' => $actor
             ]);
 
             if (!$this->model->create($insertData)) {
-                throw new \Exception('?⑥??듃 ?깅줉 ??뙣');
+                throw new \Exception('프로젝트 등록에 실패했습니다.');
             }
 
             $this->pdo->commit();
@@ -273,7 +341,7 @@ class ProjectService
             return [
                 'success' => true,
                 'id'      => $newId,
-                'sort_no'    => $newSortNo
+                'sort_no' => $newSortNo
             ];
 
         } catch (\Throwable $e) {
@@ -295,6 +363,8 @@ class ProjectService
 
     private function normalizeNullableId(mixed $value): ?string
     {
+        return $this->payloadService->normalizeNullableId($value);
+
         if ($value === null) {
             return null;
         }
@@ -308,11 +378,10 @@ class ProjectService
     }
 
 
-    /* ============================================================
-    * ????
-    * ============================================================ */
     public function delete(string $id, string $actorType = 'USER'): array
     {
+        return $this->trashService->delete($id, $actorType);
+
         $actor = ActorHelper::resolve($actorType);
 
         $this->logger->info('delete() called', [
@@ -333,7 +402,7 @@ class ProjectService
 
                 return [
                     'success' => false,
-                    'message' => '議댁???? ??뒗 ?⑥쨮??븍뱜??낅빍??'
+                    'message' => '삭제할 프로젝트를 찾을 수 없습니다.'
                 ];
             }
 
@@ -346,7 +415,7 @@ class ProjectService
 
                 return [
                     'success' => false,
-                    'message' => '?⑥쨮??븍뱜 ??????쎈솭'
+                    'message' => '프로젝트 삭제에 실패했습니다.'
                 ];
             }
 
@@ -371,13 +440,10 @@ class ProjectService
     }
 
 
-
-
-    /* =========================================================
-    * ?????紐⑸?
-    * ========================================================= */
     public function getTrashList(): array
     {
+        return $this->trashService->getTrashList();
+
         $this->logger->info('getTrashList() called');
 
         try {
@@ -393,11 +459,11 @@ class ProjectService
             return [];
         }
     }
-    /* =========================================================
-    * 蹂듭??
-    * ========================================================= */
+
     public function restore(string $id, string $actorType = 'USER'): array
     {
+        return $this->trashService->restore($id, $actorType);
+
         $actor = ActorHelper::resolve($actorType);
 
         $this->logger->info('restore() called', [
@@ -418,7 +484,7 @@ class ProjectService
 
                 return [
                     'success' => false,
-                    'message' => '議댁???? ??뒗 ?⑥쨮??븍뱜??낅빍??'
+                    'message' => '복구할 프로젝트를 찾을 수 없습니다.'
                 ];
             }
 
@@ -431,7 +497,7 @@ class ProjectService
 
                 return [
                     'success' => false,
-                    'message' => '?⑥쨮??븍뱜 癰귣벊????쎈솭'
+                    'message' => '프로젝트 복구에 실패했습니다.'
                 ];
             }
 
@@ -458,12 +524,10 @@ class ProjectService
         }
     }
 
-
-    /* =========================================================
-    * ?좏깮 蹂듭??
-    * ========================================================= */
     public function restoreBulk(array $ids, string $actorType = 'USER'): array
     {
+        return $this->trashService->restoreBulk($ids, $actorType);
+
         $actor = ActorHelper::resolve($actorType);
 
         $this->logger->info('restoreBulk() called', [
@@ -478,7 +542,7 @@ class ProjectService
 
             return [
                 'success' => false,
-                'message' => '蹂듭????⑥쨮??븍뱜揶쎛 ??곷뮸??덈뼄.'
+                'message' => '복구할 프로젝트 ID가 없습니다.'
             ];
         }
 
@@ -495,7 +559,7 @@ class ProjectService
 
             return [
                 'success' => true,
-                'message' => "?좏깮 蹂듭???⑥┷ ({$success}椰?"
+                'message' => "선택 복구가 완료되었습니다. ({$success}건)"
             ];
 
         } catch (\Throwable $e) {
@@ -514,11 +578,10 @@ class ProjectService
     }
 
 
-    /* =========================================================
-    * ?⑷ 蹂듭??
-    * ========================================================= */
     public function restoreAll(string $actorType = 'USER'): array
     {
+        return $this->trashService->restoreAll($actorType);
+
         $actor = ActorHelper::resolve($actorType);
 
         $this->logger->info('restoreAll() called', [
@@ -541,7 +604,7 @@ class ProjectService
 
             return [
                 'success' => true,
-                'message' => "?⑷ 蹂듭???⑥┷ ({$success}椰?"
+                'message' => "전체 복구가 완료되었습니다. ({$success}건)"
             ];
 
         } catch (\Throwable $e) {
@@ -558,12 +621,10 @@ class ProjectService
         }
     }
 
-
-    /* =========================================================
-    * ?⑹읈????
-    * ========================================================= */
     public function purge(string $id, string $actorType = 'USER'): array
     {
+        return $this->trashService->purge($id, $actorType);
+
         $actor = ActorHelper::resolve($actorType);
 
         $this->logger->info('purge() called', [
@@ -584,7 +645,7 @@ class ProjectService
 
                 return [
                     'success' => false,
-                    'message' => '議댁???? ??뒗 ?⑥쨮??븍뱜??낅빍??'
+                    'message' => '영구삭제할 프로젝트를 찾을 수 없습니다.'
                 ];
             }
 
@@ -592,7 +653,7 @@ class ProjectService
 
             if (!$ok) {
 
-                throw new \Exception('?⑥??듃 ?곴뎄??????뙣');
+                throw new \Exception('프로젝트 영구삭제에 실패했습니다.');
             }
 
             $this->pdo->commit();
@@ -624,11 +685,10 @@ class ProjectService
         }
     }
 
-    /* =========================================================
-    * ?좏깮 ?⑹읈????
-    * ========================================================= */
     public function purgeBulk(array $ids, string $actorType = 'USER'): array
     {
+        return $this->trashService->purgeBulk($ids, $actorType);
+
         $actor = ActorHelper::resolve($actorType);
 
         $this->logger->info('purgeBulk() called', [
@@ -643,7 +703,7 @@ class ProjectService
 
             return [
                 'success' => false,
-                'message' => '??????⑥쨮??븍뱜揶쎛 ??곷뮸??덈뼄.'
+                'message' => '영구삭제할 프로젝트 ID가 없습니다.'
             ];
         }
 
@@ -664,7 +724,7 @@ class ProjectService
 
             return [
                 'success' => true,
-                'message' => "?좏깮 ?????⑥┷ ({$success}椰?"
+                'message' => "선택 영구삭제가 완료되었습니다. ({$success}건)"
             ];
 
         } catch (\Throwable $e) {
@@ -686,11 +746,10 @@ class ProjectService
         }
     }
 
-    /* =========================================================
-    * ?⑷ ?⑹읈????
-    * ========================================================= */
     public function purgeAll(string $actorType = 'USER'): array
     {
+        return $this->trashService->purgeAll($actorType);
+
         $actor = ActorHelper::resolve($actorType);
 
         $this->logger->info('purgeAll() called', [
@@ -702,7 +761,6 @@ class ProjectService
 
             $this->pdo->beginTransaction();
 
-            // ?逾?????????揶쏆뮇???믪눘? ?類ｋ궖
             $rows = $this->model->getDeleted();
             $count = count($rows);
 
@@ -712,7 +770,7 @@ class ProjectService
 
                 return [
                     'success' => false,
-                    'message' => '??????⑥쨮??븍뱜揶쎛 ??곷뮸??덈뼄.'
+                    'message' => '영구삭제할 프로젝트가 없습니다.'
                 ];
             }
 
@@ -731,7 +789,7 @@ class ProjectService
 
             return [
                 'success' => true,
-                'message' => "?⑷ ?????⑥┷ ({$success}椰?"
+                'message' => "전체 영구삭제가 완료되었습니다. ({$success}건)"
             ];
 
         } catch (\Throwable $e) {
@@ -752,12 +810,11 @@ class ProjectService
         }
     }
 
-
-    /* ============================================================
-    * ?붾???꽌 蹂?(RowReorder)
-    * ============================================================ */
     public function reorder(array $changes): bool
     {
+        // Reorder SSOT is ProjectTrashService.
+        return $this->trashService->reorder($changes);
+
         $this->logger->info('reorder() called', [
             'changes' => $changes
         ]);
@@ -772,21 +829,18 @@ class ProjectService
                 $this->pdo->beginTransaction();
             }
 
-            /* 1?뤴???젰?寃?*/
             foreach ($changes as $row) {
 
                 if (
                     empty($row['id']) ||
                     !isset($row['newSortNo'])
                 ) {
-                    throw new \Exception('reorder ?곗씠????쪟');
+                    throw new \Exception('reorder 데이터 오류');
                 }
             }
 
-            /* 2?뤴?temp ???(?⑸?諛⑹?) */
             foreach ($changes as $row) {
 
-                // ?紐???곌석??띿쓺 (??? ?겸뫖猷???덇돌野?
                 $tempSortNo = (int)$row['newSortNo'] + 1000000;
 
                 $this->model->updateSortNo(
@@ -795,7 +849,6 @@ class ProjectService
                 );
             }
 
-            /* 3?뤴???젣 ?붾??곸슜 */
             foreach ($changes as $row) {
 
                 $this->model->updateSortNo(
@@ -826,11 +879,12 @@ class ProjectService
             throw $e;
         }
     }
-    /* ============================================================
-    * ??뵆????슫≪뮆諭?
-    * ============================================================ */
-    public function downloadTemplate(): void
+
+    public function downloadTemplate(?string $columnsCsv = null): void
     {
+        $this->excelService->downloadTemplate($columnsCsv);
+        return;
+
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('프로젝트 업로드');
@@ -849,6 +903,11 @@ class ProjectService
 
     public function saveFromExcelFile(string $filePath): array
     {
+        return $this->excelService->saveFromExcelFile(
+            $filePath,
+            fn(array $payload): array => $this->save($payload, 'SYSTEM')
+        );
+
         $spreadsheet = IOFactory::load($filePath);
         $rows = $spreadsheet->getActiveSheet()->toArray(null, false, false, false);
         if (empty($rows) || count($rows) < 2) { return ['success' => false, 'message' => '업로드할 데이터가 없습니다.']; }
@@ -876,8 +935,11 @@ class ProjectService
         return ['success' => true, 'message' => "{$count}건 업로드되었습니다."];
     }
 
-    public function downloadExcel(): void
+    public function downloadExcel(?string $columnsCsv = null): void
     {
+        $this->excelService->downloadExcel($columnsCsv);
+        return;
+
         $projects = $this->model->getList();
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
@@ -898,20 +960,41 @@ class ProjectService
         exit;
     }
 
-    public function downloadMigrationTemplate(): void { $this->downloadTemplate(); }
-    public function saveFromMigrationExcelFile(string $filePath): array { return $this->saveFromExcelFile($filePath); }
-    public function downloadMigrationExcel(): void { $this->downloadExcel(); }
+    public function downloadMigrationTemplate(?string $columnsCsv = null): void
+    {
+        $this->excelService->downloadMigrationTemplate($columnsCsv);
+        return;
+    }
+
+    public function saveFromMigrationExcelFile(string $filePath, ?string $columnsCsv = null): array
+    {
+        return $this->excelService->saveFromMigrationExcelFile(
+            $filePath,
+            fn(array $payload): array => $this->save($payload, 'SYSTEM'),
+            $columnsCsv
+        );
+    }
+
+    public function downloadMigrationExcel(?string $columnsCsv = null): void
+    {
+        $this->excelService->downloadMigrationExcel($columnsCsv);
+        return;
+    }
     private function getProjectMigrationHeaders(): array
     {
+        return $this->excelService->getProjectMigrationHeaders();
+
         return ['프로젝트명', '사용여부', '거래처명', '담당직원', '공사명', '계약일자', '착공일자', '준공일자', '계약금액', '비고'];
     }
 
     private function getProjectMigrationHeaderMap(): array
     {
+        return $this->excelService->getProjectMigrationHeaderMap();
+
         return [
             '프로젝트명' => 'project_name',
             '사용여부' => 'is_active',
-            '거래처명' => 'client_name',
+            '嫄곕옒泥섎챸' => 'client_name',
             '담당직원' => 'contractor_name',
             '공사명' => 'construction_name',
             '계약일자' => 'contract_date',
@@ -933,6 +1016,8 @@ class ProjectService
     }
     private function normalizeProjectExcelDate(mixed $value): ?string
     {
+        return $this->excelService->normalizeProjectExcelDate($value);
+
         if ($value === null) {
             return null;
         }
@@ -952,12 +1037,16 @@ class ProjectService
 
     private function parseProjectExcelActiveValue(mixed $value): int
     {
+        return $this->excelService->parseProjectExcelActiveValue($value);
+
         $normalized = mb_strtolower(trim((string)$value), 'UTF-8');
         return in_array($normalized, ['1', 'true', 'yes', 'use', 'active', 'y', '사용'], true) ? 1 : 0;
     }
 
     private function normalizeNullableProjectFields(array $data): array
     {
+        return $this->payloadService->normalizeNullableProjectFields($data);
+
         $nullableFields = [
             'client_id',
             'employee_id',
@@ -1012,6 +1101,8 @@ class ProjectService
 
     private function resolveClientIdByName(string $clientName): ?string
     {
+        return $this->referenceResolver->resolveClientIdByName($clientName);
+
         $clientName = trim($clientName);
 
         if ($clientName === '') {
@@ -1037,6 +1128,8 @@ class ProjectService
 
     private function resolveEmployeeIdByName(string $employeeName): ?string
     {
+        return $this->referenceResolver->resolveEmployeeIdByName($employeeName);
+
         $employeeName = trim($employeeName);
 
         if ($employeeName === '') {

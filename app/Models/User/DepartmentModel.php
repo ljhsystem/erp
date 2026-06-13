@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT/app/Models/User/DepartmentModel.php
 namespace App\Models\User;
 
 use PDO;
@@ -7,22 +6,16 @@ use Core\Database;
 
 class DepartmentModel
 {
-    // PDO 보관
     private PDO $db;
 
-    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
-
-    /* ============================================================
-     * 1) 전체 부서 조회
-     * ============================================================ */
     public function getAll(array $filters = []): array
     {
         $sql = "
-            SELECT 
+            SELECT
                 d.id,
                 d.sort_no,
                 d.dept_name,
@@ -159,9 +152,6 @@ class DepartmentModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /* ============================================================
-     * 2) 단일 조회
-     * ============================================================ */
     public function getById(string $id): ?array
     {
         $stmt = $this->db->prepare("
@@ -187,13 +177,10 @@ class DepartmentModel
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
-    /* ============================================================
-     * 3) 부서 생성 (UUID/CODE는 Service에서 처리)
-     * ============================================================ */
     public function create(array $data): bool
     {
         $sql = "
-            INSERT INTO user_departments 
+            INSERT INTO user_departments
             (id, sort_no, dept_name, manager_id, description, is_active, created_by, created_at)
             VALUES
             (:id, :sort_no, :dept_name, :manager_id, :description, :is_active, :created_by, NOW())
@@ -212,9 +199,6 @@ class DepartmentModel
         ]);
     }
 
-    /* ============================================================
-     * 4) 부서 수정
-     * ============================================================ */
     public function update(string $id, array $data): bool
     {
         $set = [];
@@ -234,18 +218,12 @@ class DepartmentModel
         return $stmt->execute($params);
     }
 
-    /* ============================================================
-     * 5) 삭제
-     * ============================================================ */
     public function delete(string $id): bool
     {
         $stmt = $this->db->prepare("DELETE FROM user_departments WHERE id = ?");
         return $stmt->execute([$id]);
     }
 
-    /* ============================================================
-     * 6) 부서장 지정
-     * ============================================================ */
     public function assignManager(string $deptId, ?string $managerId): bool
     {
         $stmt = $this->db->prepare("
@@ -261,9 +239,6 @@ class DepartmentModel
         ]);
     }
 
-    /* ============================================================
-     * 7) 중복 검사
-     * ============================================================ */
     public function existsByName(string $deptName, ?string $excludeId = null): bool
     {
         if ($excludeId) {

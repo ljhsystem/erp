@@ -10,6 +10,67 @@
   padding-inline: 14px;
 }
 
+.excel-settings-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 38px;
+  font-weight: 600;
+}
+
+.excel-settings-shell {
+  border: 1px solid #dbe4ee;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fbfdff 0%, #f8fafc 100%);
+  padding: 14px;
+}
+
+.excel-settings-heading {
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.excel-settings-accordion {
+  display: grid;
+  gap: 10px;
+}
+
+.excel-settings-item {
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.excel-settings-item.is-open {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .08);
+}
+
+.excel-settings-accordion-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+  font-weight: 700;
+  text-align: left;
+}
+
+.excel-settings-accordion-toggle:hover {
+  background: #f8fafc;
+}
+
+.excel-settings-panel-body {
+  padding: 0 14px 14px;
+}
+
 .excel-modal-subtitle {
   margin-top: 2px;
 }

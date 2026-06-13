@@ -327,11 +327,14 @@ class JournalRecommendationService
         }
 
         $stmt = $this->pdo->prepare("
-            SELECT source_type, mapped_payload_json AS parsed_json
-            FROM ledger_data_evidences
-            WHERE transaction_id = :transaction_id
-              AND deleted_at IS NULL
-            ORDER BY latest_imported_at DESC, created_at DESC
+            SELECT e.source_type, p.mapped_payload_json AS parsed_json
+            FROM ledger_data_evidences e
+            JOIN ledger_evidence_payloads p
+              ON p.evidence_type = e.source_type COLLATE utf8mb4_unicode_ci
+             AND p.evidence_id = e.id COLLATE utf8mb4_unicode_ci
+            WHERE e.transaction_id = :transaction_id
+              AND e.deleted_at IS NULL
+            ORDER BY e.latest_imported_at DESC, e.created_at DESC
             LIMIT 1
         ");
         $stmt->execute([':transaction_id' => $transactionId]);

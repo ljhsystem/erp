@@ -5,7 +5,7 @@
 <div class="code-page" id="code-main">
     <div class="page-header">
         <h4 class="mb-1 fw-bold">
-<i class="bi bi-collection me-2"></i>기준정보
+<i class="bi bi-collection me-2"></i>코드관리
         </h4>
         <span id="codeCount" class="text-primary code-count page-count"></span>
     </div>
@@ -39,7 +39,7 @@
 <?php
 $modalId = 'codeTrashModal';
 $type = 'code';
-$modalTitle = '기준정보 휴지통';
+$modalTitle = '코드관리 휴지통';
 $tableId = 'code-trash-table';
 $checkAllId = 'codeTrashCheckAll';
 $btnRestoreId = 'codeBtnRestoreSelected';
@@ -54,7 +54,7 @@ $tableHead = '
     <th>삭제자</th>
     <th>관리</th>
 ';
-$emptyMessage = '삭제된 기준정보를 선택하세요.';
+$emptyMessage = '삭제된 코드관리를 선택하세요.';
 include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
 ?>
 
@@ -65,7 +65,7 @@ $uploadUrl = '/api/settings/system/code/excel-upload';
 
 $modalId = 'codeExcelModal';
 $formId = 'codeExcelForm';
-$modalTitle = '기준정보 엑셀관리';
+$modalTitle = '코드관리 엑셀관리';
 
 $fileInputId = 'codeExcelFile';
 $spinnerId = 'codeExcelSpinner';

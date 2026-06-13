@@ -1,8 +1,8 @@
 <?php
 namespace App\Controllers\Dashboard\Settings;
 
-use Core\DbPdo;
 use App\Services\Auth\PermissionService;
+use Core\DbPdo;
 
 class PermissionController
 {
@@ -20,16 +20,33 @@ class PermissionController
         try {
             echo json_encode([
                 'success' => true,
-                'data'    => $this->service->getAll($this->readFilters())
+                'data' => $this->service->getAll($this->readFilters()),
             ], JSON_UNESCAPED_UNICODE);
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
                 'message' => 'list failed',
-                'error'   => $e->getMessage()
+                'error' => $e->getMessage(),
             ], JSON_UNESCAPED_UNICODE);
         }
 
+        exit;
+    }
+
+    public function apiDelete()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+
+        $id = trim((string) ($_POST['id'] ?? ''));
+        if ($id === '') {
+            echo json_encode([
+                'success' => false,
+                'message' => 'permission id required',
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        echo json_encode($this->service->delete($id), JSON_UNESCAPED_UNICODE);
         exit;
     }
 

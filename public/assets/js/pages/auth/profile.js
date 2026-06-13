@@ -14,7 +14,7 @@ const { formatMobile } = NumberFormat;
     const API = {
         DETAIL: '/api/user/profile/detail',
         SAVE: '/api/user/profile/save',
-        CHANGE_PASSWORD: '/api/user/profile/change-password',
+        CHANGE_PASSWORD: '/api/auth/password/change',
 
         EXTERNAL_LIST: '/api/user/external-accounts',
         EXTERNAL_SAVE: '/api/user/external-accounts/save',

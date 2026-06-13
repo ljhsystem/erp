@@ -5,9 +5,11 @@
  */
 // Path: /assets/js/common/table/data-table.js
 import { createTableInteraction } from './index.js';
+import { attachDataTableSettings, prepareDataTableSettingsColumns, updateDataTableSettingsState } from '../datatable/dataTableSettings.js';
 
 const __dtAdjustState = new WeakMap();
 const __dtInstances = new Set();
+const __dtResizeState = new WeakMap();
 const DEFAULT_PAGE_LENGTH = 100;
 const PAGE_LENGTH_MENU = [100, 200, 300, 500, 1000, 2000, 3000, 5000, 10000];
 const DELETE_PROGRESS_CHUNK_SIZE = 500;
@@ -44,8 +46,6 @@ function applyColumnHeaderClasses(table, columns = []) {
     }
 
     const originalHeaders = Array.from(table.table().header()?.querySelectorAll('th') || []);
-    const wrapper = table.table().container();
-    const scrollHeaders = Array.from(wrapper?.querySelectorAll('.dataTables_scrollHead th') || []);
 
     columns.forEach((column, index) => {
         const classes = tokenizeClasses(column.className, column.headerClassName);
@@ -53,7 +53,7 @@ function applyColumnHeaderClasses(table, columns = []) {
             return;
         }
 
-        [originalHeaders[index], scrollHeaders[index]].forEach((headerNode) => {
+        [originalHeaders[index], getScrollHeaderNodeByIndex(table, index)].forEach((headerNode) => {
             if (!headerNode) return;
             headerNode.classList.add(...classes);
         });
@@ -143,6 +143,21 @@ function isActionColumn(column = {}) {
     const title = String(column.title || '').trim();
     return column.data == null && (title === '\uAD00\uB9AC' || title === '\uC218\uC815');
 }
+
+function getUtilityColumnSettingsKey(column = {}) {
+    if (column.isSelectionColumn === true || tokenizeClasses(column.className, column.headerClassName).includes('dt-select-column')) {
+        return '__select';
+    }
+    if (isReorderColumn(column)) {
+        return '__reorder';
+    }
+    if (isActionColumn(column)) {
+        return '__actions';
+    }
+
+    return '';
+}
+
 function withUtilityColumnDefaults(column = {}) {
     const next = { ...column };
     let utilityClass = '';
@@ -172,6 +187,13 @@ function withUtilityColumnDefaults(column = {}) {
     }
 
     next.width = width;
+    const utilitySettingsKey = getUtilityColumnSettingsKey(next);
+    if (utilitySettingsKey !== '' && typeof next.settingsKey !== 'string') {
+        next.settingsKey = utilitySettingsKey;
+    }
+    if (typeof next.widthResizable !== 'boolean') {
+        next.widthResizable = true;
+    }
     next.className = joinClasses(next.className, utilityClass, 'text-center');
     next.headerClassName = joinClasses(next.headerClassName, utilityClass, 'text-center');
 
@@ -609,8 +631,13 @@ function ensureTableHeader(tableSelector, columns = []) {
         thead.appendChild(row);
     }
 
-    const headers = row.querySelectorAll('th');
-    if (headers.length === columns.length) {
+    const headers = Array.from(row.querySelectorAll('th'));
+    const shouldRewrite = headers.length !== columns.length || columns.some((column, index) => {
+        const expectedTitle = String(column?.title ?? '').trim();
+        const actualTitle = String(headers[index]?.textContent ?? '').trim();
+        return expectedTitle !== '' && actualTitle === '';
+    });
+    if (!shouldRewrite) {
         return;
     }
 
@@ -649,9 +676,12 @@ function escapeAttr(value) {
         .replaceAll('>', '&gt;');
 }
 
-function createSelectionColumn(tableSelector, selectedIds, rowIdField, isRowSelectable = () => true) {
+function createSelectionColumn(tableSelector, selectedIds, rowIdField, isRowSelectable = () => true, options = {}) {
     const tableId = String(tableSelector || '').replace(/^#/, '') || 'dataTable';
     const checkAllId = `${tableId}SelectAll`;
+    const width = String(options?.width || '').trim();
+    const widthResizable = options?.widthResizable !== false;
+    const settingsKey = String(options?.settingsKey || '__select').trim() || '__select';
 
     return {
         data: null,
@@ -662,6 +692,9 @@ function createSelectionColumn(tableSelector, selectedIds, rowIdField, isRowSele
         searchable: false,
         defaultContent: '',
         isSelectionColumn: true,
+        settingsKey,
+        ...(width !== '' ? { width } : {}),
+        ...(widthResizable ? { widthResizable: true } : {}),
         render: (_value, _type, row) => {
             const id = getRowId(row, rowIdField);
             const selectable = Boolean(id) && isRowSelectable(row);
@@ -700,11 +733,516 @@ function shiftOrderForSelection(defaultOrder = [], shouldShift = false, insertIn
     });
 }
 
+function resolveSettingsColumnKey(column = {}) {
+    if (typeof column?.__dtSettingsKey === 'string' && column.__dtSettingsKey.trim() !== '') {
+        return column.__dtSettingsKey.trim();
+    }
+    if (typeof column?.key === 'string' && column.key.trim() !== '') {
+        return column.key.trim();
+    }
+    if (typeof column?.settingsKey === 'string' && column.settingsKey.trim() !== '') {
+        return column.settingsKey.trim();
+    }
+    if (typeof column?.name === 'string' && column.name.trim() !== '') {
+        return column.name.trim();
+    }
+    if (typeof column?.data === 'string' && column.data.trim() !== '') {
+        return column.data.trim();
+    }
+    return '';
+}
+
+function normalizeSortDirection(value = '') {
+    return String(value || '').trim().toLowerCase() === 'desc' ? 'desc' : 'asc';
+}
+
+function buildOrderFromSortSettings(sortSettings = [], tableColumns = []) {
+    const indexByKey = new Map();
+    tableColumns.forEach((column, index) => {
+        const key = resolveSettingsColumnKey(column);
+        if (key !== '' && !indexByKey.has(key)) {
+            indexByKey.set(key, index);
+        }
+    });
+
+    return (Array.isArray(sortSettings) ? sortSettings : [])
+        .map((item) => {
+            const key = String(item?.key || '').trim();
+            if (key === '' || !indexByKey.has(key)) {
+                return null;
+            }
+
+            return [indexByKey.get(key), normalizeSortDirection(item?.dir)];
+        })
+        .filter(Array.isArray);
+}
+
+function extractSortSettingsFromTable(table, tableColumns = []) {
+    if (!table?.order) {
+        return [];
+    }
+
+    return (table.order() || [])
+        .map((item) => {
+            if (!Array.isArray(item) || typeof item[0] !== 'number') {
+                return null;
+            }
+
+            const column = tableColumns[item[0]];
+            const key = resolveSettingsColumnKey(column);
+            if (key === '') {
+                return null;
+            }
+
+            return {
+                key,
+                dir: normalizeSortDirection(item[1]),
+            };
+        })
+        .filter(Boolean);
+}
+
+function getDataTableWidthScope(wrapper) {
+    const customSelector = String(wrapper?.dataset?.dtWidthScopeSelector || '').trim();
+    if (customSelector !== '') {
+        const scoped = wrapper?.closest(customSelector) || document.querySelector(customSelector);
+        if (scoped) {
+            return scoped;
+        }
+    }
+
+    return wrapper?.closest('.table-box, .content-area, .card-body, .card, main') || wrapper?.parentElement || wrapper;
+}
+
+function getDataTableContainerWidth(table) {
+    const wrapper = table?.table?.().container?.();
+    const widthScope = getDataTableWidthScope(wrapper);
+    if (!widthScope) {
+        return 0;
+    }
+
+    return Math.ceil(
+        widthScope.clientWidth
+        || widthScope.getBoundingClientRect?.().width
+        || wrapper?.getBoundingClientRect?.().width
+        || 0
+    );
+}
+
+function resolveColumnWidthKey(column = {}, index = 0) {
+    if (typeof column.__dtSettingsKey === 'string' && column.__dtSettingsKey.trim() !== '') {
+        return column.__dtSettingsKey.trim();
+    }
+    if (typeof column.key === 'string' && column.key.trim() !== '') {
+        return column.key.trim();
+    }
+    if (typeof column.settingsKey === 'string' && column.settingsKey.trim() !== '') {
+        return column.settingsKey.trim();
+    }
+    if (typeof column.name === 'string' && column.name.trim() !== '') {
+        return column.name.trim();
+    }
+    if (typeof column.data === 'string' && column.data.trim() !== '') {
+        return column.data.trim();
+    }
+    return '';
+}
+
+function isButtonColumn(column = {}) {
+    return column.data == null && typeof column.render === 'function';
+}
+
+function isColumnWidthConfigurable(column = {}) {
+    if (!column) {
+        return false;
+    }
+
+    if (column.widthResizable === false) {
+        return false;
+    }
+
+    if (column.widthResizable === true) {
+        return resolveColumnWidthKey(column) !== '';
+    }
+
+    if (column.isSelectionColumn === true) {
+        return false;
+    }
+
+    if (isReorderColumn(column) || isActionColumn(column) || isButtonColumn(column)) {
+        return false;
+    }
+
+    return resolveColumnWidthKey(column) !== '';
+}
+
+function getColumnWidthIndexMap(tableColumns = []) {
+    const indexMap = new Map();
+    tableColumns.forEach((column, index) => {
+        const key = resolveColumnWidthKey(column, index);
+        if (key) {
+            indexMap.set(key, index);
+        }
+    });
+    return indexMap;
+}
+
+function getHeaderNodesByIndex(table, index) {
+    return [
+        table?.column?.(index)?.header?.() || null,
+        getScrollHeaderNodeByIndex(table, index),
+    ].filter(Boolean);
+}
+
+function getBodyCellNodesByIndex(table, index) {
+    const cells = [];
+    table?.cells?.(null, index, { page: 'current' })?.every?.(function () {
+        const node = this.node?.();
+        if (node) {
+            cells.push(node);
+        }
+    });
+    return cells;
+}
+
+function getVisibleColumnIndex(table, index) {
+    const visibleIndex = table?.column?.(index)?.index?.('visible');
+    return Number.isInteger(visibleIndex) && visibleIndex >= 0 ? visibleIndex : -1;
+}
+
+function getScrollHeaderNodeByIndex(table, index) {
+    const wrapper = table?.table?.().container?.();
+    const visibleIndex = getVisibleColumnIndex(table, index);
+    if (!wrapper || visibleIndex < 0) {
+        return null;
+    }
+
+    return wrapper.querySelectorAll?.('.dataTables_scrollHead th')?.[visibleIndex] || null;
+}
+
+function getColgroupNodesByIndex(table, index) {
+    const wrapper = table?.table?.().container?.();
+    if (!wrapper) {
+        return [];
+    }
+
+    const visibleIndex = getVisibleColumnIndex(table, index);
+    const colgroups = Array.from(wrapper.querySelectorAll(
+        '.dataTables_scrollHead colgroup, .dataTables_scrollBody colgroup, table.dataTable > colgroup'
+    ));
+    const resolved = [];
+    const seen = new Set();
+
+    colgroups.forEach((colgroup) => {
+        const cols = Array.from(colgroup.querySelectorAll('col'));
+        if (!cols.length) {
+            return;
+        }
+
+        let targetIndex = -1;
+        if (visibleIndex >= 0 && visibleIndex < cols.length) {
+            targetIndex = visibleIndex;
+        } else if (index >= 0 && index < cols.length) {
+            targetIndex = index;
+        }
+
+        if (targetIndex < 0) {
+            return;
+        }
+
+        const node = cols[targetIndex];
+        if (!node || seen.has(node)) {
+            return;
+        }
+
+        seen.add(node);
+        resolved.push(node);
+    });
+
+    return resolved;
+}
+
+function applyColumnWidthPx(table, index, widthPx) {
+    const normalizedWidth = Math.max(32, Math.round(Number(widthPx) || 0));
+    if (!Number.isFinite(normalizedWidth) || normalizedWidth <= 0) {
+        return;
+    }
+
+    const widthValue = `${normalizedWidth}px`;
+    const applyWidth = (node) => {
+        if (!node?.style) {
+            return;
+        }
+        node.style.setProperty('width', widthValue, 'important');
+        node.style.setProperty('min-width', widthValue, 'important');
+        node.style.setProperty('max-width', widthValue, 'important');
+        node.style.setProperty('box-sizing', 'border-box');
+    };
+
+    getHeaderNodesByIndex(table, index).forEach(applyWidth);
+    getBodyCellNodesByIndex(table, index).forEach(applyWidth);
+    getColgroupNodesByIndex(table, index).forEach(applyWidth);
+}
+
+function freezeVisibleColumnWidths(table, tableColumns = []) {
+    tableColumns.forEach((column, index) => {
+        if (table.column(index).visible() === false) {
+            return;
+        }
+
+        const header = table.column(index).header?.();
+        const currentWidth = Math.ceil(
+            header?.getBoundingClientRect?.().width
+            || table.column(index).nodes?.()?.to$?.()?.first?.()?.outerWidth?.()
+            || 0
+        );
+        if (!Number.isFinite(currentWidth) || currentWidth <= 0) {
+            return;
+        }
+        applyColumnWidthPx(table, index, currentWidth);
+    });
+}
+
+function applyConfiguredColumnWidths(table, tableColumns = [], settingsContext = null) {
+    const columnWidths = settingsContext?.state?.columnWidths;
+    if (!table || !columnWidths || typeof columnWidths !== 'object') {
+        return;
+    }
+
+    const indexMap = getColumnWidthIndexMap(tableColumns);
+    Object.entries(columnWidths).forEach(([key, value]) => {
+        const index = indexMap.get(String(key || '').trim());
+        const widthPx = Number(value);
+        if (index === undefined || !Number.isFinite(widthPx) || widthPx <= 0) {
+            return;
+        }
+        applyColumnWidthPx(table, index, widthPx);
+    });
+}
+
+function syncRenderedColumnWidths(table, tableColumns = [], settingsContext = null) {
+    if (!table) {
+        return;
+    }
+
+    const configuredWidths = settingsContext?.state?.columnWidths && typeof settingsContext.state.columnWidths === 'object'
+        ? settingsContext.state.columnWidths
+        : {};
+    const configuredKeys = new Set(
+        Object.keys(configuredWidths)
+            .map((key) => String(key || '').trim())
+            .filter(Boolean)
+    );
+
+    tableColumns.forEach((column, index) => {
+        if (table.column(index).visible() === false) {
+            return;
+        }
+
+        const key = resolveColumnWidthKey(column, index);
+        if (key && configuredKeys.has(key)) {
+            return;
+        }
+
+        const headerNode = table.column(index).header?.();
+        const bodyNode = table.column(index).nodes?.()?.to$?.()?.first?.()?.get?.(0) || null;
+        const measuredWidth = Math.ceil(Math.max(
+            headerNode?.getBoundingClientRect?.().width || 0,
+            bodyNode?.getBoundingClientRect?.().width || 0
+        ));
+        if (!Number.isFinite(measuredWidth) || measuredWidth <= 0) {
+            return;
+        }
+
+        applyColumnWidthPx(table, index, measuredWidth);
+    });
+}
+
+function scheduleApplyConfiguredColumnWidths(table, tableColumns = [], settingsContext = null, delay = 0) {
+    window.setTimeout(() => {
+        window.requestAnimationFrame(() => {
+            applyConfiguredColumnWidths(table, tableColumns, settingsContext);
+        });
+    }, Math.max(0, Number(delay) || 0));
+}
+
+function renderColumnResizeHandles(table, tableColumns = []) {
+    const wrapper = table?.table?.().container?.();
+    if (!wrapper) {
+        return;
+    }
+
+    const headers = Array.from(wrapper.querySelectorAll('thead th'));
+    headers.forEach((headerNode) => {
+        headerNode.classList.remove('dt-column-resizable');
+        headerNode.querySelectorAll('.dt-column-resizer').forEach((node) => node.remove());
+    });
+
+    const rendered = new Set();
+    tableColumns.forEach((column, index) => {
+        if (!isColumnWidthConfigurable(column) || rendered.has(index)) {
+            return;
+        }
+
+        getHeaderNodesByIndex(table, index).forEach((headerNode) => {
+            if (!headerNode || headerNode.querySelector('.dt-column-resizer')) {
+                return;
+            }
+            headerNode.classList.add('dt-column-resizable');
+            const handle = document.createElement('span');
+            handle.className = 'dt-column-resizer';
+            handle.dataset.columnIndex = String(index);
+            handle.setAttribute('role', 'presentation');
+            headerNode.appendChild(handle);
+        });
+        rendered.add(index);
+    });
+}
+
+function bindColumnResize(table, tableColumns = [], settingsContext = null) {
+    if (!table || !settingsContext?.config?.enabled) {
+        return;
+    }
+
+    const wrapper = table.table().container();
+    if (!wrapper || wrapper.dataset.dtColumnResizeBound === 'true') {
+        return;
+    }
+
+    wrapper.dataset.dtColumnResizeBound = 'true';
+    const indexMap = getColumnWidthIndexMap(tableColumns);
+    const dragState = {
+        active: false,
+        pointerId: null,
+        index: -1,
+        key: '',
+        startX: 0,
+        startWidth: 0,
+    };
+    __dtResizeState.set(wrapper, dragState);
+
+    const stopEvent = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation?.();
+    };
+
+    const finishResize = () => {
+        if (!dragState.active) {
+            return;
+        }
+
+        dragState.active = false;
+        dragState.pointerId = null;
+        document.body.classList.remove('dt-column-resizing');
+
+        if (!dragState.key || dragState.index < 0) {
+            return;
+        }
+
+        const header = table.column(dragState.index).header?.();
+        const widthPx = Math.ceil(header?.getBoundingClientRect?.().width || 0);
+        if (!Number.isFinite(widthPx) || widthPx <= 0) {
+            return;
+        }
+
+        const nextColumnWidths = {
+            ...(settingsContext.state?.columnWidths || {}),
+            [dragState.key]: widthPx,
+        };
+        updateDataTableSettingsState(settingsContext, {
+            columnWidths: nextColumnWidths,
+        });
+        scheduleAdjust(table, {
+            draw: false,
+            tableColumns,
+            settingsContext,
+        });
+    };
+
+    const onPointerMove = (event) => {
+        if (!dragState.active) {
+            return;
+        }
+
+        if (typeof event.buttons === 'number' && event.buttons === 0) {
+            finishResize();
+            return;
+        }
+
+        stopEvent(event);
+        const nextWidth = Math.max(32, dragState.startWidth + (event.clientX - dragState.startX));
+        applyColumnWidthPx(table, dragState.index, nextWidth);
+        syncScrollHeadWidth(table);
+    };
+
+    const onPointerUp = (event) => {
+        if (!dragState.active) {
+            return;
+        }
+        stopEvent(event);
+        finishResize();
+    };
+
+    wrapper.addEventListener('pointerdown', (event) => {
+        const handle = event.target.closest('.dt-column-resizer');
+        if (!handle) {
+            return;
+        }
+
+        const index = Number(handle.dataset.columnIndex);
+        const column = tableColumns[index];
+        const key = resolveColumnWidthKey(column, index);
+        if (!Number.isInteger(index) || index < 0 || !key || !indexMap.has(key)) {
+            return;
+        }
+
+        stopEvent(event);
+        if (wrapper.querySelector('.dataTables_scroll')) {
+            freezeVisibleColumnWidths(table, tableColumns);
+        }
+
+        const header = table.column(index).header?.();
+        const startWidth = Math.ceil(header?.getBoundingClientRect?.().width || 0);
+        if (!Number.isFinite(startWidth) || startWidth <= 0) {
+            return;
+        }
+
+        dragState.active = true;
+        dragState.pointerId = event.pointerId;
+        dragState.index = index;
+        dragState.key = key;
+        dragState.startX = event.clientX;
+        dragState.startWidth = startWidth;
+        document.body.classList.add('dt-column-resizing');
+        handle.setPointerCapture?.(event.pointerId);
+    }, true);
+
+    wrapper.addEventListener('click', (event) => {
+        if (event.target.closest('.dt-column-resizer')) {
+            stopEvent(event);
+        }
+    }, true);
+
+    wrapper.addEventListener('dblclick', (event) => {
+        if (event.target.closest('.dt-column-resizer')) {
+            stopEvent(event);
+        }
+    }, true);
+
+    window.addEventListener('pointermove', onPointerMove, true);
+    window.addEventListener('pointerup', onPointerUp, true);
+    window.addEventListener('pointercancel', finishResize, true);
+    window.addEventListener('blur', finishResize, true);
+}
+
 function scheduleAdjust(table, options = {}) {
     if (!table) return;
 
     const {
-        draw = false
+        draw = false,
+        tableColumns = [],
+        settingsContext = null,
     } = options;
 
     const node = table.table().node();
@@ -727,9 +1265,15 @@ function scheduleAdjust(table, options = {}) {
         try {
             table.columns.adjust();
             syncScrollHeadWidth(table);
+            applyConfiguredColumnWidths(table, tableColumns, settingsContext);
+            syncRenderedColumnWidths(table, tableColumns, settingsContext);
+            syncScrollHeadWidth(table);
 
             if (draw) {
                 table.draw(false);
+                syncScrollHeadWidth(table);
+                applyConfiguredColumnWidths(table, tableColumns, settingsContext);
+                syncRenderedColumnWidths(table, tableColumns, settingsContext);
                 syncScrollHeadWidth(table);
             }
         } catch (err) {
@@ -752,15 +1296,15 @@ function syncScrollHeadWidth(table) {
     const wrapper = table?.table?.().container?.();
     if (!wrapper) return;
 
-    const widthScope = wrapper.closest('.table-box, .content-area, .card-body, main') || wrapper.parentElement || wrapper;
+    const widthScope = getDataTableWidthScope(wrapper);
     const wrapperWidth = Math.ceil(widthScope.clientWidth || widthScope.getBoundingClientRect().width || wrapper.getBoundingClientRect().width);
-    const hasSearchForm = Boolean(widthScope.querySelector?.('.search-form-container'))
-        || Boolean(wrapper.closest('.content-area')?.querySelector?.('.search-form-container'));
-    wrapper.classList.toggle('dt-fit-search-form', hasSearchForm);
     if (Number.isFinite(wrapperWidth) && wrapperWidth > 0) {
         wrapper.style.maxWidth = `${wrapperWidth}px`;
     }
 
+    // 일반 화면은 여기까지가 핵심이다.
+    // - SearchForm 과 같은 컨테이너 폭을 기준으로 wrapper 폭을 제한한다.
+    // - scrollX 구조가 없는 화면은 아래 분기 전에 종료된다.
     const bodyTable = wrapper.querySelector('.dataTables_scrollBody table.dataTable');
     const scroll = wrapper.querySelector('.dataTables_scroll');
     const scrollHead = wrapper.querySelector('.dataTables_scrollHead');
@@ -769,13 +1313,35 @@ function syncScrollHeadWidth(table) {
     const headTable = wrapper.querySelector('.dataTables_scrollHead table.dataTable');
     if (!bodyTable || !headInner || !headTable) return;
 
+    // scrollX 화면은 head/body 폭 동기화가 필요하다.
+    // - wrapperWidth 는 뷰포트 기준 폭
+    // - contentWidth 는 현재 body table 이 실제로 차지하는 폭
+    // - 더 큰 값을 사용해 scroll head 와 scroll body 를 같은 폭으로 맞춘다.
+    const explicitContentWidth = Number(wrapper.dataset.dtContentWidth || 0);
+    const colgroupWidth = Array.from(wrapper.querySelectorAll('.dataTables_scrollHead colgroup col'))
+        .reduce((sum, col) => {
+            const width = Math.ceil(
+                parseFloat(col.style.width || '0')
+                || parseFloat(col.style.minWidth || '0')
+                || col.getBoundingClientRect?.().width
+                || 0
+            );
+            return sum + (Number.isFinite(width) && width > 0 ? width : 0);
+        }, 0);
     const contentWidth = Math.max(
+        explicitContentWidth,
+        colgroupWidth,
         Math.ceil(bodyTable.scrollWidth || 0),
         Math.ceil(bodyTable.getBoundingClientRect().width)
     );
-    const width = hasSearchForm && Number.isFinite(wrapperWidth) && wrapperWidth > 0
-        ? wrapperWidth
-        : contentWidth;
+    const configuredWidths = table?.__dtTableSettings?.context?.state?.columnWidths;
+    const hasConfiguredWidths = configuredWidths
+        && typeof configuredWidths === 'object'
+        && Object.keys(configuredWidths).some((key) => {
+            const widthPx = Number(configuredWidths[key]);
+            return String(key || '').trim() !== '' && Number.isFinite(widthPx) && widthPx > 0;
+        });
+    const width = hasConfiguredWidths ? contentWidth : Math.max(wrapperWidth || 0, contentWidth);
     if (!Number.isFinite(width) || width <= 0) return;
 
     if (Number.isFinite(wrapperWidth) && wrapperWidth > 0) {
@@ -787,9 +1353,15 @@ function syncScrollHeadWidth(table) {
     }
 
     headInner.style.width = `${width}px`;
+    headInner.style.minWidth = `${width}px`;
     headInner.style.maxWidth = 'none';
     headInner.style.paddingRight = '0px';
     headTable.style.width = `${width}px`;
+    headTable.style.minWidth = `${width}px`;
+    headTable.style.tableLayout = 'fixed';
+    bodyTable.style.width = `${width}px`;
+    bodyTable.style.minWidth = `${width}px`;
+    bodyTable.style.tableLayout = 'fixed';
 }
 
 function findScrollParent(node) {
@@ -836,6 +1408,7 @@ export function refreshDataTableLayout(table, options = {}) {
                 updateStickyHeaderOffset(table);
                 table.columns.adjust();
                 syncScrollHeadWidth(table);
+                applyConfiguredColumnWidths(table, table.__dtTableSettings?.tableColumns || [], table.__dtTableSettings?.context || null);
             } catch (err) {
                 console.error('[data-table] refreshDataTableLayout failed:', err);
             }
@@ -1113,7 +1686,204 @@ function bindSelectionColumn(table, tableSelector, selectedIds, rowIdField, isRo
     };
 }
 
+function inferTableSettingsPageKey(rawPageKey = '') {
+    const explicit = String(rawPageKey || '').trim();
+    if (explicit !== '') {
+        return explicit;
+    }
+
+    const pathname = String(window.location?.pathname || '')
+        .trim()
+        .replace(/^\/+|\/+$/g, '')
+        .replace(/\//g, '.');
+
+    return pathname || 'datatable';
+}
+
+function inferTableSettingsTableKey(rawTableKey = '', searchTableId = null, tableSelector = '') {
+    const explicit = String(rawTableKey || '').trim();
+    if (explicit !== '') {
+        return explicit;
+    }
+
+    const fromSearchTableId = String(searchTableId || '').trim();
+    if (fromSearchTableId !== '') {
+        return fromSearchTableId;
+    }
+
+    return String(tableSelector || '')
+        .trim()
+        .replace(/^#/, '')
+        .replace(/[^a-zA-Z0-9._-]+/g, '-')
+        || 'table';
+}
+
+function normalizeTableSettingsConfig(tableSettings, {
+    tableSelector = '',
+    searchTableId = null,
+    columns = [],
+    pageLength = null,
+} = {}) {
+    if (tableSettings?.enabled === false) {
+        return {
+            ...(tableSettings && typeof tableSettings === 'object' ? tableSettings : {}),
+            enabled: false,
+        };
+    }
+
+    const baseConfig = (tableSettings && typeof tableSettings === 'object') ? tableSettings : {};
+    const pageKey = inferTableSettingsPageKey(baseConfig.pageKey);
+    const tableKey = inferTableSettingsTableKey(baseConfig.tableKey, searchTableId, tableSelector);
+    const storageKey = String(baseConfig.storageKey || `${pageKey}.${tableKey}.v1`).trim();
+
+    return {
+        ...baseConfig,
+        enabled: true,
+        pageKey,
+        tableKey,
+        storageKey,
+        tableLabel: String(baseConfig.tableLabel || tableKey || 'Table').trim(),
+        title: String(baseConfig.title || 'Table Settings').trim(),
+        columns: Array.isArray(baseConfig.columns) ? baseConfig.columns : columns,
+        pageLength: Number(baseConfig.pageLength || pageLength) || null,
+        requiredColumns: Array.isArray(baseConfig.requiredColumns) ? baseConfig.requiredColumns : [],
+        defaultVisibleColumns: Array.isArray(baseConfig.defaultVisibleColumns) ? baseConfig.defaultVisibleColumns : [],
+    };
+}
+
+function bindTableSettingsTooltip(table) {
+    const trigger = table?.table?.().container?.()?.querySelector?.('.dt-table-settings-trigger');
+    if (!trigger) {
+        return;
+    }
+
+    trigger.setAttribute('title', '테이블 설정');
+    trigger.setAttribute('data-bs-toggle', 'tooltip');
+    trigger.setAttribute('data-bs-placement', 'bottom');
+    trigger.setAttribute('aria-label', '테이블 설정');
+
+    if (window.bootstrap?.Tooltip) {
+        window.bootstrap.Tooltip.getOrCreateInstance(trigger, {
+            container: 'body',
+            placement: 'bottom',
+            trigger: 'hover focus',
+        });
+    }
+}
+
+function isCellTextTruncated(cell) {
+    if (!(cell instanceof HTMLElement)) {
+        return false;
+    }
+
+    return Math.ceil(cell.scrollWidth) > Math.ceil(cell.clientWidth + 1);
+}
+
+function resolveCellTooltipText(cell) {
+    if (!(cell instanceof HTMLElement)) {
+        return '';
+    }
+
+    return String(cell.textContent || '').replace(/\s+/g, ' ').trim();
+}
+
+function disposeCellTooltip(cell) {
+    if (!(cell instanceof HTMLElement) || !window.bootstrap?.Tooltip) {
+        return;
+    }
+
+    const instance = window.bootstrap.Tooltip.getInstance(cell);
+    instance?.dispose();
+    cell.removeAttribute('data-bs-toggle');
+    cell.removeAttribute('data-bs-placement');
+    cell.removeAttribute('data-bs-trigger');
+    cell.removeAttribute('data-bs-original-title');
+    cell.removeAttribute('title');
+    cell.removeAttribute('aria-label');
+}
+
+function bindTruncatedCellTooltips(table, tableSelector) {
+    const wrapper = table?.table?.().container?.();
+    if (!wrapper || wrapper.dataset.dtCellTooltipBound === 'true') {
+        return;
+    }
+
+    wrapper.dataset.dtCellTooltipBound = 'true';
+    const tbody = wrapper.querySelector('tbody');
+    if (!tbody) {
+        return;
+    }
+
+    const showTooltip = (event) => {
+        const cell = event.target.closest('td');
+        if (!cell || !tbody.contains(cell)) {
+            return;
+        }
+
+        if (cell.querySelector('input, select, textarea, button, a, .dropdown-menu')) {
+            disposeCellTooltip(cell);
+            return;
+        }
+
+        const text = resolveCellTooltipText(cell);
+        if (text === '' || !isCellTextTruncated(cell)) {
+            disposeCellTooltip(cell);
+            return;
+        }
+
+        if (!window.bootstrap?.Tooltip) {
+            return;
+        }
+
+        cell.setAttribute('title', text);
+        cell.setAttribute('aria-label', text);
+        cell.setAttribute('data-bs-toggle', 'tooltip');
+        cell.setAttribute('data-bs-placement', 'top');
+        cell.setAttribute('data-bs-trigger', 'manual');
+
+        const tooltip = window.bootstrap.Tooltip.getOrCreateInstance(cell, {
+            container: 'body',
+            placement: 'top',
+            trigger: 'manual',
+        });
+        tooltip.show();
+    };
+
+    const hideTooltip = (event) => {
+        const cell = event.target.closest('td');
+        if (!cell) {
+            return;
+        }
+        disposeCellTooltip(cell);
+    };
+
+    tbody.addEventListener('mouseover', showTooltip, true);
+    tbody.addEventListener('focusin', showTooltip, true);
+    tbody.addEventListener('mouseout', hideTooltip, true);
+    tbody.addEventListener('focusout', hideTooltip, true);
+}
+
+function positionTableSettingsTrigger(table) {
+    const container = table?.table?.().container?.();
+    const trigger = container?.querySelector?.('.dt-table-settings-trigger');
+    const toolbar = container?.querySelector?.('.dt-top');
+    const lengthNode = toolbar?.querySelector?.('.dataTables_length');
+    if (!trigger || !toolbar || !lengthNode) {
+        return;
+    }
+
+    if (trigger.parentElement?.classList?.contains('dt-buttons')) {
+        const buttonsWrap = trigger.parentElement;
+        if (buttonsWrap.childElementCount <= 1) {
+            buttonsWrap.remove();
+        }
+    }
+
+    toolbar.appendChild(trigger);
+}
+
 export function createDataTable(config) {
+    const hasExplicitAutoWidth = Object.prototype.hasOwnProperty.call(config || {}, 'autoWidth');
     const {
         tableSelector,
         api,
@@ -1134,10 +1904,11 @@ export function createDataTable(config) {
         paging = true,
         searching = true,
         info = true,
-        showColumnVisibility = true,
+        showColumnVisibility = false,
         showCopyButton = true,
         selectable = true,
         selectionColumnIndex = 0,
+        selectionColumn = null,
         isRowSelectable = () => true,
         rowIdField = 'id',
         deleteButton = true,
@@ -1145,7 +1916,12 @@ export function createDataTable(config) {
         bulkDelete = false,
         interaction = false,
         pageLoading = true,
+        tableSettings = null,
+        widthScopeSelector = null,
+        fixedLayout = false,
     } = config;
+    const isClientTableDiagnostic = tableSelector === '#client-table'
+        || api === '/api/settings/base-info/client/list';
 
     const $ = window.jQuery;
     const normalizedPageLength = PAGE_LENGTH_MENU.includes(Number(pageLength))
@@ -1155,9 +1931,30 @@ export function createDataTable(config) {
     const sourceColumns = Array.isArray(columns) ? columns : [];
     const shouldAddSelectionColumn = selectable !== false && !hasSelectionColumn(sourceColumns);
     const selectionInsertIndex = Math.max(0, Math.min(Number(selectionColumnIndex) || 0, sourceColumns.length));
-    const tableColumns = normalizeUtilityColumns(shouldAddSelectionColumn
-        ? insertColumnAt(sourceColumns, createSelectionColumn(tableSelector, selectedIds, rowIdField, isRowSelectable), selectionInsertIndex)
-        : sourceColumns);
+    const resolvedSelectionColumn = (selectionColumn && typeof selectionColumn === 'object') ? selectionColumn : {};
+    const sourceColumnsWithSelection = shouldAddSelectionColumn
+        ? insertColumnAt(sourceColumns, createSelectionColumn(tableSelector, selectedIds, rowIdField, isRowSelectable, resolvedSelectionColumn), selectionInsertIndex)
+        : sourceColumns;
+    const resolvedTableSettings = normalizeTableSettingsConfig(tableSettings, {
+        tableSelector,
+        searchTableId,
+        columns: sourceColumnsWithSelection,
+        pageLength: normalizedPageLength,
+    });
+    const preparedTableSettings = prepareDataTableSettingsColumns(sourceColumnsWithSelection, resolvedTableSettings);
+    const savedPageLength = Number(preparedTableSettings.context?.state?.pageLength);
+    const resolvedColumns = preparedTableSettings.columns || sourceColumnsWithSelection;
+    const resolvedAutoWidth = hasExplicitAutoWidth
+        ? autoWidth
+        : (resolvedTableSettings?.enabled ? false : autoWidth);
+    const tableColumns = normalizeUtilityColumns(resolvedColumns);
+    if (preparedTableSettings.context) {
+        preparedTableSettings.context.tableColumns = tableColumns.map((column) => ({ ...column }));
+    }
+    const resolvedInitialOrder = buildOrderFromSortSettings(preparedTableSettings.context?.state?.sortSettings || [], tableColumns);
+    const resolvedInitialPageLength = PAGE_LENGTH_MENU.includes(savedPageLength)
+        ? savedPageLength
+        : normalizedPageLength;
     ensureTableHeader(tableSelector, tableColumns);
     const initialLoadingHandle = createPageLoadingHandle({
         enabled: pageLoading !== false,
@@ -1165,6 +1962,13 @@ export function createDataTable(config) {
         message: '\uB370\uC774\uD130\uB97C \uBD88\uB7EC\uC624\uB294 \uC911\uC785\uB2C8\uB2E4...',
     });
     const releasePageLoading = () => initialLoadingHandle.release();
+    const refreshTableSettingsLayout = ({ draw = false } = {}) => {
+        scheduleAdjust(table, {
+            draw,
+            tableColumns,
+            settingsContext: preparedTableSettings.context,
+        });
+    };
     const dataTableConfig = {
         ...(api ? {
             ajax: {
@@ -1185,10 +1989,21 @@ export function createDataTable(config) {
             dataSrc: function (json) {
                 if (typeof dataSrc === 'function') {
                     const rows = dataSrc(json);
+                    if (isClientTableDiagnostic) {
+                        console.log('[CLIENT] response', json);
+                        console.log('[CLIENT] count', json?.data?.length);
+                        console.log('[CLIENT] rows', rows?.length);
+                    }
                     return Array.isArray(rows) ? rows : [];
                 }
 
-                return json.data ?? [];
+                const rows = json.data ?? [];
+                if (isClientTableDiagnostic) {
+                    console.log('[CLIENT] response', json);
+                    console.log('[CLIENT] count', json?.data?.length);
+                    console.log('[CLIENT] rows', rows?.length);
+                }
+                return rows;
             }
             },
         } : {
@@ -1196,8 +2011,10 @@ export function createDataTable(config) {
         }),
 
         columns: tableColumns,
-        order: shiftOrderForSelection(defaultOrder, shouldAddSelectionColumn, selectionInsertIndex),
-        pageLength: normalizedPageLength,
+        order: resolvedInitialOrder.length > 0
+            ? resolvedInitialOrder
+            : shiftOrderForSelection(defaultOrder, shouldAddSelectionColumn, selectionInsertIndex),
+        pageLength: resolvedInitialPageLength,
         lengthMenu: PAGE_LENGTH_MENU,
 
         rowReorder: rowReorder ? {
@@ -1209,7 +2026,7 @@ export function createDataTable(config) {
         scrollCollapse: true,
 
         responsive,
-        autoWidth,
+        autoWidth: resolvedAutoWidth,
         deferRender: true,
         paging,
         searching,
@@ -1229,6 +2046,14 @@ export function createDataTable(config) {
                     return isColumnVisibleInColvis(tableColumns, index, node);
                 }
             }]),
+            ...(resolvedTableSettings?.enabled ? [{
+                text: '<i class="bi bi-gear"></i>',
+                className: 'dt-table-settings-trigger',
+                titleAttr: '\uD14C\uC774\uBE14 \uC124\uC815',
+                action: function () {
+                    table?.__dtTableSettings?.open?.();
+                },
+            }] : []),
             ...(selectable === false ? [] : [{
                 text: '\u2191',
                 titleAttr: '\uC120\uD0DD\uD55C \uD589 \uC704\uB85C \uC774\uB3D9',
@@ -1345,17 +2170,35 @@ export function createDataTable(config) {
 
         initComplete: function () {
             const api = this.api();
+            const wrapper = api.table?.().container?.();
+            if (wrapper && typeof widthScopeSelector === 'string' && widthScopeSelector.trim() !== '') {
+                wrapper.dataset.dtWidthScopeSelector = widthScopeSelector.trim();
+            }
+            if (wrapper) {
+                wrapper.classList.toggle('dt-fixed-layout', fixedLayout === true);
+            }
 
             applyColumnHeaderClasses(api, tableColumns);
             updateStickyHeaderOffset(api);
             api.columns.adjust();
             syncScrollHeadWidth(api);
+            syncRenderedColumnWidths(api, tableColumns, preparedTableSettings.context);
+            syncScrollHeadWidth(api);
+            renderColumnResizeHandles(api, tableColumns);
+            scheduleApplyConfiguredColumnWidths(api, tableColumns, preparedTableSettings.context, 0);
             dataTableModuleLoadingHandle.release();
             releasePageLoading();
         }
     };
 
     const table = $(tableSelector).DataTable(dataTableConfig);
+    const wrapper = table.table?.().container?.();
+    if (wrapper && typeof widthScopeSelector === 'string' && widthScopeSelector.trim() !== '') {
+        wrapper.dataset.dtWidthScopeSelector = widthScopeSelector.trim();
+    }
+    if (wrapper) {
+        wrapper.classList.toggle('dt-fixed-layout', fixedLayout === true);
+    }
     __dtInstances.add(table);
     table.on('destroy.dt', () => {
         __dtInstances.delete(table);
@@ -1367,6 +2210,11 @@ export function createDataTable(config) {
     bindStickyHeaderOffsetUpdates(table);
     updateStickyHeaderOffset(table);
     syncScrollHeadWidth(table);
+    syncRenderedColumnWidths(table, tableColumns, preparedTableSettings.context);
+    syncScrollHeadWidth(table);
+    renderColumnResizeHandles(table, tableColumns);
+    bindColumnResize(table, tableColumns, preparedTableSettings.context);
+    scheduleApplyConfiguredColumnWidths(table, tableColumns, preparedTableSettings.context, 0);
 
     tableColumns.forEach((column, index) => {
         if (column?.visible === false) {
@@ -1374,7 +2222,11 @@ export function createDataTable(config) {
         }
     });
     if (tableColumns.some((column) => column?.visible === false)) {
-        table.columns.adjust().draw(false);
+        scheduleAdjust(table, {
+            draw: true,
+            tableColumns,
+            settingsContext: preparedTableSettings.context,
+        });
     }
 
     if (density) {
@@ -1384,6 +2236,10 @@ export function createDataTable(config) {
     table.on('xhr.dt draw.dt', function () {
         updateStickyHeaderOffset(table);
         syncScrollHeadWidth(table);
+        syncRenderedColumnWidths(table, tableColumns, preparedTableSettings.context);
+        syncScrollHeadWidth(table);
+        renderColumnResizeHandles(table, tableColumns);
+        applyConfiguredColumnWidths(table, tableColumns, preparedTableSettings.context);
         const info = table.page.info();
         const el = document.querySelector(`${tableSelector}_wrapper .dataTables_info`);
         if (el) {
@@ -1397,8 +2253,36 @@ export function createDataTable(config) {
     table.on('column-visibility.dt responsive-resize.dt', function () {
         updateStickyHeaderOffset(table);
         applyColumnHeaderClasses(table, tableColumns);
+        renderColumnResizeHandles(table, tableColumns);
         scheduleAdjust(table, {
-            draw: false
+            draw: false,
+            tableColumns,
+            settingsContext: preparedTableSettings.context,
+        });
+    });
+
+    table.on('length.dt', function (_event, _settings, nextLength) {
+        if (!preparedTableSettings.context) {
+            return;
+        }
+
+        const normalizedLength = Number(nextLength);
+        if (!PAGE_LENGTH_MENU.includes(normalizedLength)) {
+            return;
+        }
+
+        updateDataTableSettingsState(preparedTableSettings.context, {
+            pageLength: normalizedLength,
+        });
+    });
+
+    table.on('order.dt', function () {
+        if (!preparedTableSettings.context) {
+            return;
+        }
+
+        updateDataTableSettingsState(preparedTableSettings.context, {
+            sortSettings: extractSortSettingsFromTable(table, tableColumns),
         });
     });
 
@@ -1408,7 +2292,11 @@ export function createDataTable(config) {
         }
 
         updateStickyHeaderOffset(table);
-        scheduleAdjust(table, { draw: false });
+        scheduleAdjust(table, {
+            draw: false,
+            tableColumns,
+            settingsContext: preparedTableSettings.context,
+        });
     }, { passive: true });
 
     bindCellSearchFill(table, tableSelector, {
@@ -1454,6 +2342,16 @@ export function createDataTable(config) {
             table.__tableInteraction?.destroy();
         });
     }
+
+    attachDataTableSettings(table, preparedTableSettings.context);
+    if (table.__dtTableSettings) {
+        table.__dtTableSettings.refreshLayout = (options = {}) => refreshTableSettingsLayout(options);
+        table.__dtTableSettings.tableColumns = tableColumns;
+        table.__dtTableSettings.context = preparedTableSettings.context;
+    }
+    positionTableSettingsTrigger(table);
+    bindTableSettingsTooltip(table);
+    bindTruncatedCellTooltips(table, tableSelector);
 
     return table;
 }

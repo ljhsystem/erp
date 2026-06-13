@@ -1,9 +1,7 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Services/Auth/TokenService.php'
 namespace App\Services\Auth;
 
 use PDO;
-//use Exception;
 use Core\Helpers\ConfigHelper;
 use Core\LoggerFactory;
 
@@ -11,30 +9,27 @@ class TokenService
 {
     private readonly PDO $pdo;
     private string $secret;
-    private int $defaultExpire = 3600; // 기본 1시간
+    private int $defaultExpire = 3600;
     private $logger;
 
     public function __construct(PDO $pdo, ?string $secret = null)
     {
         $this->pdo    = $pdo;
         $this->logger = LoggerFactory::getLogger('service-auth.TokenService');
-    
-        $this->secret = $secret 
+
+        $this->secret = $secret
             ?? ConfigHelper::get('app.secret');
-    
+
         if (empty($this->secret)) {
             $this->logger->error('TokenService 초기화 실패 - secret 없음');
             throw new \RuntimeException('TokenService: secret이 설정되지 않았습니다.');
         }
-    
+
         $this->defaultExpire = ConfigHelper::get('auth.token_expire', 3600);
-    
+
         $this->logger->info('TokenService 초기화 완료');
     }
 
-    /* ============================================================
-     * 1) JWT 생성
-     * ============================================================ */
     public function create(array $payload, int $expireSeconds = null): string
     {
         $header  = ['alg' => 'HS256', 'typ' => 'JWT'];
@@ -60,9 +55,6 @@ class TokenService
         return $token;
     }
 
-    /* ============================================================
-     * 2) JWT 검증
-     * ============================================================ */
     public function verify(string $token): ?array
     {
         $shortId = substr(hash('sha256', $token), 0, 16);
@@ -75,7 +67,6 @@ class TokenService
 
         [$headerB64, $payloadB64, $signatureB64] = $parts;
 
-        // 1️⃣ base64 strict decode
         $headerJson  = base64_decode(strtr($headerB64, '-_', '+/'), true);
         $payloadJson = base64_decode(strtr($payloadB64, '-_', '+/'), true);
         $signature   = base64_decode(strtr($signatureB64, '-_', '+/'), true);
@@ -85,7 +76,6 @@ class TokenService
             return null;
         }
 
-        // 2️⃣ JSON decode
         $header  = json_decode($headerJson, true);
         $payload = json_decode($payloadJson, true);
 
@@ -94,18 +84,15 @@ class TokenService
             return null;
         }
 
-        // 3️⃣ alg 체크
         if (($header['alg'] ?? null) !== 'HS256') {
             $this->logger->warning('토큰 검증 실패 - alg 불일치', compact('shortId'));
             return null;
         }
 
-        // 4️⃣ payload 최소 검증
         if (!isset($payload['exp'])) {
             return null;
         }
 
-        // 5️⃣ 만료 체크
         if ($payload['exp'] < time()) {
             $this->logger->info('토큰 만료', [
                 'exp' => $payload['exp'],
@@ -114,7 +101,6 @@ class TokenService
             return null;
         }
 
-        // 6️⃣ 서명 검증
         $expected = hash_hmac('sha256', $headerB64 . '.' . $payloadB64, $this->secret, true);
 
         if (!hash_equals($expected, $signature)) {
@@ -127,9 +113,6 @@ class TokenService
         return $payload;
     }
 
-    /* ============================================================
-     * 3) 이메일 인증 / 비밀번호 재설정 등의 단기 토큰
-     * ============================================================ */
     public function createShortToken(array $payload): string
     {
         $this->logger->info('단기 토큰 생성 요청', [
@@ -138,14 +121,6 @@ class TokenService
         return $this->create($payload, 10 * 60); // 10분
     }
 
-    /* ============================================================
-     * ⚠ 자동로그인(Remember-Me) 기능은 완전히 제거됨
-     * - createLongToken() 삭제
-     * ============================================================ */
-
-    /* ============================================================
-     * 4) 임의 문자열 생성기 (비밀번호 찾기 등)
-     * ============================================================ */
     public function randomString(int $length = 32): string
     {
         $str = bin2hex(random_bytes($length / 2));

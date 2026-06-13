@@ -171,6 +171,7 @@ class ChartAccountModel
     {
         $values = $this->filterExistingAccountColumns([
             'id' => $data['id'],
+            'sort_no' => $data['sort_no'] ?? null,
             'account_code' => $data['account_code'],
             'account_name' => $data['account_name'],
             'parent_id' => $data['parent_id'] ?? null,

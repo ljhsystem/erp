@@ -72,7 +72,11 @@ class Router
                     $permission['key'],
                     $permission['name'] ?? null,
                     $permission['description'] ?? null,
-                    $permission['category'] ?? null
+                    $permission['category'] ?? null,
+                    $permission['page'] ?? null,
+                    $permission['page_description'] ?? null,
+                    $permission['permission_name'] ?? null,
+                    $permission['permission_description'] ?? null
                 );
             }
 
@@ -167,11 +171,21 @@ class Router
     public static function currentBreadcrumbMeta(): array
     {
         $meta = self::currentRouteMeta();
+        $category = trim((string) ($meta['category'] ?? ''));
+        $page = trim((string) ($meta['page'] ?? ''));
+        $name = trim((string) ($meta['name'] ?? ''));
+        $permissionName = trim((string) ($meta['permission_name'] ?? ''));
+        $description = trim((string) ($meta['description'] ?? ''));
+
+        if ($description === '' && $category !== '' && $page !== '') {
+            $description = $category . ' > ' . $page;
+        }
 
         return [
-            'category' => trim((string) ($meta['category'] ?? '')),
+            'category' => $category,
+            'description' => $description,
             'group' => trim((string) ($meta['group'] ?? '')),
-            'name' => trim((string) ($meta['name'] ?? '')),
+            'name' => $page !== '' ? $page : ($name !== '' ? $name : $permissionName),
         ];
     }
 

@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Services/Auth/AccountLockService.php'
 namespace App\Services\Auth;
 
 use PDO;
@@ -20,16 +19,12 @@ class AccountLockService
         $this->logger = LoggerFactory::getLogger('service-auth.AccountLockService');
     }
 
-    /* ============================================================
-     * 1) 로그인 실패 증가 & 잠금 여부 체크
-     * ============================================================ */
     public function handleLoginFail(string $userId): void
     {
         $this->logger->info('handleLoginFail 호출', [
             'user_id' => $userId
         ]);
 
-        // 🔐 정책 ON/OFF
         $policyEnabled = (int) ConfigHelper::system('security_login_fail_policy_enabled', 0);
         if ($policyEnabled !== 1) {
             return;
@@ -56,26 +51,16 @@ class AccountLockService
         }
     }
 
-
-    /* ============================================================
-     * 2) 실패 횟수 조회
-     * ============================================================ */
     public function getFailCount(string $userId): int
     {
         return $this->authUserModel->getFailCount($userId);
     }
 
-    /* ============================================================
-     * 3) 계정 잠금
-     * ============================================================ */
     public function lockAccount(string $userId, int $minutes): bool
     {
         return $this->authUserModel->lockAccount($userId, $minutes);
     }
 
-    /* ============================================================
-     * 4) 계정 잠금 해제
-     * ============================================================ */
     public function unlockAccount(string $userId): bool
     {
         $this->logger->info('unlockAccount 호출', [

@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/views/auth/loginfind_passwordphp.php'
+// 경로: PROJECT_ROOT . '/app/views/auth/find_password.php'
 use Core\Helpers\AssetHelper;
 ?>
 <!DOCTYPE html>
@@ -16,8 +16,8 @@ use Core\Helpers\AssetHelper;
 <body>
   <div class="login-wrapper">
     <div class="login-box">
-      <h3 class="text-center fw-bold mb-3">🔑 비밀번호 찾기</h3>
-      <form method="post" action="/find-password-result">
+      <h3 class="text-center fw-bold mb-3">비밀번호 찾기</h3>
+      <form method="post" action="/find-password/result">
         <div class="mb-3">
           <input type="text" name="username" class="form-control" placeholder="아이디" required>
         </div>

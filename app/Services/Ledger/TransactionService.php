@@ -86,13 +86,13 @@ class TransactionService
             ];
 
             if (!$this->transactionModel->insert($transactionPayload)) {
-                throw new \RuntimeException('?耀붾굝梨루땟?????????????뗫떔????????⑤슣??????????????');
+                throw new \RuntimeException('거래 저장에 실패했습니다.');
             }
 
             foreach ($items as $index => $item) {
                 $itemName = trim((string) ($item['item_name'] ?? ''));
                 if ($itemName === '') {
-                    throw new \InvalidArgumentException(($index + 1) . '???????轅몄뫅?????젺????傭?????????????????????????????곸죩.');
+                    throw new \InvalidArgumentException(($index + 1) . '번째 거래 항목명을 입력해주세요.');
                 }
 
                 $itemPayload = [
@@ -123,7 +123,7 @@ class TransactionService
                 ];
 
                 if (!$this->transactionItemModel->insert($itemPayload)) {
-                    throw new \RuntimeException(($index + 1) . '???耀붾굝梨루땟???????????????????뗫떔????????⑤슣??????????????');
+                    throw new \RuntimeException(($index + 1) . '번째 거래 항목 저장에 실패했습니다.');
                 }
             }
 
@@ -173,7 +173,7 @@ class TransactionService
             if (!$transaction) {
                 return [
                     'success' => false,
-                    'message' => '?꿸쑨????亦껋꺀?좉괴??꿔깴??????????????',
+                    'message' => '거래 내역을 찾을 수 없습니다.',
                 ];
             }
 
@@ -204,7 +204,7 @@ class TransactionService
             if (!$this->transactionModel->update($transactionId, $updateData)) {
                 return [
                     'success' => false,
-                    'message' => '?꿸쑨??????꿔꺂????????????臾롫뜦??????곌숯??????????딅젩.',
+                    'message' => '거래 매칭 정보를 저장하지 못했습니다.',
                 ];
             }
 
@@ -235,14 +235,14 @@ class TransactionService
             if (!$transaction) {
                 return [
                     'success' => false,
-                    'message' => '?轅몄뫅????雅?퍔爰?醫됯눼??轅붽틓?????????????욱룏???????낆젵.',
+                    'message' => '거래 문서를 찾을 수 없습니다.',
                 ];
             }
 
             if (!in_array($docStatus, $allowed, true)) {
                 return [
                     'success' => false,
-                    'message' => '???濚밸Ŧ援앾㎘??? ??? ?轅붽틓?節됰쑏???몡??????釉먮빱???????뽯쨦??',
+                    'message' => '허용되지 않은 문서 상태입니다.',
                 ];
             }
 
@@ -255,7 +255,7 @@ class TransactionService
             if (!$updated) {
                 return [
                     'success' => false,
-                    'message' => '?꿔꺂?ｉ뜮?뚮쑏?????揶????⑤슢堉??嚥▲굧????????????????????',
+                    'message' => '문서 상태를 변경하지 못했습니다.',
                 ];
             }
 
@@ -285,7 +285,7 @@ class TransactionService
             if ($this->resolveOperationStage() !== self::STAGE_OPERATIONAL) {
                 return [
                     'success' => false,
-                    'message' => '????????????影?쀫븸??꿸쑨?????????? ????????꾩룆?????????????????????',
+                    'message' => '운영 단계에서만 거래 내역으로 전표를 생성할 수 있습니다.',
                 ];
             }
 
@@ -293,14 +293,14 @@ class TransactionService
             if (!$transaction) {
                 return [
                     'success' => false,
-                    'message' => '?轅몄뫅????雅?퍔爰?醫됯눼??轅붽틓?????????????욱룏???????낆젵.',
+                    'message' => '거래 문서를 찾을 수 없습니다.',
                 ];
             }
 
             if (($transaction['match_status'] ?? '') !== 'matched') {
                 return [
                     'success' => false,
-                    'message' => '?轅붽틓????????????밸븶??????釉먮빱????轅몄뫅????雅???????袁ｋ쨨??????袁⑸즴?????????????????낆젵.',
+                    'message' => '거래 문서가 매칭되지 않아 전표를 생성할 수 없습니다.',
                 ];
             }
 
@@ -308,7 +308,7 @@ class TransactionService
             if ($existingLinks !== []) {
                 return [
                     'success' => false,
-                    'message' => '???? ????????????븍갭夷?? ????⑥ろ맖 ???? ???꾩룆???????????욱룏???????낆젵.',
+                    'message' => '이미 연결된 전표가 있어 새 전표를 생성할 수 없습니다.',
                 ];
             }
 
@@ -319,7 +319,7 @@ class TransactionService
             if ($matchPayload === null) {
                 return [
                     'success' => false,
-                    'message' => '????袁ｋ쨨?????袁⑸즴?????????밸븶????轅붽틓?????????꿔꺂??????쒐춯誘↔데鸚????쎛 ?????욱룏???????낆젵.',
+                    'message' => '매칭된 전표 정보가 없어 전표를 생성할 수 없습니다.',
                 ];
             }
 
@@ -338,7 +338,7 @@ class TransactionService
                 'source_type' => 'TRANSACTION',
                 'source_id' => $transaction['id'] ?? null,
                 'status' => 'posted',
-                'summary_text' => $matchPayload['summary_text'] ?? $transaction['description'] ?? '嫄곕옒 ?꾪몴',
+                'summary_text' => $matchPayload['summary_text'] ?? $transaction['description'] ?? '거래 전표',
                 'note' => $matchPayload['note'] ?? $transaction['note'] ?? null,
                 'memo' => $matchPayload['memo'] ?? null,
                 'created_at' => $timestamp,
@@ -348,7 +348,7 @@ class TransactionService
             ];
 
             if (!$this->voucherModel->insert($voucherPayload)) {
-                throw new \RuntimeException('????袁ｋ쨨??????獄쏅챷? ??????얜∥???????怨뚯댅???????????낆젵.');
+                throw new \RuntimeException('전표 저장에 실패했습니다.');
             }
 
             foreach ($lines as $index => $line) {
@@ -369,7 +369,7 @@ class TransactionService
                 ];
 
                 if (!$this->voucherLineModel->insert($linePayload)) {
-                    throw new \RuntimeException(($index + 1) . '踰덉㎏ ?꾪몴?쇱씤 ??μ뿉 ?ㅽ뙣?덉뒿?덈떎.');
+                    throw new \RuntimeException(($index + 1) . '번째 전표 라인 저장에 실패했습니다.');
                 }
 
                 $this->voucherLineRefModel->bulkInsert($lineId, $line['refs'], $actor, $timestamp);
@@ -388,17 +388,17 @@ class TransactionService
                 ];
 
                 if (!$this->voucherPaymentModel->insert($paymentPayload)) {
-                    throw new \RuntimeException('??????嚥▲굧??????轅명땽????????얜∥???????怨뚯댅???????????낆젵.');
+                    throw new \RuntimeException('지급 정보 저장에 실패했습니다.');
                 }
             }
 
             try {
                 if (!$this->transactionLinkModel->insertOrRestore($transactionId, $voucherId, null, 'MANUAL', $actor)) {
-                    throw new \RuntimeException('?轅몄뫅?????????袁ｋ쨨???????곕츣????????얜∥???????怨뚯댅???????????낆젵.');
+                    throw new \RuntimeException('거래와 전표 연결 저장에 실패했습니다.');
                 }
             } catch (PDOException $e) {
                 if (($e->getCode() ?? '') === '23000') {
-                    throw new \RuntimeException('??? ??⑤슡???濾곌쑨????熬곥굥??????', 0, $e);
+                    throw new \RuntimeException('이미 연결된 거래-전표 관계입니다.', 0, $e);
                 }
                 throw $e;
             }
@@ -409,7 +409,7 @@ class TransactionService
                 'updated_at' => $timestamp,
                 'updated_by' => $actor,
             ])) {
-                throw new \RuntimeException('?꿸쑨????????揶????⑤슢堉??嚥▲굧????????????????????');
+                throw new \RuntimeException('거래 상태를 변경하지 못했습니다.');
             }
 
             $this->pdo->commit();
@@ -443,7 +443,7 @@ class TransactionService
         $totalAmount = (float) ($data['total_amount'] ?? 0);
 
         if (abs($supplyAmount) <= 0 && abs($vatAmount) <= 0 && abs($totalAmount) <= 0) {
-            throw new \InvalidArgumentException('?耀붾굝梨루땟????????雅?굛肄???????????????源낆┰?????????곸죩.');
+            throw new \InvalidArgumentException('거래 금액을 입력해주세요.');
         }
     }
 
@@ -576,10 +576,10 @@ class TransactionService
     {
         $raw = trim((string) ($value ?? ''));
         $mapped = match ($raw) {
-            '품목' => 'ITEM',
+            '항목' => 'ITEM',
             '부가세', '부가가치세' => 'VAT',
             '봉사료', '서비스료', '용역수수료' => 'SERVICE',
-            '원천세', '원천징수', '소득세', '지방세' => 'WITHHOLDING',
+            '원천세', '원천징수', '기타세', '지방세' => 'WITHHOLDING',
             'WITHHOLDING_INCOME', 'WITHHOLDING_LOCAL' => 'WITHHOLDING',
             default => $raw,
         };
@@ -612,7 +612,7 @@ class TransactionService
     private function normalizeMatchedLines(array $lines): array
     {
         if (!is_array($lines) || $lines === []) {
-            throw new \InvalidArgumentException('?????ш내?℡ㅇ?????關?쒎첎?嫄?????饔낅떽????????癒?븸亦껋꼦??怨덊닧??????쎛 ??????源낆┰?????????곸죩.');
+            throw new \InvalidArgumentException('매칭할 전표 라인을 하나 이상 입력해주세요.');
         }
 
         $normalized = [];
@@ -628,17 +628,17 @@ class TransactionService
             $summary = trim((string) ($line['line_summary'] ?? ''));
 
             if ($accountId === '') {
-                throw new \InvalidArgumentException(($index + 1) . '?????μ떜媛?걫????account_id?????ル뒌?? ??????源낆┰?????????곸죩.');
+                throw new \InvalidArgumentException(($index + 1) . '번째 라인의 account_id를 입력해주세요.');
             }
 
-            $this->assertExists('ledger_accounts', $accountId, '?좏깮??怨꾩젙怨쇰ぉ??李얠쓣 ???놁뒿?덈떎.');
+            $this->assertExists('ledger_accounts', $accountId, '선택한 계정과목을 찾을 수 없습니다.');
 
             if ($refType === '' && $refId !== '') {
-                throw new \InvalidArgumentException('蹂댁“怨꾩젙 ?좏삎(ref_type)???꾩슂?⑸땲??');
+                throw new \InvalidArgumentException('보조계정 유형(ref_type)이 필요합니다.');
             }
 
             if ($refType !== '' && $refId === '') {
-                throw new \InvalidArgumentException('蹂댁“怨꾩젙 ???ref_id)???꾩슂?⑸땲??');
+                throw new \InvalidArgumentException('보조계정 대상(ref_id)이 필요합니다.');
             }
 
             if ($refType !== '') {
@@ -646,11 +646,11 @@ class TransactionService
             }
 
             if ($debit <= 0 && $credit <= 0) {
-                throw new \InvalidArgumentException(($index + 1) . '?????關?쒎첎?嫄???????雅?굛肄???????????????源낆┰?????????곸죩.');
+                throw new \InvalidArgumentException(($index + 1) . '번째 라인의 차변 또는 대변 금액을 입력해주세요.');
             }
 
             if ($debit > 0 && $credit > 0) {
-                throw new \InvalidArgumentException(($index + 1) . '?????μ떜媛?걫???? ?饔낅떽??癰귥옕???節뗪텤????????????곕츥?????????????????????쇨덫櫻??????????源낆┰?????????곸죩.');
+                throw new \InvalidArgumentException(($index + 1) . '번째 라인은 차변과 대변 금액을 동시에 입력할 수 없습니다.');
             }
 
             $normalized[] = [
@@ -667,7 +667,7 @@ class TransactionService
         }
 
         if (round($debitSum, 2) !== round($creditSum, 2)) {
-            throw new \InvalidArgumentException('?耀붾굝????곌램?????? ????筌??? ???????? ????筌??汝???? ???μ떜媛?걫??類㏃춹??? ?????????????곸죩.');
+            throw new \InvalidArgumentException('차변 합계와 대변 합계가 일치해야 합니다.');
         }
 
         return $normalized;
@@ -687,7 +687,7 @@ class TransactionService
             $amount = (float) ($payment['amount'] ?? 0);
 
             if ($paymentType === '' || $paymentId === '' || $amount <= 0) {
-                throw new \InvalidArgumentException(($index + 1) . '????汝뷴젆?琉??????饔낅떽????????癒?븸亦껋꼦??怨덊닧??????쎛 ??????? ?????????????곸죩.');
+                throw new \InvalidArgumentException(($index + 1) . '번째 지급 정보의 필수값을 입력해주세요.');
             }
 
             $normalized[] = [
@@ -710,7 +710,7 @@ class TransactionService
     private function normalizeMatchedVoucherLines(array $lines): array
     {
         if ($lines === []) {
-            throw new \InvalidArgumentException('?꾪몴 遺꾧컻?쇱씤??1嫄??댁긽 ?낅젰?댁＜?몄슂.');
+            throw new \InvalidArgumentException('전표 라인을 1건 이상 입력해야 합니다.');
         }
 
         $normalized = [];
@@ -725,21 +725,21 @@ class TransactionService
             $summary = trim((string) ($line['line_summary'] ?? ''));
 
             if ($accountId === '') {
-                throw new \InvalidArgumentException(($index + 1) . '踰덉㎏ ?쇱씤??account_id媛 ?꾩슂?⑸땲??');
+                throw new \InvalidArgumentException(($index + 1) . '번째 라인의 account_id가 필요합니다.');
             }
 
-            $this->assertExists('ledger_accounts', $accountId, '?좏깮??怨꾩젙怨쇰ぉ??李얠쓣 ???놁뒿?덈떎.');
+            $this->assertExists('ledger_accounts', $accountId, '선택한 계정과목을 찾을 수 없습니다.');
 
             foreach ($refs as $ref) {
                 $this->validateRefTarget($ref['ref_type'], $ref['ref_id']);
             }
 
             if ($debit <= 0 && $credit <= 0) {
-                throw new \InvalidArgumentException(($index + 1) . '踰덉㎏ ?쇱씤? 李⑤? ?먮뒗 ?蹂 湲덉븸???꾩슂?⑸땲??');
+                throw new \InvalidArgumentException(($index + 1) . '번째 라인은 차변 또는 대변 금액이 필요합니다.');
             }
 
             if ($debit > 0 && $credit > 0) {
-                throw new \InvalidArgumentException(($index + 1) . '踰덉㎏ ?쇱씤? 李⑤? ?먮뒗 ?蹂 以??섎굹留??낅젰?????덉뒿?덈떎.');
+                throw new \InvalidArgumentException(($index + 1) . '번째 라인은 차변과 대변 금액을 동시에 입력할 수 없습니다.');
             }
 
             $normalized[] = [
@@ -755,7 +755,7 @@ class TransactionService
         }
 
         if (round($debitSum, 2) !== round($creditSum, 2)) {
-            throw new \InvalidArgumentException('李⑤? ?⑷퀎? ?蹂 ?⑷퀎媛 ?쇱튂?댁빞 ?⑸땲??');
+            throw new \InvalidArgumentException('차변 합계와 대변 합계가 일치해야 합니다.');
         }
 
         return $normalized;
@@ -784,11 +784,11 @@ class TransactionService
             }
 
             if ($refType === '' || $refId === '') {
-                throw new \InvalidArgumentException('蹂댁“怨꾩젙? ref_type/ref_id瑜??④퍡 ?꾨떖?댁빞 ?⑸땲??');
+                throw new \InvalidArgumentException('보조계정 ref_type/ref_id를 모두 입력해야 합니다.');
             }
 
             if (isset($seenTypes[$refType])) {
-                throw new \InvalidArgumentException('媛숈? 蹂댁“怨꾩젙 ?좏삎? ???쇱씤??以묐났 ??ν븷 ???놁뒿?덈떎.');
+                throw new \InvalidArgumentException('같은 보조계정 유형은 한 라인에서 중복 지정할 수 없습니다.');
             }
 
             $seenTypes[$refType] = true;
@@ -837,17 +837,17 @@ class TransactionService
             'PAYMENT' => 'ledger_voucher_payments',
             'CONTRACT' => null,
             'ORDER' => null,
-            default => throw new \InvalidArgumentException('吏?먰븯吏 ?딅뒗 李몄“ ?좏삎?낅땲??'),
+            default => throw new \InvalidArgumentException('지원하지 않는 참조 유형입니다.'),
         };
 
         if ($table === null) {
             if ($refId === '') {
-                throw new \InvalidArgumentException('李몄“ ID媛 ?꾩슂?⑸땲??');
+                throw new \InvalidArgumentException('참조 ID가 필요합니다.');
             }
             return;
         }
 
-        $this->assertExists($table, $refId, '?좏깮??李몄“ ??곸쓣 李얠쓣 ???놁뒿?덈떎.');
+        $this->assertExists($table, $refId, '선택한 참조 대상을 찾을 수 없습니다.');
     }
 
     private function assertExists(string $table, string $id, string $message): void

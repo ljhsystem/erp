@@ -1,20 +1,53 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Services/System/BankAccountService.php'
 
 namespace App\Services\System;
 
 use PDO;
 use App\Models\System\BankAccountModel;
 use App\Services\File\FileService;
+use Core\Helpers\SequenceHelper;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\ActorHelper;
 use Core\LoggerFactory;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class BankAccountService
 {
+    private const COLUMN_DEFINITIONS = [
+        ['key' => 'sort_no', 'label' => '순번', 'required' => false, 'template_default' => false, 'download_default' => true, 'allow_upload' => false],
+        ['key' => 'account_name', 'label' => '계좌명', 'required' => true, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
+        ['key' => 'bank_name', 'label' => '은행명', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
+        ['key' => 'account_number', 'label' => '계좌번호', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
+        ['key' => 'account_holder', 'label' => '예금주', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
+        ['key' => 'account_type', 'label' => '계좌유형', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
+        ['key' => 'currency', 'label' => '통화', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
+        ['key' => 'bank_file', 'label' => '통장사본', 'required' => false, 'template_default' => false, 'download_default' => true, 'allow_upload' => false],
+        ['key' => 'note', 'label' => '비고', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
+        ['key' => 'memo', 'label' => '메모', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
+        ['key' => 'is_active', 'label' => '상태', 'required' => false, 'template_default' => true, 'download_default' => true, 'allow_upload' => true],
+        ['key' => 'created_at', 'label' => '등록일시', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => false],
+        ['key' => 'created_by_name', 'label' => '등록자', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => false],
+        ['key' => 'updated_at', 'label' => '수정일시', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => false],
+        ['key' => 'updated_by_name', 'label' => '수정자', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => false],
+        ['key' => 'deleted_at', 'label' => '삭제일시', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => false],
+        ['key' => 'deleted_by_name', 'label' => '삭제자', 'required' => false, 'template_default' => false, 'download_default' => false, 'allow_upload' => false],
+    ];
+
+    private const SAMPLE_ROW = [
+        'account_name' => '운영계좌',
+        'bank_name' => '기업은행',
+        'account_number' => '123-456-789012',
+        'account_holder' => '숙향',
+        'account_type' => '보통예금',
+        'currency' => 'KRW',
+        'note' => '주거래 계좌',
+        'memo' => '샘플 메모',
+        'is_active' => '사용',
+    ];
+
     private PDO $pdo;
     private BankAccountModel $model;
     private FileService $fileService;
@@ -29,9 +62,7 @@ class BankAccountService
 
         $this->logger->info('BankAccountService initialized');
     }
-    /* ============================================================
-    * 계좌 목록 조회
-    * ============================================================ */
+
     public function getList(array $filters = []): array
     {
         $this->logger->info('getList() called', [
@@ -59,9 +90,6 @@ class BankAccountService
         }
     }
 
-    /* ============================================================
-    * ???????????????嫄???????????????????????????????(id ???????)
-    * ============================================================ */
     public function getById(string $id): ?array
     {
         $this->logger->info('getById() called', ['id' => $id]);
@@ -88,9 +116,6 @@ class BankAccountService
         }
     }
 
-    /* =========================================================
-    * 계좌 검색 피커 데이터 반환
-    * ========================================================= */
     public function searchPicker(string $keyword): array
     {
         $this->logger->info('searchPicker() called', [
@@ -111,17 +136,14 @@ class BankAccountService
 
                 $text = $row['account_name'] ?? '';
 
-                // ????????????????????????????????ㅻ깹????
                 if (!empty($row['bank_name'])) {
                     $text = $row['bank_name'] . ' / ' . $text;
                 }
 
-                // ???????????????????????????????????????????거????????????????????????ㅻ깹????
                 if (!empty($row['account_number'])) {
                     $text .= ' (' . $row['account_number'] . ')';
                 }
 
-                // ????????????????????????????ㅻ깹????
                 if (!empty($row['account_holder'])) {
                     $text .= ' - ' . $row['account_holder'];
                 }
@@ -149,9 +171,6 @@ class BankAccountService
         }
     }
 
-    /* =========================================================
-    * 계좌 저장 (생성/수정 + 통장사본 파일 처리)
-    * ========================================================= */
     public function save(array $data, string $actorType = 'USER', array $files = []): array
     {
         $actor = ActorHelper::resolve($actorType);
@@ -233,7 +252,7 @@ class BankAccountService
             }
 
             $newId = UuidHelper::generate();
-            $newSortNo = null;
+            $newSortNo = SequenceHelper::next('system_bank_accounts', 'sort_no');
 
             $insertData = array_merge($data, [
                 'id' => $newId,
@@ -295,9 +314,6 @@ class BankAccountService
         };
     }
 
-    /* =========================================================
-    * 계좌 삭제
-    * ========================================================= */
     public function delete(string $id, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
@@ -322,9 +338,6 @@ class BankAccountService
         }
     }
 
-    /* =========================================================
-    * 계좌 휴지통 목록
-    * ========================================================= */
     public function getTrashList(): array
     {
         $this->logger->info('getTrashList() called');
@@ -340,9 +353,6 @@ class BankAccountService
         }
     }
 
-    /* =========================================================
-    * 계좌 복원
-    * ========================================================= */
     public function restore(string $id, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
@@ -367,12 +377,6 @@ class BankAccountService
         }
     }
 
-    /* =========================================================
-    * ??????????????????????????ㅻ깹???????釉먮폁?????????
-    * ========================================================= */
-    /* =========================================================
-    * 선택 복원 처리
-    * ========================================================= */
     public function restoreBulk(array $ids, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
@@ -417,9 +421,6 @@ class BankAccountService
         }
     }
 
-    /* =========================================================
-    * 선택 영구삭제 처리
-    * ========================================================= */
     public function restoreAll(string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
@@ -459,12 +460,7 @@ class BankAccountService
             ];
         }
     }
-    /* =========================================================
-    * ?????????
-    * ========================================================= */
-    /* =========================================================
-    * ?????????
-    * ========================================================= */
+
     public function purge(string $id, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
@@ -513,9 +509,7 @@ class BankAccountService
             ];
         }
     }
-    /* =========================================================
-    * ???ャ뀕???????????
-    * ========================================================= */
+
     public function purgeBulk(array $ids, string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
@@ -569,9 +563,6 @@ class BankAccountService
         }
     }
 
-    /* =========================================================
-    * 순번 변경 처리 (RowReorder)
-    * ========================================================= */
     public function purgeAll(string $actorType = 'USER'): array
     {
         $actor = ActorHelper::resolve($actorType);
@@ -615,9 +606,7 @@ class BankAccountService
             ];
         }
     }
-    /* ============================================================
-    * ?⑤????戮?맋 ?곌떠???(RowReorder)
-    * ============================================================ */
+
     public function reorder(array $changes): bool
     {
         $this->logger->info('reorder() called', [
@@ -668,11 +657,15 @@ class BankAccountService
         }
     }
 
-    /* ============================================================
-    * Bank account template download
-    * ============================================================ */
-    public function downloadTemplate(): void
+    public function downloadTemplate(?string $columnsCsv = null): void
     {
+        $columns = $this->resolveColumns('template', $columnsCsv);
+        $headers = $this->buildHeaders($columns);
+        $rows = [$this->buildTemplateSampleRow($columns)];
+
+        $this->writeSpreadsheet($headers, $rows, '계좌 업로드', 'bank_account_template.xlsx');
+        return;
+
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('계좌 업로드');
@@ -689,8 +682,46 @@ class BankAccountService
         exit;
     }
 
-    public function saveFromExcelFile(string $filePath): array
+    public function saveFromExcelFile(string $filePath, ?string $columnsCsv = null): array
     {
+        $columns = $this->resolveColumns('template', $columnsCsv);
+        $spreadsheet = IOFactory::load($filePath);
+        $rows = $spreadsheet->getActiveSheet()->toArray(null, false, false, false);
+
+        if (empty($rows) || count($rows) < 2) {
+            return ['success' => false, 'message' => '업로드할 데이터가 없습니다.'];
+        }
+
+        $headerRow = array_map(fn($value) => trim((string) $value), array_shift($rows));
+        $headerMap = $this->buildHeaderIndexMap($headerRow, $columns);
+        $missingRequired = $this->findMissingRequiredColumns($columns, $headerMap);
+
+        if ($missingRequired !== []) {
+            return [
+                'success' => false,
+                'message' => '필수 컬럼이 누락되었습니다: ' . implode(', ', $missingRequired),
+            ];
+        }
+
+        $count = 0;
+        foreach ($rows as $row) {
+            if ($this->isBlankRow($row)) {
+                continue;
+            }
+
+            $payload = $this->buildUploadPayload($row, $headerMap, $columns);
+            if (($payload['account_name'] ?? '') === '') {
+                continue;
+            }
+
+            $result = $this->save($payload, 'SYSTEM');
+            if (!empty($result['success'])) {
+                $count++;
+            }
+        }
+
+        return ['success' => true, 'message' => "{$count}건 업로드되었습니다."];
+
         $spreadsheet = IOFactory::load($filePath);
         $rows = $spreadsheet->getActiveSheet()->toArray(null, false, false, false);
         if (empty($rows) || count($rows) < 2) { return ['success' => false, 'message' => '업로드할 데이터가 없습니다.']; }
@@ -717,9 +748,24 @@ class BankAccountService
         return ['success' => true, 'message' => "{$count}건 업로드되었습니다."];
     }
 
-    public function downloadExcel(): void
+    public function downloadExcel(?string $columnsCsv = null): void
     {
+        $columns = $this->resolveColumns('download', $columnsCsv);
         $accounts = $this->model->getList();
+        $rows = [];
+
+        foreach ($accounts as $account) {
+            $rows[] = $this->buildDownloadRow($account, $columns);
+        }
+
+        $this->writeSpreadsheet(
+            $this->buildHeaders($columns),
+            $rows,
+            '계좌 목록',
+            'bank_account_list.xlsx'
+        );
+        return;
+
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('계좌 목록');
@@ -738,8 +784,225 @@ class BankAccountService
         $spreadsheet->disconnectWorksheets();
         exit;
     }
+    private function resolveColumns(string $type, ?string $columnsCsv = null): array
+    {
+        $columnsByKey = [];
+        foreach (self::COLUMN_DEFINITIONS as $column) {
+            $columnsByKey[$column['key']] = $column;
+        }
+
+        $requestedKeys = $this->parseColumnsCsv($columnsCsv);
+        $selectedKeys = [];
+
+        if ($requestedKeys === []) {
+            foreach (self::COLUMN_DEFINITIONS as $column) {
+                if ($column['required'] || $column[$type . '_default']) {
+                    $selectedKeys[] = $column['key'];
+                }
+            }
+        } else {
+            foreach ($requestedKeys as $key) {
+                if (isset($columnsByKey[$key])) {
+                    $selectedKeys[] = $key;
+                }
+            }
+
+            foreach (self::COLUMN_DEFINITIONS as $column) {
+                if ($column['required'] && !in_array($column['key'], $selectedKeys, true)) {
+                    $selectedKeys[] = $column['key'];
+                }
+            }
+        }
+
+        if ($selectedKeys === []) {
+            return $this->resolveColumns($type, '');
+        }
+
+        $selectedColumns = [];
+        foreach ($selectedKeys as $key) {
+            $selectedColumns[] = $columnsByKey[$key];
+        }
+
+        return $this->decorateColumns($selectedColumns);
+    }
+
+    private function parseColumnsCsv(?string $columnsCsv): array
+    {
+        $resolved = trim((string) $columnsCsv);
+        if ($resolved === '') {
+            return [];
+        }
+
+        $keys = array_map('trim', explode(',', $resolved));
+        $keys = array_values(array_filter($keys, static fn($key) => $key !== ''));
+
+        return array_values(array_unique($keys));
+    }
+
+    private function decorateColumns(array $columns): array
+    {
+        return array_map(static function (array $column): array {
+            return $column + [
+                'header' => $column['label'],
+                'source_key' => $column['source_key'] ?? $column['key'],
+                'payload_key' => $column['payload_key'] ?? $column['key'],
+            ];
+        }, $columns);
+    }
+
+    private function buildHeaders(array $columns): array
+    {
+        return array_map(static fn(array $column): string => $column['header'], $columns);
+    }
+
+    private function buildTemplateSampleRow(array $columns): array
+    {
+        $row = [];
+
+        foreach ($columns as $column) {
+            $row[] = self::SAMPLE_ROW[$column['key']] ?? '';
+        }
+
+        return $row;
+    }
+
+    private function buildDownloadRow(array $record, array $columns): array
+    {
+        $row = [];
+
+        foreach ($columns as $column) {
+            $row[] = $this->exportCellValue($record, $column);
+        }
+
+        return $row;
+    }
+
+    private function exportCellValue(array $record, array $column): mixed
+    {
+        $sourceKey = $column['source_key'];
+        $value = $record[$sourceKey] ?? $record[$column['key']] ?? '';
+
+        if ($column['key'] === 'is_active') {
+            return !empty($value) ? '사용' : '미사용';
+        }
+
+        return $value;
+    }
+
+    private function buildHeaderIndexMap(array $headerRow, array $columns): array
+    {
+        $lookup = [];
+        foreach ($columns as $column) {
+            $lookup[$column['header']] = $column['key'];
+            $lookup[$column['label']] = $column['key'];
+            $lookup[$column['key']] = $column['key'];
+        }
+
+        $indexMap = [];
+        foreach ($headerRow as $index => $header) {
+            $trimmed = trim((string) $header);
+            if ($trimmed === '' || !isset($lookup[$trimmed])) {
+                continue;
+            }
+
+            $key = $lookup[$trimmed];
+            if (!array_key_exists($key, $indexMap)) {
+                $indexMap[$key] = $index;
+            }
+        }
+
+        return $indexMap;
+    }
+
+    private function findMissingRequiredColumns(array $columns, array $headerMap): array
+    {
+        $missing = [];
+
+        foreach ($columns as $column) {
+            if ($column['required'] && !array_key_exists($column['key'], $headerMap)) {
+                $missing[] = $column['label'];
+            }
+        }
+
+        return $missing;
+    }
+
+    private function buildUploadPayload(array $row, array $headerMap, array $columns): array
+    {
+        $payload = [];
+
+        foreach ($columns as $column) {
+            if (empty($column['allow_upload']) || !array_key_exists($column['key'], $headerMap)) {
+                continue;
+            }
+
+            $rawValue = $row[$headerMap[$column['key']]] ?? '';
+            $payloadKey = $column['payload_key'];
+
+            if ($payloadKey === 'is_active') {
+                $payload[$payloadKey] = $this->parseExcelActiveValue($rawValue);
+                continue;
+            }
+
+            if ($payloadKey === 'currency') {
+                $payload[$payloadKey] = trim((string) $rawValue) !== '' ? trim((string) $rawValue) : 'KRW';
+                continue;
+            }
+
+            $payload[$payloadKey] = trim((string) $rawValue);
+        }
+
+        if (($payload['currency'] ?? '') === '') {
+            $payload['currency'] = 'KRW';
+        }
+
+        if (!array_key_exists('is_active', $payload)) {
+            $payload['is_active'] = 1;
+        }
+
+        return $payload;
+    }
+
+    private function isBlankRow(array $row): bool
+    {
+        foreach ($row as $value) {
+            if (trim((string) $value) !== '') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function writeSpreadsheet(array $headers, array $rows, string $title, string $filename): void
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle($title);
+        $sheet->fromArray($headers, null, 'A1');
+
+        if ($rows !== []) {
+            $sheet->fromArray($rows, null, 'A2');
+        }
+
+        for ($index = 1; $index <= count($headers); $index++) {
+            $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($index))->setAutoSize(true);
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Cache-Control: max-age=0');
+        $writer->save('php://output');
+        $spreadsheet->disconnectWorksheets();
+        exit;
+    }
+
     private function parseExcelActiveValue(mixed $value): int
     {
+        $normalized = mb_strtolower(trim((string) $value), 'UTF-8');
+        return in_array($normalized, ['1', 'true', 'yes', 'use', 'active', 'y', '사용'], true) ? 1 : 0;
+
         $normalized = strtolower(trim((string)$value));
         return in_array($normalized, ['1', 'true', 'yes', 'use', 'active', 'y', '사용'], true) ? 1 : 0;
     }

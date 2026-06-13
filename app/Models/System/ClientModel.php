@@ -1,5 +1,4 @@
 <?php
-// 寃쎈줈: PROJECT_ROOT . '/app/Models/System/ClientModel.php'
 namespace App\Models\System;
 
 use PDO;
@@ -7,18 +6,13 @@ use Core\Database;
 
 class ClientModel
 {
-    // PDO 蹂닿?
     private PDO $db;
 
-    // ?앹꽦?????몃??먯꽌 PDO 주입 ?는 ?동 ?결
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
-    /* -------------------------------------------------------------
-     * 嫄곕옒泥??체 紐⑸줉
-     * ------------------------------------------------------------- */
     public function getList(array $filters = []): array
     {
         $sql = "
@@ -60,40 +54,31 @@ class ClientModel
 
         $params = [];
 
-        /* =========================================================
-         * ? ?체 컬럼 留?(?꾨? ?ы븿)
-         * ========================================================= */
         $fieldMap = [
 
-            // 湲곕낯
             'sort_no'              => ['col'=>'c.sort_no','type'=>'exact'],
             'client_name'       => ['col'=>'c.client_name','type'=>'like'],
             'company_name'      => ['col'=>'c.company_name','type'=>'like'],
 
-            // ?ъ뾽??
             'business_number'   => ['col'=>'c.business_number','type'=>'like'],
             'rrn'               => ['col'=>'c.rrn','type'=>'like'],
             'business_type'     => ['col'=>'c.business_type','type'=>'like'],
             'business_category' => ['col'=>'c.business_category','type'=>'like'],
             'business_status'   => ['col'=>'c.business_status','type'=>'like'],
 
-            // ?몃Ъ
             'ceo_name'          => ['col'=>'c.ceo_name','type'=>'like'],
             'ceo_phone'         => ['col'=>'c.ceo_phone','type'=>'like'],
             'manager_name'      => ['col'=>'c.manager_name','type'=>'like'],
             'manager_phone'     => ['col'=>'c.manager_phone','type'=>'like'],
 
-            // ?곕씫泥?
             'phone'             => ['col'=>'c.phone','type'=>'like'],
             'fax'               => ['col'=>'c.fax','type'=>'like'],
             'email'             => ['col'=>'c.email','type'=>'like'],
             'homepage'          => ['col'=>'c.homepage','type'=>'like'],
 
-            // 二쇱냼
             'address'           => ['col'=>'c.address','type'=>'like'],
             'address_detail'    => ['col'=>'c.address_detail','type'=>'like'],
 
-            // 遺꾨쪟
             'client_type'       => ['col'=>'c.client_type','type'=>'like'],
             'client_category'   => ['col'=>'c.client_category','type'=>'like'],
             'trade_category'    => ['col'=>'c.trade_category','type'=>'like'],
@@ -102,23 +87,18 @@ class ClientModel
             'payment_term'      => ['col'=>'c.payment_term','type'=>'like'],
             'item_category'     => ['col'=>'c.item_category','type'=>'like'],
 
-            // 계좌
             'bank_name'         => ['col'=>'c.bank_name','type'=>'like'],
             'account_number'    => ['col'=>'c.account_number','type'=>'like'],
             'account_holder'    => ['col'=>'c.account_holder','type'=>'like'],
 
-            // ?뚯씪
             'bank_file'         => ['col'=>'c.bank_file','type'=>'like'],
             'business_certificate' => ['col'=>'c.business_certificate','type'=>'like'],
 
-            // 湲고?
             'note'              => ['col'=>'c.note','type'=>'like'],
             'memo'              => ['col'=>'c.memo','type'=>'like'],
 
-            // ?곹깭
             'is_active'         => ['col'=>'c.is_active','type'=>'exact'],
 
-            // ?좎쭨
             'registration_date' => ['col'=>'c.registration_date','type'=>'date'],
             'created_at'        => ['col'=>'c.created_at','type'=>'date'],
             'updated_at'        => ['col'=>'c.updated_at','type'=>'date'],
@@ -126,9 +106,6 @@ class ClientModel
 
         $globalSearch = [];
 
-        /* =========================================================
-         * ?뵦 ?꾪꽣 泥섎━
-         * ========================================================= */
         foreach ($filters as $f) {
 
             $field = $f['field'] ?? '';
@@ -136,7 +113,6 @@ class ClientModel
 
             if ($value === '' || $value === null) continue;
 
-            // ? ?체??
             if ($field === '') {
                 $globalSearch[] = $value;
                 continue;
@@ -147,7 +123,6 @@ class ClientModel
             $col  = $fieldMap[$field]['col'];
             $type = $fieldMap[$field]['type'];
 
-            // ?좎쭨
             if ($type === 'date') {
 
                 if (is_array($value)) {
@@ -161,14 +136,12 @@ class ClientModel
                 continue;
             }
 
-            // LIKE
             if ($type === 'like') {
                 $sql .= " AND $col LIKE ?";
                 $params[] = "%{$value}%";
                 continue;
             }
 
-            // EXACT
             if ($type === 'exact') {
                 $sql .= " AND $col = ?";
                 $params[] = $value;
@@ -176,9 +149,6 @@ class ClientModel
             }
         }
 
-        /* =========================================================
-         * ? ?체??(紐⑤뱺 ?띿뒪??而щ읆)
-         * ========================================================= */
         if (!empty($globalSearch)) {
 
             $searchCols = [
@@ -233,10 +203,6 @@ class ClientModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-
-    /* -------------------------------------------------------------
-     * 嫄곕옒泥??⑥씪 議고쉶 (sort_no 湲곗?)
-     * ------------------------------------------------------------- */
     public function getById(string $id): ?array
     {
         $stmt = $this->db->prepare("
@@ -320,10 +286,6 @@ class ClientModel
         return $id !== false ? (string)$id : null;
     }
 
-
-/* =========================================================
- * 嫄곕옒泥?寃??(Model - RAW ?곗씠?곕쭔 諛섑솚)
- * ========================================================= */
 public function searchPicker(string $keyword = '', int $limit = 20, array $options = []): array
 {
     $limit = max(1, min(100, (int)$limit));
@@ -404,10 +366,6 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
     return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
-
-    /* -------------------------------------------------------------
-     * 嫄곕옒泥??앹꽦
-     * ------------------------------------------------------------- */
     public function create(array $data): bool
     {
         $sql = "
@@ -509,9 +467,6 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
         ]);
     }
 
-    /* -------------------------------------------------------------
-     * 嫄곕옒泥??섏젙 (id 湲곗?)
-     * ------------------------------------------------------------- */
     public function updateById(string $id, array $data): bool
     {
         $sql = "
@@ -668,6 +623,22 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    public function deleteCompanyNameHistory(string $historyId): bool
+    {
+        if (!$this->clientNameHistoryTableExists()) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("
+            DELETE FROM system_client_name_history
+            WHERE id = :id
+            LIMIT 1
+        ");
+        $stmt->execute(['id' => $historyId]);
+
+        return $stmt->rowCount() > 0;
+    }
+
     private function clientNameHistoryTableExists(): bool
     {
         static $exists = null;
@@ -688,9 +659,6 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
         return $exists;
     }
 
-    /* -------------------------------------------------------------
-    * 嫄곕옒泥???젣 (id 湲곗?)
-    * ------------------------------------------------------------- */
     public function deleteById(string $id, string $actor): bool
     {
         $sql = "
@@ -714,10 +682,6 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
         return $stmt->rowCount() > 0;
     }
 
-
-    /* -------------------------------------------------------------
-    * 嫄곕옒泥??댁???紐⑸줉
-    * ------------------------------------------------------------- */
     public function getDeleted(): array
     {
         $stmt = $this->db->prepare("
@@ -765,9 +729,6 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /* -------------------------------------------------------------
-    * 嫄곕옒泥?蹂듭썝 (id 湲곗?)
-    * ------------------------------------------------------------- */
     public function restoreById(string $id, string $actor): bool
     {
         $sql = "
@@ -788,9 +749,6 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
         ]);
     }
 
-    /* -------------------------------------------------------------
-    * 嫄곕옒泥??곴뎄??젣
-    * ------------------------------------------------------------- */
     public function hardDeleteById(string $id): bool
     {
         $stmt = $this->db->prepare("
@@ -803,13 +761,6 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
         ]);
     }
 
-
-
-
-
-    /* -------------------------------------------------------------
-    * ID 湲곗? sort_no ?섏젙
-    * ------------------------------------------------------------- */
     public function updateSortNo(string $id, string $newSortNo): bool
     {
         $sql = "UPDATE system_clients SET sort_no = :newSortNo WHERE id = :id";

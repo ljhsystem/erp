@@ -115,6 +115,10 @@ class TransactionController
                 $filters = $_GET;
             }
 
+            if (!empty($filters['status'])) {
+                $filters['status'] = strtolower(trim((string) $filters['status']));
+            }
+
             return [
                 'success' => true,
                 'data' => $this->service->getList($filters),
@@ -892,14 +896,15 @@ class TransactionController
             ));
         }
 
-        if ($this->tableExists('ledger_data_evidence_links')) {
+        if ($this->tableExists('ledger_evidence_links')) {
             $stmt = $this->pdo->prepare("
                 SELECT e.id
-                FROM ledger_data_evidence_links l
+                FROM ledger_evidence_links l
                 INNER JOIN ledger_data_evidences e
                     ON e.id = l.evidence_id
                    AND e.deleted_at IS NULL
-                WHERE l.transaction_id = :transaction_id
+                WHERE l.target_type = 'TRANSACTION'
+                  AND l.target_id = :transaction_id
                   AND l.deleted_at IS NULL
             ");
             $stmt->execute([':transaction_id' => $transactionId]);
@@ -919,15 +924,17 @@ class TransactionController
 
     private function linkVoucherToEvidence(string $evidenceId, string $transactionId, string $voucherId, string $actor): void
     {
-        if ($evidenceId === '' || $voucherId === '' || !$this->tableExists('ledger_data_evidence_links')) {
+        if ($evidenceId === '' || $voucherId === '' || !$this->tableExists('ledger_evidence_links')) {
             return;
         }
 
         $existing = $this->pdo->prepare("
             SELECT id
-            FROM ledger_data_evidence_links
+            FROM ledger_evidence_links
             WHERE evidence_id = :evidence_id
-              AND voucher_id = :voucher_id
+              AND target_type = 'VOUCHER'
+              AND target_id = :voucher_id
+              AND link_type = 'AUTO'
               AND deleted_at IS NULL
             LIMIT 1
         ");
@@ -940,19 +947,19 @@ class TransactionController
         }
 
         $stmt = $this->pdo->prepare("
-            INSERT INTO ledger_data_evidence_links
-                (id, sort_no, evidence_id, transaction_id, voucher_id, link_type, match_amount, is_primary, created_at, created_by, updated_at, updated_by)
-            VALUES
-                (:id, :sort_no, :evidence_id, :transaction_id, :voucher_id, 'AUTO', 0, 1, NOW(), :created_by, NOW(), :updated_by)
+            INSERT INTO ledger_evidence_links
+                (id, evidence_type, evidence_id, target_type, target_id, link_type, amount, created_at, updated_at)
+            SELECT
+                :id, e.source_type, e.id, 'VOUCHER', :voucher_id, 'AUTO', 0, NOW(), NOW()
+            FROM ledger_data_evidences e
+            WHERE e.id = :evidence_id
+              AND e.deleted_at IS NULL
+            LIMIT 1
         ");
         $stmt->execute([
             ':id' => UuidHelper::generate(),
-            ':sort_no' => SequenceHelper::next('ledger_data_evidence_links', 'sort_no'),
             ':evidence_id' => $evidenceId,
-            ':transaction_id' => $transactionId !== '' ? $transactionId : null,
             ':voucher_id' => $voucherId,
-            ':created_by' => $actor,
-            ':updated_by' => $actor,
         ]);
     }
 

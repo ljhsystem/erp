@@ -2,6 +2,7 @@
 
 namespace App\Services\Ledger;
 
+use Core\Helpers\SequenceHelper;
 use Core\Helpers\UuidHelper;
 use PDO;
 
@@ -389,7 +390,7 @@ class JournalLearningService
         ];
         $params = [
             ':id' => UuidHelper::generate(),
-            ':sort_no' => $this->nextJournalRuleSortNo(),
+            ':sort_no' => SequenceHelper::next('ledger_journal_rules', 'sort_no'),
             ':rule_code' => $ruleCode,
             ':rule_name' => '시스템 학습 분개규칙',
             ':business_unit' => $context['business_unit'],
@@ -427,12 +428,6 @@ class JournalLearningService
             VALUES (" . implode(', ', $values) . ")
         ");
         $stmt->execute($params);
-    }
-
-    private function nextJournalRuleSortNo(): int
-    {
-        $stmt = $this->pdo->query("SELECT COALESCE(MAX(sort_no), 0) + 1 FROM ledger_journal_rules");
-        return (int) ($stmt->fetchColumn() ?: 1);
     }
 
     private function maybeUpdateClientDefaultAccount(string $clientId): void

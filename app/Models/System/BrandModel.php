@@ -1,6 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT/app/Models/System/BrandModel.php
-
 namespace App\Models\System;
 
 use PDO;
@@ -8,30 +6,27 @@ use Core\Database;
 
 class BrandModel
 {
-    // PDO 보관
+
     private PDO $db;
 
-    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
-    /* =========================================================
-     * 모든 자산 타입 조회
-     * ========================================================= */
+
     public function getList(array $filters = []): array
     {
         $sql = "
             SELECT
                 b.*,
 
-                CASE 
+                CASE
                     WHEN b.created_by LIKE 'SYSTEM:%' THEN b.created_by
                     WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
                     ELSE b.created_by
                 END AS created_by_name,
 
-                CASE 
+                CASE
                     WHEN b.updated_by LIKE 'SYSTEM:%' THEN b.updated_by
                     WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
                     ELSE b.updated_by
@@ -70,22 +65,19 @@ class BrandModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    /* =========================================================
-     * 단건 조회 (ID 기준)
-     * ========================================================= */
     public function getById(string $id): ?array
     {
         $stmt = $this->db->prepare("
             SELECT
                 b.*,
 
-                CASE 
+                CASE
                     WHEN b.created_by LIKE 'SYSTEM:%' THEN b.created_by
                     WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
                     ELSE b.created_by
                 END AS created_by_name,
 
-                CASE 
+                CASE
                     WHEN b.updated_by LIKE 'SYSTEM:%' THEN b.updated_by
                     WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
                     ELSE b.updated_by
@@ -104,18 +96,14 @@ class BrandModel
             WHERE b.id = :id
             LIMIT 1
         ");
-    
+
         $stmt->execute([
             ':id' => $id
         ]);
-    
+
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
-
-  /* =========================================================
-     * 활성 브랜드 자산 조회 (타입별 1건)
-     * ========================================================= */
     public function getActiveByType(string $assetType): ?array
     {
         $stmt = $this->db->prepare("
@@ -126,7 +114,7 @@ class BrandModel
             ORDER BY created_at DESC
             LIMIT 1
         ");
-    
+
         $stmt->execute([
             ':asset_type' => $assetType
         ]);
@@ -159,13 +147,6 @@ class BrandModel
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
-
-
-
-
-    /* =========================================================
-     * 신규 브랜드 자산 등록
-     * ========================================================= */
     public function create(array $data): bool
     {
         $sql = "
@@ -202,17 +183,7 @@ class BrandModel
             ':created_by' => $data['created_by'],
         ]);
     }
-  
 
-
-
-
-
-
-
-    /* =========================================================
-     * 자산 삭제 (DB만)
-     * ========================================================= */
     public function hardDeleteById(string $id): bool
     {
         $stmt = $this->db->prepare("
@@ -252,7 +223,7 @@ class BrandModel
             WHERE asset_type = :asset_type
               AND is_active = 1
         ");
-    
+
         return $stmt->execute([
             ':asset_type' => $assetType,
             ':updated_by' => $userId

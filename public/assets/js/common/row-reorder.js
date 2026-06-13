@@ -112,15 +112,16 @@ function bindSelectedRowMove(options = {}) {
     };
     tableNode.__dtSelectedMoveState = state;
 
-    const buildChanges = (rows = [], beforeKeys = null) => rows.map((rowData, index) => {
+    const buildChanges = (rows = [], beforeKeys = null, offset = 0) => rows.map((rowData, index) => {
         if (changedRowsOnly && Array.isArray(beforeKeys) && beforeKeys[index] === selectedMoveKey(rowData, selectionIdField)) {
             return null;
         }
 
+        const sortNo = offset + index + 1;
         const item = {
             id: selectedMoveKey(rowData, idField),
-            [sortNoField]: index + 1,
-            newSortNo: index + 1
+            [sortNoField]: sortNo,
+            newSortNo: sortNo
         };
 
         if (extraData) {
@@ -136,10 +137,11 @@ function bindSelectedRowMove(options = {}) {
             return;
         }
 
-        const changes = buildChanges(state.rows || [], state.beforeKeys || null);
+        const changes = buildChanges(state.rows || [], state.beforeKeys || null, state.offset || 0);
         if (!changes.length) {
             state.rows = null;
             state.beforeKeys = null;
+            state.offset = 0;
             return;
         }
 
@@ -155,6 +157,7 @@ function bindSelectedRowMove(options = {}) {
                 if (version === state.version) {
                     state.rows = null;
                     state.beforeKeys = null;
+                    state.offset = 0;
                     if (typeof onError === 'function') {
                         onError(json);
                     }
@@ -165,6 +168,7 @@ function bindSelectedRowMove(options = {}) {
             if (version === state.version) {
                 state.rows = null;
                 state.beforeKeys = null;
+                state.offset = 0;
                 if (typeof onSuccess === 'function') {
                     onSuccess(json);
                 }
@@ -173,6 +177,7 @@ function bindSelectedRowMove(options = {}) {
             if (version === state.version) {
                 state.rows = null;
                 state.beforeKeys = null;
+                state.offset = 0;
                 if (typeof onError === 'function') {
                     onError(error);
                 } else {
@@ -207,6 +212,10 @@ function bindSelectedRowMove(options = {}) {
             return;
         }
 
+        const pageInfo = typeof table?.page === 'function' ? table.page.info() : null;
+        const pageOffset = includeAppliedRows && pageInfo && Number.isFinite(Number(pageInfo.start))
+            ? Number(pageInfo.start)
+            : 0;
         const rows = (state.rows || selectedMoveRows(table, includeAppliedRows))
             .filter((rowData) => isReorderableRow(rowData));
         const beforeKeys = rows.map((row) => selectedMoveKey(row, selectionIdField));
@@ -231,12 +240,14 @@ function bindSelectedRowMove(options = {}) {
         }
 
         nextRows.forEach((rowData, index) => {
-            rowData[sortNoField] = index + 1;
-            rowData.sort_no = index + 1;
-            rowData.newSortNo = index + 1;
+            const sortNo = pageOffset + index + 1;
+            rowData[sortNoField] = sortNo;
+            rowData.sort_no = sortNo;
+            rowData.newSortNo = sortNo;
         });
         state.rows = nextRows;
         state.beforeKeys = beforeKeys;
+        state.offset = pageOffset;
         state.version++;
         applySelectedMoveView(table, nextRows, selectedKeys, selectionIdField, direction, includeAppliedRows);
         table.setSelectedIds?.(Array.from(selectedIds));
@@ -537,14 +548,22 @@ export function bindSortableRowReorder(options = {}) {
                     ? ($sortable.data('row-reorder-before-keys') || [])
                     : [];
                 const allRows = table.rows({ order: 'applied', search: 'applied' }).data().toArray();
+                const pageRowsOnly = pageStart > 0 && allRows.length === visibleRows.length;
+                const replacementStart = pageRowsOnly ? 0 : pageStart;
                 visibleRows.forEach(({ rowData }, index) => {
-                    allRows[pageStart + index] = rowData;
+                    allRows[replacementStart + index] = rowData;
                 });
 
-                allRows.filter((rowData) => isReorderableRow(rowData)).forEach((rowData, index) => {
+                allRows
+                    .map((rowData, index) => ({
+                        rowData,
+                        sortIndex: pageRowsOnly ? pageStart + index : index,
+                    }))
+                    .filter(({ rowData }) => isReorderableRow(rowData))
+                    .forEach(({ rowData, sortIndex }, index) => {
                     const mapped = typeof mapRow === 'function'
-                        ? mapRow({ row: null, rowData, index })
-                        : { id: rowData?.id, sort_no: index + 1 };
+                        ? mapRow({ row: null, rowData, index: sortIndex })
+                        : { id: rowData?.id, sort_no: sortIndex + 1 };
                     if (mapped?.id && (!changedRowsOnly || beforeKeys[index] !== String(mapped.id).trim())) {
                         rows.push(mapped);
                     }

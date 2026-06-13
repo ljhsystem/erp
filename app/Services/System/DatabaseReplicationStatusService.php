@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT/app/Services/System/DatabaseReplicationStatusService.php
 namespace App\Services\System;
 
 use PDO;
@@ -13,7 +12,7 @@ class DatabaseReplicationStatusService
 
     public function __construct(PDO $pdo)
     {
-        $this->pdo         = $pdo;        
+        $this->pdo         = $pdo;
         $configPath = PROJECT_ROOT . '/../secure-config/db_replication.php';
         if (!file_exists($configPath)) {
             throw new \RuntimeException('Replication DB config not found');
@@ -23,9 +22,6 @@ class DatabaseReplicationStatusService
         $this->secondary = $config['secondary'] ?? [];
     }
 
-    /**
-     * 전체 이중화 상태
-     */
     public function check(): array
     {
         return [
@@ -35,9 +31,6 @@ class DatabaseReplicationStatusService
         ];
     }
 
-    /**
-     * Primary DB 상태 체크
-     */
     private function checkPrimary(): array
     {
         try {
@@ -62,25 +55,17 @@ class DatabaseReplicationStatusService
         }
     }
 
-    /**
-     * Secondary DB (Replication) 상태 체크
-     */
     private function checkSecondary(): array
     {
         try {
             $pdo = $this->connect($this->secondary);
 
-            /**
-             * MySQL 8.0.22+ : SHOW REPLICA STATUS
-             * MySQL 5.x / MariaDB : SHOW SLAVE STATUS
-             */
             try {
                 $status = $pdo->query("SHOW REPLICA STATUS")->fetch(PDO::FETCH_ASSOC);
             } catch (Throwable $e) {
                 $status = $pdo->query("SHOW SLAVE STATUS")->fetch(PDO::FETCH_ASSOC);
             }
 
-            // ▶ Replication 미구성 (정상적인 STANDBY 상태)
             if (!$status) {
                 return [
                     'online'      => true,
@@ -89,7 +74,6 @@ class DatabaseReplicationStatusService
                 ];
             }
 
-            // ▶ Lag 값 보정 (NULL이면 null 유지)
             $lag = $status['Seconds_Behind_Master'] ?? null;
             $lag = is_numeric($lag) ? (int)$lag : null;
 
@@ -110,10 +94,6 @@ class DatabaseReplicationStatusService
         }
     }
 
-
-    /**
-     * 진단 전용 PDO 생성
-     */
     private function connect(array $cfg): PDO
     {
         foreach (['host','port','user','pass'] as $key) {
@@ -134,7 +114,7 @@ class DatabaseReplicationStatusService
             $cfg['pass'],
             [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_TIMEOUT => 2, // 상태 체크는 짧게
+                PDO::ATTR_TIMEOUT => 2,
             ]
         );
     }

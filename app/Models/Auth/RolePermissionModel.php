@@ -1,5 +1,5 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Models/Auth/AuthRolePermissionModel.php'
+
 namespace App\Models\Auth;
 
 use PDO;
@@ -7,23 +7,18 @@ use Core\Database;
 
 class RolePermissionModel
 {
-    // PDO 보관
     private PDO $db;
 
-    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
-    /* ===============================================================
-     * 1) 역할별 권한 전체 조회
-     * =============================================================== */
     public function getPermissionsForRole(string $roleId): array
     {
         try {
             $stmt = $this->db->prepare("
-                SELECT 
+                SELECT
                     arp.id AS mapping_id,
                     arp.sort_no AS mapping_sort_no,
                     arp.role_id AS mapping_role_id,
@@ -36,6 +31,7 @@ class RolePermissionModel
                     ap.permission_name,
                     ap.description,
                     ap.category,
+                    ap.page_key,
                     ap.is_active,
                     ap.created_at AS permission_created_at,
                     ap.created_by AS permission_created_by,
@@ -50,19 +46,16 @@ class RolePermissionModel
             $stmt->execute([$roleId]);
             return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        } catch (\Throwable $e) {            
+        } catch (\Throwable $e) {
             return [];
         }
     }
 
-    /* ===============================================================
-     * 2) 특정 권한을 가진 역할 조회
-     * =============================================================== */
     public function getRolesForPermission(string $permissionId): array
     {
         try {
             $stmt = $this->db->prepare("
-                SELECT 
+                SELECT
                     arp.id AS mapping_id,
                     arp.sort_no AS mapping_sort_no,
                     arp.role_id AS mapping_role_id,
@@ -81,14 +74,11 @@ class RolePermissionModel
             $stmt->execute([$permissionId]);
             return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        } catch (\Throwable $e) {            
+        } catch (\Throwable $e) {
             return [];
         }
     }
 
-    /* ===============================================================
-     * 3) 중복 여부 확인
-     * =============================================================== */
     public function exists(string $roleId, string $permissionId): bool
     {
         $stmt = $this->db->prepare("
@@ -101,9 +91,6 @@ class RolePermissionModel
         return (bool)$stmt->fetchColumn();
     }
 
-    /* ===============================================================
-     * 4) 역할에 권한 부여 (Service에서 UUID/Code 생성 완료)
-     * =============================================================== */
     public function insertMapping(array $data): bool
     {
         try {
@@ -125,14 +112,11 @@ class RolePermissionModel
                 ':created_by'   => $data['created_by'],
             ]);
 
-        } catch (\Throwable $e) {            
+        } catch (\Throwable $e) {
             return false;
         }
     }
 
-    /* ===============================================================
-     * 5) 특정 역할에서 권한 제거
-     * =============================================================== */
     public function remove(string $roleId, string $permissionId): bool
     {
         try {
@@ -142,14 +126,11 @@ class RolePermissionModel
             ");
             return $stmt->execute([$roleId, $permissionId]);
 
-        } catch (\Throwable $e) {            
+        } catch (\Throwable $e) {
             return false;
         }
     }
 
-    /* ===============================================================
-     * 6) 매핑 단건 삭제
-     * =============================================================== */
     public function delete(string $mappingId): bool
     {
         try {
@@ -159,14 +140,11 @@ class RolePermissionModel
             ");
             return $stmt->execute([$mappingId]);
 
-        } catch (\Throwable $e) {            
+        } catch (\Throwable $e) {
             return false;
         }
     }
 
-    /* ===============================================================
-     * 7) 특정 역할의 모든 권한 삭제
-     * =============================================================== */
     public function clearRole(string $roleId): bool
     {
         try {
@@ -175,14 +153,11 @@ class RolePermissionModel
             ");
             return $stmt->execute([$roleId]);
 
-        } catch (\Throwable $e) {           
+        } catch (\Throwable $e) {
             return false;
         }
     }
 
-    /* ===============================================================
-     * 8) 특정 권한을 가진 매핑 삭제
-     * =============================================================== */
     public function clearPermission(string $permissionId): bool
     {
         try {
@@ -191,14 +166,11 @@ class RolePermissionModel
             ");
             return $stmt->execute([$permissionId]);
 
-        } catch (\Throwable $e) {            
+        } catch (\Throwable $e) {
             return false;
         }
     }
 
-    /* ===============================================================
-     * 9) 역할이 특정 permission_key 를 가지고 있는지 확인
-     * =============================================================== */
     public function roleHasPermission(string $roleId, string $permissionKey): bool
     {
         $stmt = $this->db->prepare("

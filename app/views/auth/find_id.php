@@ -17,8 +17,8 @@ use Core\Helpers\AssetHelper;
 <body>
   <div class="login-wrapper">
     <div class="login-box">
-      <h3 class="text-center fw-bold mb-3">🔎 아이디 찾기</h3>
-      <form method="post" action="/find-id-result">
+      <h3 class="text-center fw-bold mb-3">아이디 찾기</h3>
+      <form method="post" action="/find-id/result">
         <div class="mb-3">
           <input type="text" name="name" class="form-control" placeholder="이름" required>
         </div>

@@ -38,22 +38,22 @@ class RegisterService
 
     public function register(array $data, array $files = []): array
     {
-        $username = trim((string)($data['username'] ?? ''));
-        $password = trim((string)($data['password'] ?? ''));
-        $confirm = trim((string)($data['confirm_password'] ?? ''));
-        $email = trim((string)($data['email'] ?? ''));
-        $name = trim((string)($data['employee_name'] ?? ''));
+        $username = trim((string) ($data['username'] ?? ''));
+        $password = trim((string) ($data['password'] ?? ''));
+        $confirm = trim((string) ($data['confirm_password'] ?? ''));
+        $email = trim((string) ($data['email'] ?? ''));
+        $name = trim((string) ($data['employee_name'] ?? ''));
 
         if ($username === '' || $password === '' || $confirm === '' || $email === '' || $name === '') {
-            return ['success' => false, 'message' => '紐⑤??⑤????젰??二쇱??'];
+            return ['success' => false, 'message' => '필수 항목을 모두 입력해주세요.'];
         }
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return ['success' => false, 'message' => '??李???類ㅻ뻼????而?몴?? ??녿뮸??덈뼄.'];
+            return ['success' => false, 'message' => '올바른 이메일 형식이 아닙니다.'];
         }
 
         if ($password !== $confirm) {
-            return ['success' => false, 'message' => '??쑬?甕곕뜇?뉐첎? ??깊뒄??? ??녿뮸??덈뼄.'];
+            return ['success' => false, 'message' => '비밀번호와 비밀번호 확인이 일치하지 않습니다.'];
         }
 
         $policyCheck = $this->validatePasswordPolicy($password);
@@ -79,7 +79,6 @@ class RegisterService
         }
 
         $userId = UuidHelper::generate();
-        $userCode = SequenceHelper::next('auth_users', 'sort_no');
         $passwordHash = password_hash($password, PASSWORD_BCRYPT);
 
         try {
@@ -87,7 +86,6 @@ class RegisterService
 
             $okUser = $this->usersModel->createUser([
                 'id'         => $userId,
-                'sort_no'    => $userCode,
                 'username'   => $username,
                 'password'   => $passwordHash,
                 'email'      => $email,
@@ -143,16 +141,16 @@ class RegisterService
                 'username' => $username,
                 'error'    => $e->getMessage(),
             ]);
-            $this->writeLog('???뜚揶쎛??녿뼄????됱뇚', $username, 0);
+            $this->writeLog('회원가입 처리 오류', $username, 0);
 
-            return ['success' => false, 'message' => '???媛??泥섎?????쪟媛 諛쒖??뒿??떎.'];
+            return ['success' => false, 'message' => '회원가입 중 오류가 발생했습니다.'];
         }
 
         $this->authLogs->write([
             'id'            => UuidHelper::generate(),
             'log_type'      => 'auth',
             'action_type'   => 'register',
-            'action_detail' => '회원가입 신청',
+            'action_detail' => '회원가입 요청',
             'user_id'       => $userId,
             'username'      => $username,
             'success'       => 1,
@@ -161,12 +159,11 @@ class RegisterService
             'created_by'    => $userId,
         ]);
 
-        $this->sendAdminApprovalMail($username, $name, $email, $userCode);
+        $this->sendAdminApprovalMail($username, $name, $email, $userId);
 
         return [
-            'success'   => true,
-            'message'   => '???媛??씠 ?⑥┷??뤿???щ빍?? ?온?귐딆쁽 ?諭????嚥≪???媛?ν??떎.',
-            'user_code' => $userCode,
+            'success' => true,
+            'message' => '회원가입이 완료되었습니다. 관리자 승인 후 로그인할 수 있습니다.',
         ];
     }
 
@@ -175,7 +172,7 @@ class RegisterService
         try {
             $rows = $this->settingService->getByCategory('SECURITY');
         } catch (\Throwable $e) {
-            return ['success' => false, 'message' => '???踰덊???類ㅼ퐠 ?類씤 ???쪟媛 諛쒖??뒿??떎.'];
+            return ['success' => false, 'message' => '비밀번호 정책을 확인하는 중 오류가 발생했습니다.'];
         }
 
         $policy = [];
@@ -187,21 +184,21 @@ class RegisterService
             return ['success' => true];
         }
 
-        $min = (int)($policy['security_password_min'] ?? 0);
+        $min = (int) ($policy['security_password_min'] ?? 0);
         if ($min > 0 && mb_strlen($password) < $min) {
-            return ['success' => false, 'message' => "???踰덊???理쒖??{$min}????곴맒??곷선????몃빍??"];
+            return ['success' => false, 'message' => "비밀번호는 {$min}자 이상 입력해야 합니다."];
         }
 
         if (($policy['security_pw_upper'] ?? '0') === '1' && !preg_match('/[A-Z]/', $password)) {
-            return ['success' => false, 'message' => '???踰덊??????몄?瑜?理쒖??1????긽 ????二쇱??'];
+            return ['success' => false, 'message' => '비밀번호에는 영문 대문자를 1자 이상 포함해야 합니다.'];
         }
 
         if (($policy['security_pw_number'] ?? '0') === '1' && !preg_match('/\d/', $password)) {
-            return ['success' => false, 'message' => '???踰덊?????옄??理쒖??1????긽 ????二쇱??'];
+            return ['success' => false, 'message' => '비밀번호에는 숫자를 1자 이상 포함해야 합니다.'];
         }
 
         if (($policy['security_pw_special'] ?? '0') === '1' && !preg_match('/[^a-zA-Z0-9]/', $password)) {
-            return ['success' => false, 'message' => '??쑬?甕곕뜇????諭?붻눧紐옄??理쒖??1????긽 ????二쇱??'];
+            return ['success' => false, 'message' => '비밀번호에는 특수문자를 1자 이상 포함해야 합니다.'];
         }
 
         return ['success' => true];
@@ -215,25 +212,25 @@ class RegisterService
         }
 
         if (($file['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
-            return ['success' => false, 'message' => '?⑥쨮?????筌왖 ??낆쨮??뽯퓠 ??쎈솭??됰뮸??덈뼄.'];
+            return ['success' => false, 'message' => '프로필 이미지 업로드 중 오류가 발생했습니다.'];
         }
 
         $upload = $this->fileService->uploadProfile($file);
         if (empty($upload['success'])) {
-            return ['success' => false, 'message' => $upload['message'] ?? '?⑥쨮?????筌왖 ??낆쨮??뽯퓠 ??쎈솭??됰뮸??덈뼄.'];
+            return ['success' => false, 'message' => $upload['message'] ?? '프로필 이미지 업로드 중 오류가 발생했습니다.'];
         }
 
         return ['success' => true, 'db_path' => $upload['db_path'] ?? ''];
     }
 
-    private function sendAdminApprovalMail(string $username, string $employeeName, string $userEmail, string $userCode): void
+    private function sendAdminApprovalMail(string $username, string $employeeName, string $userEmail, string $userId): void
     {
         try {
             $this->mailService->sendAdminApprovalMail([
                 'username'      => $username,
                 'employee_name' => $employeeName,
                 'email'         => $userEmail,
-                'user_code'     => $userCode,
+                'user_id'       => $userId,
                 'host'          => $_SERVER['HTTP_HOST'] ?? 'localhost',
             ]);
         } catch (\Throwable $e) {

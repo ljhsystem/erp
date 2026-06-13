@@ -144,7 +144,6 @@
         const aliases = {
             '/ledger/accounts': '/ledger/settings/accounts',
             '/ledger/opening-balances': '/ledger/settings/opening-balances',
-            '/ledger/data/format': '/ledger/data/formats',
             '/ledger/data': '/ledger/data/list',
             '/ledger/transactions': '/ledger/transactions/input',
             '/ledger/transactions/create': '/ledger/transactions/input',
@@ -255,9 +254,18 @@
 
         if(!$.fn.DataTable) return;
 
-        $.fn.dataTable.tables({ visible: true, api: true })
-            .columns.adjust()
-            .draw(false);
+        const tables = $.fn.dataTable.tables({ visible: true, api: true });
+        if(!tables?.every) return;
+
+        tables.every(function () {
+            const table = this;
+            if (table?.__dtTableSettings?.refreshLayout) {
+                table.__dtTableSettings.refreshLayout({ draw: true });
+                return;
+            }
+
+            table.columns.adjust().draw(false);
+        });
     }
 
     function fireLayoutResize(){

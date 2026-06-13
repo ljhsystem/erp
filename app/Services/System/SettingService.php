@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT/app/Services/System/SettingService.php
 namespace App\Services\System;
 
 use PDO;
@@ -22,21 +21,17 @@ class SettingService
         $this->logger->debug('[INIT] SystemSettingService initialized');
     }
 
-    /* =============================================================
-     * 1. 기본 Getter
-     * ============================================================= */
     public function get(string $key, $default = null)
     {
         $value = $this->model->get($key, $default);
-    
-        // 🔥 이 줄이 핵심
+
         if ($value === null) {
             return $default;
         }
-    
+
         return $value;
     }
-    
+
 
     public function getInt(string $key, int $default = 0): int
     {
@@ -80,9 +75,6 @@ class SettingService
         return json_last_error() === JSON_ERROR_NONE ? $decoded : $default;
     }
 
-    /* =============================================================
-     * 2. Category 기준 조회
-     * ============================================================= */
     public function getByCategory(string $category): array
     {
         $this->logger->debug('[GET_BY_CATEGORY] START', [
@@ -104,9 +96,6 @@ class SettingService
         return $result;
     }
 
-    /* =============================================================
-     * 3. 단일 설정 저장
-     * ============================================================= */
     public function save(
         string $key,
         string $value,
@@ -147,9 +136,6 @@ class SettingService
         return $result;
     }
 
-    /* =============================================================
-     * 4. 다중 설정 일괄 저장 (🔥 핵심 디버깅 구간)
-     * ============================================================= */
     public function saveBatch(
         array $input,
         string $category,
@@ -162,26 +148,24 @@ class SettingService
         }
 
         $userId = $userId ?? ActorHelper::user();
-    
+
         $this->logger->debug('[SAVE_BATCH] START', [
             'category' => $category,
             'input'    => $input
         ]);
-    
+
         $saved   = [];
         $skipped = [];
-    
+
         foreach ($input as $key => $value) {
-    
+
             $this->logger->debug('[SAVE_BATCH] ITEM', [
                 'key'   => $key,
                 'value' => $value
             ]);
-    
-            // 🔹 1) 존재 여부 확인
+
             $exists = $this->model->exists($key);
-    
-            // 🔹 2) 존재하면 수정 가능 여부 체크
+
             if ($exists && !$this->model->isEditable($key)) {
                 $this->logger->warning('[SAVE_BATCH] SKIPPED (NOT EDITABLE)', [
                     'key' => $key
@@ -189,36 +173,35 @@ class SettingService
                 $skipped[] = $key;
                 continue;
             }
-    
-            // 🔹 3) 없으면 자동 생성 (is_editable = 1 기본)
+
             $payload = [
                 'config_key'   => $key,
                 'config_value' => is_array($value) ? json_encode($value) : (string)$value,
                 'category'     => $category,
                 'description'  => $descriptions[$key] ?? null,
                 'is_editable'  => 1,
-                'user_id'      => $userId, // nullable OK
+                'user_id'      => $userId,
             ];
-    
+
             $this->logger->debug('[SAVE_BATCH] MODEL::SET PAYLOAD', $payload);
-    
+
             $this->model->set($payload);
-    
+
             $saved[] = $key;
         }
-    
+
         $this->logger->info('[SAVE_BATCH] COMPLETE', [
             'category' => $category,
             'saved'    => $saved,
             'skipped'  => $skipped
         ]);
-    
+
         return [
             'success' => true,
             'saved'   => $saved,
             'skipped' => $skipped
         ];
     }
-    
+
 
 }

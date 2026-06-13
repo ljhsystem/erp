@@ -1,0 +1,33 @@
+export const COLUMN_META_DEFAULTS = Object.freeze({
+    label: '',
+    required: false,
+    tableVisible: true,
+    tableDefault: true,
+    excelTemplate: false,
+    excelDownload: false,
+    searchable: false,
+    searchDefault: false,
+    searchDate: false,
+    sortable: true,
+    width: 120,
+    type: 'text',
+    aliasOf: null,
+    codeGroup: null,
+});
+
+export const COLUMN_META_TYPES = Object.freeze([
+    'text',
+    'textarea',
+    'number',
+    'amount',
+    'date',
+    'datetime',
+    'boolean',
+    'email',
+    'phone',
+    'biz-number',
+    'corp-number',
+    'account-number',
+    'url',
+    'code',
+]);

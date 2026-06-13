@@ -2,15 +2,15 @@
 // 경로: PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/cover_modal.php'
 ?>
 
-<div class="modal fade" id="coverImageModal" tabindex="-1" aria-labelledby="coverImageModalLabel" aria-hidden="true">
+<div class="modal fade" id="coverModal" tabindex="-1" aria-labelledby="coverModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <form id="cover-image-form" method="post" enctype="multipart/form-data">
+            <form id="cover-form" method="post" enctype="multipart/form-data">
                 <input type="hidden" name="cover_id" id="modal_cover_id">
                 <input type="hidden" name="action" id="modal_action" value="save">
 
                 <div class="modal-header">
-                    <h5 class="modal-title" id="coverImageModalLabel">커버이미지 정보</h5>
+                    <h5 class="modal-title" id="coverModalLabel">커버이미지 정보</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
                 </div>
 

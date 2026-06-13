@@ -1,7 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT/app/Models/System/FileUploadPoliciesModel.php
-// 설명: 파일 업로드 정책 DB 접근 전용 Model
-
 namespace App\Models\System;
 
 use PDO;
@@ -9,18 +6,14 @@ use Core\Database;
 
 class FileUploadPoliciesModel
 {
-    // PDO 보관
+
     private PDO $db;
 
-    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
-    /* =========================================================
-     * 1. 전체 정책 목록
-     * ========================================================= */
     public function getAll(): array
     {
         $sql = "
@@ -34,9 +27,6 @@ class FileUploadPoliciesModel
             ->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    /* =========================================================
-     * 2. 활성 정책만 조회
-     * ========================================================= */
     public function getActive(): array
     {
         $sql = "
@@ -51,9 +41,6 @@ class FileUploadPoliciesModel
             ->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    /* =========================================================
-     * 3. policy_key 기준 단건 조회
-     * ========================================================= */
     public function findByKey(string $policyKey): ?array
     {
         $sql = "
@@ -73,9 +60,6 @@ class FileUploadPoliciesModel
         return $row ?: null;
     }
 
-    /* =========================================================
-     * 4. 정책 생성
-     * ========================================================= */
     public function create(array $data): bool
     {
         $sql = "
@@ -106,9 +90,9 @@ class FileUploadPoliciesModel
                 :created_by
             )
         ";
-    
+
         $stmt = $this->db->prepare($sql);
-    
+
         return $stmt->execute([
             ':id'           => $data['id'],
             ':policy_key'   => $data['policy_key'],
@@ -122,11 +106,7 @@ class FileUploadPoliciesModel
             ':created_by'   => $data['created_by'],
         ]);
     }
-    
 
-    /* =========================================================
-    * 5. 정책 수정
-    * ========================================================= */
     public function update(string $id, array $data): bool
     {
         $stmt = $this->db->prepare("
@@ -157,10 +137,6 @@ class FileUploadPoliciesModel
         ]);
     }
 
-
-    /* =========================================================
-    * 6. 정책 활성/비활성
-    * ========================================================= */
     public function setActive(string $id, bool $active, string $userId): bool
     {
         $stmt = $this->db->prepare("
@@ -171,19 +147,14 @@ class FileUploadPoliciesModel
                 updated_at = NOW()
             WHERE id = :id
         ");
-    
+
         return $stmt->execute([
             ':id'         => $id,
             ':is_active'  => $active ? 1 : 0,
             ':updated_by' => $userId
         ]);
     }
-    
-    
 
-    /* =========================================================
-    * 7. 정책 삭제
-    * ========================================================= */
     public function delete(string $id): bool
     {
         $stmt = $this->db->prepare("

@@ -1,18 +1,15 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Models/Dashboard/CalendarVisibilityModel.php'
 namespace App\Models\Dashboard;
 
 use PDO;
 use Core\Database;
 
 class CalendarVisibilityModel
-{  
+{
     private string $table = 'dashboard_calendar_visibility';
-    
-    // PDO 보관
+
     private PDO $db;
 
-    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();

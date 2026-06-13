@@ -20,11 +20,9 @@ class VoucherModel
     {
         $storedTransactionIdExpr = $this->hasColumn('transaction_id') ? 'v.transaction_id' : 'NULL';
         $hasSeedRows = $this->hasTable('ledger_data_evidences');
-        $hasEvidenceLinks = $this->hasTable('ledger_data_evidence_links');
+        $hasEvidenceLinks = $this->hasTable('ledger_evidence_links');
         $hasEvidenceTransactionId = $hasSeedRows && $this->tableColumnExists('ledger_data_evidences', 'transaction_id');
-        $hasEvidenceFormat = $hasSeedRows
-            && $this->hasTable('ledger_data_formats')
-            && $this->tableColumnExists('ledger_data_evidences', 'format_id');
+        $hasEvidenceFormat = false;
         $seedSources = [];
         $seedIds = [];
         if ($hasEvidenceLinks) {
@@ -46,16 +44,17 @@ class VoucherModel
         $evidenceLinkJoinSql = ($hasSeedRows && $hasEvidenceLinks) ? "
             LEFT JOIN (
                 SELECT
-                    el.voucher_id,
+                    el.target_id AS voucher_id,
                     MIN(e.id) AS evidence_id,
                     MIN(e.source_type) AS source_type
-                FROM ledger_data_evidence_links el
+                FROM ledger_evidence_links el
                 INNER JOIN ledger_data_evidences e
                     ON e.id = el.evidence_id
                    AND e.deleted_at IS NULL
                 WHERE el.deleted_at IS NULL
-                  AND el.voucher_id IS NOT NULL
-                GROUP BY el.voucher_id
+                  AND el.target_type = 'VOUCHER'
+                  AND el.target_id IS NOT NULL
+                GROUP BY el.target_id
             ) evidence_linked_seed
                 ON evidence_linked_seed.voucher_id = v.id
         " : "";
@@ -90,27 +89,24 @@ class VoucherModel
             {$evidenceLinkJoinSql}
             {$transactionSeedJoinSql}
         " : "";
-        $formatJoinSql = $hasEvidenceFormat
-            ? "LEFT JOIN ledger_data_formats f ON f.id = e.format_id AND f.deleted_at IS NULL"
-            : "";
-        $formatNameSelect = $hasEvidenceFormat
-            ? "GROUP_CONCAT(DISTINCT NULLIF(f.format_name, '') ORDER BY f.format_name SEPARATOR ',')"
-            : "NULL";
+        $formatJoinSql = "";
+        $formatNameSelect = "NULL";
         $evidenceBundleJoinSql = ($hasSeedRows && $hasEvidenceLinks) ? "
             LEFT JOIN (
                 SELECT
-                    el.voucher_id,
+                    el.target_id AS voucher_id,
                     COUNT(DISTINCT e.id) AS evidence_count,
                     GROUP_CONCAT(DISTINCT e.source_type ORDER BY e.source_type SEPARATOR ',') AS evidence_source_types,
                     {$formatNameSelect} AS evidence_format_names
-                FROM ledger_data_evidence_links el
+                FROM ledger_evidence_links el
                 INNER JOIN ledger_data_evidences e
                     ON e.id = el.evidence_id
                    AND e.deleted_at IS NULL
                 {$formatJoinSql}
                 WHERE el.deleted_at IS NULL
-                  AND el.voucher_id IS NOT NULL
-                GROUP BY el.voucher_id
+                  AND el.target_type = 'VOUCHER'
+                  AND el.target_id IS NOT NULL
+                GROUP BY el.target_id
             ) evidence_bundle
                 ON evidence_bundle.voucher_id = v.id
         " : "";

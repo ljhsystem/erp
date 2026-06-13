@@ -174,12 +174,14 @@ class WorkTeamController
 
     public function apiDownloadTemplate(): void
     {
-        $this->service->downloadTemplate();
+        $columnsCsv = trim((string) ($_GET['columns'] ?? ''));
+        $this->service->downloadTemplate($columnsCsv);
     }
 
     public function apiDownloadExcel(): void
     {
-        $this->service->downloadExcel();
+        $columnsCsv = trim((string) ($_GET['columns'] ?? ''));
+        $this->service->downloadExcel($columnsCsv);
     }
 
     public function apiExcelUpload(): void
@@ -192,7 +194,8 @@ class WorkTeamController
                 exit;
             }
 
-            echo json_encode($this->service->saveFromExcelFile($_FILES['excel']['tmp_name']), JSON_UNESCAPED_UNICODE);
+            $columnsCsv = trim((string) ($_POST['excel_template_columns'] ?? ''));
+            echo json_encode($this->service->saveFromExcelFile($_FILES['excel']['tmp_name'], $columnsCsv), JSON_UNESCAPED_UNICODE);
         } catch (\Throwable $e) {
             echo json_encode(['success' => false, 'message' => '엑셀 업로드에 실패했습니다.', 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
         }

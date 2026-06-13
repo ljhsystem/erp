@@ -1,5 +1,4 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/models/user/ExternalAccountModel.php'
 namespace App\Models\User;
 
 use PDO;
@@ -7,18 +6,14 @@ use Core\Database;
 
 class ExternalAccountModel
 {
-    // PDO 보관
+
     private PDO $db;
 
-    // 생성자 – 외부에서 PDO 주입 또는 자동 연결
     public function __construct(?PDO $pdo = null)
     {
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
-    /* ============================================================
-     * 1. 사용자 + 서비스 계정 단일 조회
-     * ============================================================ */
     public function getByUserAndService(string $userId, string $serviceKey): ?array
     {
         $sql = "
@@ -38,9 +33,6 @@ class ExternalAccountModel
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
-    /* ============================================================
-     * 2. 사용자 외부 계정 저장 / 갱신 (UPSERT)
-     * ============================================================ */
     public function saveOrUpdate(
         string $userId,
         string $serviceKey,
@@ -116,9 +108,6 @@ class ExternalAccountModel
         ]);
     }
 
-    /* ============================================================
-     * 3. 외부 서비스 연결 해제
-     * ============================================================ */
     public function disconnect(string $userId, string $serviceKey, ?string $actorId = null): bool
     {
         $sql = "
@@ -138,9 +127,6 @@ class ExternalAccountModel
         ]);
     }
 
-    /* ============================================================
-     * 4. 사용자 기준 전체 외부 계정 조회
-     * ============================================================ */
     public function getAllByUser(string $userId): array
     {
         $sql = "
@@ -156,9 +142,6 @@ class ExternalAccountModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /* ============================================================
-     * 5. 특정 서비스 연결 여부
-     * ============================================================ */
     public function isConnected(string $userId, string $serviceKey): bool
     {
         $sql = "
@@ -175,7 +158,6 @@ class ExternalAccountModel
         return (int)$stmt->fetchColumn() > 0;
     }
 
-//상태 전용 UPDATE 메서드
     public function updateConnectionStatus(
         string $userId,
         string $serviceKey,
@@ -196,7 +178,7 @@ class ExternalAccountModel
             WHERE user_id = :user_id
             AND service_key = :service_key
         ";
-    
+
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([
             ':is_connected'        => $isConnected,
@@ -206,9 +188,9 @@ class ExternalAccountModel
             ':user_id'             => $userId,
             ':service_key'         => $serviceKey,
         ]);
-        
+
     }
-    
+
     public function getBySynologyOwnerId(int $ownerId): ?array
     {
         $stmt = $this->db->prepare("
@@ -221,7 +203,7 @@ class ExternalAccountModel
         $stmt->execute([':oid' => $ownerId]);
         return $stmt->fetch(\PDO::FETCH_ASSOC) ?: null;
     }
-    
+
 
     public function getByExternalLoginId(
         string $serviceKey,
@@ -241,10 +223,4 @@ class ExternalAccountModel
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
     
-
-
-
-
-
-
 }

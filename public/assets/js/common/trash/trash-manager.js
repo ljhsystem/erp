@@ -542,7 +542,7 @@
     }
 
     function markTrashButtonsHasData(count = 1) {
-        document.querySelectorAll('.dt-trash-btn, [class*="trash-btn"]').forEach((button) => {
+        findTrashButtons().forEach((button) => {
             setTrashButtonState(button, true, count);
         });
     }
@@ -571,13 +571,11 @@
         }
 
         const matches = Array.from(document.querySelectorAll(selectors.join(',')));
-        if (matches.length) {
-            return Array.from(new Set(matches)).filter((node) => node instanceof HTMLElement);
-        }
-
-        return Array.from(document.querySelectorAll('.dt-button, button, a')).filter((node) => {
+        const fallbackMatches = Array.from(document.querySelectorAll('.dt-button, button, a')).filter((node) => {
             return node instanceof HTMLElement && String(node.textContent || '').trim() === '휴지통';
         });
+
+        return Array.from(new Set([...matches, ...fallbackMatches])).filter((node) => node instanceof HTMLElement);
     }
 
     function renderRows(tbody, data, modal) {

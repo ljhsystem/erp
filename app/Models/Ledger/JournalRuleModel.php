@@ -249,11 +249,6 @@ class JournalRuleModel
         return $stmt->execute([':id' => $id]);
     }
 
-    public function nextSortNo(): int
-    {
-        return (int) $this->db->query('SELECT COALESCE(MAX(sort_no), 0) + 1 FROM ledger_journal_rules')->fetchColumn();
-    }
-
     private function baseSelectSql(): string
     {
         return "

@@ -8,7 +8,7 @@
          HEADER
     ========================== -->
     <div class="page-header">
-        <h5 class="mb-1 fw-bold">🏞️ 커버이미지 관리</h5>
+        <h5 class="mb-1 fw-bold">커버이미지 관리</h5>
         <span id="coverCount" class="text-primary cover-count page-count"></span>
     </div>
 
@@ -16,7 +16,7 @@
 
         <?php
         /* =========================================================
-           공통 검색폼 (년도형 커스텀)
+           공통 검색영역 (연도형 커스텀)
         ========================================================= */
 
         $searchId = 'cover';
@@ -36,7 +36,7 @@
         $dateInputClass = 'form-control form-control-sm year-input';
         $dateInputAttrs = 'autocomplete="off" inputmode="none" readonly';
         $dateStartPlaceholder = '시작년도';
-        $dateEndPlaceholder   = '종료년도';
+        $dateEndPlaceholder = '종료년도';
 
         $searchFieldOptions = '
             <option value="year">년도</option>
@@ -56,12 +56,12 @@
            공통 테이블
         ========================================================= */
 
-        $tableId       = 'cover-table';
-        $ajaxUrl       = '/api/settings/base-info/cover/list';
-        $columnsType   = 'cover'; // JS에서 매핑
+        $tableId = 'cover-table';
+        $ajaxUrl = '/api/settings/base-info/cover/list';
+        $columnsType = 'cover'; // JS에서 매핑
         $enableButtons = true;
-        $enableSearch  = false; // 검색폼 별도 사용
-        $enablePaging  = true;
+        $enableSearch = false; // 검색영역 별도 사용
+        $enablePaging = true;
         $enableReorder = true;
 
         include PROJECT_ROOT . '/app/views/components/ui-table.php';
@@ -71,15 +71,15 @@
         /* =========================================================
            커버이미지 휴지통 모달
         ========================================================= */
-        $modalId      = 'coverTrashModal';
-        $type         = 'cover';
-        $modalTitle   = '커버이미지 휴지통';
+        $modalId = 'coverTrashModal';
+        $type = 'cover';
+        $modalTitle = '커버이미지 휴지통';
 
-        $tableId      = 'cover-trash-table';
-        $checkAllId   = 'coverTrashCheckAll';
+        $tableId = 'cover-trash-table';
+        $checkAllId = 'coverTrashCheckAll';
 
         $btnRestoreId = 'btnRestoreSelectedCover';
-        $btnDeleteId  = 'btnDeleteSelectedCover';
+        $btnDeleteId = 'btnDeleteSelectedCover';
         $btnDeleteAll = 'btnDeleteAllCover';
 
         $tableHead = '
@@ -92,7 +92,7 @@
         <th>관리</th>
         ';
 
-        $emptyMessage = '삭제된 커버이미지를 선택하세요.';
+        $emptyMessage = '삭제할 커버이미지를 선택하세요.';
 
         include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
         ?>
@@ -100,21 +100,19 @@
     </div>
 </div>
 
-
 <!-- =========================
      모달
 ========================= -->
 <?php include __DIR__ . '/partials/cover_modal.php'; ?>
 
-
 <!-- =========================
-     피커 (공통 영역)
+     픽커 (공통 영역)
 ========================= -->
 <div class="picker-root">
-  <div id="mini-picker" class="picker is-hidden"></div>
-  <div id="base-picker" class="picker is-hidden"></div>
-  <div id="datetime-picker" class="picker is-hidden"></div>
-  <div id="today-picker" class="picker is-hidden"></div>
-  <div id="year-month-picker" class="picker is-hidden"></div>
-  <div id="time-list-picker" class="picker is-hidden"></div>
+    <div id="mini-picker" class="picker is-hidden"></div>
+    <div id="base-picker" class="picker is-hidden"></div>
+    <div id="datetime-picker" class="picker is-hidden"></div>
+    <div id="today-picker" class="picker is-hidden"></div>
+    <div id="year-month-picker" class="picker is-hidden"></div>
+    <div id="time-list-picker" class="picker is-hidden"></div>
 </div>

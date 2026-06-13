@@ -26,17 +26,6 @@ class FileController
         return $this->authSession->isAuthenticated();
     }
 
-    private function isAdminUser(): bool
-    {
-        $user = $this->authSession->getCurrentUser() ?? [];
-        $roles = $user['roles'] ?? [];
-        if (!is_array($roles)) {
-            return false;
-        }
-
-        return in_array('super_admin', $roles, true) || in_array('admin', $roles, true);
-    }
-
     public function apiPreview()
     {
         if (!$this->hasSessionUser()) {
@@ -240,11 +229,6 @@ class FileController
     {
         if (!$this->hasSessionUser()) {
             $this->json(['success' => false, 'message' => '로그인이 필요합니다.'], 403);
-            return;
-        }
-
-        if (!$this->isAdminUser()) {
-            $this->json(['success' => false, 'message' => '관리자만 사용할 수 있는 기능입니다.'], 403);
             return;
         }
 

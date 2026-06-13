@@ -19,9 +19,14 @@ class BankTransactionReportModel
         }
 
         [$where, $params] = $this->whereSql($filters, false);
-        $evidenceMappedPayloadSelect = $this->columnExists('ledger_data_evidences', 'mapped_payload_json')
-            ? 'e.mapped_payload_json'
+        $payloadTableExists = $this->tableExists('ledger_evidence_payloads');
+        $evidenceMappedPayloadSelect = $payloadTableExists && $this->columnExists('ledger_evidence_payloads', 'mapped_payload_json')
+            ? 'p.mapped_payload_json'
             : 'NULL';
+        $evidencePayloadJoin = $payloadTableExists ? "
+            LEFT JOIN ledger_evidence_payloads p
+                ON p.evidence_type = e.source_type COLLATE utf8mb4_unicode_ci
+               AND p.evidence_id = e.id COLLATE utf8mb4_unicode_ci" : '';
         $clientNameSelect = $this->clientNameSql();
         $sql = "
             SELECT
@@ -65,6 +70,7 @@ class BankTransactionReportModel
                 ON ba.id = b.bank_account_id
             LEFT JOIN ledger_data_evidences e
                 ON e.id = b.evidence_id
+            {$evidencePayloadJoin}
             LEFT JOIN " . $this->voucherLinkSubquery() . " vlink
                 ON vlink.evidence_id = b.evidence_id
             WHERE {$where}
@@ -599,11 +605,11 @@ class BankTransactionReportModel
 
     private function voucherLinkSubquery(): string
     {
-        if (!$this->tableExists('ledger_data_evidence_links') || !$this->tableExists('ledger_vouchers')) {
+        if (!$this->tableExists('ledger_evidence_links') || !$this->tableExists('ledger_vouchers')) {
             return "(SELECT NULL AS evidence_id, 0 AS voucher_count, NULL AS voucher_id, NULL AS voucher_no, NULL AS voucher_date WHERE 1 = 0)";
         }
 
-        $deletedFilter = $this->columnExists('ledger_data_evidence_links', 'deleted_at') ? 'AND l.deleted_at IS NULL' : '';
+        $deletedFilter = $this->columnExists('ledger_evidence_links', 'deleted_at') ? 'AND l.deleted_at IS NULL' : '';
         $voucherNoSelect = $this->columnExists('ledger_vouchers', 'voucher_no') ? 'MAX(v.voucher_no)' : ($this->columnExists('ledger_vouchers', 'code') ? 'MAX(v.code)' : 'MAX(v.id)');
 
         return "(
@@ -613,11 +619,12 @@ class BankTransactionReportModel
                 MAX(v.id) AS voucher_id,
                 {$voucherNoSelect} AS voucher_no,
                 MAX(v.voucher_date) AS voucher_date
-            FROM ledger_data_evidence_links l
+            FROM ledger_evidence_links l
             INNER JOIN ledger_vouchers v
-                ON v.id = l.voucher_id
+                ON v.id = l.target_id
                AND v.deleted_at IS NULL
             WHERE l.evidence_id IS NOT NULL
+              AND l.target_type = 'VOUCHER'
               {$deletedFilter}
             GROUP BY l.evidence_id
         )";

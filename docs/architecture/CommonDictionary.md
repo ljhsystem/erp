@@ -1,0 +1,70 @@
+# Common Dictionary
+
+프로젝트 공용 함수 사전이다. 아래 함수명은 중복 생성 금지 대상이며, 신규 구현 전 기존 위치를 먼저 확인한다.
+
+| 함수명 | 용도 | 입력값 | 반환값 | 사용 위치 | 중복 생성 금지 함수명 |
+| --- | --- | --- | --- | --- | --- |
+| requestPayload | HTTP 요청 본문 JSON 또는 form payload를 배열로 정규화한다. | 없음 | array | ImportController, TransactionController, BankTransactionReportController | requestPayload, parseRequestPayload, getRequestPayload |
+| json | API 응답 payload와 HTTP status를 JSON으로 출력한다. | array/callable payload, int status | void | ImportController, EvidenceController, JournalRuleController, FileController, Funds Controllers | json, jsonResponse, respondJson |
+| normalizeDataType | 자료유형 문자열을 ERP 표준 data type 코드로 정규화한다. | string type | string | ImportController, EvidenceGenerationService, EvidenceGenerationSplitService, SystemFieldService | normalizeDataType, normalizeImportType, normalizeSourceType |
+| amountOrNull | 금액 입력값을 float 또는 null로 변환한다. | mixed value | ?float | ImportController, JournalRecommendationService | amountOrNull, parseAmountOrNull, nullableAmount |
+| dateValue | 날짜 입력값을 저장 가능한 날짜 문자열로 정규화한다. | mixed value | string | ImportController | dateValue, normalizeDateValue |
+| dateValueOrNull | 날짜 입력값을 저장 가능한 날짜 문자열 또는 null로 정규화한다. | mixed value | ?string | ImportController | dateValueOrNull, nullableDateValue |
+| jsonEncodeForStorage | 저장용 JSON 문자열을 생성한다. | array payload | string | ImportController, EvidenceStatusService callback, EvidenceGenerationSaveService callback | jsonEncodeForStorage, encodeJsonForStorage, storageJson |
+| tableExists | DB 테이블 존재 여부를 확인한다. | string table | bool | ImportController, VoucherController, TransactionController, Ledger Models, Ledger Services | tableExists, hasTable, checkTableExists |
+| tableColumnExists | DB 컬럼 존재 여부를 확인한다. | string table, string column | bool | ImportController, VoucherController, TransactionController, Ledger Models | tableColumnExists, columnExists, hasColumn |
+| isUuid | 문자열이 UUID 형식인지 확인한다. | string value | bool | ImportController, EvidenceGenerationService callback | isUuid, validUuid, isUuidValue |
+| normalizeEvidenceMappedPayloadForResponse | 응답용 mapped payload를 화면 표시 규칙에 맞게 정규화한다. | array payload | array | ImportController, EvidenceGenerationService callback, EvidenceGenerationSaveService callback, EvidenceUploadService callback | normalizeEvidenceMappedPayloadForResponse, normalizeMappedPayloadForResponse |
+| mappedPayloadForStorage | 저장용 mapped payload를 표준 key/value 구조로 정규화한다. | array row | array | ImportController, EvidenceGenerationSaveService callback, EvidenceGenerationSplitService callback | mappedPayloadForStorage, normalizePayloadForStorage |
+| businessRefIdForStorage | payload의 거래처/프로젝트/직원/계좌/카드 참조 ID를 저장용으로 추출한다. | string refType, array payload | ?string | ImportController, EvidenceGenerationSaveService callback | businessRefIdForStorage, storageBusinessRefId |
+| businessRefNameForStorage | payload의 거래처/프로젝트/직원/계좌/카드 참조명을 저장용으로 추출한다. | string refType, array payload | ?string | ImportController, EvidenceGenerationSaveService callback | businessRefNameForStorage, storageBusinessRefName |
+| seedSourceKey | seed row 또는 payload에서 중복 방지용 source_key를 생성한다. | array row, string dataType | ?string | ImportController, EvidenceGenerationSaveService callback | seedSourceKey, buildSeedSourceKey |
+| uploadVoucherStatus | 업로드/생성센터 저장 시 전표 상태를 산정한다. | string dataType, array payload, string processStatus | string | ImportController, EvidenceGenerationSaveService callback | uploadVoucherStatus, resolveVoucherStatus |
+| bankVoucherValidationMessage | 은행 증빙 전표 생성 전 보정 필요 메시지를 산정한다. | array payload | ?string | ImportController, EvidenceGenerationSaveService callback | bankVoucherValidationMessage, bankVoucherErrorMessage |
+| normalizeBankTransactionPayload | 은행 거래 payload 필드를 생성센터 표준 구조로 정규화한다. | array row | array | ImportController, EvidenceGenerationService callback, EvidenceGenerationSaveService callback, EvidenceUploadService callback | normalizeBankTransactionPayload, normalizeBankPayload |
+| requiredFormatMissingMessages | 양식 필수 컬럼 누락 메시지를 생성한다. | array payload, array columns | array | ImportController, EvidenceGenerationSaveService callback | requiredFormatMissingMessages, requiredColumnMessages |
+| businessProjectRuleMessages | 거래처/프로젝트 등 업무 참조 규칙 위반 메시지를 생성한다. | array payload | array | ImportController, EvidenceGenerationSaveService callback | businessProjectRuleMessages, businessReferenceRuleMessages |
+| formatColumnsInOrder | 양식 컬럼 목록을 표시/저장 순서대로 정렬한다. | array columns | array | ImportController, EvidenceGenerationSaveService callback | formatColumnsInOrder, orderedFormatColumns |
+| seedRowIdsFromPayload | 요청 payload에서 seed row id 목록을 추출한다. | array payload | array | ImportController, EvidenceGenerationSaveService callback, EvidenceStatusService flow, EvidenceTrashService flow | seedRowIdsFromPayload, idsFromSeedPayload |
+| placeholdersForIds | SQL IN 조건용 placeholder 문자열과 parameter 배열을 생성한다. | array ids, string prefix | array | ImportController, EvidenceGenerationService callback, EvidenceGenerationSaveService callback, EvidenceStatusService callback, EvidenceTrashService callback | placeholdersForIds, buildInPlaceholders |
+| isBlankValue | fill_blank 보정 정책에서 빈 값 여부를 판정한다. | mixed value | bool | ImportController, EvidenceGenerationSaveService callback | isBlankValue, blankValue, isEmptyPatchValue |
+
+## 운영 규칙
+
+- 공용 함수 추가 전 이 문서에 같은 역할이 있는지 확인한다.
+- 같은 역할이 있으면 기존 함수를 callback 또는 Service 의존성으로 주입한다.
+- 함수 시그니처를 변경할 때는 이 문서를 먼저 갱신한다.
+- 사전 미갱신 상태의 공용 함수 추가는 작업 미완료로 본다.
+
+| dateTimeValue | 날짜/시간 입력값을 저장 가능한 datetime 문자열 또는 null로 정규화한다. | mixed value | ?string | ImportController, EvidenceUploadService callback | dateTimeValue, normalizeDateTimeValue |
+| number | 숫자/금액 입력값을 float로 정규화하고 null은 0으로 치환한다. | mixed value | float | ImportController, EvidenceBatchSaveService callback, EvidenceUploadService callback | number, numericValue, floatValue |
+| cellValue | 셀 입력값을 문자열로 정규화한다. DateTime은 Y-m-d로 변환한다. | mixed value | string | ImportController, EvidenceUploadParserService callback | cellValue, normalizeCellValue |
+| fieldLabel | 업로드/검증 필드 키를 사용자 표시 라벨로 변환한다. | string field | string | ImportController, EvidenceUploadValidationService callback | fieldLabel, fieldDisplayName |
+| normalizeCompanyNameForCompare | 회사명을 비교용 문자열로 정규화한다. 공백 제거와 소문자화를 적용한다. | string companyName | string | ImportController, EvidenceClientSyncService callback | normalizeCompanyNameForCompare, comparableCompanyName |
+
+| mergeEvidenceBusinessInfoIntoPayload | 증빙 row의 business info를 payload에 보완 병합한다. | array evidenceRow, array payload | void | ImportController, EvidenceGenerationService callback, EvidenceTransactionCreateService callback, BundledVoucherService callback | mergeEvidenceBusinessInfoIntoPayload, mergeBusinessInfoPayload |
+| partyFromRow | row와 prefix에서 사업자번호/회사명을 party 배열로 추출한다. | array row, string prefix, ?string fallbackPrefix | array | ImportController, EvidenceTransactionContextService callback | partyFromRow, buildPartyFromRow |
+| isOwnCompanyParty | party가 자사 정보와 일치하는지 판정한다. | array party | bool | ImportController, EvidenceTransactionContextService callback | isOwnCompanyParty, matchOwnCompanyParty |
+| ownCompanyProfile | 자사 사업자번호/회사명 비교 프로필을 반환한다. | 없음 | array | ImportController, EvidenceClientSyncService callback | ownCompanyProfile, companyProfileForCompare |
+| normalizeBusinessNumber | 사업자번호 문자열을 숫자만 남기도록 정규화한다. | string businessNumber | string | ImportController, EvidenceRuleEngineService callback, EvidenceTransactionContextService callback, EvidenceUploadValidationService callback | normalizeBusinessNumber, businessNumberOnly |
+| cleanCompanyName | 회사명 문자열을 비교/저장 전에 정리한다. | string companyName | string | ImportController, EvidenceRuleEngineService callback, EvidenceTransactionContextService callback, EvidenceUploadValidationService callback | cleanCompanyName, normalizeCompanyName |
+| DataTableSettings | Shared DataTable settings controller for localStorage-backed table settings state such as visibleColumns, columnOrder, columnWidths, searchFormExpanded, sortSettings, pageLength, requiredColumns, plus shared layout refresh entry points. | tableSettings config, DataTable columns | object/module | common/table/data-table.js, common/datatable/dataTableSettings.js, common/table/search-form.js | DataTableSettings, tableSettingsManager |
+| DataTableColumnSettings | Shared modal UI for column visibility and column order management. | title, subtitle, entries, onSave | HTMLElement | common/datatable/dataTableColumnSettings.js | DataTableColumnSettings, columnSettingsModal |
+| tableSettings | createDataTable option for attaching shared table settings behavior after DataTable initialization. | object | object | common/table/data-table.js, ledger/data pages | tableSettings, dataTableSettings |
+| fixedLayout | createDataTable option that forces a non-scrollX table to use a fixed-width layout so visible columns keep stable boundaries even after body data loads, while still using shared resize and ellipsis behavior. | boolean | boolean | common/table/data-table.js | fixedLayout, dtFixedLayout |
+| widthScopeSelector | createDataTable option that overrides the shared width measurement scope with a closest ancestor selector so scrollX/sticky/header-body sync can align to a card or other container instead of the default table-box/content container scope. | string selector | string | common/table/data-table.js | widthScopeSelector, dataTableWidthScope |
+| widthResizable | createDataTable column option that explicitly opts a column in or out of shared resize handles, including render-only or `data:null` columns; shared utility columns such as selection, reorder, sequence, status, and action now default to resizable unless a page sets `widthResizable: false`. | boolean | boolean | common/table/data-table.js | widthResizable, columnWidthResizable |
+| selectionColumn | createDataTable option that customizes the auto-inserted checkbox column, including saved settings key, explicit width, and widthResizable behavior; the auto-inserted selection column is now included in the shared settings preparation stage so its saved width survives reload like other columns. | object | object | common/table/data-table.js | selectionColumn, dtSelectionColumn |
+| ensureTableHeader | Shared DataTable header normalizer that rebuilds `thead > tr > th` from the active columns definition when the current header count mismatches or blank header cells are detected, so the DataTable columns definition remains the single header source of truth. | string tableSelector, array columns | void | common/table/data-table.js | ensureTableHeader, syncTableHeader |
+| syncRenderedColumnWidths | Shared DataTable width synchronizer that freezes the currently rendered visible column widths into header, body, and colgroup nodes when no user-saved column width exists, preventing scrollX header/body drift on tables with hidden columns or render-only columns. | DataTable table, array tableColumns, object settingsContext | void | common/table/data-table.js | syncRenderedColumnWidths, freezeRenderedColumnWidths |
+| settingsKey | Stable DataTable column key fallback used by shared column visibility, order, sort, and width persistence when `data` is null or a render-only column is used. | string | string | common/datatable/dataTableSettings.js, common/table/data-table.js | settingsKey, columnSettingsKey |
+| showColumnVisibility | createDataTable option that controls whether the legacy DataTables colvis button is rendered. Default is disabled so shared table settings UI becomes the primary column-control entry point. | boolean | boolean | common/table/data-table.js | showColumnVisibility, colvisEnabled |
+| storageKey | localStorage key used to persist page-specific DataTable settings. | string | string | common/datatable/dataTableSettings.js, ledger/data pages | storageKey, settingsStorageKey |
+| visibleColumns | Persisted configurable column visibility list in DataTable settings state. | array | array | common/datatable/dataTableSettings.js | visibleColumns, shownColumns |
+| columnOrder | Persisted configurable column order list in DataTable settings state. | array | array | common/datatable/dataTableSettings.js | columnOrder, orderedColumns |
+| columnWidths | Persisted DataTable column width map stored by column key as widthPx, reapplied through shared header/body/colgroup width sync, visible-column-index header matching, and fixed-layout scrollX tables; when saved widths exist, the shared scroll/head width sync now preserves the saved total instead of stretching the table back out to the wrapper width on reload. | object | object | common/table/data-table.js, common/datatable/dataTableSettings.js | columnWidths, savedColumnWidths |
+| searchFormExpanded | Persisted SearchForm open or collapsed state stored in shared DataTable settings state by page-specific storageKey. | boolean | boolean | common/table/search-form.js, common/datatable/dataTableSettings.js | searchFormExpanded, savedSearchFormExpanded |
+| sortSettings | Persisted DataTable sort state stored by column key, including multi-column order when available. | array | array | common/table/data-table.js, common/datatable/dataTableSettings.js | sortSettings, savedSortOrder |
+| pageLength | Persisted DataTable page size selection restored after reload. | number | number | common/table/data-table.js, common/datatable/dataTableSettings.js | pageLength, savedPageLength |
+| requiredColumns | Persisted required column key list that cannot be hidden in DataTable settings state. | array | array | common/datatable/dataTableSettings.js, ledger/data pages | requiredColumns, lockedColumns |
+| PageKeyResolver | Shared server-side page key resolver that maps a permission row to canonical `system_page_registry.page_key` using `default_route_key`, `breadcrumb(description)`, breadcrumb aliases, and legacy prefix/exact fallback rules for PermissionRegistry sync, DB backfill, and future permission-page grouping. | string permissionKey, ?string description, ?string category | ?string pageKey | core/PageKeyResolver.php, core/PermissionRegistry.php | PageKeyResolver, resolvePageKey |

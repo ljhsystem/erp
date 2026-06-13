@@ -4,7 +4,6 @@ import { createAgGridAdapter } from '/public/assets/js/common/grid/ag-grid-adapt
 (() => {
     const dataTypeEl = document.getElementById('dataType');
     const formatSelectEl = document.getElementById('formatSelect');
-    const formatManageBtn = document.getElementById('formatManageBtn');
     const downloadTemplateBtn = document.getElementById('downloadTemplateBtn');
     const uploadFileBtn = document.getElementById('uploadFileBtn');
     const uploadFileEl = document.getElementById('uploadFile');
@@ -31,7 +30,6 @@ import { createAgGridAdapter } from '/public/assets/js/common/grid/ag-grid-adapt
     let previewGrid = null;
     let currentPreviewToken = '';
     let currentPreviewSummary = {};
-    const LAST_FORMAT_PREFIX = 'ledger.dataUpload.lastFormat.';
     const TEXT = {
         requestFailed: '\uC694\uCCAD \uCC98\uB9AC\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.',
         noFile: '\uC120\uD0DD\uD55C \uD30C\uC77C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.',
@@ -90,8 +88,8 @@ import { createAgGridAdapter } from '/public/assets/js/common/grid/ag-grid-adapt
         return disposition?.match(/filename="?([^";]+)"?/i)?.[1] || 'upload_template.xlsx';
     }
 
-    async function downloadTemplate(formatId) {
-        const res = await fetch(`/api/import/template?format_id=${encodeURIComponent(formatId)}`);
+    async function downloadTemplate(dataType) {
+        const res = await fetch(`/api/import/template?type=${encodeURIComponent(dataType)}`);
         const contentType = res.headers.get('Content-Type') || '';
         if (!res.ok || contentType.includes('application/json')) {
             const json = await res.json().catch(() => ({}));
@@ -152,7 +150,7 @@ import { createAgGridAdapter } from '/public/assets/js/common/grid/ag-grid-adapt
 
     function updateTemplateButtonState() {
         if (!downloadTemplateBtn) return;
-        downloadTemplateBtn.disabled = currentDataType() === '' || currentFormatId() === '';
+        downloadTemplateBtn.disabled = currentDataType() === '';
     }
 
     function formatNumber(value) {
@@ -421,20 +419,10 @@ import { createAgGridAdapter } from '/public/assets/js/common/grid/ag-grid-adapt
     }
 
     async function loadFormats() {
-        const dataType = currentDataType();
-        const json = await fetchJson(`/api/import/formats?data_type=${encodeURIComponent(dataType)}&include_columns=1`);
-        const formats = json.data || [];
-        const lastFormatId = localStorage.getItem(`${LAST_FORMAT_PREFIX}${dataType}`) || '';
-        const defaultFormat = formats.find((format) => Number(format.is_default || 0) === 1);
-        const selectedFormatId = formats.some((format) => format.id === lastFormatId)
-            ? lastFormatId
-            : (defaultFormat?.id || formats[0]?.id || '');
-
-        formatSelectEl.innerHTML = `<option value="">${TEXT.selectFormat}</option>` + formats.map((format) => `
-            <option value="${escapeHtml(format.id)}" ${format.id === selectedFormatId ? 'selected' : ''}>
-                ${escapeHtml(format.format_name)}
-            </option>
-        `).join('');
+        if (formatSelectEl) {
+            formatSelectEl.innerHTML = `<option value="">${TEXT.selectFormat}</option>`;
+            formatSelectEl.disabled = true;
+        }
         updateTemplateButtonState();
     }
 
@@ -472,10 +460,6 @@ import { createAgGridAdapter } from '/public/assets/js/common/grid/ag-grid-adapt
     }
 
     formatSelectEl?.addEventListener('change', () => {
-        const formatId = currentFormatId();
-        if (formatId !== '') {
-            localStorage.setItem(`${LAST_FORMAT_PREFIX}${currentDataType()}`, formatId);
-        }
         previewRows = [];
         previewColumns = [];
         currentPreviewToken = '';
@@ -484,18 +468,13 @@ import { createAgGridAdapter } from '/public/assets/js/common/grid/ag-grid-adapt
         updateTemplateButtonState();
     });
 
-    formatManageBtn?.addEventListener('click', () => {
-        window.location.href = '/ledger/data/formats';
-    });
-
     downloadTemplateBtn?.addEventListener('click', () => {
         const dataType = currentDataType();
-        const formatId = currentFormatId();
-        if (!dataType || !formatId) {
+        if (!dataType) {
             notify('warning', TEXT.selectTypeAndFormat);
             return;
         }
-        void downloadTemplate(formatId).catch((error) => notify('error', error.message));
+        void downloadTemplate(dataType).catch((error) => notify('error', error.message));
     });
 
     validateBtn?.addEventListener('click', async () => {
@@ -505,8 +484,6 @@ import { createAgGridAdapter } from '/public/assets/js/common/grid/ag-grid-adapt
             notify('warning', TEXT.selectFormatAndFile);
             return;
         }
-        localStorage.setItem(`${LAST_FORMAT_PREFIX}${currentDataType()}`, formatId);
-
         const formData = new FormData();
         formData.append('format_id', formatId);
         formData.append('file', file);

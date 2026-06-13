@@ -96,7 +96,7 @@ class CodeService
     ];
 
     private const MAPPED_PAYLOAD_TABLES = [
-        'ledger_data_evidences',
+        'ledger_evidence_payloads',
         'ledger_data_import_rows',
         'ledger_data_upload_rows',
         'ledger_import_rows',

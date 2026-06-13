@@ -30,7 +30,7 @@ class RolePermissionController
             return;
         }
 
-        $rows = $this->service->getPermissionsForRole($roleId);
+        $rows = $this->service->getPermissionTreeForRole($roleId);
 
         echo json_encode([
             'success' => true,
@@ -70,5 +70,32 @@ class RolePermissionController
         $ok = $this->service->remove($roleId, $permissionId);
 
         echo json_encode(['success' => (bool) $ok], JSON_UNESCAPED_UNICODE);
+    }
+
+    public function apiReorder()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        error_log('[RolePermissionController] apiReorder entered');
+
+        try {
+            $input = json_decode(file_get_contents('php://input'), true);
+            $changes = $input['changes'] ?? [];
+
+            if (!is_array($changes) || $changes === []) {
+                throw new \InvalidArgumentException('변경할 권한 순서가 없습니다.');
+            }
+
+            $this->service->reorderPermissions($changes);
+
+            echo json_encode([
+                'success' => true,
+                'message' => '순서가 저장되었습니다.',
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            echo json_encode([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE);
+        }
     }
 }

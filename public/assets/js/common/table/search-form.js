@@ -155,6 +155,20 @@ export function SearchForm(config) {
     const periodTooltipBox = document.getElementById(`${tableId}PeriodTooltipContainer`);
     const initialSearchFields = readInitialSearchFields();
 
+    function refreshTableLayout(options = {}) {
+        const draw = options?.draw === true;
+
+        if (table?.__dtTableSettings?.refreshLayout) {
+            table.__dtTableSettings.refreshLayout({ draw });
+            return;
+        }
+
+        table?.columns?.adjust();
+        if (draw) {
+            table?.draw?.(false);
+        }
+    }
+
     applyInitialState();
     bindToggle();
     bindTooltips();
@@ -168,15 +182,37 @@ export function SearchForm(config) {
         return typeof apiList === 'function' ? apiList() : apiList;
     }
 
+    function getSavedExpandedState() {
+        const value = table?.__dtTableSettings?.getState?.()?.searchFormExpanded;
+        return typeof value === 'boolean' ? value : null;
+    }
+
+    function persistExpandedState(expanded) {
+        if (typeof expanded !== 'boolean') {
+            return;
+        }
+
+        table?.__dtTableSettings?.updateState?.({
+            searchFormExpanded: expanded,
+        });
+    }
+
     function applyInitialState() {
-        bodyEl?.classList.toggle('hidden', initialCollapsed);
-        containerEl?.classList.toggle('collapsed', initialCollapsed);
+        const savedExpandedState = getSavedExpandedState();
+        const collapsed = savedExpandedState === null
+            ? initialCollapsed
+            : !savedExpandedState;
+
+        bodyEl?.classList.toggle('hidden', collapsed);
+        containerEl?.classList.toggle('collapsed', collapsed);
+        const nextToggleText = collapsed ? '닫힘' : '펼침';
         if (toggleBtnEl) {
             toggleBtnEl.textContent = initialCollapsed ? '닫힘' : '펼침';
         }
-        if (table && table.page.len() !== 100) {
-            table.page.len(100).draw(false);
+        if (toggleBtnEl) {
+            toggleBtnEl.textContent = nextToggleText;
         }
+
     }
 
     function bindToggle() {
@@ -188,7 +224,8 @@ export function SearchForm(config) {
             bodyEl.classList.toggle('hidden', hidden);
             containerEl.classList.toggle('collapsed', hidden);
             toggleBtnEl.textContent = hidden ? '닫힘' : '펼침';
-            requestAnimationFrame(() => requestAnimationFrame(() => table?.columns?.adjust()));
+            persistExpandedState(!hidden);
+            requestAnimationFrame(() => requestAnimationFrame(() => refreshTableLayout({ draw: false })));
         });
     }
 
@@ -281,8 +318,7 @@ export function SearchForm(config) {
             const normalizedFilters = applyFilterNormalizer(filters);
             const url = buildFilterUrl(normalizedFilters);
             table.ajax.url(url).load(() => {
-                table.columns.adjust();
-                table.draw(false);
+                refreshTableLayout({ draw: true });
             });
         });
 
@@ -294,7 +330,7 @@ export function SearchForm(config) {
             }
             $(this).closest('.search-condition').remove();
             updateRemoveButtons();
-            table?.columns.adjust();
+            refreshTableLayout({ draw: false });
         });
 
         $(resetBtnId).off('click.searchFormReset').on('click.searchFormReset', function (e) {
@@ -312,8 +348,7 @@ export function SearchForm(config) {
             updateRemoveButtons();
 
             table.ajax.url(currentApiList()).load(() => {
-                table.columns.adjust();
-                table.draw(false);
+                refreshTableLayout({ draw: true });
             });
         });
 
@@ -344,7 +379,7 @@ export function SearchForm(config) {
 
             $(`${conditionsId} .search-condition:last`).after(html);
             updateRemoveButtons();
-            table?.columns.adjust();
+            refreshTableLayout({ draw: false });
         });
     }
 

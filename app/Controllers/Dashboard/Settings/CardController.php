@@ -296,7 +296,8 @@ class CardController
                 ob_end_clean();
             }
 
-            $this->service->downloadTemplate();
+            $columnsCsv = trim((string) ($_GET['columns'] ?? ''));
+            $this->service->downloadTemplate($columnsCsv);
         } catch (\Throwable $e) {
             http_response_code(500);
             header('Content-Type: text/plain; charset=UTF-8');
@@ -325,7 +326,8 @@ class CardController
                 $this->jsonResponse(['success' => false, 'message' => '엑셀 파일은 10MB 이하만 업로드할 수 있습니다.']);
             }
 
-            $this->jsonResponse($this->service->saveFromExcelFile($fileTmp));
+            $columnsCsv = trim((string) ($_POST['excel_template_columns'] ?? ''));
+            $this->jsonResponse($this->service->saveFromExcelFile($fileTmp, $columnsCsv));
         } catch (\Throwable $e) {
             $this->jsonResponse([
                 'success' => false,
@@ -342,7 +344,8 @@ class CardController
                 ob_end_clean();
             }
 
-            $this->service->downloadExcel();
+            $columnsCsv = trim((string) ($_GET['columns'] ?? ''));
+            $this->service->downloadExcel($columnsCsv);
         } catch (\Throwable $e) {
             http_response_code(500);
             header('Content-Type: text/plain; charset=UTF-8');

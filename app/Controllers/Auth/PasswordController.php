@@ -32,6 +32,10 @@ class PasswordController
 
     public function webFindPasswordResult()
     {
+        $viewData = $this->authService->recoverPassword($_POST);
+        $alertClass = (string)($viewData['alertClass'] ?? 'alert-warning');
+        $resultHtml = (string)($viewData['resultHtml'] ?? '');
+
         include PROJECT_ROOT . '/app/views/auth/find_password_result.php';
     }
 

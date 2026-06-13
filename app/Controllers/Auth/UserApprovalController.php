@@ -25,6 +25,14 @@ class UserApprovalController
 
     public function webApproveRequest(): void
     {
+        $approveToken = trim((string) ($_GET['approve_token'] ?? ''));
+        $viewData = $this->approvalService->getApprovalRequestViewData($approveToken);
+
+        $approveToken = (string) ($viewData['approveToken'] ?? $approveToken);
+        $message = (string) ($viewData['message'] ?? '');
+        $formattedDate = (string) ($viewData['formattedDate'] ?? '');
+        $user = is_array($viewData['user'] ?? null) ? $viewData['user'] : null;
+
         include PROJECT_ROOT . '/app/views/auth/approve_request.php';
         exit;
     }

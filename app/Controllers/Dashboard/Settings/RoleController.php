@@ -15,7 +15,7 @@ class RoleController
 
     public function webIndex()
     {
-        include PROJECT_ROOT . '/app/views/dashboard/settings/organization/roles.php';
+        include PROJECT_ROOT . '/app/views/dashboard/settings/organization/role.php';
     }
 
     public function apiList()

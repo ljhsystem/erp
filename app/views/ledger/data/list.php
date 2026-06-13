@@ -107,20 +107,6 @@ $pageScripts = '<script type="module" src="' . htmlspecialchars($dataStatusScrip
     </div>
 </div>
 
-<div class="modal fade data-management-modal" id="dataFormatModal" tabindex="-1" aria-labelledby="dataFormatModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-fullscreen-lg-down modal-xl modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="dataFormatModalLabel">&#50577;&#49885; &#44288;&#47532;</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="&#45803;&#44592;"></button>
-            </div>
-            <div class="modal-body p-0">
-                <iframe class="data-management-frame" data-src="/ledger/data/formats?modal=1" title="&#50577;&#49885; &#44288;&#47532;"></iframe>
-            </div>
-        </div>
-    </div>
-</div>
-
 <div class="modal fade" id="evidenceSeedRowEditModal" tabindex="-1" aria-labelledby="evidenceSeedRowEditModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content evidence-edit-modal">

@@ -53,7 +53,7 @@
     async function postBulkJson(url, items = []) {
         return postJson(url, {
             ids: items,
-            seed_row_ids: items,
+            evidence_ids: items,
             evidence_ids: items,
         });
     }
