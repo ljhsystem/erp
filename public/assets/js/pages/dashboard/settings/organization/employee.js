@@ -1,5 +1,3 @@
-// 寃쎈줈: PROJECT_ROOT . '/public/assets/js/pages/dashboard/settings/organization/employees.js'
-
 import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import * as NumberFormat from '/public/assets/js/common/format.js';
 import {
@@ -10,6 +8,12 @@ import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { openClientQuickCreate } from '/public/assets/js/pages/dashboard/settings/base/client.js';
 import { initCodeSelectControls } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+import {
+    bindFilePreviewAndDeleteEvents,
+    resolveFileSrc,
+    getCertPreview,
+    escapeHtml
+} from './employee/form.js';
 
 window.AdminPicker = AdminPicker;
 
@@ -20,28 +24,22 @@ window.AdminPicker = AdminPicker;
 
     console.log('[employees.js v2] loaded');
 
-    /* =========================================================
-       API
-    ========================================================= */
     const API = {
         LIST: '/api/settings/organization/employee/list',
         DETAIL: '/api/settings/organization/employee/detail',
         SEARCH_PICKER: '/api/settings/organization/employee/search-picker',
-    
+
         SAVE: '/api/settings/organization/employee/save',
         UPDATE_STATUS: '/api/settings/organization/employee/update-status',
         DELETE: '/api/settings/organization/employee/delete',
         REORDER: '/api/settings/organization/employee/reorder',
         CLIENT_SEARCH: '/api/settings/base-info/client/search-picker',
-    
+
         DEPARTMENT_LIST: '/api/settings/organization/department/list',
         POSITION_LIST: '/api/settings/organization/position/list',
         ROLE_LIST: '/api/settings/organization/role/list'
     };
 
-    /* =========================================================
-       吏곸썝 而щ읆 留ㅽ븨
-    ========================================================= */
     const EMPLOYEE_COLUMN_MAP = {
         sort_no:                  { label: '\uC21C\uBC88', visible: true },
         user_id:                  { label: '\uC0AC\uC6A9\uC790ID', visible: false },
@@ -129,9 +127,6 @@ window.AdminPicker = AdminPicker;
     const employeeSelectOptionsCache = new Map();
     let employeeBankControlsPromise = null;
 
-    /* =========================================================
-       DOM READY
-    ========================================================= */
     document.addEventListener('DOMContentLoaded', () => {
         if (!window.jQuery) {
             console.error('[employees.js] jQuery not loaded');
@@ -142,9 +137,6 @@ window.AdminPicker = AdminPicker;
         initEmployeePage($);
     });
 
-    /* =========================================================
-       PAGE INIT
-    ========================================================= */
     function initEmployeePage($) {
         initEmployeeModules();
         initModals();
@@ -177,9 +169,6 @@ window.AdminPicker = AdminPicker;
         bindGlobalEvents();
     }
 
-    /* =========================================================
-       ?몃? 紐⑤뱢
-    ========================================================= */
     function initEmployeeModules() {
         try {
             window.EmployeeUtils?.hideAlertMessages?.();
@@ -194,9 +183,6 @@ window.AdminPicker = AdminPicker;
         }
     }
 
-    /* =========================================================
-       紐⑤떖
-    ========================================================= */
     function initModals() {
         const editEl = document.getElementById('employeeEditModal');
         const imageEl = document.getElementById('originalImageModal');
@@ -214,9 +200,6 @@ window.AdminPicker = AdminPicker;
         }
     }
 
-    /* =========================================================
-       ?좎쭨?쇱빱
-    ========================================================= */
     function initAdminDatePicker() {
         if (todayPicker) return todayPicker;
 
@@ -359,9 +342,6 @@ window.AdminPicker = AdminPicker;
         }
     }
 
-    /* =========================================================
-       ?곗씠?고뀒?대툝
-    ========================================================= */
     function initDataTable($) {
         const columns = buildEmployeeColumns();
 
@@ -540,9 +520,6 @@ window.AdminPicker = AdminPicker;
         }
     }
 
-    /* =========================================================
-       테이블 이벤트
-    ========================================================= */
     function bindTableEvents($) {
         $('#employee-table tbody')
             .off('click.employeeImgPreview', '.employee-img-preview')
@@ -614,14 +591,6 @@ window.AdminPicker = AdminPicker;
             });
     }
 
-    /* =========================================================
-       공통 레이아웃
-    ========================================================= */
-    
-
-    /* =========================================================
-       ?역 버튼
-    ========================================================= */
     function bindModalEvents($) {
         $(document)
             .off('submit.employeeSave', '#employee-edit-form')
@@ -1144,19 +1113,16 @@ window.AdminPicker = AdminPicker;
         if (!filePath) {
             return '/public/assets/img/placeholder-bank.png';
         }
-    
+
         const ext = String(filePath).split('.').pop().toLowerCase();
-    
+
         if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
             return `/api/file/preview?path=${encodeURIComponent(filePath)}`;
         }
-    
+
         return '/public/assets/img/has-bank-file.png';
     }
 
-    /* =========================================================
-       Select2 로딩
-    ========================================================= */
     async function getEmployeeSelectItems(apiUrl, method = 'GET') {
         const cacheKey = `${String(method).toUpperCase()}:${apiUrl}`;
         if (employeeSelectOptionsCache.has(cacheKey)) {
@@ -1389,277 +1355,6 @@ window.AdminPicker = AdminPicker;
         return clean.substring(0, 6) + '-' + clean.substring(6, 7) + '******';
     }
 
-    /* =========================================================
-       ?뚯씪 泥섎━
-    ========================================================= */
-    function bindFilePreviewAndDeleteEvents($) {
-        $(document)
-            .off('click.profilePreview')
-            .on('click.profilePreview', '#edit_profile_preview', function () {
-                const src = $(this).attr('src');
-
-                if (!src || src.includes('default-avatar.png')) {
-                    $('#edit_profile_image').trigger('click');
-                    return;
-                }
-
-                window.open(src, '_blank');
-            });
-
-        $(document)
-            .off('click.idPreview')
-            .on('click.idPreview', '#edit_id_preview', function () {
-                const src = $(this).attr('src');
-
-                if (!src || src.includes('placeholder-id.png')) {
-                    $('#edit_rrn_image').trigger('click');
-                    return;
-                }
-
-                window.open(src, '_blank');
-            });
-
-        $(document)
-            .off('click.certPreview')
-            .on('click.certPreview', '#edit_cert_preview_img', function () {
-                const filePath = $(this).data('file-path');
-
-                if (!filePath) {
-                    $('#edit_certificate_file').trigger('click');
-                    return;
-                }
-
-                const url = `/api/file/preview?path=${encodeURIComponent(filePath)}`;
-                window.open(url, '_blank');
-            });
-
-        $(document)
-            .off('click.employeeProfileDelete')
-            .on('click.employeeProfileDelete', '#edit_profile_delete_btn', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-
-                $('#edit_profile_preview')
-                    .attr('src', '/public/assets/img/default-avatar.png')
-                    .removeAttr('data-file-path');
-
-                const $input = $('#edit_profile_image');
-                const $newInput = $input.clone().val('');
-                $input.replaceWith($newInput);
-
-                $('#edit_profile_image_delete').val('1');
-                $('#profile_box').attr('data-label', '\uC5C5\uB85C\uB4DC');
-                $(this).hide();
-            });
-
-        $(document)
-            .off('click.employeeIdDelete')
-            .on('click.employeeIdDelete', '#edit_id_delete_btn', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-
-                $('#edit_id_preview')
-                    .attr('src', '/public/assets/img/placeholder-id.png')
-                    .removeAttr('data-file-path');
-
-                const $input = $('#edit_rrn_image');
-                const $newInput = $input.clone().val('');
-                $input.replaceWith($newInput);
-
-                $('#edit_rrn_image_delete').val('1');
-                $('#id_box').attr('data-label', '\uC5C5\uB85C\uB4DC');
-                $(this).hide();
-            });
-
-            $(document)
-            .off('click.employeeCertDelete')
-            .on('click.employeeCertDelete', '#edit_cert_delete_btn', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-        
-                $('#edit_cert_preview_img')
-                    .attr('src', '/public/assets/img/placeholder-cert.png')
-                    .data('file-path', '');
-        
-                const $input = $('#edit_certificate_file');
-                const $newInput = $input.clone().val('');
-                $input.replaceWith($newInput);
-        
-                $('#edit_certificate_file_delete').val('1');
-                $('#edit_certificate_name').val('');
-                $('#cert_box').attr('data-label', '\uC5C5\uB85C\uB4DC');
-        
-                $(this).hide();
-            });
-
-        $(document)
-            .off('change.employeeProfilePreview', '#edit_profile_image')
-            .on('change.employeeProfilePreview', '#edit_profile_image', function () {
-                const file = this.files?.[0];
-                if (!file) return;
-
-                $('#edit_profile_image_delete').val('0');
-                $('#edit_profile_delete_btn').show();
-                $('#profile_box').attr('data-label', '\uC6D0\uBCF8 \uBCF4\uAE30');
-
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    $('#edit_profile_preview').attr('src', e.target.result);
-                };
-                reader.readAsDataURL(file);
-            });
-
-        $(document)
-            .off('change.employeeIdPreview', '#edit_rrn_image')
-            .on('change.employeeIdPreview', '#edit_rrn_image', function () {
-                const file = this.files?.[0];
-                if (!file) return;
-
-                $('#edit_rrn_image_delete').val('0');
-                $('#edit_id_delete_btn').show();
-                $('#id_box').attr('data-label', '\uC6D0\uBCF8 \uBCF4\uAE30');
-
-                const ext = file.name.split('.').pop().toLowerCase();
-
-                if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
-                    const reader = new FileReader();
-                    reader.onload = function (e) {
-                        $('#edit_id_preview').attr('src', e.target.result);
-                    };
-                    reader.readAsDataURL(file);
-                } else {
-                    $('#edit_id_preview').attr('src', '/public/assets/img/placeholder-id.png');
-                }
-            });
-
-        $(document)
-            .off('change.employeeCertPreview', '#edit_certificate_file')
-            .on('change.employeeCertPreview', '#edit_certificate_file', function () {
-                const file = this.files?.[0];
-                if (!file) return;
-
-
-                $('#edit_cert_delete_btn').show();
-                $('#cert_box').attr('data-label', '\uC6D0\uBCF8 \uBCF4\uAE30');
-
-                const ext = file.name.split('.').pop().toLowerCase();
-
-                if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
-                    const reader = new FileReader();
-                    reader.onload = function (e) {
-                        $('#edit_cert_preview_img')
-                            .attr('src', e.target.result)
-                            .data('file-path', '');
-                    };
-                    reader.readAsDataURL(file);
-                } else {
-                    $('#edit_cert_preview_img')
-                        .attr('src', '/public/assets/img/has-cert.png')
-                        .data('file-path', '');
-                }
-            });
-
-        $(document)
-            .off('click.bankPreview')
-            .on('click.bankPreview', '#edit_bank_preview', function () {
-                const filePath = $(this).data('file-path');
-
-                if (!filePath) {
-                    $('#edit_bank_file').trigger('click');
-                    return;
-                }
-
-                const url = `/api/file/preview?path=${encodeURIComponent(filePath)}`;
-                window.open(url, '_blank');
-            });                             
-        $(document)
-            .off('click.employeeBankDelete')
-            .on('click.employeeBankDelete', '#edit_bank_delete_btn', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-
-                $('#edit_bank_preview')
-                    .attr('src', '/public/assets/img/placeholder-bank.png')
-                    .data('file-path', '');
-
-                const $input = $('#edit_bank_file');
-                const $newInput = $input.clone().val('');
-                $input.replaceWith($newInput);
-
-                $('#edit_bank_file_delete').val('1');
-                $('#bank_box').attr('data-label', '\uC5C5\uB85C\uB4DC');
-                $(this).hide();
-            });
-
-        $(document)
-            .off('change.employeeBankPreview', '#edit_bank_file')
-            .on('change.employeeBankPreview', '#edit_bank_file', function () {
-                const file = this.files?.[0];
-                if (!file) return;
-
-                $('#edit_bank_file_delete').val('0');
-                $('#edit_bank_delete_btn').show();
-                $('#bank_box').attr('data-label', '\uC6D0\uBCF8 \uBCF4\uAE30');
-
-                const ext = file.name.split('.').pop().toLowerCase();
-
-                if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
-                    const reader = new FileReader();
-                    reader.onload = function (e) {
-                        $('#edit_bank_preview')
-                            .attr('src', e.target.result)
-                            .data('file-path', '');
-                    };
-                    reader.readAsDataURL(file);
-                } else {
-                    $('#edit_bank_preview')
-                        .attr('src', '/public/assets/img/has-bank-file.png')
-                        .data('file-path', '');
-                }
-            });
-    }
-
-    function resolveFileSrc(path, fallback = '') {
-        if (!path) return fallback;
-
-        if (typeof path === 'string' && (path.startsWith('private://') || path.startsWith('public://'))) {
-            return `/api/file/preview?path=${encodeURIComponent(path)}`;
-        }
-
-        if (typeof path === 'string' && (path.startsWith('http') || path.startsWith('/'))) {
-            return path;
-        }
-
-        return fallback;
-    }
-
-    function getCertPreview(filePath) {
-        if (!filePath) {
-            return '/public/assets/img/placeholder-cert.png';
-        }
-
-        const ext = String(filePath).split('.').pop().toLowerCase();
-
-        if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
-            return `/api/file/preview?path=${encodeURIComponent(filePath)}`;
-        }
-
-        return '/public/assets/img/has-cert.png';
-    }
-
-    /* =========================================================
-       ?역 ?벤??
-    ========================================================= */
-
-    function escapeHtml(value) {
-        return String(value ?? '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
-    }
-
     function bindGlobalEvents() {
         if (globalBound) return;
         globalBound = true;
@@ -1686,18 +1381,4 @@ window.AdminPicker = AdminPicker;
         });
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
 })();

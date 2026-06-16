@@ -37,6 +37,25 @@
 
 ## 2026-06 Additions
 
+- `DatabaseSyncService`
+  - Responsibility: latest SQL backup selection, current Active/Standby DB pair resolution, Standby DB snapshot creation, Standby DB PDO sync execution, sync heartbeat/status/log persistence, failed-sync automatic rollback
+  - Controllers: `DatabaseSyncController`
+  - Out of scope: Primary backup generation, Primary restore, mysql CLI execution
+
+- `DatabaseRestoreService`
+  - Responsibility: selected SQL backup validation, current Active/Standby DB pair resolution, Active DB PDO restore execution, restore heartbeat/status/log persistence, sync-running guard
+  - Controllers: `DatabaseRestoreController`
+  - Out of scope: backup generation, Standby sync execution, mysql CLI execution
+
+- `DatabaseActiveSwitchService`
+  - Responsibility: Active DB 판별, `db_replication.php` active_target 전환, 대상 DB 접속정보 정규화, 전환 대상 DB 연결 검증, 마지막 전환 상태 저장, 전환 로그 기록
+  - Controllers: `DatabaseActiveController`
+  - Out of scope: DB 연결 자체 재기동, 자동 전환, 자동 장애 복구
+
+- `DatabaseActiveSwitchService` update
+  - Updated responsibility: Active DB switch guard validation for running sync/restore status, `db_replication.php` active_target switch, target DB connection validation, latest switch status persistence, switch log persistence
+  - Updated out of scope: DB connection recovery, automatic failover, automatic promotion
+
 - `ClientService`
   - Expanded responsibility: client save request payload normalization, save validation, file-attached save orchestration, duplicate business-number save message mapping
   - Controllers: `ClientController`

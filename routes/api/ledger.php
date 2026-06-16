@@ -650,8 +650,8 @@ $router->get('/api/ledger/sub-account/list', 'SubChartAccountController@apiList'
     'key' => 'api.ledger.sub_account.list',
     'page' => '보조계정',
     'page_description' => '보조계정 관리',
-    'permission_name' => '조회',
-    'permission_description' => '보조계정 조회',
+    'permission_name' => '관리화면 조회',
+    'permission_description' => '보조계정 관리 화면에서 계정별 보조계정 목록 조회',
     'name' => '보조계정 조회',
     'description' => '회계관리 > 기초정보관리 > 보조계정 > 조회',
     'category' => '회계관리 > 기초정보관리',
@@ -1331,4 +1331,3 @@ $router->post('/api/ledger/transaction/purge-all', 'TransactionController@apiPur
     'permissions' => ['delete'],
     'log' => true,
 ]);
-

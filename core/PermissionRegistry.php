@@ -212,7 +212,10 @@ class PermissionRegistry
             }
         }
 
-        $normalizeSummary = self::normalizeRegisteredSortNo($pdo, $systemActor);
+        $normalizeSummary = ['duration_ms' => 0];
+        if ($insertCount > 0 || $updateCount > 0) {
+            $normalizeSummary = self::normalizeRegisteredSortNo($pdo, $systemActor);
+        }
         $syncDurationMs = self::elapsedMilliseconds($syncStartedAt);
 
         self::$logger->info('PermissionRegistry::syncToDatabase() SUMMARY', [

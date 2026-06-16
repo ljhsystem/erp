@@ -2,6 +2,7 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import { createDataTable, bindTableHighlight } from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
+import { createExcelManagerSettingsCore } from '/public/assets/js/components/excel-manager/index.js';
 import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
 
@@ -157,6 +158,10 @@ window.AdminPicker = AdminPicker;
         excelForm.dataset.templateUrl = API.EXCEL_TEMPLATE;
         excelForm.dataset.downloadUrl = API.EXCEL_DOWNLOAD;
         excelForm.dataset.uploadUrl = API.EXCEL_UPLOAD;
+        createExcelManagerSettingsCore({
+            domain: 'code',
+            formSelector: '#codeExcelForm',
+        });
     }
 
     function initDataTable($) {
@@ -170,16 +175,16 @@ window.AdminPicker = AdminPicker;
             deleteApi: API.DELETE,
             buttons: [
                 {
+                    text: '휴지통',
+                    className: 'btn btn-danger btn-sm',
+                    action: openTrashModal
+                },
+                {
                     text: '엑셀관리',
                     className: 'btn btn-success btn-sm',
                     action: function () {
                         excelModal?.show();
                     }
-                },
-                {
-                    text: '휴지통',
-                    className: 'btn btn-danger btn-sm',
-                    action: openTrashModal
                 },
                 {
                     text: '새 기준정보',

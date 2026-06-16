@@ -49,7 +49,7 @@
 
             setValue("ui_skin", data.ui_skin);
             setValue("theme_mode", data.theme_mode);
-            setValue("font_family", data.font_family || data.site_font_family || "");
+            setValue("font_family", data.site_font_family || data.font_family || "");
             setValue("ui_density", data.ui_density || "normal");
             setValue("font_scale", data.font_scale);
             setValue("table_density", data.table_density);
@@ -84,7 +84,6 @@
                 footer_text: getValue("footer_text"),
                 ui_skin: getValue("ui_skin"),
                 theme_mode: getValue("theme_mode"),
-                font_family: getValue("font_family"),
                 site_font_family: getValue("font_family"),
                 ui_density: getValue("ui_density") || "normal",
                 font_scale: getValue("font_scale"),

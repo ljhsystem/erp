@@ -27,14 +27,14 @@ export function createCardTableModule({
             },
             buttons: [
                 {
-                    text: '엑셀 관리',
-                    className: 'btn btn-success btn-sm',
-                    action: () => state.excelModal?.show(),
-                },
-                {
                     text: '휴지통',
                     className: 'btn btn-danger btn-sm',
                     action: openTrashModal,
+                },
+                {
+                    text: '엑셀 관리',
+                    className: 'btn btn-success btn-sm',
+                    action: () => state.excelModal?.show(),
                 },
                 {
                     text: '새 카드',

@@ -41,7 +41,7 @@
     $enableButtons = true;
     $enableSearch = true;
     $enablePaging = true;
-    $enableReorder = false;
+    $enableReorder = true;
 
     include PROJECT_ROOT . '/app/views/components/ui-table.php';
     ?>

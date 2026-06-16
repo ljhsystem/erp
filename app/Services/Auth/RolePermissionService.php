@@ -7,7 +7,6 @@ use App\Models\System\PageRegistryModel;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\SequenceHelper;
 use Core\Helpers\UuidHelper;
-use Core\LoggerFactory;
 use PDO;
 
 class RolePermissionService
@@ -16,7 +15,6 @@ class RolePermissionService
     private RolePermissionModel $model;
     private PermissionModel $permissionModel;
     private PageRegistryModel $pageRegistryModel;
-    private $logger;
 
     public function __construct(PDO $pdo)
     {
@@ -24,7 +22,6 @@ class RolePermissionService
         $this->model = new RolePermissionModel($pdo);
         $this->permissionModel = new PermissionModel($pdo);
         $this->pageRegistryModel = new PageRegistryModel($pdo);
-        $this->logger = LoggerFactory::getLogger('service-auth.RolePermissionService');
     }
 
     public function getPermissionsForRole(string $roleId): array
@@ -180,20 +177,31 @@ class RolePermissionService
         $this->pdo->beginTransaction();
 
         try {
-            foreach ($changes as $index => $row) {
+            foreach ($changes as &$row) {
                 $permissionId = trim((string) ($row['permission_id'] ?? ''));
                 $sortNo = (int) ($row['sort_no'] ?? 0);
 
                 if ($permissionId === '') {
-                    throw new \InvalidArgumentException('권한 ID가 누락되었습니다.');
+                    throw new \InvalidArgumentException('권한 ID가 올바르지 않습니다.');
                 }
 
                 if ($sortNo <= 0) {
                     throw new \InvalidArgumentException('권한 순번이 올바르지 않습니다.');
                 }
 
-                if (!$this->permissionModel->updateSortNo($permissionId, $sortNo)) {
-                    throw new \RuntimeException(sprintf('권한 순서 저장에 실패했습니다. (%d)', $index + 1));
+                $row['_sort_no'] = $sortNo;
+            }
+            unset($row);
+
+            foreach ($changes as $index => $row) {
+                if (!$this->permissionModel->updateSortNo($row['permission_id'], $row['_sort_no'] + 1000000)) {
+                    throw new \RuntimeException(sprintf('정렬 저장 중 오류가 발생했습니다. (%d)', $index + 1));
+                }
+            }
+
+            foreach ($changes as $index => $row) {
+                if (!$this->permissionModel->updateSortNo($row['permission_id'], $row['_sort_no'])) {
+                    throw new \RuntimeException(sprintf('정렬 저장 중 오류가 발생했습니다. (%d)', $index + 1));
                 }
             }
 

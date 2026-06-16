@@ -60,6 +60,7 @@ function getDom() {
         permissionHeader: document.getElementById('permission-header'),
         permissionCount: document.getElementById('permission-count'),
         saveButton: document.getElementById('permission-save-btn'),
+        checkAll: document.getElementById('permission-check-all'),
     };
 }
 
@@ -88,6 +89,7 @@ function setSaveDirty(isDirty) {
         return;
     }
 
+    saveButton.disabled = !isDirty;
     saveButton.classList.toggle('btn-primary', isDirty);
     saveButton.classList.toggle('btn-secondary', !isDirty);
 }
@@ -171,6 +173,7 @@ function initPermissionTable() {
         info: true,
         selectable: true,
         selectionColumnIndex: 0,
+        selectionColumn: { widthResizable: true },
         rowIdField: (row) => (row?.row_type === 'permission' ? String(row.permission_id || '') : ''),
         isRowSelectable: (row) => row?.row_type === 'permission',
         deleteButton: true,
@@ -187,10 +190,12 @@ function initPermissionTable() {
             columns: buildPermissionColumns(),
             requiredColumns: [],
             defaultVisibleColumns: [
+                '__select',
                 'handle',
                 'sort_no',
                 'page',
                 'category',
+                'permission_source',
                 'permission_name',
                 'permission_description',
                 'grant',
@@ -219,7 +224,7 @@ function buildPermissionColumns() {
             width: '56px',
             orderable: false,
             searchable: false,
-            widthResizable: false,
+            widthResizable: true,
             render: (_, type, row) => {
                 if (type === 'sort' || type === 'type' || type === 'filter') {
                     return '';
@@ -249,10 +254,9 @@ function buildPermissionColumns() {
             className: 'text-center',
             headerClassName: 'text-center',
             width: '72px',
-            orderSequence: ['asc'],
             render: (value, type, row) => {
                 if (type === 'sort' || type === 'type') {
-                    return row.tree_sort || '';
+                    return buildPermissionColumnSortValue(row, value, 'sort_no');
                 }
 
                 if (type === 'filter') {
@@ -267,10 +271,9 @@ function buildPermissionColumns() {
             data: 'page',
             settingsKey: 'page',
             widthResizable: true,
-            orderSequence: ['asc'],
             render: (value, type, row) => {
                 if (type === 'sort' || type === 'type') {
-                    return row.tree_sort || '';
+                    return buildPermissionColumnSortValue(row, value, 'page');
                 }
 
                 if (type === 'filter') {
@@ -285,10 +288,9 @@ function buildPermissionColumns() {
             data: 'category',
             settingsKey: 'category',
             widthResizable: true,
-            orderSequence: ['asc'],
             render: (value, type, row) => {
                 if (type === 'sort' || type === 'type') {
-                    return row.tree_sort || '';
+                    return buildPermissionColumnSortValue(row, value, 'category');
                 }
 
                 if (type === 'filter') {
@@ -299,14 +301,37 @@ function buildPermissionColumns() {
             },
         },
         {
+            title: '\uAD6C\uBD84',
+            data: 'permission_source',
+            settingsKey: 'permission_source',
+            className: 'text-center',
+            headerClassName: 'text-center',
+            width: '80px',
+            widthResizable: true,
+            render: (value, type, row) => {
+                if (type === 'sort' || type === 'type') {
+                    return buildPermissionColumnSortValue(row, value, 'permission_source');
+                }
+
+                if (type === 'filter') {
+                    return row.search_text || String(value || '');
+                }
+
+                if (row.row_type === 'page') {
+                    return 'PAGE';
+                }
+
+                return escapeHtml(String(value || '').toUpperCase());
+            },
+        },
+        {
             title: '\uAD8C\uD55C\uBA85',
             data: 'permission_name',
             settingsKey: 'permission_name',
             widthResizable: true,
-            orderSequence: ['asc'],
             render: (value, type, row) => {
                 if (type === 'sort' || type === 'type') {
-                    return row.tree_sort || '';
+                    return buildPermissionColumnSortValue(row, value, 'permission_name');
                 }
 
                 if (type === 'filter') {
@@ -321,10 +346,9 @@ function buildPermissionColumns() {
             data: 'permission_description',
             settingsKey: 'permission_description',
             widthResizable: true,
-            orderSequence: ['asc'],
             render: (value, type, row) => {
                 if (type === 'sort' || type === 'type') {
-                    return row.tree_sort || '';
+                    return buildPermissionColumnSortValue(row, value, 'permission_description');
                 }
 
                 if (type === 'filter') {
@@ -480,6 +504,7 @@ function buildSearchText(pageNode, childNode = null) {
             pageNode.category,
             pageNode.permission_name,
             pageNode.permission_description,
+            String(childNode.permission_source || '').toUpperCase(),
             childNode.permission_name,
             childNode.permission_description,
             childNode.permission_source,
@@ -500,6 +525,50 @@ function buildSearchText(pageNode, childNode = null) {
         .map((value) => String(value || '').trim())
         .filter(Boolean)
         .join(' ');
+}
+
+function getPermissionSourcePriority(source = '') {
+    const normalized = String(source || '').trim().toLowerCase();
+    if (normalized === 'web') {
+        return 0;
+    }
+
+    if (normalized === 'api') {
+        return 1;
+    }
+
+    return 9;
+}
+
+function sortPermissionChildrenForDisplay(children = []) {
+    return [...children].sort((left, right) => {
+        const sourceCompare = getPermissionSourcePriority(left?.permission_source) - getPermissionSourcePriority(right?.permission_source);
+        if (sourceCompare !== 0) {
+            return sourceCompare;
+        }
+
+        const sortCompare = Number(left?.sort_no || 0) - Number(right?.sort_no || 0);
+        if (sortCompare !== 0) {
+            return sortCompare;
+        }
+
+        return String(left?.permission_name || '').localeCompare(String(right?.permission_name || ''), 'ko');
+    });
+}
+
+function buildPermissionColumnSortValue(row = {}, value = '', columnKey = '') {
+    const rowTypeWeight = row?.row_type === 'page' ? '0' : '1';
+    const normalizedValue = String(value || '').trim().toLowerCase();
+
+    if (columnKey === 'sort_no') {
+        return Number(row?.sort_no || 0);
+    }
+
+    if (columnKey === 'permission_source') {
+        return `${rowTypeWeight}|${getPermissionSourcePriority(value)}|${normalizedValue}`;
+    }
+
+    return `${rowTypeWeight}|${normalizedValue}`;
 }
 
 function buildDisplayRows() {
@@ -528,7 +597,7 @@ function buildDisplayRows() {
         });
         sequence += 1;
 
-        (pageNode.children || []).forEach((childNode) => {
+        sortPermissionChildrenForDisplay(pageNode.children || []).forEach((childNode) => {
             rows.push({
                 row_id: `permission:${childNode.permission_id}`,
                 row_type: 'permission',
@@ -571,6 +640,22 @@ function updatePermissionCount() {
     permissionCount.textContent = `\uD398\uC774\uC9C0 ${pageCount}\uAC1C / \uAD8C\uD55C ${permissionCountValue}\uAC1C`;
 }
 
+function getPermissionSortColumnIndex() {
+    if (!permissionTable?.settings) {
+        return 2;
+    }
+
+    const settings = permissionTable.settings()[0];
+    const columns = Array.isArray(settings?.aoColumns) ? settings.aoColumns : [];
+    const columnIndex = columns.findIndex((column) => {
+        const dataField = typeof column?.mData === 'string' ? column.mData : '';
+        const settingsKey = String(column?.settingsKey || column?.__dtSettingsKey || column?.sName || '').trim();
+        return dataField === 'sort_no' || settingsKey === 'sort_no';
+    });
+
+    return columnIndex >= 0 ? columnIndex : 2;
+}
+
 function renderPermissionTable() {
     const table = initPermissionTable();
     currentDisplayRows = selectedRoleId ? buildDisplayRows() : [];
@@ -579,6 +664,7 @@ function renderPermissionTable() {
     table.rows.add(currentDisplayRows);
     table.draw(false);
     updatePermissionCount();
+    syncPermissionHeaderCheckboxState();
 }
 
 function applyPermissionRowStyles() {
@@ -622,6 +708,52 @@ function applyParentIndeterminateStates() {
     });
 }
 
+function syncPermissionHeaderCheckboxState() {
+    const { checkAll } = getDom();
+    if (!checkAll) {
+        return;
+    }
+
+    const permissionNodes = currentTree.flatMap((pageNode) => pageNode.children || []);
+    const totalCount = permissionNodes.length;
+    const checkedCount = permissionNodes.filter((node) => !!node.checked).length;
+
+    checkAll.disabled = totalCount === 0;
+    checkAll.checked = totalCount > 0 && checkedCount === totalCount;
+    checkAll.indeterminate = checkedCount > 0 && checkedCount < totalCount;
+}
+
+function syncVisiblePermissionCheckboxes() {
+    const tableNode = document.querySelector(PAGE_TABLE_SELECTOR);
+    if (!tableNode) {
+        return;
+    }
+
+    currentTree.forEach((pageNode) => {
+        const pageKey = String(pageNode.page_key || '');
+        const pageCheckbox = tableNode.querySelector(`.rp-page-checkbox[data-page-key="${pageKey}"]`);
+        if (pageCheckbox) {
+            pageCheckbox.checked = !!pageNode.checked;
+            pageCheckbox.indeterminate = !!pageNode.indeterminate;
+        }
+
+        (pageNode.children || []).forEach((childNode) => {
+            const permissionId = String(childNode.permission_id || '');
+            const childCheckbox = tableNode.querySelector(
+                `.rp-permission-checkbox[data-page-key="${pageKey}"][data-permission-id="${permissionId}"]`
+            );
+            if (childCheckbox) {
+                childCheckbox.checked = !!childNode.checked;
+            }
+        });
+    });
+}
+
+function syncPermissionSelectionState() {
+    syncVisiblePermissionCheckboxes();
+    syncPermissionHeaderCheckboxState();
+}
+
 function setPageNodeChecked(pageKey, checked) {
     const pageNode = currentTree.find((node) => String(node.page_key) === String(pageKey));
     if (!pageNode) {
@@ -655,12 +787,13 @@ function setChildNodeChecked(pageKey, permissionId, checked) {
 function bindPermissionTableEvents() {
     $(document).off('change.rolePermissionFlat', `${PAGE_TABLE_SELECTOR} .rp-page-checkbox`);
     $(document).off('change.rolePermissionFlat', `${PAGE_TABLE_SELECTOR} .rp-permission-checkbox`);
+    $(document).off('change.rolePermissionFlat', '#permission-check-all');
     $(document).off('datatable:delete-selected.rolePermissionFlat', PAGE_TABLE_SELECTOR);
 
     $(document).on('change.rolePermissionFlat', `${PAGE_TABLE_SELECTOR} .rp-page-checkbox`, function onPageCheckboxChange() {
         setPageNodeChecked(String(this.dataset.pageKey || ''), !!this.checked);
         setSaveDirty(Object.keys(pendingChanges).length > 0);
-        renderPermissionTable();
+        syncPermissionSelectionState();
     });
 
     $(document).on('change.rolePermissionFlat', `${PAGE_TABLE_SELECTOR} .rp-permission-checkbox`, function onPermissionCheckboxChange() {
@@ -670,7 +803,15 @@ function bindPermissionTableEvents() {
             !!this.checked
         );
         setSaveDirty(Object.keys(pendingChanges).length > 0);
-        renderPermissionTable();
+        syncPermissionSelectionState();
+    });
+
+    $(document).on('change.rolePermissionFlat', '#permission-check-all', function onCheckAllChange() {
+        currentTree.forEach((pageNode) => {
+            setPageNodeChecked(String(pageNode.page_key || ''), !!this.checked);
+        });
+        setSaveDirty(Object.keys(pendingChanges).length > 0);
+        syncPermissionSelectionState();
     });
 
     $(document).on('datatable:delete-selected.rolePermissionFlat', PAGE_TABLE_SELECTOR, async function onDeleteSelected(event) {
@@ -699,6 +840,117 @@ function bindPermissionTableEvents() {
             notify('error', error?.message || '권한 삭제에 실패했습니다.');
         }
     });
+}
+
+function moveSelectedPermissionRows(rows = [], selectedRowIds = new Set(), direction = 'up') {
+    const nextRows = rows.map((row) => ({ ...row }));
+    const isSelected = (row) => selectedRowIds.has(String(row?.row_id || ''));
+
+    if (direction === 'down') {
+        for (let index = nextRows.length - 2; index >= 0; index -= 1) {
+            if (!isSelected(nextRows[index]) || isSelected(nextRows[index + 1])) {
+                continue;
+            }
+            [nextRows[index], nextRows[index + 1]] = [nextRows[index + 1], nextRows[index]];
+        }
+        return nextRows;
+    }
+
+    for (let index = 1; index < nextRows.length; index += 1) {
+        if (!isSelected(nextRows[index]) || isSelected(nextRows[index - 1])) {
+            continue;
+        }
+        [nextRows[index - 1], nextRows[index]] = [nextRows[index], nextRows[index - 1]];
+    }
+
+    return nextRows;
+}
+
+function bindPermissionSelectedMove() {
+    const tableNode = document.querySelector(PAGE_TABLE_SELECTOR);
+    if (!tableNode) {
+        return;
+    }
+
+    if (tableNode.__rpSelectedMoveHandler) {
+        tableNode.removeEventListener('datatable:move-selected', tableNode.__rpSelectedMoveHandler);
+    }
+
+    tableNode.__rpSelectedMoveHandler = async (event) => {
+        event.preventDefault();
+
+        if (!permissionTable || !selectedRoleId) {
+            return;
+        }
+
+        const direction = event.detail?.direction === 'down' ? 'down' : 'up';
+        const ids = Array.isArray(event.detail?.ids)
+            ? event.detail.ids.map((id) => String(id || '').trim()).filter(Boolean)
+            : [];
+
+        if (!ids.length) {
+            notify('warning', '이동할 권한을 선택해 주세요.');
+            return;
+        }
+
+        const selectedRowIds = new Set(ids.map((id) => `permission:${id}`));
+        const beforeRows = currentDisplayRows.map((row) => ({ ...row }));
+        const movedRows = moveSelectedPermissionRows(beforeRows, selectedRowIds, direction);
+        const changed = beforeRows.some((row, index) => String(row.row_id || '') !== String(movedRows[index]?.row_id || ''));
+
+        if (!changed) {
+            notify('warning', direction === 'up'
+                ? '선택한 권한이 이미 가장 위에 있습니다.'
+                : '선택한 권한이 이미 가장 아래에 있습니다.');
+            return;
+        }
+
+        const candidateRows = movedRows.map((row, index) => ({
+            ...row,
+            sort_no: index + 1,
+            tree_sort: String(index + 1).padStart(6, '0'),
+        }));
+        const validation = validateDisplayRowOrder(candidateRows);
+        if (!validation.valid) {
+            notify('warning', validation.message || '허용되지 않는 위치로 이동할 수 없습니다.');
+            return;
+        }
+
+        const plan = createReorderPlan(candidateRows.map((row) => ({ id: row.row_id })));
+        if (!plan.valid) {
+            notify('warning', plan.message || '허용되지 않는 위치로 이동할 수 없습니다.');
+            return;
+        }
+
+        const previousTree = JSON.parse(JSON.stringify(currentTree));
+        rebuildTreeFromDisplayRows(plan.rows);
+        renderPermissionTable();
+        permissionTable.setSelectedIds?.(ids);
+
+        try {
+            const response = await fetch(API_REORDER, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ changes: plan.changes }),
+            });
+            const json = await response.json().catch(() => ({}));
+
+            if (!response.ok || json?.success === false) {
+                throw new Error(json?.message || '순서 저장에 실패했습니다.');
+            }
+
+            notify('success', '순서가 저장되었습니다.');
+            reloadPermissions();
+        } catch (error) {
+            currentTree = previousTree;
+            recomputeTreeState();
+            renderPermissionTable();
+            permissionTable.setSelectedIds?.(ids);
+            notify('error', error?.message || '순서 저장에 실패했습니다.');
+        }
+    };
+
+    tableNode.addEventListener('datatable:move-selected', tableNode.__rpSelectedMoveHandler);
 }
 
 function isPermissionGroupReorderAvailable() {
@@ -1073,6 +1325,9 @@ function bindSaveButton() {
 $(function onReady() {
     initRoleTable();
     initPermissionTable();
+    bindPermissionSelectedMove();
     bindSaveButton();
+    setSaveDirty(false);
+    syncPermissionHeaderCheckboxState();
     renderPermissionTable();
 });

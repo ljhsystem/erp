@@ -2,6 +2,7 @@ import { createColumnMap, defineDomainRegistry } from './helpers.js';
 import { BankAccountColumnRegistry } from './domains/bank-account.js';
 import { CardColumnRegistry } from './domains/card.js';
 import { ClientColumnRegistry } from './domains/client.js';
+import { CodeColumnRegistry } from './domains/code.js';
 import { ProjectColumnRegistry } from './domains/project.js';
 import { WorkTeamColumnRegistry } from './domains/work-team.js';
 
@@ -9,6 +10,7 @@ const DOMAIN_REGISTRIES = Object.freeze({
     'bank-account': BankAccountColumnRegistry,
     card: CardColumnRegistry,
     client: ClientColumnRegistry,
+    code: CodeColumnRegistry,
     project: ProjectColumnRegistry,
     'work-team': WorkTeamColumnRegistry,
 });

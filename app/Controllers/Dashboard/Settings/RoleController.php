@@ -1,8 +1,8 @@
 <?php
 namespace App\Controllers\Dashboard\Settings;
 
-use Core\DbPdo;
 use App\Services\Auth\RoleService;
+use Core\DbPdo;
 
 class RoleController
 {
@@ -30,7 +30,7 @@ class RoleController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => 'list failed',
+                'message' => '목록 조회 중 오류가 발생했습니다.',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -45,7 +45,7 @@ class RoleController
         $id = $_GET['id'] ?? $_POST['id'] ?? '';
 
         if (!$id) {
-            echo json_encode(['success' => false, 'message' => 'id required'], JSON_UNESCAPED_UNICODE);
+            echo json_encode(['success' => false, 'message' => '역할 ID가 필요합니다.'], JSON_UNESCAPED_UNICODE);
             exit;
         }
 
@@ -59,14 +59,14 @@ class RoleController
             }
 
             echo json_encode([
-                'success' => (bool)$row,
+                'success' => (bool) $row,
                 'data'    => $row,
-                'message' => $row ? null : 'not_found',
+                'message' => $row ? null : '역할 정보를 찾을 수 없습니다.',
             ], JSON_UNESCAPED_UNICODE);
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => 'detail failed',
+                'message' => '상세 조회 중 오류가 발생했습니다.',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -92,14 +92,14 @@ class RoleController
                     break;
 
                 default:
-                    throw new \Exception('Invalid action');
+                    throw new \Exception('잘못된 요청입니다.');
             }
 
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => 'save failed',
+                'message' => '저장 중 오류가 발생했습니다.',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -122,40 +122,39 @@ class RoleController
         $roleName = trim($_POST['role_name'] ?? '');
 
         if (!$roleKey || !$roleName) {
-            return ['success' => false, 'message' => 'required'];
+            return ['success' => false, 'message' => '역할 키와 역할명은 필수입니다.'];
         }
 
         return $this->service->create([
             'role_key'    => $roleKey,
             'role_name'   => $roleName,
             'description' => trim($_POST['description'] ?? '') ?: null,
-            'is_active'   => (int)($_POST['is_active'] ?? 1),
+            'is_active'   => (int) ($_POST['is_active'] ?? 1),
         ]);
     }
 
     private function updateRole(string $id): array
     {
         if (!$id) {
-            return ['success' => false, 'message' => 'id required'];
+            return ['success' => false, 'message' => '역할 ID가 필요합니다.'];
         }
 
         return $this->service->update($id, [
             'role_key'    => trim($_POST['role_key'] ?? ''),
             'role_name'   => trim($_POST['role_name'] ?? ''),
             'description' => trim($_POST['description'] ?? '') ?: null,
-            'is_active'   => (int)($_POST['is_active'] ?? 1),
+            'is_active'   => (int) ($_POST['is_active'] ?? 1),
         ]);
     }
 
     private function deleteRole(string $id): array
     {
         if (!$id) {
-            return ['success' => false, 'message' => 'id required'];
+            return ['success' => false, 'message' => '역할 ID가 필요합니다.'];
         }
 
         return $this->service->delete($id);
     }
-
 
     public function apiReorder(): void
     {
@@ -167,13 +166,13 @@ class RoleController
         try {
             $ok = $this->service->reorder($changes);
             echo json_encode([
-                'success' => (bool)$ok,
-                'message' => $ok ? 'reordered' : 'fail'
+                'success' => (bool) $ok,
+                'message' => $ok ? '정렬이 저장되었습니다.' : '정렬 저장 중 오류가 발생했습니다.'
             ], JSON_UNESCAPED_UNICODE);
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => 'reorder failed',
+                'message' => '정렬 저장 중 오류가 발생했습니다.',
                 'error'   => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE);
         }

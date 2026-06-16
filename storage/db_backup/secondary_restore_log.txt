@@ -96,3 +96,15 @@ ERROR 1050 (42S01) at line 13: Table 'auth_logs' already exists
 [2026-04-20 20:07:31] FAILED: sukhyang_2026-04-20_185920.sql / 복원 작업이 장시간 완료되지 않아 실패 상태로 전환했습니다. 단계 로그를 확인해주세요.
 [2026-04-20 20:39:03] FAILED: sukhyang_2026-04-20_201117.sql / 복원 작업이 장시간 완료되지 않아 실패 상태로 전환했습니다. 단계 로그를 확인해주세요.
 [2026-04-20 20:45:01] FAILED: sukhyang_2026-04-20_201117.sql / Secondary DB 癰귣벊?????쎈솭??됰뮸??덈뼄.
+[2026-06-15 17:49:43] FAILED: sukhyang_2026-06-15_174442.sql / Secondary DB 복원에 실패했습니다.
+[2026-06-15 20:05:09] FAILED: sukhyang_2026-06-15_191319.sql / Secondary DB 복구를 진행할 수 없습니다.
+[2026-06-16 13:32:23] FAILED: sukhyang_2026-06-16_133153.sql / Secondary DB 복구를 진행할 수 없습니다.
+[2026-06-16 13:47:17] FAILED: sukhyang_2026-06-16_134643.sql / Secondary DB 복구를 진행할 수 없습니다.
+[2026-06-16 14:15:35] FAILED: sukhyang_2026-06-16_134643.sql / Secondary DB 복구를 진행할 수 없습니다.
+[2026-06-16 14:52:11] FAILED: sukhyang_2026-06-16_134643.sql / Secondary DB 蹂듦뎄???ㅽ뙣?덉뒿?덈떎.
+[2026-06-16 15:09:35] FAILED: sukhyang_2026-06-16_134643.sql / DB 동기화에 실패했습니다.
+[2026-06-16 15:25:15] FAILED: sukhyang_2026-06-16_134643.sql / DB 동기화에 실패했습니다.
+[2026-06-16 16:00:33] FAILED: sukhyang_2026-06-16_134643.sql / target=- / 동기화 상태가 시간 초과되었습니다. 대기 DB 상태를 확인해 주세요.
+[2026-06-16 16:16:14] FAILED: sukhyang_2026-06-16_134643.sql / target=STANDBY (3307) / 동기화 상태가 시간 초과되었습니다. 대기 DB 상태를 확인해 주세요.
+[2026-06-16 16:42:32] FAILED: sukhyang_2026-06-16_134643.sql / target=STANDBY (3307) / 동기화 상태 갱신이 오래 중단되어 실패로 전환했습니다.
+[2026-06-16 16:56:53] SUCCESS: sukhyang_2026-06-16_134643.sql / target=- / DB 동기화가 완료되었습니다.

@@ -191,7 +191,6 @@ export function createProjectTableModule({
             autoWidth: false,
             selectionColumn: { widthResizable: true },
             buttons: [
-                { text: '엑셀관리', className: 'btn btn-success btn-sm', action: () => state.excelModal?.show() },
                 {
                     text: '휴지통',
                     className: 'btn btn-danger btn-sm',
@@ -205,6 +204,7 @@ export function createProjectTableModule({
                         new bootstrap.Modal(trashModalEl).show();
                     },
                 },
+                { text: '엑셀관리', className: 'btn btn-success btn-sm', action: () => state.excelModal?.show() },
                 { text: '새 프로젝트', className: 'btn btn-warning btn-sm', action: () => modalModule.openCreateModal() },
             ],
         });

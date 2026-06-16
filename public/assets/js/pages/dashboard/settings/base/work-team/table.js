@@ -30,14 +30,14 @@ export function createWorkTeamTableModule({
             },
             buttons: [
                 {
-                    text: '엑셀관리',
-                    className: 'btn btn-success btn-sm',
-                    action: onOpenExcelModal,
-                },
-                {
                     text: '휴지통',
                     className: 'btn btn-danger btn-sm',
                     action: onOpenTrashModal,
+                },
+                {
+                    text: '엑셀관리',
+                    className: 'btn btn-success btn-sm',
+                    action: onOpenExcelModal,
                 },
                 {
                     text: '신규등록',

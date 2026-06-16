@@ -1,0 +1,7 @@
+{
+    "before_active_db": "PRIMARY (3306)",
+    "after_active_db": "SECONDARY (3307)",
+    "executed_by_user_id": "f113b666-ff40-4f93-a7e7-8cea4cdc9c28",
+    "executed_by_name": "이정호",
+    "executed_at": "2026-06-16 17:39:47"
+}

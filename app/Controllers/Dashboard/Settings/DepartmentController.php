@@ -222,4 +222,5 @@ class DepartmentController
 
         return $filters;
     }
+
 }

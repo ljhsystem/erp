@@ -36,6 +36,21 @@ window.AdminPicker = AdminPicker;
         updated_by:   { label: '\uC218\uC815\uC790', visible: false }
     };
 
+    const DEPARTMENT_COLUMN_WIDTHS = {
+        __reorder: '40px',
+        sort_no: '80px',
+        dept_name: '180px',
+        manager_id: '120px',
+        manager_name: '140px',
+        description: '260px',
+        is_active: '90px',
+        created_at: '160px',
+        created_by: '120px',
+        updated_at: '160px',
+        updated_by: '120px',
+        __actions: '90px'
+    };
+
     const DATE_OPTIONS = [
         { value: 'created_at', label: '\uC0DD\uC131\uC77C\uC2DC' },
         { value: 'updated_at', label: '\uC218\uC815\uC77C\uC2DC' }
@@ -175,7 +190,9 @@ window.AdminPicker = AdminPicker;
             columns,
             defaultOrder: [[1, 'asc']],
             pageLength: 100,
-            selectable: false,
+            autoWidth: false,
+            selectionColumn: { widthResizable: true },
+            selectable: true,
             deleteButton: false,
             buttons: [
                 {
@@ -214,6 +231,9 @@ window.AdminPicker = AdminPicker;
 
         columns.push({
             title: '<i class="bi bi-arrows-move"></i>',
+            settingsKey: '__reorder',
+            width: DEPARTMENT_COLUMN_WIDTHS.__reorder,
+            widthResizable: true,
             className: 'reorder-handle no-sort no-colvis text-center',
             orderable: false,
             searchable: false,
@@ -228,6 +248,7 @@ window.AdminPicker = AdminPicker;
             columns.push({
                 data: field,
                 title: config.label,
+                width: DEPARTMENT_COLUMN_WIDTHS[field] || '120px',
                 visible: config.visible ?? true,
                 className: config.noVis ? 'noVis text-center' : '',
                 defaultContent: '',
@@ -243,6 +264,8 @@ window.AdminPicker = AdminPicker;
         columns.push({
             data: 'is_active',
             title: DEPARTMENT_COLUMN_MAP.is_active.label,
+            width: DEPARTMENT_COLUMN_WIDTHS.is_active || '90px',
+            widthResizable: true,
             visible: true,
             className: 'text-center',
             headerClassName: 'text-center',
@@ -265,6 +288,9 @@ window.AdminPicker = AdminPicker;
         columns.push({
             data: null,
             title: '관리',
+            settingsKey: '__actions',
+            width: DEPARTMENT_COLUMN_WIDTHS.__actions,
+            widthResizable: true,
             className: 'text-center no-colvis',
             headerClassName: 'text-center no-colvis',
             orderable: false,
@@ -415,7 +441,7 @@ window.AdminPicker = AdminPicker;
             const json = await res.json();
 
             if (!json?.success) {
-                notify('error', json?.message === 'duplicate' ? '?대? ?깅줉??遺?쒕챸?낅땲??' : (json?.message || '삭제 실패'));
+                notify('error', json?.message === 'duplicate' ? '이미 등록된 부서명입니다.' : (json?.message || '저장에 실패했습니다.'));
                 return;
             }
 
@@ -663,9 +689,4 @@ window.AdminPicker = AdminPicker;
             .replace(/'/g, '&#039;');
     }
 
-    function stripHtml(value) {
-        const div = document.createElement('div');
-        div.innerHTML = value;
-        return div.textContent || '';
-    }
 })();

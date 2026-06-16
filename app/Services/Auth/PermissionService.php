@@ -43,11 +43,11 @@ class PermissionService
     public function create(array $data): array
     {
         if (empty($data['permission_key']) || empty($data['permission_name'])) {
-            return ['success' => false, 'message' => 'required'];
+            return ['success' => false, 'message' => '권한 키와 권한명은 필수입니다.'];
         }
 
         if ($this->permModel->existsKey($data['permission_key'])) {
-            return ['success' => false, 'message' => 'duplicate'];
+            return ['success' => false, 'message' => '이미 사용 중인 권한 키입니다.'];
         }
 
         $data['id'] = UuidHelper::generate();
@@ -63,11 +63,11 @@ class PermissionService
     public function update(string $id, array $data): array
     {
         if (!$id) {
-            return ['success' => false, 'message' => 'id required'];
+            return ['success' => false, 'message' => '권한 ID가 필요합니다.'];
         }
 
         if (!empty($data['permission_key']) && $this->permModel->existsKey($data['permission_key'], $id)) {
-            return ['success' => false, 'message' => 'duplicate'];
+            return ['success' => false, 'message' => '이미 사용 중인 권한 키입니다.'];
         }
 
         $data['updated_by'] = ActorHelper::user();
@@ -78,7 +78,7 @@ class PermissionService
     public function delete(string $id): array
     {
         if (!$id) {
-            return ['success' => false, 'message' => 'permission id required'];
+            return ['success' => false, 'message' => '권한 ID가 필요합니다.'];
         }
 
         try {
@@ -89,18 +89,18 @@ class PermissionService
             $deletedRolePermissionCount = (int) $mappingCountStmt->fetchColumn();
 
             if (!$this->rolePermModel->clearPermission($id)) {
-                throw new \RuntimeException('role permission mapping delete failed');
+                throw new \RuntimeException('삭제 중 오류가 발생했습니다.');
             }
 
             if (!$this->permModel->delete($id)) {
-                throw new \RuntimeException('permission delete failed');
+                throw new \RuntimeException('삭제 중 오류가 발생했습니다.');
             }
 
             $this->pdo->commit();
 
             return [
                 'success' => true,
-                'message' => 'permission deleted',
+                'message' => '삭제되었습니다.',
                 'data' => [
                     'deleted_count' => 1,
                     'deleted_role_permission_count' => $deletedRolePermissionCount,
@@ -113,7 +113,7 @@ class PermissionService
 
             return [
                 'success' => false,
-                'message' => $e->getMessage() ?: 'permission delete failed',
+                'message' => $e->getMessage() ?: '삭제 중 오류가 발생했습니다.',
             ];
         }
     }
@@ -184,7 +184,7 @@ class PermissionService
                 $sortNo = $row['newSortNo'] ?? $row['sort_no'] ?? null;
 
                 if (empty($row['id']) || $sortNo === null) {
-                    throw new \Exception('reorder payload is invalid');
+                    throw new \Exception('정렬 데이터가 올바르지 않습니다.');
                 }
 
                 $row['_sort_no'] = (int) $sortNo;

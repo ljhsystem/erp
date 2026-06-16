@@ -48,6 +48,8 @@
 | `api.settings.rolepermission.assign` | `/api/settings/organization/role-permission/assign` | Assigns one child permission to a role |
 | `api.settings.rolepermission.remove` | `/api/settings/organization/role-permission/remove` | Removes one child permission from a role |
 | `api.settings.rolepermission.reorder` | `/api/settings/organization/role-permission/reorder` | Saves the flattened permission display order into `auth_permissions.sort_no` |
+| `api.account.sub_accounts.list` | `/api/account/sub-accounts` | Shared `SubChartAccountController@apiList` endpoint used by journal, evidence, and data-create screens for account-dependent sub-account lookup |
+| `api.ledger.sub_account.list` | `/api/ledger/sub-account/list` | Shared `SubChartAccountController@apiList` endpoint used by the ledger account screen for sub-account management lookup |
 | `web.settings.base-info.brand_logo` | `/dashboard/settings/base-info/brand` | Canonical brand page route with legacy permission key compatibility |
 | `api.settings.base-info.brand.list` | `/api/settings/base-info/brand/list` | Initial rollout target for new permission metadata |
 | `api.settings.base-info.brand.detail` | `/api/settings/base-info/brand/detail` | Initial rollout target for new permission metadata |
@@ -65,6 +67,13 @@
 | `api.settings.base-info.cover.save` | `/api/settings/base-info/cover/save` | Canonical cover permission metadata |
 | `api.settings.base-info.cover.delete` | `/api/settings/base-info/cover/delete` | Canonical cover permission metadata |
 | `api.settings.base-info.cover.reorder` | `/api/settings/base-info/cover/reorder` | Canonical cover permission metadata |
+| `api.settings.system.database.status` | `/api/settings/system/database/status` | Returns the current Active DB plus Primary/Secondary online status for the NAS-based backup screen |
+| `api.settings.system.database.switch-active` | `/api/settings/system/database/switch-active` | Manually switches the Active DB between Primary 3306 and Secondary 3307 by updating `db_replication.php` active_target |
+| `api.settings.system.database.sync` | `/api/settings/system/database/sync` | Applies the latest Primary backup to Secondary DB through the PDO-based sync engine |
+| `api.settings.system.database.sync-info` | `/api/settings/system/database/sync-info` | Returns the latest PDO-based DB sync result, file, timestamp, and last error for the sync card |
+| `api.settings.system.database.restore` | `/api/settings/system/database/restore` | Applies the selected SQL backup file to the current Active DB through the PDO-based restore engine |
+| `api.settings.system.database.restore-info` | `/api/settings/system/database/restore-info` | Returns the latest Active DB restore result, file, timestamp, and last error for the restore card |
+| `api.settings.system.database.activity-log` | `/api/settings/system/database/activity-log` | Returns the combined backup, sync, and restore log view for the database backup screen |
 
 ## SSOT Alias Notes
 

@@ -26,7 +26,7 @@ class RolePermissionController
         $roleId = $_POST['role_id'] ?? '';
 
         if (!$roleId) {
-            echo json_encode(['success' => false, 'message' => 'role_id required'], JSON_UNESCAPED_UNICODE);
+            echo json_encode(['success' => false, 'message' => '역할 ID가 필요합니다.'], JSON_UNESCAPED_UNICODE);
             return;
         }
 
@@ -75,7 +75,6 @@ class RolePermissionController
     public function apiReorder()
     {
         header('Content-Type: application/json; charset=utf-8');
-        error_log('[RolePermissionController] apiReorder entered');
 
         try {
             $input = json_decode(file_get_contents('php://input'), true);
@@ -89,12 +88,14 @@ class RolePermissionController
 
             echo json_encode([
                 'success' => true,
-                'message' => '순서가 저장되었습니다.',
+                'message' => '권한 순서가 저장되었습니다.',
             ], JSON_UNESCAPED_UNICODE);
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => $e instanceof \InvalidArgumentException
+                    ? $e->getMessage()
+                    : '정렬 저장 중 오류가 발생했습니다.',
             ], JSON_UNESCAPED_UNICODE);
         }
     }

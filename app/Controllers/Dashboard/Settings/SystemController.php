@@ -2,7 +2,9 @@
 
 namespace App\Controllers\Dashboard\Settings;
 
+use App\Services\Auth\UserContextService;
 use App\Services\Backup\DatabaseBackupService;
+use App\Services\System\DatabaseActiveSwitchService;
 use App\Services\System\DatabaseReplicationStatusService;
 use App\Services\System\SettingService;
 use Core\DbPdo;
@@ -11,11 +13,15 @@ class SystemController
 {
     private SettingService $systemsettingService;
     private DatabaseBackupService $backupService;
+    private DatabaseActiveSwitchService $activeSwitchService;
+    private UserContextService $userContextService;
 
     public function __construct()
     {
         $this->systemsettingService = new SettingService(DbPdo::conn());
         $this->backupService = new DatabaseBackupService(DbPdo::conn());
+        $this->activeSwitchService = new DatabaseActiveSwitchService();
+        $this->userContextService = new UserContextService();
     }
 
     private function respondJson(array $payload, int $status = 200): void
@@ -57,13 +63,6 @@ class SystemController
                 $data[$key] = $row['config_value'];
             }
 
-            $apiSecret = (string)($data['api_secret'] ?? '');
-            $data['has_api_secret'] = $apiSecret !== '';
-            $data['api_secret_masked'] = $apiSecret !== ''
-                ? str_repeat('*', max(12, min(strlen($apiSecret), 24)))
-                : '';
-            unset($data['api_secret']);
-
             echo json_encode([
                 'success' => true,
                 'data' => $data,
@@ -94,26 +93,6 @@ class SystemController
 
             if (!is_array($input)) {
                 throw new \Exception('잘못된 요청 형식입니다.');
-            }
-
-            if (!array_key_exists('font_family', $input) && array_key_exists('site_font_family', $input)) {
-                $input['font_family'] = $input['site_font_family'];
-            }
-
-            if (!array_key_exists('site_font_family', $input) && array_key_exists('font_family', $input)) {
-                $input['site_font_family'] = $input['font_family'];
-            }
-
-            if (!array_key_exists('security_inactive_2fa_days', $input) && array_key_exists('security_inactive_warn_days', $input)) {
-                $input['security_inactive_2fa_days'] = $input['security_inactive_warn_days'];
-            }
-
-            if (!array_key_exists('security_inactive_warn_days', $input) && array_key_exists('security_inactive_2fa_days', $input)) {
-                $input['security_inactive_warn_days'] = $input['security_inactive_2fa_days'];
-            }
-
-            if (!array_key_exists('security_login_time_mode', $input) || !in_array($input['security_login_time_mode'], ['2fa', 'block'], true)) {
-                $input['security_login_time_mode'] = '2fa';
             }
 
             $result = $this->systemsettingService->saveBatch(
@@ -341,6 +320,13 @@ class SystemController
             foreach ($rows as $key => $row) {
                 $data[$key] = $row['config_value'];
             }
+
+            $apiSecret = (string)($data['api_secret'] ?? '');
+            $data['has_api_secret'] = $apiSecret !== '';
+            $data['api_secret_masked'] = $apiSecret !== ''
+                ? str_repeat('*', max(12, min(strlen($apiSecret), 24)))
+                : '';
+            unset($data['api_secret']);
 
             echo json_encode([
                 'success' => true,
@@ -572,12 +558,11 @@ class SystemController
                 $input,
                 'BACKUP',
                 [
-                    'backup_auto_enabled' => '자동 백업 사용 여부',
-                    'backup_schedule' => '백업 실행 주기(daily/weekly/monthly)',
-                    'backup_retention_days' => '백업 보관 기간(일)',
-                    'backup_cleanup_enabled' => '오래된 백업 자동 정리',
-                    'backup_restore_secondary_enabled' => 'Secondary DB 자동 복원 사용 여부',
-                    'backup_time' => '백업 실행 시간(HH:MM)',
+                    'backup_auto_enabled' => 'Auto backup enabled',
+                    'backup_auto_trigger_mode' => 'Auto backup trigger mode (manual/data-change)',
+                    'backup_auto_min_interval_hours' => 'Auto backup minimum interval hours (12/24/48)',
+                    'backup_retention_days' => 'Backup retention days',
+                    'backup_cleanup_enabled' => 'Auto cleanup enabled',
                 ]
             );
 
@@ -602,6 +587,7 @@ class SystemController
             $this->respondJson([
                 'success' => true,
                 'data' => [
+                    'backup_directory' => $this->backupService->getBackupDirectory(),
                     'backup_directory_masked' => $this->backupService->getBackupDirectoryMasked(),
                     'latest_backup' => $latest,
                     'backup_files' => $this->backupService->getRecentBackupFiles(12),
@@ -620,6 +606,7 @@ class SystemController
     {
         try {
             $dir = $this->backupService->getBackupDirectory();
+            $switchLog = $this->readLogTail(rtrim($dir, '/') . '/active_db_switch_log.txt', 'Active DB 전환 로그가 없습니다.');
             $logFile = rtrim($dir, '/') . '/backup_log.txt';
 
             $text = '백업 로그가 없습니다.';
@@ -655,13 +642,17 @@ class SystemController
         try {
             $service = new DatabaseReplicationStatusService(DbPdo::conn());
             $status = $service->check();
+            $latestSwitch = $this->activeSwitchService->getLatestSwitch();
 
             // 기존 JS 호환을 위해 data 래핑 없이 바로 반환한다.
             $this->respondJson([
                 'success' => true,
                 'primary' => $status['primary'] ?? null,
                 'secondary' => $status['secondary'] ?? null,
+                'active_db' => $status['active_db'] ?? null,
                 'checked_at' => $status['checked_at'] ?? null,
+                'latest_switch' => $latestSwitch,
+                'can_switch_active' => $this->canSwitchActiveDatabase(),
             ]);
         } catch (\Throwable $e) {
             $this->respondJson([
@@ -716,6 +707,199 @@ class SystemController
                 'message' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    public function apiDatabaseStatus()
+    {
+        try {
+            $service = new DatabaseReplicationStatusService(DbPdo::conn());
+            $status = $service->check();
+
+            $this->respondJson([
+                'success' => true,
+                'primary' => $status['primary'] ?? null,
+                'secondary' => $status['secondary'] ?? null,
+                'active_db' => $status['active_db'] ?? null,
+                'checked_at' => $status['checked_at'] ?? null,
+            ]);
+        } catch (\Throwable $e) {
+            $this->respondJson([
+                'success' => false,
+                'message' => '현재 DB 상태 조회 중 오류가 발생했습니다.',
+            ], 500);
+        }
+    }
+
+    public function apiSwitchActiveDatabase()
+    {
+        try {
+            if (!$this->canSwitchActiveDatabase()) {
+                $this->respondJson([
+                    'success' => false,
+                    'message' => '관리자만 Active DB를 전환할 수 있습니다.',
+                ], 403);
+                return;
+            }
+
+            $payload = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($payload)) {
+                $payload = $_POST;
+            }
+
+            $target = (string) ($payload['target'] ?? '');
+            if ($target === '') {
+                $this->respondJson([
+                    'success' => false,
+                    'message' => '전환 대상 DB를 선택해 주세요.',
+                ], 422);
+                return;
+            }
+
+            $result = $this->activeSwitchService->switchActiveDatabase($target, [
+                'user_id' => (string) ($this->userContextService->currentUserId() ?? ''),
+                'display_name' => $this->userContextService->currentDisplayName(),
+            ]);
+
+            $this->respondJson([
+                'success' => true,
+                'data' => $result,
+                'message' => 'Active DB 전환이 완료되었습니다.',
+            ]);
+        } catch (\Throwable $e) {
+            $this->respondJson([
+                'success' => false,
+                'message' => $e->getMessage() ?: 'Active DB 전환 중 오류가 발생했습니다.',
+            ], 500);
+        }
+    }
+
+    public function apiDatabaseSync()
+    {
+        try {
+            $latest = $this->backupService->getLatestSecondaryRestore();
+            if (($latest['state'] ?? '') === 'running') {
+                $this->respondJson([
+                    'success' => false,
+                    'state' => 'running',
+                    'message' => 'DB 동기화가 이미 진행 중입니다.',
+                ], 409);
+                return;
+            }
+
+            @session_write_close();
+            ignore_user_abort(true);
+            @set_time_limit(0);
+
+            $this->respondJson([
+                'success' => true,
+                'state' => 'running',
+                'message' => 'DB 동기화 요청을 접수했습니다. 진행 상태를 확인해 주세요.',
+            ], 202);
+
+            if (function_exists('fastcgi_finish_request')) {
+                @fastcgi_finish_request();
+            } else {
+                @flush();
+            }
+
+            $this->backupService->restoreLatestBackupToSecondary('sync');
+        } catch (\Throwable $e) {
+            $this->respondJson([
+                'success' => false,
+                'state' => 'failed',
+                'message' => 'DB 동기화 중 오류가 발생했습니다.',
+            ], 500);
+        }
+    }
+
+    public function apiDatabaseSyncInfo()
+    {
+        try {
+            $info = $this->backupService->getLatestSecondaryRestore();
+
+            $this->respondJson([
+                'success' => true,
+                'data' => [
+                    'state' => $info['state'] ?? 'idle',
+                    'message' => $this->toSyncMessage($info),
+                    'file' => $info['file'] ?? null,
+                    'started_at' => $info['started_at'] ?? null,
+                    'finished_at' => $info['finished_at'] ?? null,
+                    'updated_at' => $info['updated_at'] ?? null,
+                    'stage' => $info['stage'] ?? null,
+                    'last_synced_file' => $info['applied_file'] ?? null,
+                    'last_synced_at' => $info['applied_at'] ?? null,
+                    'last_error' => $info['error'] ?? null,
+                    'stale' => (bool) ($info['stale'] ?? false),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            $this->respondJson([
+                'success' => false,
+                'message' => 'DB 동기화 상태 조회 중 오류가 발생했습니다.',
+            ], 500);
+        }
+    }
+
+    public function apiDatabaseActivityLog()
+    {
+        try {
+            $dir = $this->backupService->getBackupDirectory();
+            $backupLog = $this->readLogTail(rtrim($dir, '/') . '/backup_log.txt', '백업 로그가 없습니다.');
+            $syncLog = $this->readLogTail(rtrim($dir, '/') . '/secondary_restore_log.txt', '동기화 로그가 없습니다.');
+            $restoreLog = 'Primary DB 복원 로그가 없습니다.';
+
+            $this->respondJson([
+                'success' => true,
+                'data' => [
+                    'log' => "[SQL 백업]\n{$backupLog}\n\n[DB 동기화]\n{$syncLog}\n\n[DB 복원]\n{$restoreLog}",
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            $this->respondJson([
+                'success' => false,
+                'message' => '통합 로그 조회 중 오류가 발생했습니다.',
+            ], 500);
+        }
+    }
+
+    private function readLogTail(string $path, string $fallback): string
+    {
+        if (!is_file($path)) {
+            return $fallback;
+        }
+
+        $fp = fopen($path, 'rb');
+        if (!$fp) {
+            return $fallback;
+        }
+
+        $size = filesize($path);
+        $readSize = min($size, 20000);
+        if ($size > 0) {
+            fseek($fp, -$readSize, SEEK_END);
+        }
+
+        $text = fread($fp, $readSize) ?: '';
+        fclose($fp);
+
+        return mb_convert_encoding((string) $text, 'UTF-8', 'UTF-8,CP949,EUC-KR,ISO-8859-1');
+    }
+
+    private function toSyncMessage(array $info): string
+    {
+        return match ((string) ($info['state'] ?? 'idle')) {
+            'running' => 'DB 동기화가 진행 중입니다.',
+            'success' => 'DB 동기화가 완료되었습니다.',
+            'failed' => 'DB 동기화에 실패했습니다.',
+            default => 'DB 동기화 이력이 없습니다.',
+        };
+    }
+
+    private function canSwitchActiveDatabase(): bool
+    {
+        $roleKey = strtolower((string) ($this->userContextService->currentRoleKey() ?? ''));
+        return in_array($roleKey, ['admin', 'super_admin'], true);
     }
 
     public function webLogs()

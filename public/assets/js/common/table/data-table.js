@@ -2046,14 +2046,6 @@ export function createDataTable(config) {
                     return isColumnVisibleInColvis(tableColumns, index, node);
                 }
             }]),
-            ...(resolvedTableSettings?.enabled ? [{
-                text: '<i class="bi bi-gear"></i>',
-                className: 'dt-table-settings-trigger',
-                titleAttr: '\uD14C\uC774\uBE14 \uC124\uC815',
-                action: function () {
-                    table?.__dtTableSettings?.open?.();
-                },
-            }] : []),
             ...(selectable === false ? [] : [{
                 text: '\u2191',
                 titleAttr: '\uC120\uD0DD\uD55C \uD589 \uC704\uB85C \uC774\uB3D9',
@@ -2152,7 +2144,15 @@ export function createDataTable(config) {
                     }));
                 },
             }]),
-            ...buttons
+            ...buttons,
+            ...(resolvedTableSettings?.enabled ? [{
+                text: '<i class="bi bi-gear"></i>',
+                className: 'dt-table-settings-trigger',
+                titleAttr: '\uD14C\uC774\uBE14 \uC124\uC815',
+                action: function () {
+                    table?.__dtTableSettings?.open?.();
+                },
+            }] : []),
         ],
 
         language: {

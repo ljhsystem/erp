@@ -252,7 +252,6 @@ export function createClientTableModule({
             autoWidth: false,
             selectionColumn: { widthResizable: true },
             buttons: [
-                { text: '엑셀관리', className: 'btn btn-success btn-sm', action: () => state.excelModal?.show() },
                 {
                     text: '휴지통',
                     className: 'btn btn-danger btn-sm',
@@ -269,6 +268,7 @@ export function createClientTableModule({
                         new bootstrap.Modal(modalEl).show();
                     },
                 },
+                { text: '엑셀관리', className: 'btn btn-success btn-sm', action: () => state.excelModal?.show() },
                 {
                     text: '새 거래처',
                     className: 'btn btn-warning btn-sm',

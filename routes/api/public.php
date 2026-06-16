@@ -85,8 +85,8 @@ $router->get('/api/account/sub-accounts', 'SubChartAccountController@apiList', [
     'key' => 'api.account.sub_accounts.list',
     'page' => '보조계정',
     'page_description' => '보조계정 관리',
-    'permission_name' => '조회',
-    'permission_description' => '보조계정 조회',
+    'permission_name' => '전표입력 조회',
+    'permission_description' => '전표/증빙/데이터생성에서 계정별 보조계정 목록 조회',
     'name' => '보조계정 조회',
     'description' => '회계관리 > 기초정보관리 > 보조계정 > 조회',
     'category' => '회계관리 > 기초정보관리',
@@ -94,4 +94,3 @@ $router->get('/api/account/sub-accounts', 'SubChartAccountController@apiList', [
     'permissions' => ['view'],
     'log' => false,
 ]);
-

@@ -25,7 +25,7 @@ class PermissionController
         } catch (\Throwable $e) {
             echo json_encode([
                 'success' => false,
-                'message' => 'list failed',
+                'message' => '목록 조회 중 오류가 발생했습니다.',
                 'error' => $e->getMessage(),
             ], JSON_UNESCAPED_UNICODE);
         }
@@ -41,7 +41,7 @@ class PermissionController
         if ($id === '') {
             echo json_encode([
                 'success' => false,
-                'message' => 'permission id required',
+                'message' => '권한 ID가 필요합니다.',
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }

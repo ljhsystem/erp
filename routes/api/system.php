@@ -774,7 +774,77 @@ $router->get('/api/settings/system/database/replication-status', 'SystemControll
     'log' => true,
 ]);
 
-$router->post('/api/settings/system/database/restore-secondary', 'SystemController@apiRestoreSecondary', [
+$router->get('/api/settings/system/database/status', 'DatabaseActiveController@apiStatus', [
+    'key' => 'api.settings.system.database.status',
+    'page' => '데이터베이스백업',
+    'page_description' => '데이터베이스 백업 관리',
+    'permission_name' => '상태조회',
+    'permission_description' => '데이터베이스 상태 조회',
+    'name' => '데이터베이스백업 상태조회',
+    'description' => '설정 > 시스템설정 > 데이터베이스백업 > 상태조회',
+    'category' => '설정 > 시스템설정',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => true,
+]);
+
+$router->post('/api/settings/system/database/switch-active', 'DatabaseActiveController@apiSwitchActive', [
+    'key' => 'api.settings.system.database.switch-active',
+    'page' => '데이터베이스백업',
+    'page_description' => '데이터베이스 백업 관리',
+    'permission_name' => 'Active DB 전환',
+    'permission_description' => '현재 Active DB를 수동으로 전환합니다.',
+    'name' => '데이터베이스백업 Active DB 전환',
+    'description' => '설정 > 시스템설정 > 데이터베이스백업 > Active DB 전환',
+    'category' => '설정 > 시스템설정',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
+$router->post('/api/settings/system/database/sync', 'DatabaseSyncController@apiSync', [
+    'key' => 'api.settings.system.database.sync',
+    'page' => '데이터베이스백업',
+    'page_description' => '데이터베이스 백업 관리',
+    'permission_name' => '동기화',
+    'permission_description' => '데이터베이스 동기화 실행',
+    'name' => '데이터베이스백업 동기화',
+    'description' => '설정 > 시스템설정 > 데이터베이스백업 > 동기화',
+    'category' => '설정 > 시스템설정',
+    'auth' => true,
+    'permissions' => ['save'],
+    'log' => true,
+]);
+
+$router->get('/api/settings/system/database/sync-info', 'DatabaseSyncController@apiSyncInfo', [
+    'key' => 'api.settings.system.database.sync-info',
+    'page' => '데이터베이스백업',
+    'page_description' => '데이터베이스 백업 관리',
+    'permission_name' => '동기화상태조회',
+    'permission_description' => '데이터베이스 동기화 상태 조회',
+    'name' => '데이터베이스백업 동기화상태조회',
+    'description' => '설정 > 시스템설정 > 데이터베이스백업 > 동기화상태조회',
+    'category' => '설정 > 시스템설정',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => true,
+]);
+
+$router->get('/api/settings/system/database/activity-log', 'DatabaseLogController@apiActivityLog', [
+    'key' => 'api.settings.system.database.activity-log',
+    'page' => '데이터베이스백업',
+    'page_description' => '데이터베이스 백업 관리',
+    'permission_name' => '통합로그조회',
+    'permission_description' => '데이터베이스 통합 로그 조회',
+    'name' => '데이터베이스백업 통합로그조회',
+    'description' => '설정 > 시스템설정 > 데이터베이스백업 > 통합로그조회',
+    'category' => '설정 > 시스템설정',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => true,
+]);
+
+$router->post('/api/settings/system/database/restore', 'DatabaseRestoreController@apiRestore', [
     'key' => 'api.settings.system.database.restore',
     'page' => '데이터베이스백업',
     'page_description' => '데이터베이스 백업 관리',
@@ -788,8 +858,8 @@ $router->post('/api/settings/system/database/restore-secondary', 'SystemControll
     'log' => true,
 ]);
 
-$router->get('/api/settings/system/database/secondary-restore-info', 'SystemController@apiSecondaryRestoreInfo', [
-    'key' => 'api.settings.system.database.view',
+$router->get('/api/settings/system/database/restore-info', 'DatabaseRestoreController@apiRestoreInfo', [
+    'key' => 'api.settings.system.database.restore-info',
     'page' => '데이터베이스백업',
     'page_description' => '데이터베이스 백업 관리',
     'permission_name' => '조회',
@@ -888,4 +958,3 @@ $router->post('/api/settings/system/logs/delete-all', 'SystemController@apiLogDe
     'permissions' => ['delete'],
     'log' => true,
 ]);
-

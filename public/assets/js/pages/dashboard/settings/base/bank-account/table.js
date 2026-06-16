@@ -144,13 +144,6 @@ export function createBankAccountTableModule({
             },
             buttons: [
                 {
-                    text: '엑셀 관리',
-                    className: 'btn btn-success btn-sm',
-                    action() {
-                        state.excelModal?.show();
-                    },
-                },
-                {
                     text: '휴지통',
                     className: 'btn btn-danger btn-sm',
                     action() {
@@ -166,6 +159,13 @@ export function createBankAccountTableModule({
                         trashModalEl.dataset.deleteAllUrl = API.PURGE_ALL;
 
                         new bootstrap.Modal(trashModalEl).show();
+                    },
+                },
+                {
+                    text: '엑셀 관리',
+                    className: 'btn btn-success btn-sm',
+                    action() {
+                        state.excelModal?.show();
                     },
                 },
                 {

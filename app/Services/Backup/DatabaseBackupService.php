@@ -48,18 +48,19 @@ class DatabaseBackupService
 
             $dump = $this->buildDatabaseDump($this->pdo, $dbName);
             if (@file_put_contents($filepath, $dump) === false) {
-                throw new \RuntimeException('백업 파일을 저장할 수 없습니다.');
+                throw new \RuntimeException('Failed to save backup file.');
             }
 
             $size = (int) (@filesize($filepath) ?: 0);
             $time = $this->now()->format('Y-m-d H:i:s');
 
+            $this->markBackupClean($filename, $time);
             $this->writeBackupLog(sprintf('[%s] BACKUP SUCCESS: %s (%d bytes)', $time, $filename, $size));
             $this->logger->info('[BACKUP] done', ['file' => $filename, 'size' => $size]);
 
             return [
                 'success' => true,
-                'message' => 'Primary DB 백업이 완료되었습니다.',
+                'message' => 'Primary DB backup completed.',
                 'filename' => $filename,
                 'time' => $time,
                 'size' => $size,
@@ -80,7 +81,7 @@ class DatabaseBackupService
         if (!$this->settings->getBool('backup_auto_enabled', false)) {
             return [
                 'success' => false,
-                'message' => '자동 백업이 비활성화되어 있습니다.',
+                'message' => 'Auto backup is disabled.',
                 'skipped' => true,
             ];
         }
@@ -91,8 +92,8 @@ class DatabaseBackupService
                 'success' => false,
                 'message' => $due['message'],
                 'skipped' => true,
-                'schedule' => $due['schedule'],
-                'backup_time' => $due['backup_time'],
+                'trigger_mode' => $due['trigger_mode'],
+                'min_interval_hours' => $due['min_interval_hours'],
             ];
         }
 
@@ -101,28 +102,25 @@ class DatabaseBackupService
             return $result;
         }
 
-        $restoreResult = null;
-        if ($this->settings->getBool('backup_restore_secondary_enabled', false)) {
-            $restoreResult = $this->restoreLatestBackupToSecondary('auto');
-        }
-
         $this->writeAutoBackupMeta([
             'last_run_at' => $this->now()->format('Y-m-d H:i:s'),
-            'last_schedule' => $due['schedule'],
-            'last_schedule_key' => $due['schedule_key'],
+            'last_trigger_mode' => $due['trigger_mode'],
+            'last_min_interval_hours' => $due['min_interval_hours'],
             'last_backup_file' => $result['filename'] ?? null,
         ]);
 
-        if ($restoreResult) {
-            $result['secondary_restore'] = [
-                'success' => (bool) ($restoreResult['success'] ?? false),
-                'message' => $restoreResult['message'] ?? '',
-                'state' => $restoreResult['state'] ?? null,
-            ];
-        }
-
         return $result;
     }
+
+    public function markBackupDirty(string $source = 'manual'): void
+    {
+        $this->writeAutoBackupMeta([
+            'backup_dirty' => true,
+            'dirty_marked_at' => $this->now()->format('Y-m-d H:i:s'),
+            'dirty_source' => $source,
+        ]);
+    }
+
 
     public function getBackupDirectory(): string
     {
@@ -131,7 +129,7 @@ class DatabaseBackupService
 
     public function getBackupDirectoryMasked(): string
     {
-        return '\uBC31\uC5C5 \uACBD\uB85C\uB294 \uD654\uBA74\uC5D0\uC11C \uB9C8\uC2A4\uD0B9\uB429\uB2C8\uB2E4.';
+        return 'Backup path is masked in UI.';
     }
 
     public function getLatestBackupFile(): ?array
@@ -178,7 +176,7 @@ class DatabaseBackupService
             $result = [
                 'success' => false,
                 'state' => 'failed',
-                'message' => '복원할 백업 파일이 없습니다.',
+                'message' => 'No backup file is available for restore.',
                 'started_at' => $startedAt,
                 'finished_at' => $this->now()->format('Y-m-d H:i:s'),
                 'updated_at' => $this->now()->format('Y-m-d H:i:s'),
@@ -192,36 +190,37 @@ class DatabaseBackupService
         $latestFile = basename($latestPath);
         $status = [
             'state' => 'running',
-            'message' => 'Secondary DB 복원을 진행 중입니다.',
+            'message' => 'Secondary DB 蹂듦뎄瑜??쒖옉?덉뒿?덈떎.',
             'trigger' => $trigger,
             'file' => $latestFile,
             'started_at' => $startedAt,
             'updated_at' => $startedAt,
             'stage' => 'starting',
-            'warning' => '복원 중 문제가 발생하면 스냅샷을 기준으로 Secondary DB 상태를 복구합니다.',
+            'warning' => 'If restore fails, Secondary DB will be recovered from the snapshot when possible.',
         ];
         $this->writeRestoreStatus($status);
-        $this->writeRestoreProgress('running', $latestFile, $startedAt, 'starting', '복원을 시작했습니다.');
+        $this->writeRestoreProgress('running', $latestFile, $startedAt, 'starting', 'Secondary DB 蹂듦뎄瑜?以鍮꾪븯怨??덉뒿?덈떎.');
 
         try {
             $db = $this->getCurrentDatabaseName();
 
-            $this->writeRestoreProgress('running', $latestFile, $startedAt, 'load-secondary-config', 'Secondary 설정을 불러오는 중입니다.');
+            $this->writeRestoreProgress('running', $latestFile, $startedAt, 'load-secondary-config', 'Secondary DB ?ㅼ젙??遺덈윭?ㅺ퀬 ?덉뒿?덈떎.');
             $secondaryConfig = $this->getSecondaryConfig();
 
-            $this->writeRestoreProgress('running', $latestFile, $startedAt, 'connect-secondary', 'Secondary DB에 연결하는 중입니다.');
+            $this->writeRestoreProgress('running', $latestFile, $startedAt, 'connect-secondary', 'Secondary DB ?곌껐???뺤씤?섍퀬 ?덉뒿?덈떎.');
             $secondaryPdo = $this->connectSecondaryPdo($secondaryConfig, $db);
 
-            $this->writeRestoreProgress('running', $latestFile, $startedAt, 'snapshot-secondary', 'Secondary DB 스냅샷을 생성하는 중입니다.');
+
+            $this->writeRestoreProgress('running', $latestFile, $startedAt, 'snapshot-secondary', 'Secondary DB ?ㅻ깄?룹쓣 ?앹꽦?섍퀬 ?덉뒿?덈떎.');
             $snapshotPath = $this->createSecondarySnapshot($secondaryPdo, $db);
             $dropCompleted = false;
 
             try {
-                $this->writeRestoreProgress('running', $latestFile, $startedAt, 'drop-secondary-tables', 'Secondary DB 기존 테이블을 정리하는 중입니다.');
+                $this->writeRestoreProgress('running', $latestFile, $startedAt, 'drop-secondary-tables', 'Dropping existing Secondary DB tables.');
                 $this->dropAllTables($secondaryPdo);
                 $dropCompleted = true;
 
-                $this->writeRestoreProgress('running', $latestFile, $startedAt, 'import-backup', '최신 백업 파일을 Secondary DB에 복원하는 중입니다.');
+                $this->writeRestoreProgress('running', $latestFile, $startedAt, 'import-backup', 'Importing the latest backup file into Secondary DB.');
                 $import = $this->importSqlFileToDatabase($latestPath, $secondaryConfig, $db);
                 if (!$import['success']) {
                     throw new \RuntimeException($import['message']);
@@ -230,18 +229,18 @@ class DatabaseBackupService
                 $rollbackResult = [
                     'attempted' => false,
                     'success' => false,
-                    'message' => '롤백을 시도하지 않았습니다.',
+                    'message' => '濡ㅻ갚???섑뻾?섏? 紐삵뻽?듬땲??',
                 ];
 
                 if ($dropCompleted) {
-                    $this->writeRestoreProgress('running', $latestFile, $startedAt, 'rollback-secondary', '복원 실패로 롤백하는 중입니다.');
+                    $this->writeRestoreProgress('running', $latestFile, $startedAt, 'rollback-secondary', '蹂듦뎄 ?ㅽ뙣濡?Secondary DB 濡ㅻ갚??吏꾪뻾?섍퀬 ?덉뒿?덈떎.');
                     $rollbackResult = $this->rollbackSecondaryFromSnapshot($snapshotPath, $secondaryConfig, $db);
                 }
 
                 $result = [
                     'success' => false,
                     'state' => 'failed',
-                    'message' => 'Secondary DB 복원에 실패했습니다.',
+                    'message' => 'Secondary DB 蹂듦뎄???ㅽ뙣?덉뒿?덈떎.',
                     'error' => $restoreError->getMessage(),
                     'file' => $latestFile,
                     'started_at' => $startedAt,
@@ -251,7 +250,7 @@ class DatabaseBackupService
                     'rollback_attempted' => $rollbackResult['attempted'],
                     'rollback_success' => $rollbackResult['success'],
                     'rollback_message' => $rollbackResult['message'],
-                    'warning' => '복원 실패 후 롤백을 시도했습니다. Secondary DB 상태를 직접 확인해주세요.',
+                    'warning' => '蹂듦뎄 ?ㅽ뙣 ??濡ㅻ갚???꾨즺?섏? ?딆븯?듬땲?? Secondary DB ?곹깭瑜?吏곸젒 ?뺤씤??二쇱꽭??',
                 ];
 
                 $this->writeRestoreStatus($result);
@@ -262,14 +261,20 @@ class DatabaseBackupService
             $result = [
                 'success' => true,
                 'state' => 'success',
-                'message' => 'Secondary DB 복원이 완료되었습니다.',
+                'message' => 'Secondary DB restore completed.',
                 'file' => $latestFile,
+                'trigger' => $trigger,
                 'started_at' => $startedAt,
                 'finished_at' => $this->now()->format('Y-m-d H:i:s'),
                 'updated_at' => $this->now()->format('Y-m-d H:i:s'),
                 'stage' => 'completed',
                 'rollback_attempted' => false,
                 'rollback_success' => false,
+                'applied_file' => $latestFile,
+                'applied_at' => $this->now()->format('Y-m-d H:i:s'),
+                'applied_result' => 'success',
+                'applied_source' => $trigger,
+                'latest_backup_file_at_apply' => $latestFile,
             ];
 
             $this->writeRestoreStatus($result);
@@ -279,7 +284,7 @@ class DatabaseBackupService
             $result = [
                 'success' => false,
                 'state' => 'failed',
-                'message' => 'Secondary DB 복원 중 오류가 발생했습니다.',
+                'message' => 'An unexpected error occurred during Secondary DB restore.',
                 'error' => $e->getMessage(),
                 'file' => $latestFile,
                 'started_at' => $startedAt,
@@ -300,26 +305,29 @@ class DatabaseBackupService
     {
         $status = $this->readRestoreStatus();
         if (!$status) {
-            return [
+            return $this->appendSecondarySyncState([
                 'state' => 'idle',
-                'message' => '복원 작업이 없습니다.',
-            ];
+                'message' => 'No restore history is available.',
+            ]);
         }
+
+        $status = $this->normalizeAppliedStatus($status);
 
         if (($status['state'] ?? '') === 'running' && $this->isRestoreStatusStale($status)) {
             $status['state'] = 'failed';
-            $status['message'] = '복원 작업이 제한 시간을 초과해 실패 상태로 전환되었습니다. Secondary DB 상태를 직접 확인해주세요.';
+            $status['message'] = 'Restore status timed out. Please verify the Secondary DB state manually.';
             $status['finished_at'] = $this->now()->format('Y-m-d H:i:s');
             $status['updated_at'] = $status['finished_at'];
             $status['stage'] = 'stale-timeout';
             $status['stale'] = true;
-            $status['warning'] = 'mysql 복원 프로세스가 비정상 종료되었을 수 있습니다. Secondary DB 상태와 백업 로그를 확인해주세요.';
+            $status['warning'] = 'The mysql restore process may have ended unexpectedly. Please check Secondary DB state and backup logs.';
             $this->writeRestoreStatus($status);
             $this->writeSecondaryRestoreLog($status);
         }
 
-        return $status;
+        return $this->appendSecondarySyncState($status);
     }
+
 
     private function ensureBackupDir(): void
     {
@@ -328,7 +336,7 @@ class DatabaseBackupService
         }
 
         if (!@mkdir($this->backupDir, 0777, true) && !is_dir($this->backupDir)) {
-            throw new \RuntimeException('백업 경로를 생성할 수 없습니다.');
+            throw new \RuntimeException('Failed to create backup directory.');
         }
     }
 
@@ -342,7 +350,7 @@ class DatabaseBackupService
         $this->pdo->exec('SET NAMES utf8mb4');
         $dbName = (string) $this->pdo->query('SELECT DATABASE()')->fetchColumn();
         if ($dbName === '') {
-            throw new \RuntimeException('데이터베이스 이름을 확인할 수 없습니다.');
+            throw new \RuntimeException('Unable to determine the current database name.');
         }
 
         return $dbName;
@@ -371,15 +379,6 @@ class DatabaseBackupService
         return max(1, min(365, $days));
     }
 
-    private function normalizeBackupTime(?string $value): string
-    {
-        $value = trim((string) $value);
-        if (!preg_match('/^(2[0-3]|[01]\d):([0-5]\d)$/', $value, $matches)) {
-            return '02:00';
-        }
-
-        return sprintf('%02d:%02d', (int) $matches[1], (int) $matches[2]);
-    }
 
     private function buildDatabaseDump(PDO $pdo, string $dbName): string
     {
@@ -458,84 +457,137 @@ class DatabaseBackupService
     {
         $path = $this->getAutoBackupMetaPath();
         if (!is_file($path)) {
-            return [];
+            return $this->normalizeAutoBackupMeta([]);
         }
 
         $json = json_decode((string) @file_get_contents($path), true);
-        return is_array($json) ? $json : [];
+        return $this->normalizeAutoBackupMeta(is_array($json) ? $json : []);
     }
 
     private function writeAutoBackupMeta(array $payload): void
     {
+        $meta = array_merge($this->readAutoBackupMeta(), $payload);
+
         @file_put_contents(
             $this->getAutoBackupMetaPath(),
-            json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+            json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
         );
     }
 
     private function getAutoBackupDueDecision(): array
     {
         $now = $this->now();
-        $schedule = (string) $this->settings->get('backup_schedule', 'daily');
-        if (!in_array($schedule, ['daily', 'weekly', 'monthly'], true)) {
-            $schedule = 'daily';
-        }
-
-        $backupTime = $this->normalizeBackupTime((string) $this->settings->get('backup_time', '02:00'));
-        [$hour, $minute] = array_map('intval', explode(':', $backupTime));
-        $currentMinutes = ((int) $now->format('H') * 60) + (int) $now->format('i');
-        $scheduledMinutes = ($hour * 60) + $minute;
-
-        if ($currentMinutes < $scheduledMinutes) {
-            return [
-                'due' => false,
-                'message' => '설정된 백업 시간이 아직 되지 않았습니다.',
-                'schedule' => $schedule,
-                'backup_time' => $backupTime,
-                'schedule_key' => $this->getScheduleKey($schedule, $now),
-            ];
-        }
-
-        $scheduleKey = $this->getScheduleKey($schedule, $now);
+        $triggerMode = $this->normalizeTriggerMode((string) $this->settings->get('backup_auto_trigger_mode', 'manual'));
+        $minIntervalHours = $this->normalizeMinIntervalHours((int) $this->settings->getInt('backup_auto_min_interval_hours', 24));
         $meta = $this->readAutoBackupMeta();
-        if (($meta['last_schedule_key'] ?? '') === $scheduleKey) {
+
+        if ($triggerMode !== 'data-change') {
             return [
                 'due' => false,
-                'message' => '현재 스케줄에서는 이미 백업이 실행되었습니다.',
-                'schedule' => $schedule,
-                'backup_time' => $backupTime,
-                'schedule_key' => $scheduleKey,
+                'message' => 'Auto backup trigger mode is manual.',
+                'trigger_mode' => $triggerMode,
+                'min_interval_hours' => $minIntervalHours,
             ];
+        }
+
+        if (($meta['backup_dirty'] ?? false) !== true) {
+            return [
+                'due' => false,
+                'message' => 'No data change has been marked since the last backup.',
+                'trigger_mode' => $triggerMode,
+                'min_interval_hours' => $minIntervalHours,
+            ];
+        }
+
+        $lastBackupAt = $this->resolveLastBackupAt($meta);
+        if ($lastBackupAt instanceof DateTimeImmutable) {
+            $nextDueAt = $lastBackupAt->modify(sprintf('+%d hours', $minIntervalHours));
+            if ($now < $nextDueAt) {
+                return [
+                    'due' => false,
+                    'message' => 'Minimum auto-backup interval has not elapsed yet.',
+                    'trigger_mode' => $triggerMode,
+                    'min_interval_hours' => $minIntervalHours,
+                    'last_backup_at' => $lastBackupAt->format('Y-m-d H:i:s'),
+                    'next_due_at' => $nextDueAt->format('Y-m-d H:i:s'),
+                ];
+            }
         }
 
         return [
             'due' => true,
-            'message' => '자동 백업 실행 대상입니다.',
-            'schedule' => $schedule,
-            'backup_time' => $backupTime,
-            'schedule_key' => $scheduleKey,
+            'message' => 'Auto backup is due.',
+            'trigger_mode' => $triggerMode,
+            'min_interval_hours' => $minIntervalHours,
+            'dirty_marked_at' => $meta['dirty_marked_at'] ?? null,
         ];
     }
 
-    private function getScheduleKey(string $schedule, DateTimeImmutable $now): string
+    private function normalizeAutoBackupMeta(array $meta): array
     {
-        return match ($schedule) {
-            'weekly' => $now->format('o-\WW'),
-            'monthly' => $now->format('Y-m'),
-            default => $now->format('Y-m-d'),
-        };
+        return [
+            'backup_dirty' => (bool) ($meta['backup_dirty'] ?? false),
+            'dirty_marked_at' => $meta['dirty_marked_at'] ?? null,
+            'dirty_source' => $meta['dirty_source'] ?? null,
+            'last_run_at' => $meta['last_run_at'] ?? null,
+            'last_backup_at' => $meta['last_backup_at'] ?? null,
+            'last_backup_file' => $meta['last_backup_file'] ?? null,
+            'last_trigger_mode' => $meta['last_trigger_mode'] ?? null,
+            'last_min_interval_hours' => $meta['last_min_interval_hours'] ?? null,
+        ];
     }
+
+    private function normalizeTriggerMode(string $mode): string
+    {
+        return $mode === 'data-change' ? 'data-change' : 'manual';
+    }
+
+    private function normalizeMinIntervalHours(int $hours): int
+    {
+        return in_array($hours, [12, 24, 48], true) ? $hours : 24;
+    }
+
+    private function resolveLastBackupAt(array $meta): ?DateTimeImmutable
+    {
+        $latestBackupFile = $this->findLatestBackupFile();
+        if ($latestBackupFile && is_file($latestBackupFile)) {
+            return $this->now()->setTimestamp((int) @filemtime($latestBackupFile));
+        }
+
+        $lastBackupAt = trim((string) ($meta['last_backup_at'] ?? ''));
+        if ($lastBackupAt === '') {
+            return null;
+        }
+
+        try {
+            return new DateTimeImmutable($lastBackupAt, $this->timezone);
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    private function markBackupClean(string $filename, string $time): void
+    {
+        $this->writeAutoBackupMeta([
+            'backup_dirty' => false,
+            'dirty_marked_at' => null,
+            'dirty_source' => null,
+            'last_backup_at' => $time,
+            'last_backup_file' => $filename,
+        ]);
+    }
+
 
     private function getSecondaryConfig(): array
     {
         $configPath = PROJECT_ROOT . '/../secure-config/db_replication.php';
         if (!is_file($configPath)) {
-            throw new \RuntimeException('복원 DB 설정 파일을 찾을 수 없습니다.');
+            throw new \RuntimeException('Restore DB config file was not found.');
         }
 
         $config = require $configPath;
         if (empty($config['secondary']) || !is_array($config['secondary'])) {
-            throw new \RuntimeException('Secondary DB 설정이 올바르지 않습니다.');
+            throw new \RuntimeException('Secondary DB ?ㅼ젙???щ컮瑜댁? ?딆뒿?덈떎.');
         }
 
         return $config['secondary'];
@@ -549,7 +601,7 @@ class DatabaseBackupService
         $pass = (string) ($sec['pass'] ?? '');
 
         if ($host === '' || $user === '' || $db === '') {
-            throw new \RuntimeException('Secondary DB 접속 정보가 충분하지 않습니다.');
+            throw new \RuntimeException('Secondary DB connection settings are incomplete.');
         }
 
         $dsn = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $host, $port, $db);
@@ -558,7 +610,6 @@ class DatabaseBackupService
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         ]);
     }
-
     private function createSecondarySnapshot(PDO $secondaryPdo, string $db): string
     {
         $this->ensureBackupDir();
@@ -567,7 +618,7 @@ class DatabaseBackupService
 
         $dump = $this->buildDatabaseDump($secondaryPdo, $db);
         if (@file_put_contents($snapshotPath, $dump) === false) {
-            throw new \RuntimeException('Secondary DB 스냅샷을 저장할 수 없습니다.');
+            throw new \RuntimeException('Unable to save the Secondary DB snapshot file.');
         }
 
         return $snapshotPath;
@@ -589,7 +640,7 @@ class DatabaseBackupService
     private function importSqlFileToDatabase(string $sqlFile, array $dbConfig, string $dbName): array
     {
         if (!is_file($sqlFile)) {
-            return ['success' => false, 'message' => 'SQL 파일을 찾을 수 없습니다.'];
+            return ['success' => false, 'message' => 'SQL file was not found.'];
         }
 
         $fileSize = (int) (@filesize($sqlFile) ?: 0);
@@ -631,7 +682,7 @@ class DatabaseBackupService
 
         if (!is_resource($process)) {
             $trace('proc-open-failed');
-            return ['success' => false, 'message' => 'mysql CLI 실행에 실패했습니다.'];
+            return ['success' => false, 'message' => 'mysql CLI ?ㅽ뻾???ㅽ뙣?덉뒿?덈떎.'];
         }
 
         stream_set_blocking($pipes[0], false);
@@ -645,7 +696,7 @@ class DatabaseBackupService
             fclose($pipes[1]);
             fclose($pipes[2]);
             proc_close($process);
-            return ['success' => false, 'message' => 'SQL 파일을 열지 못했습니다.'];
+            return ['success' => false, 'message' => 'Unable to open the SQL file.'];
         }
 
         $bytesSent = 0;
@@ -677,7 +728,7 @@ class DatabaseBackupService
 
                         return [
                             'success' => false,
-                            'message' => trim($stderr ?: $stdout ?: 'SQL 파일 읽기에 실패했습니다.'),
+                            'message' => trim($stderr ?: $stdout ?: 'Failed to read the SQL file.'),
                         ];
                     }
 
@@ -711,7 +762,7 @@ class DatabaseBackupService
 
                     return [
                         'success' => false,
-                        'message' => trim($stderr ?: $stdout ?: 'mysql 프로세스에 SQL을 전달하지 못했습니다.'),
+                        'message' => trim($stderr ?: $stdout ?: 'mysql ?꾨줈?몄뒪??SQL???꾨떖?섏? 紐삵뻽?듬땲??'),
                     ];
                 }
 
@@ -749,7 +800,7 @@ class DatabaseBackupService
 
                 return [
                     'success' => false,
-                    'message' => trim($stderrBuffer ?: $stdoutBuffer ?: 'mysql 프로세스가 SQL 입력을 받지 않아 중단했습니다.'),
+                    'message' => trim($stderrBuffer ?: $stdoutBuffer ?: 'mysql process did not accept SQL input and was aborted.'),
                 ];
             }
 
@@ -782,7 +833,7 @@ class DatabaseBackupService
 
                 return [
                     'success' => false,
-                    'message' => trim($stderrBuffer ?: $stdoutBuffer ?: 'mysql 복원 프로세스가 120초 이상 종료되지 않아 중단했습니다.'),
+                    'message' => trim($stderrBuffer ?: $stdoutBuffer ?: 'mysql 蹂듦뎄 ?묒뾽??120珥??댁뿉 ?앸굹吏 ?딆븘 以묐떒?덉뒿?덈떎.'),
                 ];
             }
 
@@ -800,7 +851,7 @@ class DatabaseBackupService
             $trace('import-failed;message=' . trim($stderr ?: $stdout ?: 'unknown-error'));
             return [
                 'success' => false,
-                'message' => trim($stderr ?: $stdout ?: 'mysql 복원 중 오류가 발생했습니다.'),
+                'message' => trim($stderr ?: $stdout ?: 'An error occurred during mysql restore.'),
             ];
         }
 
@@ -812,7 +863,7 @@ class DatabaseBackupService
         $result = [
             'attempted' => true,
             'success' => false,
-            'message' => '롤백에 실패했습니다.',
+            'message' => '濡ㅻ갚???ㅽ뙣?덉뒿?덈떎.',
         ];
 
         try {
@@ -822,8 +873,8 @@ class DatabaseBackupService
 
             $result['success'] = (bool) ($import['success'] ?? false);
             $result['message'] = !empty($import['success'])
-                ? '복원 실패 전 기준으로 Secondary 상태를 롤백했습니다.'
-                : ($import['message'] ?? '알 수 없는 오류가 발생했습니다.');
+                ? '蹂듦뎄 ?ㅽ뙣 ??Secondary DB瑜??ㅻ깄?룹쑝濡?濡ㅻ갚?덉뒿?덈떎.'
+                : ($import['message'] ?? 'An unknown error occurred.');
         } catch (Throwable $e) {
             $result['message'] = $e->getMessage();
         }
@@ -849,6 +900,8 @@ class DatabaseBackupService
 
     private function writeRestoreStatus(array $status): void
     {
+        $status = $this->mergeAppliedFields($status);
+
         if (!isset($status['updated_at'])) {
             $status['updated_at'] = $this->now()->format('Y-m-d H:i:s');
         }
@@ -866,8 +919,8 @@ class DatabaseBackupService
                 'finished_at' => $status['finished_at'] ?? null,
                 'updated_at' => $status['updated_at'],
                 'stage' => $status['stage'] ?? 'status-write-failed',
-                'message' => '복원 상태를 저장하는 중 인코딩 오류가 발생했습니다.',
-                'warning' => '상세 메시지는 로그 파일을 확인해주세요.',
+                'message' => 'An encoding error occurred while saving restore status.',
+                'warning' => 'Check the log file for the detailed message.',
             ];
 
             $json = json_encode(
@@ -879,6 +932,82 @@ class DatabaseBackupService
         if ($json !== false) {
             @file_put_contents($this->getRestoreStatusPath(), $json);
         }
+    }
+
+    private function mergeAppliedFields(array $status): array
+    {
+        $previous = $this->readRestoreStatus();
+        if (!$previous) {
+            return $this->normalizeAppliedStatus($status);
+        }
+
+        $previous = $this->normalizeAppliedStatus($previous);
+        foreach (['applied_file', 'applied_at', 'applied_result', 'applied_source', 'latest_backup_file_at_apply'] as $field) {
+            if (!array_key_exists($field, $status) && array_key_exists($field, $previous)) {
+                $status[$field] = $previous[$field];
+            }
+        }
+
+        return $this->normalizeAppliedStatus($status);
+    }
+
+    private function normalizeAppliedStatus(array $status): array
+    {
+        if (($status['state'] ?? '') === 'success' && !isset($status['applied_file']) && !empty($status['file'])) {
+            $status['applied_file'] = $status['file'];
+        }
+
+        if (($status['state'] ?? '') === 'success' && !isset($status['applied_at']) && !empty($status['finished_at'])) {
+            $status['applied_at'] = $status['finished_at'];
+        }
+
+        if (($status['state'] ?? '') === 'success' && !isset($status['applied_result'])) {
+            $status['applied_result'] = 'success';
+        }
+
+        if (($status['state'] ?? '') === 'success' && !isset($status['applied_source']) && !empty($status['trigger'])) {
+            $status['applied_source'] = $status['trigger'];
+        }
+
+        if (($status['state'] ?? '') === 'success' && !isset($status['latest_backup_file_at_apply']) && !empty($status['applied_file'])) {
+            $status['latest_backup_file_at_apply'] = $status['applied_file'];
+        }
+
+        return $status;
+    }
+
+    private function appendSecondarySyncState(array $status): array
+    {
+        $status = $this->normalizeAppliedStatus($status);
+        $latestBackupPath = $this->findLatestBackupFile();
+        $latestBackupFile = $latestBackupPath ? basename($latestBackupPath) : null;
+        $state = (string) ($status['state'] ?? '');
+        $appliedFile = (string) ($status['applied_file'] ?? '');
+        $appliedResult = (string) ($status['applied_result'] ?? '');
+
+        if ($state === 'running') {
+            $syncState = 'RUNNING';
+        } elseif ($state === 'failed') {
+            $syncState = 'FAILED';
+        } elseif ($latestBackupFile === null || $latestBackupFile === '' || $appliedFile === '' || $appliedResult !== 'success') {
+            $syncState = 'UNKNOWN';
+        } elseif ($latestBackupFile === $appliedFile) {
+            $syncState = 'APPLIED';
+        } else {
+            $syncState = 'OUTDATED';
+        }
+
+        $status['latest_backup_file'] = $latestBackupFile;
+        $status['sync_state'] = $syncState;
+        $status['sync_state_label'] = match ($syncState) {
+            'RUNNING'  => 'Restore running',
+            'FAILED'   => 'Restore failed',
+            'APPLIED'  => 'Latest backup applied',
+            'OUTDATED' => 'Latest backup not applied',
+            default    => 'Sync state unknown',
+        };
+
+        return $status;
     }
 
     private function isRestoreStatusStale(array $status): bool
@@ -939,4 +1068,5 @@ class DatabaseBackupService
 
         @file_put_contents($this->backupDir . 'secondary_restore_log.txt', $line, FILE_APPEND);
     }
+
 }
