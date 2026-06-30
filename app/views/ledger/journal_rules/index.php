@@ -1,4 +1,5 @@
 <?php
+
 use Core\Helpers\AssetHelper;
 
 $layoutOptions = [
@@ -14,48 +15,50 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journalRules.js');
 ?>
 
 <main class="journal-rules-main">
-    <div class="journal-rules-page py-4">
-        <div class="page-header">
-            <h5 class="mb-1 fw-bold">
-                <i class="bi bi-diagram-3 me-2"></i>분개규칙
-            </h5>
-            <span id="journalRuleCount" class="text-primary page-count"></span>
-        </div>
+    <div class="container-fluid py-4 journal-rules-shell dt-page-shell">
+        <div class="journal-rules-page">
+            <div class="page-header">
+                <h5 class="mb-1 fw-bold">
+                    <i class="bi bi-diagram-3 me-2"></i>분개규칙
+                </h5>
+                <span id="journalRuleCount" class="text-primary page-count"></span>
+            </div>
 
-        <div class="content-area">
-            <?php
-            $searchId = 'journalRule';
-            $dateOptions = '
-                <option value="created_at">생성일</option>
-                <option value="updated_at">수정일</option>
-            ';
-            $searchFieldOptions = '
-                <option value="rule_code">규칙코드</option>
-                <option value="rule_name">규칙명</option>
-                <option value="business_unit">사업구분</option>
-                <option value="transaction_type">거래유형</option>
-                <option value="transaction_direction">거래구분</option>
-                <option value="client_type">거래처구분</option>
-                <option value="import_type">자료유형</option>
-                <option value="debit_account_name">차변계정</option>
-                <option value="credit_account_name">대변계정</option>
-                <option value="vat_account_name">부가세계정</option>
-                <option value="is_active">사용여부</option>
-                <option value="description">비고</option>
-            ';
-            include PROJECT_ROOT . '/app/views/components/ui-search.php';
-            ?>
+            <div class="content-area">
+                <?php
+                $searchId = 'journalRule';
+                $dateOptions = '
+                    <option value="created_at">생성일자</option>
+                    <option value="updated_at">수정일자</option>
+                ';
+                $searchFieldOptions = '
+                    <option value="rule_code">규칙코드</option>
+                    <option value="rule_name">규칙명</option>
+                    <option value="business_unit">사업구분</option>
+                    <option value="transaction_type">거래유형</option>
+                    <option value="transaction_direction">거래구분</option>
+                    <option value="client_type">거래처구분</option>
+                    <option value="import_type">자료유형</option>
+                    <option value="debit_account_name">차변계정</option>
+                    <option value="credit_account_name">대변계정</option>
+                    <option value="vat_account_name">부가세계정</option>
+                    <option value="is_active">사용여부</option>
+                    <option value="description">설명/적요</option>
+                ';
+                include PROJECT_ROOT . '/app/views/components/ui-search.php';
+                ?>
 
-            <?php
-            $tableId = 'journal-rule-table';
-            $ajaxUrl = '/api/ledger/journal-rules/list';
-            $columnsType = 'journalRule';
-            $enableButtons = true;
-            $enableSearch = true;
-            $enablePaging = true;
-            $enableReorder = false;
-            include PROJECT_ROOT . '/app/views/components/ui-table.php';
-            ?>
+                <?php
+                $tableId = 'journal-rule-table';
+                $ajaxUrl = '/api/ledger/journal-rules/list';
+                $columnsType = 'journalRule';
+                $enableButtons = true;
+                $enableSearch = true;
+                $enablePaging = true;
+                $enableReorder = false;
+                include PROJECT_ROOT . '/app/views/components/ui-table.php';
+                ?>
+            </div>
         </div>
     </div>
 
@@ -73,47 +76,32 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journalRules.js');
                         <h6 class="section-title">조건</h6>
                         <div class="row g-3">
                             <div class="col-md-3">
-                                <label class="form-label">규칙코드 <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control form-control-sm" name="rule_code" required>
+                                <label class="form-label">규칙코드</label>
+                                <input type="text" class="form-control form-control-sm" name="rule_code">
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label">규칙명 <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control form-control-sm" name="rule_name" required>
+                                <label class="form-label">규칙명</label>
+                                <input type="text" class="form-control form-control-sm" name="rule_name">
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label">사업구분 <span class="text-danger">*</span></label>
-                                <select class="form-select form-select-sm js-business-unit"
-                                        name="business_unit"
-                                        data-code-group="BUSINESS_UNIT"
-                                        required></select>
+                                <label class="form-label">사업구분</label>
+                                <select class="form-select form-select-sm js-business-unit" name="business_unit" data-code-group="BUSINESS_UNIT"></select>
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label">거래유형 <span class="text-danger">*</span></label>
-                                <select class="form-select form-select-sm js-transaction-type"
-                                        name="transaction_type"
-                                        data-code-group="TRANSACTION_TYPE"
-                                        required></select>
+                                <label class="form-label">거래유형</label>
+                                <select class="form-select form-select-sm js-transaction-type" name="transaction_type" data-code-group="TRANSACTION_TYPE"></select>
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label">거래구분 <span class="text-danger">*</span></label>
-                                <select class="form-select form-select-sm js-transaction-direction"
-                                        name="transaction_direction"
-                                        data-code-group="TRANSACTION_DIRECTION"
-                                        required></select>
+                                <label class="form-label">거래구분</label>
+                                <select class="form-select form-select-sm js-transaction-direction" name="transaction_direction" data-code-group="TRANSACTION_DIRECTION"></select>
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label">거래처구분 <span class="text-danger">*</span></label>
-                                <select class="form-select form-select-sm js-client-type"
-                                        name="client_type"
-                                        data-code-group="CLIENT_TYPE"
-                                        required></select>
+                                <label class="form-label">거래처구분</label>
+                                <select class="form-select form-select-sm js-client-type" name="client_type" data-code-group="CLIENT_TYPE"></select>
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label">자료유형 <span class="text-danger">*</span></label>
-                                <select class="form-select form-select-sm js-import-type"
-                                        name="import_type"
-                                        data-code-group="IMPORT_TYPE"
-                                        required></select>
+                                <label class="form-label">자료유형</label>
+                                <select class="form-select form-select-sm js-import-type" name="import_type" data-code-group="IMPORT_TYPE"></select>
                             </div>
                         </div>
                     </section>
@@ -122,12 +110,12 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journalRules.js');
                         <h6 class="section-title">분개 결과</h6>
                         <div class="row g-3">
                             <div class="col-md-4">
-                                <label class="form-label">차변계정 <span class="text-danger">*</span></label>
-                                <select class="form-select form-select-sm js-account-select" name="debit_account_id" required></select>
+                                <label class="form-label">차변계정</label>
+                                <select class="form-select form-select-sm js-account-select" name="debit_account_id"></select>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label">대변계정 <span class="text-danger">*</span></label>
-                                <select class="form-select form-select-sm js-account-select" name="credit_account_id" required></select>
+                                <label class="form-label">대변계정</label>
+                                <select class="form-select form-select-sm js-account-select" name="credit_account_id"></select>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">부가세계정</label>
@@ -170,7 +158,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journalRules.js');
 
     $modalId = 'journalRuleExcelModal';
     $formId = 'journal-rule-excel-upload-form';
-    $modalTitle = '분개규칙 엑셀관리';
+    $modalTitle = '분개규칙 엑셀 관리';
     $fileInputId = 'journalRuleExcelUpload';
     $fileInputName = 'file';
     $spinnerId = 'journalRuleExcelUploadSpinner';

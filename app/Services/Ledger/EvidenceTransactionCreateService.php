@@ -512,7 +512,7 @@ class EvidenceTransactionCreateService
             $placeholders[] = $key;
             $params[$key] = $transactionId;
         }
-        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM ledger_transaction_lines WHERE transaction_id IN (' . implode(', ', $placeholders) . ') AND deleted_at IS NULL');
+        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM ledger_transaction_items WHERE transaction_id IN (' . implode(', ', $placeholders) . ') AND deleted_at IS NULL');
         $stmt->execute($params);
         return (int) $stmt->fetchColumn();
     }
@@ -557,10 +557,24 @@ class EvidenceTransactionCreateService
         $approvalNo = trim((string) ($row['approval_number'] ?? $row['approval_no'] ?? ''));
         if ($approvalNo !== '') {
             $stmt = $this->pdo->prepare("
-                SELECT 1 FROM ledger_data_evidences
-                WHERE id <> :row_id
-                  AND " . $this->evidenceCreatedTransactionSql() . "
-                  AND mapped_payload_json LIKE :approval_no
+                SELECT 1
+                FROM ledger_evidence_payloads p
+                LEFT JOIN ledger_evidence_processing pr
+                    ON pr.evidence_type = p.evidence_type
+                   AND pr.evidence_id = p.evidence_id
+                   AND pr.deleted_at IS NULL
+                LEFT JOIN ledger_evidence_links tx
+                    ON tx.evidence_type = p.evidence_type
+                   AND tx.evidence_id = p.evidence_id
+                   AND tx.target_type = 'TRANSACTION'
+                   AND tx.deleted_at IS NULL
+                WHERE p.evidence_id <> :row_id
+                  AND p.deleted_at IS NULL
+                  AND (
+                    COALESCE(pr.processing_status, 'READY') IN ('CREATED', 'PROCESSED', 'DONE', 'COMPLETED', 'POSTED')
+                    OR (tx.target_id IS NOT NULL AND tx.target_id <> '')
+                  )
+                  AND p.mapped_payload_json LIKE :approval_no
                 LIMIT 1
             ");
             $stmt->execute([':row_id' => $uploadRowId, ':approval_no' => '%' . $approvalNo . '%']);
@@ -589,13 +603,13 @@ class EvidenceTransactionCreateService
         if ($clientId === null && $companyName !== '') {
             $clientId = $this->findClientId($companyName);
         }
-        $sql = "SELECT 1 FROM ledger_transactions WHERE deleted_at IS NULL AND transaction_date = :transaction_date AND total_amount = :total_amount";
-        $params = [':transaction_date' => $date, ':total_amount' => $total];
+        $sql = "SELECT 1 FROM ledger_transactions WHERE deleted_at IS NULL AND transaction_date = :transaction_date AND transaction_total_amount = :transaction_total_amount";
+        $params = [':transaction_date' => $date, ':transaction_total_amount' => $total];
         if ($clientId !== null) {
             $sql .= ' AND client_id = :client_id';
             $params[':client_id'] = $clientId;
         } elseif ($companyName !== '') {
-            $sql .= ' AND description LIKE :company_name';
+            $sql .= ' AND transaction_description LIKE :company_name';
             $params[':company_name'] = '%' . $companyName . '%';
         } else {
             return false;

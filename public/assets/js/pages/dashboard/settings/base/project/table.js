@@ -16,12 +16,12 @@ export function createProjectTableModule({
         sort_no: { label: '순번', visible: true },
         project_name: { label: '프로젝트명', visible: true },
         construction_name: { label: '공사명', visible: false },
-        employee_name: { label: '담당직원', visible: true },
+        employee_id: { label: '담당직원', visible: true },
         client_name: { label: '발주사명', visible: false },
         client_type: { label: '발주사분류', visible: false },
         bid_type: { label: '입찰방법', visible: false },
         site_agent: { label: '현장대리인', visible: false },
-        linked_client_name: { label: '거래처', visible: true },
+        client_id: { label: '거래처', visible: true },
         contract_type: { label: '계약종류', visible: true },
         contract_method: { label: '계약방식', visible: true },
         director: { label: '감리관/부장', visible: false },
@@ -48,15 +48,15 @@ export function createProjectTableModule({
         memo: { label: '메모', visible: false },
         is_active: { label: '진행상황', visible: true },
         created_at: { label: '등록일시', visible: false },
-        created_by_name: { label: '등록자', visible: false },
+        created_by: { label: '등록자', visible: false },
         updated_at: { label: '수정일시', visible: false },
-        updated_by_name: { label: '수정자', visible: false },
+        updated_by: { label: '수정자', visible: false },
         deleted_at: { label: '삭제일시', visible: false },
-        deleted_by_name: { label: '삭제자', visible: false },
+        deleted_by: { label: '삭제자', visible: false },
     };
 
     function getProjectColumnAlignClass(field) {
-        if (['sort_no', 'employee_name', 'work_type', 'permit_date', 'contract_date', 'start_date', 'completion_date', 'bid_notice_date', 'is_active'].includes(field)) {
+        if (['sort_no', 'employee_id', 'work_type', 'permit_date', 'contract_date', 'start_date', 'completion_date', 'bid_notice_date', 'is_active'].includes(field)) {
             return 'text-center';
         }
         if (field === 'initial_contract_amount') return 'text-end';
@@ -137,6 +137,11 @@ export function createProjectTableModule({
                 render(data, type, row) {
                     if (data === null || data === undefined) return '';
                     if (field === 'site_agent') return row?.site_agent_name || data;
+                    if (field === 'employee_id') return row?.employee_name || data;
+                    if (field === 'client_id') return row?.linked_client_name || data;
+                    if (field === 'created_by') return row?.created_by_name || data;
+                    if (field === 'updated_by') return row?.updated_by_name || data;
+                    if (field === 'deleted_by') return row?.deleted_by_name || data;
                     if (['permit_date', 'contract_date', 'start_date', 'completion_date', 'bid_notice_date'].includes(field)) {
                         return formatDateDisplay(data);
                     }
@@ -190,6 +195,14 @@ export function createProjectTableModule({
             pageLength: 100,
             autoWidth: false,
             selectionColumn: { widthResizable: true },
+            tableSettings: {
+                pageKey: 'dashboard.settings.base-info.project',
+                tableKey: 'project-table',
+                storageKey: 'datatable.settings.dashboard.settings.base-info.project.project-table.v1',
+                metaDomain: 'project',
+                tableLabel: '프로젝트',
+                title: '프로젝트 테이블 설정',
+            },
             buttons: [
                 {
                     text: '휴지통',

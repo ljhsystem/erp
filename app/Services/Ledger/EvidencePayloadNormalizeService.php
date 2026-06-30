@@ -65,8 +65,60 @@ class EvidencePayloadNormalizeService
             $mapped['transaction_datetime'] = $mapped['transaction_date'];
         }
 
-        $mapped = $this->normalizeMappedPayloadDateValues($this->normalizeMappedClientReference($mapped));
+        $aliases = [
+            'evidence_date' => ['raw_written_date', 'written_date', 'write_date', 'raw_issue_date', 'issue_date'],
+            'transaction_date' => ['raw_issue_date', 'issue_date', 'raw_written_date', 'written_date'],
+            'approval_number' => ['raw_approval_no'],
+            'issue_date' => ['raw_issue_date'],
+            'transmit_date' => ['raw_transmit_date'],
+            'supplier_business_number' => ['raw_supplier_business_number'],
+            'supplier_branch_number' => ['raw_supplier_branch_no'],
+            'supplier_company_name' => ['raw_supplier_company_name'],
+            'supplier_ceo_name' => ['raw_supplier_ceo_name'],
+            'supplier_address' => ['raw_supplier_address'],
+            'supplier_email' => ['raw_supplier_email'],
+            'customer_business_number' => ['raw_customer_business_number'],
+            'customer_branch_number' => ['raw_customer_branch_no'],
+            'customer_company_name' => ['raw_customer_company_name'],
+            'customer_ceo_name' => ['raw_customer_ceo_name'],
+            'customer_address' => ['raw_customer_address'],
+            'customer_email_1' => ['raw_customer_email1'],
+            'customer_email_2' => ['raw_customer_email2'],
+            'supply_amount' => ['raw_supply_amount'],
+            'vat_amount' => ['raw_vat_amount'],
+            'total_amount' => ['raw_total_amount'],
+            'tax_invoice_category' => ['raw_invoice_category'],
+            'tax_invoice_type' => ['raw_invoice_kind'],
+            'issue_type' => ['raw_issue_type'],
+            'receipt_claim_type' => ['raw_claim_type'],
+            'raw_item_date' => ['item_date'],
+            'raw_item_name' => ['item_name'],
+            'raw_item_spec' => ['item_spec'],
+            'raw_item_quantity' => ['item_qty', 'quantity'],
+            'raw_item_unit_price' => ['item_price', 'unit_price'],
+            'raw_item_supply_amount' => ['item_supply_amount'],
+            'raw_item_tax_amount' => ['item_vat_amount'],
+            'raw_item_note' => ['item_note'],
+            'note' => ['raw_note'],
+            'description' => ['raw_note'],
+        ];
 
+        foreach ($aliases as $target => $keys) {
+            if (isset($mapped[$target]) && trim((string) $this->payloadScalarForStorage($mapped[$target])) !== '') {
+                continue;
+            }
+
+            foreach ($keys as $key) {
+                $value = $this->payloadScalarForStorage($mapped[$key] ?? null);
+                if ($value !== null && trim((string) $value) !== '') {
+                    $mapped[$target] = $value;
+                    break;
+                }
+            }
+        }
+
+        $mapped = $this->normalizeTaxInvoiceRawItemPayload($mapped);
+        $mapped = $this->normalizeMappedPayloadDateValues($this->normalizeMappedClientReference($mapped));
         return ($this->normalizeBusinessRefPayload)($mapped);
     }
 
@@ -85,10 +137,14 @@ class EvidencePayloadNormalizeService
             'customer_name' => ['customer_name', 'customer_company_name', '공급받는자 상호', '공급받는자명'],
             'supplier_business_number' => ['supplier_business_number', '공급자 사업자등록번호'],
             'customer_business_number' => ['customer_business_number', '공급받는자 사업자등록번호'],
-            'item_name' => ['item_name', '품목명', '품목'],
-            'item_spec' => ['item_spec', '품목규격', '규격'],
-            'item_qty' => ['item_qty', '품목수량', '수량'],
-            'item_price' => ['item_price', '품목단가', '단가'],
+            'item_date' => ['item_date', 'raw_item_date'],
+            'item_name' => ['item_name', 'raw_item_name', '품목명', '품목'],
+            'item_spec' => ['item_spec', 'raw_item_spec', '품목규격', '규격'],
+            'item_qty' => ['item_qty', 'raw_item_quantity', '품목수량', '수량'],
+            'item_price' => ['item_price', 'raw_item_unit_price', '품목단가', '단가'],
+            'item_supply_amount' => ['item_supply_amount', 'raw_item_supply_amount'],
+            'item_vat_amount' => ['item_vat_amount', 'raw_item_tax_amount'],
+            'item_note' => ['item_note', 'raw_item_note'],
             'issue_date' => ['issue_date', '발급일자', '발행일자'],
             'transmit_date' => ['transmit_date', '전송일자'],
             'note' => ['note', '비고'],
@@ -121,18 +177,23 @@ class EvidencePayloadNormalizeService
     public function requiredFormatMissingMessages(array $payload, array $columns): array
     {
         $messages = [];
+        $displayNameMap = $this->policyMapFromPayload($payload, '_column_display_name', $_REQUEST['column_display_name'] ?? null);
+        $requirementPolicyMap = $this->policyMapFromPayload($payload, '_column_requirement_policy', $_REQUEST['column_requirement_policy'] ?? ($_REQUEST['column_requirement'] ?? null));
+        $policyColumns = $columns !== [] ? $columns : $this->policyColumnsFromMaps($displayNameMap, $requirementPolicyMap);
 
-        foreach ($columns as $column) {
-            if (!(($this->isRequiredFormatColumn)($column))) {
+        foreach ($policyColumns as $column) {
+            if (!$this->isRequiredColumnByPolicy($column, $requirementPolicyMap)) {
                 continue;
             }
 
             $field = trim((string) ($column['system_field_name'] ?? ''));
+            $columnKey = trim((string) ($column['original_column_key'] ?? $field));
             $excelName = trim((string) ($column['excel_column_name'] ?? ''));
-            $label = $excelName !== '' ? $excelName : ($this->fieldLabel)($field);
+            $displayName = trim((string) ($displayNameMap[$columnKey] ?? $displayNameMap[$field] ?? ''));
+            $label = $displayName !== '' ? $displayName : ($excelName !== '' ? $excelName : ($this->fieldLabel)($field));
             $value = $field !== '' ? ($payload[$field] ?? null) : ($payload[$excelName] ?? null);
             if ($this->isBlankRequiredValue($value)) {
-                $messages[] = (preg_replace('/\s*\*$/u', '', $label) ?? $label) . ' 필수값 없음';
+                $messages[] = (preg_replace('/\s*\*$/u', '', $label) ?? $label) . ' ' . json_decode('"\uD544\uC218\uAC12\uC774 \uC5C6\uC2B5\uB2C8\uB2E4."');
             }
         }
 
@@ -207,6 +268,97 @@ class EvidencePayloadNormalizeService
         }
 
         return '';
+    }
+
+    private function normalizeTaxInvoiceRawItemPayload(array $mapped): array
+    {
+        if (!$this->isTaxInvoiceLikePayload($mapped)) {
+            return $mapped;
+        }
+
+        foreach ([
+            'item_date',
+            'item_name',
+            'item_spec',
+            'item_qty',
+            'item_price',
+            'item_supply_amount',
+            'item_vat_amount',
+            'item_note',
+        ] as $legacyField) {
+            unset($mapped[$legacyField]);
+        }
+
+        return $mapped;
+    }
+
+    private function isTaxInvoiceLikePayload(array $payload): bool
+    {
+        foreach (['data_type', 'import_type', 'source_type'] as $key) {
+            $type = strtoupper(trim((string) ($payload[$key] ?? '')));
+            if ($type === 'TAX_INVOICE' || $this->isManualTaxInvoiceTypeCode($type)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isManualTaxInvoiceTypeCode(string $type): bool
+    {
+        if ($type === '') {
+            return false;
+        }
+
+        return in_array($type, [
+            'TAX_INVOICE_MANUAL',
+            'MANUAL_TAX_INVOICE',
+            'TAX_INVOICE_PURCHASE_SALES_MANUAL',
+            'TAX_INVOICE_BUY_SELL_MANUAL',
+        ], true);
+    }
+
+    private function policyMapFromPayload(array $payload, string $payloadKey, mixed $requestRaw = null): array
+    {
+        $raw = $payload[$payloadKey] ?? $requestRaw;
+        if (is_array($raw)) {
+            return $raw;
+        }
+
+        $text = trim((string) $raw);
+        if ($text === '') {
+            return [];
+        }
+
+        $parsed = json_decode($text, true);
+        return is_array($parsed) ? $parsed : [];
+    }
+
+    private function policyColumnsFromMaps(array $displayNameMap, array $requirementPolicyMap): array
+    {
+        $keys = array_values(array_unique(array_filter(array_merge(array_keys($displayNameMap), array_keys($requirementPolicyMap)), static fn($key): bool => trim((string) $key) !== '')));
+
+        return array_map(static function ($key): array {
+            $name = trim((string) $key);
+            return [
+                'original_column_key' => $name,
+                'system_field_name' => $name,
+                'excel_column_name' => $name,
+                'is_required' => 0,
+            ];
+        }, $keys);
+    }
+
+    private function isRequiredColumnByPolicy(array $column, array $requirementPolicyMap): bool
+    {
+        $field = trim((string) ($column['system_field_name'] ?? ''));
+        $columnKey = trim((string) ($column['original_column_key'] ?? $field));
+        $policy = strtolower(trim((string) ($requirementPolicyMap[$columnKey] ?? $requirementPolicyMap[$field] ?? '')));
+        if ($policy !== '') {
+            return $policy === 'required';
+        }
+
+        return (($this->isRequiredFormatColumn)($column));
     }
 
     private function normalizeMappedClientReference(array $mapped): array

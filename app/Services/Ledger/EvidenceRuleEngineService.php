@@ -132,6 +132,7 @@ class EvidenceRuleEngineService
             if ($result['status'] === 'READY') {
                 $result['status'] = 'VERIFY_ONLY';
             }
+            $result = $this->applyPolicyResult($result, $payload);
             return $result;
         }
 
@@ -158,7 +159,7 @@ class EvidenceRuleEngineService
                 $bankProcessing['label'] = '??????멸눋???ヂ?罹????袁ㅻ쇀???+ ????熬곻퐢夷????熬곣뫖利???';
             }
 
-            return $this->readinessResult($errors, $warnings, $missing, $bankProcessing);
+            return $this->applyPolicyResult($this->readinessResult($errors, $warnings, $missing, $bankProcessing), $payload);
         }
 
         $transactionDate = $this->dateValueOrNull($payload['transaction_date'] ?? $row['evidence_date'] ?? null);
@@ -220,7 +221,7 @@ class EvidenceRuleEngineService
             }
         }
 
-        return $this->readinessResult($errors, $warnings, $missing, $processing);
+        return $this->applyPolicyResult($this->readinessResult($errors, $warnings, $missing, $processing), $payload);
     }
 
     public function readinessResult(array $errors, array $warnings, array $missing, array $processing): array
@@ -240,6 +241,62 @@ class EvidenceRuleEngineService
             'generation_objects' => $processing['objects'],
             'generation_label' => $processing['label'],
         ];
+    }
+
+    private function applyPolicyResult(array $result, array $payload): array
+    {
+        $displayNameMap = $this->policyMap($payload['_column_display_name'] ?? ($_REQUEST['column_display_name'] ?? null));
+        $requirementPolicyMap = $this->policyMap($payload['_column_requirement_policy'] ?? ($_REQUEST['column_requirement_policy'] ?? ($_REQUEST['column_requirement'] ?? null)));
+        if ($requirementPolicyMap === []) {
+            return $result;
+        }
+
+        $missingFields = is_array($result['missing_fields'] ?? null) ? $result['missing_fields'] : [];
+        $errors = is_array($result['errors'] ?? null) ? $result['errors'] : [];
+        foreach ($requirementPolicyMap as $key => $policy) {
+            if (strtolower(trim((string) $policy)) !== 'required') {
+                continue;
+            }
+
+            $field = trim((string) $key);
+            if ($field === '') {
+                continue;
+            }
+
+            $text = trim((string) ($payload[$field] ?? ''));
+            if ($text !== '' && !$this->isEmptySelectionLabel($text)) {
+                continue;
+            }
+
+            $missingFields[] = $field;
+            $label = trim((string) ($displayNameMap[$field] ?? $field));
+            $errors[] = $label . ' ' . json_decode('"\uD544\uC218\uAC12\uC774 \uC5C6\uC2B5\uB2C8\uB2E4."');
+        }
+
+        $missingFields = array_values(array_unique($missingFields));
+        $errors = array_values(array_unique($errors));
+        $result['missing_fields'] = $missingFields;
+        if ($errors !== []) {
+            $result['errors'] = $errors;
+            $result['status'] = 'NOT_READY';
+        }
+
+        return $result;
+    }
+
+    private function policyMap(mixed $raw): array
+    {
+        if (is_array($raw)) {
+            return $raw;
+        }
+
+        $text = trim((string) $raw);
+        if ($text === '') {
+            return [];
+        }
+
+        $parsed = json_decode($text, true);
+        return is_array($parsed) ? $parsed : [];
     }
 
     public function formatTransactionCreateError(string $message, array $row = [], int $rowNo = 0): string

@@ -2,6 +2,8 @@
 
 .role-permission-page {
     min-height: 0;
+    --rp-role-sticky-top: 0px;
+    --rp-role-toolbar-height: 0px;
 }
 
 .role-permission-page .rp-row {
@@ -63,6 +65,7 @@
 .role-permission-page #roleListCard .rp-card-body {
     overflow: visible;
     min-width: 0;
+    min-height: 0;
 }
 
 .role-permission-page .rp-actions {
@@ -110,6 +113,73 @@
     display: none !important;
 }
 
+.role-permission-page #role-list-table_wrapper {
+    position: sticky !important;
+    top: var(--rp-role-sticky-top) !important;
+    z-index: 68 !important;
+    background: var(--color-surface, #fff);
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - var(--rp-role-sticky-top) - 16px);
+}
+
+.role-permission-page #role-list-table_wrapper .dt-top,
+.role-permission-page #role-list-table_wrapper .dataTables_scrollHead {
+    position: static !important;
+    top: auto !important;
+    z-index: auto !important;
+    background: var(--color-surface, #fff);
+}
+
+.role-permission-page #role-list-table_wrapper .dataTables_scroll {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: column;
+}
+
+.role-permission-page #role-list-table_wrapper .dataTables_scrollBody {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto !important;
+    max-height: calc(100vh - var(--rp-role-sticky-top) - var(--rp-role-toolbar-height) - 84px) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+
+.role-permission-page #role-list-table_wrapper table.dataTable thead th,
+.role-permission-page #role-list-table_wrapper table.dataTable > thead > tr > td {
+    position: relative !important;
+    top: auto !important;
+    z-index: auto !important;
+}
+
+.role-permission-page #role-list-table_wrapper table.dataTable thead th {
+    overflow: visible !important;
+    white-space: nowrap !important;
+}
+
+.role-permission-page #role-list-table_wrapper table.dataTable thead th .dt-column-title,
+.role-permission-page #role-list-table_wrapper table.dataTable thead th .dt-column-order,
+.role-permission-page #role-list-table_wrapper table.dataTable thead th > span,
+.role-permission-page #role-list-table_wrapper table.dataTable thead th > div {
+    display: inline-block;
+    max-width: calc(100% - 18px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.role-permission-page #role-list-table_wrapper table.dataTable thead th .dt-column-resizer {
+    z-index: 10;
+}
+
+.role-permission-page #role-list-table_wrapper .dt-top {
+    flex: 0 0 auto;
+    margin-bottom: 0;
+}
+
 .role-permission-page #role-list-table tbody tr.rp-role-spacer td {
   height: var(--rp-role-spacer-height, 0px);
   padding: 0 !important;
@@ -141,6 +211,33 @@
 @media (max-width: 991.98px) {
     .role-permission-page .rp-row {
         grid-template-columns: 1fr;
+    }
+
+    .role-permission-page #roleListCard {
+        position: static;
+    }
+
+    .role-permission-page #roleListCard .rp-card-body {
+        overflow: visible;
+    }
+
+    .role-permission-page #role-list-table_wrapper {
+        position: static !important;
+        top: auto !important;
+        max-height: none;
+    }
+
+    .role-permission-page #role-list-table_wrapper .dataTables_scrollBody {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    .role-permission-page #role-list-table_wrapper .dt-top,
+    .role-permission-page #role-list-table_wrapper .dataTables_scrollHead,
+    .role-permission-page #role-list-table_wrapper table.dataTable thead th,
+    .role-permission-page #role-list-table_wrapper table.dataTable > thead > tr > td {
+        position: static !important;
+        top: auto !important;
     }
 
     .role-permission-page .card-header {

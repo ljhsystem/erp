@@ -34,18 +34,33 @@
     }
 
     function prepareExcelAction(form, type) {
+        form.dispatchEvent(new CustomEvent('excel:before-prepare-action', {
+            detail: { type },
+        }));
+
         const columns = readPreparedColumns(form, type);
+        const policyState = form?.__excelPreparedPolicy?.[type] && typeof form.__excelPreparedPolicy[type] === 'object'
+            ? form.__excelPreparedPolicy[type]
+            : { displayName: {}, requirementPolicy: {} };
         form.__excelLastPreparedAction = {
             type,
             columns,
+            columnDisplayName: { ...(policyState.displayName || {}) },
+            columnRequirementPolicy: { ...(policyState.requirementPolicy || {}) },
         };
         form.dispatchEvent(new CustomEvent('excel:prepare-action', {
             detail: {
                 type,
                 columns,
+                columnDisplayName: { ...(policyState.displayName || {}) },
+                columnRequirementPolicy: { ...(policyState.requirementPolicy || {}) },
             },
         }));
-        return columns;
+        return {
+            columns,
+            columnDisplayName: { ...(policyState.displayName || {}) },
+            columnRequirementPolicy: { ...(policyState.requirementPolicy || {}) },
+        };
     }
 
     function appendColumnsQuery(url, columns) {
@@ -63,6 +78,36 @@
         const columnsValue = selectedColumns.map((column) => encodeURIComponent(column)).join(',');
 
         return `${withoutHash}${separator}columns=${columnsValue}${hash ? `#${hash}` : ''}`;
+    }
+
+    function appendPolicyQuery(url, prepared = {}) {
+        const baseUrl = String(url || '').trim();
+        if (!baseUrl) {
+            return baseUrl;
+        }
+
+        const displayName = prepared?.columnDisplayName && typeof prepared.columnDisplayName === 'object'
+            ? prepared.columnDisplayName
+            : {};
+        const requirementPolicy = prepared?.columnRequirementPolicy && typeof prepared.columnRequirementPolicy === 'object'
+            ? prepared.columnRequirementPolicy
+            : {};
+        const [withoutHash, hash = ''] = baseUrl.split('#', 2);
+        const separator = withoutHash.includes('?') ? '&' : '?';
+        const params = [];
+
+        if (Object.keys(displayName).length > 0) {
+            params.push(`column_display_name=${encodeURIComponent(JSON.stringify(displayName))}`);
+        }
+        if (Object.keys(requirementPolicy).length > 0) {
+            params.push(`column_requirement_policy=${encodeURIComponent(JSON.stringify(requirementPolicy))}`);
+        }
+
+        if (params.length === 0) {
+            return baseUrl;
+        }
+
+        return `${withoutHash}${separator}${params.join('&')}${hash ? `#${hash}` : ''}`;
     }
 
     function formatBytes(bytes) {
@@ -514,16 +559,24 @@
 
         if (btn.classList.contains('btn-template-download')) {
             if (form.dataset.templateUrl) {
-                const columns = prepareExcelAction(form, 'template');
-                window.location.href = appendColumnsQuery(form.dataset.templateUrl, columns);
+                const prepared = prepareExcelAction(form, 'template');
+                const url = appendPolicyQuery(
+                    appendColumnsQuery(form.dataset.templateUrl, prepared.columns),
+                    prepared
+                );
+                window.location.href = url;
             }
             return;
         }
 
         if (btn.classList.contains('btn-download-all')) {
             if (form.dataset.downloadUrl) {
-                const columns = prepareExcelAction(form, 'download');
-                window.location.href = appendColumnsQuery(form.dataset.downloadUrl, columns);
+                const prepared = prepareExcelAction(form, 'download');
+                const url = appendPolicyQuery(
+                    appendColumnsQuery(form.dataset.downloadUrl, prepared.columns),
+                    prepared
+                );
+                window.location.href = url;
             }
             return;
         }
@@ -539,9 +592,15 @@
 
         const file = fileInput.files[0];
         const formData = new FormData(form);
-        const templateColumns = prepareExcelAction(form, 'template');
-        if (templateColumns.length > 0) {
-            formData.set('excel_template_columns', templateColumns.join(','));
+        const prepared = prepareExcelAction(form, 'template');
+        if (prepared.columns.length > 0) {
+            formData.set('excel_template_columns', prepared.columns.join(','));
+        }
+        if (Object.keys(prepared.columnDisplayName || {}).length > 0) {
+            formData.set('column_display_name', JSON.stringify(prepared.columnDisplayName));
+        }
+        if (Object.keys(prepared.columnRequirementPolicy || {}).length > 0) {
+            formData.set('column_requirement_policy', JSON.stringify(prepared.columnRequirementPolicy));
         }
         setModalBusy(modal, true);
         setUploadProgress(modal, {

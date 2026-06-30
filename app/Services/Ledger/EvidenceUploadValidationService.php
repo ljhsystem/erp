@@ -33,6 +33,13 @@ class EvidenceUploadValidationService
             'supply_amount',
             'vat_amount',
             'total_amount',
+            'raw_supply_amount',
+            'raw_vat_amount',
+            'raw_total_amount',
+            'raw_deposit_amount',
+            'raw_withdraw_amount',
+            'raw_balance_amount',
+            'raw_check_bill_amount',
             'item_supply_amount',
             'item_vat_amount',
             'item_price',
@@ -48,6 +55,11 @@ class EvidenceUploadValidationService
             'exchange_rate',
         ] as $field) {
             if (!array_key_exists($field, $row)) {
+                continue;
+            }
+
+            if ($this->isBlankAmountPlaceholder($row[$field])) {
+                $row[$field] = '';
                 continue;
             }
 
@@ -68,9 +80,30 @@ class EvidenceUploadValidationService
             $row['supply_amount'] = $itemSupply;
             $supply = $itemSupply;
         }
+        if ($supply === null) {
+            $rawSupply = $this->amountOrNull($row['raw_supply_amount'] ?? null);
+            if ($rawSupply !== null) {
+                $row['supply_amount'] = $rawSupply;
+                $supply = $rawSupply;
+            }
+        }
         if ($vat === null && $itemVat !== null) {
             $row['vat_amount'] = $itemVat;
             $vat = $itemVat;
+        }
+        if ($vat === null) {
+            $rawVat = $this->amountOrNull($row['raw_vat_amount'] ?? null);
+            if ($rawVat !== null) {
+                $row['vat_amount'] = $rawVat;
+                $vat = $rawVat;
+            }
+        }
+        if ($total === null) {
+            $rawTotal = $this->amountOrNull($row['raw_total_amount'] ?? null);
+            if ($rawTotal !== null) {
+                $row['total_amount'] = $rawTotal;
+                $total = $rawTotal;
+            }
         }
         if ($total === null && ($supply !== null || $vat !== null || $service !== null)) {
             $row['total_amount'] = (float) ($supply ?? 0) + (float) ($vat ?? 0) + (float) ($service ?? 0);
@@ -101,30 +134,52 @@ class EvidenceUploadValidationService
             $requiredMissingMessages = $this->requiredFormatMissingMessages($row, $columns);
             array_push($warnings, ...$requiredMissingMessages);
 
-            $date = trim((string) ($row['transaction_date'] ?? ''));
-            if ($date !== '' && !$this->isValidDateValue($date)) {
-                $errors[] = 'Invalid transaction date format.';
+            if ($dataType === 'BANK_TRANSACTION') {
+                $dateTime = trim((string) ($row['raw_transaction_datetime'] ?? ''));
+                if ($dateTime !== '' && $this->dateTimeValue($dateTime) === null) {
+                    $errors[] = '거래일시 형식이 올바르지 않습니다.';
+                }
+            } else {
+                $date = trim((string) ($row['transaction_date'] ?? $row['issue_date'] ?? $row['raw_written_date'] ?? $row['raw_issue_date'] ?? ''));
+                if ($date !== '' && !$this->isValidDateValue($date)) {
+                    $errors[] = '거래일자 형식이 올바르지 않습니다.';
+                }
             }
 
-            foreach ([
-                'supply_amount',
-                'vat_amount',
-                'total_amount',
-                'item_supply_amount',
-                'item_vat_amount',
-                'service_amount',
-                'purchase_amount_krw',
-                'previous_notice_amount',
-                'billing_amount',
-                'fee_amount',
-                'actual_billing_amount',
-                'foreign_amount',
-                'local_amount',
-                'exchange_rate',
-            ] as $field) {
+            $amountFields = $dataType === 'BANK_TRANSACTION'
+                ? [
+                    'raw_deposit_amount',
+                    'raw_withdraw_amount',
+                    'raw_balance_amount',
+                    'raw_check_bill_amount',
+                ]
+                : [
+                    'supply_amount',
+                    'vat_amount',
+                    'total_amount',
+                    'raw_supply_amount',
+                    'raw_vat_amount',
+                    'raw_total_amount',
+                    'item_supply_amount',
+                    'item_vat_amount',
+                    'service_amount',
+                    'purchase_amount_krw',
+                    'previous_notice_amount',
+                    'billing_amount',
+                    'fee_amount',
+                    'actual_billing_amount',
+                    'foreign_amount',
+                    'local_amount',
+                    'exchange_rate',
+                ];
+            foreach ($amountFields as $field) {
                 $value = trim((string) ($row[$field] ?? ''));
-                if ($value !== '' && !$this->isValidAmountValue($value)) {
-                    $errors[] = $this->fieldLabel($field) . ' has an invalid amount format.';
+                if (!$this->hasMeaningfulAmountValue($value)) {
+                    continue;
+                }
+
+                if (!$this->isValidAmountValue($value)) {
+                    $errors[] = $this->fieldLabel($field) . ' 형식이 올바르지 않습니다.';
                 }
             }
 
@@ -132,15 +187,7 @@ class EvidenceUploadValidationService
                 $errors[] = (string) $row['_direction_error'];
             }
 
-            $businessNumber = $this->normalizeBusinessNumber((string) ($row['client_business_number'] ?? $row['business_number'] ?? ''));
-            $companyName = $this->cleanCompanyName((string) ($row['client_company_name'] ?? $row['company_name'] ?? ''));
-            if ($businessNumber !== '' && !$this->clientExistsByBusinessNumber($businessNumber)) {
-                $warnings[] = '???????????????????????????????????????????????????袁⑸즴筌?씛彛???돗??????????????癲ル슢二??곸젞???????????????????????????';
-            } elseif ($businessNumber === '' && $companyName !== '' && $this->findClientId($companyName) === null) {
-                $warnings[] = '?????????????????????????????????????????????轅붽틓????몃마?????????????곗뿨?????룸㈇媛?????縕??力?肉???⑤슢堉??⑤슣瑗?????????????????????';
-            } elseif ($businessNumber === '' && $companyName === '' && $dataType !== 'CASH_RECEIPT_SALES') {
-                $warnings[] = '??????????????????????????????????????????????????????????????????';
-            }
+            array_push($warnings, ...$this->clientReferenceWarnings($row, $columns, $dataType));
 
             $status = 'ok';
             if ($errors !== []) {
@@ -151,8 +198,10 @@ class EvidenceUploadValidationService
 
             $row['_validation'] = [
                 'status' => $status,
-                'label' => ['ok' => '?????????????????????????????????????', 'warning' => '?????????釉먮폁????????꿔꺂???癰귥옖留?????????', 'error' => '????????????????'][$status],
+                'label' => ['ok' => '확인 완료', 'warning' => '확인 필요', 'error' => '오류'][$status],
                 'messages' => array_values(array_merge($errors, $warnings)),
+                'error_messages' => array_values($errors),
+                'warning_messages' => array_values($warnings),
                 'required_missing_count' => count($requiredMissingMessages),
                 'required_missing_messages' => array_values($requiredMissingMessages),
             ];
@@ -174,14 +223,14 @@ class EvidenceUploadValidationService
             return [];
         }
 
-        $isHeadOffice = str_contains($businessUnitKey, 'HQ') || str_contains($businessUnitKey, '????????????????산뭐??????????癲????????????????????쏙쭗????????????살몖????????????猷고?????????');
-        $isConstruction = str_contains($businessUnitKey, 'CONSTRUCTION') || str_contains($businessUnitKey, '??????????????????쇄뵦??????????????????????????');
+        $isHeadOffice = str_contains($businessUnitKey, 'HQ') || str_contains($businessUnit, '본사');
+        $isConstruction = str_contains($businessUnitKey, 'CONSTRUCTION') || str_contains($businessUnit, '현장');
 
         if ($isHeadOffice && $hasProject) {
-            return ['??????????????????????ㅻ깹??????????????????????ㅻ깹??????????濾??????????????????ш끽紐???????????ㅻ쑄????????????룰퀬?????????????????????????????썹땟戮녹??諭?????⑸㎦???????????????????饔낅떽????묐뻿????ㅼ굣?????????????????????????????????????????????????????????????????????????????????????'];
+            return ['본사 사업부문은 프로젝트를 지정할 수 없습니다.'];
         }
         if ($isConstruction && !$hasProject) {
-            return ['??????????????????????ㅻ깹????????????????????????ㅼ┥?????????????????????????????????????????????????????????????????썹땟戮녹??諭?????⑸㎦???????????????????饔낅떽????묐뻿????ㅼ굣????????????????????????????????????????????????????????????????????泥???????????????????????'];
+            return ['현장 사업부문은 프로젝트를 지정해야 합니다.'];
         }
 
         return [];
@@ -196,11 +245,46 @@ class EvidenceUploadValidationService
             }
 
             $rowNo = (int) ($row['_row_no'] ?? 0);
-            $prefix = $rowNo > 0 ? "{$rowNo}??" : '';
-            $messages = array_values(array_filter(array_map('strval', is_array($validation['messages'] ?? null) ? $validation['messages'] : [])));
-            $message = $messages !== [] ? implode(', ', array_slice($messages, 0, 5)) : '??????????????썹땟戮녹??諭?????⑸㎦???????????????????饔낅떽????묐뻿????ㅼ굣??????????????????????썹땟戮녹??諭?????⑸㎦???????????????????饔낅떽????묐뻿????ㅼ굣??????????????????????';
+            $prefix = $rowNo > 0 ? "{$rowNo}행 " : '';
+            $messages = array_values(array_filter(array_map('strval', is_array($validation['error_messages'] ?? null) ? $validation['error_messages'] : [])));
+            $message = $messages !== [] ? implode(', ', array_slice($messages, 0, 5)) : '업로드 검증 중 오류가 발생했습니다.';
             throw new \RuntimeException($prefix . $message);
         }
+    }
+
+    private function clientReferenceWarnings(array $row, array $columns, string $dataType): array
+    {
+        if ($dataType === 'CASH_RECEIPT_SALES') {
+            return [];
+        }
+
+        $activeColumnKeys = $this->activeColumnKeys($columns);
+        $businessNumberKeys = ['client_business_number', 'business_number'];
+        $companyNameKeys = ['client_company_name', 'company_name', 'client_name'];
+
+        if (
+            !$this->hasAnyActiveColumn($activeColumnKeys, $businessNumberKeys)
+            && !$this->hasAnyActiveColumn($activeColumnKeys, $companyNameKeys)
+        ) {
+            return [];
+        }
+
+        $businessNumber = $this->normalizeBusinessNumber((string) ($row['client_business_number'] ?? $row['business_number'] ?? ''));
+        $companyName = $this->cleanCompanyName((string) ($row['client_company_name'] ?? $row['company_name'] ?? $row['client_name'] ?? ''));
+
+        if ($businessNumber !== '' && $this->hasAnyActiveColumn($activeColumnKeys, $businessNumberKeys) && !$this->clientExistsByBusinessNumber($businessNumber)) {
+            return ['등록된 거래처를 찾을 수 없습니다. 사업자등록번호를 확인해 주세요.'];
+        }
+
+        if ($companyName !== '' && $this->hasAnyActiveColumn($activeColumnKeys, $companyNameKeys) && $this->findClientId($companyName) === null) {
+            return ['등록된 거래처를 찾을 수 없습니다. 거래처명을 확인해 주세요.'];
+        }
+
+        if ($businessNumber === '' && $companyName === '') {
+            return ['거래처 정보가 비어 있습니다. 거래처 확인이 필요합니다.'];
+        }
+
+        return [];
     }
 
     private function isValidDateValue(mixed $value): bool
@@ -221,9 +305,39 @@ class EvidenceUploadValidationService
         return $this->amountOrNull($value) !== null;
     }
 
+    private function hasMeaningfulAmountValue(mixed $value): bool
+    {
+        $text = trim((string) ($value ?? ''));
+        if ($text === '') {
+            return false;
+        }
+
+        return !$this->isBlankAmountPlaceholder($text);
+    }
+
+    private function isBlankAmountPlaceholder(mixed $value): bool
+    {
+        $text = trim((string) ($value ?? ''));
+        if ($text === '') {
+            return true;
+        }
+
+        $normalized = preg_replace('/[\s,\x{00A0}₩￦]/u', '', $text) ?? '';
+        if ($normalized === '') {
+            return true;
+        }
+
+        return preg_match('/^[-−–—―﹣－]+$/u', $normalized) === 1;
+    }
+
     private function amountOrNull(mixed $value): ?float
     {
         return $this->call('amountOrNull', $value);
+    }
+
+    private function dateTimeValue(mixed $value): ?string
+    {
+        return $this->call('dateTimeValue', $value);
     }
 
     private function resolveUploadTransactionContext(array $row, string $dataType): array
@@ -269,6 +383,39 @@ class EvidenceUploadValidationService
     private function payloadScalarForStorage(mixed $value): mixed
     {
         return $this->call('payloadScalarForStorage', $value);
+    }
+
+    private function activeColumnKeys(array $columns): array
+    {
+        $keys = [];
+
+        foreach ($columns as $column) {
+            if (!is_array($column)) {
+                continue;
+            }
+
+            foreach (['key', 'source_key', 'payload_key', 'system_field_name', 'original_column_key', 'alias_of'] as $field) {
+                $key = trim((string) ($column[$field] ?? ''));
+                if ($key === '' || in_array($key, $keys, true)) {
+                    continue;
+                }
+
+                $keys[] = $key;
+            }
+        }
+
+        return $keys;
+    }
+
+    private function hasAnyActiveColumn(array $activeColumnKeys, array $candidateKeys): bool
+    {
+        foreach ($candidateKeys as $candidateKey) {
+            if (in_array($candidateKey, $activeColumnKeys, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function call(string $name, mixed ...$args): mixed

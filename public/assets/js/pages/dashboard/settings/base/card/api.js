@@ -21,10 +21,9 @@ export const API = {
 export const CARD_COLUMN_MAP = {
     sort_no: { label: '순번', visible: true, width: '70px', className: 'text-center' },
     card_name: { label: '카드명', visible: true, width: '220px', className: 'card-fit-nowrap' },
-    client_name: { label: '카드사', visible: true, width: '180px', className: 'card-fit-nowrap' },
+    client_id: { label: '카드사', visible: true, width: '180px', className: 'card-fit-nowrap' },
     card_number: { label: '카드번호', visible: true, width: '180px', className: 'card-fit-nowrap' },
-    account_name: { label: '결제계좌', visible: true, width: '180px', className: 'card-fit-nowrap' },
-    account_id: { label: '계좌ID', visible: false, width: '220px' },
+    account_id: { label: '결제계좌', visible: true, width: '180px', className: 'card-fit-nowrap' },
     expiry_year: { label: '유효기간(년)', visible: true, width: '110px', className: 'text-center card-fit-nowrap' },
     expiry_month: { label: '유효기간(월)', visible: true, width: '110px', className: 'text-center card-fit-nowrap' },
     limit_amount: { label: '한도금액', visible: true, width: '140px', className: 'text-end card-fit-nowrap' },
@@ -33,11 +32,11 @@ export const CARD_COLUMN_MAP = {
     memo: { label: '메모', visible: false, width: '220px' },
     is_active: { label: '상태', visible: true, width: '90px', className: 'text-center' },
     created_at: { label: '등록일시', visible: false, width: '150px' },
-    created_by_name: { label: '등록자', visible: false, width: '140px' },
+    created_by: { label: '등록자', visible: false, width: '140px' },
     updated_at: { label: '수정일시', visible: false, width: '150px' },
-    updated_by_name: { label: '수정자', visible: false, width: '140px' },
+    updated_by: { label: '수정자', visible: false, width: '140px' },
     deleted_at: { label: '삭제일시', visible: false, width: '150px' },
-    deleted_by_name: { label: '삭제자', visible: false, width: '140px' },
+    deleted_by: { label: '삭제자', visible: false, width: '140px' },
 };
 
 export const DATE_OPTIONS = [

@@ -25,6 +25,14 @@ export function createCardTableModule({
             selectionColumn: {
                 widthResizable: true,
             },
+            tableSettings: {
+                pageKey: 'dashboard.settings.base-info.card',
+                tableKey: 'card-table',
+                storageKey: 'datatable.settings.dashboard.settings.base-info.card.card-table.v1',
+                metaDomain: 'card',
+                tableLabel: '카드',
+                title: '카드 테이블 설정',
+            },
             buttons: [
                 {
                     text: '휴지통',
@@ -196,9 +204,29 @@ export function createCardTableModule({
                 width: config.width,
                 className: config.className || '',
                 defaultContent: '',
-                render(data, type) {
+                render(data, type, row) {
                     if (data == null) return '';
                     if (type !== 'display') return data;
+
+                    if (field === 'account_id') {
+                        return row?.account_name || data;
+                    }
+
+                    if (field === 'client_id') {
+                        return row?.client_name || data;
+                    }
+
+                    if (field === 'created_by') {
+                        return row?.created_by_name || data;
+                    }
+
+                    if (field === 'updated_by') {
+                        return row?.updated_by_name || data;
+                    }
+
+                    if (field === 'deleted_by') {
+                        return row?.deleted_by_name || data;
+                    }
 
                     if (field === 'card_file') {
                         if (!data) return '';

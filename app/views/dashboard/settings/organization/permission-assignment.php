@@ -63,8 +63,8 @@ window.ERP_PAGE_REGISTRY = <?= json_encode($pageRegistryRows, JSON_UNESCAPED_UNI
                                     <th class="text-center" style="width:56px"><i class="bi bi-arrows-move"></i></th>
                                     <th class="text-center" style="width:72px">순번</th>
                                     <th>페이지</th>
-                                    <th>카테고리</th>
                                     <th class="text-center" style="width:80px">구분</th>
+                                    <th>카테고리</th>
                                     <th>권한명</th>
                                     <th>권한설명</th>
                                     <th class="text-center" style="width:96px">권한부여</th>

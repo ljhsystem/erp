@@ -19,7 +19,7 @@ $layoutOptions = [
 ];
 
 $pageStyles = AssetHelper::css('/assets/css/pages/ledger/data-create.css');
-$pageScripts = AssetHelper::module('/assets/js/pages/ledger/dataCreate.js');
+$pageScripts = AssetHelper::module('/assets/js/pages/ledger/evidence-processing.js');
 ?>
 
 <main class="ledger-data-create-page" id="ledgerDataCreatePage">

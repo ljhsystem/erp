@@ -1,5 +1,10 @@
 import { createDataTable, setTableSelectedRow } from '/public/assets/js/common/table/data-table.js';
 import { bindSortableRowReorder } from '/public/assets/js/common/row-reorder.js';
+import {
+    readDataTableSettingsState,
+    resolveDataTableColumnDisplayName,
+    resolveDataTableColumnRequirementPolicy,
+} from '/public/assets/js/common/datatable/dataTableSettings.js';
 
 const API = {
     TEMPLATE_LIST: '/api/settings/organization/approval/template/list',
@@ -24,6 +29,21 @@ let roleList = [];
 let userList = [];
 const ROLE_NONE_VALUE = '__NONE__';
 const APPROVER_NONE_VALUE = '__NONE__';
+const TEMPLATE_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.organization.approval-template.template-list.v1';
+const STEP_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.organization.approval-template.step-list.v1';
+let approvalPolicyBound = false;
+const TEMPLATE_MODAL_FIELD_POLICIES = Object.freeze([
+    { selector: '#tpl-edit-name', key: 'template_name', fallback: '\uD15C\uD50C\uB9BF\uBA85' },
+    { selector: '#tpl-edit-doc-type', key: 'document_type', fallback: '\uBB38\uC11C \uC720\uD615' },
+    { selector: '#tpl-edit-desc', key: 'description', fallback: '\uC124\uBA85' },
+    { selector: '#tpl-edit-active', key: 'is_active', fallback: '\uD65C\uC131' },
+]);
+const STEP_MODAL_FIELD_POLICIES = Object.freeze([
+    { selector: '#step-edit-name', key: 'step_name', fallback: '\uB2E8\uACC4\uBA85' },
+    { selector: '#step-edit-role', key: 'role_id', fallback: '\uACB0\uC7AC \uC5ED\uD560' },
+    { selector: '#step-edit-user', key: 'approver_id', fallback: '\uD2B9\uC815 \uACB0\uC7AC\uC790' },
+    { selector: '#step-edit-active', key: 'is_active', fallback: '\uD65C\uC131' },
+]);
 
 function escapeHtml(value) {
     return String(value ?? '')
@@ -64,15 +84,242 @@ function notify(type, message) {
 
 function statusBadge(value) {
     return String(value) === '1'
-        ? '<span class="badge bg-success">활성</span>'
-        : '<span class="badge bg-secondary">비활성</span>';
+        ? '<span class="badge bg-success">\uD65C\uC131</span>'
+        : '<span class="badge bg-secondary">\uBE44\uD65C\uC131</span>';
 }
 
 function getRows(json) {
     return Array.isArray(json?.data) ? json.data : [];
 }
 
+function currentPolicyState(storageKey) {
+    return readDataTableSettingsState(storageKey) || {};
+}
+
+function approvalFieldLabel(storageKey, key, fallback = '') {
+    const normalizedKey = String(key || '').trim();
+    return resolveDataTableColumnDisplayName(
+        { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+        currentPolicyState(storageKey),
+        normalizedKey || fallback
+    );
+}
+
+function approvalFieldRequirement(storageKey, key) {
+    const normalizedKey = String(key || '').trim();
+    return resolveDataTableColumnRequirementPolicy(
+        { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+        currentPolicyState(storageKey)
+    );
+}
+
+function approvalFieldStarMarkup(storageKey, key) {
+    const policy = approvalFieldRequirement(storageKey, key);
+    if (policy === 'required') {
+        return '<span class="column-policy-star is-required" aria-hidden="true">*</span>';
+    }
+    if (policy === 'optional') {
+        return '<span class="column-policy-star is-optional" aria-hidden="true">*</span>';
+    }
+    return '';
+}
+
+function focusApprovalPolicyField(selector) {
+    const field = document.querySelector(selector);
+    if (!field) {
+        return;
+    }
+
+    if (typeof field.focus === 'function') {
+        field.focus();
+    }
+
+    if (window.jQuery && window.jQuery(field).hasClass('select2-hidden-accessible')) {
+        window.jQuery(field).select2('open');
+    }
+}
+
+function collectTemplateModalValues() {
+    return {
+        template_name: normalize($('#tpl-edit-name').val()),
+        document_type: normalize($('#tpl-edit-doc-type').val()),
+        description: normalize($('#tpl-edit-desc').val()),
+        is_active: $('#tpl-edit-active').is(':checked') ? '1' : '0',
+    };
+}
+
+function validateTemplateRequiredPolicies() {
+    const values = collectTemplateModalValues();
+
+    for (const field of TEMPLATE_MODAL_FIELD_POLICIES) {
+        if (approvalFieldRequirement(TEMPLATE_TABLE_SETTINGS_STORAGE_KEY, field.key) !== 'required') {
+            continue;
+        }
+
+        if (String(values[field.key] ?? '').trim() !== '') {
+            continue;
+        }
+
+        notify('warning', `${approvalFieldLabel(TEMPLATE_TABLE_SETTINGS_STORAGE_KEY, field.key, field.key)} \uD56D\uBAA9\uC744 \uC785\uB825\uD574 \uC8FC\uC138\uC694.`);
+        focusApprovalPolicyField(field.selector);
+        return false;
+    }
+
+    return true;
+}
+
+function collectStepModalValues() {
+    return {
+        step_name: normalize($('#step-edit-name').val()),
+        role_id: normalizeRoleId($('#step-edit-role').val()),
+        approver_id: normalizeApproverId($('#step-edit-user').val()),
+        is_active: $('#step-edit-active').is(':checked') ? '1' : '0',
+    };
+}
+
+function validateStepRequiredPolicies() {
+    const values = collectStepModalValues();
+
+    for (const field of STEP_MODAL_FIELD_POLICIES) {
+        if (approvalFieldRequirement(STEP_TABLE_SETTINGS_STORAGE_KEY, field.key) !== 'required') {
+            continue;
+        }
+
+        if (String(values[field.key] ?? '').trim() !== '') {
+            continue;
+        }
+
+        notify('warning', `${approvalFieldLabel(STEP_TABLE_SETTINGS_STORAGE_KEY, field.key, field.key)} \uD56D\uBAA9\uC744 \uC785\uB825\uD574 \uC8FC\uC138\uC694.`);
+        focusApprovalPolicyField(field.selector);
+        return false;
+    }
+
+    return true;
+}
+
+function findModalLabel(fieldSelector, root = document) {
+    const field = root.querySelector(fieldSelector);
+    if (!field) return null;
+
+    if (field.id) {
+        const labelByFor = root.querySelector(`label[for="${field.id}"]`);
+        if (labelByFor) return labelByFor;
+    }
+
+    const group = field.closest('.mb-3, .form-check, .col-md-3, .col-md-4, .col-md-6, .col-md-8, .col-12');
+    if (group) {
+        const label = group.querySelector('label.form-label, label.form-check-label');
+        if (label) return label;
+    }
+
+    return field.closest('label.form-label, label.form-check-label') || null;
+}
+
+function applyTemplateModalPolicyLabels(root = document) {
+    TEMPLATE_MODAL_FIELD_POLICIES.forEach((field) => {
+        const labelEl = findModalLabel(field.selector, root);
+        if (!labelEl) return;
+
+        const displayName = approvalFieldLabel(TEMPLATE_TABLE_SETTINGS_STORAGE_KEY, field.key, field.fallback);
+        const starMarkup = approvalFieldStarMarkup(TEMPLATE_TABLE_SETTINGS_STORAGE_KEY, field.key);
+        labelEl.innerHTML = `${displayName}${starMarkup ? ` ${starMarkup}` : ''}`;
+    });
+}
+
+function applyStepModalPolicyLabels(root = document) {
+    STEP_MODAL_FIELD_POLICIES.forEach((field) => {
+        const labelEl = findModalLabel(field.selector, root);
+        if (!labelEl) return;
+
+        const displayName = approvalFieldLabel(STEP_TABLE_SETTINGS_STORAGE_KEY, field.key, field.fallback);
+        const starMarkup = approvalFieldStarMarkup(STEP_TABLE_SETTINGS_STORAGE_KEY, field.key);
+        labelEl.innerHTML = `${displayName}${starMarkup ? ` ${starMarkup}` : ''}`;
+    });
+}
+
+function bindApprovalPolicySync() {
+    if (approvalPolicyBound) return;
+    approvalPolicyBound = true;
+
+    document.addEventListener('datatable-settings:updated', (event) => {
+        const storageKey = String(event?.detail?.storageKey || '').trim();
+        if (
+            storageKey
+            && storageKey !== TEMPLATE_TABLE_SETTINGS_STORAGE_KEY
+            && storageKey !== STEP_TABLE_SETTINGS_STORAGE_KEY
+        ) {
+            return;
+        }
+
+        applyTemplateModalPolicyLabels(document);
+        applyStepModalPolicyLabels(document);
+    });
+}
+
+function hideLegacyHeaderButtons() {
+    document.getElementById('btn-create-template')?.remove();
+    document.getElementById('btn-add-step')?.remove();
+}
+
+function setStepAddButtonDisabled(disabled = true) {
+    const button = document.querySelector('#template-steps-table_wrapper .dt-add-step-btn');
+    if (!button) {
+        return;
+    }
+
+    button.disabled = !!disabled;
+    button.classList.toggle('disabled', !!disabled);
+    button.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+}
+
+function hideStepLengthControl() {
+    const wrapper = document.getElementById('template-steps-table_wrapper');
+    if (!wrapper) {
+        return;
+    }
+
+    wrapper.querySelectorAll('.dataTables_length').forEach((node) => {
+        node.style.display = 'none';
+    });
+}
+
+function applyTableSettingsSchema(table, columnConfigs = []) {
+    const runtimeColumns = Array.isArray(table?.__dtTableSettings?.tableColumns)
+        ? table.__dtTableSettings.tableColumns
+        : [];
+    const contextColumns = Array.isArray(table?.__dtTableSettings?.context?.tableColumns)
+        ? table.__dtTableSettings.context.tableColumns
+        : [];
+
+    columnConfigs.forEach((config) => {
+        const index = Number(config?.index);
+        if (!Number.isInteger(index) || index < 0) {
+            return;
+        }
+
+        [runtimeColumns[index], contextColumns[index]].forEach((column) => {
+            if (!column) {
+                return;
+            }
+
+            if (config.settingsKey) {
+                column.settingsKey = config.settingsKey;
+            }
+            if (config.width) {
+                column.width = config.width;
+            }
+            if (typeof config.widthResizable === 'boolean') {
+                column.widthResizable = config.widthResizable;
+            }
+        });
+    });
+
+    table?.__dtTableSettings?.refreshLayout?.({ draw: false });
+}
+
 function init() {
+    hideLegacyHeaderButtons();
+    bindApprovalPolicySync();
     initModals();
     initTemplateTable();
     initStepTable();
@@ -88,64 +335,123 @@ function initModals() {
 
     if (templateModalEl) {
         templateModal = new bootstrap.Modal(templateModalEl, { focus: false });
-        templateModalEl.addEventListener('hidden.bs.modal', resetTemplateModal);
+        templateModalEl.addEventListener('hidden.bs.modal', () => {
+            resetTemplateModal();
+            applyTemplateModalPolicyLabels(document);
+        });
+        templateModalEl.addEventListener('shown.bs.modal', () => {
+            applyTemplateModalPolicyLabels(document);
+        });
     }
 
     if (stepModalEl) {
         stepModal = new bootstrap.Modal(stepModalEl, { focus: false });
-        stepModalEl.addEventListener('hidden.bs.modal', resetStepModal);
+        stepModalEl.addEventListener('hidden.bs.modal', () => {
+            resetStepModal();
+            applyStepModalPolicyLabels(document);
+        });
+        stepModalEl.addEventListener('shown.bs.modal', () => {
+            applyStepModalPolicyLabels(document);
+        });
     }
+
+    applyTemplateModalPolicyLabels(document);
+    applyStepModalPolicyLabels(document);
 }
 
 function initTemplateTable() {
     templateTable = createDataTable({
         tableSelector: '#template-list-table',
         api: API.TEMPLATE_LIST,
+        tableSettings: {
+            pageKey: 'dashboard.settings.organization.approval-template.template-list',
+            tableKey: 'approval-template-list-table',
+            storageKey: 'datatable.settings.dashboard.settings.organization.approval-template.template-list.v1',
+            metaDomain: 'approval-template',
+            tableLabel: '\uACB0\uC7AC \uD15C\uD50C\uB9BF\uBAA9\uB85D',
+            title: '\uACB0\uC7AC \uD15C\uD50C\uB9BF\uBAA9\uB85D \uD14C\uC774\uBE14 \uC124\uC815',
+            defaultVisibleColumns: ['sort_no', 'template_name', 'document_type', 'description', 'is_active'],
+        },
         defaultOrder: [[1, 'asc']],
         pageLength: 100,
+        autoWidth: false,
+        fixedLayout: true,
         cellSearchFill: false,
         rowReorder: false,
-        selectable: false,
+        selectionColumn: { widthResizable: true },
+        selectable: true,
         deleteButton: false,
+        buttons: [
+            {
+                text: '\uC0C8 \uD15C\uD50C\uB9BF',
+                className: 'btn btn-primary btn-sm',
+                action: function () {
+                    openTemplateModal('create');
+                }
+            }
+        ],
         columns: [
             {
                 title: '<i class="bi bi-list"></i>',
                 data: null,
+                settingsKey: '__reorder',
                 className: 'text-center reorder-handle no-colvis',
+                width: '44px',
+                widthResizable: true,
                 orderable: false,
                 searchable: false,
                 render: () => '<i class="bi bi-list"></i>'
             },
-            { title: '순번', data: 'sort_no', className: 'text-center', render: (value) => escapeHtml(value) },
-            { title: '템플릿명', data: 'template_name', render: (value) => escapeHtml(value) },
-            { title: '문서유형', data: 'document_type', render: (value) => escapeHtml(value) },
-            { title: '설명', data: 'description', defaultContent: '', render: (value) => escapeHtml(value) },
+            { title: '\uC21C\uBC88', data: 'sort_no', className: 'text-center', render: (value) => escapeHtml(value) },
+            { title: '\uD15C\uD50C\uB9BF\uBA85', data: 'template_name', render: (value) => escapeHtml(value) },
+            { title: '\uBB38\uC11C\uC720\uD615', data: 'document_type', render: (value) => escapeHtml(value) },
+            { title: '\uC124\uBA85', data: 'description', defaultContent: '', render: (value) => escapeHtml(value) },
             {
-                title: '상태',
+                title: '\uC0C1\uD0DC',
                 data: 'is_active',
                 className: 'text-center',
                 render: (value, type) => (type === 'display' ? statusBadge(value) : escapeHtml(value))
             },
-            { title: '템플릿키', data: 'template_key', visible: false, render: (value) => escapeHtml(value) },
-            { title: '생성일시', data: 'created_at', visible: false, render: (value) => escapeHtml(value) },
+            { title: '\uD15C\uD50C\uB9BF\uD0A4', data: 'template_key', visible: false, render: (value) => escapeHtml(value) },
+            { title: '\uC0DD\uC131\uC77C\uC2DC', data: 'created_at', visible: false, render: (value) => escapeHtml(value) },
             {
-                title: '생성자',
-                data: 'created_by_name',
+                title: '\uC0DD\uC131\uC790',
+                data: 'created_by',
+                settingsKey: 'created_by',
                 visible: false,
-                render: (value, type, row) => escapeHtml(value || row?.created_by || '')
+                width: '140px',
+                widthResizable: true,
+                render: (value, type, row) => escapeHtml(row?.created_by_name || value || '')
             },
-            { title: '수정일시', data: 'updated_at', visible: false, render: (value) => escapeHtml(value) },
+            { title: '\uC218\uC815\uC77C\uC2DC', data: 'updated_at', visible: false, render: (value) => escapeHtml(value) },
             {
-                title: '수정자',
-                data: 'updated_by_name',
+                title: '\uC218\uC815\uC790',
+                data: 'updated_by',
+                settingsKey: 'updated_by',
                 visible: false,
-                render: (value, type, row) => escapeHtml(value || row?.updated_by || '')
+                width: '140px',
+                widthResizable: true,
+                render: (value, type, row) => escapeHtml(row?.updated_by_name || value || '')
             }
         ],
         dataSrc(json) {
             return getRows(json);
         }
     });
+
+    applyTableSettingsSchema(templateTable, [
+        { index: 0, settingsKey: '__reorder', width: '44px', widthResizable: true },
+        { index: 1, settingsKey: 'sort_no', width: '80px', widthResizable: true },
+        { index: 2, settingsKey: 'template_name', width: '180px', widthResizable: true },
+        { index: 3, settingsKey: 'document_type', width: '160px', widthResizable: true },
+        { index: 4, settingsKey: 'description', width: '220px', widthResizable: true },
+        { index: 5, settingsKey: 'is_active', width: '90px', widthResizable: true },
+        { index: 6, settingsKey: 'template_key', width: '160px', widthResizable: true },
+        { index: 7, settingsKey: 'created_at', width: '160px', widthResizable: true },
+        { index: 8, settingsKey: 'created_by', width: '140px', widthResizable: true },
+        { index: 9, settingsKey: 'updated_at', width: '160px', widthResizable: true },
+        { index: 10, settingsKey: 'updated_by', width: '140px', widthResizable: true },
+    ]);
 
     bindSortableRowReorder({
         table: templateTable,
@@ -160,10 +466,10 @@ function initTemplateTable() {
             $(row).find('td').eq(1).text(index + 1);
         },
         buildPayload(rows) {
-            return { changes: JSON.stringify(rows) };
+            notify('success', '\uD15C\uD50C\uB9BF \uC21C\uBC88\uC774 \uC800\uC7A5\uB418\uC5C8\uC2B5\uB2C8\uB2E4.');
         },
         onSuccess() {
-            reloadTemplateTable();
+            notify('error', res?.message || '\uD15C\uD50C\uB9BF \uC21C\uBC88 \uC800\uC7A5\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.');
             notify('success', '템플릿 순번이 저장되었습니다.');
         },
         onError(res) {
@@ -178,16 +484,43 @@ function initTemplateTable() {
     });
 }
 
+
 function initStepTable() {
     stepTable = createDataTable({
         tableSelector: '#template-steps-table',
         api: API.STEP_LIST,
+        tableSettings: {
+            pageKey: 'dashboard.settings.organization.approval-template.step-list',
+            tableKey: 'approval-template-step-table',
+            storageKey: 'datatable.settings.dashboard.settings.organization.approval-template.step-list.v1',
+            metaDomain: 'approval-template-step',
+            tableLabel: '\uACB0\uC7AC \uB2E8\uACC4\uAD6C\uC131',
+            title: '\uACB0\uC7AC \uB2E8\uACC4\uAD6C\uC131 \uD14C\uC774\uBE14 \uC124\uC815',
+            defaultVisibleColumns: ['sort_no', 'step_name', 'role_id', 'approver_id', 'is_active'],
+        },
         defaultOrder: [[1, 'asc']],
         pageLength: 100,
+        autoWidth: false,
+        fixedLayout: true,
         cellSearchFill: false,
         rowReorder: false,
-        selectable: false,
+        selectionColumn: { widthResizable: true },
+        selectable: true,
         deleteButton: false,
+        buttons: [
+            {
+                text: '\uB2E8\uACC4 \uCD94\uAC00',
+                className: 'btn btn-success btn-sm dt-add-step-btn',
+                action: async function () {
+                    if (!selectedTemplateId) {
+                        return;
+                    }
+
+                    await preloadSelectLists();
+                    openStepModal('create');
+                }
+            }
+        ],
         ajaxData() {
             return { template_id: selectedTemplateId || '' };
         },
@@ -195,41 +528,50 @@ function initStepTable() {
             {
                 title: '<i class="bi bi-list"></i>',
                 data: null,
+                settingsKey: '__reorder',
                 className: 'text-center drag-handle no-colvis',
+                width: '44px',
+                widthResizable: true,
                 orderable: false,
                 searchable: false,
                 render: () => '<i class="bi bi-list"></i>'
             },
-            { title: '순번', data: 'sort_no', className: 'text-center step-sequence', render: (value) => escapeHtml(value) },
-            { title: '단계명', data: 'step_name', render: (value) => escapeHtml(value) },
-            { title: '결재 역할', data: 'role_name', render: (value) => escapeHtml(value || '-') },
+            { title: '\uC21C\uBC88', data: 'sort_no', className: 'text-center step-sequence', render: (value) => escapeHtml(value) },
+            { title: '\uB2E8\uACC4\uBA85', data: 'step_name', render: (value) => escapeHtml(value) },
             {
-                title: '지정 결재자',
-                data: null,
-                render(data, type, row) {
-                    const name = row?.specific_employee_name || row?.specific_username || '';
+                title: '\uACB0\uC7AC \uC5ED\uD560',
+                data: 'role_id',
+                render(value, type, row) {
+                    return escapeHtml(row?.role_name || value || '-');
+                }
+            },
+            {
+                title: '\uD2B9\uC815 \uACB0\uC7AC\uC790',
+                data: 'approver_id',
+                render(value, type, row) {
+                    const name = row?.specific_employee_name || row?.specific_username || value || '';
                     return escapeHtml(name || '-');
                 }
             },
             {
-                title: '상태',
+                title: '\uC0C1\uD0DC',
                 data: 'is_active',
                 className: 'text-center',
                 render: (value, type) => (type === 'display' ? statusBadge(value) : escapeHtml(value))
             },
-            { title: '생성일시', data: 'created_at', visible: false, render: (value) => escapeHtml(value) },
+            { title: '\uC0DD\uC131\uC77C\uC2DC', data: 'created_at', visible: false, render: (value) => escapeHtml(value) },
             {
-                title: '생성자',
-                data: 'created_by_name',
+                title: '\uC0DD\uC131\uC790',
+                data: 'created_by',
                 visible: false,
-                render: (value, type, row) => escapeHtml(value || row?.created_by || '')
+                render: (value, type, row) => escapeHtml(row?.created_by_name || value || '')
             },
-            { title: '수정일시', data: 'updated_at', visible: false, render: (value) => escapeHtml(value) },
+            { title: '\uC218\uC815\uC77C\uC2DC', data: 'updated_at', visible: false, render: (value) => escapeHtml(value) },
             {
-                title: '수정자',
-                data: 'updated_by_name',
+                title: '\uC218\uC815\uC790',
+                data: 'updated_by',
                 visible: false,
-                render: (value, type, row) => escapeHtml(value || row?.updated_by || '')
+                render: (value, type, row) => escapeHtml(row?.updated_by_name || value || '')
             }
         ],
         createdRow(row, data) {
@@ -239,6 +581,21 @@ function initStepTable() {
             return getRows(json);
         }
     });
+
+    applyTableSettingsSchema(stepTable, [
+        { index: 0, settingsKey: '__reorder', width: '44px', widthResizable: true },
+        { index: 1, settingsKey: 'sort_no', width: '80px', widthResizable: true },
+        { index: 2, settingsKey: 'step_name', width: '180px', widthResizable: true },
+        { index: 3, settingsKey: 'role_id', width: '160px', widthResizable: true },
+        { index: 4, settingsKey: 'approver_id', width: '180px', widthResizable: true },
+        { index: 5, settingsKey: 'is_active', width: '90px', widthResizable: true },
+        { index: 6, settingsKey: 'created_at', width: '160px', widthResizable: true },
+        { index: 7, settingsKey: 'created_by', width: '140px', widthResizable: true },
+        { index: 8, settingsKey: 'updated_at', width: '160px', widthResizable: true },
+        { index: 9, settingsKey: 'updated_by', width: '140px', widthResizable: true },
+    ]);
+
+    setStepAddButtonDisabled(true);
 
     stepTable.on('draw.dt xhr.dt', () => {
         updateStepCount();
@@ -267,7 +624,7 @@ function bindTemplateEvents() {
 
         setTableSelectedRow('#template-list-table', this);
 
-        $('#btn-add-step').prop('disabled', false);
+        setStepAddButtonDisabled(false);
         $('#ap-selected-template-name').text(`[${row.template_name}]`);
 
         reloadStepTable();
@@ -280,22 +637,11 @@ function bindTemplateEvents() {
         }
     });
 
-    $('#btn-create-template').on('click', () => openTemplateModal('create'));
     $('#btn-save-template-edit').on('click', saveTemplate);
     $('#btn-delete-template-edit').on('click', deleteTemplate);
 }
 
 function bindStepEvents() {
-    $('#btn-add-step').on('click', async () => {
-        if (!selectedTemplateId) {
-            notify('warning', '먼저 템플릿을 선택해 주세요.');
-            return;
-        }
-
-        await preloadSelectLists();
-        openStepModal('create');
-    });
-
     $('#template-steps-table tbody').on('click', 'tr', function () {
         const row = stepTable.row(this).data();
         if (!row) return;
@@ -320,7 +666,7 @@ function openTemplateModal(mode, row = null) {
     resetTemplateModal();
 
     const isCreate = mode === 'create';
-    $('#modal-template-edit .modal-title').text(isCreate ? '템플릿 등록' : '템플릿 수정');
+    $('#modal-template-edit .modal-title').text(isCreate ? '\uD15C\uD50C\uB9BF \uB4F1\uB85D' : '\uD15C\uD50C\uB9BF \uC218\uC815');
     $('#btn-delete-template-edit').toggle(!isCreate);
 
     if (!isCreate && row) {
@@ -346,6 +692,10 @@ function resetTemplateModal() {
 }
 
 async function saveTemplate() {
+    if (!validateTemplateRequiredPolicies()) {
+        return;
+    }
+
     const id = $('#tpl-edit-id').val();
     const payload = {
         id,
@@ -355,36 +705,31 @@ async function saveTemplate() {
         is_active: $('#tpl-edit-active').is(':checked') ? 1 : 0
     };
 
-    if (!payload.name || !payload.document_type) {
-        notify('warning', '템플릿명과 문서유형을 입력해 주세요.');
-        return;
-    }
-
     try {
         const res = await $.post(API.TEMPLATE_SAVE, payload);
         if (!res?.success) {
-            notify('error', res?.message || '저장에 실패했습니다.');
+            notify('error', res?.message || '\uC800\uC7A5\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.');
             return;
         }
 
         templateModal?.hide();
         reloadTemplateTable(id || res?.id || '');
-        notify('success', '저장되었습니다.');
+        notify('success', '\uC800\uC7A5\uB418\uC5C8\uC2B5\uB2C8\uB2E4.');
     } catch (err) {
         console.error('[approval] save template failed:', err);
-        notify('error', '저장 중 오류가 발생했습니다.');
+        notify('error', '\uC800\uC7A5 \uC911 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4.');
     }
 }
 
 async function deleteTemplate() {
     const id = $('#tpl-edit-id').val();
     if (!id) return;
-    if (!confirm('템플릿을 영구삭제하시겠습니까?')) return;
+    if (!confirm('\uD15C\uD50C\uB9BF\uC744 \uC601\uAD6C \uC0AD\uC81C\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?')) return;
 
     try {
         const res = await $.post(API.TEMPLATE_DELETE, { id });
         if (!res?.success) {
-            notify('error', res?.message || '삭제에 실패했습니다.');
+            notify('error', res?.message || '\uC0AD\uC81C\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.');
             return;
         }
 
@@ -393,16 +738,16 @@ async function deleteTemplate() {
             selectedStepId = '';
             $('#ap-selected-template-name').text('');
             $('#approvalStepCount').text('');
-            $('#btn-add-step').prop('disabled', true);
+            setStepAddButtonDisabled(true);
             reloadStepTable();
         }
 
         templateModal?.hide();
         reloadTemplateTable();
-        notify('success', '삭제되었습니다.');
+        notify('success', '\uC0AD\uC81C\uB418\uC5C8\uC2B5\uB2C8\uB2E4.');
     } catch (err) {
         console.error('[approval] delete template failed:', err);
-        notify('error', '삭제 중 오류가 발생했습니다.');
+        notify('error', '\uC0AD\uC81C \uC911 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4.');
     }
 }
 
@@ -410,7 +755,7 @@ function openStepModal(mode, step = null) {
     resetStepModal();
 
     const isCreate = mode === 'create';
-    $('#modal-step-edit .modal-title').text(isCreate ? '단계 등록' : '단계 수정');
+    $('#modal-step-edit .modal-title').text(isCreate ? '\uB2E8\uACC4 \uB4F1\uB85D' : '\uB2E8\uACC4 \uC218\uC815');
     $('#btn-delete-step-edit').toggle(!isCreate);
 
     fillRoleSelect('#step-edit-role', step?.role_id || '');
@@ -438,7 +783,11 @@ function resetStepModal() {
 
 async function saveStep() {
     if (!selectedTemplateId) {
-        notify('warning', '먼저 템플릿을 선택해 주세요.');
+        notify('warning', '\uBA3C\uC800 \uD15C\uD50C\uB9BF\uC744 \uC120\uD0DD\uD574 \uC8FC\uC138\uC694.');
+        return;
+    }
+
+    if (!validateStepRequiredPolicies()) {
         return;
     }
 
@@ -451,51 +800,41 @@ async function saveStep() {
         is_active: $('#step-edit-active').is(':checked') ? 1 : 0
     };
 
-    if (!payload.step_name) {
-        notify('warning', '단계명을 입력해 주세요.');
-        return;
-    }
-
-    if (!payload.role_id && !payload.approver_id) {
-        notify('warning', '결재자 역할 또는 특정 결재자를 선택해 주세요.');
-        return;
-    }
-
     try {
         const res = await $.post(API.STEP_SAVE, payload);
         if (!res?.success) {
-            notify('error', res?.message || '저장에 실패했습니다.');
+            notify('error', res?.message || '\uC800\uC7A5\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.');
             return;
         }
 
         stepModal?.hide();
         reloadStepTable();
-        notify('success', '저장되었습니다.');
+        notify('success', '\uC800\uC7A5\uB418\uC5C8\uC2B5\uB2C8\uB2E4.');
     } catch (err) {
         console.error('[approval] save step failed:', err);
-        notify('error', '저장 중 오류가 발생했습니다.');
+        notify('error', '\uC800\uC7A5 \uC911 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4.');
     }
 }
 
 async function deleteStep() {
     const stepId = $('#step-edit-id').val();
     if (!stepId) return;
-    if (!confirm('단계를 영구삭제하시겠습니까?')) return;
+    if (!confirm('\uB2E8\uACC4\uB97C \uC601\uAD6C \uC0AD\uC81C\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?')) return;
 
     try {
         const res = await $.post(API.STEP_DELETE, { step_id: stepId });
         if (!res?.success) {
-            notify('error', res?.message || '삭제에 실패했습니다.');
+            notify('error', res?.message || '\uC0AD\uC81C\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.');
             return;
         }
 
         selectedStepId = '';
         stepModal?.hide();
         reloadStepTable();
-        notify('success', '삭제되었습니다.');
+        notify('success', '\uC0AD\uC81C\uB418\uC5C8\uC2B5\uB2C8\uB2E4.');
     } catch (err) {
         console.error('[approval] delete step failed:', err);
-        notify('error', '삭제 중 오류가 발생했습니다.');
+        notify('error', '\uC0AD\uC81C \uC911 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4.');
     }
 }
 
@@ -532,7 +871,7 @@ function initSelect2(selector, dropdownParent, options = {}) {
     $el.select2({
         width: '100%',
         dropdownParent: $(dropdownParent),
-        placeholder: options.placeholder || '선택',
+        placeholder: options.placeholder || '\uC120\uD0DD',
         allowClear: Boolean(options.allowClear)
     });
 }
@@ -542,13 +881,13 @@ function fillRoleSelect(selector, selected = '') {
     const selectedValue = selected ? String(selected) : ROLE_NONE_VALUE;
 
     resetSelect(selector);
-    $el.append(new Option('선택(없음)', ROLE_NONE_VALUE, false, selectedValue === ROLE_NONE_VALUE));
+    $el.append(new Option('\uC120\uD0DD\uC548\uD568', ROLE_NONE_VALUE, false, selectedValue === ROLE_NONE_VALUE));
 
     roleList.forEach((role) => {
         $el.append(new Option(role.role_name || role.role_key || role.id, role.id, false, selectedValue === String(role.id)));
     });
 
-    initSelect2(selector, '#modal-step-edit', { placeholder: '선택' });
+    initSelect2(selector, '#modal-step-edit', { placeholder: '\uC120\uD0DD' });
     $el.val(selectedValue).trigger('change');
 }
 
@@ -557,7 +896,7 @@ function fillUserSelect(selector, selected = '') {
     const selectedValue = selected ? String(selected) : APPROVER_NONE_VALUE;
 
     resetSelect(selector);
-    $el.append(new Option('선택(없음)', APPROVER_NONE_VALUE, false, selectedValue === APPROVER_NONE_VALUE));
+    $el.append(new Option('\uC120\uD0DD\uC548\uD568', APPROVER_NONE_VALUE, false, selectedValue === APPROVER_NONE_VALUE));
 
     userList.forEach((user) => {
         const userId = user.user_id || user.id || '';
@@ -568,20 +907,20 @@ function fillUserSelect(selector, selected = '') {
         $el.append(new Option(label, userId, false, selectedValue === String(userId)));
     });
 
-    initSelect2(selector, '#modal-step-edit', { placeholder: '선택' });
+    initSelect2(selector, '#modal-step-edit', { placeholder: '\uC120\uD0DD' });
     $el.val(selectedValue).trigger('change');
 }
 
 function updateTemplateCount() {
     if (!templateTable?.page) return;
     const info = templateTable.page.info();
-    $('#approvalTemplateCount').text(`총 ${info?.recordsDisplay ?? 0}건`);
+    $('#approvalTemplateCount').text(`\uCD1D ${info?.recordsDisplay ?? 0}\uAC74`);
 }
 
 function updateStepCount() {
     if (!stepTable?.page) return;
     const info = stepTable.page.info();
-    $('#approvalStepCount').text(info.recordsDisplay ? `총 ${info.recordsDisplay}단계` : '');
+    $('#approvalStepCount').text(info.recordsDisplay ? `\uCD1D ${info.recordsDisplay}\uB2E8\uACC4` : '');
 }
 
 function reloadTemplateTable(preferredId = '') {
@@ -611,7 +950,7 @@ function markSelectedTemplateRow() {
         if (String(row?.id || '') === String(selectedTemplateId)) {
             setTableSelectedRow('#template-list-table', this.node());
             $('#ap-selected-template-name').text(`[${row.template_name}]`);
-            $('#btn-add-step').prop('disabled', false);
+            setStepAddButtonDisabled(false);
         }
     });
 }
@@ -657,10 +996,10 @@ function initSortable() {
             };
         },
         onSuccess() {
-            notify('success', '단계 순번이 저장되었습니다.');
+            notify('success', '\uB2E8\uACC4 \uC21C\uBC88\uC774 \uC800\uC7A5\uB418\uC5C8\uC2B5\uB2C8\uB2E4.');
         },
         onError(res) {
-            notify('error', res?.message || '단계 순서 저장에 실패했습니다.');
+            notify('error', res?.message || '\uB2E8\uACC4 \uC21C\uC11C \uC800\uC7A5\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.');
         },
         reload: reloadStepTable
     });

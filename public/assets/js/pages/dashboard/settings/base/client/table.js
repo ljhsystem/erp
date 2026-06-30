@@ -51,11 +51,11 @@ export function createClientTableModule({
         memo: { label: '메모', visible: false },
         is_active: { label: '상태', visible: true },
         created_at: { label: '생성일시', visible: false },
-        created_by_name: { label: '생성자', visible: false },
+        created_by: { label: '생성자', visible: false },
         updated_at: { label: '수정일시', visible: false },
-        updated_by_name: { label: '수정자', visible: false },
+        updated_by: { label: '수정자', visible: false },
         deleted_at: { label: '삭제일시', visible: false },
-        deleted_by_name: { label: '삭제자', visible: false },
+        deleted_by: { label: '삭제자', visible: false },
         rrn_image: { label: '신분증이미지', visible: false },
     };
 
@@ -67,7 +67,7 @@ export function createClientTableModule({
         bank_name: '120px', account_number: '160px', account_holder: '120px', bank_file: '120px', trade_category: '120px',
         default_account_text: '180px', item_category: '140px', client_category: '140px', client_type: '120px', tax_type: '120px',
         payment_term: '140px', client_grade: '120px', homepage: '200px', note: '220px', memo: '220px', is_active: '90px',
-        created_at: '160px', created_by_name: '120px', updated_at: '160px', updated_by_name: '120px', deleted_at: '160px', deleted_by_name: '120px',
+        created_at: '160px', created_by: '120px', updated_at: '160px', updated_by: '120px', deleted_at: '160px', deleted_by: '120px',
     };
 
     function updateClientCount(count) {
@@ -178,6 +178,9 @@ export function createClientTableModule({
                 render(data, type, row) {
                     if (data == null) return '';
                     if (type !== 'display') return data;
+                    if (field === 'created_by') return row?.created_by_name || data;
+                    if (field === 'updated_by') return row?.updated_by_name || data;
+                    if (field === 'deleted_by') return row?.deleted_by_name || data;
                     if (field === 'bank_file' || field === 'business_certificate' || field === 'rrn_image') return data ? '등록' : '';
                     if (field === 'business_number') return formatBizNumber(data);
                     if (field === 'rrn') return formatCorpNumber(data);
@@ -251,6 +254,14 @@ export function createClientTableModule({
             pageLength: 100,
             autoWidth: false,
             selectionColumn: { widthResizable: true },
+            tableSettings: {
+                pageKey: 'dashboard.settings.base-info.client',
+                tableKey: 'client-table',
+                storageKey: 'datatable.settings.dashboard.settings.base-info.client.client-table.v1',
+                metaDomain: 'client',
+                tableLabel: '거래처',
+                title: '거래처 테이블 설정',
+            },
             buttons: [
                 {
                     text: '휴지통',

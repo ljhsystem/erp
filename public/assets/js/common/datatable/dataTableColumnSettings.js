@@ -9,6 +9,24 @@ function escapeHtml(value) {
         .replaceAll("'", '&#039;');
 }
 
+function normalizeRequirementPolicy(value = '') {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (normalized === 'required') return 'required';
+    if (normalized === 'optional') return 'optional';
+    return 'none';
+}
+
+function requirementStarHtml(policy = '') {
+    const normalized = normalizeRequirementPolicy(policy);
+    if (normalized === 'required') {
+        return '<span class="column-policy-star is-required" aria-hidden="true">*</span>';
+    }
+    if (normalized === 'optional') {
+        return '<span class="column-policy-star is-optional" aria-hidden="true">*</span>';
+    }
+    return '';
+}
+
 function ensureModal() {
     let modal = document.getElementById(MODAL_ID);
     if (modal) {
@@ -21,28 +39,44 @@ function ensureModal() {
     modal.tabIndex = -1;
     modal.setAttribute('aria-hidden', 'true');
     modal.innerHTML = `
-        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
                     <div>
                         <h5 class="modal-title">테이블 설정</h5>
-                        <div class="small text-muted" data-dt-settings-subtitle>표시 컬럼과 순서를 설정합니다.</div>
+                        <div class="small text-muted" data-dt-settings-subtitle>컬럼 표시, 순서, 사용컬럼명, 필수구분을 설정합니다.</div>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="alert alert-light border small mb-3">
-                        필수 컬럼은 숨길 수 없습니다. 컬럼 순서 변경은 저장 후 새로고침으로 반영됩니다.
+                    <div class="excel-settings-shell">
+                        <div class="excel-settings-panel-body p-0">
+                            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+                                <div class="text-muted small">한 행이 하나의 컬럼 정책입니다. 표시, 순서, 사용컬럼명, 필수구분을 같은 행에서 수정합니다.</div>
+                                <div class="text-muted small" data-dt-settings-summary></div>
+                            </div>
+                            <div class="excel-settings-grid is-download dt-column-settings-grid" role="table" aria-label="테이블 컬럼 설정">
+                                <div class="excel-settings-grid-header excel-settings-grid-header-download" role="row">
+                                    <div class="excel-settings-grid-head excel-settings-grid-cell-usage" data-dt-settings-toggle-all-wrap></div>
+                                    <div class="excel-settings-grid-head excel-settings-grid-cell-handle">
+                                        <span class="excel-settings-head-icon" aria-hidden="true">
+                                            <i class="bi bi-arrows-move"></i>
+                                        </span>
+                                    </div>
+                                    <div class="excel-settings-grid-head excel-settings-grid-cell-order">순번</div>
+                                    <div class="excel-settings-grid-head excel-settings-grid-cell-label">원본컬럼명</div>
+                                    <div class="excel-settings-grid-head dt-column-settings-display-head">사용컬럼명</div>
+                                    <div class="excel-settings-grid-head dt-column-settings-policy-head">필수구분</div>
+                                </div>
+                                <div class="excel-settings-grid-body" data-dt-settings-list></div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <strong class="small">컬럼 목록</strong>
-                        <button type="button" class="btn btn-outline-secondary btn-sm" data-dt-settings-restore>기본값 복원</button>
-                    </div>
-                    <div class="list-group" data-dt-settings-list></div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-dt-settings-restore>기본값 복원</button>
                     <button type="button" class="btn btn-primary btn-sm" data-dt-settings-save>저장</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
                 </div>
             </div>
         </div>
@@ -56,52 +90,111 @@ function normalizeEntries(entries = []) {
     return entries.map((entry, index) => ({
         key: String(entry.key || '').trim(),
         title: String(entry.title || entry.key || `컬럼 ${index + 1}`).trim(),
+        sourceTitle: String(entry.sourceTitle || entry.key || '').trim(),
         visible: entry.visible !== false,
-        required: entry.required === true,
+        displayName: String(entry.displayName || entry.title || entry.key || `컬럼 ${index + 1}`).trim(),
+        requirementPolicy: normalizeRequirementPolicy(entry.requirementPolicy),
+        required: false,
     })).filter((entry) => entry.key !== '');
 }
 
-function renderList(modal, entries = []) {
+function renderToggleAll(entries = []) {
+    const checkedCount = entries.filter((entry) => entry.visible).length;
+    const allChecked = entries.length > 0 && checkedCount === entries.length;
+    const partiallyChecked = checkedCount > 0 && checkedCount < entries.length;
+
+    return `
+        <label class="excel-settings-head-toggle" aria-label="전체 선택">
+            <input class="form-check-input mt-0"
+                   type="checkbox"
+                   data-dt-settings-toggle-all
+                   ${allChecked ? 'checked' : ''}
+                   ${partiallyChecked ? 'data-indeterminate="true"' : ''}
+                   ${entries.length === 0 ? 'disabled' : ''}>
+        </label>
+    `;
+}
+
+function detectDragMode() {
+    return 'pointer';
+}
+
+function renderList(modal, entries = [], dragMode = 'native') {
     const list = modal.querySelector('[data-dt-settings-list]');
     if (!list) {
         return;
     }
 
-    list.innerHTML = entries.map((entry) => `
-        <div
-            class="list-group-item dt-column-settings-item"
-            data-dt-settings-item
-            data-key="${escapeHtml(entry.key)}"
-        >
-            <div class="d-flex align-items-center gap-3">
-                <span
-                    class="text-muted reorder-handle dt-settings-drag-handle"
-                    role="button"
-                    tabindex="0"
-                    draggable="true"
-                    title="드래그하여 순서를 변경합니다"
-                    aria-label="드래그하여 순서를 변경합니다"
-                ><i class="bi bi-list"></i></span>
-                <label class="form-check d-flex align-items-center gap-2 mb-0 flex-grow-1">
-                    <input
-                        type="checkbox"
-                        class="form-check-input"
-                        data-dt-settings-visible
-                        data-key="${escapeHtml(entry.key)}"
-                        ${entry.visible ? 'checked' : ''}
-                        ${entry.required ? 'disabled' : ''}
-                    >
-                    <span class="form-check-label">
-                        ${escapeHtml(entry.title)}
-                        ${entry.required ? '<span class="badge text-bg-secondary ms-2">필수</span>' : ''}
-                    </span>
+    const summary = modal.querySelector('[data-dt-settings-summary]');
+    if (summary) {
+        const selectedCount = entries.filter((entry) => entry.visible).length;
+        summary.textContent = `선택 ${selectedCount}개 / 전체 ${entries.length}개`;
+    }
+
+    const toggleAllWrap = modal.querySelector('[data-dt-settings-toggle-all-wrap]');
+    if (toggleAllWrap) {
+        toggleAllWrap.innerHTML = renderToggleAll(entries);
+    }
+
+    list.innerHTML = entries.map((entry, index) => `
+        <div class="excel-settings-grid-row dt-column-settings-item"
+             ${dragMode === 'native' ? 'draggable="true"' : ''}
+             data-dt-settings-item
+             data-key="${escapeHtml(entry.key)}">
+            <div class="excel-settings-grid-cell excel-settings-grid-cell-usage">
+                <label class="mb-0 d-inline-flex">
+                    <input type="checkbox"
+                           class="form-check-input mt-0"
+                           data-dt-settings-visible
+                           data-key="${escapeHtml(entry.key)}"
+                           ${entry.visible ? 'checked' : ''}>
                 </label>
+            </div>
+            <div class="excel-settings-grid-cell excel-settings-grid-cell-handle">
+                <button type="button"
+                        class="excel-settings-drag-handle text-muted reorder-handle dt-settings-drag-handle"
+                        ${dragMode === 'native' ? 'draggable="true"' : 'draggable="false"'}
+                        data-dt-settings-drag-handle
+                        tabindex="-1"
+                        title="드래그하여 순서를 변경합니다"
+                        aria-label="드래그하여 순서를 변경합니다">
+                    <i class="bi bi-list" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div class="excel-settings-grid-cell excel-settings-grid-cell-order">
+                <span class="excel-settings-order-value">${index + 1}</span>
+            </div>
+            <div class="excel-settings-grid-cell excel-settings-grid-cell-label">
+                <div class="excel-settings-column-label">
+                    ${escapeHtml(entry.sourceTitle || entry.key)}
+                    ${requirementStarHtml(entry.requirementPolicy)}
+                </div>
+            </div>
+            <div class="excel-settings-grid-cell dt-column-settings-display-cell">
+                <input type="text"
+                       class="form-control form-control-sm"
+                       data-dt-settings-display-name
+                       data-key="${escapeHtml(entry.key)}"
+                       value="${escapeHtml(entry.displayName || entry.title || entry.key)}">
+            </div>
+            <div class="excel-settings-grid-cell dt-column-settings-policy-cell">
+                <select class="form-select form-select-sm"
+                        data-dt-settings-requirement-policy
+                        data-key="${escapeHtml(entry.key)}">
+                    <option value="none" ${entry.requirementPolicy === 'none' ? 'selected' : ''}>선택안함</option>
+                    <option value="optional" ${entry.requirementPolicy === 'optional' ? 'selected' : ''}>선택</option>
+                    <option value="required" ${entry.requirementPolicy === 'required' ? 'selected' : ''}>필수</option>
+                </select>
             </div>
         </div>
     `).join('');
+
+    list.querySelectorAll('[data-indeterminate="true"]').forEach((checkbox) => {
+        checkbox.indeterminate = true;
+    });
 }
 
-function reorderEntries(entries = [], fromKey = '', toKey = '') {
+function reorderEntries(entries = [], fromKey = '', toKey = '', dropPosition = 'before') {
     if (!fromKey || !toKey || fromKey === toKey) {
         return entries;
     }
@@ -114,7 +207,9 @@ function reorderEntries(entries = [], fromKey = '', toKey = '') {
 
     const next = entries.slice();
     const [item] = next.splice(fromIndex, 1);
-    next.splice(toIndex, 0, item);
+    const baseIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
+    const insertIndex = dropPosition === 'after' ? baseIndex + 1 : baseIndex;
+    next.splice(insertIndex, 0, item);
     return next;
 }
 
@@ -129,6 +224,53 @@ function syncEntriesFromDom(list, entries = []) {
 
     const entryMap = new Map(entries.map((entry) => [entry.key, entry]));
     return order.map((key) => entryMap.get(key)).filter(Boolean);
+}
+
+function syncVisibleValuesFromDom(modal, entries = []) {
+    const visibleMap = new Map(
+        Array.from(modal.querySelectorAll('[data-dt-settings-visible]'))
+            .map((input) => [String(input.dataset.key || '').trim(), Boolean(input.checked)])
+            .filter(([key]) => key !== '')
+    );
+
+    return entries.map((entry) => ({
+        ...entry,
+        visible: visibleMap.has(entry.key) ? Boolean(visibleMap.get(entry.key)) : entry.visible !== false,
+    }));
+}
+
+function syncEditableValuesFromDom(modal, entries = []) {
+    const displayNameMap = new Map(
+        Array.from(modal.querySelectorAll('[data-dt-settings-display-name]'))
+            .map((input) => [String(input.dataset.key || '').trim(), String(input.value || '').trim()])
+            .filter(([key]) => key !== '')
+    );
+    const requirementPolicyMap = new Map(
+        Array.from(modal.querySelectorAll('[data-dt-settings-requirement-policy]'))
+            .map((select) => [String(select.dataset.key || '').trim(), String(select.value || '').trim().toLowerCase()])
+            .filter(([key]) => key !== '')
+    );
+
+    return entries.map((entry) => ({
+        ...entry,
+        visible: Array.from(modal.querySelectorAll('[data-dt-settings-visible]'))
+            .find((input) => String(input.dataset.key || '').trim() === entry.key)?.checked ?? (entry.visible !== false),
+        displayName: displayNameMap.has(entry.key)
+            ? String(displayNameMap.get(entry.key) || '').trim()
+            : String(entry.displayName || entry.title || entry.key).trim(),
+        requirementPolicy: normalizeRequirementPolicy(requirementPolicyMap.get(entry.key)),
+    }));
+}
+
+function clearDropIndicators(list) {
+    if (!list) {
+        return;
+    }
+
+    list.querySelectorAll('[data-dt-settings-item]').forEach((item) => {
+        item.classList.remove('is-drop-before', 'is-drop-after', 'is-dragging');
+        delete item.dataset.dropPosition;
+    });
 }
 
 function bindJquerySortable(modal, state, rerender) {
@@ -158,7 +300,7 @@ function bindJquerySortable(modal, state, rerender) {
             ui.item?.removeClass('is-dragging');
         },
         update() {
-            state.entries = syncEntriesFromDom(list, state.entries);
+            state.entries = syncEditableValuesFromDom(modal, syncVisibleValuesFromDom(modal, syncEntriesFromDom(list, state.entries)));
             rerender();
         },
     });
@@ -166,49 +308,85 @@ function bindJquerySortable(modal, state, rerender) {
     return true;
 }
 
-function bindNativeDrag(modal, state, rerender) {
+function bindPointerDrag(modal, state, rerender) {
     const list = modal.querySelector('[data-dt-settings-list]');
     if (!list) {
         return false;
     }
 
-    const dragState = { key: '' };
+    if (list.dataset.dtPointerDragBound === 'true') {
+        return true;
+    }
 
-    list.querySelectorAll('[data-dt-settings-item]').forEach((item) => {
-        item.addEventListener('dragover', (event) => {
-            event.preventDefault();
-        });
+    list.dataset.dtPointerDragBound = 'true';
 
-        item.addEventListener('drop', (event) => {
-            event.preventDefault();
-            const targetItem = event.currentTarget;
-            const targetKey = String(targetItem?.dataset.key || '').trim();
-            state.entries = reorderEntries(state.entries, dragState.key, targetKey);
-            list.querySelectorAll('.is-dragging').forEach((node) => node.classList.remove('is-dragging'));
-            document.body.classList.remove('dt-settings-dragging');
-            dragState.key = '';
-            rerender();
-        });
+    const dragState = {
+        active: false,
+        pointerId: null,
+        row: null,
+        handle: null,
+    };
+
+    const finishDrag = () => {
+        if (!dragState.active) {
+            return;
+        }
+
+        dragState.handle?.releasePointerCapture?.(dragState.pointerId);
+        dragState.row?.classList.remove('is-dragging');
+        clearDropIndicators(list);
+        document.body.classList.remove('dt-settings-dragging');
+        state.entries = syncEditableValuesFromDom(modal, syncVisibleValuesFromDom(modal, syncEntriesFromDom(list, state.entries)));
+        dragState.active = false;
+        dragState.pointerId = null;
+        dragState.row = null;
+        dragState.handle = null;
+        rerender();
+    };
+
+    list.addEventListener('pointerdown', (event) => {
+        const handle = event.target.closest('[data-dt-settings-drag-handle]');
+        const row = event.target.closest('[data-dt-settings-item]');
+        if (!handle || !row || dragState.active) {
+            return;
+        }
+
+        event.preventDefault();
+        dragState.active = true;
+        dragState.pointerId = event.pointerId;
+        dragState.row = row;
+        dragState.handle = handle;
+        row.classList.add('is-dragging');
+        document.body.classList.add('dt-settings-dragging');
+        handle.setPointerCapture?.(event.pointerId);
     });
 
-    list.querySelectorAll('.dt-settings-drag-handle').forEach((handle) => {
-        handle.addEventListener('dragstart', (event) => {
-            const item = event.currentTarget.closest('[data-dt-settings-item]');
-            dragState.key = String(item?.dataset.key || '').trim();
-            item?.classList.add('is-dragging');
-            document.body.classList.add('dt-settings-dragging');
-            event.dataTransfer?.setData('text/plain', dragState.key);
-            if (event.dataTransfer) {
-                event.dataTransfer.effectAllowed = 'move';
-            }
-        });
+    list.addEventListener('pointermove', (event) => {
+        if (!dragState.active || !dragState.row) {
+            return;
+        }
 
-        handle.addEventListener('dragend', (event) => {
-            event.currentTarget.closest('[data-dt-settings-item]')?.classList.remove('is-dragging');
-            document.body.classList.remove('dt-settings-dragging');
-            dragState.key = '';
-        });
+        const target = document.elementFromPoint(event.clientX, event.clientY)?.closest?.('[data-dt-settings-item]');
+        if (!target || target === dragState.row || target.parentElement !== list) {
+            return;
+        }
+
+        const rect = target.getBoundingClientRect();
+        const dropPosition = event.clientY < rect.top + (rect.height / 2) ? 'before' : 'after';
+        clearDropIndicators(list);
+        target.dataset.dropPosition = dropPosition;
+        target.classList.add(dropPosition === 'before' ? 'is-drop-before' : 'is-drop-after');
+
+        if (dropPosition === 'before') {
+            list.insertBefore(dragState.row, target);
+            return;
+        }
+
+        list.insertBefore(dragState.row, target.nextElementSibling);
     });
+
+    list.addEventListener('pointerup', finishDrag);
+    list.addEventListener('pointercancel', finishDrag);
 
     return true;
 }
@@ -227,15 +405,19 @@ export function openDataTableColumnSettings(options = {}) {
         defaults: normalizeEntries(options.defaultEntries || []),
         entries: normalizeEntries(options.entries || []),
         onSave: typeof options.onSave === 'function' ? options.onSave : null,
+        restoreDefaults: typeof options.restoreDefaults === 'function' ? options.restoreDefaults : null,
     };
 
     titleNode.textContent = state.title;
     subtitleNode.textContent = state.subtitle;
 
     const rerender = () => {
-        renderList(modal, state.entries);
-        if (!bindJquerySortable(modal, state, rerender)) {
-            bindNativeDrag(modal, state, rerender);
+        const dragMode = detectDragMode();
+        renderList(modal, state.entries, dragMode);
+        if (dragMode === 'jquery') {
+            bindJquerySortable(modal, state, rerender);
+        } else {
+            bindPointerDrag(modal, state, rerender);
         }
     };
 
@@ -252,6 +434,13 @@ export function openDataTableColumnSettings(options = {}) {
     };
 
     bind(modal, 'change', (event) => {
+        const toggleAll = event.target.closest('[data-dt-settings-toggle-all]');
+        if (toggleAll) {
+            state.entries = state.entries.map((entry) => ({ ...entry, visible: toggleAll.checked }));
+            rerender();
+            return;
+        }
+
         const checkbox = event.target.closest('[data-dt-settings-visible]');
         if (!checkbox) {
             return;
@@ -260,18 +449,64 @@ export function openDataTableColumnSettings(options = {}) {
         const key = checkbox.dataset.key || '';
         state.entries = state.entries.map((entry) => (
             entry.key === key
-                ? { ...entry, visible: entry.required ? true : checkbox.checked }
+                ? { ...entry, visible: checkbox.checked }
+                : entry
+        ));
+        rerender();
+    });
+
+    bind(modal, 'input', (event) => {
+        const input = event.target.closest('[data-dt-settings-display-name]');
+        if (!input) {
+            return;
+        }
+
+        const key = input.dataset.key || '';
+        state.entries = state.entries.map((entry) => (
+            entry.key === key
+                ? { ...entry, displayName: String(input.value || '').trim() || entry.title || entry.key }
+                : entry
+        ));
+    });
+
+    bind(modal, 'change', (event) => {
+        const select = event.target.closest('[data-dt-settings-requirement-policy]');
+        if (!select) {
+            return;
+        }
+
+        const key = select.dataset.key || '';
+        state.entries = state.entries.map((entry) => (
+            entry.key === key
+                ? { ...entry, requirementPolicy: normalizeRequirementPolicy(select.value) }
                 : entry
         ));
         rerender();
     });
 
     bind(restoreButton, 'click', () => {
+        const restoredEntries = state.restoreDefaults?.();
+        state.defaults = normalizeEntries(restoredEntries || state.defaults);
         state.entries = normalizeEntries(state.defaults);
         rerender();
     });
 
     bind(saveButton, 'click', () => {
+        const list = modal.querySelector('[data-dt-settings-list]');
+        state.entries = syncEditableValuesFromDom(
+            modal,
+            syncVisibleValuesFromDom(
+                modal,
+                syncEntriesFromDom(list, state.entries)
+            )
+        );
+        const blankDisplayEntry = state.entries.find((entry) => String(entry.displayName || '').trim() === '');
+        if (blankDisplayEntry) {
+            notify('warning', '사용컬럼명은 비워둘 수 없습니다.');
+            const blankInput = modal.querySelector(`[data-dt-settings-display-name][data-key="${CSS.escape(blankDisplayEntry.key)}"]`);
+            blankInput?.focus();
+            return;
+        }
         state.onSave?.(state.entries.slice());
         instance?.hide();
     });

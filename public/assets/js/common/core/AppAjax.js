@@ -50,12 +50,27 @@
         });
     }
 
-    async function postBulkJson(url, items = []) {
-        return postJson(url, {
-            ids: items,
-            evidence_ids: items,
-            evidence_ids: items,
-        });
+    async function postBulkJson(url, payload = []) {
+        const normalizedPayload = Array.isArray(payload)
+            ? {
+                ids: payload,
+                seed_row_ids: payload,
+                evidence_ids: payload,
+            }
+            : (payload && typeof payload === 'object'
+                ? {
+                    ...payload,
+                    ids: Array.isArray(payload.ids) ? payload.ids : [],
+                    seed_row_ids: Array.isArray(payload.seed_row_ids) ? payload.seed_row_ids : (Array.isArray(payload.ids) ? payload.ids : []),
+                    evidence_ids: Array.isArray(payload.evidence_ids) ? payload.evidence_ids : (Array.isArray(payload.ids) ? payload.ids : []),
+                }
+                : {
+                    ids: [],
+                    seed_row_ids: [],
+                    evidence_ids: [],
+                });
+
+        return postJson(url, normalizedPayload);
     }
 
     const AppAjax = {

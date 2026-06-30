@@ -15,17 +15,17 @@
                 <input type="hidden" id="tpl-edit-id">
 
                 <div class="mb-3">
-                    <label class="form-label">템플릿 이름 <span class="text-danger">*</span></label>
+                    <label class="form-label" for="tpl-edit-name">템플릿명 <span class="text-danger">*</span></label>
                     <input type="text" id="tpl-edit-name" class="form-control">
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label">문서 유형 <span class="text-danger">*</span></label>
+                    <label class="form-label" for="tpl-edit-doc-type">문서 유형 <span class="text-danger">*</span></label>
                     <input type="text" id="tpl-edit-doc-type" class="form-control">
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label">설명</label>
+                    <label class="form-label" for="tpl-edit-desc">설명</label>
                     <textarea id="tpl-edit-desc" class="form-control" rows="3"></textarea>
                 </div>
 
@@ -36,7 +36,7 @@
             </div>
 
             <div class="modal-footer">
-                <button id="btn-delete-template-edit" type="button" class="btn btn-danger btn-sm" style="display:none;">영구삭제</button>
+                <button id="btn-delete-template-edit" type="button" class="btn btn-danger btn-sm" style="display:none;">영구 삭제</button>
                 <button id="btn-save-template-edit" type="button" class="btn btn-success btn-sm">저장</button>
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
             </div>

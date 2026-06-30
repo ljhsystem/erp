@@ -73,7 +73,6 @@ class ProcessingItemActionService
         $sourceTable = (string) ($item['source_table'] ?? '');
         return match ($sourceTable) {
             'ledger_data_evidences' => 'EVIDENCE',
-            'ledger_bank_transactions' => 'BANK',
             default => null,
         };
     }

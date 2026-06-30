@@ -33,7 +33,7 @@ class ClientService
         $this->model  = new ClientModel($this->pdo);
         $this->fileService  = new FileService($this->pdo);
         $this->trashService = new ClientTrashService($this->pdo, $this->model, $this->fileService);
-        $this->excelService = new ClientExcelService($this->model);
+        $this->excelService = new ClientExcelService($this->pdo, $this->model);
         $this->logger = LoggerFactory::getLogger('service-system.ClientService');
 
         $this->logger->info('ClientService initialized');

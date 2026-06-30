@@ -8,7 +8,11 @@ if (!headers_sent()) {
     header('Expires: 0');
 }
 
-$pageTitle = json_decode('"\\uC99D\\uBE59\\uC6D0\\uBCF8"');
+$pageTitle = $pageTitle ?? json_decode('"\\uC99D\\uBE59\\uC6D0\\uBCF8"');
+$initialEvidenceType = strtoupper(trim((string) ($initialEvidenceType ?? ($fixedEvidenceType ?? ''))));
+$pageReady = (bool) ($pageReady ?? true);
+$pageNotice = trim((string) ($pageNotice ?? ''));
+$currentEvidencePolicy = is_array($currentEvidencePolicy ?? null) ? $currentEvidencePolicy : [];
 
 $layoutOptions = [
     'header' => true,
@@ -20,17 +24,43 @@ $layoutOptions = [
 
 $pageStyles = AssetHelper::css('/assets/css/pages/ledger/data-status.css')
     . AssetHelper::css('/assets/css/pages/dashboard/settings/system/code.css');
-$dataStatusScript = AssetHelper::url('/assets/js/pages/ledger/dataStatus.js')
-    . '&pagev=' . filemtime(PROJECT_ROOT . '/public/assets/js/pages/ledger/dataStatus.js');
+$pageScriptPath = $pageScriptPath ?? '/assets/js/pages/ledger/evidence-list.js';
+$pageScriptFullPath = PROJECT_ROOT . '/public' . $pageScriptPath;
+$dataStatusScript = AssetHelper::url($pageScriptPath)
+    . '&pagev=' . filemtime($pageScriptFullPath);
 $pageScripts = '<script type="module" src="' . htmlspecialchars($dataStatusScript, ENT_QUOTES, 'UTF-8') . '"></script>';
+$evidenceTypePoliciesJson = json_encode(
+    $evidenceTypePolicies ?? [],
+    JSON_UNESCAPED_UNICODE
+    | JSON_UNESCAPED_SLASHES
+    | JSON_HEX_TAG
+    | JSON_HEX_AMP
+    | JSON_HEX_APOS
+    | JSON_HEX_QUOT
+);
+$evidenceTypePageMapJson = json_encode(
+    $evidenceTypePageMap ?? [],
+    JSON_UNESCAPED_UNICODE
+    | JSON_UNESCAPED_SLASHES
+    | JSON_HEX_TAG
+    | JSON_HEX_AMP
+    | JSON_HEX_APOS
+    | JSON_HEX_QUOT
+);
 ?>
 
-<main class="ledger-data-status-page" id="ledgerDataStatusPage">
-    <div class="container-fluid py-3">
+<script type="application/json" id="ledgerEvidenceTypePolicies"><?= $evidenceTypePoliciesJson ?></script>
+<script type="application/json" id="ledgerEvidenceTypePageMap"><?= $evidenceTypePageMapJson ?></script>
+
+<main class="ledger-data-status-page"
+      id="ledgerDataStatusPage"
+      data-initial-evidence-type="<?= htmlspecialchars($initialEvidenceType, ENT_QUOTES, 'UTF-8') ?>"
+      data-page-ready="<?= $pageReady ? '1' : '0' ?>">
+    <div class="container-fluid py-4 dt-page-shell">
         <div class="page-header mb-3 d-flex justify-content-between align-items-start">
             <div>
                 <h5 class="mb-0 fw-bold">
-                    <i class="bi bi-clipboard-data me-2"></i>&#51613;&#48729;&#50896;&#48376;
+                    <i class="bi bi-clipboard-data me-2"></i><?= htmlspecialchars((string) $pageTitle, ENT_QUOTES, 'UTF-8') ?>
                 </h5>
                 <div class="small text-muted mt-1">
                     &#51088;&#47308;&#50976;&#54805;&#48324; &#50629;&#47196;&#46300; &#50896;&#48376;&#51012; &#54869;&#51064;&#54616;&#44256; &#44144;&#47000; &#49373;&#49457; &#51204;&#50640; &#54596;&#50836;&#54620; &#51221;&#48372;&#47484; &#51221;&#47532;&#54633;&#45768;&#45796;.
@@ -59,40 +89,64 @@ $pageScripts = '<script type="module" src="' . htmlspecialchars($dataStatusScrip
         </section>
 
         <div class="content-area">
-            <?php
-            $searchId = 'evidenceStatus';
-            $dateOptions = '
-                <option value="mapped_payload.transaction_date">&#44144;&#47000;&#51068;&#51088;</option>
-                <option value="created_at">&#46321;&#47197;&#51068;&#49884;</option>
-                <option value="processed_at">&#52376;&#47532;&#51068;&#49884;</option>
-                <option value="updated_at">&#49688;&#51221;&#51068;&#49884;</option>
-            ';
-            $searchFieldOptions = '<option value="">&#51204;&#52404;</option>';
-            $periodGuideTitle = json_decode('"\\uC99D\\uBE59\\uC6D0\\uBCF8 \\uAE30\\uAC04 \\uC870\\uAC74 \\uC548\\uB0B4"');
-            $periodGuideItems = [
-                json_decode('"\\uC790\\uB8CC\\uC720\\uD615\\uBCC4 \\uAC70\\uB798\\uC77C\\uC790, \\uB4F1\\uB85D\\uC77C\\uC2DC, \\uCC98\\uB9AC\\uC77C\\uC2DC, \\uC218\\uC815\\uC77C\\uC2DC \\uAE30\\uC900\\uC73C\\uB85C \\uC99D\\uBE59\\uC6D0\\uBCF8\\uC744 \\uC870\\uD68C\\uD569\\uB2C8\\uB2E4."'),
-                json_decode('"\\uC790\\uB8CC\\uC720\\uD615\\uC744 \\uC120\\uD0DD\\uD558\\uBA74 \\uD574\\uB2F9 \\uC6D0\\uBCF8 \\uB370\\uC774\\uD130\\uB9CC \\uBAA9\\uB85D\\uC5D0 \\uD45C\\uC2DC\\uD569\\uB2C8\\uB2E4."'),
-            ];
-            $searchGuideTitle = json_decode('"\\uC99D\\uBE59\\uC6D0\\uBCF8 \\uAC80\\uC0C9 \\uC870\\uAC74 \\uC548\\uB0B4"');
-            $searchGuideItems = [
-                json_decode('"\\uAC70\\uB798\\uCC98, \\uC801\\uC694, \\uAE08\\uC561, \\uC790\\uB8CC\\uC720\\uD615 \\uB4F1 \\uC99D\\uBE59\\uC6D0\\uBCF8\\uC758 \\uC8FC\\uC694 \\uD544\\uB4DC\\uB85C \\uAC80\\uC0C9\\uD560 \\uC218 \\uC788\\uC2B5\\uB2C8\\uB2E4."'),
-                json_decode('"\\uC6D0\\uBCF8 \\uD30C\\uC77C \\uC5C5\\uB85C\\uB4DC \\uD6C4 \\uC774 \\uD654\\uBA74\\uC5D0\\uC11C \\uAC70\\uB798 \\uC0DD\\uC131\\uC5D0 \\uD544\\uC694\\uD55C \\uAE30\\uC900\\uC815\\uBCF4\\uC640 \\uAE30\\uCD08\\uC815\\uBCF4\\uB97C \\uBCF4\\uC644\\uD569\\uB2C8\\uB2E4."'),
-            ];
-            include PROJECT_ROOT . '/app/views/components/ui-search.php';
+            <?php if ($pageReady): ?>
+                <?php
+                $searchId = 'evidenceStatus';
+                $defaultEvidenceType = $initialEvidenceType !== '' ? $initialEvidenceType : 'TAX_INVOICE';
+                $dateOptions = '
+                    <option value="created_at">&#46321;&#47197;&#51068;&#49884;</option>
+                    <option value="processed_at">&#52376;&#47532;&#51068;&#49884;</option>
+                    <option value="updated_at">&#49688;&#51221;&#51068;&#49884;</option>
+                ';
+                $searchFieldOptions = '<option value="">&#51204;&#52404;</option>';
+                $periodGuideTitle = json_decode('"\\uC99D\\uBE59\\uC6D0\\uBCF8 \\uAE30\\uAC04 \\uC870\\uAC74 \\uC548\\uB0B4"');
+                $periodGuideItems = [
+                    json_decode('"\\uC790\\uB8CC\\uC720\\uD615\\uBCC4 \\uAC70\\uB798\\uC77C\\uC790, \\uB4F1\\uB85D\\uC77C\\uC2DC, \\uCC98\\uB9AC\\uC77C\\uC2DC, \\uC218\\uC815\\uC77C\\uC2DC \\uAE30\\uC900\\uC73C\\uB85C \\uC99D\\uBE59\\uC6D0\\uBCF8\\uC744 \\uC870\\uD68C\\uD569\\uB2C8\\uB2E4."'),
+                    json_decode('"\\uC790\\uB8CC\\uC720\\uD615\\uC744 \\uC120\\uD0DD\\uD558\\uBA74 \\uD574\\uB2F9 \\uC6D0\\uBCF8 \\uB370\\uC774\\uD130\\uB9CC \\uBAA9\\uB85D\\uC5D0 \\uD45C\\uC2DC\\uD569\\uB2C8\\uB2E4."'),
+                ];
+                $searchGuideTitle = json_decode('"\\uC99D\\uBE59\\uC6D0\\uBCF8 \\uAC80\\uC0C9 \\uC870\\uAC74 \\uC548\\uB0B4"');
+                $searchGuideItems = [
+                    json_decode('"\\uAC70\\uB798\\uCC98, \\uC801\\uC694, \\uAE08\\uC561, \\uC790\\uB8CC\\uC720\\uD615 \\uB4F1 \\uC99D\\uBE59\\uC6D0\\uBCF8\\uC758 \\uC8FC\\uC694 \\uD544\\uB4DC\\uB85C \\uAC80\\uC0C9\\uD560 \\uC218 \\uC788\\uC2B5\\uB2C8\\uB2E4."'),
+                    json_decode('"\\uC6D0\\uBCF8 \\uD30C\\uC77C \\uC5C5\\uB85C\\uB4DC \\uD6C4 \\uC774 \\uD654\\uBA74\\uC5D0\\uC11C \\uAC70\\uB798 \\uC0DD\\uC131\\uC5D0 \\uD544\\uC694\\uD55C \\uAE30\\uC900\\uC815\\uBCF4\\uC640 \\uAE30\\uCD08\\uC815\\uBCF4\\uB97C \\uBCF4\\uC644\\uD569\\uB2C8\\uB2E4."'),
+                ];
+                include PROJECT_ROOT . '/app/views/components/ui-search.php';
 
-            $tableId = 'evidenceStatusTable';
-            $ajaxUrl = '/api/import/evidences?import_type=TAX_INVOICE';
-            $columnsType = 'evidenceStatus';
-            $enableButtons = true;
-            $enableSearch = true;
-            $enablePaging = true;
-            $enableReorder = true;
-            include PROJECT_ROOT . '/app/views/components/ui-table.php';
-            ?>
+                $tableId = 'evidenceStatusTable';
+                $ajaxUrl = '/api/import/evidences?import_type=' . rawurlencode($defaultEvidenceType);
+                $columnsType = 'evidenceStatus';
+                $enableButtons = true;
+                $enableSearch = true;
+                $enablePaging = true;
+                $enableReorder = true;
+                include PROJECT_ROOT . '/app/views/components/ui-table.php';
+                ?>
+            <?php else: ?>
+                <section class="card border-warning-subtle shadow-sm">
+                    <div class="card-body py-4">
+                        <div class="d-flex align-items-start gap-3">
+                            <div class="fs-3 text-warning">
+                                <i class="bi bi-tools"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-2 fw-semibold">
+                                    <?= htmlspecialchars((string) ($currentEvidencePolicy['page_status_label'] ?? '개발예정'), ENT_QUOTES, 'UTF-8') ?>
+                                </h6>
+                                <p class="mb-2 text-muted">
+                                    <?= htmlspecialchars($pageNotice !== '' ? $pageNotice : '이 자료유형 페이지는 아직 개발 중입니다.', ENT_QUOTES, 'UTF-8') ?>
+                                </p>
+                                <p class="mb-0 small text-muted">
+                                    &#45936;&#51060;&#53552; &#53580;&#51060;&#48660;, &#44160;&#49353;&#54268;, &#50641;&#49472; &#44288;&#47532;, &#55092;&#51648;&#53685;&#51008; &#44060;&#48156; &#50756;&#47308; &#54980; &#51228;&#44277;&#54633;&#45768;&#45796;.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            <?php endif; ?>
         </div>
     </div>
 </main>
 
+<?php if ($pageReady): ?>
 <div class="modal fade data-management-modal" id="dataUploadModal" tabindex="-1" aria-labelledby="dataUploadModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-fullscreen-lg-down modal-xl modal-dialog-scrollable">
         <div class="modal-content">
@@ -119,9 +173,6 @@ $pageScripts = '<script type="module" src="' . htmlspecialchars($dataStatusScrip
             </div>
             <div class="modal-body">
                 <input type="hidden" id="evidenceSeedRowEditId">
-                <div class="alert alert-info py-2 small">
-                    &#50896;&#48376; &#54028;&#51068;&#51032; &#45936;&#51060;&#53552;&#47484; &#44144;&#47000; &#49373;&#49457; &#51204;&#50640; &#48372;&#50756;&#54624; &#49688; &#51080;&#49845;&#45768;&#45796;. &#51060;&#48120; &#44050;&#51060; &#51080;&#45716; &#54637;&#47785;&#51008; &#54596;&#50836;&#54620; &#44221;&#50864;&#50640;&#47564; &#49688;&#51221;&#54616;&#49464;&#50836;.
-                </div>
                 <div id="evidenceSeedRowEditFields" class="evidence-edit-fields"></div>
             </div>
             <div class="modal-footer">
@@ -211,3 +262,6 @@ include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
 ?>
 
 <?php include PROJECT_ROOT . '/app/views/dashboard/settings/system/partials/code_modal.php'; ?>
+<?php include PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/client_modal.php'; ?>
+<?php include PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/work_team_modal.php'; ?>
+<?php endif; ?>

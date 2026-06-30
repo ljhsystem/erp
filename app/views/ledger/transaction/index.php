@@ -39,14 +39,14 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/transaction.js');
             $searchId = 'transaction';
 
             $dateOptions = '
-                <option value="transaction_date">거래일자</option>
+                <option value="transaction_date">거래일</option>
                 <option value="updated_at">수정일시</option>
             ';
 
             $searchFieldOptions = '
                 <option value="">선택</option>
                 <option value="sort_no">순서</option>
-                <option value="transaction_date">거래일자</option>
+                <option value="transaction_date">거래일</option>
                 <option value="business_unit">사업구분</option>
                 <option value="transaction_type">거래유형</option>
                 <option value="client_name">거래처</option>
@@ -54,9 +54,10 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/transaction.js');
                 <option value="description">적요</option>
                 <option value="currency">통화</option>
                 <option value="exchange_rate">환율</option>
-                <option value="supply_amount">공급가</option>
-                <option value="vat_amount">부가세</option>
-                <option value="total_amount">총금액</option>
+                <option value="supply_amount">공급가액</option>
+                <option value="foreign_amount">외화금액</option>
+                <option value="settlement_amount">정산금액</option>
+                <option value="final_amount">최종금액</option>
                 <option value="status">거래상태</option>
                 <option value="match_status">전표연결</option>
                 <option value="note">비고</option>
@@ -71,7 +72,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/transaction.js');
 
             $periodGuideTitle = '거래 기간 조건 안내';
             $periodGuideItems = [
-                '거래일자 또는 수정일시 기준으로 조회 기간을 지정합니다.',
+                '거래일 또는 수정일시 기준으로 조회 기간을 지정합니다.',
                 '빠른 선택 버튼으로 자주 쓰는 기간을 바로 입력할 수 있습니다.',
             ];
 
@@ -114,7 +115,7 @@ $modalTitle = '거래 휴지통';
 $tableId = 'transaction-trash-table';
 $checkAllId = 'transactionTrashCheckAll';
 $tableHead = '
-    <th>거래일자</th>
+    <th>거래일</th>
     <th>거래처</th>
     <th>적요</th>
     <th>총금액</th>

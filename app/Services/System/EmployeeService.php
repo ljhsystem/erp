@@ -281,8 +281,6 @@ class EmployeeService
                 }
             }
 
-            $employeeData['updated_by'] = $actor;
-
             $rrnInput = trim((string)($data['rrn'] ?? ''));
 
             if (strpos($rrnInput, '*') !== false) {
@@ -439,7 +437,6 @@ class EmployeeService
                     $employeeData['id'] = $newEmployeeId;
                     $employeeData['sort_no'] = SequenceHelper::next('user_employees', 'sort_no');
                     $employeeData['user_id'] = $newUserId;
-                    $employeeData['created_by'] = $actor;
 
                     if (!$this->model->create($employeeData)) {
                         throw new \Exception('직원 생성 실패');

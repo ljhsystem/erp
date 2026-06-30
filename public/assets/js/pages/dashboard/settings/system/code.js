@@ -5,6 +5,11 @@ import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { createExcelManagerSettingsCore } from '/public/assets/js/components/excel-manager/index.js';
 import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
+import {
+    readDataTableSettingsState,
+    resolveDataTableColumnDisplayName,
+    resolveDataTableColumnRequirementPolicy,
+} from '/public/assets/js/common/datatable/dataTableSettings.js';
 
 window.AdminPicker = AdminPicker;
 
@@ -53,6 +58,23 @@ window.AdminPicker = AdminPicker;
         { value: 'updated_at', label: '수정일시' }
     ];
     const NEW_CODE_GROUP_VALUE = '__new_code_group__';
+    const CODE_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.system.code.code-table.v1';
+    const CODE_MODAL_FIELD_POLICIES = Object.freeze([
+        { selector: '#modal_code_group', key: 'code_group' },
+        { selector: '#modal_code_group_name', key: 'group_name' },
+        { selector: '#modal_code_code', key: 'code' },
+        { selector: '#modal_code_code_name', key: 'code_name' },
+        { selector: '#modal_code_is_active', key: 'is_active' },
+        { selector: '#modal_code_extra_data', key: 'extra_data' },
+        { selector: '#modal_code_note', key: 'note' },
+        { selector: '#modal_code_memo', key: 'memo' },
+    ]);
+    const CODE_QUICK_MODAL_FIELD_POLICIES = Object.freeze([
+        { selector: '#codeQuickForm [name="code_group"]', key: 'code_group' },
+        { selector: '#codeQuickForm [name="group_name"]', key: 'group_name' },
+        { selector: '#codeQuickForm [name="code"]', key: 'code' },
+        { selector: '#codeQuickForm [name="code_name"]', key: 'code_name' },
+    ]);
 
     let codeTable = null;
     let codeModal = null;
@@ -63,6 +85,7 @@ window.AdminPicker = AdminPicker;
     let codeGroupNames = {};
     let codeModalEls = {};
     let codeQuickEls = {};
+    let codePolicyBound = false;
 
     document.addEventListener('DOMContentLoaded', () => {
         if (!window.jQuery) {
@@ -75,6 +98,7 @@ window.AdminPicker = AdminPicker;
 
     function initCodePage($) {
         initModal();
+        bindCodePolicySync();
         initAdminDatePicker();
         initExcelDataset();
         loadCodeGroups();
@@ -121,6 +145,9 @@ window.AdminPicker = AdminPicker;
             deleteBtn: document.getElementById('btnDeleteCode')
         };
         modalEl.addEventListener('hidden.bs.modal', resetForm);
+        modalEl.addEventListener('shown.bs.modal', () => {
+            applyCodeModalPolicyLabels(modalEl);
+        });
 
         const quickModalEl = document.getElementById('codeQuickModal');
         if (quickModalEl) {
@@ -141,6 +168,7 @@ window.AdminPicker = AdminPicker;
                 detailBtn: quickForm?.querySelector('[data-role="detail"]')
             };
             quickModalEl.addEventListener('shown.bs.modal', () => {
+                applyCodeQuickModalPolicyLabels(quickModalEl);
                 codeQuickEls.codeGroup?.focus();
             });
         }
@@ -149,6 +177,152 @@ window.AdminPicker = AdminPicker;
         if (excelModalEl) {
             excelModal = new bootstrap.Modal(excelModalEl);
         }
+
+        applyCodeModalPolicyLabels(document);
+        applyCodeQuickModalPolicyLabels(document);
+    }
+
+    function currentPolicyState() {
+        return readDataTableSettingsState(CODE_TABLE_SETTINGS_STORAGE_KEY) || {};
+    }
+
+    function codeFieldLabel(key, fallback = '') {
+        const normalizedKey = String(key || '').trim();
+        return resolveDataTableColumnDisplayName(
+            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+            currentPolicyState(),
+            normalizedKey || fallback
+        );
+    }
+
+    function codeFieldRequirement(key) {
+        const normalizedKey = String(key || '').trim();
+        return resolveDataTableColumnRequirementPolicy(
+            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+            currentPolicyState()
+        );
+    }
+
+    function codeFieldStarMarkup(key) {
+        const policy = codeFieldRequirement(key);
+        if (policy === 'required') {
+            return '<span class="column-policy-star is-required" aria-hidden="true">*</span>';
+        }
+        if (policy === 'optional') {
+            return '<span class="column-policy-star is-optional" aria-hidden="true">*</span>';
+        }
+        return '';
+    }
+
+    function findFieldLabel(fieldSelector, root = document) {
+        const field = root.querySelector(fieldSelector);
+        if (!field) return null;
+
+        if (field.id) {
+            const labelByFor = root.querySelector(`label[for="${field.id}"]`);
+            if (labelByFor) return labelByFor;
+        }
+
+        const group = field.closest('.mb-3, .form-check, .col-md-2, .col-md-3, .col-md-4, .col-md-6, .col-md-8, .col-12');
+        if (group) {
+            const label = group.querySelector('label.form-label, label.form-check-label');
+            if (label) return label;
+        }
+
+        return field.closest('label.form-label, label.form-check-label') || null;
+    }
+
+    function applyPolicyLabels(fieldPolicies, root = document) {
+        fieldPolicies.forEach((field) => {
+            const labelEl = findFieldLabel(field.selector, root);
+            if (!labelEl) return;
+
+            const displayName = codeFieldLabel(field.key, field.key);
+            const starMarkup = codeFieldStarMarkup(field.key);
+            labelEl.innerHTML = `${displayName}${starMarkup ? ` ${starMarkup}` : ''}`;
+        });
+    }
+
+    function applyCodeModalPolicyLabels(root = document) {
+        applyPolicyLabels(CODE_MODAL_FIELD_POLICIES, root);
+    }
+
+    function applyCodeQuickModalPolicyLabels(root = document) {
+        applyPolicyLabels(CODE_QUICK_MODAL_FIELD_POLICIES, root);
+    }
+
+    function bindCodePolicySync() {
+        if (codePolicyBound) return;
+        codePolicyBound = true;
+
+        document.addEventListener('datatable-settings:updated', (event) => {
+            const storageKey = String(event?.detail?.storageKey || '').trim();
+            if (storageKey && storageKey !== CODE_TABLE_SETTINGS_STORAGE_KEY) {
+                return;
+            }
+
+            applyCodeModalPolicyLabels(document);
+            applyCodeQuickModalPolicyLabels(document);
+        });
+    }
+
+    function focusCodePolicyField(selector) {
+        const field = document.querySelector(selector);
+        if (!field) return;
+        if (typeof field.focus === 'function') {
+            field.focus();
+        }
+    }
+
+    function collectCodeModalValues() {
+        return {
+            code_group: normalizeCodeGroup(getModalCodeGroupValue()),
+            group_name: String(codeModalEls.groupName?.value || '').trim(),
+            code: String(codeModalEls.code?.value || '').trim().toUpperCase(),
+            code_name: String(codeModalEls.codeName?.value || '').trim(),
+            is_active: String(codeModalEls.isActive?.value || '1').trim(),
+            extra_data: String(codeModalEls.extraData?.value || '').trim(),
+            note: String(codeModalEls.note?.value || '').trim(),
+            memo: String(codeModalEls.memo?.value || '').trim(),
+        };
+    }
+
+    function validateCodeModalRequiredPolicies() {
+        const values = collectCodeModalValues();
+
+        for (const field of CODE_MODAL_FIELD_POLICIES) {
+            if (codeFieldRequirement(field.key) !== 'required') {
+                continue;
+            }
+
+            if (String(values[field.key] ?? '').trim() !== '') {
+                continue;
+            }
+
+            AppCore?.notify?.('warning', `${codeFieldLabel(field.key, field.key)} 항목을 입력해 주세요.`);
+            focusCodePolicyField(field.selector);
+            return false;
+        }
+
+        return true;
+    }
+
+    function validateQuickCodeRequiredPolicies(values) {
+        for (const field of CODE_QUICK_MODAL_FIELD_POLICIES) {
+            if (codeFieldRequirement(field.key) !== 'required') {
+                continue;
+            }
+
+            if (String(values[field.key] ?? '').trim() !== '') {
+                continue;
+            }
+
+            setQuickMessage(`${codeFieldLabel(field.key, field.key)} 항목을 입력해 주세요.`);
+            focusCodePolicyField(field.selector);
+            return false;
+        }
+
+        return true;
     }
 
     function initExcelDataset() {
@@ -161,6 +335,8 @@ window.AdminPicker = AdminPicker;
         createExcelManagerSettingsCore({
             domain: 'code',
             formSelector: '#codeExcelForm',
+            tableSettingsStorageKey: 'datatable.settings.dashboard.settings.system.code.code-table.v1',
+            tableSettingsMetaDomain: 'code',
         });
     }
 
@@ -173,6 +349,18 @@ window.AdminPicker = AdminPicker;
             pageLength: 100,
             autoWidth: false,
             deleteApi: API.DELETE,
+            selectionColumn: {
+                widthResizable: true,
+            },
+            tableSettings: {
+                pageKey: 'dashboard.settings.system.code',
+                tableKey: 'code-table',
+                storageKey: 'datatable.settings.dashboard.settings.system.code.code-table.v1',
+                metaDomain: 'code',
+                tableLabel: '코드관리',
+                title: '코드관리 테이블 설정',
+                defaultVisibleColumns: ['sort_no', 'code_group', 'group_name', 'code', 'code_name', 'note', 'is_active'],
+            },
             buttons: [
                 {
                     text: '휴지통',
@@ -226,21 +414,51 @@ window.AdminPicker = AdminPicker;
             headerClassName: 'col-reorder no-colvis text-center',
             orderable: false,
             searchable: false,
-            defaultContent: '<i class="bi bi-list"></i>'
+            defaultContent: '<i class="bi bi-list"></i>',
+            settingsKey: '__reorder',
+            width: '44px',
+            widthResizable: true
         }];
 
         Object.entries(CODE_COLUMN_MAP).forEach(([field, config]) => {
             if (field === 'is_active') return;
+            const dataField = ({
+                created_by_name: 'created_by',
+                updated_by_name: 'updated_by',
+                deleted_by_name: 'deleted_by',
+            })[field] || field;
+            const className = [
+                config.className || '',
+                field === 'sort_no' ? 'dt-sequence-column' : '',
+            ].filter(Boolean).join(' ');
 
             columns.push({
-                data: field,
+                data: dataField,
                 title: config.label,
                 visible: config.visible ?? true,
-                className: config.className || '',
-                headerClassName: config.className || '',
+                className,
+                headerClassName: className,
                 defaultContent: '',
-                render(data) {
-                    if (data === null || data === undefined) return '';
+                settingsKey: dataField,
+                render(data, _type, row) {
+                    if (data === null || data === undefined) {
+                        if (field === 'created_by_name' || field === 'updated_by_name' || field === 'deleted_by_name') {
+                            return '';
+                        }
+                        return '';
+                    }
+
+                    if (field === 'created_by_name') {
+                        return escapeHtml(row?.created_by_name ?? data);
+                    }
+
+                    if (field === 'updated_by_name') {
+                        return escapeHtml(row?.updated_by_name ?? data);
+                    }
+
+                    if (field === 'deleted_by_name') {
+                        return escapeHtml(row?.deleted_by_name ?? data);
+                    }
 
                     if (field === 'is_active') {
                         return Number(data) === 1
@@ -260,6 +478,7 @@ window.AdminPicker = AdminPicker;
             className: 'text-center',
             headerClassName: 'text-center',
             defaultContent: '',
+            settingsKey: 'is_active',
             render(data, type, row) {
                 if (type !== 'display') return data;
                 const active = Number(data) === 1;
@@ -411,8 +630,7 @@ window.AdminPicker = AdminPicker;
             const code = String(formData.get('code') || '').trim();
             const codeName = String(formData.get('code_name') || '').trim();
 
-            if (!codeGroup || !groupName || !code || !codeName) {
-                AppCore?.notify?.('warning', '코드그룹, 그룹명, 코드, 코드명은 필수입니다.');
+            if (!validateCodeModalRequiredPolicies()) {
                 return;
             }
 
@@ -552,8 +770,7 @@ window.AdminPicker = AdminPicker;
     async function saveQuickCode(form) {
         const values = getQuickValues();
 
-        if (!values.code_group || !values.group_name || !values.code || !values.code_name) {
-            setQuickMessage('코드그룹, 그룹명, 코드, 코드명은 필수입니다.');
+        if (!validateQuickCodeRequiredPolicies(values)) {
             return;
         }
 

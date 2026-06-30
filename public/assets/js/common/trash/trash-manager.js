@@ -401,7 +401,22 @@
 
     function actionPayload(modal, extra = {}) {
         const payload = { ...extra };
-        const importType = String(modal?.dataset.importType || '').trim();
+        let importType = String(modal?.dataset.importType || '').trim();
+        if (importType === '') {
+            try {
+                const listUrl = String(modal?.dataset.listUrl || '').trim();
+                if (listUrl !== '') {
+                    const url = new URL(listUrl, window.location.origin);
+                    importType = String(
+                        url.searchParams.get('import_type')
+                        || url.searchParams.get('data_type')
+                        || ''
+                    ).trim();
+                }
+            } catch (_error) {
+                importType = '';
+            }
+        }
         if (importType) {
             payload.import_type = importType;
             payload.data_type = importType;

@@ -85,22 +85,22 @@ class EvidenceGenerationSaveService
                 pr.last_error_message AS error_message,
                 tx.target_id AS transaction_id,
                 vx.target_id AS voucher_id
-            FROM ledger_evidence_payloads p
-            LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type = p.evidence_type
-               AND pr.evidence_id = p.evidence_id
-               AND pr.deleted_at IS NULL
-            LEFT JOIN ledger_evidence_links tx
-                ON tx.evidence_type = p.evidence_type
-               AND tx.evidence_id = p.evidence_id
-               AND tx.target_type = 'TRANSACTION'
-               AND tx.deleted_at IS NULL
-            LEFT JOIN ledger_evidence_links vx
-                ON vx.evidence_type = p.evidence_type
-               AND vx.evidence_id = p.evidence_id
-               AND vx.target_type = 'VOUCHER'
-               AND vx.deleted_at IS NULL
-            WHERE p.evidence_id = :id
+             FROM ledger_evidence_payloads p
+             LEFT JOIN ledger_evidence_processing pr
+                ON pr.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
+               AND pr.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
+                AND pr.deleted_at IS NULL
+             LEFT JOIN ledger_evidence_links tx
+                ON tx.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
+               AND tx.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
+                AND tx.target_type = 'TRANSACTION'
+                AND tx.deleted_at IS NULL
+             LEFT JOIN ledger_evidence_links vx
+                ON vx.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
+               AND vx.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
+                AND vx.target_type = 'VOUCHER'
+                AND vx.deleted_at IS NULL
+            WHERE p.evidence_id COLLATE utf8mb4_unicode_ci = :id COLLATE utf8mb4_unicode_ci
               AND p.deleted_at IS NULL
             LIMIT 1
         ");
@@ -124,6 +124,8 @@ class EvidenceGenerationSaveService
         }
 
         $parsed = $this->mappedPayloadForStorage($parsed);
+        $parsed['_column_display_name'] = is_array($payload['column_display_name'] ?? null) ? $payload['column_display_name'] : ($payload['column_display_name'] ?? []);
+        $parsed['_column_requirement_policy'] = is_array($payload['column_requirement_policy'] ?? null) ? $payload['column_requirement_policy'] : ($payload['column_requirement_policy'] ?? []);
         if ($this->normalizeDataType((string) ($current['source_type'] ?? '')) === 'BANK_TRANSACTION') {
             $parsed = $this->normalizeBankTransactionPayload($parsed);
         }
@@ -138,6 +140,7 @@ class EvidenceGenerationSaveService
             $this->json(['success' => false, 'message' => json_decode('"\uD544\uC218 \uD56D\uBAA9\uC744 \uC785\uB825\uD574\uC57C \uC800\uC7A5\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4. "') . implode(', ', $missingMessages)], 400);
             return;
         }
+        unset($parsed['_column_display_name'], $parsed['_column_requirement_policy']);
 
         $currentMapped = json_decode((string) ($current['mapped_payload_json'] ?? ''), true);
         $currentMapped = is_array($currentMapped) ? $currentMapped : [];
@@ -148,6 +151,7 @@ class EvidenceGenerationSaveService
         }
         $createSortNo = (int) ($parsed['_create_sort_no'] ?? 0);
         $statusSortNo = (int) ($parsed['_status_sort_no'] ?? 0);
+        unset($parsed['_column_display_name'], $parsed['_column_requirement_policy']);
         ($this->callbacks['normalizeUploadAmountFields'])($parsed);
         $dataType = $this->normalizeDataType((string) ($current['source_type'] ?? ''));
         if ($this->shouldSyncTaxInvoiceEvidenceClients($dataType)) {
@@ -171,7 +175,7 @@ class EvidenceGenerationSaveService
             }
         }
 
-        $actor = ActorHelper::user();
+        $actor = $this->actorForStorage();
         $encodedPayload = $this->jsonEncodeForStorage($parsed);
         $encodedRaw = is_array($raw) ? $this->jsonEncodeForStorage($raw) : (string) ($current['raw_json'] ?? '');
         $voucherErrorMessage = $dataType === 'BANK_TRANSACTION'
@@ -275,7 +279,8 @@ class EvidenceGenerationSaveService
             if ($startedTransaction && $this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
-            $this->json(['success' => false, 'message' => $e->getMessage()], 500);
+            error_log('[EvidenceGenerationSaveService::seedRowSave] ' . $e->getMessage());
+            $this->json(['success' => false, 'message' => '수정 중 오류가 발생했습니다.'], 500);
             return;
         }
 
@@ -327,11 +332,13 @@ class EvidenceGenerationSaveService
             return;
         }
 
-        $actor = ActorHelper::user();
+        $actor = $this->actorForStorage();
         $dataType = $this->normalizeDataType((string) ($format['data_type'] ?? ($payload['import_type'] ?? 'ETC')));
         $parsed = $this->mappedPayloadForStorage($parsed);
         $parsed['import_type'] = $parsed['import_type'] ?? $dataType;
         $parsed['data_type'] = $parsed['data_type'] ?? $dataType;
+        $parsed['_column_display_name'] = is_array($payload['column_display_name'] ?? null) ? $payload['column_display_name'] : ($payload['column_display_name'] ?? []);
+        $parsed['_column_requirement_policy'] = is_array($payload['column_requirement_policy'] ?? null) ? $payload['column_requirement_policy'] : ($payload['column_requirement_policy'] ?? []);
         if ($dataType === 'BANK_TRANSACTION') {
             $parsed = $this->normalizeBankTransactionPayload($parsed);
         }
@@ -386,48 +393,98 @@ class EvidenceGenerationSaveService
         $parsed['_status_sort_no'] = $nextStatusSortNo;
         $parsed['_create_sort_no'] = $nextCreateSortNo;
 
-        $this->pdo->prepare("
-            INSERT INTO ledger_data_evidences
-                (id, source_type, source_key, format_id, evidence_date, client_id, project_id, employee_id, bank_account_id, card_id,
-                 client_name, project_name, employee_name, bank_account_name, card_name, currency, supply_amount, vat_amount, total_amount,
-                 create_sort_no, status_sort_no,
-                 evidence_status, transaction_status, voucher_status, review_status, error_message,
-                 latest_imported_at, raw_json, mapped_payload_json, created_by, updated_by)
-            VALUES
-                (:id, :source_type, :source_key, :format_id, :evidence_date, :client_id, :project_id, :employee_id, :bank_account_id, :card_id,
-                 :client_name, :project_name, :employee_name, :bank_account_name, :card_name, :currency, :supply_amount, :vat_amount, :total_amount,
-                 :create_sort_no, :status_sort_no,
-                 'ACTIVE', 'NONE', :voucher_status, 'NORMAL', :error_message,
-                 NOW(), :raw_json, :mapped_payload_json, :created_by, :updated_by)
-        ")->execute([
-            ':id' => $evidenceId,
-            ':source_type' => $dataType,
-            ':source_key' => $sourceKey,
-            ':format_id' => $formatId,
-            ':evidence_date' => $evidenceDate,
-            ':client_id' => $this->businessRefIdForStorage('CLIENT', $parsed),
-            ':project_id' => $this->businessRefIdForStorage('PROJECT', $parsed),
-            ':employee_id' => $this->businessRefIdForStorage('EMPLOYEE', $parsed),
-            ':bank_account_id' => $this->businessRefIdForStorage('ACCOUNT', $parsed),
-            ':card_id' => $this->businessRefIdForStorage('CARD', $parsed),
-            ':client_name' => $this->businessRefNameForStorage('CLIENT', $parsed),
-            ':project_name' => $this->businessRefNameForStorage('PROJECT', $parsed),
-            ':employee_name' => $this->businessRefNameForStorage('EMPLOYEE', $parsed),
-            ':bank_account_name' => $this->businessRefNameForStorage('ACCOUNT', $parsed),
-            ':card_name' => $this->businessRefNameForStorage('CARD', $parsed),
-            ':currency' => (string) ($parsed['currency'] ?? 'KRW'),
-            ':supply_amount' => $this->number($parsed['supply_amount'] ?? null),
-            ':vat_amount' => $this->number($parsed['vat_amount'] ?? null),
-            ':total_amount' => $this->evidenceTotalAmountForStorage($parsed, $dataType),
-            ':create_sort_no' => $nextCreateSortNo,
-            ':status_sort_no' => $nextStatusSortNo,
-            ':voucher_status' => $voucherStatus,
-            ':error_message' => $voucherErrorMessage,
-            ':raw_json' => $this->jsonEncodeForStorage($raw),
-            ':mapped_payload_json' => $this->jsonEncodeForStorage($parsed),
-            ':created_by' => $actor,
-            ':updated_by' => $actor,
-        ]);
+        $rawJson = $this->jsonEncodeForStorage($raw);
+        $mappedPayloadJson = $this->jsonEncodeForStorage($parsed);
+        $processingStatus = $voucherErrorMessage === null || trim((string) $voucherErrorMessage) === ''
+            ? 'READY'
+            : 'REVIEW_REQUIRED';
+        $legacyForEvidence = [
+            'id' => $evidenceId,
+            'source_type' => $dataType,
+            'source_key' => $sourceKey,
+            'format_id' => $formatId,
+            'evidence_date' => $evidenceDate,
+            'client_id' => $this->businessRefIdForStorage('CLIENT', $parsed),
+            'project_id' => $this->businessRefIdForStorage('PROJECT', $parsed),
+            'employee_id' => $this->businessRefIdForStorage('EMPLOYEE', $parsed),
+            'bank_account_id' => $this->businessRefIdForStorage('ACCOUNT', $parsed),
+            'card_id' => $this->businessRefIdForStorage('CARD', $parsed),
+            'client_name' => $this->businessRefNameForStorage('CLIENT', $parsed),
+            'project_name' => $this->businessRefNameForStorage('PROJECT', $parsed),
+            'employee_name' => $this->businessRefNameForStorage('EMPLOYEE', $parsed),
+            'bank_account_name' => $this->businessRefNameForStorage('ACCOUNT', $parsed),
+            'card_name' => $this->businessRefNameForStorage('CARD', $parsed),
+            'currency' => (string) ($parsed['currency'] ?? $parsed['currency_code'] ?? 'KRW'),
+            'supply_amount' => $this->number($parsed['supply_amount'] ?? null),
+            'vat_amount' => $this->number($parsed['vat_amount'] ?? null),
+            'total_amount' => $this->evidenceTotalAmountForStorage($parsed, $dataType),
+            'create_sort_no' => $nextCreateSortNo,
+            'status_sort_no' => $nextStatusSortNo,
+            'evidence_status' => 'ACTIVE',
+            'transaction_status' => 'NONE',
+            'voucher_status' => $voucherStatus,
+            'error_message' => $voucherErrorMessage,
+            'raw_json' => $rawJson,
+            'mapped_payload_json' => $mappedPayloadJson,
+            'created_by' => $actor,
+            'updated_by' => $actor,
+            'deleted_at' => null,
+        ];
+
+        $startedTransaction = !$this->pdo->inTransaction();
+        try {
+            if ($startedTransaction) {
+                $this->pdo->beginTransaction();
+            }
+
+            $this->pdo->prepare("
+                INSERT INTO ledger_evidence_payloads
+                    (id, evidence_type, evidence_id, source_key, format_id, raw_json, mapped_payload_json, payload_hash, latest_imported_at, created_at, updated_at, created_by, updated_by)
+                VALUES
+                    (:payload_id, :source_type, :id, :source_key, :format_id, :raw_json, :mapped_payload_json, SHA2(COALESCE(:mapped_payload_json_hash, ''), 256), NOW(), NOW(), NOW(), :created_by, :updated_by)
+            ")->execute([
+                ':payload_id' => UuidHelper::generate(),
+                ':source_type' => $dataType,
+                ':id' => $evidenceId,
+                ':source_key' => $sourceKey,
+                ':format_id' => $formatId,
+                ':raw_json' => $rawJson,
+                ':mapped_payload_json' => $mappedPayloadJson,
+                ':mapped_payload_json_hash' => $mappedPayloadJson,
+                ':created_by' => $actor,
+                ':updated_by' => $actor,
+            ]);
+
+            $this->pdo->prepare("
+                INSERT INTO ledger_evidence_processing
+                    (id, evidence_type, evidence_id, processing_status, review_status, last_error_message, created_at, updated_at)
+                VALUES
+                    (:processing_id, :source_type, :id, :processing_status, :review_status, :error_message, NOW(), NOW())
+            ")->execute([
+                ':processing_id' => UuidHelper::generate(),
+                ':source_type' => $dataType,
+                ':id' => $evidenceId,
+                ':processing_status' => $processingStatus,
+                ':review_status' => 'NORMAL',
+                ':error_message' => $voucherErrorMessage,
+            ]);
+
+            $dualWriteResult = (new \App\Services\Ledger\EvidenceDualWriteService($this->pdo))->syncFromLegacyRow($legacyForEvidence);
+            if (($dualWriteResult['dual_write_status'] ?? '') !== 'success') {
+                throw new \RuntimeException('evidence body update failed: ' . (string) ($dualWriteResult['message'] ?? 'unknown'));
+            }
+
+            if ($startedTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->commit();
+            }
+        } catch (\Throwable $e) {
+            if ($startedTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            error_log('[EvidenceGenerationSaveService::evidenceCreate] ' . $e->getMessage());
+            $this->json(['success' => false, 'message' => '저장 중 오류가 발생했습니다.'], 500);
+            return;
+        }
 
         $this->json(['success' => true, 'id' => $evidenceId, 'message' => '새 증빙원본이 생성되었습니다.']);
     }
@@ -464,21 +521,21 @@ class EvidenceGenerationSaveService
                 pr.last_error_message AS error_message,
                 tx.target_id AS transaction_id,
                 vx.target_id AS voucher_id
-            FROM ledger_evidence_payloads p
-            LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type = p.evidence_type
-               AND pr.evidence_id = p.evidence_id
-               AND pr.deleted_at IS NULL
-            LEFT JOIN ledger_evidence_links tx
-                ON tx.evidence_type = p.evidence_type
-               AND tx.evidence_id = p.evidence_id
-               AND tx.target_type = 'TRANSACTION'
-               AND tx.deleted_at IS NULL
-            LEFT JOIN ledger_evidence_links vx
-                ON vx.evidence_type = p.evidence_type
-               AND vx.evidence_id = p.evidence_id
-               AND vx.target_type = 'VOUCHER'
-               AND vx.deleted_at IS NULL
+             FROM ledger_evidence_payloads p
+             LEFT JOIN ledger_evidence_processing pr
+                ON pr.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
+               AND pr.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
+                AND pr.deleted_at IS NULL
+             LEFT JOIN ledger_evidence_links tx
+                ON tx.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
+               AND tx.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
+                AND tx.target_type = 'TRANSACTION'
+                AND tx.deleted_at IS NULL
+             LEFT JOIN ledger_evidence_links vx
+                ON vx.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
+               AND vx.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
+                AND vx.target_type = 'VOUCHER'
+                AND vx.deleted_at IS NULL
             WHERE p.evidence_id IN ({$inSql})
               AND p.deleted_at IS NULL
         ");
@@ -508,7 +565,7 @@ class EvidenceGenerationSaveService
                 deleted_at = NULL
         ");
 
-        $actor = ActorHelper::user();
+        $actor = $this->actorForStorage();
         $dualWrite = new \App\Services\Ledger\EvidenceDualWriteService($this->pdo);
         $updated = 0;
         $locked = 0;
@@ -632,7 +689,8 @@ class EvidenceGenerationSaveService
             if ($startedTransaction && $this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
-            $this->json(['success' => false, 'message' => $e->getMessage()], 500);
+            error_log('[EvidenceGenerationSaveService::evidenceBulkSave] ' . $e->getMessage());
+            $this->json(['success' => false, 'message' => '수정 중 오류가 발생했습니다.'], 500);
             return;
         }
 
@@ -648,6 +706,31 @@ class EvidenceGenerationSaveService
             'locked_count' => $locked,
         ]);
     }
+
+    private function actorForStorage(): string
+    {
+        $actor = trim(ActorHelper::user());
+        if ($actor === '') {
+            return '';
+        }
+
+        $parsed = ActorHelper::parse($actor);
+        if (($parsed['type'] ?? '') === 'USER') {
+            $userId = trim((string) ($parsed['id'] ?? ''));
+            if ($userId !== '') {
+                return strlen($userId) > 36 ? substr($userId, 0, 36) : $userId;
+            }
+        }
+
+        if (($parsed['type'] ?? '') === 'SYSTEM') {
+            $context = trim((string) ($parsed['context'] ?? ''));
+            $systemActor = $context === '' ? 'SYSTEM' : 'SYSTEM:' . $context;
+            return strlen($systemActor) > 36 ? substr($systemActor, 0, 36) : $systemActor;
+        }
+
+        return strlen($actor) > 36 ? substr($actor, 0, 36) : $actor;
+    }
+
 }
 
 class EvidenceGenerationSaveResponse extends \RuntimeException

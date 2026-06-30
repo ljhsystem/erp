@@ -293,6 +293,98 @@ class DatabaseSyncService
         return $this->appendSyncState($status);
     }
 
+    public function recoverInterruptedSync(string $reason = '동기화 프로세스가 비정상 종료되었습니다.'): array
+    {
+        $status = $this->readSyncStatus();
+        if (!$status || (string) ($status['state'] ?? '') !== 'running') {
+            return $this->appendSyncState([
+                'success' => false,
+                'state' => 'failed',
+                'message' => '복구할 동기화 실행 정보가 없습니다.',
+                'error' => $reason,
+                'stage' => 'no-running-sync',
+                'statement_count' => 0,
+                'snapshot_created' => false,
+                'snapshot_file' => null,
+                'rollback_attempted' => false,
+                'rollback_success' => false,
+                'rollback_message' => '복구 대상이 없습니다.',
+                'runtime' => $this->inspectSyncRuntime(),
+            ]);
+        }
+
+        $dbPair = $this->resolveDatabasePair();
+        $latestFile = (string) ($status['file'] ?? '-');
+        $startedAt = (string) ($status['started_at'] ?? $this->now()->format('Y-m-d H:i:s'));
+        $snapshotFile = basename((string) ($status['snapshot_file'] ?? ''));
+        $snapshotPath = $snapshotFile !== '' ? $this->backupDir . $snapshotFile : null;
+        $snapshotCreated = (bool) ($status['snapshot_created'] ?? false) && $snapshotPath && is_file($snapshotPath);
+
+        $rollbackResult = [
+            'attempted' => false,
+            'success' => false,
+            'message' => '롤백을 수행하지 않았습니다.',
+        ];
+
+        if ($snapshotCreated && $snapshotPath) {
+            try {
+                $standbyConfig = $dbPair['standby']['config'];
+                $dbName = $this->getCurrentDatabaseName();
+                $standbyPdo = $this->connectDatabasePdo($standbyConfig, $dbName);
+                $rollbackResult = $this->rollbackStandbyFromSnapshot(
+                    $snapshotPath,
+                    $standbyPdo,
+                    $latestFile,
+                    $startedAt,
+                    $dbPair
+                );
+
+                if ($rollbackResult['success'] && is_file($snapshotPath)) {
+                    @unlink($snapshotPath);
+                }
+            } catch (Throwable $rollbackError) {
+                $rollbackResult = [
+                    'attempted' => true,
+                    'success' => false,
+                    'message' => $rollbackError->getMessage(),
+                ];
+            }
+        }
+
+        $finishedAt = $this->now()->format('Y-m-d H:i:s');
+        $failed = [
+            'success' => false,
+            'state' => 'failed',
+            'message' => 'DB 동기화가 비정상 종료되었습니다.',
+            'error' => $reason,
+            'file' => $latestFile,
+            'trigger' => (string) ($status['trigger'] ?? 'sync'),
+            'started_at' => $startedAt,
+            'finished_at' => $finishedAt,
+            'updated_at' => $finishedAt,
+            'stage' => $rollbackResult['attempted'] ? 'rollback-standby' : (string) ($status['stage'] ?? 'unexpected-shutdown'),
+            'snapshot_created' => $snapshotCreated,
+            'snapshot_file' => $snapshotCreated ? $snapshotFile : null,
+            'rollback_attempted' => $rollbackResult['attempted'],
+            'rollback_success' => $rollbackResult['success'],
+            'rollback_message' => $rollbackResult['message'],
+            'statement_count' => (int) ($status['statement_count'] ?? 0),
+        ];
+
+        $this->appendDatabasePair($failed, $dbPair);
+        $this->writeSyncStatus($failed);
+        $this->writeSyncLog($failed);
+        $this->writeSyncTrace('FAILED', (string) $failed['stage'], $failed['message'], $latestFile, [
+            'error' => $reason,
+            'target' => $dbPair['standby']['label'] ?? null,
+            'rollback_attempted' => $rollbackResult['attempted'],
+            'rollback_success' => $rollbackResult['success'],
+            'rollback_message' => $rollbackResult['message'],
+        ]);
+
+        return $failed;
+    }
+
     private function finalizeImmediateFailure(string $startedAt, string $stage, string $message): array
     {
         $finishedAt = $this->now()->format('Y-m-d H:i:s');
@@ -921,6 +1013,7 @@ class DatabaseSyncService
 
         $this->appendDatabasePair($payload, $dbPair);
         $this->writeSyncStatus($payload);
+        $this->touchSyncRunnerLock('running');
         $this->writeSyncTrace('RUNNING', $stage, $message, $file, [
             'statement_count' => $payload['statement_count'] ?? null,
             'snapshot_file' => $payload['snapshot_file'] ?? null,
@@ -1029,6 +1122,31 @@ class DatabaseSyncService
             'runner_active' => $runnerActive,
             'lock' => $lockData,
         ];
+    }
+
+    private function touchSyncRunnerLock(string $state): void
+    {
+        $lockPath = $this->getSyncLockPath();
+        if (!is_file($lockPath)) {
+            return;
+        }
+
+        $current = json_decode((string) @file_get_contents($lockPath), true);
+        if (!is_array($current)) {
+            $current = [];
+        }
+
+        $payload = array_merge($current, [
+            'state' => $state,
+            'heartbeat_at' => $this->now()->format('Y-m-d H:i:s'),
+        ]);
+
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_INVALID_UTF8_SUBSTITUTE);
+        if ($json === false) {
+            return;
+        }
+
+        @file_put_contents($lockPath, $json);
     }
 
     private function isRestoreRunning(): bool

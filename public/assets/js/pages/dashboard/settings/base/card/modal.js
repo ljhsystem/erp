@@ -1,3 +1,9 @@
+import {
+    readDataTableSettingsState,
+    resolveDataTableColumnDisplayName,
+    resolveDataTableColumnRequirementPolicy,
+} from '/public/assets/js/common/datatable/dataTableSettings.js';
+
 export function createCardModalModule({
     API,
     AdminPicker,
@@ -5,6 +11,175 @@ export function createCardModalModule({
     formModule,
     state,
 }) {
+    let cardPolicyBound = false;
+
+    const CARD_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.base-info.card.card-table.v1';
+    const CARD_MODAL_FIELD_POLICIES = Object.freeze([
+        { selector: '#cardForm [name="card_name"]', key: 'card_name', fallback: '카드명' },
+        { selector: '#cardForm [name="is_active"]', key: 'is_active', fallback: '상태' },
+        { selector: '#cardForm [name="card_number"]', key: 'card_number', fallback: '카드번호' },
+        { selector: '#cardForm [name="expiry_year"]', key: 'expiry_year', fallback: '유효기간(년)' },
+        { selector: '#cardForm [name="expiry_month"]', key: 'expiry_month', fallback: '유효기간(월)' },
+        { selector: '#cardForm [name="client_id"]', key: 'client_id', fallback: '카드사' },
+        { selector: '#cardForm [name="account_id"]', key: 'account_id', fallback: '결제계좌' },
+        { selector: '#cardForm [name="limit_amount"]', key: 'limit_amount', fallback: '한도금액' },
+        { selector: '#cardForm [name="note"]', key: 'note', fallback: '비고' },
+        { selector: '#cardForm [name="memo"]', key: 'memo', fallback: '메모' },
+        { selector: '#modal_card_file', key: 'card_file', fallback: '카드 이미지' },
+    ]);
+
+    function currentCardPolicyState() {
+        return readDataTableSettingsState(CARD_TABLE_SETTINGS_STORAGE_KEY) || {};
+    }
+
+    function cardFieldLabel(key, _fallback = '') {
+        const normalizedKey = String(key || '').trim();
+        return resolveDataTableColumnDisplayName(
+            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+            currentCardPolicyState(),
+            normalizedKey
+        );
+    }
+
+    function cardFieldRequirement(key) {
+        const normalizedKey = String(key || '').trim();
+        return resolveDataTableColumnRequirementPolicy(
+            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+            currentCardPolicyState()
+        );
+    }
+
+    function cardFieldStarMarkup(key) {
+        const policy = cardFieldRequirement(key);
+        if (policy === 'required') {
+            return '<span class="column-policy-star is-required" aria-hidden="true">*</span>';
+        }
+        if (policy === 'optional') {
+            return '<span class="column-policy-star is-optional" aria-hidden="true">*</span>';
+        }
+        return '';
+    }
+
+    function isCardFilePolicyKey(key) {
+        return String(key || '').trim() === 'card_file';
+    }
+
+    function isCardFieldVisible(field) {
+        if (!field) return false;
+        if (field.type === 'hidden') return false;
+        if (field.disabled) return false;
+        const style = window.getComputedStyle(field);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        return true;
+    }
+
+    function shouldValidateCardPolicyField(field) {
+        const selector = String(field?.selector || '').trim();
+        if (!selector) return false;
+        const input = document.querySelector(selector);
+        return isCardFieldVisible(input);
+    }
+
+    function hasCardFileValue() {
+        const input = formModule.getCardFileInputEl?.();
+        const deleteFlag = formModule.getDeleteCardFileEl?.();
+        const drop = document.getElementById('cardUpload') || document.getElementById('cardImageUpload');
+        const hasExisting = String(drop?.dataset?.original || '0') === '1';
+        return (input?.files?.length || 0) > 0 || (hasExisting && String(deleteFlag?.value || '0') !== '1');
+    }
+
+    function collectCardDetailValues(form, formData) {
+        const values = {};
+
+        CARD_MODAL_FIELD_POLICIES.forEach((field) => {
+            const key = String(field?.key || '').trim();
+            const selector = String(field?.selector || '').trim();
+            if (!key || !selector || isCardFilePolicyKey(key)) return;
+
+            const input = form?.querySelector(selector) || document.querySelector(selector);
+            if (!input) return;
+
+            const fieldName = String(input.name || key).trim();
+            values[key] = formData.get(fieldName) ?? input.value ?? '';
+        });
+
+        return values;
+    }
+
+    function validateCardRequiredPolicies(fields = [], values = {}) {
+        for (const field of fields) {
+            const key = String(field?.key || '').trim();
+            if (!key || cardFieldRequirement(key) !== 'required') {
+                continue;
+            }
+            if (!shouldValidateCardPolicyField(field)) {
+                continue;
+            }
+
+            const label = cardFieldLabel(key, field?.fallback || key);
+            if (isCardFilePolicyKey(key)) {
+                if (!hasCardFileValue()) {
+                    return `${label} 항목은 필수입니다.`;
+                }
+                continue;
+            }
+
+            const value = values[key];
+            if (Array.isArray(value)) {
+                if (value.length === 0) {
+                    return `${label} 항목은 필수입니다.`;
+                }
+                continue;
+            }
+
+            if (String(value ?? '').trim() === '') {
+                return `${label} 항목은 필수입니다.`;
+            }
+        }
+
+        return '';
+    }
+
+    function findCardModalLabel(fieldSelector, root = document) {
+        const field = root.querySelector(fieldSelector);
+        if (!field) return null;
+
+        if (field.id) {
+            const labelByFor = root.querySelector(`label[for="${field.id}"]`);
+            if (labelByFor) return labelByFor;
+        }
+
+        const column = field.closest('div[class*="col-"]');
+        if (column) {
+            const label = column.querySelector('label.form-label');
+            if (label) return label;
+        }
+
+        return field.closest('label.form-label') || null;
+    }
+
+    function applyCardModalPolicyLabels(root = document) {
+        CARD_MODAL_FIELD_POLICIES.forEach((field) => {
+            const labelEl = findCardModalLabel(field.selector, root);
+            if (!labelEl) return;
+
+            const displayName = cardFieldLabel(field.key, field.fallback);
+            const starMarkup = cardFieldStarMarkup(field.key);
+            labelEl.innerHTML = `${displayName}${starMarkup ? ` ${starMarkup}` : ''}`;
+        });
+    }
+
+    function bindCardPolicySync() {
+        if (cardPolicyBound) return;
+        cardPolicyBound = true;
+
+        document.addEventListener('datatable-settings:updated', (event) => {
+            const storageKey = String(event?.detail?.storageKey || '').trim();
+            if (storageKey && storageKey !== CARD_TABLE_SETTINGS_STORAGE_KEY) return;
+            applyCardModalPolicyLabels(document);
+        });
+    }
+
     function initModal() {
         const modalEl = document.getElementById('cardModal');
         if (!modalEl) return;
@@ -16,14 +191,19 @@ export function createCardModalModule({
             state.excelModal = new bootstrap.Modal(excelEl);
         }
 
+        bindCardPolicySync();
+        applyCardModalPolicyLabels(document);
+
         modalEl.addEventListener('hidden.bs.modal', () => {
             formModule.resetCardForm();
             formModule.setModalTitle('카드 정보');
             window.isNewCard = false;
+            applyCardModalPolicyLabels(document);
         });
 
         modalEl.addEventListener('shown.bs.modal', () => {
             formModule.deferCardModalControls();
+            applyCardModalPolicyLabels(document);
         });
     }
 
@@ -42,6 +222,7 @@ export function createCardModalModule({
         formModule.resetCardForm();
         window.isNewCard = true;
         formModule.setModalTitle('카드 신규 등록');
+        applyCardModalPolicyLabels(document);
         state.cardModal?.show();
         formModule.deferCardModalControls();
     }
@@ -63,6 +244,7 @@ export function createCardModalModule({
         const fileInput = document.getElementById('modal_card_file') || document.querySelector('#cardForm [name="card_file"]');
         if (delFile) delFile.value = '0';
         if (fileInput) fileInput.value = '';
+        applyCardModalPolicyLabels(document);
         state.cardModal?.show();
 
         try {
@@ -101,6 +283,7 @@ export function createCardModalModule({
         setSelect2Initial('#cardClientSelect', data.client_id, data.client_name);
         setSelect2Initial('#cardAccountSelect', data.account_id, data.account_name);
         formModule.renderCardFile(data);
+        applyCardModalPolicyLabels(document);
     }
 
     function setSelect2Initial(selector, id, text) {
@@ -122,6 +305,15 @@ export function createCardModalModule({
 
             const form = this;
             const formData = new FormData(form);
+            const requiredMessage = validateCardRequiredPolicies(
+                CARD_MODAL_FIELD_POLICIES,
+                collectCardDetailValues(form, formData)
+            );
+            if (requiredMessage) {
+                formModule.notify('warning', requiredMessage);
+                return;
+            }
+
             const errorMessage = formModule.validateCardForm(formData, parseNumber);
             if (errorMessage) {
                 formModule.notify('warning', errorMessage);
@@ -172,7 +364,7 @@ export function createCardModalModule({
             $.post(API.DELETE, { id })
                 .done((res) => {
                     if (res.success) {
-                        formModule.notify('success', '삭제되었습니다.');
+                        formModule.notify('success', '삭제했습니다.');
                         getTable()?.ajax.reload(null, false);
                         state.cardModal?.hide();
                     } else {

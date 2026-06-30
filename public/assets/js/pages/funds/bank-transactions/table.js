@@ -103,6 +103,15 @@ export function createFundsBankTransactionTable({ api, reorderApi, onSummary, on
         pageLength: 100,
         defaultOrder: [[1, 'asc']],
         searchTableId: 'fundsBankTransactions',
+        tableSettings: {
+            enabled: true,
+            pageKey: 'funds.bank-transactions',
+            tableKey: 'funds-bank-transactions',
+            storageKey: 'datatable.settings.funds.bank-transactions.table.v1',
+            tableLabel: 'Funds Bank Transactions',
+            title: 'Table Settings',
+            metaDomain: 'funds-bank-transaction',
+        },
         cellSearchFill: {
             valueMap: ({ field, row, cell }) => {
                 if (field === 'direction') {
@@ -212,7 +221,7 @@ export function createFundsBankTransactionTable({ api, reorderApi, onSummary, on
         bindRowReorder(table, {
             api: reorderApi,
             idField: 'evidence_id',
-            sortNoField: 'row_no',
+            sortNoField: 'sort_no',
             includeAppliedRows: true,
             isReorderableRow: (row) => Boolean(row?.evidence_id),
             extraData: () => ({

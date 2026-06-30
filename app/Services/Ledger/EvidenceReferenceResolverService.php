@@ -46,6 +46,7 @@ class EvidenceReferenceResolverService
             'EMPLOYEE' => 'user_employees',
             'ACCOUNT' => 'system_bank_accounts',
             'CARD' => 'system_cards',
+            'TEAM' => 'system_work_teams',
             default => null,
         };
         if ($table === null || !$this->tableExists($table) || !$this->tableColumnExists($table, 'id')) {
@@ -59,6 +60,7 @@ class EvidenceReferenceResolverService
             'EMPLOYEE' => ['employee_name', 'name', 'username'],
             'ACCOUNT' => ['account_name', 'bank_account_name', 'bank_name', 'account_number'],
             'CARD' => ['card_name', 'card_number', 'card_company_name'],
+            'TEAM' => ['team_name', 'team_code'],
             default => [],
         };
         $selects = [];
@@ -165,6 +167,7 @@ class EvidenceReferenceResolverService
             'ACCOUNT' => 'system_bank_accounts',
             'CARD' => 'system_cards',
             'EMPLOYEE' => 'user_employees',
+            'TEAM' => 'system_work_teams',
             default => null,
         };
         if ($table === null || !$this->tableExists($table)) {
@@ -289,6 +292,7 @@ class EvidenceReferenceResolverService
             'system_bank_accounts' => ['id', 'account_name', 'account_number', 'bank_name'],
             'system_cards' => ['id', 'card_name', 'card_number'],
             'user_employees' => ['id', 'employee_name', 'name'],
+            'system_work_teams' => ['id', 'team_name', 'team_code'],
             default => ['id'],
         };
     }

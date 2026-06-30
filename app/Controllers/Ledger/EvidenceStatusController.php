@@ -66,13 +66,20 @@ class EvidenceStatusController
 
     public function apiReorder(): void
     {
-        $payload = $this->requestPayload();
-        $result = $this->evidenceStatusService()->reorder($payload, ActorHelper::user());
+        try {
+            $payload = $this->requestPayload();
+            $result = $this->evidenceStatusService()->reorder($payload, ActorHelper::user());
 
-        $this->json(
-            ['success' => (bool) ($result['success'] ?? false), 'message' => (string) ($result['message'] ?? '')],
-            (int) ($result['status'] ?? 200)
-        );
+            $this->json(
+                ['success' => (bool) ($result['success'] ?? false), 'message' => (string) ($result['message'] ?? '')],
+                (int) ($result['status'] ?? 200)
+            );
+        } catch (\Throwable) {
+            $this->json(
+                ['success' => false, 'message' => '정렬 저장 중 오류가 발생했습니다.'],
+                500
+            );
+        }
     }
 
     private function evidenceStatusService(): EvidenceStatusService
@@ -85,6 +92,7 @@ class EvidenceStatusController
                 fn(string $type): string => self::normalizeDataType($type),
                 fn(string $type): array => $this->evidenceTypePolicyService()->queryDataTypes($type),
                 fn(string $table): bool => $this->tableExists($table),
+                fn(string $table, string $column): bool => $this->tableColumnExists($table, $column),
                 fn(array $row, string $key): int => $this->evidenceSortHelperService()->evidencePayloadSortNo($row, $key)
             );
         }

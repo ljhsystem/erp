@@ -83,9 +83,6 @@ class CodeService
             ['table' => 'ledger_journal_rules', 'column' => 'transaction_direction', 'label' => '분개규칙 거래구분'],
             ['table' => 'system_clients', 'column' => 'trade_category', 'label' => '거래처 거래구분'],
         ],
-        'TRANSACTION_LINE_TYPE' => [
-            ['table' => 'ledger_transaction_lines', 'column' => 'line_type', 'label' => '거래라인 유형'],
-        ],
         'TRANSACTION_TYPE' => [
             ['table' => 'ledger_transactions', 'column' => 'transaction_type', 'label' => '거래유형'],
             ['table' => 'ledger_journal_rules', 'column' => 'transaction_type', 'label' => '분개규칙 거래유형'],

@@ -5,6 +5,11 @@ import {
     createDataTable,
     bindTableHighlight
 } from '/public/assets/js/common/table/data-table.js';
+import {
+    readDataTableSettingsState,
+    resolveDataTableColumnDisplayName,
+    resolveDataTableColumnRequirementPolicy
+} from '/public/assets/js/common/datatable/dataTableSettings.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 
@@ -13,9 +18,7 @@ window.AdminPicker = AdminPicker;
 (() => {
     'use strict';
 
-    console.log('[departments.js] loaded');
-
-    const API = {
+        const API = {
         LIST: '/api/settings/organization/department/list',
         SAVE: '/api/settings/organization/department/save',
         DELETE: '/api/settings/organization/department/delete',
@@ -26,8 +29,7 @@ window.AdminPicker = AdminPicker;
     const DEPARTMENT_COLUMN_MAP = {
         sort_no:      { label: '\uC21C\uBC88', visible: true },
         dept_name:    { label: '\uBD80\uC11C\uBA85', visible: true },
-        manager_id:   { label: '\uBD80\uC11C\uC7A5ID', visible: false },
-        manager_name: { label: '\uBD80\uC11C\uC7A5', visible: true },
+        manager_id:   { label: '\uBD80\uC11C\uC7A5', visible: true },
         description:  { label: '\uC124\uBA85', visible: true },
         is_active:    { label: '\uC0C1\uD0DC', visible: true },
         created_at:   { label: '\uC0DD\uC131\uC77C\uC2DC', visible: false },
@@ -40,8 +42,7 @@ window.AdminPicker = AdminPicker;
         __reorder: '40px',
         sort_no: '80px',
         dept_name: '180px',
-        manager_id: '120px',
-        manager_name: '140px',
+        manager_id: '140px',
         description: '260px',
         is_active: '90px',
         created_at: '160px',
@@ -56,6 +57,13 @@ window.AdminPicker = AdminPicker;
         { value: 'updated_at', label: '\uC218\uC815\uC77C\uC2DC' }
     ];
 
+    const DEPARTMENT_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.organization.department.department-table.v1';
+    const DEPARTMENT_MODAL_FIELD_POLICIES = Object.freeze([
+        { selector: '#dept_edit_name', key: 'dept_name', fallback: '부서명' },
+        { selector: '#dept_edit_manager_id', key: 'manager_id', fallback: '부서장' },
+        { selector: '#dept_edit_description', key: 'description', fallback: '설명' },
+        { selector: '#dept_edit_is_active', key: 'is_active', fallback: '상태' }
+    ]);
     const MANAGER_NONE_VALUE = '__NONE__';
 
     let departmentTable = null;
@@ -64,6 +72,7 @@ window.AdminPicker = AdminPicker;
     let globalBound = false;
     let managerOptionsPromise = null;
     let managerOptionsCache = null;
+    let departmentPolicyBound = false;
 
     document.addEventListener('DOMContentLoaded', () => {
         if (!window.jQuery) {
@@ -75,6 +84,7 @@ window.AdminPicker = AdminPicker;
     });
 
     function initDepartmentPage($) {
+        sanitizeDepartmentTableSettingsState();
         initModal();
         initDataTable($);
         bindRowReorder(departmentTable, {
@@ -94,19 +104,199 @@ window.AdminPicker = AdminPicker;
         void preloadManagerOptions();
     }
 
+    function sanitizeDepartmentTableSettingsState() {
+        const raw = window.localStorage?.getItem(DEPARTMENT_TABLE_SETTINGS_STORAGE_KEY);
+        if (!raw) return;
+
+        try {
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== 'object') return;
+
+            let changed = false;
+            const nextState = { ...parsed };
+            const deprecated = new Set(['__legacy_department_status']);
+
+            ['visibleColumns', 'columnOrder', 'requiredColumns'].forEach((key) => {
+                if (!Array.isArray(nextState[key])) return;
+                const filtered = nextState[key].filter((item) => !deprecated.has(String(item || '').trim()));
+                if (filtered.length !== nextState[key].length) {
+                    nextState[key] = filtered;
+                    changed = true;
+                }
+            });
+
+            ['columnDisplayName', 'columnRequirementPolicy', 'columnWidth'].forEach((key) => {
+                if (!nextState[key] || typeof nextState[key] !== 'object') return;
+                const filtered = Object.fromEntries(
+                    Object.entries(nextState[key]).filter(([itemKey]) => !deprecated.has(String(itemKey || '').trim()))
+                );
+                if (Object.keys(filtered).length !== Object.keys(nextState[key]).length) {
+                    nextState[key] = filtered;
+                    changed = true;
+                }
+            });
+
+            if (changed) {
+                window.localStorage?.setItem(DEPARTMENT_TABLE_SETTINGS_STORAGE_KEY, JSON.stringify(nextState));
+            }
+        } catch (error) {
+            console.warn('[department] table settings sanitize failed:', error);
+        }
+    }
+
     function initModal() {
         const modalEl = document.getElementById('deptEditModal');
         if (!modalEl) return;
 
         departmentModal = new bootstrap.Modal(modalEl, { focus: false });
+        bindDepartmentPolicySync();
+        applyDepartmentModalPolicyLabels(document);
 
         modalEl.addEventListener('shown.bs.modal', () => {
+            applyDepartmentModalPolicyLabels(document);
             const first = document.getElementById('dept_edit_name');
             first?.focus();
         });
 
         modalEl.addEventListener('hidden.bs.modal', () => {
             resetDepartmentForm();
+        });
+    }
+
+    function currentDepartmentPolicyState() {
+        return readDataTableSettingsState(DEPARTMENT_TABLE_SETTINGS_STORAGE_KEY) || {};
+    }
+
+    function departmentFieldLabel(key, _fallback = '') {
+        const normalizedKey = String(key || '').trim();
+        return resolveDataTableColumnDisplayName(
+            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+            currentDepartmentPolicyState(),
+            normalizedKey
+        );
+    }
+
+    function departmentFieldRequirement(key) {
+        const normalizedKey = String(key || '').trim();
+        return resolveDataTableColumnRequirementPolicy(
+            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+            currentDepartmentPolicyState()
+        );
+    }
+
+    function departmentFieldStarMarkup(key) {
+        const policy = departmentFieldRequirement(key);
+        if (policy === 'required') {
+            return '<span class="column-policy-star is-required" aria-hidden="true">*</span>';
+        }
+        if (policy === 'optional') {
+            return '<span class="column-policy-star is-optional" aria-hidden="true">*</span>';
+        }
+        return '';
+    }
+
+    function findDepartmentModalLabel(fieldSelector, root = document) {
+        const field = root.querySelector(fieldSelector);
+        if (!field) return null;
+
+        if (field.id) {
+            const labelByFor = root.querySelector(`label[for="${field.id}"]`);
+            if (labelByFor) return labelByFor;
+        }
+
+        const group = field.closest('.mb-3, .form-check, .col-md-3, .col-md-4, .col-md-6, .col-md-8, .col-12');
+        if (group) {
+            const label = group.querySelector('label.form-label, label.form-check-label');
+            if (label) return label;
+        }
+
+        return null;
+    }
+
+    function applyDepartmentModalPolicyLabels(root = document) {
+        DEPARTMENT_MODAL_FIELD_POLICIES.forEach((field) => {
+            const labelEl = findDepartmentModalLabel(field.selector, root);
+            if (!labelEl) return;
+
+            const displayName = departmentFieldLabel(field.key, field.fallback);
+            const starMarkup = departmentFieldStarMarkup(field.key);
+            labelEl.innerHTML = `${displayName}${starMarkup ? ` ${starMarkup}` : ''}`;
+        });
+    }
+
+    function isDepartmentFieldVisible(field) {
+        if (!field) return false;
+        if (field.type === 'hidden') return false;
+        if (field.disabled) return false;
+        const style = window.getComputedStyle(field);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        return true;
+    }
+
+    function shouldValidateDepartmentPolicyField(field) {
+        const selector = String(field?.selector || '').trim();
+        if (!selector) return false;
+        const input = document.querySelector(selector);
+        return isDepartmentFieldVisible(input);
+    }
+
+    function collectDepartmentDetailValues(form, formData) {
+        const values = {};
+
+        DEPARTMENT_MODAL_FIELD_POLICIES.forEach((field) => {
+            const key = String(field?.key || '').trim();
+            const selector = String(field?.selector || '').trim();
+            if (!key || !selector) return;
+
+            const input = form?.querySelector(selector) || document.querySelector(selector);
+            if (!input) return;
+
+            const fieldName = String(input.name || key).trim();
+            if (input.type === 'checkbox') {
+                values[key] = input.checked ? '1' : '';
+                return;
+            }
+
+            values[key] = formData.get(fieldName) ?? input.value ?? '';
+        });
+
+        return values;
+    }
+
+    function validateDepartmentRequiredPolicies(fields = [], values = {}) {
+        for (const field of fields) {
+            const key = String(field?.key || '').trim();
+            if (!key || departmentFieldRequirement(key) !== 'required') {
+                continue;
+            }
+            if (!shouldValidateDepartmentPolicyField(field)) {
+                continue;
+            }
+
+            const value = values[key];
+            if (Array.isArray(value)) {
+                if (value.length === 0) {
+                    return `${departmentFieldLabel(key, field?.fallback || key)} 항목은 필수입니다.`;
+                }
+                continue;
+            }
+
+            if (String(value ?? '').trim() === '') {
+                return `${departmentFieldLabel(key, field?.fallback || key)} 항목은 필수입니다.`;
+            }
+        }
+
+        return '';
+    }
+
+    function bindDepartmentPolicySync() {
+        if (departmentPolicyBound) return;
+        departmentPolicyBound = true;
+
+        document.addEventListener('datatable-settings:updated', (event) => {
+            const storageKey = String(event?.detail?.storageKey || '').trim();
+            if (storageKey && storageKey !== DEPARTMENT_TABLE_SETTINGS_STORAGE_KEY) return;
+            applyDepartmentModalPolicyLabels(document);
         });
     }
 
@@ -188,6 +378,14 @@ window.AdminPicker = AdminPicker;
             tableSelector: '#department-table',
             api: API.LIST,
             columns,
+            tableSettings: {
+                pageKey: 'dashboard.settings.organization.department',
+                tableKey: 'department-table',
+                storageKey: 'datatable.settings.dashboard.settings.organization.department.department-table.v1',
+                metaDomain: 'department',
+                tableLabel: '\uBD80\uC11C',
+                title: '\uBD80\uC11C \uD14C\uC774\uBE14 \uC124\uC815',
+            },
             defaultOrder: [[1, 'asc']],
             pageLength: 100,
             autoWidth: false,
@@ -243,48 +441,42 @@ window.AdminPicker = AdminPicker;
 
 
         Object.entries(DEPARTMENT_COLUMN_MAP).forEach(([field, config]) => {
-            if (field === 'is_active') return;
-
             columns.push({
                 data: field,
                 title: config.label,
                 width: DEPARTMENT_COLUMN_WIDTHS[field] || '120px',
                 visible: config.visible ?? true,
-                className: config.noVis ? 'noVis text-center' : '',
+                className: field === 'is_active'
+                    ? 'text-center'
+                    : (config.noVis ? 'noVis text-center' : ''),
+                headerClassName: field === 'is_active' ? 'text-center' : '',
                 defaultContent: '',
-                render: function (data, type) {
-                    if (data == null) return '';
-                    if (type !== 'display') return data;
+                render: function (data, type, row) {
+                    if (type !== 'display') return data ?? '';
 
+                    if (field === 'manager_id') {
+                        if (data == null) return '';
+                        return escapeHtml(row?.manager_name || data);
+                    }
+
+                    if (field === 'is_active') {
+                        const active = String(data) === '1';
+                        return `
+                            <div class="form-check form-switch d-inline-flex justify-content-center m-0">
+                                <input type="checkbox"
+                                       class="form-check-input department-active-toggle"
+                                       data-id="${escapeHtml(row.id || '')}"
+                                       ${active ? 'checked' : ''}
+                                       aria-label="상태 변경">
+                            </div>
+                        `;
+                    }
+
+                    if (data == null) return '';
                     return escapeHtml(data);
                 }
             });
         });
-
-        columns.push({
-            data: 'is_active',
-            title: DEPARTMENT_COLUMN_MAP.is_active.label,
-            width: DEPARTMENT_COLUMN_WIDTHS.is_active || '90px',
-            widthResizable: true,
-            visible: true,
-            className: 'text-center',
-            headerClassName: 'text-center',
-            defaultContent: '',
-            render: function (data, type, row) {
-                if (type !== 'display') return data;
-                const active = String(data) === '1';
-                return `
-                    <div class="form-check form-switch d-inline-flex justify-content-center m-0">
-                        <input type="checkbox"
-                               class="form-check-input department-active-toggle"
-                               data-id="${escapeHtml(row.id || '')}"
-                               ${active ? 'checked' : ''}
-                               aria-label="상태 변경">
-                    </div>
-                `;
-            }
-        });
-
         columns.push({
             data: null,
             title: '관리',
@@ -419,14 +611,19 @@ window.AdminPicker = AdminPicker;
     }
 
     async function saveDepartment() {
-        const id = $('#dept_edit_id').val();
-        const deptName = String($('#dept_edit_name').val() || '').trim();
-
-        if (!deptName) {
-            notify('warning', '부서명을 입력하세요.');
+        const form = document.getElementById('dept-edit-form');
+        if (!form) return;
+        const draftFormData = new FormData(form);
+        const requiredMessage = validateDepartmentRequiredPolicies(
+            DEPARTMENT_MODAL_FIELD_POLICIES,
+            collectDepartmentDetailValues(form, draftFormData)
+        );
+        if (requiredMessage) {
+            notify('warning', requiredMessage);
             return;
         }
 
+        const id = $('#dept_edit_id').val();
         const fd = new FormData(document.getElementById('dept-edit-form'));
         fd.set('action', id ? 'update' : 'create');
         fd.set('manager_id', normalizeManagerId($('#dept_edit_manager_id').val()));

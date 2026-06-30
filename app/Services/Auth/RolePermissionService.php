@@ -5,7 +5,6 @@ use App\Models\Auth\PermissionModel;
 use App\Models\Auth\RolePermissionModel;
 use App\Models\System\PageRegistryModel;
 use Core\Helpers\ActorHelper;
-use Core\Helpers\SequenceHelper;
 use Core\Helpers\UuidHelper;
 use PDO;
 
@@ -41,7 +40,7 @@ class RolePermissionService
         foreach ($assignedRows as $row) {
             $permissionId = (string) ($row['permission_id'] ?? $row['id'] ?? '');
             if ($permissionId !== '') {
-                $assignedMap[$permissionId] = true;
+                $assignedMap[$permissionId] = $row;
             }
         }
 
@@ -71,7 +70,7 @@ class RolePermissionService
                     'page' => $pageMeta['page'],
                     'category' => $pageMeta['category'],
                     'permission_name' => $pageMeta['permission_name'],
-                    'permission_description' => $pageMeta['permission_description'],
+                    'description' => '',
                     'checked' => false,
                     'indeterminate' => false,
                     'sort_no' => (int) ($row['sort_no'] ?? 0),
@@ -86,17 +85,28 @@ class RolePermissionService
 
             $permissionId = (string) ($row['id'] ?? '');
             $permissionKey = (string) ($row['permission_key'] ?? '');
+            $assignedRow = $assignedMap[$permissionId] ?? null;
             $pageNodes[$pageKey]['children'][] = [
                 'type' => 'permission',
+                'id' => $permissionId,
                 'permission_id' => $permissionId,
+                'role_permission_id' => (string) ($assignedRow['mapping_id'] ?? ''),
+                'role_id' => (string) ($assignedRow['mapping_role_id'] ?? $roleId),
+                'role_permission_created_at' => $assignedRow['created_at'] ?? '',
+                'role_permission_created_by' => $assignedRow['created_by'] ?? '',
                 'permission_key' => $permissionKey,
-                'permission_source' => str_starts_with($permissionKey, 'web.') ? 'web' : 'api',
+                'permission_source' => $this->resolvePermissionSource($row),
                 'page_key' => $pageKey,
                 'page' => $pageMeta['page'],
                 'category' => $pageMeta['category'],
                 'permission_name' => trim((string) ($row['permission_name'] ?? '')),
-                'permission_description' => trim((string) ($row['description'] ?? '')),
-                'checked' => isset($assignedMap[$permissionId]),
+                'description' => trim((string) ($row['description'] ?? '')),
+                'is_active' => $row['is_active'] ?? '',
+                'created_at' => $row['created_at'] ?? '',
+                'created_by' => $row['created_by'] ?? '',
+                'updated_at' => $row['updated_at'] ?? '',
+                'updated_by' => $row['updated_by'] ?? '',
+                'checked' => $assignedRow !== null,
                 'sort_no' => (int) ($row['sort_no'] ?? 0),
             ];
         }
@@ -154,7 +164,6 @@ class RolePermissionService
 
         $data = [
             'id' => UuidHelper::generate(),
-            'sort_no' => SequenceHelper::next('auth_role_permissions', 'sort_no'),
             'role_id' => $roleId,
             'permission_id' => $permissionId,
             'created_by' => ActorHelper::user(),
@@ -234,6 +243,7 @@ class RolePermissionService
     {
         $pageKey = trim((string) ($row['page_key'] ?? ''));
         $permissionKey = trim((string) ($row['permission_key'] ?? ''));
+        $pageLabel = trim((string) ($row['page'] ?? ''));
         $pageRow = null;
 
         if ($pageKey !== '' && isset($pageRegistryByKey[$pageKey])) {
@@ -250,47 +260,26 @@ class RolePermissionService
         }
 
         if ($pageRow) {
-            $pageLabel = trim((string) ($pageRow['page_label'] ?? '')) ?: '미분류 페이지';
+            $resolvedPageLabel = $pageLabel !== ''
+                ? $pageLabel
+                : (trim((string) ($pageRow['page_label'] ?? '')) ?: '미분류 페이지');
             $breadcrumb = trim((string) ($pageRow['breadcrumb'] ?? '')) ?: '기타';
 
             return [
                 'page_key' => $pageKey !== '' ? $pageKey : $permissionKey,
-                'page' => $pageLabel,
+                'page' => $resolvedPageLabel,
                 'category' => $breadcrumb,
-                'permission_name' => $pageLabel,
-                'permission_description' => $this->normalizePageDescription(
-                    $pageLabel,
-                    (string) ($pageRow['page_description'] ?? ''),
-                    $breadcrumb
-                ),
+                'permission_name' => $resolvedPageLabel,
             ];
         }
 
         $fallback = $this->buildFallbackPageMeta($row);
         return [
             'page_key' => $pageKey !== '' ? $pageKey : $fallback['page_key'],
-            'page' => $fallback['page'],
+            'page' => $pageLabel !== '' ? $pageLabel : $fallback['page'],
             'category' => $fallback['category'],
-            'permission_name' => $fallback['page'],
-            'permission_description' => $this->normalizePageDescription($fallback['page'], '', $fallback['category']),
+            'permission_name' => $pageLabel !== '' ? $pageLabel : $fallback['page'],
         ];
-    }
-
-    private function normalizePageDescription(string $pageLabel, string $pageDescription, string $breadcrumb): string
-    {
-        $pageLabel = trim($pageLabel);
-        $pageDescription = trim($pageDescription);
-        $breadcrumb = trim($breadcrumb);
-
-        if ($pageDescription === '') {
-            return $pageLabel . ' 정보관리';
-        }
-
-        if ($breadcrumb !== '' && ($pageDescription === $breadcrumb || str_contains($pageDescription, $breadcrumb))) {
-            return $pageLabel . ' 정보관리';
-        }
-
-        return $pageDescription;
     }
 
     private function buildFallbackPageMeta(array $row): array
@@ -298,13 +287,16 @@ class RolePermissionService
         $permissionKey = trim((string) ($row['permission_key'] ?? ''));
         $description = trim((string) ($row['description'] ?? ''));
         $category = trim((string) ($row['category'] ?? ''));
+        $pageLabel = trim((string) ($row['page'] ?? ''));
         $parts = array_values(array_filter(array_map('trim', explode('>', $description)), static fn(string $part): bool => $part !== ''));
 
-        $page = '미분류 페이지';
-        if (count($parts) >= 2) {
-            $page = $parts[count($parts) - 2];
-        } elseif (str_starts_with($permissionKey, 'web.') && count($parts) >= 1) {
-            $page = $parts[count($parts) - 1];
+        $page = $pageLabel !== '' ? $pageLabel : '미분류 페이지';
+        if ($pageLabel === '') {
+            if (count($parts) >= 2) {
+                $page = $parts[count($parts) - 2];
+            } elseif (str_starts_with($permissionKey, 'web.') && count($parts) >= 1) {
+                $page = $parts[count($parts) - 1];
+            }
         }
 
         $fallbackCategory = $category !== '' ? $category : '기타';
@@ -322,6 +314,17 @@ class RolePermissionService
             'page' => $page,
             'category' => $fallbackCategory,
         ];
+    }
+
+    private function resolvePermissionSource(array $row): string
+    {
+        $source = strtolower(trim((string) ($row['permission_source'] ?? '')));
+        if ($source === 'web' || $source === 'api') {
+            return $source;
+        }
+
+        $permissionKey = trim((string) ($row['permission_key'] ?? ''));
+        return str_starts_with($permissionKey, 'web.') ? 'web' : 'api';
     }
 
     private function inferPageKeyFromPermissionKey(string $permissionKey): string

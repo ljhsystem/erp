@@ -4,8 +4,14 @@ import { AdminPicker } from '/public/assets/js/common/picker/admin_picker.js';
 import { createDataTable, setTableSelectedRow } from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
+import { createExcelManagerSettingsCore } from '/public/assets/js/components/excel-manager/index.js';
 import { formatNumber } from '/public/assets/js/common/format.js';
 import { initCodeSelectControls, getCodeName } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+import {
+    readDataTableSettingsState,
+    resolveDataTableColumnDisplayName,
+    resolveDataTableColumnRequirementPolicy,
+} from '/public/assets/js/common/datatable/dataTableSettings.js';
 import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
 
@@ -18,13 +24,13 @@ window.AdminPicker = AdminPicker;
         LIST: '/api/ledger/account/list',
         DETAIL: '/api/ledger/account/detail',
         SAVE: '/api/ledger/account/save',
-        DELETE: '/api/ledger/account/soft-delete',
+        DELETE: '/api/ledger/account/delete',
         STATUS: '/api/ledger/account/status',
         REORDER: '/api/ledger/account/reorder',
         TRASH: '/api/ledger/account/trash',
         RESTORE: '/api/ledger/account/restore',
-        PURGE: '/api/ledger/account/hard-delete',
-        PURGE_ALL: '/api/ledger/account/hard-delete-all',
+        PURGE: '/api/ledger/account/purge',
+        PURGE_ALL: '/api/ledger/account/purge-all',
         EXCEL_TEMPLATE: '/api/ledger/account/template',
         EXCEL_DOWNLOAD: '/api/ledger/account/excel',
         EXCEL_UPLOAD: '/api/ledger/account/excel-upload',
@@ -81,15 +87,70 @@ window.AdminPicker = AdminPicker;
         deleted_by: { label: '삭제자ID', visible: false },
         deleted_by_name: { label: '삭제자', visible: false },
         has_sub_account: { label: '보조계정등록', visible: false, className: 'text-center' },
-        id: { label: 'ID', visible: false, headerClassName: 'no-colvis' }
+        id: { label: 'ID', visible: false }
     };
+    Object.assign(ACCOUNT_COLUMN_MAP, {
+        account_category: { label: '계정카테고리', visible: false },
+        account_level: { label: '계정레벨', visible: false, className: 'text-center' },
+        is_postable: { label: '전표가능', visible: false, className: 'text-center' },
+        status: { label: '상태코드', visible: false },
+        full_path: { label: '전체경로', visible: false },
+        path_ids: { label: '경로 ID', visible: false },
+        tree_sort: { label: '트리정렬값', visible: false },
+    });
+    const ACCOUNT_COLUMN_ORDER = [
+        'id',
+        'sort_no',
+        'account_code',
+        'account_name',
+        'parent_id',
+        'account_group',
+        'account_category',
+        'normal_balance',
+        'level',
+        'account_level',
+        'is_posting',
+        'is_postable',
+        'allow_sub_account',
+        'status',
+        'full_path',
+        'path_ids',
+        'tree_sort',
+        'note',
+        'memo',
+        'is_active',
+        'created_at',
+        'created_by',
+        'updated_at',
+        'updated_by',
+        'deleted_at',
+        'deleted_by',
+        'parent_name',
+        'has_sub_account',
+        'created_by_name',
+        'updated_by_name',
+        'deleted_by_name',
+    ];
     const DATE_OPTIONS = [
         { value: 'created_at', label: '생성일자' },
         { value: 'updated_at', label: '수정일자' }
     ];
+    const ACCOUNT_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.ledger.account.account-table.v1';
     const NEW_PARENT_ACCOUNT_VALUE = '__new_parent_account__';
     const SUB_ACCOUNT_CODE_GROUP = 'REF_TARGET';
     const SUB_ACCOUNT_SELECT_NAME = 'ledger_sub_ref_target';
+    const ACCOUNT_MODAL_FIELD_POLICIES = Object.freeze([
+        { selector: '#modal_account_code', key: 'account_code' },
+        { selector: '#modal_account_name', key: 'account_name' },
+        { selector: '#modal_parent_id', key: 'parent_id' },
+        { selector: '#modal_account_group', key: 'account_group' },
+        { selector: '#modal_normal_balance_debit', key: 'normal_balance' },
+        { selector: '#modal_allow_sub_account_toggle', key: 'allow_sub_account' },
+        { selector: '#modal_is_posting_toggle', key: 'is_posting' },
+        { selector: '#modal_is_active_toggle', key: 'is_active' },
+        { selector: '#modal_note', key: 'note' },
+        { selector: '#modal_memo', key: 'memo' },
+    ]);
 
     let accountTable = null;
     let accountModal = null;
@@ -105,6 +166,7 @@ window.AdminPicker = AdminPicker;
     let accountModalPostOpenTimer = 0;
     let subAccountLoadTimer = 0;
     let subAccountLoadSeq = 0;
+    let accountPolicyBound = false;
 
     window.TrashColumns = window.TrashColumns || {};
     window.TrashColumns.account = function (row = {}) {
@@ -128,11 +190,140 @@ window.AdminPicker = AdminPicker;
         bindEvents();
     });
 
+    document.addEventListener('excel:uploaded', () => {
+        accountTable?.ajax.reload(null, false);
+    });
+
     document.addEventListener('trash:changed', (event) => {
         if (event.detail?.type === 'account') {
             accountTable?.ajax.reload(null, false);
         }
     });
+
+    function currentAccountPolicyState() {
+        return readDataTableSettingsState(ACCOUNT_TABLE_SETTINGS_STORAGE_KEY) || {};
+    }
+
+    function accountFieldLabel(key, fallback = '') {
+        const normalizedKey = String(key || '').trim();
+        return resolveDataTableColumnDisplayName(
+            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+            currentAccountPolicyState(),
+            normalizedKey || fallback
+        );
+    }
+
+    function accountFieldRequirement(key) {
+        const normalizedKey = String(key || '').trim();
+        return resolveDataTableColumnRequirementPolicy(
+            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+            currentAccountPolicyState()
+        );
+    }
+
+    function accountFieldStarMarkup(key) {
+        const policy = accountFieldRequirement(key);
+        if (policy === 'required') {
+            return '<span class="column-policy-star is-required" aria-hidden="true">*</span>';
+        }
+        if (policy === 'optional') {
+            return '<span class="column-policy-star is-optional" aria-hidden="true">*</span>';
+        }
+        return '';
+    }
+
+    function findAccountModalLabel(selector, root = document) {
+        const field = root.querySelector(selector);
+        if (!field) return null;
+
+        if (field.id) {
+            const byFor = root.querySelector(`label[for="${field.id}"]`);
+            if (byFor) return byFor;
+        }
+
+        const group = field.closest('.mb-3, .form-check, .col-md-3, .col-md-4, .col-md-5, .col-md-6, .col-md-auto, .col-12');
+        if (group) {
+            const label = group.querySelector('label.form-label, label.form-check-label');
+            if (label) return label;
+        }
+
+        return field.closest('label.form-label, label.form-check-label') || null;
+    }
+
+    function applyAccountModalPolicyLabels(root = document) {
+        ACCOUNT_MODAL_FIELD_POLICIES.forEach((field) => {
+            const labelEl = findAccountModalLabel(field.selector, root);
+            if (!labelEl) return;
+
+            const displayName = accountFieldLabel(field.key, field.key);
+            const starMarkup = accountFieldStarMarkup(field.key);
+            labelEl.innerHTML = `${displayName}${starMarkup ? ` ${starMarkup}` : ''}`;
+        });
+    }
+
+    function bindAccountPolicySync() {
+        if (accountPolicyBound) return;
+        accountPolicyBound = true;
+
+        document.addEventListener('datatable-settings:updated', (event) => {
+            const storageKey = String(event?.detail?.storageKey || '').trim();
+            if (storageKey && storageKey !== ACCOUNT_TABLE_SETTINGS_STORAGE_KEY) {
+                return;
+            }
+
+            applyAccountModalPolicyLabels(document);
+        });
+    }
+
+    function focusAccountPolicyField(key, selector) {
+        if (key === 'parent_id' && isParentAccountInputMode()) {
+            document.getElementById('modal_new_parent_code')?.focus();
+            return;
+        }
+
+        const field = document.querySelector(selector);
+        if (!field) return;
+        if (typeof field.focus === 'function') {
+            field.focus();
+        }
+    }
+
+    function collectAccountModalValues() {
+        return {
+            account_code: normalizeAccountCodeValue($('#modal_account_code').val()),
+            account_name: String($('#modal_account_name').val() || '').trim(),
+            parent_id: isParentAccountInputMode()
+                ? normalizeAccountCodeValue($('#modal_new_parent_code').val())
+                : String($('#modal_parent_id').val() || '').trim(),
+            account_group: String($('#modal_account_group').val() || '').trim(),
+            normal_balance: String($('input[name="normal_balance"]:checked').val() || '').trim(),
+            allow_sub_account: String($('#modal_allow_sub_account').val() || '').trim(),
+            is_posting: String($('#modal_is_posting').val() || '').trim(),
+            is_active: String($('#modal_is_active').val() || '').trim(),
+            note: String($('#modal_note').val() || '').trim(),
+            memo: String($('#modal_memo').val() || '').trim(),
+        };
+    }
+
+    function validateAccountRequiredPolicies() {
+        const values = collectAccountModalValues();
+
+        for (const field of ACCOUNT_MODAL_FIELD_POLICIES) {
+            if (accountFieldRequirement(field.key) !== 'required') {
+                continue;
+            }
+
+            if (String(values[field.key] ?? '').trim() !== '') {
+                continue;
+            }
+
+            notify('warning', `${accountFieldLabel(field.key, field.key)} 항목을 입력해 주세요.`);
+            focusAccountPolicyField(field.key, field.selector);
+            return false;
+        }
+
+        return true;
+    }
 
     document.addEventListener('trash:detail-render', async (event) => {
         const detail = event.detail || {};
@@ -163,6 +354,7 @@ window.AdminPicker = AdminPicker;
             accountModal = bootstrap.Modal.getOrCreateInstance(modalEl, { focus: false, keyboard: false });
             document.addEventListener('keydown', handleAccountModalEscapeCapture, true);
             modalEl.addEventListener('shown.bs.modal', () => {
+                applyAccountModalPolicyLabels(modalEl);
                 initParentAccountSelect2();
                 setParentSelect2Visible(!isParentAccountInputMode());
                 window.setTimeout(() => {
@@ -197,6 +389,8 @@ window.AdminPicker = AdminPicker;
             excelModal = bootstrap.Modal.getOrCreateInstance(excelEl, { focus: false });
         }
 
+        bindAccountPolicySync();
+        applyAccountModalPolicyLabels(document);
     }
 
     function initExcelDataset() {
@@ -206,6 +400,13 @@ window.AdminPicker = AdminPicker;
         form.dataset.templateUrl = API.EXCEL_TEMPLATE;
         form.dataset.downloadUrl = API.EXCEL_DOWNLOAD;
         form.dataset.uploadUrl = API.EXCEL_UPLOAD;
+
+        createExcelManagerSettingsCore({
+            domain: 'ledger-account',
+            formSelector: '#account-excel-upload-form',
+            tableSettingsStorageKey: ACCOUNT_TABLE_SETTINGS_STORAGE_KEY,
+            tableSettingsMetaDomain: 'ledger-account',
+        });
     }
 
     function initAccountCodeFormat() {
@@ -273,14 +474,26 @@ window.AdminPicker = AdminPicker;
             autoWidth: false,
             searchTableId: 'ledgerAccount',
             pageLoading: false,
+            selectionColumn: {
+                widthResizable: true,
+            },
+            tableSettings: {
+                pageKey: 'ledger.account',
+                tableKey: 'account-table',
+                storageKey: ACCOUNT_TABLE_SETTINGS_STORAGE_KEY,
+                metaDomain: 'ledger-account',
+                tableLabel: '계정과목',
+                title: '계정과목 테이블 설정',
+                defaultVisibleColumns: ['sort_no', 'account_code', 'account_name', 'parent_id', 'account_group', 'normal_balance', 'level', 'is_posting', 'allow_sub_account', 'is_active'],
+            },
             buttons: [
-                { text: '엑셀 관리', className: 'btn btn-success btn-sm', action: () => excelModal?.show() },
                 {
                     text: '휴지통',
                     className: 'btn btn-danger btn-sm dt-trash-btn account-trash-btn',
                     attr: { 'data-trash-modal': '#accountTrashModal' },
                     action: openTrashModal
                 },
+                { text: '엑셀관리', className: 'btn btn-success btn-sm', action: () => excelModal?.show() },
                 { text: '새 계정과목', className: 'btn btn-warning btn-sm', action: () => { void openCreateModal().catch((error) => notify('error', error.message)); } }
             ]
         });
@@ -327,24 +540,47 @@ window.AdminPicker = AdminPicker;
             headerClassName: 'no-colvis text-center',
             orderable: false,
             searchable: false,
-            defaultContent: '<i class="bi bi-list"></i>'
+            defaultContent: '<i class="bi bi-list"></i>',
+            settingsKey: '__reorder',
+            width: '44px',
+            widthResizable: true
         }];
 
-        Object.entries(ACCOUNT_COLUMN_MAP).forEach(([field, config]) => {
+        ACCOUNT_COLUMN_ORDER.forEach((field) => {
+            const config = ACCOUNT_COLUMN_MAP[field];
+            if (!config) {
+                return;
+            }
+
+            if (field === 'parent_id' || field === 'created_by_name' || field === 'updated_by_name' || field === 'deleted_by_name') {
+                return;
+            }
+
+            const dataField = field === 'parent_name' ? 'parent_id' : field;
+            const className = [
+                config.className || '',
+                field === 'sort_no' ? 'dt-sequence-column' : '',
+            ].filter(Boolean).join(' ');
+
             columns.push({
-                data: field,
+                data: dataField,
                 title: config.label,
                 visible: config.visible,
-                className: config.className || '',
+                className,
                 headerClassName: config.headerClassName || '',
                 defaultContent: '',
+                settingsKey: dataField,
                 render(value, type, row) {
                     if (type === 'sort' || type === 'type') return row?.tree_sort || value || '';
                     if (type !== 'display') return value ?? '';
                     if (field === 'normal_balance') return value === 'credit' ? '대변' : '차변';
                     if (field === 'account_code') return escapeHtml(formatAccountCodeDisplay(value ?? ''));
                     if (field === 'account_name') return renderAccountTreeCell(row, value);
+                    if (field === 'parent_name') return escapeHtml(row?.parent_name ?? value ?? '');
                     if (field === 'is_posting') return renderPostableBadge(row);
+                    if (field === 'created_by') return escapeHtml(row?.created_by_name ?? value ?? '');
+                    if (field === 'updated_by') return escapeHtml(row?.updated_by_name ?? value ?? '');
+                    if (field === 'deleted_by') return escapeHtml(row?.deleted_by_name ?? value ?? '');
 
                     if (field === 'allow_sub_account') {
                         return Number(value) === 1
@@ -935,13 +1171,7 @@ window.AdminPicker = AdminPicker;
         fd.set('account_code', normalizeAccountCodeValue(fd.get('account_code')));
         fd.set('new_parent_code', normalizeAccountCodeValue(fd.get('new_parent_code')));
 
-        if (!String(fd.get('account_code') || '').trim() || !String(fd.get('account_name') || '').trim()) {
-            notify('warning', '계정코드와 계정과목명은 필수입니다.');
-            return;
-        }
-
-        if (isParentAccountInputMode() && !String(fd.get('new_parent_code') || '').trim()) {
-            notify('warning', '신규 상위계정 코드는 필수입니다.');
+        if (!validateAccountRequiredPolicies()) {
             return;
         }
 

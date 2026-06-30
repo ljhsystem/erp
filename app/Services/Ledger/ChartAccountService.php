@@ -4,6 +4,7 @@ namespace App\Services\Ledger;
 
 use App\Models\Ledger\ChartAccountModel;
 use Core\Helpers\ActorHelper;
+use Core\Helpers\ColumnPolicyRequestHelper;
 use Core\Helpers\SequenceHelper;
 use Core\Helpers\UuidHelper;
 use Core\LoggerFactory;
@@ -590,6 +591,33 @@ class ChartAccountService
     public function saveFromExcelFile(string $filePath): array
     {
         try {
+            $displayNameMap = ColumnPolicyRequestHelper::displayNameMap($_REQUEST['column_display_name'] ?? null);
+            $requirementPolicyMap = ColumnPolicyRequestHelper::requirementPolicyMap($_REQUEST['column_requirement_policy'] ?? null);
+            $uploadColumns = array_map(static function (array $column) use ($displayNameMap, $requirementPolicyMap): array {
+                $label = ColumnPolicyRequestHelper::displayNameForColumn($column, $displayNameMap, (string) ($column['label'] ?? ''));
+                $policy = ColumnPolicyRequestHelper::requirementPolicyForColumn(
+                    $column,
+                    $requirementPolicyMap,
+                    !empty($column['required']) ? 'required' : 'none'
+                );
+
+                return $column + [
+                    'header' => $label,
+                    'required' => $policy === 'required',
+                    'requirement_policy' => $policy,
+                ];
+            }, [
+                ['key' => 'account_code', 'label' => '계정코드', 'required' => true],
+                ['key' => 'account_name', 'label' => '계정과목명', 'required' => true],
+                ['key' => 'parent_code', 'label' => '상위계정코드', 'required' => false],
+                ['key' => 'account_group', 'label' => '계정구분', 'required' => false],
+                ['key' => 'normal_balance', 'label' => '정상잔액', 'required' => false],
+                ['key' => 'is_posting', 'label' => '전표입력', 'required' => false],
+                ['key' => 'is_active', 'label' => '사용여부', 'required' => false],
+                ['key' => 'note', 'label' => '비고', 'required' => false],
+                ['key' => 'memo', 'label' => '메모', 'required' => false],
+                ['key' => 'sub_name', 'label' => '보조계정명', 'required' => false],
+            ]);
             $spreadsheet = IOFactory::load($filePath);
             $sheet = $spreadsheet->getActiveSheet();
             $rows = $sheet->toArray(null, false, false, false);
@@ -644,6 +672,16 @@ class ChartAccountService
                 '보조계정명' => 'sub_name',
                 '보조계정' => 'sub_name',
             ]);
+            foreach ($uploadColumns as $column) {
+                $headerName = trim((string) ($column['header'] ?? ''));
+                $columnKey = trim((string) ($column['key'] ?? ''));
+                if ($headerName !== '') {
+                    $headerAliases[$headerName] = $columnKey;
+                }
+                if ($columnKey !== '') {
+                    $headerAliases[$columnKey] = $columnKey;
+                }
+            }
 
             $excelHeaders = array_map(
                 static fn ($value) => trim((string) $value),
@@ -657,10 +695,22 @@ class ChartAccountService
                 }
             }
 
-            if (!isset($columnMap['account_name']) || !isset($columnMap['account_code'])) {
+            $missingHeaders = [];
+            foreach ($uploadColumns as $column) {
+                if (empty($column['required'])) {
+                    continue;
+                }
+                $key = (string) ($column['key'] ?? '');
+                if ($key === '' || isset($columnMap[$key])) {
+                    continue;
+                }
+                $missingHeaders[] = (string) ($column['header'] ?? $key);
+            }
+
+            if ($missingHeaders !== []) {
                 return [
                     'success' => false,
-                    'message' => '엑셀 양식이 올바르지 않습니다. [계정코드, 계정과목명] 컬럼이 필요합니다.',
+                    'message' => '필수 컬럼이 누락되었습니다. ' . implode(', ', $missingHeaders),
                 ];
             }
 
@@ -685,6 +735,29 @@ class ChartAccountService
                 $rawNormalBalance = trim((string) ($row[$columnMap['normal_balance']] ?? ''));
                 $rawIsPosting = trim((string) ($row[$columnMap['is_posting']] ?? ''));
                 $memo = trim((string) ($row[$columnMap['memo']] ?? ''));
+                $missingFields = [];
+
+                foreach ($uploadColumns as $column) {
+                    if (empty($column['required'])) {
+                        continue;
+                    }
+                    $key = (string) ($column['key'] ?? '');
+                    if ($key === '' || !isset($columnMap[$key])) {
+                        continue;
+                    }
+
+                    $value = trim((string) ($row[$columnMap[$key]] ?? ''));
+                    if ($value !== '') {
+                        continue;
+                    }
+
+                    $missingFields[] = (string) ($column['header'] ?? $key);
+                }
+
+                if ($missingFields !== []) {
+                    $errors[] = ($rowIndex + 2) . '행: 필수값이 누락되었습니다. ' . implode(', ', $missingFields);
+                    continue;
+                }
 
                 if ($accountCode === '' || $accountName === '') {
                     $errors[] = ($rowIndex + 2) . '행: 계정코드 또는 계정명이 비어 있습니다.';

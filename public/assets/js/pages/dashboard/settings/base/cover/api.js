@@ -16,10 +16,10 @@ export const API = {
 
 export const COVER_COLUMN_MAP = {
     sort_no: { label: '순번', visible: true },
-    url: { label: '이미지(View)', visible: true },
-    year: { label: '해당년도(Year)', visible: true },
+    src: { label: '이미지경로', visible: true },
+    year: { label: '해당연도(Year)', visible: true },
     title: { label: '타이틀(Title)', visible: true },
-    alt: { label: '이미지문구(Alt)', visible: true },
+    alt: { label: '대체문구(Alt)', visible: true },
     description: { label: '설명(Description)', visible: true },
     created_at: { label: '등록일시', visible: false },
     created_by: { label: '등록자', visible: false },
@@ -29,5 +29,5 @@ export const COVER_COLUMN_MAP = {
 };
 
 export const DATE_OPTIONS = [
-    { value: 'year', label: '년도' }
+    { value: 'year', label: '연도' }
 ];

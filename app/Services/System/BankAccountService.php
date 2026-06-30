@@ -5,6 +5,9 @@ namespace App\Services\System;
 use PDO;
 use App\Models\System\BankAccountModel;
 use App\Services\File\FileService;
+use Core\Helpers\ExcelTemplateFilenameHelper;
+use Core\Helpers\ExcelValueFormatterHelper;
+use Core\Helpers\ColumnPolicyRequestHelper;
 use Core\Helpers\SequenceHelper;
 use Core\Helpers\UuidHelper;
 use Core\Helpers\ActorHelper;
@@ -663,7 +666,7 @@ class BankAccountService
         $headers = $this->buildHeaders($columns);
         $rows = [$this->buildTemplateSampleRow($columns)];
 
-        $this->writeSpreadsheet($headers, $rows, '계좌 업로드', 'bank_account_template.xlsx');
+        $this->writeSpreadsheet($headers, $rows, '계좌 업로드', 'bank_account_template.xlsx', $columns, true);
         return;
 
         $spreadsheet = new Spreadsheet();
@@ -704,12 +707,22 @@ class BankAccountService
         }
 
         $count = 0;
-        foreach ($rows as $row) {
+        $requiredValueErrors = [];
+        foreach ($rows as $index => $row) {
             if ($this->isBlankRow($row)) {
                 continue;
             }
 
             $payload = $this->buildUploadPayload($row, $headerMap, $columns);
+            $missingRequiredValues = $this->findMissingRequiredValues($payload, $columns);
+            if ($missingRequiredValues !== []) {
+                $rowNo = $index + 2;
+                foreach ($missingRequiredValues as $label) {
+                    $requiredValueErrors[] = sprintf('%d행 : %s 필수', $rowNo, $label);
+                }
+                continue;
+            }
+
             if (($payload['account_name'] ?? '') === '') {
                 continue;
             }
@@ -718,6 +731,13 @@ class BankAccountService
             if (!empty($result['success'])) {
                 $count++;
             }
+        }
+
+        if ($requiredValueErrors !== []) {
+            return [
+                'success' => false,
+                'message' => "업로드할 수 없습니다.\n\n" . implode("\n", array_values(array_unique($requiredValueErrors))),
+            ];
         }
 
         return ['success' => true, 'message' => "{$count}건 업로드되었습니다."];
@@ -751,7 +771,7 @@ class BankAccountService
     public function downloadExcel(?string $columnsCsv = null): void
     {
         $columns = $this->resolveColumns('download', $columnsCsv);
-        $accounts = $this->model->getList();
+        $accounts = ExcelValueFormatterHelper::sortRowsBySortNo($this->model->getList());
         $rows = [];
 
         foreach ($accounts as $account) {
@@ -762,7 +782,8 @@ class BankAccountService
             $this->buildHeaders($columns),
             $rows,
             '계좌 목록',
-            'bank_account_list.xlsx'
+            'bank_account_list.xlsx',
+            $columns
         );
         return;
 
@@ -806,12 +827,6 @@ class BankAccountService
                     $selectedKeys[] = $key;
                 }
             }
-
-            foreach (self::COLUMN_DEFINITIONS as $column) {
-                if ($column['required'] && !in_array($column['key'], $selectedKeys, true)) {
-                    $selectedKeys[] = $column['key'];
-                }
-            }
         }
 
         if ($selectedKeys === []) {
@@ -841,9 +856,21 @@ class BankAccountService
 
     private function decorateColumns(array $columns): array
     {
-        return array_map(static function (array $column): array {
+        $displayNameMap = ColumnPolicyRequestHelper::displayNameMap($_REQUEST['column_display_name'] ?? null);
+        $requirementPolicyMap = ColumnPolicyRequestHelper::requirementPolicyMap($_REQUEST['column_requirement_policy'] ?? null);
+
+        return array_map(static function (array $column) use ($displayNameMap, $requirementPolicyMap): array {
+            $label = ColumnPolicyRequestHelper::displayNameForColumn($column, $displayNameMap, (string) ($column['label'] ?? ''));
+            $policy = ColumnPolicyRequestHelper::requirementPolicyForColumn(
+                $column,
+                $requirementPolicyMap,
+                !empty($column['required']) ? 'required' : 'none'
+            );
             return $column + [
-                'header' => $column['label'],
+                'label' => $label,
+                'required' => $policy === 'required',
+                'requirement_policy' => $policy,
+                'header' => $label,
                 'source_key' => $column['source_key'] ?? $column['key'],
                 'payload_key' => $column['payload_key'] ?? $column['key'],
             ];
@@ -895,6 +922,10 @@ class BankAccountService
         foreach ($columns as $column) {
             $lookup[$column['header']] = $column['key'];
             $lookup[$column['label']] = $column['key'];
+            if (($column['requirement_policy'] ?? 'none') !== 'none') {
+                $lookup[$column['header'] . ' *'] = $column['key'];
+                $lookup[$column['label'] . ' *'] = $column['key'];
+            }
             $lookup[$column['key']] = $column['key'];
         }
 
@@ -920,6 +951,36 @@ class BankAccountService
 
         foreach ($columns as $column) {
             if ($column['required'] && !array_key_exists($column['key'], $headerMap)) {
+                $missing[] = $column['label'];
+            }
+        }
+
+        return $missing;
+    }
+
+    private function findMissingRequiredValues(array $payload, array $columns): array
+    {
+        $missing = [];
+
+        foreach ($columns as $column) {
+            if (empty($column['required'])) {
+                continue;
+            }
+
+            $payloadKey = (string) ($column['payload_key'] ?? $column['key'] ?? '');
+            if ($payloadKey === '') {
+                continue;
+            }
+
+            $value = $payload[$payloadKey] ?? null;
+            if (is_array($value)) {
+                if ($value === []) {
+                    $missing[] = $column['label'];
+                }
+                continue;
+            }
+
+            if (trim((string) $value) === '') {
                 $missing[] = $column['label'];
             }
         }
@@ -974,16 +1035,22 @@ class BankAccountService
         return true;
     }
 
-    private function writeSpreadsheet(array $headers, array $rows, string $title, string $filename): void
+    private function writeSpreadsheet(
+        array $headers,
+        array $rows,
+        string $title,
+        string $filename,
+        array $columns = [],
+        bool $showRequiredAsterisk = false
+    ): void
     {
+        $filename = ExcelTemplateFilenameHelper::normalize($filename, 'bank_account');
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle($title);
-        $sheet->fromArray($headers, null, 'A1');
-
-        if ($rows !== []) {
-            $sheet->fromArray($rows, null, 'A2');
-        }
+        ExcelValueFormatterHelper::writeTable($sheet, $headers, $rows, 'A1', $columns, [
+            'showRequiredAsterisk' => $showRequiredAsterisk,
+        ]);
 
         for ($index = 1; $index <= count($headers); $index++) {
             $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($index))->setAutoSize(true);

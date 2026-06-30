@@ -27,8 +27,8 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/account.js');
       id="account-main"
       data-flash="<?= htmlspecialchars($flashMsg, ENT_QUOTES, 'UTF-8') ?>">
 
-    <div class="account-page py-4">
-
+    <div class="container-fluid py-4 account-shell dt-page-shell">
+    <div class="account-page">
         <div class="page-header">
             <h5 class="mb-1 fw-bold">
                 <i class="bi bi-journal-text me-2"></i>계정과목
@@ -69,6 +69,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/account.js');
             ?>
         </div>
     </div>
+    </div>
 
     <?php include __DIR__ . '/partials/account_modal.php'; ?>
     <?php include PROJECT_ROOT . '/app/views/dashboard/settings/system/partials/code_modal.php'; ?>
@@ -80,7 +81,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/account.js');
 
     $modalId = 'accountExcelModal';
     $formId = 'account-excel-upload-form';
-    $modalTitle = '계정과목 엑셀관리';
+    $modalTitle = '계정과목 엑셀 관리';
     $fileInputId = 'excelUpload';
     $fileInputName = 'file';
     $spinnerId = 'excelUploadSpinner';

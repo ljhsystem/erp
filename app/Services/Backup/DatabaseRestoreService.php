@@ -10,8 +10,9 @@ use function Core\storage_system_path;
 
 class DatabaseRestoreService
 {
-    private const STATUS_STALE_SECONDS = 900;
+    private const STATUS_STALE_SECONDS = 300;
     private const PROGRESS_INTERVAL = 50;
+    private const TRACE_RECENT_SECONDS = 120;
 
     private readonly PDO $pdo;
     private readonly string $backupDir;
@@ -99,9 +100,14 @@ class DatabaseRestoreService
             $this->writeProgress($selectedFile, $startedAt, 'prepare-active', '현재 Active DB의 기존 테이블을 정리하고 있습니다.', $dbPair);
             $this->dropAllTables($this->pdo);
 
-            $this->writeProgress($selectedFile, $startedAt, 'apply-backup', '선택한 SQL 백업 파일을 현재 Active DB에 적용하고 있습니다.', $dbPair, [
-                'statement_count' => 0,
-            ]);
+            $this->writeProgress(
+                $selectedFile,
+                $startedAt,
+                'apply-backup',
+                '선택한 SQL 백업 파일을 현재 Active DB에 적용하고 있습니다.',
+                $dbPair,
+                ['statement_count' => 0]
+            );
 
             $summary = $this->applyBackupFileToDatabase(
                 $backupPath,
@@ -181,20 +187,21 @@ class DatabaseRestoreService
                 'state' => 'idle',
                 'message' => 'DB 복원 이력이 없습니다.',
                 'statement_count' => 0,
+                'runtime' => $this->inspectRestoreRuntime(),
             ]);
         }
 
-        if (($status['state'] ?? '') === 'running' && $this->isStatusStale($status)) {
-            $status['state'] = 'failed';
-            $status['message'] = '복원 상태가 시간 초과되었습니다. 현재 Active DB 상태를 확인해 주세요.';
-            $status['finished_at'] = $this->now()->format('Y-m-d H:i:s');
-            $status['updated_at'] = $status['finished_at'];
-            $status['stage'] = 'stale-timeout';
-            $status['stale'] = true;
+        $status['runtime'] = $this->inspectRestoreRuntime();
 
-            $this->appendDatabasePair($status);
-            $this->writeRestoreStatus($status);
-            $this->writeRestoreLog($status);
+        if (($status['state'] ?? '') === 'running' && $this->isStatusStale($status)) {
+            if ($status['runtime']['trace_recent']) {
+                $status['stale'] = false;
+            } else {
+                $status['state'] = 'stale_suspected';
+                $status['message'] = '복원 상태 갱신이 멈춰 상태 확인이 필요합니다.';
+                $status['stage'] = 'stale-suspected';
+                $status['stale'] = true;
+            }
         }
 
         return $this->appendDatabasePair($status);
@@ -544,6 +551,26 @@ class DatabaseRestoreService
         return $this->backupDir . 'active_restore_status.json';
     }
 
+    private function getRestoreTracePath(): string
+    {
+        return $this->backupDir . 'active_restore_trace.log';
+    }
+
+    private function getSyncStatusPath(): string
+    {
+        return $this->backupDir . 'secondary_restore_status.json';
+    }
+
+    private function getSyncTracePath(): string
+    {
+        return $this->backupDir . 'secondary_restore_trace.log';
+    }
+
+    private function getSyncLockPath(): string
+    {
+        return $this->backupDir . 'secondary_restore_runner.lock';
+    }
+
     private function writeProgress(string $file, string $startedAt, string $stage, string $message, ?array $dbPair = null, array $extra = []): void
     {
         $payload = array_merge([
@@ -589,7 +616,7 @@ class DatabaseRestoreService
         ];
 
         @file_put_contents(
-            $this->backupDir . 'active_restore_trace.log',
+            $this->getRestoreTracePath(),
             json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n",
             FILE_APPEND
         );
@@ -618,7 +645,7 @@ class DatabaseRestoreService
 
     private function isSyncRunning(): bool
     {
-        $statusPath = $this->backupDir . 'secondary_restore_status.json';
+        $statusPath = $this->getSyncStatusPath();
         if (!is_file($statusPath)) {
             return false;
         }
@@ -632,17 +659,50 @@ class DatabaseRestoreService
             return false;
         }
 
-        $pivot = $data['updated_at'] ?? $data['started_at'] ?? null;
-        if (!$pivot) {
-            return false;
+        if (!$this->isStatusStale($data)) {
+            return true;
         }
 
-        $timestamp = strtotime((string) $pivot);
-        if (!$timestamp) {
-            return false;
+        $runtime = $this->inspectSyncRuntime();
+        return (bool) ($runtime['runner_active'] || $runtime['trace_recent']);
+    }
+
+    private function inspectRestoreRuntime(): array
+    {
+        return $this->inspectTraceRuntime($this->getRestoreTracePath());
+    }
+
+    private function inspectSyncRuntime(): array
+    {
+        return $this->inspectTraceRuntime($this->getSyncTracePath(), $this->getSyncLockPath());
+    }
+
+    private function inspectTraceRuntime(string $tracePath, ?string $lockPath = null): array
+    {
+        $traceUpdatedAt = is_file($tracePath) ? @filemtime($tracePath) : false;
+        $traceRecent = is_int($traceUpdatedAt) && ((time() - $traceUpdatedAt) < self::TRACE_RECENT_SECONDS);
+
+        $lockData = null;
+        $runnerActive = false;
+
+        if ($lockPath && is_file($lockPath)) {
+            $decoded = json_decode((string) @file_get_contents($lockPath), true);
+            if (is_array($decoded)) {
+                $lockData = $decoded;
+                $heartbeat = strtotime((string) ($decoded['heartbeat_at'] ?? $decoded['started_at'] ?? ''));
+                if ($heartbeat) {
+                    $runnerActive = (time() - $heartbeat) < self::STATUS_STALE_SECONDS;
+                }
+            }
         }
 
-        return (time() - $timestamp) < 300;
+        return [
+            'trace_updated_at' => is_int($traceUpdatedAt) ? date('Y-m-d H:i:s', $traceUpdatedAt) : null,
+            'trace_recent' => $traceRecent,
+            'lock_exists' => $lockPath ? is_file($lockPath) : false,
+            'runner_active' => $runnerActive,
+            'lock' => $lockData,
+        ];
     }
 
     private function now(): DateTimeImmutable

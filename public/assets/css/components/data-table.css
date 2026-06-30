@@ -29,6 +29,16 @@
   overflow-y: visible;
 }
 
+.dt-page-shell {
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e6eaf0);
+  border-radius: var(--radius-md, 10px);
+  box-shadow: var(--shadow-sm);
+  padding: var(--padding, 16px);
+  overflow: visible;
+  min-width: 0;
+}
+
 /*
  * DataTables processing indicator (공통)
  * - 헤더/검색창에 가리지 않게 가운데 정렬하고
@@ -52,6 +62,22 @@
 .dataTables_wrapper .dataTables_processing[style*='display: block'],
 .dataTables_wrapper .dataTables_processing[style*='display: inline'] {
   display: flex !important;
+}
+
+.column-policy-star {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.column-policy-star.is-required {
+  color: #dc2626;
+}
+
+.column-policy-star.is-optional {
+  color: #2563eb;
 }
 
 .dataTables_wrapper table.dataTable {
@@ -453,6 +479,45 @@ table.dataTable thead th.dt-select-column::after {
 
 .dt-column-settings-item.is-dragging {
   opacity: .72;
+}
+
+.excel-settings-grid.dt-column-settings-grid.is-download .excel-settings-grid-header,
+.excel-settings-grid.dt-column-settings-grid.is-download .excel-settings-grid-row {
+  grid-template-columns: 68px 56px 68px minmax(180px, 1fr) minmax(220px, 1.2fr) 140px !important;
+}
+
+#dtColumnSettingsModal .modal-body {
+  overflow-x: auto;
+}
+
+#dtColumnSettingsModal .dt-column-settings-grid,
+.dt-column-settings-grid .excel-settings-grid-body {
+  min-width: 900px;
+}
+
+.dt-column-settings-display-cell,
+.dt-column-settings-policy-cell {
+  min-width: 0;
+}
+
+.dt-column-settings-display-cell .form-control,
+.dt-column-settings-policy-cell .form-select {
+  width: 100%;
+}
+
+.dt-column-settings-grid .excel-settings-column-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 767.98px) {
+  .excel-settings-grid.dt-column-settings-grid.is-download .excel-settings-grid-header,
+  .excel-settings-grid.dt-column-settings-grid.is-download .excel-settings-grid-row {
+    grid-template-columns: 56px 44px 56px minmax(160px, 1fr) minmax(200px, 1.1fr) 120px !important;
+    grid-template-areas: none !important;
+    row-gap: 0 !important;
+  }
 }
 
 .dt-settings-drag-handle.reorder-handle {

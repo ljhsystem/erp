@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // 경로: PROJECT_ROOT . '/app/views/dashboard/settings/organization/partials/role_modal.php'
 ?>
 
@@ -15,12 +15,12 @@
           <input type="hidden" name="id" id="role_edit_id">
 
           <div class="mb-3">
-            <label class="form-label" for="role_edit_key">Role Key</label>
+            <label class="form-label" for="role_edit_key">역할 키</label>
             <input type="text" name="role_key" id="role_edit_key" class="form-control form-control-sm" required>
           </div>
 
           <div class="mb-3">
-            <label class="form-label" for="role_edit_name">Role Name</label>
+            <label class="form-label" for="role_edit_name">역할명</label>
             <input type="text" name="role_name" id="role_edit_name" class="form-control form-control-sm" required>
           </div>
 

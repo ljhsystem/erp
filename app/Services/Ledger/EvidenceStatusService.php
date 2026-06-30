@@ -12,6 +12,7 @@ class EvidenceStatusService
      * @param callable(string):string $dataTypeNormalizer
      * @param callable(string):array $queryDataTypes
      * @param callable(string):bool $tableExists
+     * @param callable(string,string):bool $tableColumnExists
      * @param callable(array,string):int $payloadSortNo
      */
     public function __construct(
@@ -21,6 +22,7 @@ class EvidenceStatusService
         private $dataTypeNormalizer,
         private $queryDataTypes,
         private $tableExists,
+        private $tableColumnExists,
         private $payloadSortNo
     ) {
     }
@@ -29,7 +31,7 @@ class EvidenceStatusService
     {
         $status = strtoupper(trim($status));
         if ($ids === [] || !in_array($status, ['READY', 'ERROR', 'DUPLICATED'], true)) {
-            return ['success' => false, 'message' => '??? ??? Seed Data? ???? ?????.', 'status' => 400];
+            return ['success' => false, 'message' => '상태를 변경할 증빙원본을 선택해 주세요.', 'status' => 400];
         }
 
         [$inSql, $params] = ($this->placeholderBuilder)($ids, 'seed_id');
@@ -46,18 +48,19 @@ class EvidenceStatusService
         ");
         $stmt->execute($params);
 
-        return ['success' => true, 'message' => '?? Seed Data ??? ???????.'];
+        return ['success' => true, 'message' => '증빙원본 상태가 변경되었습니다.'];
     }
 
     public function reorder(array $payload, string $actor): array
     {
+        $actor = $this->auditActor($actor);
         $changes = $payload['changes'] ?? [];
         if (is_string($changes)) {
             $decoded = json_decode($changes, true);
             $changes = is_array($decoded) ? $decoded : [];
         }
         if (!is_array($changes) || $changes === []) {
-            return ['success' => false, 'message' => '???? ???? ????.', 'status' => 400];
+            return ['success' => false, 'message' => '정렬 변경 대상이 없습니다.', 'status' => 400];
         }
 
         $rows = [];
@@ -73,7 +76,7 @@ class EvidenceStatusService
             $rows[$id] = $rowNo;
         }
         if ($rows === []) {
-            return ['success' => false, 'message' => '???? ???? ???? ????.', 'status' => 400];
+            return ['success' => false, 'message' => '정렬 저장 대상이 올바르지 않습니다.', 'status' => 400];
         }
 
         $firstChange = is_array(reset($changes)) ? reset($changes) : [];
@@ -81,12 +84,23 @@ class EvidenceStatusService
         $sortKey = $scope === 'status' ? '_status_sort_no' : '_create_sort_no';
         $importType = ($this->dataTypeNormalizer)((string) ($payload['import_type'] ?? $payload['data_type'] ?? $firstChange['import_type'] ?? $firstChange['data_type'] ?? ''));
 
-        $this->pdo->beginTransaction();
+        if ($importType === 'BANK_TRANSACTION') {
+            return $this->reorderBankRows($rows, $sortKey, $actor);
+        }
+        if ($this->isCashReceiptType($importType)) {
+            return $this->reorderCashReceiptRows($rows, $sortKey, $actor, $importType);
+        }
+
+        $ownsTransaction = !$this->pdo->inTransaction();
         try {
+            if ($ownsTransaction) {
+                $this->pdo->beginTransaction();
+            }
             [$inSql, $params] = ($this->placeholderBuilder)(array_keys($rows), 'reorder_id');
             $sql = "
                 SELECT
                     evidence_id AS id,
+                    evidence_type,
                     mapped_payload_json,
                     CAST(JSON_UNQUOTE(JSON_EXTRACT(mapped_payload_json, '$.{$sortKey}')) AS UNSIGNED) AS current_sort_no
                 FROM ledger_evidence_payloads
@@ -95,8 +109,10 @@ class EvidenceStatusService
             ";
             if ($scope === 'status') {
                 if ($importType === '') {
-                    $this->pdo->rollBack();
-                    return ['success' => false, 'message' => '???? ?? ???? ????? ?????.', 'status' => 400];
+                    if ($ownsTransaction && $this->pdo->inTransaction()) {
+                        $this->pdo->rollBack();
+                    }
+                    return ['success' => false, 'message' => '정렬할 자료유형을 확인할 수 없습니다.', 'status' => 400];
                 }
                 $typePlaceholders = [];
                 foreach (($this->queryDataTypes)($importType) as $index => $type) {
@@ -117,6 +133,7 @@ class EvidenceStatusService
                     updated_by = :actor
                 WHERE evidence_id = :id
             ");
+            $bodyUpdates = [];
             foreach ($storedRows as $storedRow) {
                 $id = (string) ($storedRow['id'] ?? '');
                 if ($id === '' || !isset($rows[$id])) {
@@ -135,6 +152,13 @@ class EvidenceStatusService
                     ':mapped_payload_json' => ($this->jsonEncoder)($mappedPayload),
                     ':actor' => $actor,
                 ]);
+                $tableName = $this->evidenceTableForType((string) ($storedRow['evidence_type'] ?? $importType));
+                if ($tableName !== '') {
+                    if (!isset($bodyUpdates[$tableName])) {
+                        $bodyUpdates[$tableName] = $this->prepareSortNoUpdateStatement($tableName);
+                    }
+                    $bodyUpdates[$tableName]->execute($this->sortNoUpdateParams($tableName, $id, $rows[$id], $actor));
+                }
                 if ($scope === 'status') {
                     $this->syncProcessingItemDisplayPathsForEvidence($id, $rows[$id], $actor);
                 }
@@ -143,15 +167,276 @@ class EvidenceStatusService
                 $this->normalizeEvidenceStatusSortNoForType($importType, $actor, $rows);
             }
 
-            $this->pdo->commit();
-        } catch (\Throwable) {
-            if ($this->pdo->inTransaction()) {
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->commit();
+            }
+        } catch (\Throwable $throwable) {
+            error_log('[EvidenceStatusService] reorder failed: ' . $throwable->getMessage());
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
-            return ['success' => false, 'message' => '???? ??? ??????.', 'status' => 500];
+            return ['success' => false, 'message' => '정렬 저장 중 오류가 발생했습니다.', 'status' => 500];
         }
 
-        return ['success' => true, 'message' => '??? ???????.'];
+        return ['success' => true, 'message' => '정렬이 저장되었습니다.'];
+    }
+
+    private function reorderBankRows(array $rows, string $sortKey, string $actor): array
+    {
+        $actor = $this->auditActor($actor);
+        $ownsTransaction = !$this->pdo->inTransaction();
+
+        try {
+            if ($ownsTransaction) {
+                $this->pdo->beginTransaction();
+            }
+            $maxSortNo = (int) $this->pdo->query("
+                SELECT COALESCE(MAX(sort_no), 0)
+                FROM ledger_evidence_bank_transaction
+            ")->fetchColumn();
+            $tempBase = max($maxSortNo, 0) + 1000;
+
+            $tempUpdateBody = $this->prepareSortNoUpdateStatement('ledger_evidence_bank_transaction');
+            $updateBody = $this->prepareSortNoUpdateStatement('ledger_evidence_bank_transaction');
+
+            $updatePayload = $this->pdo->prepare("
+                UPDATE ledger_evidence_payloads
+                SET mapped_payload_json = :mapped_payload_json,
+                    updated_at = NOW(),
+                    updated_by = :actor
+                WHERE evidence_id = :id
+                  AND evidence_type = 'BANK_TRANSACTION'
+            ");
+
+            [$inSql, $params] = ($this->placeholderBuilder)(array_keys($rows), 'bank_reorder_id');
+            $payloadSelect = $this->pdo->prepare("
+                SELECT evidence_id AS id, mapped_payload_json
+                FROM ledger_evidence_payloads
+                WHERE evidence_id IN ({$inSql})
+                  AND evidence_type = 'BANK_TRANSACTION'
+                  AND deleted_at IS NULL
+            ");
+            $payloadSelect->execute($params);
+
+            $payloadRows = [];
+            foreach (($payloadSelect->fetchAll(PDO::FETCH_ASSOC) ?: []) as $payloadRow) {
+                $payloadId = trim((string) ($payloadRow['id'] ?? ''));
+                if ($payloadId !== '') {
+                    $payloadRows[$payloadId] = $payloadRow;
+                }
+            }
+
+            $tempSortNos = [];
+            $position = 0;
+            foreach (array_keys($rows) as $id) {
+                $position++;
+                $tempSortNo = $tempBase + $position;
+                $tempSortNos[$id] = $tempSortNo;
+                $tempUpdateBody->execute($this->sortNoUpdateParams('ledger_evidence_bank_transaction', $id, $tempSortNo, $actor));
+            }
+
+            foreach ($rows as $id => $sortNo) {
+                $updateBody->execute($this->sortNoUpdateParams('ledger_evidence_bank_transaction', $id, $sortNo, $actor));
+
+                if (!isset($payloadRows[$id])) {
+                    continue;
+                }
+
+                $mappedPayload = json_decode((string) ($payloadRows[$id]['mapped_payload_json'] ?? ''), true);
+                $mappedPayload = is_array($mappedPayload) ? $mappedPayload : [];
+                $mappedPayload[$sortKey] = $sortNo;
+                $updatePayload->execute([
+                    ':id' => $id,
+                    ':mapped_payload_json' => ($this->jsonEncoder)($mappedPayload),
+                    ':actor' => $actor,
+                ]);
+            }
+
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->commit();
+            }
+        } catch (\Throwable $throwable) {
+            error_log('[EvidenceStatusService] reorderBankRows failed: ' . $throwable->getMessage());
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            return ['success' => false, 'message' => '정렬 저장 중 오류가 발생했습니다.', 'status' => 500];
+        }
+
+        return ['success' => true, 'message' => '정렬이 저장되었습니다.'];
+    }
+
+    private function evidenceTableForType(string $dataType): string
+    {
+        $normalized = strtoupper(trim($dataType));
+
+        return match ($normalized) {
+            'BANK_TRANSACTION' => 'ledger_evidence_bank_transaction',
+            'TAX_INVOICE' => 'ledger_evidence_tax_invoice',
+            'TAX_INVOICE_MANUAL' => 'ledger_evidence_tax_invoice_manual',
+            'CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES' => 'ledger_evidence_cash_receipt',
+            'CARD_HOMETAX' => 'ledger_evidence_card_hometax',
+            'CARD', 'CARD_STATEMENT', 'CARD_APPROVAL' => 'ledger_evidence_card_statement',
+            default => '',
+        };
+    }
+
+    private function reorderCashReceiptRows(array $rows, string $sortKey, string $actor, string $importType): array
+    {
+        $actor = $this->auditActor($actor);
+        $tableName = 'ledger_evidence_cash_receipt';
+        if (!($this->tableColumnExists)($tableName, 'sort_no')) {
+            return ['success' => false, 'message' => '정렬 저장 중 오류가 발생했습니다.', 'status' => 500];
+        }
+
+        $ownsTransaction = !$this->pdo->inTransaction();
+
+        try {
+            if ($ownsTransaction) {
+                $this->pdo->beginTransaction();
+            }
+
+            $maxSortNo = (int) $this->pdo->query("
+                SELECT COALESCE(MAX(sort_no), 0)
+                FROM {$tableName}
+            ")->fetchColumn();
+            $tempBase = max($maxSortNo, 0) + 1000;
+
+            $tempUpdateBody = $this->prepareSortNoUpdateStatement($tableName);
+            $updateBody = $this->prepareSortNoUpdateStatement($tableName);
+
+            $evidenceTypes = array_values(array_unique(array_filter(
+                ($this->queryDataTypes)($importType),
+                static fn($type): bool => trim((string) $type) !== ''
+            )));
+            if ($evidenceTypes === []) {
+                $evidenceTypes = [$importType];
+            }
+
+            $typePlaceholders = [];
+            $typeParams = [];
+            foreach ($evidenceTypes as $index => $type) {
+                $key = ':cash_type_' . $index;
+                $typePlaceholders[] = $key;
+                $typeParams[$key] = $type;
+            }
+            $typeSql = implode(', ', $typePlaceholders);
+
+            [$inSql, $params] = ($this->placeholderBuilder)(array_keys($rows), 'cash_reorder_id');
+            $payloadSelect = $this->pdo->prepare("
+                SELECT evidence_id AS id, mapped_payload_json
+                FROM ledger_evidence_payloads
+                WHERE evidence_id IN ({$inSql})
+                  AND evidence_type IN ({$typeSql})
+                  AND deleted_at IS NULL
+            ");
+            $payloadSelect->execute($params + $typeParams);
+
+            $payloadRows = [];
+            foreach (($payloadSelect->fetchAll(PDO::FETCH_ASSOC) ?: []) as $payloadRow) {
+                $payloadId = trim((string) ($payloadRow['id'] ?? ''));
+                if ($payloadId !== '') {
+                    $payloadRows[$payloadId] = $payloadRow;
+                }
+            }
+
+            $updatePayload = $this->pdo->prepare("
+                UPDATE ledger_evidence_payloads
+                SET mapped_payload_json = :mapped_payload_json,
+                    updated_at = NOW(),
+                    updated_by = :actor
+                WHERE evidence_id = :id
+                  AND evidence_type IN ({$typeSql})
+            ");
+
+            $position = 0;
+            foreach (array_keys($rows) as $id) {
+                $position++;
+                $tempSortNo = $tempBase + $position;
+                $tempUpdateBody->execute($this->sortNoUpdateParams($tableName, $id, $tempSortNo, $actor));
+            }
+
+            foreach ($rows as $id => $sortNo) {
+                $updateBody->execute($this->sortNoUpdateParams($tableName, $id, $sortNo, $actor));
+
+                if (!isset($payloadRows[$id])) {
+                    continue;
+                }
+
+                $mappedPayload = json_decode((string) ($payloadRows[$id]['mapped_payload_json'] ?? ''), true);
+                $mappedPayload = is_array($mappedPayload) ? $mappedPayload : [];
+                $mappedPayload[$sortKey] = $sortNo;
+                $updatePayload->execute([
+                    ':id' => $id,
+                    ':mapped_payload_json' => ($this->jsonEncoder)($mappedPayload),
+                    ':actor' => $actor,
+                ] + $typeParams);
+            }
+
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->commit();
+            }
+        } catch (\Throwable $throwable) {
+            error_log('[EvidenceStatusService] reorderCashReceiptRows failed: ' . $throwable->getMessage());
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            return ['success' => false, 'message' => '정렬 저장 중 오류가 발생했습니다.', 'status' => 500];
+        }
+
+        return ['success' => true, 'message' => '정렬이 저장되었습니다.'];
+    }
+
+    private function isCashReceiptType(string $dataType): bool
+    {
+        return in_array($dataType, ['CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES'], true);
+    }
+
+    private function prepareSortNoUpdateStatement(string $tableName): \PDOStatement
+    {
+        $sets = ['sort_no = :sort_no'];
+        if (($this->tableColumnExists)($tableName, 'updated_at')) {
+            $sets[] = 'updated_at = NOW()';
+        }
+        if (($this->tableColumnExists)($tableName, 'updated_by')) {
+            $sets[] = 'updated_by = :actor';
+        }
+
+        return $this->pdo->prepare("
+            UPDATE {$tableName}
+            SET " . implode(",\n                ", $sets) . "
+            WHERE id = :id
+        ");
+    }
+
+    private function sortNoUpdateParams(string $tableName, string $id, int $sortNo, string $actor): array
+    {
+        $params = [
+            ':id' => $id,
+            ':sort_no' => $sortNo,
+        ];
+        if (($this->tableColumnExists)($tableName, 'updated_by')) {
+            $params[':actor'] = $actor;
+        }
+
+        return $params;
+    }
+
+    private function auditActor(string $actor): string
+    {
+        $actor = trim($actor);
+        if ($actor === '') {
+            return 'SYSTEM';
+        }
+
+        if (str_starts_with($actor, 'USER:')) {
+            $userId = substr($actor, 5);
+            return $userId !== '' ? substr($userId, 0, 36) : 'SYSTEM';
+        }
+
+        return substr($actor, 0, 36);
     }
 
     private function syncProcessingItemDisplayPathsForEvidence(string $evidenceId, int $rowNo, string $actor): void

@@ -2,6 +2,12 @@ import { createDataTable } from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { PickerSelect2 } from '/public/assets/js/common/picker/picker.select2.js';
+import { createExcelManagerSettingsCore } from '/public/assets/js/components/excel-manager/index.js';
+import {
+    readDataTableSettingsState,
+    resolveDataTableColumnDisplayName,
+    resolveDataTableColumnRequirementPolicy,
+} from '/public/assets/js/common/datatable/dataTableSettings.js';
 import {
     initCodeSelectControls,
     onCodeOptionsLoaded,
@@ -35,6 +41,44 @@ import '/public/assets/js/components/trash-manager.js';
         CLIENT_TYPE: 'clientTypes',
     };
 
+    const JOURNAL_RULE_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.ledger.journal-rules.journal-rule-table.v1';
+    const JOURNAL_RULE_COLUMN_ORDER = [
+        'id',
+        'sort_no',
+        'rule_code',
+        'rule_name',
+        'business_unit',
+        'transaction_type',
+        'transaction_direction',
+        'client_type',
+        'import_type',
+        'debit_account_id',
+        'credit_account_id',
+        'vat_account_id',
+        'description',
+        'is_active',
+        'created_at',
+        'created_by',
+        'updated_at',
+        'updated_by',
+        'deleted_at',
+        'deleted_by',
+    ];
+    const JOURNAL_RULE_MODAL_FIELD_POLICIES = Object.freeze([
+        { selector: '#journalRuleModal [name="rule_code"]', key: 'rule_code' },
+        { selector: '#journalRuleModal [name="rule_name"]', key: 'rule_name' },
+        { selector: '#journalRuleModal [name="business_unit"]', key: 'business_unit' },
+        { selector: '#journalRuleModal [name="transaction_type"]', key: 'transaction_type' },
+        { selector: '#journalRuleModal [name="transaction_direction"]', key: 'transaction_direction' },
+        { selector: '#journalRuleModal [name="client_type"]', key: 'client_type' },
+        { selector: '#journalRuleModal [name="import_type"]', key: 'import_type' },
+        { selector: '#journalRuleModal [name="debit_account_id"]', key: 'debit_account_id' },
+        { selector: '#journalRuleModal [name="credit_account_id"]', key: 'credit_account_id' },
+        { selector: '#journalRuleModal [name="vat_account_id"]', key: 'vat_account_id' },
+        { selector: '#journalRuleModal [name="description"]', key: 'description' },
+        { selector: '#journalRuleModal [name="is_active"]', key: 'is_active' },
+    ]);
+
     let table = null;
     let modal = null;
     let excelModal = null;
@@ -46,6 +90,7 @@ import '/public/assets/js/components/trash-manager.js';
     let postingAccounts = [];
     let selectSourcesPromise = null;
     let pendingTableLabelRefresh = false;
+    let journalRulePolicyBound = false;
 
     const $ = window.jQuery;
 
@@ -63,6 +108,7 @@ import '/public/assets/js/components/trash-manager.js';
 
     document.addEventListener('trash:detail-render', (event) => {
         if (event.detail?.type !== 'journalRule') return;
+
         const row = event.detail.data || {};
         const detailEl = event.detail.modal?.querySelector('.trash-detail');
         if (!detailEl) return;
@@ -113,10 +159,29 @@ import '/public/assets/js/components/trash-manager.js';
             excelModal = bootstrap.Modal.getOrCreateInstance(excelEl, { focus: false });
         }
 
+        initExcelDataset();
         initTable();
         bindEvents();
         bindCodeOptionRefresh();
+        bindJournalRulePolicySync();
+        applyJournalRuleModalPolicyLabels(document);
         warmSelectSources();
+    }
+
+    function initExcelDataset() {
+        const form = document.getElementById('journal-rule-excel-upload-form');
+        if (!form) return;
+
+        form.dataset.templateUrl = '/api/ledger/journal-rules/template';
+        form.dataset.downloadUrl = '/api/ledger/journal-rules/excel';
+        form.dataset.uploadUrl = '/api/ledger/journal-rules/excel-upload';
+
+        createExcelManagerSettingsCore({
+            domain: 'ledger-journal-rule',
+            formSelector: '#journal-rule-excel-upload-form',
+            tableSettingsStorageKey: JOURNAL_RULE_TABLE_SETTINGS_STORAGE_KEY,
+            tableSettingsMetaDomain: 'ledger-journal-rule',
+        });
     }
 
     async function prepareSelectSources(modalEl) {
@@ -128,7 +193,6 @@ import '/public/assets/js/components/trash-manager.js';
             initAccountSelect2();
             refreshRuleTableLabels();
         } catch (error) {
-            console.error('[journal-rules] select source load failed:', error);
             notify('error', error.message || '분개규칙 기준정보를 불러오지 못했습니다.');
         }
     }
@@ -143,9 +207,7 @@ import '/public/assets/js/components/trash-manager.js';
 
     function warmSelectSources() {
         const run = () => {
-            void ensureSelectSourcesReady().catch((error) => {
-                console.error('[journal-rules] select source warmup failed:', error);
-            });
+            void ensureSelectSourcesReady().catch(() => {});
         };
 
         if (typeof window.requestIdleCallback === 'function') {
@@ -168,6 +230,132 @@ import '/public/assets/js/components/trash-manager.js';
 
         pendingTableLabelRefresh = false;
         table?.rows().invalidate('data').draw(false);
+    }
+
+    function currentJournalRulePolicyState() {
+        return readDataTableSettingsState(JOURNAL_RULE_TABLE_SETTINGS_STORAGE_KEY) || {};
+    }
+
+    function journalRuleFieldLabel(key, fallback = '') {
+        const normalizedKey = String(key || '').trim();
+        return resolveDataTableColumnDisplayName(
+            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+            currentJournalRulePolicyState(),
+            normalizedKey || fallback
+        );
+    }
+
+    function journalRuleFieldRequirement(key) {
+        const normalizedKey = String(key || '').trim();
+        return resolveDataTableColumnRequirementPolicy(
+            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+            currentJournalRulePolicyState()
+        );
+    }
+
+    function journalRuleFieldStarMarkup(key) {
+        const policy = journalRuleFieldRequirement(key);
+        if (policy === 'required') {
+            return '<span class="column-policy-star is-required" aria-hidden="true">*</span>';
+        }
+        if (policy === 'optional') {
+            return '<span class="column-policy-star is-optional" aria-hidden="true">*</span>';
+        }
+        return '';
+    }
+
+    function findJournalRuleModalLabel(selector, root = document) {
+        const field = root.querySelector(selector);
+        if (!field) return null;
+
+        if (field.id) {
+            const byFor = root.querySelector(`label[for="${field.id}"]`);
+            if (byFor) return byFor;
+        }
+
+        const group = field.closest('.form-check, .col-md-3, .col-md-4, .col-md-6, .col-md-9, .col-12');
+        if (group) {
+            const label = group.querySelector('label.form-label, label.form-check-label');
+            if (label) return label;
+        }
+
+        return field.closest('label.form-label, label.form-check-label') || null;
+    }
+
+    function applyJournalRuleModalPolicyLabels(root = document) {
+        JOURNAL_RULE_MODAL_FIELD_POLICIES.forEach((field) => {
+            const labelEl = findJournalRuleModalLabel(field.selector, root);
+            if (!labelEl) return;
+
+            const displayName = journalRuleFieldLabel(field.key, field.key);
+            const starMarkup = journalRuleFieldStarMarkup(field.key);
+            labelEl.innerHTML = `${escapeHtml(displayName)}${starMarkup ? ` ${starMarkup}` : ''}`;
+        });
+    }
+
+    function bindJournalRulePolicySync() {
+        if (journalRulePolicyBound) return;
+        journalRulePolicyBound = true;
+
+        document.addEventListener('datatable-settings:updated', (event) => {
+            const storageKey = String(event?.detail?.storageKey || '').trim();
+            if (storageKey && storageKey !== JOURNAL_RULE_TABLE_SETTINGS_STORAGE_KEY) {
+                return;
+            }
+
+            applyJournalRuleModalPolicyLabels(document);
+        });
+    }
+
+    function collectJournalRuleModalValues() {
+        const form = document.getElementById('journalRuleForm');
+        const formData = new FormData(form);
+
+        return {
+            rule_code: String(formData.get('rule_code') || '').trim(),
+            rule_name: String(formData.get('rule_name') || '').trim(),
+            business_unit: String(formData.get('business_unit') || '').trim(),
+            transaction_type: String(formData.get('transaction_type') || '').trim(),
+            transaction_direction: String(formData.get('transaction_direction') || '').trim(),
+            client_type: String(formData.get('client_type') || '').trim(),
+            import_type: String(formData.get('import_type') || '').trim(),
+            debit_account_id: String(formData.get('debit_account_id') || '').trim(),
+            credit_account_id: String(formData.get('credit_account_id') || '').trim(),
+            vat_account_id: String(formData.get('vat_account_id') || '').trim(),
+            description: String(formData.get('description') || '').trim(),
+            is_active: formData.has('is_active') ? '1' : '0',
+        };
+    }
+
+    function focusJournalRulePolicyField(selector) {
+        const field = document.querySelector(selector);
+        if (!field) return;
+        if (typeof field.focus === 'function') {
+            field.focus();
+        }
+        if (window.jQuery && field.tagName === 'SELECT') {
+            window.jQuery(field).trigger('focus');
+        }
+    }
+
+    function validateJournalRuleRequiredPolicies() {
+        const values = collectJournalRuleModalValues();
+
+        for (const field of JOURNAL_RULE_MODAL_FIELD_POLICIES) {
+            if (journalRuleFieldRequirement(field.key) !== 'required') {
+                continue;
+            }
+
+            if (String(values[field.key] ?? '').trim() !== '') {
+                continue;
+            }
+
+            notify('warning', `${journalRuleFieldLabel(field.key, field.key)} 항목을 입력해 주세요.`);
+            focusJournalRulePolicyField(field.selector);
+            return false;
+        }
+
+        return true;
     }
 
     function setJournalRuleModalLoading(isLoading = false) {
@@ -266,13 +454,6 @@ import '/public/assets/js/components/trash-manager.js';
         return data.text || data.id;
     }
 
-    function populateOptions(select, items) {
-        if (!select) return;
-        select.innerHTML = items
-            .map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.text)}</option>`)
-            .join('');
-    }
-
     function initTable() {
         table = createDataTable({
             tableSelector: '#journal-rule-table',
@@ -282,9 +463,36 @@ import '/public/assets/js/components/trash-manager.js';
             pageLength: 100,
             searchTableId: 'journalRule',
             pageLoading: false,
+            selectionColumn: {
+                widthResizable: true,
+            },
+            tableSettings: {
+                pageKey: 'ledger.journal-rules',
+                tableKey: 'journal-rule-table',
+                storageKey: JOURNAL_RULE_TABLE_SETTINGS_STORAGE_KEY,
+                metaDomain: 'ledger-journal-rule',
+                tableLabel: '분개규칙',
+                title: '분개규칙 테이블 설정',
+                defaultVisibleColumns: [
+                    'id',
+                    'sort_no',
+                    'rule_code',
+                    'rule_name',
+                    'business_unit',
+                    'transaction_type',
+                    'transaction_direction',
+                    'client_type',
+                    'import_type',
+                    'debit_account_id',
+                    'credit_account_id',
+                    'vat_account_id',
+                    'description',
+                    'is_active',
+                ],
+            },
             buttons: [
-                { text: '엑셀관리', className: 'btn btn-success btn-sm', action: () => excelModal?.show() },
                 { text: '휴지통', className: 'btn btn-danger btn-sm', action: openTrash },
+                { text: '엑셀관리', className: 'btn btn-success btn-sm', action: () => excelModal?.show() },
                 { text: '새 분개규칙', className: 'btn btn-warning btn-sm', action: () => { void openCreate(); } },
             ],
         });
@@ -292,7 +500,7 @@ import '/public/assets/js/components/trash-manager.js';
         table.on('init.dt draw.dt', () => {
             const count = table.page.info()?.recordsDisplay ?? 0;
             const countEl = document.getElementById('journalRuleCount');
-            if (countEl) countEl.textContent = `\ucd1d ${Number(count).toLocaleString('ko-KR')}\uac74`;
+            if (countEl) countEl.textContent = `총 ${Number(count).toLocaleString('ko-KR')}건`;
         });
 
         SearchForm({
@@ -315,7 +523,7 @@ import '/public/assets/js/components/trash-manager.js';
             onError(json) {
                 notify('error', json?.message || '분개규칙 순서 변경에 실패했습니다.');
                 table?.ajax.reload(null, false);
-            }
+            },
         });
     }
 
@@ -328,21 +536,31 @@ import '/public/assets/js/components/trash-manager.js';
                 headerClassName: 'no-colvis text-center',
                 orderable: false,
                 searchable: false,
-                defaultContent: '<i class="bi bi-list"></i>'
+                defaultContent: '<i class="bi bi-list"></i>',
+                settingsKey: '__reorder',
+                width: '44px',
+                widthResizable: true,
             },
-            { data: 'sort_no', title: '순번', className: 'text-center text-nowrap', width: 60 },
-            { data: 'rule_code', title: '규칙코드', className: 'text-nowrap', render: textCell },
-            { data: 'rule_name', title: '규칙명', render: textCell },
-            { data: 'business_unit', title: '사업구분', className: 'text-nowrap', render: (_value, _type, row) => badge(codeLabel(businessUnits, row.business_unit, row.business_unit_name)) },
-            { data: 'transaction_type', title: '거래유형', className: 'text-nowrap', render: (_value, _type, row) => badge(codeLabel(transactionTypes, row.transaction_type, row.transaction_type_name)) },
-            { data: 'transaction_direction', title: '거래구분', className: 'text-nowrap text-center', render: (_value, _type, row) => badge(codeLabel(transactionDirections, row.transaction_direction, row.transaction_direction_name)) },
-            { data: 'client_type', title: '거래처구분', className: 'text-nowrap', render: (_value, _type, row) => badge(codeLabel(clientTypes, row.client_type, row.client_type_name)) },
-            { data: 'import_type', title: '자료유형', className: 'text-nowrap', render: (_value, _type, row) => badge(codeLabel(importTypes, row.import_type, row.import_type_name)) },
-            { data: 'debit_account_name', title: '차변계정', render: (_value, _type, row) => escapeHtml(accountText(row, 'debit')) },
-            { data: 'credit_account_name', title: '대변계정', render: (_value, _type, row) => escapeHtml(accountText(row, 'credit')) },
-            { data: 'vat_account_name', title: '부가세계정', render: (_value, _type, row) => escapeHtml(accountText(row, 'vat')) },
-            { data: 'description', title: '설명/적요', render: textCell },
-            { data: 'is_active', title: '상태', className: 'text-center text-nowrap', orderable: false, render: renderStatusToggle },
+            { data: 'id', title: 'ID', visible: false, render: textCell, settingsKey: 'id' },
+            { data: 'sort_no', title: '순번', className: 'dt-sequence-column text-center text-nowrap', width: 60, settingsKey: 'sort_no' },
+            { data: 'rule_code', title: '규칙코드', className: 'text-nowrap', render: textCell, settingsKey: 'rule_code' },
+            { data: 'rule_name', title: '규칙명', render: textCell, settingsKey: 'rule_name' },
+            { data: 'business_unit', title: '사업구분', className: 'text-nowrap', render: (_value, _type, row) => badge(codeLabel(businessUnits, row.business_unit, row.business_unit_name)), settingsKey: 'business_unit' },
+            { data: 'transaction_type', title: '거래유형', className: 'text-nowrap', render: (_value, _type, row) => badge(codeLabel(transactionTypes, row.transaction_type, row.transaction_type_name)), settingsKey: 'transaction_type' },
+            { data: 'transaction_direction', title: '거래구분', className: 'text-nowrap text-center', render: (_value, _type, row) => badge(codeLabel(transactionDirections, row.transaction_direction, row.transaction_direction_name)), settingsKey: 'transaction_direction' },
+            { data: 'client_type', title: '거래처구분', className: 'text-nowrap', render: (_value, _type, row) => badge(codeLabel(clientTypes, row.client_type, row.client_type_name)), settingsKey: 'client_type' },
+            { data: 'import_type', title: '자료유형', className: 'text-nowrap', render: (_value, _type, row) => badge(codeLabel(importTypes, row.import_type, row.import_type_name)), settingsKey: 'import_type' },
+            { data: 'debit_account_id', title: '차변계정', render: (_value, _type, row) => escapeHtml(accountText(row, 'debit')), settingsKey: 'debit_account_id' },
+            { data: 'credit_account_id', title: '대변계정', render: (_value, _type, row) => escapeHtml(accountText(row, 'credit')), settingsKey: 'credit_account_id' },
+            { data: 'vat_account_id', title: '부가세계정', render: (_value, _type, row) => escapeHtml(accountText(row, 'vat')), settingsKey: 'vat_account_id' },
+            { data: 'description', title: '설명/적요', render: textCell, settingsKey: 'description' },
+            { data: 'is_active', title: '상태', className: 'text-center text-nowrap', orderable: false, render: renderStatusToggle, settingsKey: 'is_active' },
+            { data: 'created_at', title: '생성일시', visible: false, render: textCell, settingsKey: 'created_at' },
+            { data: 'created_by', title: '생성자', visible: false, render: textCell, settingsKey: 'created_by' },
+            { data: 'updated_at', title: '수정일시', visible: false, render: textCell, settingsKey: 'updated_at' },
+            { data: 'updated_by', title: '수정자', visible: false, render: textCell, settingsKey: 'updated_by' },
+            { data: 'deleted_at', title: '삭제일시', visible: false, render: textCell, settingsKey: 'deleted_at' },
+            { data: 'deleted_by', title: '삭제자', visible: false, render: textCell, settingsKey: 'deleted_by' },
             {
                 data: null,
                 title: '관리',
@@ -366,7 +584,12 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function bindEvents() {
-        document.getElementById('journalRuleModal')?.addEventListener('hidden.bs.modal', () => {
+        const modalEl = document.getElementById('journalRuleModal');
+        modalEl?.addEventListener('shown.bs.modal', () => {
+            applyJournalRuleModalPolicyLabels(modalEl);
+        });
+
+        modalEl?.addEventListener('hidden.bs.modal', () => {
             if (pendingTableLabelRefresh) {
                 refreshRuleTableLabels();
             }
@@ -397,6 +620,11 @@ import '/public/assets/js/components/trash-manager.js';
 
         document.getElementById('journalRuleForm')?.addEventListener('submit', async (event) => {
             event.preventDefault();
+
+            if (!validateJournalRuleRequiredPolicies()) {
+                return;
+            }
+
             try {
                 const form = event.currentTarget;
                 const formData = new FormData(form);
@@ -446,9 +674,11 @@ import '/public/assets/js/components/trash-manager.js';
         document.getElementById('journalRuleDeleteBtn').classList.add('d-none');
         setJournalRuleModalLoading(true);
         modal.show();
+
         try {
             await ensureSelectSourcesReady();
             $('#journalRuleModal select').val('').trigger('change');
+            applyJournalRuleModalPolicyLabels(document.getElementById('journalRuleModal'));
         } catch (error) {
             notify('error', error.message || '분개규칙 입력 준비 중 오류가 발생했습니다.');
         } finally {
@@ -470,6 +700,7 @@ import '/public/assets/js/components/trash-manager.js';
             ]);
             if (!json.success) throw new Error(json.message || '분개규칙을 찾을 수 없습니다.');
             bindForm(json.data || {});
+            applyJournalRuleModalPolicyLabels(document.getElementById('journalRuleModal'));
             if (title) title.textContent = '분개규칙 수정';
             document.getElementById('journalRuleDeleteBtn').classList.remove('d-none');
         } catch (error) {
@@ -557,7 +788,6 @@ import '/public/assets/js/components/trash-manager.js';
         const id = input.dataset.id || '';
         const nextValue = input.checked ? 1 : 0;
         const previousValue = nextValue === 1 ? 0 : 1;
-        const label = input.closest('.journal-rule-status-switch')?.querySelector('.journal-rule-status-label');
 
         if (!id) {
             input.checked = previousValue === 1;
@@ -566,7 +796,6 @@ import '/public/assets/js/components/trash-manager.js';
         }
 
         input.disabled = true;
-        if (label) label.textContent = nextValue === 1 ? '사용' : '미사용';
 
         try {
             const body = new URLSearchParams({ id, is_active: String(nextValue) });
@@ -591,7 +820,6 @@ import '/public/assets/js/components/trash-manager.js';
             notify('success', '사용여부가 변경되었습니다.');
         } catch (error) {
             input.checked = previousValue === 1;
-            if (label) label.textContent = previousValue === 1 ? '사용' : '미사용';
             notify('error', error.message || '상태 변경 중 오류가 발생했습니다.');
         } finally {
             input.disabled = false;

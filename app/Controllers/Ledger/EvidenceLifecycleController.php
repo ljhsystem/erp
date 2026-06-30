@@ -8,12 +8,14 @@ use App\Controllers\Ledger\Concerns\ImportControllerUtilityTrait;
 use App\Services\Ledger\EvidenceBankHelperService;
 use App\Services\Ledger\EvidenceBusinessRefService;
 use App\Services\Ledger\EvidenceDeleteRestoreService;
+use App\Services\Ledger\EvidenceGenerationService;
 use App\Services\Ledger\EvidenceLifecycleService;
 use App\Services\Ledger\EvidenceLinkHelperService;
 use App\Services\Ledger\EvidencePayloadHelperService;
 use App\Services\Ledger\EvidencePayloadNormalizeService;
 use App\Services\Ledger\EvidenceReferenceResolverService;
 use App\Services\Ledger\EvidenceRuleEngineService;
+use App\Services\Ledger\EvidenceSortHelperService;
 use App\Services\Ledger\EvidenceStatusHelperService;
 use App\Services\Ledger\EvidenceTemplateDropdownService;
 use App\Services\Ledger\EvidenceTransactionContextService;
@@ -91,12 +93,14 @@ class EvidenceLifecycleController
     ];
 
     private PDO $pdo;
+    private ?EvidenceGenerationService $evidenceGenerationService = null;
     private ?EvidenceTrashService $evidenceTrashService = null;
     private ?EvidenceDeleteRestoreService $evidenceDeleteRestoreService = null;
     private ?EvidenceLifecycleService $evidenceLifecycleService = null;
     private ?EvidenceLinkHelperService $evidenceLinkHelperService = null;
     private ?EvidencePayloadHelperService $evidencePayloadHelperService = null;
     private ?EvidenceTypePolicyService $evidenceTypePolicyService = null;
+    private ?EvidenceSortHelperService $evidenceSortHelperService = null;
     private ?EvidenceStatusHelperService $evidenceStatusHelperService = null;
     private ?EvidenceBankHelperService $evidenceBankHelperService = null;
     private ?EvidenceBusinessRefService $evidenceBusinessRefService = null;
@@ -152,13 +156,19 @@ class EvidenceLifecycleController
     public function apiSeedRowsTrash(): void
     {
         $_GET = $this->evidenceTrashService()->trashQueryParams($_GET);
-        (new EvidenceGenerationController($this->pdo))->apiList();
+        $result = $this->evidenceGenerationService()->seedRows($_GET);
+
+        $this->json($result['payload'] ?? ['success' => false], (int) ($result['status'] ?? 200));
     }
 
     public function apiSeedRowsDelete(): void
     {
         $payload = $this->requestPayload();
-        $result = $this->evidenceTrashService()->delete($this->evidencePayloadHelperService()->seedRowIdsFromPayload($payload), ActorHelper::user());
+        $result = $this->evidenceTrashService()->delete(
+            $this->evidencePayloadHelperService()->seedRowIdsFromPayload($payload),
+            ActorHelper::user(),
+            $this->evidencePayloadHelperService()->evidenceTypeFromPayload($payload)
+        );
 
         $this->json($result, (int) ($result['status'] ?? 200));
     }
@@ -166,7 +176,11 @@ class EvidenceLifecycleController
     public function apiSeedRowsRestore(): void
     {
         $payload = $this->requestPayload();
-        $result = $this->evidenceTrashService()->restore($this->evidencePayloadHelperService()->seedRowIdsFromPayload($payload), ActorHelper::user());
+        $result = $this->evidenceTrashService()->restore(
+            $this->evidencePayloadHelperService()->seedRowIdsFromPayload($payload),
+            ActorHelper::user(),
+            $this->evidencePayloadHelperService()->evidenceTypeFromPayload($payload)
+        );
 
         $this->json($result, (int) ($result['status'] ?? 200));
     }
@@ -183,7 +197,10 @@ class EvidenceLifecycleController
     public function apiSeedRowsPurge(): void
     {
         $payload = $this->requestPayload();
-        $result = $this->evidenceTrashService()->purge($this->evidencePayloadHelperService()->seedRowIdsFromPayload($payload));
+        $result = $this->evidenceTrashService()->purge(
+            $this->evidencePayloadHelperService()->seedRowIdsFromPayload($payload),
+            $this->evidencePayloadHelperService()->evidenceTypeFromPayload($payload)
+        );
 
         $this->json($result, (int) ($result['status'] ?? 200));
     }
@@ -192,7 +209,15 @@ class EvidenceLifecycleController
     {
         $payload = $this->requestPayload();
         $importType = self::normalizeDataType((string) ($payload['import_type'] ?? $payload['data_type'] ?? $_GET['import_type'] ?? $_GET['data_type'] ?? ''));
+        error_log('[EvidenceLifecycleController] purge-all payload=' . json_encode([
+            'import_type' => $payload['import_type'] ?? null,
+            'data_type' => $payload['data_type'] ?? null,
+            'get_import_type' => $_GET['import_type'] ?? null,
+            'get_data_type' => $_GET['data_type'] ?? null,
+            'normalized_import_type' => $importType,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         $result = $this->evidenceTrashService()->purgeAll($importType);
+        error_log('[EvidenceLifecycleController] purge-all result=' . json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
         $this->json($result, (int) ($result['status'] ?? 200));
     }
@@ -212,35 +237,70 @@ class EvidenceLifecycleController
                 function (array $ids): void {
                     $this->evidenceLinkHelperService()->softDeleteEvidenceLinksByEvidenceIds($ids);
                 },
-                function (array $ids, string $actor): void {
-                    $this->evidenceDeleteRestoreService()->softDeleteEvidenceBodyByEvidenceIds($ids, $actor);
+                function (array $ids, string $actor, ?string $evidenceType): void {
+                    $this->evidenceDeleteRestoreService()->softDeleteEvidenceBodyByEvidenceIds($ids, $actor, $evidenceType);
                 },
                 function (array $ids, string $actor): void {
-                    $this->evidenceLifecycleService()->syncBankTransactionsSoftDelete($ids, $actor);
                 },
                 function (array $ids, string $actor): void {
                     $this->evidenceDeleteRestoreService()->restoreEvidenceProcessingByEvidenceIds($ids, $actor);
                 },
-                function (array $ids, string $actor): void {
-                    $this->evidenceDeleteRestoreService()->restoreEvidenceBodyByEvidenceIds($ids, $actor);
+                function (array $ids, string $actor, ?string $evidenceType): void {
+                    $this->evidenceDeleteRestoreService()->restoreEvidenceBodyByEvidenceIds($ids, $actor, $evidenceType);
                 },
                 function (array $ids, string $actor): void {
-                    $this->evidenceLifecycleService()->syncBankTransactionsRestore($ids, $actor);
                 },
-                fn(array $ids): int => $this->evidenceLifecycleService()->purgeSeedRowsByIds($ids)
+                fn(array $ids, ?string $evidenceType): int => $this->evidenceLifecycleService()->purgeSeedRowsByIds($ids, $evidenceType)
             );
         }
 
         return $this->evidenceTrashService;
     }
 
+    private function evidenceGenerationService(): EvidenceGenerationService
+    {
+        if ($this->evidenceGenerationService === null) {
+            $this->evidenceGenerationService = new EvidenceGenerationService(
+                $this->pdo,
+                function (): void {
+                    $this->ensureEvidenceBusinessInfoColumns();
+                },
+                function (): void {
+                    $this->evidenceSortHelperService()->ensureEvidenceSortColumns();
+                },
+                fn(string $type): bool => $this->isAllowedDataType($type),
+                fn(string $type): string => self::normalizeDataType($type),
+                fn(string $sourceType): string => $this->evidenceTypePolicyService()->normalizeImportSourceType($sourceType),
+                fn(string $sourceType): array => $this->evidenceTypePolicyService()->importTypesForSourceType($sourceType),
+                fn(string $column): string => $this->evidenceTypePolicyService()->sourceTypeSql($column),
+                fn(string $dataType): string => $this->evidenceTypePolicyService()->sourceTypeForDataType($dataType),
+                fn(string $sourceType): string => $this->evidenceTypePolicyService()->sourceTypeLabel($sourceType),
+                fn(string $importType): string => $this->evidenceTypePolicyService()->importTypeLabel($importType),
+                fn(string $table): bool => $this->tableExists($table),
+                fn(array $ids, string $prefix): array => $this->placeholdersForIds($ids, $prefix),
+                fn(string $formatId): array => [],
+                fn(array $payload): array => $this->evidenceBankHelperService()->normalizeBankTransactionPayload($payload),
+                fn(array $payload): array => $this->evidencePayloadNormalizeService()->normalizeEvidenceMappedPayloadForResponse($payload),
+                function (array $row, array &$payload): void {
+                    $this->mergeEvidenceBusinessInfoIntoPayload($row, $payload);
+                },
+                fn(string $value): bool => $this->isUuid($value),
+                fn(string $refType, string $id): ?string => $this->evidenceReferenceResolverService()->businessRefNameById($refType, $id),
+                function (array &$row): void {
+                    $this->evidenceStatusHelperService()->applyReadinessToEvidenceRow($row);
+                },
+                fn(array $row, string $key): int => $this->evidenceSortHelperService()->evidencePayloadSortNo($row, $key),
+                fn(string $message, array $row = [], int $rowNo = 0): string => $this->evidenceRuleEngineService()->formatTransactionCreateError($message, $row, $rowNo)
+            );
+        }
+
+        return $this->evidenceGenerationService;
+    }
+
     private function evidenceLinkHelperService(): EvidenceLinkHelperService
     {
         if ($this->evidenceLinkHelperService === null) {
             $this->evidenceLinkHelperService = new EvidenceLinkHelperService($this->pdo, [
-                'deleteBankTransactionsByEvidenceIds' => function (array $evidenceIds): void {
-                    $this->evidenceLifecycleService()->deleteBankTransactionsByEvidenceIds($evidenceIds);
-                },
                 'placeholdersForIds' => fn(array $ids, string $prefix): array => $this->placeholdersForIds($ids, $prefix),
                 'tableColumnExists' => fn(string $tableName, string $columnName): bool => $this->tableColumnExists($tableName, $columnName),
                 'tableExists' => fn(string $tableName): bool => $this->tableExists($tableName),
@@ -300,6 +360,15 @@ class EvidenceLifecycleController
         }
 
         return $this->evidenceTypePolicyService;
+    }
+
+    private function evidenceSortHelperService(): EvidenceSortHelperService
+    {
+        if ($this->evidenceSortHelperService === null) {
+            $this->evidenceSortHelperService = new EvidenceSortHelperService();
+        }
+
+        return $this->evidenceSortHelperService;
     }
 
     private function evidencePayloadNormalizeService(): EvidencePayloadNormalizeService

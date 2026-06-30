@@ -270,7 +270,7 @@ class CodeController
     public function apiDownloadTemplate(): void
     {
         try {
-            $this->service->downloadMigrationTemplate();
+            $this->service->downloadMigrationTemplate($_GET['columns'] ?? null);
         } catch (\Throwable $e) {
             http_response_code(500);
             echo '양식 다운로드 실패: ' . $e->getMessage();
@@ -281,7 +281,7 @@ class CodeController
     public function apiDownloadExcel(): void
     {
         try {
-            $this->service->downloadMigrationExcel();
+            $this->service->downloadMigrationExcel($_GET['columns'] ?? null);
         } catch (\Throwable $e) {
             http_response_code(500);
             echo '다운로드 실패: ' . $e->getMessage();

@@ -20,7 +20,6 @@ class RolePermissionModel
             $stmt = $this->db->prepare("
                 SELECT
                     arp.id AS mapping_id,
-                    arp.sort_no AS mapping_sort_no,
                     arp.role_id AS mapping_role_id,
                     arp.permission_id AS mapping_permission_id,
                     arp.created_at,
@@ -57,7 +56,6 @@ class RolePermissionModel
             $stmt = $this->db->prepare("
                 SELECT
                     arp.id AS mapping_id,
-                    arp.sort_no AS mapping_sort_no,
                     arp.role_id AS mapping_role_id,
                     arp.permission_id AS mapping_permission_id,
                     arp.created_at,
@@ -96,17 +94,16 @@ class RolePermissionModel
         try {
             $stmt = $this->db->prepare("
                 INSERT INTO auth_role_permissions (
-                    id, sort_no, role_id, permission_id,
+                    id, role_id, permission_id,
                     created_at, created_by
                 ) VALUES (
-                    :id, :sort_no, :role_id, :permission_id,
+                    :id, :role_id, :permission_id,
                     NOW(), :created_by
                 )
             ");
 
             return $stmt->execute([
                 ':id'           => $data['id'],
-                ':sort_no'      => $data['sort_no'],
                 ':role_id'      => $data['role_id'],
                 ':permission_id'=> $data['permission_id'],
                 ':created_by'   => $data['created_by'],

@@ -82,6 +82,7 @@ class EvidenceTransactionContextService
 
         $supplierIsOwn = $this->isOwnCompanyParty($supplier);
         $customerIsOwn = $this->isOwnCompanyParty($customer);
+        $isTaxInvoice = $dataType === 'TAX_INVOICE' || $this->isManualTaxInvoiceDataType($dataType);
         $direction = $this->normalizeTransactionDirection((string) ($row['transaction_direction'] ?? ''));
         $error = null;
 
@@ -112,17 +113,24 @@ class EvidenceTransactionContextService
                 $client = $direction === 'SALES' ? $customer : $supplier;
             }
 
-            if (($dataType === 'TAX_INVOICE' || $this->isManualTaxInvoiceDataType($dataType))
+            if ($isTaxInvoice
                 && ($supplier['company_name'] . $supplier['business_number'] !== '' || $customer['company_name'] . $customer['business_number'] !== '')
                 && !$supplierIsOwn
                 && !$customerIsOwn
             ) {
+                $direction = $this->inferTaxInvoiceDirection($supplier, $customer, $legacyClient);
+                $client = $direction === 'SALES' ? $customer : $supplier;
+                if (($client['company_name'] ?? '') . ($client['business_number'] ?? '') === '') {
+                    $client = $legacyClient;
+                }
                 $error = '거래처사 구분 실패: 공급자와 공급받는자 중 어느 쪽도 자사와 일치하는 값이 없습니다.';
             }
         }
 
         if ($direction === '') {
-            $direction = $dataType === 'BANK_TRANSACTION' ? 'BANK' : 'GENERAL';
+            $direction = $dataType === 'BANK_TRANSACTION'
+                ? 'BANK'
+                : ($isTaxInvoice ? 'PURCHASE' : 'GENERAL');
         }
 
         if (false && $error === null
@@ -206,5 +214,41 @@ class EvidenceTransactionContextService
     private function isManualTaxInvoiceDataType(string $dataType): bool
     {
         return ($this->isManualTaxInvoiceDataType)($dataType);
+    }
+
+    private function inferTaxInvoiceDirection(array $supplier, array $customer, array $legacyClient): string
+    {
+        $supplierCompany = (string) ($supplier['company_name'] ?? '');
+        $supplierBusiness = (string) ($supplier['business_number'] ?? '');
+        $customerCompany = (string) ($customer['company_name'] ?? '');
+        $customerBusiness = (string) ($customer['business_number'] ?? '');
+        $legacyCompany = (string) ($legacyClient['company_name'] ?? '');
+        $legacyBusiness = (string) ($legacyClient['business_number'] ?? '');
+
+        if ($supplierCompany === '' && $supplierBusiness === '' && ($customerCompany !== '' || $customerBusiness !== '')) {
+            return 'SALES';
+        }
+
+        if ($customerCompany === '' && $customerBusiness === '' && ($supplierCompany !== '' || $supplierBusiness !== '')) {
+            return 'PURCHASE';
+        }
+
+        if ($legacyBusiness !== '' && $legacyBusiness === $supplierBusiness) {
+            return 'PURCHASE';
+        }
+
+        if ($legacyBusiness !== '' && $legacyBusiness === $customerBusiness) {
+            return 'SALES';
+        }
+
+        if ($legacyCompany !== '' && $legacyCompany === $supplierCompany) {
+            return 'PURCHASE';
+        }
+
+        if ($legacyCompany !== '' && $legacyCompany === $customerCompany) {
+            return 'SALES';
+        }
+
+        return 'PURCHASE';
     }
 }

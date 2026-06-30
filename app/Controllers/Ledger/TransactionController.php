@@ -4,46 +4,30 @@ namespace App\Controllers\Ledger;
 
 use App\Controllers\System\LayoutController;
 use App\Models\Ledger\TransactionFileModel;
-use App\Models\Ledger\TransactionLinkModel;
 use App\Models\Ledger\TransactionModel;
-use App\Models\Ledger\VoucherLineModel;
-use App\Models\Ledger\VoucherLineRefModel;
-use App\Models\Ledger\VoucherModel;
 use App\Services\File\FileService;
-use App\Services\Ledger\JournalLearningService;
-use App\Services\Ledger\JournalRecommendationService;
 use App\Services\Ledger\TransactionCrudService;
+use App\Services\Ledger\TransactionVoucherService;
 use Core\DbPdo;
-use Core\Helpers\ActorHelper;
-use Core\Helpers\SequenceHelper;
-use Core\Helpers\UuidHelper;
 use PDO;
 
 class TransactionController
 {
     private PDO $pdo;
     private TransactionCrudService $service;
+    private TransactionVoucherService $transactionVoucherService;
     private TransactionModel $transactionModel;
     private TransactionFileModel $transactionFileModel;
-    private TransactionLinkModel $transactionLinkModel;
-    private VoucherModel $voucherModel;
-    private VoucherLineModel $voucherLineModel;
-    private VoucherLineRefModel $voucherLineRefModel;
     private FileService $fileService;
-    private JournalLearningService $journalLearningService;
     private LayoutController $layout;
 
     public function __construct(?PDO $pdo = null)
     {
         $this->pdo = $pdo ?? DbPdo::conn();
         $this->service = new TransactionCrudService($this->pdo);
+        $this->transactionVoucherService = new TransactionVoucherService($this->pdo);
         $this->transactionModel = new TransactionModel($this->pdo);
         $this->transactionFileModel = new TransactionFileModel($this->pdo);
-        $this->transactionLinkModel = new TransactionLinkModel($this->pdo);
-        $this->voucherModel = new VoucherModel($this->pdo);
-        $this->voucherLineModel = new VoucherLineModel($this->pdo);
-        $this->voucherLineRefModel = new VoucherLineRefModel($this->pdo);
-        $this->journalLearningService = new JournalLearningService($this->pdo);
         $this->fileService = new FileService($this->pdo);
         $this->layout = new LayoutController($this->pdo);
     }
@@ -240,7 +224,7 @@ class TransactionController
                 throw new \InvalidArgumentException('거래 ID가 필요합니다.');
             }
 
-            return $this->createDraftVoucherFromTransaction($transactionId, $payload);
+            return $this->transactionVoucherService->createDraftVoucher($transactionId, $payload);
         });
     }
 
@@ -249,115 +233,30 @@ class TransactionController
         $this->json(function (): array {
             $transactionId = trim((string) ($_GET['transaction_id'] ?? $_POST['transaction_id'] ?? ''));
             if ($transactionId === '') {
-                throw new \InvalidArgumentException('嫄곕옒 ID媛 ?꾩슂?⑸땲??');
+                throw new \InvalidArgumentException('거래 ID가 필요합니다.');
             }
 
-            $transaction = $this->service->getById($transactionId);
-            if (!$transaction || !empty($transaction['deleted_at'])) {
-                throw new \InvalidArgumentException('嫄곕옒瑜?李얠쓣 ???놁뒿?덈떎.');
-            }
-
-            if ($this->fetchLinkedVouchers($transactionId) !== []) {
-                throw new \RuntimeException('?대? ?곌껐???꾪몴媛 ?덉뒿?덈떎.');
-            }
-
-            return [
-                'success' => true,
-                'transaction' => $this->voucherWizardTransaction($transaction),
-                'recommendation' => (new JournalRecommendationService($this->pdo))->recommendForTransaction($transactionId),
-            ];
+            return $this->transactionVoucherService->recommendVoucherDraft($transactionId);
         });
     }
-
     public function apiLinkVoucher(): void
     {
         $this->json(function (): array {
-            $transactionId = trim((string) ($_POST['transaction_id'] ?? ''));
-            $voucherId = trim((string) ($_POST['voucher_id'] ?? ''));
-
-            if ($transactionId === '' || $voucherId === '') {
-                throw new \InvalidArgumentException('거래와 전표를 선택해 주세요.');
-            }
-
-            $transaction = $this->service->getById($transactionId);
-            if (!$transaction || !empty($transaction['deleted_at'])) {
-                throw new \InvalidArgumentException('거래를 찾을 수 없습니다.');
-            }
-
-            $voucher = $this->voucherModel->getById($voucherId);
-            if (!$voucher || !empty($voucher['deleted_at'])) {
-                throw new \InvalidArgumentException('전표를 찾을 수 없습니다.');
-            }
-
-            $this->assertVoucherLinkEditable($voucher);
-
-            $actor = ActorHelper::user();
-
-            $this->pdo->beginTransaction();
-            if (!$this->transactionLinkModel->insertOrRestore(
-                $transactionId,
-                $voucherId,
-                $transaction['total_amount'] ?? null,
-                'MANUAL',
-                $actor
-            )) {
-                throw new \RuntimeException('전표 연결 저장에 실패했습니다.');
-            }
-
-            $this->service->recalculateMatchStatus($transactionId, $actor);
-            $this->pdo->commit();
-
-            return [
-                'success' => true,
-                'message' => '전표가 연결되었습니다.',
-                'data' => $this->withLinkedVouchers($this->service->getById($transactionId) ?? []),
-            ];
+            return $this->transactionVoucherService->linkVoucher(
+                trim((string) ($_POST['transaction_id'] ?? '')),
+                trim((string) ($_POST['voucher_id'] ?? ''))
+            );
         });
     }
-
     public function apiUnlinkVoucher(): void
     {
         $this->json(function (): array {
-            $transactionId = trim((string) ($_POST['transaction_id'] ?? ''));
-            $voucherId = trim((string) ($_POST['voucher_id'] ?? ''));
-
-            if ($transactionId === '') {
-                throw new \InvalidArgumentException('거래를 선택해 주세요.');
-            }
-
-            $links = $this->transactionLinkModel->getByTransactionId($transactionId);
-            foreach ($links as $link) {
-                if ($voucherId !== '' && (string) ($link['voucher_id'] ?? '') !== $voucherId) {
-                    continue;
-                }
-
-                $voucher = $this->voucherModel->getById((string) ($link['voucher_id'] ?? ''));
-                if ($voucher) {
-                    $this->assertVoucherLinkEditable($voucher);
-                }
-            }
-
-            $actor = ActorHelper::user();
-            $this->pdo->beginTransaction();
-            foreach ($links as $link) {
-                $linkedVoucherId = (string) ($link['voucher_id'] ?? '');
-                if ($linkedVoucherId === '' || ($voucherId !== '' && $linkedVoucherId !== $voucherId)) {
-                    continue;
-                }
-
-                $this->transactionLinkModel->softDeleteByTransactionAndVoucher($transactionId, $linkedVoucherId, $actor);
-            }
-            $this->service->recalculateMatchStatus($transactionId, $actor);
-            $this->pdo->commit();
-
-            return [
-                'success' => true,
-                'message' => '전표 연결이 해제되었습니다.',
-                'data' => $this->withLinkedVouchers($this->service->getById($transactionId) ?? []),
-            ];
+            return $this->transactionVoucherService->unlinkVoucher(
+                trim((string) ($_POST['transaction_id'] ?? '')),
+                trim((string) ($_POST['voucher_id'] ?? ''))
+            );
         });
     }
-
     public function apiDelete(): void
     {
         $this->json(function (): array {
@@ -582,7 +481,7 @@ class TransactionController
         try {
             $this->pdo->beginTransaction();
 
-            $deleteItems = $this->pdo->prepare("DELETE FROM ledger_transaction_lines WHERE transaction_id = :id");
+            $deleteItems = $this->pdo->prepare("DELETE FROM ledger_transaction_items WHERE transaction_id = :id");
             $softDeleteLinks = $this->pdo->prepare("
                 UPDATE ledger_transaction_links
                 SET is_active = 0,
@@ -631,413 +530,6 @@ class TransactionController
 
     private function withLinkedVouchers(array $transaction): array
     {
-        if ($transaction === [] || empty($transaction['id'])) {
-            return $transaction;
-        }
-
-        $transaction['linked_vouchers'] = $this->fetchLinkedVouchers((string) $transaction['id']);
-
-        return $transaction;
-    }
-
-    private function fetchLinkedVouchers(string $transactionId): array
-    {
-        $stmt = $this->pdo->prepare("
-            SELECT
-                l.id AS link_id,
-                l.link_type,
-                v.id,
-                v.sort_no,
-                v.voucher_no,
-                v.voucher_date,
-                v.status,
-                v.summary_text
-            FROM ledger_transaction_links l
-            INNER JOIN ledger_vouchers v
-                ON v.id = l.voucher_id
-            WHERE l.transaction_id = :transaction_id
-              AND l.deleted_at IS NULL
-              AND l.is_active = 1
-              AND v.deleted_at IS NULL
-            ORDER BY v.voucher_date DESC, v.sort_no DESC
-        ");
-        $stmt->execute([':transaction_id' => $transactionId]);
-
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    }
-
-    private function createDraftVoucherFromTransaction(string $transactionId, array $payload = []): array
-    {
-        $transaction = $this->service->getById($transactionId);
-        if (!$transaction || !empty($transaction['deleted_at'])) {
-            throw new \InvalidArgumentException('거래를 찾을 수 없습니다.');
-        }
-
-        if ($this->fetchLinkedVouchers($transactionId) !== []) {
-            throw new \RuntimeException('이미 연결된 전표가 있습니다.');
-        }
-
-        $lines = $this->normalizeWizardLines($payload['lines'] ?? []);
-        $this->assertBalancedVoucherLines($lines);
-
-        $header = is_array($payload['header'] ?? null) ? $payload['header'] : [];
-        $actor = ActorHelper::user();
-        $timestamp = date('Y-m-d H:i:s');
-        $voucherId = UuidHelper::generate();
-        $voucherDate = trim((string) ($header['transaction_date'] ?? $transaction['transaction_date'] ?? date('Y-m-d'))) ?: date('Y-m-d');
-        $voucherNo = $this->nextVoucherNo($voucherDate);
-        $items = is_array($transaction['items'] ?? null) ? $transaction['items'] : [];
-        $firstItemName = trim((string) ($items[0]['item_name'] ?? ''));
-        $totalAmount = array_reduce($items, static function (float $sum, array $item): float {
-            return $sum + (float) ($item['total_amount'] ?? 0);
-        }, 0.0);
-
-        $this->pdo->beginTransaction();
-
-        if (!$this->voucherModel->insert([
-            'id' => $voucherId,
-            'sort_no' => SequenceHelper::next('ledger_vouchers', 'sort_no'),
-            'voucher_no' => $voucherNo,
-            'voucher_date' => $voucherDate,
-            'source_type' => 'TRANSACTION',
-            'source_id' => $transactionId,
-            'status' => 'draft',
-            'summary_text' => trim((string) ($header['description'] ?? $transaction['description'] ?? '')) ?: ($firstItemName ?: null),
-            'note' => $transaction['note'] ?? null,
-            'created_at' => $timestamp,
-            'created_by' => $actor,
-            'updated_at' => $timestamp,
-            'updated_by' => $actor,
-        ])) {
-            throw new \RuntimeException('전표 생성에 실패했습니다.');
-        }
-
-        if (!$this->transactionLinkModel->insertOrRestore(
-            $transactionId,
-            $voucherId,
-            $transaction['total_amount'] ?? $totalAmount,
-            'AUTO',
-            $actor
-        )) {
-            throw new \RuntimeException('전표 연결 저장에 실패했습니다.');
-        }
-
-        $lineNo = 1;
-        $learningLines = [];
-        foreach ($lines as $line) {
-            $lineId = UuidHelper::generate();
-            if (!$this->voucherLineModel->insert([
-                'id' => $lineId,
-                'sort_no' => SequenceHelper::next('ledger_voucher_lines', 'sort_no'),
-                'voucher_id' => $voucherId,
-                'line_no' => $lineNo++,
-                'account_id' => (string) $line['account_id'],
-                'debit' => $line['line_type'] === 'DEBIT' ? number_format((float) $line['amount'], 2, '.', '') : '0.00',
-                'credit' => $line['line_type'] === 'CREDIT' ? number_format((float) $line['amount'], 2, '.', '') : '0.00',
-                'line_summary' => $line['line_summary'] ?? ($transaction['description'] ?? null),
-                'recommend_source' => $line['source'] ?? null,
-                'recommend_confidence' => $line['confidence'] ?? null,
-                'journal_rule_id' => $line['journal_rule_id'] ?? null,
-                'recommend_reason' => $line['reason'] ?? null,
-                'is_user_modified' => !empty($line['is_user_modified']) ? 1 : 0,
-                'created_at' => $timestamp,
-                'created_by' => $actor,
-                'updated_at' => $timestamp,
-                'updated_by' => $actor,
-            ])) {
-                throw new \RuntimeException('추천 전표라인 저장에 실패했습니다.');
-            }
-
-            $refs = [];
-            if (!empty($line['client_id'])) {
-                $refs[] = ['ref_type' => 'CLIENT', 'ref_id' => $line['client_id'], 'is_primary' => 1];
-            }
-            if (!empty($line['project_id'])) {
-                $refs[] = ['ref_type' => 'PROJECT', 'ref_id' => $line['project_id'], 'is_primary' => 0];
-            }
-            if ($refs !== []) {
-                $this->voucherLineRefModel->bulkInsert($lineId, $refs, $actor, $timestamp);
-            }
-
-            $line['voucher_line_id'] = $lineId;
-            $line['line_no'] = $lineNo - 1;
-            $learningLines[] = $line;
-        }
-
-        $this->journalLearningService->recordVoucherDraft($transaction, $voucherId, $learningLines, $actor);
-        $this->syncEvidenceVoucherCreation($transactionId, $voucherId, $actor);
-        $this->service->recalculateMatchStatus($transactionId, $actor);
-        $this->pdo->commit();
-
-        return [
-            'success' => true,
-            'message' => '전표가 생성되었습니다.',
-            'voucher_id' => $voucherId,
-            'voucher_no' => $voucherNo,
-            'data' => $this->withLinkedVouchers($this->service->getById($transactionId) ?? []),
-        ];
-    }
-
-    private function voucherWizardTransaction(array $transaction): array
-    {
-        return [
-            'id' => (string) ($transaction['id'] ?? ''),
-            'transaction_date' => (string) ($transaction['transaction_date'] ?? ''),
-            'client_id' => (string) ($transaction['client_id'] ?? ''),
-            'client_name' => (string) ($transaction['client_name'] ?? ''),
-            'project_id' => (string) ($transaction['project_id'] ?? ''),
-            'project_name' => (string) ($transaction['project_name'] ?? ''),
-            'business_unit' => (string) ($transaction['business_unit'] ?? ''),
-            'transaction_type' => (string) ($transaction['transaction_type'] ?? ''),
-            'transaction_direction' => (string) ($transaction['transaction_direction'] ?? ''),
-            'import_type' => (string) ($transaction['import_type'] ?? ''),
-            'supply_amount' => (string) ($transaction['supply_amount'] ?? '0'),
-            'vat_amount' => (string) ($transaction['vat_amount'] ?? '0'),
-            'total_amount' => (string) ($transaction['total_amount'] ?? '0'),
-            'description' => (string) ($transaction['description'] ?? ''),
-        ];
-    }
-
-    private function normalizeWizardLines(mixed $lines): array
-    {
-        if (!is_array($lines)) {
-            throw new \InvalidArgumentException('遺꾧컻?쇱씤???낅젰?섏꽭??');
-        }
-
-        $normalized = [];
-        foreach ($lines as $line) {
-            if (!is_array($line)) {
-                continue;
-            }
-
-            $lineType = strtoupper(trim((string) ($line['line_type'] ?? '')));
-            $accountId = trim((string) ($line['account_id'] ?? ''));
-            $amount = round((float) str_replace(',', '', (string) ($line['amount'] ?? 0)), 2);
-
-            if ($lineType === '' && isset($line['debit'], $line['credit'])) {
-                $lineType = (float) $line['debit'] > 0 ? 'DEBIT' : 'CREDIT';
-                $amount = max((float) $line['debit'], (float) $line['credit']);
-            }
-
-            if (!in_array($lineType, ['DEBIT', 'CREDIT'], true) || $accountId === '' || $amount <= 0) {
-                continue;
-            }
-
-            $normalized[] = [
-                'line_type' => $lineType,
-                'account_id' => $accountId,
-                'amount' => $amount,
-                'line_summary' => trim((string) ($line['line_summary'] ?? '')) ?: null,
-                'client_id' => trim((string) ($line['client_id'] ?? '')) ?: null,
-                'project_id' => trim((string) ($line['project_id'] ?? '')) ?: null,
-                'source' => trim((string) ($line['source'] ?? '')) ?: null,
-                'confidence' => isset($line['confidence']) ? (int) $line['confidence'] : null,
-                'journal_rule_id' => trim((string) ($line['journal_rule_id'] ?? '')) ?: null,
-                'reason' => trim((string) ($line['reason'] ?? '')) ?: null,
-                'recommended_line_type' => strtoupper(trim((string) ($line['recommended_line_type'] ?? $lineType))) ?: $lineType,
-                'recommended_account_id' => trim((string) ($line['recommended_account_id'] ?? $accountId)) ?: $accountId,
-                'recommended_amount' => round((float) str_replace(',', '', (string) ($line['recommended_amount'] ?? $amount)), 2),
-                'is_user_modified' => !empty($line['is_user_modified'])
-                    || strtoupper(trim((string) ($line['recommended_line_type'] ?? $lineType))) !== $lineType
-                    || trim((string) ($line['recommended_account_id'] ?? $accountId)) !== $accountId
-                    || round((float) str_replace(',', '', (string) ($line['recommended_amount'] ?? $amount)), 2) !== $amount,
-            ];
-        }
-
-        if ($normalized === []) {
-            throw new \InvalidArgumentException('저장할 분개라인이 없습니다.');
-        }
-
-        return $normalized;
-    }
-
-    private function assertBalancedVoucherLines(array $lines): void
-    {
-        $debit = 0.0;
-        $credit = 0.0;
-        foreach ($lines as $line) {
-            if (($line['line_type'] ?? '') === 'DEBIT') {
-                $debit += (float) $line['amount'];
-            } elseif (($line['line_type'] ?? '') === 'CREDIT') {
-                $credit += (float) $line['amount'];
-            }
-        }
-
-        if ($debit <= 0 || $credit <= 0 || round($debit, 2) !== round($credit, 2)) {
-            throw new \InvalidArgumentException('차변합과 대변합이 일치해야 전표를 저장할 수 있습니다.');
-        }
-    }
-
-    private function assertVoucherLinkEditable(array $voucher): void
-    {
-        if (($voucher['status'] ?? '') === 'posted') {
-            throw new \RuntimeException('posted 상태의 전표는 연결을 변경할 수 없습니다.');
-        }
-    }
-
-    private function syncEvidenceVoucherCreation(string $transactionId, string $voucherId, string $actor): void
-    {
-        if ($transactionId === '' || $voucherId === '' || !$this->tableExists('ledger_data_evidences')) {
-            return;
-        }
-
-        $evidenceIds = [];
-        if ($this->tableColumnExists('ledger_data_evidences', 'transaction_id')) {
-            $stmt = $this->pdo->prepare("
-                SELECT id
-                FROM ledger_data_evidences
-                WHERE transaction_id = :transaction_id
-                  AND deleted_at IS NULL
-            ");
-            $stmt->execute([':transaction_id' => $transactionId]);
-            $evidenceIds = array_merge($evidenceIds, array_map(
-                static fn(array $row): string => trim((string) ($row['id'] ?? '')),
-                $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []
-            ));
-        }
-
-        if ($this->tableExists('ledger_evidence_links')) {
-            $stmt = $this->pdo->prepare("
-                SELECT e.id
-                FROM ledger_evidence_links l
-                INNER JOIN ledger_data_evidences e
-                    ON e.id = l.evidence_id
-                   AND e.deleted_at IS NULL
-                WHERE l.target_type = 'TRANSACTION'
-                  AND l.target_id = :transaction_id
-                  AND l.deleted_at IS NULL
-            ");
-            $stmt->execute([':transaction_id' => $transactionId]);
-            $evidenceIds = array_merge($evidenceIds, array_map(
-                static fn(array $row): string => trim((string) ($row['id'] ?? '')),
-                $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []
-            ));
-        }
-
-        $evidenceIds = array_values(array_filter(array_unique($evidenceIds)));
-
-        foreach ($evidenceIds as $evidenceId) {
-            $this->linkVoucherToEvidence($evidenceId, $transactionId, $voucherId, $actor);
-            $this->updateEvidenceVoucherStatus($evidenceId, 'CREATED', $actor);
-        }
-    }
-
-    private function linkVoucherToEvidence(string $evidenceId, string $transactionId, string $voucherId, string $actor): void
-    {
-        if ($evidenceId === '' || $voucherId === '' || !$this->tableExists('ledger_evidence_links')) {
-            return;
-        }
-
-        $existing = $this->pdo->prepare("
-            SELECT id
-            FROM ledger_evidence_links
-            WHERE evidence_id = :evidence_id
-              AND target_type = 'VOUCHER'
-              AND target_id = :voucher_id
-              AND link_type = 'AUTO'
-              AND deleted_at IS NULL
-            LIMIT 1
-        ");
-        $existing->execute([
-            ':evidence_id' => $evidenceId,
-            ':voucher_id' => $voucherId,
-        ]);
-        if ($existing->fetchColumn()) {
-            return;
-        }
-
-        $stmt = $this->pdo->prepare("
-            INSERT INTO ledger_evidence_links
-                (id, evidence_type, evidence_id, target_type, target_id, link_type, amount, created_at, updated_at)
-            SELECT
-                :id, e.source_type, e.id, 'VOUCHER', :voucher_id, 'AUTO', 0, NOW(), NOW()
-            FROM ledger_data_evidences e
-            WHERE e.id = :evidence_id
-              AND e.deleted_at IS NULL
-            LIMIT 1
-        ");
-        $stmt->execute([
-            ':id' => UuidHelper::generate(),
-            ':evidence_id' => $evidenceId,
-            ':voucher_id' => $voucherId,
-        ]);
-    }
-
-    private function updateEvidenceVoucherStatus(string $evidenceId, string $voucherStatus, string $actor): void
-    {
-        if ($evidenceId === '') {
-            return;
-        }
-
-        $stmt = $this->pdo->prepare("
-            UPDATE ledger_data_evidences
-            SET voucher_status = :voucher_status,
-                updated_at = NOW(),
-                updated_by = :updated_by
-            WHERE id = :id
-              AND deleted_at IS NULL
-        ");
-        $stmt->execute([
-            ':id' => $evidenceId,
-            ':voucher_status' => $voucherStatus,
-            ':updated_by' => $actor,
-        ]);
-    }
-
-    private function tableExists(string $table): bool
-    {
-        $stmt = $this->pdo->prepare("
-            SELECT 1
-            FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = :table
-            LIMIT 1
-        ");
-        $stmt->execute([':table' => $table]);
-
-        return (bool) $stmt->fetchColumn();
-    }
-
-    private function tableColumnExists(string $table, string $column): bool
-    {
-        $stmt = $this->pdo->prepare("
-            SELECT 1
-            FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = :table
-              AND COLUMN_NAME = :column
-            LIMIT 1
-        ");
-        $stmt->execute([
-            ':table' => $table,
-            ':column' => $column,
-        ]);
-
-        return (bool) $stmt->fetchColumn();
-    }
-
-    private function nextVoucherNo(string $voucherDate): string
-    {
-        $prefix = preg_replace('/[^0-9]/', '', $voucherDate);
-        if ($prefix === '') {
-            $prefix = date('Ymd');
-        }
-
-        $stmt = $this->pdo->prepare("
-            SELECT voucher_no
-            FROM ledger_vouchers
-            WHERE voucher_no LIKE :prefix
-            ORDER BY voucher_no DESC
-            LIMIT 1
-        ");
-        $stmt->execute([':prefix' => $prefix . '-%']);
-
-        $last = (string) ($stmt->fetchColumn() ?: '');
-        $next = 1;
-        if (preg_match('/-(\d+)$/', $last, $matches)) {
-            $next = ((int) $matches[1]) + 1;
-        }
-
-        return sprintf('%s-%04d', $prefix, $next);
+        return $this->transactionVoucherService->appendLinkedVouchers($transaction);
     }
 }

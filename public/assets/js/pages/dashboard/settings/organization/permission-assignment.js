@@ -1,5 +1,6 @@
 import { createDataTable, bindTableHighlight } from '/public/assets/js/common/table/data-table.js';
 import { bindSortableRowReorder } from '/public/assets/js/common/row-reorder.js';
+import { readDataTableSettingsState } from '/public/assets/js/common/datatable/dataTableSettings.js';
 
 const API_ROLE_LIST = '/api/settings/organization/role/list';
 const API_ROLE_PERMISSIONS = '/api/settings/organization/role-permission/list';
@@ -10,6 +11,7 @@ const API_PERMISSION_DELETE = '/api/settings/organization/permission/delete';
 
 const PAGE_TABLE_SELECTOR = '#permission-assignment-table';
 const ROLE_TABLE_SELECTOR = '#role-list-table';
+const PERMISSION_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.settings.organization.role_permissions.permission-matrix.flat.v2';
 
 let roleTable = null;
 let permissionTable = null;
@@ -20,6 +22,81 @@ let pendingChanges = {};
 let originalPermissionStates = new Map();
 let lastClientReorderPlan = null;
 let lastReorderWarningMessage = '';
+
+function sanitizePermissionTableSettingsState(state = null) {
+    if (!state || typeof state !== 'object') {
+        return state;
+    }
+
+    const deprecatedKeys = new Set(['grant', '__select', 'handle']);
+    let changed = false;
+    const nextState = { ...state };
+
+    ['visibleColumns', 'columnOrder', 'requiredColumns'].forEach((key) => {
+        if (!Array.isArray(nextState[key])) {
+            return;
+        }
+        const filtered = nextState[key].map((item) => String(item || '').trim()).filter((item) => item !== '' && !deprecatedKeys.has(item));
+        if (filtered.length !== nextState[key].length) {
+            nextState[key] = filtered;
+            changed = true;
+        }
+    });
+
+    ['columnDisplayName', 'columnRequirementPolicy', 'columnWidths'].forEach((key) => {
+        if (!nextState[key] || typeof nextState[key] !== 'object') {
+            return;
+        }
+        const filtered = Object.fromEntries(
+            Object.entries(nextState[key]).filter(([itemKey]) => !deprecatedKeys.has(String(itemKey || '').trim()))
+        );
+        if (Object.keys(filtered).length !== Object.keys(nextState[key]).length) {
+            nextState[key] = filtered;
+            changed = true;
+        }
+    });
+
+    return changed ? nextState : state;
+}
+
+function persistPermissionTableSettingsState(state = null) {
+    if (!state || typeof state !== 'object') {
+        return;
+    }
+
+    window.localStorage?.setItem(
+        PERMISSION_TABLE_SETTINGS_STORAGE_KEY,
+        JSON.stringify({
+            ...state,
+            updatedAt: new Date().toISOString(),
+        })
+    );
+}
+
+function normalizePermissionTableSettingsState() {
+    const currentState = readDataTableSettingsState(PERMISSION_TABLE_SETTINGS_STORAGE_KEY);
+    const sanitizedState = sanitizePermissionTableSettingsState(currentState);
+    if (!sanitizedState || sanitizedState === currentState) {
+        return;
+    }
+
+    persistPermissionTableSettingsState(sanitizedState);
+}
+
+function bindPermissionTableSettingsPolicy() {
+    normalizePermissionTableSettingsState();
+
+    document.removeEventListener('datatable-settings:updated', window.__permissionTableSettingsPolicyHandler);
+    window.__permissionTableSettingsPolicyHandler = (event) => {
+        const storageKey = String(event?.detail?.storageKey || '').trim();
+        if (storageKey !== PERMISSION_TABLE_SETTINGS_STORAGE_KEY) {
+            return;
+        }
+
+        normalizePermissionTableSettingsState();
+    };
+    document.addEventListener('datatable-settings:updated', window.__permissionTableSettingsPolicyHandler);
+}
 
 function escapeHtml(value) {
     return String(value ?? '')
@@ -83,6 +160,57 @@ function hideRoleTableControls() {
     });
 }
 
+function updateRoleListStickyOffset() {
+    const page = document.getElementById('rolePermissionPage');
+    if (!page) {
+        return;
+    }
+
+    const nav = document.querySelector('.top-nav.fixed-top, .top-nav, .navbar.fixed-top, .navbar');
+    const navRect = nav?.getBoundingClientRect?.();
+    const navBottom = Math.max(0, Math.ceil(navRect?.bottom ?? nav?.offsetHeight ?? 0));
+    const scrollParent = document.querySelector('.main-content');
+    const scrollParentTop = Math.max(
+        0,
+        Math.ceil(scrollParent?.getBoundingClientRect?.().top ?? 0),
+    );
+    const stickyTop = Math.max(0, navBottom - scrollParentTop);
+
+    page.style.setProperty('--rp-role-sticky-top', `${stickyTop}px`);
+
+    const roleWrapper = document.getElementById('role-list-table_wrapper');
+    const toolbar = roleWrapper?.querySelector('.dt-top');
+    const toolbarHeight = Math.max(
+        0,
+        Math.ceil(toolbar?.getBoundingClientRect?.().height ?? toolbar?.offsetHeight ?? 0),
+    );
+    page.style.setProperty('--rp-role-toolbar-height', `${toolbarHeight}px`);
+}
+
+function bindRoleListStickyLayout() {
+    updateRoleListStickyOffset();
+
+    if (window.__roleListStickyLayoutBound) {
+        return;
+    }
+
+    let rafId = null;
+    const syncStickyOffset = () => {
+        if (rafId !== null) {
+            return;
+        }
+
+        rafId = window.requestAnimationFrame(() => {
+            rafId = null;
+            updateRoleListStickyOffset();
+        });
+    };
+
+    window.addEventListener('resize', syncStickyOffset, { passive: true });
+    window.addEventListener('orientationchange', syncStickyOffset, { passive: true });
+    window.__roleListStickyLayoutBound = true;
+}
+
 function setSaveDirty(isDirty) {
     const { saveButton } = getDom();
     if (!saveButton) {
@@ -94,31 +222,84 @@ function setSaveDirty(isDirty) {
     saveButton.classList.toggle('btn-secondary', !isDirty);
 }
 
+function normalizeRoleTableHeader() {
+    const headerRow = document.querySelector(`${ROLE_TABLE_SELECTOR} thead tr`);
+    if (!headerRow) {
+        return;
+    }
+
+    headerRow.innerHTML = `
+        <th class="text-center" style="width:80px">\uC21C\uBC88</th>
+        <th style="width:160px">\uC5ED\uD560 \uD0A4</th>
+        <th style="width:180px">\uC5ED\uD560\uBA85</th>
+        <th style="width:220px">\uC124\uBA85</th>
+        <th class="text-center" style="width:90px">\uC0C1\uD0DC</th>
+    `;
+}
+
 function initRoleTable() {
+    normalizeRoleTableHeader();
+
     roleTable = createDataTable({
         tableSelector: ROLE_TABLE_SELECTOR,
         api: API_ROLE_LIST,
+        tableSettings: {
+            pageKey: 'dashboard.settings.organization.permission-assignment.role-list',
+            tableKey: 'role-list-table',
+            storageKey: 'datatable.settings.dashboard.settings.organization.permission-assignment.role-list-table.v2',
+            metaDomain: 'role',
+            tableLabel: '\uC5ED\uD560\uBAA9\uB85D',
+            title: '\uC5ED\uD560\uBAA9\uB85D \uD14C\uC774\uBE14 \uC124\uC815',
+            defaultVisibleColumns: ['sort_no', 'role_key', 'role_name', 'description', 'is_active'],
+        },
         defaultOrder: [[0, 'asc']],
         pageLength: 100,
+        autoWidth: false,
+        fixedLayout: true,
         cellSearchFill: false,
         selectable: false,
         deleteButton: false,
         columns: [
             {
                 data: 'sort_no',
+                settingsKey: 'sort_no',
                 title: '\uC21C\uBC88',
                 className: 'text-center',
+                width: '80px',
+                widthResizable: true,
+                render: (value) => escapeHtml(value),
+            },
+            {
+                data: 'role_key',
+                settingsKey: 'role_key',
+            title: '\uC5ED\uD560 \uD0A4',
+                width: '160px',
+                widthResizable: true,
                 render: (value) => escapeHtml(value),
             },
             {
                 data: 'role_name',
+                settingsKey: 'role_name',
                 title: '\uC5ED\uD560\uBA85',
+                width: '180px',
+                widthResizable: true,
+                render: (value) => escapeHtml(value),
+            },
+            {
+                data: 'description',
+                settingsKey: 'description',
+                title: '\uC124\uBA85',
+                width: '220px',
+                widthResizable: true,
                 render: (value) => escapeHtml(value),
             },
             {
                 data: 'is_active',
+                settingsKey: 'is_active',
                 title: '\uC0C1\uD0DC',
                 className: 'text-center',
+                width: '90px',
+                widthResizable: true,
                 render: (value) => buildStatusBadge(value),
             },
         ],
@@ -141,6 +322,8 @@ function initRoleTable() {
     });
 
     roleTable.on('draw.dt', () => {
+        updateRoleListStickyOffset();
+
         if (!selectedRoleId) {
             return;
         }
@@ -186,7 +369,8 @@ function initPermissionTable() {
             pageKey: 'settings.organization.role_permissions',
             tableKey: 'permission-matrix',
             storageKey: 'settings.organization.role_permissions.permission-matrix.flat.v2',
-            tableLabel: 'Role Permission List',
+            metaDomain: 'permission-assignment',
+            tableLabel: '\uC5ED\uD560\uBCC4 \uAD8C\uD55C\uBAA9\uB85D',
             columns: buildPermissionColumns(),
             requiredColumns: [],
             defaultVisibleColumns: [
@@ -194,11 +378,11 @@ function initPermissionTable() {
                 'handle',
                 'sort_no',
                 'page',
-                'category',
                 'permission_source',
+                'category',
                 'permission_name',
-                'permission_description',
-                'grant',
+                'description',
+                'role_permission_id',
             ],
         },
     });
@@ -284,23 +468,6 @@ function buildPermissionColumns() {
             },
         },
         {
-            title: '\uCE74\uD14C\uACE0\uB9AC',
-            data: 'category',
-            settingsKey: 'category',
-            widthResizable: true,
-            render: (value, type, row) => {
-                if (type === 'sort' || type === 'type') {
-                    return buildPermissionColumnSortValue(row, value, 'category');
-                }
-
-                if (type === 'filter') {
-                    return row.search_text || String(value || '');
-                }
-
-                return row.row_type === 'page' ? escapeHtml(value || '') : '';
-            },
-        },
-        {
             title: '\uAD6C\uBD84',
             data: 'permission_source',
             settingsKey: 'permission_source',
@@ -325,6 +492,23 @@ function buildPermissionColumns() {
             },
         },
         {
+            title: '\uCE74\uD14C\uACE0\uB9AC',
+            data: 'category',
+            settingsKey: 'category',
+            widthResizable: true,
+            render: (value, type, row) => {
+                if (type === 'sort' || type === 'type') {
+                    return buildPermissionColumnSortValue(row, value, 'category');
+                }
+
+                if (type === 'filter') {
+                    return row.search_text || String(value || '');
+                }
+
+                return row.row_type === 'page' ? escapeHtml(value || '') : '';
+            },
+        },
+        {
             title: '\uAD8C\uD55C\uBA85',
             data: 'permission_name',
             settingsKey: 'permission_name',
@@ -343,12 +527,12 @@ function buildPermissionColumns() {
         },
         {
             title: '\uAD8C\uD55C\uC124\uBA85',
-            data: 'permission_description',
-            settingsKey: 'permission_description',
+            data: 'description',
+            settingsKey: 'description',
             widthResizable: true,
             render: (value, type, row) => {
                 if (type === 'sort' || type === 'type') {
-                    return buildPermissionColumnSortValue(row, value, 'permission_description');
+                    return buildPermissionColumnSortValue(row, value, 'description');
                 }
 
                 if (type === 'filter') {
@@ -361,10 +545,11 @@ function buildPermissionColumns() {
         {
             title: '\uAD8C\uD55C\uBD80\uC5EC',
             data: null,
-            settingsKey: 'grant',
+            settingsKey: 'role_permission_id',
             className: 'text-center',
             headerClassName: 'text-center',
             width: '96px',
+            widthResizable: true,
             orderable: false,
             searchable: false,
             render: (_, __, row) => {
@@ -503,20 +688,20 @@ function buildSearchText(pageNode, childNode = null) {
             pageNode.page,
             pageNode.category,
             pageNode.permission_name,
-            pageNode.permission_description,
+            pageNode.description,
             String(childNode.permission_source || '').toUpperCase(),
             childNode.permission_name,
-            childNode.permission_description,
+            childNode.description,
             childNode.permission_source,
         ]
         : [
             pageNode.page,
             pageNode.category,
             pageNode.permission_name,
-            pageNode.permission_description,
+            pageNode.description,
             ...(pageNode.children || []).flatMap((node) => [
                 node.permission_name,
-                node.permission_description,
+                node.description,
                 node.permission_source,
             ]),
         ];
@@ -581,7 +766,10 @@ function buildDisplayRows() {
             row_type: 'page',
             sort_no: sequence,
             tree_sort: String(sequence).padStart(6, '0'),
+            id: '',
             page_key: pageNode.page_key,
+            role_permission_id: '',
+            role_id: '',
             parent_page_key: '',
             permission_id: '',
             permission_key: '',
@@ -589,7 +777,14 @@ function buildDisplayRows() {
             page: pageNode.page,
             category: pageNode.category,
             permission_name: pageNode.permission_name,
-            permission_description: pageNode.permission_description,
+            description: '',
+            is_active: '',
+            created_at: '',
+            created_by: '',
+            updated_at: '',
+            updated_by: '',
+            role_permission_created_at: '',
+            role_permission_created_by: '',
             checked: !!pageNode.checked,
             indeterminate: !!pageNode.indeterminate,
             depth_padding: 0,
@@ -599,10 +794,14 @@ function buildDisplayRows() {
 
         sortPermissionChildrenForDisplay(pageNode.children || []).forEach((childNode) => {
             rows.push({
+                ...childNode,
                 row_id: `permission:${childNode.permission_id}`,
                 row_type: 'permission',
                 sort_no: sequence,
                 tree_sort: String(sequence).padStart(6, '0'),
+                id: childNode.id || childNode.permission_id,
+                role_permission_id: childNode.role_permission_id || '',
+                role_id: childNode.role_id || selectedRoleId,
                 page_key: pageNode.page_key,
                 parent_page_key: pageNode.page_key,
                 permission_id: childNode.permission_id,
@@ -611,7 +810,9 @@ function buildDisplayRows() {
                 page: pageNode.page,
                 category: pageNode.category,
                 permission_name: childNode.permission_name,
-                permission_description: childNode.permission_description,
+                description: childNode.description,
+                role_permission_created_at: childNode.role_permission_created_at ?? '',
+                role_permission_created_by: childNode.role_permission_created_by ?? '',
                 checked: !!childNode.checked,
                 indeterminate: false,
                 depth_padding: 18,
@@ -1323,8 +1524,10 @@ function bindSaveButton() {
 }
 
 $(function onReady() {
+    bindPermissionTableSettingsPolicy();
     initRoleTable();
     initPermissionTable();
+    bindRoleListStickyLayout();
     bindPermissionSelectedMove();
     bindSaveButton();
     setSaveDirty(false);

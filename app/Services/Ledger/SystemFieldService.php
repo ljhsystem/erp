@@ -7,6 +7,7 @@ use PDO;
 class SystemFieldService
 {
     private array $fieldOptionsCache = [];
+    private array $sourceColumnOptionsCache = [];
 
     private const AUTO_MANAGED_COLUMNS = [
         'id',
@@ -32,6 +33,7 @@ class SystemFieldService
     ];
 
     private const FORMAT_HIDDEN_FIELDS = [
+        'evidence_sort_no',
         'client_id',
         'client_name_ko',
         'client_name_en',
@@ -76,9 +78,24 @@ class SystemFieldService
         'project_name' => '프로젝트명',
         'employee_id' => '직원 ID',
         'employee_name' => '직원명',
+        'team_id' => '팀 ID',
         'bank_account_name' => '계좌명',
         'card_id' => '카드 ID',
         'card_name' => '카드명',
+        'import_type' => '자료유형',
+        'business_unit' => '사업구분',
+        'transaction_direction' => '거래구분',
+        'raw_transaction_datetime' => '거래일시',
+        'raw_deposit_amount' => '입금',
+        'raw_withdraw_amount' => '출금',
+        'raw_balance_amount' => '거래 후 잔액',
+        'raw_description' => '거래내용',
+        'raw_counterparty_account_number' => '상대계좌번호',
+        'raw_counterparty_bank_name' => '상대은행',
+        'raw_memo' => '메모',
+        'raw_check_bill_amount' => '수표어음금액',
+        'raw_cms_code' => 'CMS코드',
+        'raw_counterparty_name' => '상대계좌예금주명',
         'client_company_name' => '상호',
         'company_name' => '회사명',
         'business_type' => '업태',
@@ -93,6 +110,14 @@ class SystemFieldService
         'customer_ceo_name' => '공급받는자 대표자명',
         'customer_address' => '공급받는자 주소',
         'customer_email_1' => '공급받는자 이메일1',
+        'raw_item_date' => '품목일자',
+        'raw_item_name' => '품목명',
+        'raw_item_spec' => '품목규격',
+        'raw_item_quantity' => '품목수량',
+        'raw_item_unit_price' => '품목단가',
+        'raw_item_supply_amount' => '품목공급가액',
+        'raw_item_tax_amount' => '품목세액',
+        'raw_item_note' => '품목비고',
         'source_key' => '승인번호',
         'evidence_date' => '증빙일자',
         'client_id' => '거래처 ID',
@@ -101,32 +126,33 @@ class SystemFieldService
         'supply_amount' => '공급가액',
         'adjustment_amount' => '가감금액',
         'vat_amount' => '부가세',
-        'total_amount' => '합계금액',
-        'transaction_date' => '표준일자',
+        'total_amount' => '금액',
+        'transaction_date' => '거래일자',
         'transaction_datetime' => '거래일시',
         'transaction_time' => '거래시간',
         'bank_account_id' => '은행계좌',
         'transaction_type' => '거래유형',
         'transaction_direction' => '거래구분',
-        'bank_direction' => '거래구분',
+        'bank_direction' => '입출금구분',
         'business_unit' => '사업구분',
         'deposit_amount' => '입금액',
         'withdraw_amount' => '출금액',
-        'balance_amount' => '거래후잔액',
+        'balance_amount' => '잔액',
         'balance_status' => '거래후잔액상태',
         'check_bill_amount' => '수표어음금액',
         'currency_code' => '통화',
         'exchange_rate' => '기본환율',
-        'description' => '거래내용',
-        'counterparty_name' => '상대계좌예금주명',
+        'description' => '적요',
+        'counterparty_name' => '상대방명',
         'counterparty_account_number' => '상대계좌번호',
         'counterparty_bank_name' => '상대은행',
         'bank_reference_no' => '은행거래번호',
+        'external_key' => '은행거래번호',
         'memo' => '메모',
         'voucher_date' => '전표일자',
         'voucher_no' => '전표번호',
         'summary_text' => '전표적요',
-        'note' => '전표비고',
+        'note' => '비고',
         'voucher_memo' => '전표메모',
         'header_row_no' => '헤더순번',
         'line_no' => '분개라인번호',
@@ -149,6 +175,10 @@ class SystemFieldService
         'BANK_TRANSACTION',
     ];
 
+    private const BANK_TRANSACTION_REQUIRED_FIELDS = [
+        'raw_transaction_datetime',
+    ];
+
     private const LEGACY_DATA_TYPE_MAP = [
         'DATA' => 'TAX_INVOICE',
         'TAX' => 'TAX_INVOICE',
@@ -166,24 +196,25 @@ class SystemFieldService
     ];
 
     private const MAPPED_PAYLOAD_FIELDS = [
-        ['value' => 'bank_direction', 'label' => '거래구분', 'group' => '은행입출금 원본컬럼'],
-        ['value' => 'transaction_date', 'label' => '표준일자', 'group' => '기준정보(JSON)'],
+        ['value' => 'bank_direction', 'label' => '입출금구분', 'group' => '은행입출금 원본컬럼'],
+        ['value' => 'transaction_date', 'label' => '거래일자', 'group' => '기준정보(JSON)'],
         ['value' => 'currency_code', 'label' => '통화', 'group' => '기준정보(JSON)'],
         ['value' => 'exchange_rate', 'label' => '기본환율', 'group' => '기준정보(JSON)'],
         ['value' => 'adjustment_amount', 'label' => '가감금액', 'group' => '금액 후보(JSON)'],
         ['value' => 'business_unit', 'label' => '사업구분', 'group' => '기준정보(JSON)'],
         ['value' => 'transaction_type', 'label' => '거래유형', 'group' => '기준정보(JSON)'],
         ['value' => 'client_id', 'label' => '거래처 ID', 'group' => '업무 기준정보(JSON)'],
-        ['value' => 'client_name', 'label' => '거래처', 'group' => '기초정보(JSON)'],
+        ['value' => 'client_name', 'label' => '거래처명', 'group' => '기초정보(JSON)'],
         ['value' => 'client_name_ko', 'label' => '거래처(한글)', 'group' => '기초정보(JSON)'],
         ['value' => 'client_name_en', 'label' => '거래처(영문)', 'group' => '기초정보(JSON)'],
         ['value' => 'project_id', 'label' => '프로젝트 ID', 'group' => '업무 기준정보(JSON)'],
-        ['value' => 'project_name', 'label' => '프로젝트', 'group' => '기초정보(JSON)'],
+        ['value' => 'project_name', 'label' => '프로젝트명', 'group' => '기초정보(JSON)'],
         ['value' => 'employee_id', 'label' => '직원 ID', 'group' => '업무 기준정보(JSON)'],
-        ['value' => 'employee_name', 'label' => '직원', 'group' => '기초정보(JSON)'],
-        ['value' => 'bank_account_name', 'label' => '계좌', 'group' => '기초정보(JSON)'],
+        ['value' => 'employee_name', 'label' => '직원명', 'group' => '기초정보(JSON)'],
+        ['value' => 'bank_account_name', 'label' => '계좌명', 'group' => '기초정보(JSON)'],
         ['value' => 'card_id', 'label' => '카드 ID', 'group' => '업무 기준정보(JSON)'],
-        ['value' => 'card_name', 'label' => '카드', 'group' => '기초정보(JSON)'],
+        ['value' => 'card_name', 'label' => '카드명', 'group' => '기초정보(JSON)'],
+        ['value' => 'total_amount', 'label' => '금액', 'group' => '금액 정보(JSON)'],
         ['value' => 'description', 'label' => '적요', 'group' => '표준 매핑(JSON)'],
         ['value' => 'issue_date', 'label' => '발급일자', 'group' => '세금계산서 원본 속성(JSON)'],
         ['value' => 'transmit_date', 'label' => '전송일자', 'group' => '세금계산서 원본 속성(JSON)'],
@@ -197,16 +228,15 @@ class SystemFieldService
         ['value' => 'cash_receipt_transaction_type', 'label' => '현금영수증 거래구분', 'group' => '현금영수증 원본 속성(JSON)'],
         ['value' => 'card_transaction_type', 'label' => '카드 거래구분', 'group' => '카드 원본 속성(JSON)'],
         ['value' => 'deduction_status', 'label' => '공제여부', 'group' => '카드/현금영수증 원본 속성(JSON)'],
-        ['value' => 'note', 'label' => '비고', 'group' => '카드(홈택스)원본'],
-        ['value' => 'item_name', 'label' => '품명', 'group' => '거래라인 후보(JSON)'],
-        ['value' => 'item_date', 'label' => '발생일', 'group' => '거래라인 후보(JSON)'],
-        ['value' => 'item_spec', 'label' => '규격', 'group' => '거래라인 후보(JSON)'],
-        ['value' => 'unit_name', 'label' => '단위', 'group' => '거래라인 후보(JSON)'],
-        ['value' => 'item_qty', 'label' => '수량', 'group' => '거래라인 후보(JSON)'],
-        ['value' => 'item_price', 'label' => '단가', 'group' => '거래라인 후보(JSON)'],
-        ['value' => 'item_supply_amount', 'label' => '라인 금액', 'group' => '거래라인 후보(JSON)'],
-        ['value' => 'item_vat_amount', 'label' => '품목세액', 'group' => '거래라인 후보(JSON)'],
-        ['value' => 'item_note', 'label' => '라인 적요', 'group' => '거래라인 후보(JSON)'],
+        ['value' => 'note', 'label' => '비고', 'group' => '입출금(은행)원본'],
+        ['value' => 'raw_item_date', 'label' => '품목일자', 'group' => '거래라인 후보(JSON)'],
+        ['value' => 'raw_item_name', 'label' => '품목명', 'group' => '거래라인 후보(JSON)'],
+        ['value' => 'raw_item_spec', 'label' => '품목규격', 'group' => '거래라인 후보(JSON)'],
+        ['value' => 'raw_item_quantity', 'label' => '품목수량', 'group' => '거래라인 후보(JSON)'],
+        ['value' => 'raw_item_unit_price', 'label' => '품목단가', 'group' => '거래라인 후보(JSON)'],
+        ['value' => 'raw_item_supply_amount', 'label' => '품목공급가액', 'group' => '거래라인 후보(JSON)'],
+        ['value' => 'raw_item_tax_amount', 'label' => '품목세액', 'group' => '거래라인 후보(JSON)'],
+        ['value' => 'raw_item_note', 'label' => '품목비고', 'group' => '거래라인 후보(JSON)'],
         ['value' => 'supplier_business_number', 'label' => '공급자 사업자등록번호', 'group' => '세금계산서 거래처 후보(JSON)'],
         ['value' => 'supplier_branch_number', 'label' => '공급자 종사업장번호', 'group' => '세금계산서 거래처 후보(JSON)'],
         ['value' => 'supplier_company_name', 'label' => '공급자 상호', 'group' => '세금계산서 거래처 후보(JSON)'],
@@ -269,15 +299,15 @@ class SystemFieldService
     {
         $dataType = $this->normalizeDataType($dataType);
 
-        if ($dataType === 'BANK_TRANSACTION') {
-            return 'ledger_bank_transactions';
-        }
-
-        if (in_array($dataType, self::DATA_EVIDENCE_TYPES, true)) {
-            return 'ledger_data_evidences';
-        }
-
-        return 'ledger_data_evidences';
+        return match ($dataType) {
+            'BANK_TRANSACTION' => 'ledger_evidence_bank_transaction',
+            'TAX_INVOICE' => 'ledger_evidence_tax_invoice',
+            'TAX_INVOICE_MANUAL' => 'ledger_evidence_tax_invoice_manual',
+            'CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES' => 'ledger_evidence_cash_receipt',
+            'CARD_HOMETAX' => 'ledger_evidence_card_hometax',
+            'CARD', 'CARD_STATEMENT', 'CARD_APPROVAL' => 'ledger_evidence_card_statement',
+            default => 'ledger_evidence_tax_invoice',
+        };
     }
 
     public function fieldOptions(string $dataType): array
@@ -290,6 +320,7 @@ class SystemFieldService
         $tableName = $this->targetTableForDataType($dataType);
         $usesCurrency = $this->dataTypeUsesCurrency($dataType);
         $isManualTaxInvoice = $this->isManualTaxInvoiceDataType($dataType);
+        $isTaxInvoiceLike = $dataType === 'TAX_INVOICE' || $isManualTaxInvoice;
         $isCashReceipt = in_array($dataType, ['CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES'], true);
         $isCardHometax = $dataType === 'CARD_HOMETAX';
         $isCardCompany = in_array($dataType, ['CARD_STATEMENT', 'CARD_APPROVAL'], true);
@@ -340,14 +371,15 @@ class SystemFieldService
                 && !($isCardHometax && in_array((string) $row['COLUMN_NAME'], ['source_key', 'approval_number', 'user_name'], true))
                 && !($isCashReceipt && in_array((string) $row['COLUMN_NAME'], $cashReceiptHiddenFields, true))
                 && !($isCardCompany && in_array((string) $row['COLUMN_NAME'], $cardCompanyHiddenFields, true))
-                && !($tableName === 'ledger_bank_transactions' && in_array((string) $row['COLUMN_NAME'], ['transaction_date', 'transaction_time', 'transaction_type', 'currency_code', 'exchange_rate'], true))
+                && !(in_array($tableName, ['ledger_evidence_bank_transaction'], true)
+                    && in_array((string) $row['COLUMN_NAME'], [], true))
         ));
 
         $physicalFields = array_map(static function (array $row) use ($tableName, $dataType): array {
             $columnName = (string) $row['COLUMN_NAME'];
             $comment = trim((string) ($row['COLUMN_COMMENT'] ?? ''));
             $label = self::FIELD_LABELS[$columnName] ?? ($comment !== '' ? $comment : $columnName);
-            if ($tableName === 'ledger_bank_transactions' && $columnName === 'transaction_type') {
+            if ($tableName === 'ledger_evidence_bank_transaction' && $columnName === 'transaction_type') {
                 $label = '거래유형';
             }
 
@@ -362,25 +394,154 @@ class SystemFieldService
             ];
         }, $rows);
 
-        return $this->fieldOptionsCache[$dataType] = $this->mergeFieldOptions(
+        if ($dataType === 'BANK_TRANSACTION') {
+            return $this->fieldOptionsCache[$dataType] = $this->applyFormatRequirementPolicy($dataType, $physicalFields);
+        }
+
+        $fields = $this->mergeFieldOptions(
             $dataType,
             $this->referenceFieldOptions($dataType),
             $physicalFields,
             $this->mappedPayloadFieldOptions($dataType)
         );
+
+        return $this->fieldOptionsCache[$dataType] = $this->applyFormatRequirementPolicy($dataType, $fields);
+    }
+
+    public function sourceColumnOptions(string $dataType): array
+    {
+        $dataType = $this->normalizeDataType($dataType);
+        if (isset($this->sourceColumnOptionsCache[$dataType])) {
+            return $this->sourceColumnOptionsCache[$dataType];
+        }
+
+        $tableName = $this->targetTableForDataType($dataType);
+        $stmt = $this->pdo->prepare("
+            SELECT COLUMN_NAME, COLUMN_COMMENT, DATA_TYPE, IS_NULLABLE, ORDINAL_POSITION
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = :table_name
+            ORDER BY ORDINAL_POSITION ASC
+        ");
+
+        $stmt->execute([':table_name' => $tableName]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $columns = [];
+        foreach ($rows as $row) {
+            $columnName = (string) ($row['COLUMN_NAME'] ?? '');
+            if ($columnName === '') {
+                continue;
+            }
+            if ($this->isHiddenFormatColumn(['value' => $columnName], $dataType)) {
+                continue;
+            }
+            $comment = trim((string) ($row['COLUMN_COMMENT'] ?? ''));
+            $label = $comment !== ''
+                ? $comment
+                : (self::FIELD_LABELS[$columnName] ?? $columnName);
+            $fieldOption = [
+                'value' => $columnName,
+                'label' => $label,
+                'table' => $tableName,
+                'column' => $columnName,
+                'data_type' => (string) ($row['DATA_TYPE'] ?? ''),
+                'is_nullable' => (string) ($row['IS_NULLABLE'] ?? 'YES'),
+                'ordinal_position' => (int) ($row['ORDINAL_POSITION'] ?? 0),
+            ];
+            $fieldOption['is_required'] = $this->formatFieldRequiredMode($dataType, $columnName, $fieldOption);
+            $columns[] = $fieldOption;
+        }
+
+        return $this->sourceColumnOptionsCache[$dataType] = $columns;
+    }
+
+    public function formatFieldRequiredMode(string $dataType, string $field, ?array $fieldOption = null): int
+    {
+        $dataType = $this->normalizeDataType($dataType);
+        $field = trim($field);
+        if ($field === '') {
+            return 0;
+        }
+
+        if ($dataType === 'BANK_TRANSACTION') {
+            return in_array($field, self::BANK_TRANSACTION_REQUIRED_FIELDS, true) ? 1 : 0;
+        }
+
+        $nullable = strtoupper(trim((string) (($fieldOption ?? [])['is_nullable'] ?? 'YES')));
+
+        return $nullable === 'NO' ? 1 : 0;
+    }
+
+    public function normalizeFormatRequirementMode(mixed $value): int
+    {
+        if (is_int($value) || is_float($value) || (is_string($value) && is_numeric(trim($value)))) {
+            $mode = (int) $value;
+            return in_array($mode, [0, 1, 2], true) ? $mode : 0;
+        }
+
+        $normalized = strtolower(trim((string) $value));
+
+        return match ($normalized) {
+            'required', 'true', 'yes', 'y' => 1,
+            'recommended', 'suggested' => 2,
+            'hidden', 'optional', 'false', 'no', 'n', '' => 0,
+            default => 0,
+        };
+    }
+
+    public function isSystemRequiredFormatField(string $dataType, string $field, ?array $fieldOption = null): bool
+    {
+        return $this->formatFieldRequiredMode($dataType, $field, $fieldOption) === 1;
+    }
+
+    public function effectiveFormatRequirementMode(string $dataType, string $field, mixed $requested = null, ?array $fieldOption = null): int
+    {
+        if ($this->isSystemRequiredFormatField($dataType, $field, $fieldOption)) {
+            return 1;
+        }
+
+        return $this->normalizeFormatRequirementMode($requested);
+    }
+
+    private function applyFormatRequirementPolicy(string $dataType, array $fields): array
+    {
+        foreach ($fields as &$field) {
+            $fieldName = trim((string) ($field['value'] ?? ''));
+            $field['is_required'] = $this->formatFieldRequiredMode($dataType, $fieldName, $field);
+        }
+        unset($field);
+
+        return $fields;
+    }
+
+    private function isHiddenFormatColumn(array $field, string $dataType): bool
+    {
+        $dataType = $this->normalizeDataType($dataType);
+        $value = trim((string) ($field['value'] ?? ''));
+        if ($value === '') {
+            return true;
+        }
+
+        $allowHiddenField = in_array($dataType, ['CARD_STATEMENT', 'CARD_APPROVAL'], true) && $value === 'billing_date';
+        $allowDeprecatedField = ($dataType === 'BANK_TRANSACTION' || $dataType === 'CARD_HOMETAX' || $this->isManualTaxInvoiceDataType($dataType)) && $value === 'note';
+
+        return (!$allowHiddenField && in_array($value, self::FORMAT_HIDDEN_FIELDS, true))
+            || (!$allowDeprecatedField && in_array($value, self::FORMAT_DEPRECATED_FIELDS, true));
     }
 
     private function referenceFieldOptions(string $dataType): array
     {
         $dataType = $this->normalizeDataType($dataType);
         $isManualTaxInvoice = $this->isManualTaxInvoiceDataType($dataType);
+        $isTaxInvoiceLike = $dataType === 'TAX_INVOICE' || $isManualTaxInvoice;
         $currencyField = $dataType === 'BANK_TRANSACTION' ? 'currency_code' : 'currency';
         $needsCurrency = $this->dataTypeUsesCurrency($dataType);
         $isCashReceipt = in_array($dataType, ['CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES'], true);
         $isCardHometax = $dataType === 'CARD_HOMETAX';
         $isCardCompany = in_array($dataType, ['CARD_STATEMENT', 'CARD_APPROVAL'], true);
         $fields = [
-            $this->fixedFieldOption('transaction_date', '표준일자', '기준정보', 'standard_date', 'transaction_date', 'date'),
+            $this->fixedFieldOption('transaction_date', '거래일자', '기준정보', 'standard_date', 'transaction_date', 'date'),
             $needsCurrency
                 ? $this->tableFieldOption($currencyField, '통화', '기준정보', 'system_codes', 'code', 'varchar', [
                     'code_group' => 'CURRENCY',
@@ -440,42 +601,42 @@ class SystemFieldService
             $isCardCompany
                 ? $this->tableFieldOption('department_name', '부서명', '기초정보', 'user_departments', 'dept_name')
                 : null,
-            $dataType === 'TAX_INVOICE'
+            $isTaxInvoiceLike
                 ? $this->tableFieldOption('supplier_business_number', '공급자 사업자등록번호', '기초정보', 'system_clients', 'business_number')
                 : null,
-            $dataType === 'TAX_INVOICE'
+            $isTaxInvoiceLike
                 ? $this->tableFieldOption('supplier_company_name', '공급자 상호', '기초정보', 'system_clients', 'company_name')
                 : null,
-            $dataType === 'TAX_INVOICE'
+            $isTaxInvoiceLike
                 ? $this->tableFieldOption('supplier_ceo_name', '공급자 대표자명', '기초정보', 'system_clients', 'ceo_name')
                 : null,
-            $dataType === 'TAX_INVOICE'
+            $isTaxInvoiceLike
                 ? $this->tableFieldOption('supplier_address', '공급자 주소', '기초정보', 'system_clients', 'address')
                 : null,
-            $dataType === 'TAX_INVOICE'
+            $isTaxInvoiceLike
                 ? $this->tableFieldOption('supplier_email', '공급자 이메일', '기초정보', 'system_clients', 'email')
                 : null,
-            $dataType === 'TAX_INVOICE'
+            $isTaxInvoiceLike
                 ? $this->tableFieldOption('customer_business_number', '공급받는자 사업자등록번호', '기초정보', 'system_clients', 'business_number')
                 : null,
-            $dataType === 'TAX_INVOICE'
+            $isTaxInvoiceLike
                 ? $this->tableFieldOption('customer_company_name', '공급받는자 상호', '기초정보', 'system_clients', 'company_name')
                 : null,
-            $dataType === 'TAX_INVOICE'
+            $isTaxInvoiceLike
                 ? $this->tableFieldOption('customer_ceo_name', '공급받는자 대표자명', '기초정보', 'system_clients', 'ceo_name')
                 : null,
-            $dataType === 'TAX_INVOICE'
+            $isTaxInvoiceLike
                 ? $this->tableFieldOption('customer_address', '공급받는자 주소', '기초정보', 'system_clients', 'address')
                 : null,
-            $dataType === 'TAX_INVOICE'
+            $isTaxInvoiceLike
                 ? $this->tableFieldOption('customer_email_1', '공급받는자 이메일1', '기초정보', 'system_clients', 'email')
                 : null,
             $this->tableFieldOption('project_name', '프로젝트명', '기초정보', 'system_projects', $this->firstExistingColumn('system_projects', ['project_name', 'project_code'])),
             !$isManualTaxInvoice && !$isCashReceipt && !$isCardHometax && !$isCardCompany && $dataType !== 'TAX_INVOICE'
-                ? $this->tableFieldOption('employee_name', '직원', '기초정보', 'user_employees', $this->firstExistingColumn('user_employees', ['employee_name', 'name']))
+                ? $this->tableFieldOption('employee_name', '직원명', '기초정보', 'user_employees', $this->firstExistingColumn('user_employees', ['employee_name', 'name']))
                 : null,
             !$isManualTaxInvoice && !$isCashReceipt && !$isCardHometax && !$isCardCompany && $dataType !== 'TAX_INVOICE'
-                ? $this->tableFieldOption('bank_account_name', '계좌', '기초정보', 'system_bank_accounts', $this->firstExistingColumn('system_bank_accounts', ['account_name', 'bank_account_name', 'account_number']))
+                ? $this->tableFieldOption('bank_account_name', '계좌명', '기초정보', 'system_bank_accounts', $this->firstExistingColumn('system_bank_accounts', ['account_name', 'bank_account_name', 'account_number']))
                 : null,
             ($isCardHometax || $isCardCompany)
                 ? $this->tableFieldOption('card_number', '카드번호', '기초정보', 'system_cards', 'card_number')
@@ -487,7 +648,7 @@ class SystemFieldService
                 ? $this->tableFieldOption('payment_bank_name', '결제계좌은행명', '기초정보', 'system_bank_accounts', 'bank_name')
                 : null,
             !$isManualTaxInvoice && !$isCashReceipt && !$isCardHometax && $dataType !== 'TAX_INVOICE'
-                ? $this->tableFieldOption('card_name', '카드', '기초정보', 'system_cards', $this->firstExistingColumn('system_cards', ['card_name', 'card_number']))
+                ? $this->tableFieldOption('card_name', '카드명', '기초정보', 'system_cards', $this->firstExistingColumn('system_cards', ['card_name', 'card_number']))
                 : null,
         ];
 
@@ -537,22 +698,63 @@ class SystemFieldService
 
     private static function fieldGroupLabel(string $tableName): string
     {
+        $labels = [
+            'ledger_evidence_bank_transaction' => '입출금(은행)원본',
+            'ledger_evidence_tax_invoice' => '세금계산서매입매출(홈택스)원본',
+            'ledger_evidence_tax_invoice_manual' => '세금계산서매입매출(수기)원본',
+            'ledger_evidence_cash_receipt' => '현금영수증 원본',
+            'ledger_evidence_card_hometax' => '카드 원본',
+            'ledger_data_evidences' => '통합증빙 원본컬럼',
+            'ledger_evidence_bank' => '입출금(은행)원본',
+        ];
+        $labels['ledger_evidence_card_statement'] = '카드(카드사)원본';
+        if (isset($labels[$tableName])) {
+            return $labels[$tableName];
+        }
+
+        if ($tableName === 'ledger_evidence_bank_transaction') {
+            return '입출금(은행)원본';
+        }
+        if ($tableName === 'ledger_evidence_tax_invoice') {
+            return '세금계산서 원본';
+        }
+        if ($tableName === 'ledger_evidence_cash_receipt') {
+            return '현금영수증 원본';
+        }
+        if ($tableName === 'ledger_evidence_card_hometax') {
+            return '카드 원본';
+        }
+
+        if ($tableName === 'ledger_evidence_tax_invoice_manual') {
+            return '?멸툑怨꾩궛?쒕ℓ?낅ℓ異??섍린)?먮낯';
+        }
         return match ($tableName) {
             'ledger_data_evidences' => '통합증빙 원본컬럼',
-            'ledger_bank_transactions' => '입출금(은행)원본',
+            'ledger_evidence_bank' => '입출금(은행)원본',
             default => $tableName,
         };
     }
 
     private static function physicalFieldGroupLabel(string $dataType, string $tableName, string $columnName): string
     {
+        if (in_array($tableName, [
+            'ledger_evidence_bank_transaction',
+            'ledger_evidence_tax_invoice',
+            'ledger_evidence_tax_invoice_manual',
+            'ledger_evidence_cash_receipt',
+            'ledger_evidence_card_hometax',
+            'ledger_evidence_card_statement',
+        ], true)) {
+            return self::originalFieldGroupLabel($dataType);
+        }
+
         if ($tableName === 'ledger_data_evidences' && in_array($columnName, ['currency'], true)) {
             return '기준정보';
         }
         if ($tableName === 'ledger_data_evidences') {
             return self::originalFieldGroupLabel($dataType);
         }
-        if ($tableName === 'ledger_bank_transactions') {
+        if ($tableName === 'ledger_evidence_bank') {
             return self::originalFieldGroupLabel($dataType);
         }
 
@@ -563,6 +765,24 @@ class SystemFieldService
     {
         $dataType = strtoupper(trim($dataType));
         $dataType = self::LEGACY_DATA_TYPE_MAP[$dataType] ?? $dataType;
+
+        $labels = [
+            'BANK_TRANSACTION' => '입출금(은행)원본',
+            'TAX_INVOICE' => '세금계산서매입매출(홈택스)원본',
+            'CASH_RECEIPT' => '현금영수증(홈택스)원본',
+            'CASH_RECEIPT_PURCHASE' => '현금영수증(홈택스)원본',
+            'CASH_RECEIPT_SALES' => '현금영수증(홈택스)원본',
+            'CARD_HOMETAX' => '카드(홈택스)원본',
+            'CARD_STATEMENT' => '카드(카드사)원본',
+            'CARD_APPROVAL' => '카드(카드사)원본',
+            'CARD' => '카드(카드사)원본',
+        ];
+        if (self::isManualTaxInvoiceTypeCode($dataType)) {
+            return '세금계산서매입매출(수기)원본';
+        }
+        if (isset($labels[$dataType])) {
+            return $labels[$dataType];
+        }
 
         if (self::isManualTaxInvoiceTypeCode($dataType)) {
             return '세금계산서매입매출(수기)원본';
@@ -603,7 +823,7 @@ class SystemFieldService
             unset($fieldsByName['bank_direction']);
             unset($fieldsByName['currency_code']);
         }
-        if ($dataType !== 'CARD_HOMETAX') {
+        if (!in_array($dataType, ['BANK_TRANSACTION', 'CARD_HOMETAX'], true)) {
             unset($fieldsByName['note']);
         }
         if (in_array($dataType, ['CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES'], true)) {
@@ -701,14 +921,14 @@ class SystemFieldService
             ['customer_address', '공급받는자 주소'],
             ['note', '비고'],
             ['receipt_claim_type', '영수/청구구분'],
-            ['item_date', '품목일자'],
-            ['item_name', '품목명'],
-            ['item_spec', '품목규격'],
-            ['item_qty', '품목수량'],
-            ['item_price', '품목단가'],
-            ['item_supply_amount', '품목공급가액'],
-            ['item_vat_amount', '품목세액'],
-            ['item_note', '품목비고'],
+            ['raw_item_date', '품목일자'],
+            ['raw_item_name', '품목명'],
+            ['raw_item_spec', '품목규격'],
+            ['raw_item_quantity', '품목수량'],
+            ['raw_item_unit_price', '품목단가'],
+            ['raw_item_supply_amount', '품목공급가액'],
+            ['raw_item_tax_amount', '품목세액'],
+            ['raw_item_note', '품목비고'],
         ];
 
         $clientColumns = [
@@ -857,15 +1077,20 @@ class SystemFieldService
         ];
         $bank = [
             'transaction_date',
-            'client_name',
-            'project_name',
-            'bank_account_name',
-            'card_name',
-            'employee_name',
+            'bank_direction',
             'business_unit',
             'transaction_type',
-            'transaction_direction',
-            'bank_direction',
+            'client_name',
+            'project_name',
+            'employee_name',
+            'bank_account_name',
+            'card_name',
+            'total_amount',
+            'balance_amount',
+            'description',
+            'counterparty_name',
+            'memo',
+            'note',
         ];
         $taxInvoice = [
             'issue_date',
@@ -936,15 +1161,14 @@ class SystemFieldService
             'note',
         ];
         $transactionLine = [
-            'item_name',
-            'item_date',
-            'item_spec',
-            'unit_name',
-            'item_qty',
-            'item_price',
-            'item_supply_amount',
-            'item_vat_amount',
-            'item_note',
+            'raw_item_date',
+            'raw_item_name',
+            'raw_item_spec',
+            'raw_item_quantity',
+            'raw_item_unit_price',
+            'raw_item_supply_amount',
+            'raw_item_tax_amount',
+            'raw_item_note',
         ];
         return match ($dataType) {
             'BANK_TRANSACTION' => $bank,
@@ -964,7 +1188,7 @@ class SystemFieldService
             foreach ($fields as $field) {
                 $value = (string) ($field['value'] ?? '');
                 $allowHiddenField = in_array($dataType, ['CARD_STATEMENT', 'CARD_APPROVAL'], true) && $value === 'billing_date';
-                $allowDeprecatedField = ($dataType === 'CARD_HOMETAX' || $this->isManualTaxInvoiceDataType($dataType)) && $value === 'note';
+                $allowDeprecatedField = ($dataType === 'BANK_TRANSACTION' || $dataType === 'CARD_HOMETAX' || $this->isManualTaxInvoiceDataType($dataType)) && $value === 'note';
                 if ($value === ''
                     || isset($merged[$value])
                     || (!$allowHiddenField && in_array($value, self::FORMAT_HIDDEN_FIELDS, true))
@@ -996,115 +1220,6 @@ class SystemFieldService
 
         return in_array($fieldName, $this->fieldNames($dataType), true);
     }
-
-    private function ensureTargetTableColumns(string $tableName): void
-    {
-        if ($tableName === 'ledger_data_evidences') {
-            $businessColumns = [
-                'employee_id' => ["VARCHAR(36) NULL DEFAULT NULL COMMENT 'Employee ID'", 'project_id'],
-                'bank_account_id' => ["VARCHAR(36) NULL DEFAULT NULL COMMENT 'Bank account ID'", 'employee_id'],
-                'card_id' => ["VARCHAR(36) NULL DEFAULT NULL COMMENT 'Card ID'", 'bank_account_id'],
-                'client_name' => ["VARCHAR(255) NULL DEFAULT NULL COMMENT 'Client display name'", 'card_id'],
-                'project_name' => ["VARCHAR(255) NULL DEFAULT NULL COMMENT 'Project display name'", 'client_name'],
-                'employee_name' => ["VARCHAR(255) NULL DEFAULT NULL COMMENT 'Employee display name'", 'project_name'],
-                'bank_account_name' => ["VARCHAR(255) NULL DEFAULT NULL COMMENT 'Bank account display name'", 'employee_name'],
-                'card_name' => ["VARCHAR(255) NULL DEFAULT NULL COMMENT 'Card display name'", 'bank_account_name'],
-            ];
-            foreach ($businessColumns as $column => [$definition, $after]) {
-                if ($this->columnExists($tableName, $column)) {
-                    continue;
-                }
-                $afterColumn = $this->columnExists($tableName, (string) $after) ? " AFTER `{$after}`" : '';
-                $this->trySchemaStatement("
-                    ALTER TABLE `ledger_data_evidences`
-                        ADD COLUMN `{$column}` {$definition}{$afterColumn}
-                ");
-            }
-            foreach (['client_id', 'project_id', 'employee_id', 'bank_account_id', 'card_id'] as $column) {
-                $indexName = 'idx_ledger_data_evidences_' . $column;
-                if ($this->columnExists($tableName, $column) && !$this->indexExists($tableName, $indexName)) {
-                    $this->trySchemaStatement("
-                        CREATE INDEX `{$indexName}`
-                            ON `ledger_data_evidences` (`{$column}`)
-                    ");
-                }
-            }
-            return;
-        }
-
-        if ($tableName !== 'ledger_bank_transactions') {
-            return;
-        }
-
-        if (!$this->columnExists($tableName, 'transaction_datetime')) {
-            $this->trySchemaStatement("
-                ALTER TABLE `ledger_bank_transactions`
-                    ADD COLUMN `transaction_datetime` DATETIME NULL DEFAULT NULL COMMENT 'Transaction datetime' AFTER `transaction_date`
-            ");
-        }
-
-        if ($this->columnExists($tableName, 'balance_amount')) {
-            $this->trySchemaStatement("
-                ALTER TABLE `ledger_bank_transactions`
-                    MODIFY COLUMN `balance_amount` DECIMAL(18,2) NULL DEFAULT NULL COMMENT 'Actual bank balance after transaction'
-            ");
-        }
-
-        if (!$this->columnExists($tableName, 'balance_status')) {
-            $after = $this->columnExists($tableName, 'balance_amount') ? 'balance_amount' : 'withdraw_amount';
-            $this->trySchemaStatement("
-                ALTER TABLE `ledger_bank_transactions`
-                    ADD COLUMN `balance_status` VARCHAR(20) NULL DEFAULT 'EMPTY' COMMENT 'ACTUAL, EMPTY, ESTIMATED, INVALID' AFTER `{$after}`
-            ");
-            $this->trySchemaStatement("
-                UPDATE `ledger_bank_transactions`
-                SET `balance_status` = CASE
-                    WHEN `balance_amount` IS NULL THEN 'EMPTY'
-                    ELSE 'ACTUAL'
-                END
-                WHERE `balance_status` IS NULL OR `balance_status` = ''
-            ");
-        }
-
-        if (!$this->columnExists($tableName, 'counterparty_account_number')) {
-            $this->trySchemaStatement("
-                ALTER TABLE `ledger_bank_transactions`
-                    ADD COLUMN `counterparty_account_number` VARCHAR(100) NULL DEFAULT NULL COMMENT '상대계좌번호' AFTER `counterparty_name`
-            ");
-        }
-
-        if (!$this->columnExists($tableName, 'counterparty_bank_name')) {
-            $after = $this->columnExists($tableName, 'counterparty_account_number') ? 'counterparty_account_number' : 'counterparty_name';
-            $this->trySchemaStatement("
-                ALTER TABLE `ledger_bank_transactions`
-                    ADD COLUMN `counterparty_bank_name` VARCHAR(100) NULL DEFAULT NULL COMMENT '상대은행' AFTER `{$after}`
-            ");
-        }
-
-        if (!$this->columnExists($tableName, 'check_bill_amount')) {
-            $after = $this->columnExists($tableName, 'balance_amount') ? 'balance_amount' : 'withdraw_amount';
-            $this->trySchemaStatement("
-                ALTER TABLE `ledger_bank_transactions`
-                    ADD COLUMN `check_bill_amount` DECIMAL(18,2) NULL DEFAULT NULL COMMENT '수표어음금액' AFTER `{$after}`
-            ");
-        }
-
-        if ($this->columnExists($tableName, 'counterparty_account_number') && !$this->indexExists($tableName, 'idx_ledger_bank_transactions_counterparty_account')) {
-            $this->trySchemaStatement("
-                CREATE INDEX `idx_ledger_bank_transactions_counterparty_account`
-                    ON `ledger_bank_transactions` (`counterparty_account_number`)
-            ");
-        }
-    }
-
-    private function trySchemaStatement(string $sql): void
-    {
-        try {
-            $this->pdo->exec($sql);
-        } catch (\Throwable) {
-        }
-    }
-
     private function firstExistingColumn(string $tableName, array $columnNames): ?string
     {
         foreach ($columnNames as $columnName) {

@@ -97,6 +97,9 @@ class EvidenceBusinessRefService
             'CARD' => $includeIds
                 ? ['card_id', 'card_name', 'card_number', 'card_company_name']
                 : ['card_name', 'card_number', 'card_company_name', 'card_id'],
+            'TEAM' => $includeIds
+                ? ['team_id', 'team_name']
+                : ['team_name', 'team_id'],
             default => [],
         };
 
@@ -208,6 +211,7 @@ class EvidenceBusinessRefService
             'EMPLOYEE' => ['id' => 'employee_id', 'name' => 'employee_name'],
             'ACCOUNT' => ['id' => 'bank_account_id', 'name' => 'bank_account_name'],
             'CARD' => ['id' => 'card_id', 'name' => 'card_name'],
+            'TEAM' => ['id' => 'team_id', 'name' => 'team_name'],
         ];
     }
 

@@ -17,7 +17,6 @@ class EvidenceLinkHelperService
             return;
         }
 
-        $this->call('deleteBankTransactionsByEvidenceIds', $evidenceIds);
         $this->deleteEvidenceLinksByEvidenceIds($evidenceIds);
         $this->detachEvidenceSourceRefs($evidenceIds);
         $this->deleteProcessingItemsByEvidenceIds($evidenceIds);
@@ -110,7 +109,7 @@ class EvidenceLinkHelperService
             ")->execute($actionParams + $relatedParams);
         }
 
-        foreach (['ledger_transaction_lines', 'ledger_voucher_lines'] as $table) {
+        foreach (['ledger_transaction_items', 'ledger_voucher_lines'] as $table) {
             if (!$this->call('tableExists', $table) || !$this->call('tableColumnExists', $table, 'processing_item_id')) {
                 continue;
             }

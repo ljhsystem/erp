@@ -43,15 +43,12 @@ class EmployeeModel
                 p.bank_file,
                 p.note,
                 p.memo,
-                p.created_at,
-                p.created_by,
-                p.updated_at,
-                p.updated_by,
 
                 d.dept_name AS department_name,
                 s.position_name,
                 c.client_name AS client_name,
 
+                u.id AS auth_user_id,
                 u.username,
                 u.email,
                 u.role_id,
@@ -77,20 +74,6 @@ class EmployeeModel
                 u.deleted_by,
 
                 r.role_name,
-
-                CASE
-                    WHEN p.created_by IS NULL THEN NULL
-                    WHEN p.created_by LIKE 'SYSTEM:%' THEN p.created_by
-                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
-                    ELSE p.created_by
-                END AS created_by_name,
-
-                CASE
-                    WHEN p.updated_by IS NULL THEN NULL
-                    WHEN p.updated_by LIKE 'SYSTEM:%' THEN p.updated_by
-                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
-                    ELSE p.updated_by
-                END AS updated_by_name,
 
                 CASE
                     WHEN u.created_by IS NULL THEN NULL
@@ -143,14 +126,6 @@ class EmployeeModel
 
             LEFT JOIN system_clients c
                 ON p.client_id = c.id
-
-            LEFT JOIN user_employees p1
-                ON p.created_by NOT LIKE 'SYSTEM:%'
-                AND p1.user_id = REPLACE(p.created_by, 'USER:', '')
-
-            LEFT JOIN user_employees p2
-                ON p.updated_by NOT LIKE 'SYSTEM:%'
-                AND p2.user_id = REPLACE(p.updated_by, 'USER:', '')
 
             LEFT JOIN user_employees uc
                 ON u.created_by NOT LIKE 'SYSTEM:%'
@@ -222,8 +197,6 @@ class EmployeeModel
                 'user_created_at'     => ['expr' => 'u.created_at', 'type' => 'datetime'],
                 'user_updated_at'     => ['expr' => 'u.updated_at', 'type' => 'datetime'],
                 'deleted_at'          => ['expr' => 'u.deleted_at', 'type' => 'datetime'],
-                'created_at'          => ['expr' => 'p.created_at', 'type' => 'datetime'],
-                'updated_at'          => ['expr' => 'p.updated_at', 'type' => 'datetime'],
             ];
 
             $globalSearchValues = [];
@@ -411,15 +384,12 @@ class EmployeeModel
                 p.bank_file,
                 p.note,
                 p.memo,
-                p.created_at,
-                p.created_by,
-                p.updated_at,
-                p.updated_by,
 
                 d.dept_name AS department_name,
                 s.position_name,
                 c.client_name AS client_name,
 
+                u.id AS auth_user_id,
                 u.username,
                 u.email,
                 u.role_id,
@@ -445,20 +415,6 @@ class EmployeeModel
                 u.deleted_by,
 
                 r.role_name,
-
-                CASE
-                    WHEN p.created_by IS NULL THEN NULL
-                    WHEN p.created_by LIKE 'SYSTEM:%' THEN p.created_by
-                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
-                    ELSE p.created_by
-                END AS created_by_name,
-
-                CASE
-                    WHEN p.updated_by IS NULL THEN NULL
-                    WHEN p.updated_by LIKE 'SYSTEM:%' THEN p.updated_by
-                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
-                    ELSE p.updated_by
-                END AS updated_by_name,
 
                 CASE
                     WHEN u.created_by IS NULL THEN NULL
@@ -507,14 +463,6 @@ class EmployeeModel
 
             LEFT JOIN system_clients c
                 ON p.client_id = c.id
-
-            LEFT JOIN user_employees p1
-                ON p.created_by NOT LIKE 'SYSTEM:%'
-                AND p1.user_id = REPLACE(p.created_by, 'USER:', '')
-
-            LEFT JOIN user_employees p2
-                ON p.updated_by NOT LIKE 'SYSTEM:%'
-                AND p2.user_id = REPLACE(p.updated_by, 'USER:', '')
 
             LEFT JOIN user_employees uc
                 ON u.created_by NOT LIKE 'SYSTEM:%'
@@ -665,8 +613,7 @@ class EmployeeModel
                 account_number,
                 account_holder,
                 bank_file,
-                note, memo,
-                created_by, updated_by
+                note, memo
             ) VALUES (
                 :id, :sort_no, :user_id, :client_id, :employee_name,
                 :phone, :address, :address_detail,
@@ -680,8 +627,7 @@ class EmployeeModel
                 :account_number,
                 :account_holder,
                 :bank_file,
-                :note, :memo,
-                :created_by, :updated_by
+                :note, :memo
             )
         ";
 
@@ -722,10 +668,7 @@ class EmployeeModel
             'bank_file'        => $data['bank_file'] ?? null,
 
             'note'             => $data['note'] ?? null,
-            'memo'             => $data['memo'] ?? null,
-
-            'created_by'       => $data['created_by'],
-            'updated_by'       => $data['updated_by'] ?? $data['created_by']
+            'memo'             => $data['memo'] ?? null
         ]);
     }
 
@@ -762,9 +705,7 @@ class EmployeeModel
                 bank_file = :bank_file,
 
                 note = :note,
-                memo = :memo,
-
-                updated_by = :updated_by
+                memo = :memo
 
             WHERE id = :id
         ";
@@ -800,11 +741,8 @@ class EmployeeModel
             'account_number'   => $data['account_number'] ?? null,
             'account_holder'   => $data['account_holder'] ?? null,
             'bank_file'        => $data['bank_file'] ?? null,
-
             'note'             => $data['note'] ?? null,
-            'memo'             => $data['memo'] ?? null,
-
-            'updated_by'       => $data['updated_by']
+            'memo'             => $data['memo'] ?? null
         ];
 
         $stmt = $this->db->prepare($sql);

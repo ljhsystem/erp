@@ -259,6 +259,22 @@ function readinessFieldLabel(key) {
 
         line_type: '라인유형',
 
+        raw_item_date: '품목일자',
+
+        raw_item_name: '품목명',
+
+        raw_item_spec: '품목규격',
+
+        raw_item_quantity: '품목수량',
+
+        raw_item_unit_price: '품목단가',
+
+        raw_item_supply_amount: '품목공급가액',
+
+        raw_item_tax_amount: '품목세액',
+
+        raw_item_note: '품목비고',
+
         item_date: '발생일',
 
         item_name: '품목명',

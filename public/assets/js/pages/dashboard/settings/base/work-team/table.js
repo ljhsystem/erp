@@ -28,6 +28,14 @@ export function createWorkTeamTableModule({
             selectionColumn: {
                 widthResizable: true,
             },
+            tableSettings: {
+                pageKey: 'dashboard.settings.base-info.work-team',
+                tableKey: 'work-team-table',
+                storageKey: 'datatable.settings.dashboard.settings.base-info.work-team.work-team-table.v1',
+                metaDomain: 'work-team',
+                tableLabel: '근무팀',
+                title: '근무팀 테이블 설정',
+            },
             buttons: [
                 {
                     text: '휴지통',
@@ -102,8 +110,13 @@ export function createWorkTeamTableModule({
                 className: config.className || '',
                 headerClassName: config.className || '',
                 defaultContent: '',
-                render(data) {
+                render(data, type, row) {
                     if (data === null || data === undefined) return '';
+                    if (type !== 'display') return data;
+                    if (field === 'team_leader_client_id') return row?.team_leader_client_name || data;
+                    if (field === 'created_by') return row?.created_by_name || data;
+                    if (field === 'updated_by') return row?.updated_by_name || data;
+                    if (field === 'deleted_by') return row?.deleted_by_name || data;
                     return data;
                 }
             });

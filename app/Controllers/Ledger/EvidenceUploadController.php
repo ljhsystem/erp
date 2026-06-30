@@ -8,9 +8,9 @@ use App\Controllers\Ledger\Concerns\ImportControllerUtilityTrait;
 use App\Services\Ledger\EvidenceBankHelperService;
 use App\Services\Ledger\EvidenceBatchSaveService;
 use App\Services\Ledger\EvidenceBusinessRefService;
-use App\Services\Ledger\EvidenceFormatMappingService;
 use App\Services\Ledger\EvidencePayloadHelperService;
 use App\Services\Ledger\EvidencePayloadNormalizeService;
+use App\Services\Ledger\EvidenceUploadPersistService;
 use App\Services\Ledger\EvidenceReferenceResolverService;
 use App\Services\Ledger\EvidenceRuleEngineService;
 use App\Services\Ledger\EvidenceSortHelperService;
@@ -28,8 +28,6 @@ use App\Services\Ledger\VoucherLearningService;
 use App\Services\Ledger\VoucherPolicyService;
 use App\Services\Ledger\VoucherService;
 use Core\DbPdo;
-use Core\Helpers\ActorHelper;
-use Core\Helpers\UuidHelper;
 use PDO;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 
@@ -41,6 +39,7 @@ class EvidenceUploadController
 
     private const EVIDENCE_UPLOAD_TYPES = [
         'TAX_INVOICE',
+        'TAX_INVOICE_MANUAL',
         'CASH_RECEIPT',
         'CARD',
         'CARD_HOMETAX',
@@ -78,6 +77,9 @@ class EvidenceUploadController
     private const LEGACY_DATA_TYPE_MAP = [
         'DATA' => 'TAX_INVOICE',
         'TAX' => 'TAX_INVOICE',
+        'MANUAL_TAX_INVOICE' => 'TAX_INVOICE_MANUAL',
+        'TAX_INVOICE_PURCHASE_SALES_MANUAL' => 'TAX_INVOICE_MANUAL',
+        'TAX_INVOICE_BUY_SELL_MANUAL' => 'TAX_INVOICE_MANUAL',
         'CARD' => 'CARD_STATEMENT',
         'CARD_PURCHASE' => 'CARD_STATEMENT',
         'CARD_SALE' => 'CARD_STATEMENT',
@@ -105,7 +107,6 @@ class EvidenceUploadController
     private ?EvidenceStatusHelperService $evidenceStatusHelperService = null;
     private ?EvidenceTransactionContextService $evidenceTransactionContextService = null;
     private ?EvidenceReferenceResolverService $evidenceReferenceResolverService = null;
-    private ?EvidenceFormatMappingService $evidenceFormatMappingService = null;
     private ?EvidenceTemplateDropdownService $evidenceTemplateDropdownService = null;
     private ?SystemFieldService $systemFieldService = null;
     private ?VoucherPolicyService $voucherPolicyService = null;
@@ -114,6 +115,7 @@ class EvidenceUploadController
     private ?JournalLearningService $journalLearningService = null;
     private ?VoucherLearningService $voucherLearningService = null;
     private ?EvidenceRuleEngineService $evidenceRuleEngineService = null;
+    private ?EvidenceUploadPersistService $evidenceUploadPersistService = null;
     private ?array $ownCompanyProfile = null;
 
     public function __construct(?PDO $pdo = null)
@@ -153,17 +155,26 @@ class EvidenceUploadController
         );
 
         if (!empty($_FILES['file'])) {
-            $formatId = trim((string) ($_POST['format_id'] ?? ''));
-            $format = $this->evidenceFormatMappingService()->formatWithColumns($formatId);
+            $dataType = $this->requestedImportType($_POST, 'TAX_INVOICE');
+            $columnsCsv = trim((string) ($_POST['excel_template_columns'] ?? ''));
+            $columnDisplayName = $this->requestColumnDisplayName($_POST);
+            $columnRequirementPolicy = $this->requestColumnRequirementPolicy($_POST);
+            $format = $this->syntheticFormatForDataType($dataType, $columnsCsv, $columnDisplayName, $columnRequirementPolicy);
             if (!$format) {
-                $this->json(['success' => false, 'message' => '??????????????????????????????????????????????????????????????????????????????????????????'], 400);
+                $this->json(['success' => false, 'message' => '?낅줈???묒떇 ?ㅼ젙??遺덈윭?ㅼ? 紐삵뻽?듬땲??'], 400);
+                return;
+            }
+            if (!$format) {
+                $this->json(['success' => false, 'message' => '?낅줈???묒떇 ?ㅼ젙??遺덈윭?ㅼ? 紐삵뻽?듬땲??'], 400);
                 return;
             }
 
             try {
-                $dataType = self::normalizeDataType((string) ($format['data_type'] ?? 'ETC'));
                 if (!$this->isAllowedDataType($dataType)) {
-                    throw new \RuntimeException('??????????????????????????????? ???????????????????????????????????????椰??????????????????????????????????????????????????????????????????????????????????????????????????');
+                    throw new \RuntimeException('吏?먰븯吏 ?딅뒗 ?먮즺?좏삎?낅땲??');
+                }
+                if (!$this->isAllowedDataType($dataType)) {
+                    throw new \RuntimeException('??????????????????????????????? ???????????????????????????????????????癲꾩뾽濡쒕뱶 ?묒떇 ?ㅼ젙??遺덈윭?ㅼ? 紐삵뻽?듬땲??????????');
                 }
                 $prepared = $this->evidenceUploadService()->prepareSeedUploadFilePath(
                     $format,
@@ -187,7 +198,10 @@ class EvidenceUploadController
                     $this->evidenceUploadService()->buildStoredRowsTraceContext($cancelToken, count($rows), $stageStartedAt, $startedAt)
                 );
                 $this->evidenceUploadService()->clearUploadCancelToken($cancelToken);
-                $this->json(['success' => true, 'data' => $result, 'checks' => $checks, 'message' => '???????? ????????????????????獄쏅챶留덌┼??????????????筌롈살젔??????????????????????븐뼐????????쑩?젆???????ㅻ쑋??????????????????????????????????????????????????????????????']);
+                $this->json(['success' => true, 'data' => $result, 'checks' => $checks, 'message' => '엑셀 업로드가 완료되었습니다.']);
+                return;
+                $this->evidenceUploadService()->clearUploadCancelToken($cancelToken);
+                $this->json(['success' => true, 'data' => $result, 'checks' => $checks, 'message' => '엑셀 업로드가 완료되었습니다.']);
             } catch (\Throwable $e) {
                 $this->evidenceUploadService()->uploadTrace('failed', $this->evidenceUploadService()->buildFailedUploadTraceContext($cancelToken, $startedAt, $e));
                 $this->json(['success' => false, 'message' => $e->getMessage()], 400);
@@ -221,7 +235,7 @@ class EvidenceUploadController
                     $this->json([
                         'success' => true,
                         'data' => $this->evidenceUploadService()->buildCompletedChunkUploadResult($totalRows, $offset),
-                        'message' => 'Seed upload completed.',
+                        'message' => '엑셀 업로드가 완료되었습니다.',
                     ]);
                     return;
                 }
@@ -240,7 +254,7 @@ class EvidenceUploadController
                     $this->evidenceUploadService()->clearPreviewSession($token);
                     $this->evidenceUploadService()->clearUploadCancelToken($cancelToken);
                 }
-                $this->json(['success' => true, 'data' => $result, 'message' => $done ? 'Seed upload completed.' : 'Upload chunk saved.']);
+                $this->json(['success' => true, 'data' => $result, 'message' => $done ? '엑셀 업로드가 완료되었습니다.' : '업로드 청크가 저장되었습니다.']);
                 return;
             }
 
@@ -252,7 +266,11 @@ class EvidenceUploadController
             );
             $this->evidenceUploadService()->clearPreviewSession($token);
             $this->evidenceUploadService()->clearUploadCancelToken($cancelToken);
-            $this->json(['success' => true, 'data' => $result, 'message' => 'Seed ???????? ????????????????????獄쏅챶留덌┼??????????????筌롈살젔??????????????????????븐뼐????????쑩?젆???????ㅻ쑋??????????????????????????????????????????????????????????????']);
+            $this->json(['success' => true, 'data' => $result, 'message' => '엑셀 업로드가 완료되었습니다.']);
+            return;
+            $this->evidenceUploadService()->clearPreviewSession($token);
+            $this->evidenceUploadService()->clearUploadCancelToken($cancelToken);
+            $this->json(['success' => true, 'data' => $result, 'message' => 'Seed 엑셀 업로드가 완료되었습니다.']);
         } catch (\Throwable $e) {
             $this->evidenceUploadService()->uploadTrace('failed_preview', $this->evidenceUploadService()->buildFailedPreviewTraceContext($cancelToken, $startedAt, $e));
             $this->json(['success' => false, 'message' => $e->getMessage()], 400);
@@ -305,7 +323,7 @@ class EvidenceUploadController
                     'amountOrNull' => fn(mixed $value): ?float => $this->amountOrNull($value),
                     'annotateSeedComparison' => fn(array $rows, string $dataType): array => $this->evidenceUploadService()->annotateSeedComparison($rows, $dataType),
                     'assertNoUploadValidationErrors' => function (array $rows): void {
-                        $this->evidenceUploadValidationService()->assertNoUploadValidationErrors($rows);
+                        $this->assertNoUploadValidationErrors($rows);
                     },
                     'businessRefIdForStorage' => fn(string $refType, array $payload): ?string => $this->evidenceBusinessRefService()->businessRefIdForStorage($refType, $payload),
                     'dateTimeValue' => fn(mixed $value): ?string => $this->dateTimeValue($value),
@@ -355,6 +373,7 @@ class EvidenceUploadController
         if ($this->evidenceUploadValidationService === null) {
             $this->evidenceUploadValidationService = new EvidenceUploadValidationService([
                 'amountOrNull' => fn(mixed $value): ?float => $this->amountOrNull($value),
+                'dateTimeValue' => fn(mixed $value): ?string => $this->dateTimeValue($value),
                 'resolveUploadTransactionContext' => fn(array $row, string $dataType): array => $this->evidenceTransactionContextService()->resolveUploadTransactionContext($row, $dataType),
                 'normalizeDataType' => fn(string $dataType): string => self::normalizeDataType($dataType),
                 'requiredFormatMissingMessages' => fn(array $payload, array $columns): array => $this->evidencePayloadNormalizeService()->requiredFormatMissingMessages($payload, $columns),
@@ -406,16 +425,24 @@ class EvidenceUploadController
         return $this->evidenceBatchSaveService;
     }
 
-    private function evidenceFormatMappingService(): EvidenceFormatMappingService
+    private function evidenceUploadPersistService(): EvidenceUploadPersistService
     {
-        if ($this->evidenceFormatMappingService === null) {
-            $this->evidenceFormatMappingService = new EvidenceFormatMappingService([
-                'normalizeDataType' => fn(string $type): string => self::normalizeDataType($type),
-                'systemFieldOptionsByValue' => fn(string $dataType): array => $this->evidenceTemplateDropdownService()->systemFieldOptionsByValue($dataType),
-            ]);
+        if ($this->evidenceUploadPersistService === null) {
+            $this->evidenceUploadPersistService = new EvidenceUploadPersistService(
+                $this->pdo,
+                $this->evidenceUploadService(),
+                $this->evidenceBatchSaveService(),
+                $this->evidencePayloadHelperService(),
+                function (): void {
+                    $this->ensureEvidenceBusinessInfoColumns();
+                },
+                $this->evidenceSortHelperService(),
+                fn(string $type): string => self::normalizeDataType($type),
+                self::UPLOAD_STORE_CHUNK_SIZE
+            );
         }
 
-        return $this->evidenceFormatMappingService;
+        return $this->evidenceUploadPersistService;
     }
 
     private function evidenceTemplateDropdownService(): EvidenceTemplateDropdownService
@@ -505,6 +532,243 @@ class EvidenceUploadController
         }
 
         return $this->evidenceBusinessRefService;
+    }
+
+    private function requestedImportType(array $payload, string $default = 'TAX_INVOICE'): string
+    {
+        return self::normalizeDataType((string) ($payload['import_type'] ?? $payload['type'] ?? $payload['data_type'] ?? $default));
+    }
+
+    private function syntheticFormatForDataType(string $dataType, string $columnsCsv = '', array $columnDisplayName = [], array $columnRequirementPolicy = []): ?array
+    {
+        $dataType = self::normalizeDataType($dataType);
+        if (!$this->isAllowedDataType($dataType)) {
+            return null;
+        }
+
+        $fieldOptions = $this->sourceFieldOptionsForDataType($dataType);
+        $columns = [];
+        foreach ($fieldOptions as $index => $fieldOption) {
+            $columnKey = trim((string) ($fieldOption['original_column_key'] ?? $fieldOption['value'] ?? ''));
+            $field = trim((string) ($fieldOption['system_field_name'] ?? $fieldOption['value'] ?? ''));
+            $header = trim((string) ($fieldOption['label'] ?? $columnKey ?? $field));
+            if ($columnKey === '' || $field === '' || $header === '') {
+                continue;
+            }
+
+            $columns[] = [
+                'original_column_key' => $columnKey,
+                'excel_column_name' => $header,
+                'system_field_name' => $field,
+                'column_order' => $index + 1,
+                'excel_column_index' => $index + 1,
+                'is_required' => (int) ($fieldOption['is_required'] ?? $this->systemFieldService()->formatFieldRequiredMode($dataType, $field, $fieldOption)),
+                'is_reference_column' => 0,
+                'is_visible' => 1,
+            ];
+        }
+
+        $columns = $this->filterSyntheticColumns($columns, $columnsCsv, $dataType);
+        $columns = $this->applySyntheticColumnPolicies($dataType, $columns, $columnDisplayName, $columnRequirementPolicy);
+        if (!$this->hasUsableSyntheticColumns($columns)) {
+            $columns = $this->fallbackSyntheticColumnsForDataType($dataType, $columnDisplayName, $columnRequirementPolicy);
+        }
+
+        return [
+            'id' => '',
+            'format_name' => strtolower($dataType),
+            'data_type' => $dataType,
+            'columns' => $columns,
+        ];
+    }
+
+    private function filterSyntheticColumns(array $columns, string $columnsCsv, string $dataType = ''): array
+    {
+        $requested = array_values(array_filter(array_map('trim', explode(',', $columnsCsv))));
+        if ($requested === []) {
+            return $columns;
+        }
+
+        $columnMap = [];
+        foreach ($columns as $column) {
+            $columnKey = trim((string) ($column['original_column_key'] ?? ''));
+            $field = trim((string) ($column['system_field_name'] ?? ''));
+            if ($columnKey !== '') {
+                $columnMap[$columnKey] = $column;
+            }
+            if ($field !== '') {
+                $columnMap[$field] = $columnMap[$field] ?? $column;
+            }
+        }
+
+        $filtered = [];
+        foreach ($requested as $index => $requestedKey) {
+            $column = $columnMap[$requestedKey] ?? $this->syntheticColumnForRequestedKey($dataType, $requestedKey);
+            if ($column === null) {
+                continue;
+            }
+
+            $filtered[] = array_replace($column, [
+                'column_order' => $index + 1,
+                'excel_column_index' => $index + 1,
+            ]);
+        }
+
+        return $filtered !== [] ? $filtered : $columns;
+    }
+
+    private function hasUsableSyntheticColumns(array $columns): bool
+    {
+        foreach ($columns as $column) {
+            if (trim((string) ($column['excel_column_name'] ?? '')) !== ''
+                && trim((string) ($column['system_field_name'] ?? '')) !== ''
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function fallbackSyntheticColumnsForDataType(string $dataType, array $columnDisplayName = [], array $columnRequirementPolicy = []): array
+    {
+        $dataType = self::normalizeDataType($dataType);
+        if ($dataType !== 'TAX_INVOICE_MANUAL') {
+            return [];
+        }
+
+        $fields = [
+            'transaction_date' => '거래일자',
+            'business_unit' => '사업구분',
+            'transaction_direction' => '거래구분',
+            'transaction_type' => '거래유형',
+            'supplier_business_number' => '공급자 사업자등록번호',
+            'supplier_company_name' => '공급자 상호',
+            'supplier_ceo_name' => '공급자 대표자명',
+            'supplier_address' => '공급자 주소',
+            'customer_business_number' => '공급받는자 사업자등록번호',
+            'customer_company_name' => '공급받는자 상호',
+            'customer_ceo_name' => '공급받는자 대표자명',
+            'customer_address' => '공급받는자 주소',
+            'project_name' => '프로젝트',
+            'supply_amount' => '공급가액',
+            'vat_amount' => '부가세',
+            'total_amount' => '금액',
+            'receipt_claim_type' => '영수/청구구분',
+            'description' => '적요',
+            'note' => '비고',
+        ];
+
+        $columns = [];
+        $index = 1;
+        foreach ($fields as $field => $label) {
+            $columns[] = [
+                'original_column_key' => $field,
+                'excel_column_name' => trim((string) ($columnDisplayName[$field] ?? $label)),
+                'system_field_name' => $field,
+                'column_order' => $index,
+                'excel_column_index' => $index,
+                'is_required' => $this->systemFieldService()->effectiveFormatRequirementMode(
+                    $dataType,
+                    $field,
+                    $this->requestRequirementPolicyMode($columnRequirementPolicy[$field] ?? 0)
+                ),
+                'is_reference_column' => $this->evidenceTemplateDropdownService()->fallbackTemplateFieldOption($field) !== null ? 1 : 0,
+                'is_visible' => 1,
+            ];
+            $index++;
+        }
+
+        return $columns;
+    }
+
+    private function syntheticColumnForRequestedKey(string $dataType, string $requestedKey): ?array
+    {
+        $field = trim($requestedKey);
+        if ($field === '') {
+            return null;
+        }
+
+        $fallbackOption = $this->evidenceTemplateDropdownService()->fallbackTemplateFieldOption($field);
+        $knownBankRawFields = [
+            'raw_transaction_datetime',
+            'raw_deposit_amount',
+            'raw_withdraw_amount',
+            'raw_balance_amount',
+            'raw_description',
+            'raw_counterparty_account_number',
+            'raw_counterparty_bank_name',
+            'raw_memo',
+            'raw_transaction_type',
+            'raw_check_bill_amount',
+            'raw_cms_code',
+            'raw_counterparty_name',
+        ];
+        if ($fallbackOption === null && !(self::normalizeDataType($dataType) === 'BANK_TRANSACTION' && in_array($field, $knownBankRawFields, true))) {
+            return null;
+        }
+
+        return [
+            'original_column_key' => $field,
+            'excel_column_name' => $field,
+            'system_field_name' => $field,
+            'column_order' => 0,
+            'excel_column_index' => 0,
+            'is_required' => $this->systemFieldService()->formatFieldRequiredMode($dataType, $field),
+            'is_reference_column' => $fallbackOption !== null ? 1 : 0,
+            'is_visible' => 1,
+        ];
+    }
+
+    private function sourceFieldOptionsForDataType(string $dataType): array
+    {
+        $options = [];
+        $fieldOptions = $this->systemFieldService()->sourceColumnOptions($dataType);
+        if ($fieldOptions === []) {
+            $fieldOptions = $this->systemFieldService()->fieldOptions($dataType);
+        }
+
+        foreach ($fieldOptions as $fieldOption) {
+            $field = trim((string) ($fieldOption['value'] ?? ''));
+            $label = trim((string) ($fieldOption['label'] ?? $field));
+            if ($field === '' || $label === '') {
+                continue;
+            }
+
+            $options[] = [
+                'original_column_key' => $field,
+                'label' => $label,
+                'system_field_name' => $field,
+                'is_required' => (int) ($fieldOption['is_required'] ?? $this->systemFieldService()->formatFieldRequiredMode($dataType, $field, $fieldOption)),
+            ];
+        }
+
+        return $options;
+    }
+
+    private function applySyntheticColumnPolicies(string $dataType, array $columns, array $columnDisplayName, array $columnRequirementPolicy): array
+    {
+        foreach ($columns as &$column) {
+            $requirementKey = trim((string) ($column['original_column_key'] ?? $column['system_field_name'] ?? ''));
+            $field = trim((string) ($column['system_field_name'] ?? ''));
+            if ($field === '' || $requirementKey === '') {
+                continue;
+            }
+
+            $displayName = trim((string) ($columnDisplayName[$requirementKey] ?? $columnDisplayName[$field] ?? ''));
+            if ($displayName !== '') {
+                $column['excel_column_name'] = $displayName;
+            }
+
+            $column['is_required'] = $this->systemFieldService()->effectiveFormatRequirementMode(
+                $dataType,
+                $field,
+                $this->requestRequirementPolicyMode($columnRequirementPolicy[$requirementKey] ?? ($columnRequirementPolicy[$field] ?? ($column['is_required'] ?? 0)))
+            );
+        }
+        unset($column);
+
+        return $columns;
     }
 
     private function evidenceBankHelperService(): EvidenceBankHelperService
@@ -685,149 +949,38 @@ class EvidenceUploadController
         return $this->evidenceRuleEngineService;
     }
 
-    private function storeUploadBatch(array $format, array $file, array $rows, string $cancelToken = ''): array
+    private function assertNoUploadValidationErrors(array $rows): void
     {
-        $actor = ActorHelper::user();
-        $batchId = 'EV-' . date('YmdHis') . '-' . bin2hex(random_bytes(3));
-        $fileName = trim((string) ($file['name'] ?? 'upload'));
-        $dataType = self::normalizeDataType((string) ($format['data_type'] ?? 'ETC'));
+        $requiredErrors = [];
 
-        $this->ensureEvidenceBusinessInfoColumns();
-        $this->evidenceSortHelperService()->ensureEvidenceSortColumns();
-        try {
-            $upsertEvidence = $this->pdo->prepare("
-                INSERT INTO ledger_data_evidences
-                    (id, source_type, source_key, format_id, evidence_date, client_id, project_id, employee_id, bank_account_id, card_id,
-                     client_name, project_name, employee_name, bank_account_name, card_name, currency, supply_amount, vat_amount, total_amount,
-                     create_sort_no, status_sort_no,
-                     evidence_status, transaction_status, voucher_status, review_status, error_message,
-                     latest_imported_at, raw_json, mapped_payload_json, created_by, updated_by)
-                VALUES
-                    (:id, :source_type, :source_key, :format_id, :evidence_date, :client_id, :project_id, :employee_id, :bank_account_id, :card_id,
-                     :client_name, :project_name, :employee_name, :bank_account_name, :card_name, :currency, :supply_amount, :vat_amount, :total_amount,
-                     :create_sort_no, :status_sort_no,
-                     :evidence_status, :transaction_status, :voucher_status, 'NORMAL', :error_message,
-                     NOW(), :raw_json, :mapped_payload_json, :created_by, :updated_by)
-                ON DUPLICATE KEY UPDATE
-                    source_key = VALUES(source_key),
-                    format_id = VALUES(format_id),
-                    evidence_date = VALUES(evidence_date),
-                    client_id = VALUES(client_id),
-                    project_id = VALUES(project_id),
-                    employee_id = VALUES(employee_id),
-                    bank_account_id = VALUES(bank_account_id),
-                    card_id = VALUES(card_id),
-                    client_name = VALUES(client_name),
-                    project_name = VALUES(project_name),
-                    employee_name = VALUES(employee_name),
-                    bank_account_name = VALUES(bank_account_name),
-                    card_name = VALUES(card_name),
-                    currency = VALUES(currency),
-                    supply_amount = VALUES(supply_amount),
-                    vat_amount = VALUES(vat_amount),
-                    total_amount = VALUES(total_amount),
-                    create_sort_no = VALUES(create_sort_no),
-                    status_sort_no = VALUES(status_sort_no),
-                    evidence_status = VALUES(evidence_status),
-                    transaction_status = CASE
-                        WHEN transaction_status IN ('NONE', 'ERROR', 'DUPLICATED') THEN VALUES(transaction_status)
-                        ELSE transaction_status
-                    END,
-                    voucher_status = VALUES(voucher_status),
-                    error_message = VALUES(error_message),
-                    latest_imported_at = NOW(),
-                    raw_json = VALUES(raw_json),
-                    mapped_payload_json = VALUES(mapped_payload_json),
-                    deleted_at = NULL,
-                    deleted_by = NULL,
-                    updated_at = NOW(),
-                    updated_by = VALUES(updated_by)
-            ");
-            $counters = $this->evidenceBatchSaveService()->createBatchCounters();
-            $nextStatusSortNo = $this->evidenceBatchSaveService()->nextEvidenceJsonSortNo('_status_sort_no', $dataType);
-            $nextCreateSortNo = $this->evidenceBatchSaveService()->nextEvidenceJsonSortNo('_create_sort_no');
-            $processedRows = 0;
-            $chunkSize = self::UPLOAD_STORE_CHUNK_SIZE;
-            $this->evidenceUploadService()->preloadExistingSeedRowsForUploadRows($rows, $dataType);
-            $this->pdo->beginTransaction();
-            foreach ($rows as $row) {
-                $this->evidenceUploadService()->assertUploadNotCanceled($cancelToken);
-                if (connection_aborted()) {
-                    throw new \RuntimeException('???????? ???????????????');
-                }
-                $rowState = $this->evidenceBatchSaveService()->buildUploadRowState($row, $dataType);
-                $parsedPayload = $rowState['parsed_payload'];
-                $processStatus = $rowState['process_status'];
-                $voucherStatus = $rowState['voucher_status'];
-                $sourceKey = $rowState['source_key'];
-                $rawJson = $rowState['raw_json'];
-                $errorMessage = $rowState['error_message'];
-                $existingSeed = $this->evidenceBatchSaveService()->findExistingUploadSeed($dataType, $sourceKey, $parsedPayload);
-                $existingMappedPayload = $this->evidenceBatchSaveService()->existingMappedPayload($existingSeed);
-                $this->evidenceBatchSaveService()->assignEvidenceJsonSortNo($parsedPayload, $existingMappedPayload, '_status_sort_no', $nextStatusSortNo);
-                $this->evidenceBatchSaveService()->assignEvidenceJsonSortNo($parsedPayload, $existingMappedPayload, '_create_sort_no', $nextCreateSortNo);
-                $parsedJson = $this->evidencePayloadHelperService()->jsonEncodeForStorage($parsedPayload);
-                if ($this->evidenceBatchSaveService()->isUnchangedExistingSeed($existingSeed, $rawJson, $parsedJson)) {
-                    $this->evidenceBatchSaveService()->incrementUnchanged($counters);
-                    $this->evidenceBatchSaveService()->commitUploadChunkIfNeeded(++$processedRows, $chunkSize);
+        foreach ($rows as $row) {
+            $validation = is_array($row['_validation'] ?? null) ? $row['_validation'] : [];
+            $requiredMessages = is_array($validation['required_missing_messages'] ?? null)
+                ? $validation['required_missing_messages']
+                : [];
+            $rowNo = (int) ($row['_row_no'] ?? 0);
+
+            foreach ($requiredMessages as $requiredMessage) {
+                $message = trim((string) $requiredMessage);
+                if ($message === '') {
                     continue;
                 }
-                $protectedSeedInfo = $this->evidenceBatchSaveService()->protectedExistingSeedInfo($existingSeed);
-                if ($protectedSeedInfo['is_protected']) {
-                    $this->evidenceBatchSaveService()->incrementProtectedSkip($counters, $protectedSeedInfo);
-                    $this->evidenceBatchSaveService()->commitUploadChunkIfNeeded(++$processedRows, $chunkSize);
-                    continue;
-                }
-                $evidenceId = (string) ($existingSeed['id'] ?? UuidHelper::generate());
-                $this->evidenceBatchSaveService()->incrementPersisted($counters, $existingSeed !== null);
-                $upsertEvidence->execute($this->evidenceBatchSaveService()->buildPersistParams(
-                    $evidenceId,
-                    $dataType,
-                    (string) ($format['id'] ?? ''),
-                    $sourceKey,
-                    $parsedPayload,
-                    $processStatus,
-                    $voucherStatus,
-                    $errorMessage,
-                    $rawJson,
-                    $parsedJson,
-                    $actor
-                ));
-                $cachedSeed = $this->evidenceBatchSaveService()->buildCachedSeed(
-                    $evidenceId,
-                    $sourceKey,
-                    $rawJson,
-                    $parsedJson,
-                    $processStatus,
-                    $voucherStatus
-                );
-                if ($cachedSeed !== null) {
-                    $this->evidenceUploadService()->rememberExistingSeedRow($dataType, $sourceKey, $cachedSeed, $parsedPayload);
-                }
-                if ($dataType === 'BANK_TRANSACTION') {
-                    $this->evidenceBankHelperService()->upsertBankTransactionFromPayload($evidenceId, $parsedPayload, $actor);
-                }
-                $this->evidenceBatchSaveService()->incrementErrorIfNeeded($counters, $processStatus);
-                $this->evidenceBatchSaveService()->commitUploadChunkIfNeeded(++$processedRows, $chunkSize);
-            }
 
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->commit();
+                $label = preg_replace('/\s*필수값 없음$/u', '', $message) ?? $message;
+                $requiredErrors[] = ($rowNo > 0 ? "{$rowNo}행: " : '') . "{$label} 필수";
             }
-        } catch (\Throwable $e) {
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
-            }
-            throw $e;
         }
 
-        return $this->evidenceBatchSaveService()->buildBatchResult(
-            $counters,
-            $batchId,
-            $fileName,
-            $dataType,
-            (string) ($format['id'] ?? ''),
-            count($rows)
-        );
+        $requiredErrors = array_values(array_unique($requiredErrors));
+        if ($requiredErrors !== []) {
+            throw new \RuntimeException("업로드할 수 없습니다.\n\n" . implode("\n", $requiredErrors));
+        }
+
+        $this->evidenceUploadValidationService()->assertNoUploadValidationErrors($rows);
+    }
+
+    private function storeUploadBatch(array $format, array $file, array $rows, string $cancelToken = ''): array
+    {
+        return $this->evidenceUploadPersistService()->storeUploadBatch($format, $file, $rows, $cancelToken);
     }
 }

@@ -15,43 +15,10 @@ class LedgerController
         $this->layout = new LayoutController($pdo ?? DbPdo::conn());
     }
 
-    private function renderPage(string $viewPath, array $params = []): void
-    {
-        if ($params !== []) {
-            extract($params, EXTR_SKIP);
-        }
-
-        ob_start();
-        require PROJECT_ROOT . $viewPath;
-        $content = ob_get_clean();
-
-        $this->layout->render([
-            'pageTitle' => $pageTitle ?? '',
-            'content' => $content,
-            'pageStyles' => $pageStyles ?? '',
-            'pageScripts' => $pageScripts ?? '',
-            'layoutOptions' => $layoutOptions ?? [],
-        ]);
-    }
-
     public function webIndex(): void
     {
         $this->renderPage('/app/views/ledger/index.php', [
             'pageTitle' => '회계관리',
-        ]);
-    }
-
-    public function webAccount(): void
-    {
-        $this->renderPage('/app/views/ledger/account/index.php', [
-            'pageTitle' => '계정과목',
-        ]);
-    }
-
-    public function webJournalRules(): void
-    {
-        $this->renderPage('/app/views/ledger/journal_rules/index.php', [
-            'pageTitle' => '분개규칙',
         ]);
     }
 
@@ -65,7 +32,7 @@ class LedgerController
     public function webVoucherReview(): void
     {
         $this->renderPage('/app/views/ledger/voucher/review.php', [
-            'pageTitle' => '전표검토/승인',
+            'pageTitle' => '전표검토 및 확인',
         ]);
     }
 
@@ -78,8 +45,9 @@ class LedgerController
 
     public function webDataIndex(): void
     {
-        header('Location: /ledger/data/list', true, 302);
-        exit;
+        $this->renderPage('/app/views/ledger/data/list.php', [
+            'pageTitle' => '증빙원본',
+        ]);
     }
 
     public function webDataList(): void
@@ -110,6 +78,25 @@ class LedgerController
 
         $this->renderPage('/app/views/ledger/placeholder.php', [
             'pageTitle' => $title,
+        ]);
+    }
+
+    private function renderPage(string $viewPath, array $params = []): void
+    {
+        if ($params !== []) {
+            extract($params, EXTR_SKIP);
+        }
+
+        ob_start();
+        require PROJECT_ROOT . $viewPath;
+        $content = ob_get_clean();
+
+        $this->layout->render([
+            'pageTitle' => $pageTitle ?? '',
+            'content' => $content,
+            'pageStyles' => $pageStyles ?? '',
+            'pageScripts' => $pageScripts ?? '',
+            'layoutOptions' => $layoutOptions ?? [],
         ]);
     }
 }

@@ -9,6 +9,11 @@ import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { openClientQuickCreate } from '/public/assets/js/pages/dashboard/settings/base/client.js';
 import { initCodeSelectControls } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
 import {
+    readDataTableSettingsState,
+    resolveDataTableColumnDisplayName,
+    resolveDataTableColumnRequirementPolicy
+} from '/public/assets/js/common/datatable/dataTableSettings.js';
+import {
     bindFilePreviewAndDeleteEvents,
     resolveFileSrc,
     getCertPreview,
@@ -46,19 +51,15 @@ window.AdminPicker = AdminPicker;
         profile_image:            { label: '\uC0AC\uC9C4', visible: true },
         username:                 { label: '\uC544\uC774\uB514', visible: true },
         employee_name:            { label: '\uC9C1\uC6D0\uBA85', visible: true },
-        client_id:                { label: '\uAC70\uB798\uCC98ID', visible: false },
-        client_name:              { label: '\uAC70\uB798\uCC98(\uD68C\uACC4\uC6A9)', visible: true },
-        role_name:                { label: '\uC5ED\uD560', visible: true },
-        role_id:                  { label: '\uC5ED\uD560ID', visible: false },
+        client_id:                { label: '\uAC70\uB798\uCC98(\uD68C\uACC4\uC6A9)', visible: true },
+        role_id:                  { label: '\uC5ED\uD560', visible: true },
 
-        department_id:            { label: '\uBD80\uC11CID', visible: false },
-        department_name:          { label: '\uBD80\uC11C', visible: false },
-        position_id:              { label: '\uC9C1\uCC45ID', visible: false },
-        position_name:            { label: '\uC9C1\uCC45', visible: false },
+        department_id:            { label: '\uBD80\uC11C', visible: true },
+        position_id:              { label: '\uC9C1\uCC45', visible: true },
 
         approved:                 { label: '\uC2B9\uC778\uC5EC\uBD80', visible: false },
         approved_at:              { label: '\uC2B9\uC778\uC77C\uC2DC', visible: false },
-        approved_by_name:         { label: '\uC2B9\uC778\uC790', visible: false },
+        approved_by:              { label: '\uC2B9\uC778\uC790', visible: false },
 
         email:                    { label: '\uC774\uBA54\uC77C', visible: true },
         phone:                    { label: '\uC5F0\uB77D\uCC98', visible: true },
@@ -86,7 +87,7 @@ window.AdminPicker = AdminPicker;
         last_login_device:        { label: '\uB85C\uADF8\uC778\uB514\uBC14\uC774\uC2A4', visible: false },
 
         password_updated_at:      { label: '\uBE44\uBC00\uBC88\uD638\uBCC0\uACBD\uC77C', visible: false },
-        password_updated_by_name: { label: '\uBE44\uBC00\uBC88\uD638\uBCC0\uACBD\uC790', visible: false },
+        password_updated_by:      { label: '\uBE44\uBC00\uBC88\uD638\uBCC0\uACBD\uC790', visible: false },
 
         certificate_name:         { label: '\uC790\uACA9\uC99D\uBA85', visible: false },
         certificate_file:         { label: '\uC790\uACA9\uC99D\uD30C\uC77C', visible: false },
@@ -99,12 +100,12 @@ window.AdminPicker = AdminPicker;
         memo:                     { label: '\uBA54\uBAA8', visible: false },
 
         user_created_at:          { label: '\uC0DD\uC131\uC77C\uC2DC', visible: false },
-        user_created_by_name:     { label: '\uC0DD\uC131\uC790', visible: false },
+        user_created_by:          { label: '\uC0DD\uC131\uC790', visible: false },
         user_updated_at:          { label: '\uC218\uC815\uC77C\uC2DC', visible: false },
-        user_updated_by_name:     { label: '\uC218\uC815\uC790', visible: false },
+        user_updated_by:          { label: '\uC218\uC815\uC790', visible: false },
 
         deleted_at:               { label: '\uBE44\uD65C\uC131\uD654\uC77C\uC2DC', visible: false },
-        deleted_by_name:          { label: '\uBE44\uD65C\uC131\uD654\uCC98\uB9AC\uC790', visible: false },
+        deleted_by:               { label: '\uBE44\uD65C\uC131\uD654\uCC98\uB9AC\uC790', visible: false },
 
         is_active:                { label: '\uC0C1\uD0DC', visible: true, noVis: true }
     };
@@ -117,6 +118,46 @@ window.AdminPicker = AdminPicker;
         { value: 'deleted_at', label: '\uBE44\uD65C\uC131\uD654\uC77C' }
     ];
 
+    const EMPLOYEE_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.organization.employee.employee-table.v1';
+    const EMPLOYEE_DEPRECATED_SETTINGS_KEYS = Object.freeze([
+        'client_name',
+        'department_name',
+        'position_name',
+        'role_name',
+        '__legacy_employee_status'
+    ]);
+    const EMPLOYEE_MODAL_FIELD_POLICIES = Object.freeze([
+        { selector: '#edit_employee_username', key: 'username', fallback: '아이디' },
+        { selector: '#edit_employee_name', key: 'employee_name', fallback: '직원명' },
+        { selector: '#edit_employee_phone', key: 'phone', fallback: '연락처' },
+        { selector: '#edit_employee_emergency_phone', key: 'emergency_phone', fallback: '비상연락처' },
+        { selector: '#edit_employee_email', key: 'email', fallback: '이메일' },
+        { selector: '#edit_employee_rrn', key: 'rrn', fallback: '주민등록번호' },
+        { selector: '#edit_employee_address', key: 'address', fallback: '주소' },
+        { selector: '#edit_employee_address_detail', key: 'address_detail', fallback: '상세주소' },
+        { selector: '#edit_department_select', key: 'department_id', fallback: '부서' },
+        { selector: '#edit_position_select', key: 'position_id', fallback: '직책' },
+        { selector: '#edit_role_select', key: 'role_id', fallback: '역할' },
+        { selector: '#edit_employee_client_select', key: 'client_id', fallback: '거래처(회계용)' },
+        { selector: '#edit_doc_hire_date', key: 'doc_hire_date', fallback: '서류입사일' },
+        { selector: '#edit_real_hire_date', key: 'real_hire_date', fallback: '실입사일' },
+        { selector: '#edit_doc_retire_date', key: 'doc_retire_date', fallback: '서류퇴사일' },
+        { selector: '#edit_real_retire_date', key: 'real_retire_date', fallback: '실퇴사일' },
+        { selector: '#edit_profile_image', key: 'profile_image', fallback: '프로필사진' },
+        { selector: '#edit_rrn_image', key: 'rrn_image', fallback: '신분증파일' },
+        { selector: '#edit_certificate_file', key: 'certificate_file', fallback: '자격증파일' },
+        { selector: '#edit_certificate_name', key: 'certificate_name', fallback: '자격증명' },
+        { selector: '#edit_bank_name', key: 'bank_name', fallback: '은행명' },
+        { selector: '#edit_account_number', key: 'account_number', fallback: '계좌번호' },
+        { selector: '#edit_account_holder', key: 'account_holder', fallback: '예금주' },
+        { selector: '#edit_bank_file', key: 'bank_file', fallback: '통장사본' },
+        { selector: '#edit_two_factor', key: 'two_factor_enabled', fallback: '2차인증' },
+        { selector: '#edit_email_notify', key: 'email_notify', fallback: '이메일알림' },
+        { selector: '#edit_sms_notify', key: 'sms_notify', fallback: 'SMS알림' },
+        { selector: '#edit_employee_note', key: 'note', fallback: '노트' },
+        { selector: '#edit_employee_memo', key: 'memo', fallback: '메모' }
+    ]);
+
     let employeeTable = null;
     let employeeEditModal = null;
     let originalImageModal = null;
@@ -126,6 +167,7 @@ window.AdminPicker = AdminPicker;
     let employeeClientSelect2Inited = false;
     const employeeSelectOptionsCache = new Map();
     let employeeBankControlsPromise = null;
+    let employeePolicyBound = false;
 
     document.addEventListener('DOMContentLoaded', () => {
         if (!window.jQuery) {
@@ -138,6 +180,7 @@ window.AdminPicker = AdminPicker;
     });
 
     function initEmployeePage($) {
+        sanitizeEmployeeTableSettingsState();
         initEmployeeModules();
         initModals();
         initAdminDatePicker();
@@ -169,6 +212,46 @@ window.AdminPicker = AdminPicker;
         bindGlobalEvents();
     }
 
+    function sanitizeEmployeeTableSettingsState() {
+        const raw = window.localStorage?.getItem(EMPLOYEE_TABLE_SETTINGS_STORAGE_KEY);
+        if (!raw) return;
+
+        try {
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== 'object') return;
+
+            const deprecated = new Set(EMPLOYEE_DEPRECATED_SETTINGS_KEYS);
+            const nextState = { ...parsed };
+            let changed = false;
+
+            ['visibleColumns', 'columnOrder', 'requiredColumns'].forEach((key) => {
+                if (!Array.isArray(nextState[key])) return;
+                const filtered = nextState[key].filter((item) => !deprecated.has(String(item || '').trim()));
+                if (filtered.length !== nextState[key].length) {
+                    nextState[key] = filtered;
+                    changed = true;
+                }
+            });
+
+            ['columnDisplayName', 'columnRequirementPolicy', 'columnWidth'].forEach((key) => {
+                if (!nextState[key] || typeof nextState[key] !== 'object') return;
+                const filtered = Object.fromEntries(
+                    Object.entries(nextState[key]).filter(([itemKey]) => !deprecated.has(String(itemKey || '').trim()))
+                );
+                if (Object.keys(filtered).length !== Object.keys(nextState[key]).length) {
+                    nextState[key] = filtered;
+                    changed = true;
+                }
+            });
+
+            if (changed) {
+                window.localStorage?.setItem(EMPLOYEE_TABLE_SETTINGS_STORAGE_KEY, JSON.stringify(nextState));
+            }
+        } catch (error) {
+            console.warn('[employee] table settings sanitize failed:', error);
+        }
+    }
+
     function initEmployeeModules() {
         try {
             window.EmployeeUtils?.hideAlertMessages?.();
@@ -189,15 +272,211 @@ window.AdminPicker = AdminPicker;
 
         if (editEl) {
             employeeEditModal = new bootstrap.Modal(editEl, { focus: false });
+            bindEmployeePolicySync();
+            applyEmployeeModalPolicyLabels(document);
 
             editEl.addEventListener('shown.bs.modal', () => {
                 bindAdminDateInputs();
+                applyEmployeeModalPolicyLabels(document);
             });
         }
 
         if (imageEl) {
             originalImageModal = new bootstrap.Modal(imageEl, { focus: false });
         }
+    }
+
+    function currentEmployeePolicyState() {
+        return readDataTableSettingsState(EMPLOYEE_TABLE_SETTINGS_STORAGE_KEY) || {};
+    }
+
+    function employeeFieldLabel(key, _fallback = '') {
+        const normalizedKey = String(key || '').trim();
+        return resolveDataTableColumnDisplayName(
+            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+            currentEmployeePolicyState(),
+            normalizedKey
+        );
+    }
+
+    function employeeFieldRequirement(key) {
+        const normalizedKey = String(key || '').trim();
+        return resolveDataTableColumnRequirementPolicy(
+            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+            currentEmployeePolicyState()
+        );
+    }
+
+    function employeeFieldStarMarkup(key) {
+        const policy = employeeFieldRequirement(key);
+        if (policy === 'required') {
+            return '<span class="column-policy-star is-required" aria-hidden="true">*</span>';
+        }
+        if (policy === 'optional') {
+            return '<span class="column-policy-star is-optional" aria-hidden="true">*</span>';
+        }
+        return '';
+    }
+
+    function findEmployeeModalLabel(fieldSelector, root = document) {
+        const field = root.querySelector(fieldSelector);
+        if (!field) return null;
+
+        if (field.id) {
+            const labelByFor = root.querySelector(`label[for="${field.id}"]`);
+            if (labelByFor) return labelByFor;
+        }
+
+        const column = field.closest('div[class*="col-"]');
+        if (column) {
+            const label = column.querySelector('label.form-label');
+            if (label) return label;
+        }
+
+        const group = field.closest('.col-md-3, .col-md-4, .col-md-6, .col-md-8, .col-12, .mb-3');
+        if (group) {
+            const label = group.querySelector('label.form-label');
+            if (label) return label;
+        }
+
+        return field.closest('label.form-label') || null;
+    }
+
+    function applyEmployeeModalPolicyLabels(root = document) {
+        EMPLOYEE_MODAL_FIELD_POLICIES.forEach((field) => {
+            const labelEl = findEmployeeModalLabel(field.selector, root);
+            if (!labelEl) return;
+
+            const displayName = employeeFieldLabel(field.key, field.fallback);
+            const starMarkup = employeeFieldStarMarkup(field.key);
+            labelEl.innerHTML = `${displayName}${starMarkup ? ` ${starMarkup}` : ''}`;
+        });
+    }
+
+    function isEmployeeFilePolicyKey(key) {
+        return ['profile_image', 'rrn_image', 'certificate_file', 'bank_file'].includes(String(key || '').trim());
+    }
+
+    function isEmployeeFieldVisible(field) {
+        if (!field) return false;
+        if (field.type === 'hidden') return false;
+        if (field.disabled) return false;
+        const style = window.getComputedStyle(field);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        return true;
+    }
+
+    function shouldValidateEmployeePolicyField(field) {
+        const selector = String(field?.selector || '').trim();
+        if (!selector) return false;
+        const input = document.querySelector(selector);
+        return isEmployeeFieldVisible(input);
+    }
+
+    function hasEmployeeFileValue(key) {
+        const normalizedKey = String(key || '').trim();
+
+        if (normalizedKey === 'profile_image') {
+            const input = document.getElementById('edit_profile_image');
+            const deleteFlag = document.getElementById('edit_profile_image_delete');
+            const preview = document.getElementById('edit_profile_preview');
+            const hasExisting = String(preview?.getAttribute('data-file-path') || '').trim() !== '';
+            return (input?.files?.length || 0) > 0 || (hasExisting && String(deleteFlag?.value || '0') !== '1');
+        }
+
+        if (normalizedKey === 'rrn_image') {
+            const input = document.getElementById('edit_rrn_image');
+            const deleteFlag = document.getElementById('edit_rrn_image_delete');
+            const preview = document.getElementById('edit_id_preview');
+            const hasExisting = String(preview?.getAttribute('data-file-path') || '').trim() !== '';
+            return (input?.files?.length || 0) > 0 || (hasExisting && String(deleteFlag?.value || '0') !== '1');
+        }
+
+        if (normalizedKey === 'certificate_file') {
+            const input = document.getElementById('edit_certificate_file');
+            const deleteFlag = document.getElementById('edit_certificate_file_delete');
+            const preview = document.getElementById('edit_cert_preview_img');
+            const hasExisting = String(preview?.getAttribute('data-file-path') || '').trim() !== '';
+            return (input?.files?.length || 0) > 0 || (hasExisting && String(deleteFlag?.value || '0') !== '1');
+        }
+
+        if (normalizedKey === 'bank_file') {
+            const input = document.getElementById('edit_bank_file');
+            const deleteFlag = document.getElementById('edit_bank_file_delete');
+            const preview = document.getElementById('edit_bank_preview');
+            const hasExisting = String(preview?.getAttribute('data-file-path') || '').trim() !== '';
+            return (input?.files?.length || 0) > 0 || (hasExisting && String(deleteFlag?.value || '0') !== '1');
+        }
+
+        return false;
+    }
+
+    function collectEmployeeDetailValues(form, formData) {
+        const values = {};
+
+        EMPLOYEE_MODAL_FIELD_POLICIES.forEach((field) => {
+            const key = String(field?.key || '').trim();
+            const selector = String(field?.selector || '').trim();
+            if (!key || !selector || isEmployeeFilePolicyKey(key)) return;
+
+            const input = form?.querySelector(selector) || document.querySelector(selector);
+            if (!input) return;
+
+            const fieldName = String(input.name || key).trim();
+            if (input.type === 'checkbox') {
+                values[key] = input.checked ? '1' : '';
+                return;
+            }
+
+            values[key] = formData.get(fieldName) ?? input.value ?? '';
+        });
+
+        return values;
+    }
+
+    function validateEmployeeRequiredPolicies(fields = [], values = {}) {
+        for (const field of fields) {
+            const key = String(field?.key || '').trim();
+            if (!key || employeeFieldRequirement(key) !== 'required') {
+                continue;
+            }
+            if (!shouldValidateEmployeePolicyField(field)) {
+                continue;
+            }
+
+            const label = employeeFieldLabel(key, field?.fallback || key);
+            if (isEmployeeFilePolicyKey(key)) {
+                if (!hasEmployeeFileValue(key)) {
+                    return `${label} 항목은 필수입니다.`;
+                }
+                continue;
+            }
+
+            const value = values[key];
+            if (Array.isArray(value)) {
+                if (value.length === 0) {
+                    return `${label} 항목은 필수입니다.`;
+                }
+                continue;
+            }
+
+            if (String(value ?? '').trim() === '') {
+                return `${label} 항목은 필수입니다.`;
+            }
+        }
+
+        return '';
+    }
+
+    function bindEmployeePolicySync() {
+        if (employeePolicyBound) return;
+        employeePolicyBound = true;
+
+        document.addEventListener('datatable-settings:updated', (event) => {
+            const storageKey = String(event?.detail?.storageKey || '').trim();
+            if (storageKey && storageKey !== EMPLOYEE_TABLE_SETTINGS_STORAGE_KEY) return;
+            applyEmployeeModalPolicyLabels(document);
+        });
     }
 
     function initAdminDatePicker() {
@@ -349,9 +628,19 @@ window.AdminPicker = AdminPicker;
             tableSelector: '#employee-table',
             api: API.LIST,
             columns,
+            tableSettings: {
+                pageKey: 'dashboard.settings.organization.employee',
+                tableKey: 'employee-table',
+                storageKey: 'datatable.settings.dashboard.settings.organization.employee.employee-table.v1',
+                metaDomain: 'employee',
+                tableLabel: '\uC9C1\uC6D0',
+                title: '\uC9C1\uC6D0 \uD14C\uC774\uBE14 \uC124\uC815',
+            },
             defaultOrder: [[1, 'asc']],
             pageLength: 100,
-            selectable: false,
+            autoWidth: false,
+            selectionColumn: { widthResizable: true },
+            selectable: true,
             deleteButton: false,
             buttons: [
                 {
@@ -389,6 +678,7 @@ window.AdminPicker = AdminPicker;
 
         columns.push({
             title: '<i class="bi bi-arrows-move"></i>',
+            settingsKey: '__reorder',
             className: 'reorder-handle no-sort no-colvis text-center',
             orderable: false,
             searchable: false,
@@ -398,19 +688,18 @@ window.AdminPicker = AdminPicker;
 
 
         Object.entries(EMPLOYEE_COLUMN_MAP).forEach(([field, config]) => {
-            if (field === 'is_active') return;
-
             columns.push({
                 data: field,
                 title: config.label,
                 visible: config.visible ?? true,
-                className: config.noVis ? 'noVis' : '',
+                className: [config.noVis ? 'noVis' : '', field === 'is_active' ? 'text-center' : ''].filter(Boolean).join(' '),
+                headerClassName: field === 'is_active' ? 'text-center' : '',
                 defaultContent: '',
                 orderable: field !== 'profile_image',
                 searchable: field !== 'profile_image',
                 render: function (data, type, row) {
                     if (data == null) {
-                        if (field === 'client_name') {
+                        if (field === 'client_id') {
                             return type === 'display'
                                 ? '<span class="text-danger fw-semibold">\uBBF8\uC5F0\uACB0</span>'
                                 : '';
@@ -425,6 +714,19 @@ window.AdminPicker = AdminPicker;
                         return '<img src="' + escapeHtml(src) + '" class="employee-img-preview" style="width:40px;height:40px;border-radius:6px;object-fit:cover;cursor:pointer;">';
                     }
 
+                    if (field === 'is_active') {
+                        const active = String(data) === '1';
+                        return `
+                            <div class="form-check form-switch d-inline-flex justify-content-center m-0">
+                                <input type="checkbox"
+                                       class="form-check-input employee-active-toggle"
+                                       data-id="${escapeHtml(row.id || '')}"
+                                       ${active ? 'checked' : ''}
+                                       aria-label="상태 변경">
+                            </div>
+                        `;
+                    }
+
                     if (field === 'approved') {
                         return String(data) === '1' ? '\uC2B9\uC778' : '\uBBF8\uC2B9\uC778';
                     }
@@ -437,11 +739,26 @@ window.AdminPicker = AdminPicker;
                         return String(data) === '1' ? 'ON' : 'OFF';
                     }
 
-                    if (field === 'client_name') {
-                        const clientName = String(data || '').trim();
+                    if (field === 'client_id') {
+                        const clientName = String(row?.client_name || '').trim();
                         return clientName
                             ? escapeHtml(clientName)
                             : '<span class="text-danger fw-semibold">\uBBF8\uC5F0\uACB0</span>';
+                    }
+
+                    if (field === 'department_id') {
+                        const departmentName = String(row?.department_name || '').trim();
+                        return departmentName || '';
+                    }
+
+                    if (field === 'position_id') {
+                        const positionName = String(row?.position_name || '').trim();
+                        return positionName || '';
+                    }
+
+                    if (field === 'role_id') {
+                        const roleName = String(row?.role_name || '').trim();
+                        return roleName || '';
                     }
 
                     if (field === 'phone') {
@@ -456,17 +773,38 @@ window.AdminPicker = AdminPicker;
                         return maskRrn(data);
                     }
 
+                    if (field === 'approved_by') {
+                        return row?.approved_by_name || data;
+                    }
+
+                    if (field === 'password_updated_by') {
+                        return row?.password_updated_by_name || data;
+                    }
+
+                    if (field === 'user_created_by') {
+                        return row?.user_created_by_name || data;
+                    }
+
+                    if (field === 'user_updated_by') {
+                        return row?.user_updated_by_name || data;
+                    }
+
+                    if (field === 'deleted_by') {
+                        return row?.deleted_by_name || data;
+                    }
+
                     return data;
                 }
             });
         });
 
         columns.push({
-            data: 'is_active',
-            title: EMPLOYEE_COLUMN_MAP.is_active.label,
-            visible: true,
-            className: 'text-center',
-            headerClassName: 'text-center',
+            data: '__deprecated_is_active',
+            title: '',
+            visible: false,
+            className: 'd-none no-colvis',
+            headerClassName: 'd-none no-colvis',
+            settingsKey: '__legacy_employee_status',
             defaultContent: '',
             render: function (data, type, row) {
                 if (type !== 'display') return data;
@@ -604,6 +942,16 @@ window.AdminPicker = AdminPicker;
         const form = document.getElementById('employee-edit-form');
         if (!form) return;
 
+        const formData = new FormData(form);
+        const requiredMessage = validateEmployeeRequiredPolicies(
+            EMPLOYEE_MODAL_FIELD_POLICIES,
+            collectEmployeeDetailValues(form, formData)
+        );
+        if (requiredMessage) {
+            AppCore.notify('warning', requiredMessage);
+            return;
+        }
+
         const id = $('#edit_employee_id').val();
         const name = String($('#edit_employee_name').val() || '').trim();
         const username = String($('#edit_employee_username').val() || '').trim();
@@ -623,7 +971,6 @@ window.AdminPicker = AdminPicker;
             return;
         }
 
-        const formData = new FormData(form);
         formData.set('action', id ? 'update' : 'create');
         formData.set('account_number', unformatAccountNumber?.(formData.get('account_number') || '') || '');
 
@@ -789,12 +1136,12 @@ window.AdminPicker = AdminPicker;
         initEmployeeClientSelect2();
         setEmployeeClientSelect2({});
 
-        $('#edit_profile_preview').attr('src', '/public/assets/img/default-avatar.png');
+        $('#edit_profile_preview').attr('src', '/public/assets/img/default-avatar.png').attr('data-file-path', '');
         $('#edit_profile_delete_btn').hide();
         $('#edit_profile_image_delete').val('0');
         $('#profile_box').attr('data-label', '\uC5C5\uB85C\uB4DC');
 
-        $('#edit_id_preview').attr('src', '/public/assets/img/placeholder-id.png');
+        $('#edit_id_preview').attr('src', '/public/assets/img/placeholder-id.png').attr('data-file-path', '');
         $('#edit_id_delete_btn').hide();
         $('#edit_rrn_image_delete').val('0');
         $('#id_box').attr('data-label', '\uC5C5\uB85C\uB4DC');
@@ -819,6 +1166,7 @@ window.AdminPicker = AdminPicker;
 
         $('#employeeEditSubmitBtn').show();
         $('#edit_force_delete_btn').hide();
+        applyEmployeeModalPolicyLabels(document);
     }
 
     async function setEmployeeFormData(row) {
@@ -873,12 +1221,12 @@ window.AdminPicker = AdminPicker;
         setEmployeeClientSelect2(row);
 
         const profileSrc = resolveFileSrc(row.profile_image, '/public/assets/img/default-avatar.png');
-        $('#edit_profile_preview').attr('src', profileSrc);
+        $('#edit_profile_preview').attr('src', profileSrc).attr('data-file-path', row.profile_image || '');
         $('#edit_profile_delete_btn').toggle(!!row.profile_image);
         $('#profile_box').attr('data-label', row.profile_image ? '\uC6D0\uBCF8 \uBCF4\uAE30' : '\uC5C5\uB85C\uB4DC');
 
         const idSrc = resolveFileSrc(row.rrn_image, '/public/assets/img/placeholder-id.png');
-        $('#edit_id_preview').attr('src', idSrc);
+        $('#edit_id_preview').attr('src', idSrc).attr('data-file-path', row.rrn_image || '');
         $('#edit_id_delete_btn').toggle(!!row.rrn_image);
         $('#id_box').attr('data-label', row.rrn_image ? '\uC6D0\uBCF8 \uBCF4\uAE30' : '\uC5C5\uB85C\uB4DC');
 
@@ -890,22 +1238,22 @@ window.AdminPicker = AdminPicker;
         $('#edit_bank_delete_btn').toggle(!!row.bank_file);
         $('#bank_box').attr('data-label', row.bank_file ? '\uC6D0\uBCF8 \uBCF4\uAE30' : '\uC5C5\uB85C\uB4DC');
 
-        $('#edit_created_at').text(row.user_created_at || row.created_at || '-');
-        $('#edit_created_by').text(row.user_created_by_name || row.created_by_name || '');
-        $('#edit_updated_at').text(row.user_updated_at || row.updated_at || '-');
-        $('#edit_updated_by').text(row.user_updated_by_name || row.updated_by_name || '');
+        $('#edit_created_at').text(row.user_created_at || '-');
+        $('#edit_created_by').text(row.user_created_by_name || row.user_created_by || '');
+        $('#edit_updated_at').text(row.user_updated_at || '-');
+        $('#edit_updated_by').text(row.user_updated_by_name || row.user_updated_by || '');
         $('#edit_deleted_at').text(row.deleted_at || '-');
-        $('#edit_deleted_by').text(row.deleted_by_name || '');
+        $('#edit_deleted_by').text(row.deleted_by_name || row.deleted_by || '');
         $('#edit_approved').text(String(row.approved) === '1' ? '\uC2B9\uC778' : '\uBBF8\uC2B9\uC778');
         $('#edit_approved_at').text(row.approved_at || '-');
-        $('#edit_approved_by').text(row.approved_by_name || '');
+        $('#edit_approved_by').text(row.approved_by_name || row.approved_by || '');
         $('#edit_last_login').text(row.last_login || '-');
         $('#edit_login_fail_count').text(row.login_fail_count || '0');
         $('#edit_account_locked_until').text(row.account_locked_until || '-');
         $('#edit_last_login_ip').html('<div style="font-weight:600;">' + escapeHtml(row.last_login_ip || '-') + '</div>');
         $('#edit_last_login_device').text(row.last_login_device || '-');
         $('#edit_password_updated_at').text(row.password_updated_at || '-');
-        $('#edit_password_updated_by').text(row.password_updated_by_name || '');
+        $('#edit_password_updated_by').text(row.password_updated_by_name || row.password_updated_by || '');
 
         $('#edit_is_active').html(
             String(row.is_active) === '1'
@@ -927,6 +1275,8 @@ window.AdminPicker = AdminPicker;
                 .addClass('btn-success')
                 .attr('data-mode', 'activate');
         }
+
+        applyEmployeeModalPolicyLabels(document);
     }
 
     function initEmployeeClientSelect2() {

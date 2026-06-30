@@ -226,6 +226,20 @@ $router->post('/api/ledger/account/status', 'ChartAccountController@apiStatus', 
     'log' => true,
 ]);
 
+$router->post('/api/ledger/account/delete', 'ChartAccountController@apiDelete', [
+    'key' => 'api.ledger.account.delete',
+    'page' => '계정과목',
+    'page_description' => '계정과목 관리',
+    'permission_name' => '삭제',
+    'permission_description' => '계정과목 삭제',
+    'name' => '계정과목 삭제',
+    'description' => '회계관리 > 기초정보관리 > 계정과목 > 삭제',
+    'category' => '회계관리 > 기초정보관리',
+    'auth' => true,
+    'permissions' => ['delete'],
+    'log' => true,
+]);
+
 $router->post('/api/ledger/account/soft-delete', 'ChartAccountController@apiSoftDelete', [
     'key' => 'api.ledger.account.soft_delete',
     'page' => '계정과목',
@@ -268,20 +282,6 @@ $router->post('/api/ledger/account/hard-delete', 'ChartAccountController@apiHard
     'log' => true,
 ]);
 
-$router->get('/api/ledger/account/template', 'ChartAccountController@apiTemplate', [
-    'key' => 'api.ledger.account.template',
-    'page' => '계정과목',
-    'page_description' => '계정과목 관리',
-    'permission_name' => '양식다운로드',
-    'permission_description' => '계정과목 양식 다운로드',
-    'name' => '계정과목 양식다운로드',
-    'description' => '회계관리 > 기초정보관리 > 계정과목 > 양식다운로드',
-    'category' => '회계관리 > 기초정보관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
-
 $router->get('/api/ledger/account/excel', 'ChartAccountController@apiDownloadAllExcel', [
     'key' => 'api.ledger.account.excel',
     'page' => '계정과목',
@@ -321,6 +321,48 @@ $router->post('/api/ledger/account/reorder', 'ChartAccountController@apiReorder'
     'category' => '회계관리 > 기초정보관리',
     'auth' => true,
     'permissions' => ['save'],
+    'log' => true,
+]);
+
+$router->post('/api/ledger/account/purge', 'ChartAccountController@apiPurge', [
+    'key' => 'api.ledger.account.purge',
+    'page' => '계정과목',
+    'page_description' => '계정과목 관리',
+    'permission_name' => '영구삭제',
+    'permission_description' => '계정과목 영구 삭제',
+    'name' => '계정과목 영구삭제',
+    'description' => '회계관리 > 기초정보관리 > 계정과목 > 영구삭제',
+    'category' => '회계관리 > 기초정보관리',
+    'auth' => true,
+    'permissions' => ['delete'],
+    'log' => true,
+]);
+
+$router->post('/api/ledger/account/purge-bulk', 'ChartAccountController@apiPurgeBulk', [
+    'key' => 'api.ledger.account.purge_bulk',
+    'page' => '계정과목',
+    'page_description' => '계정과목 관리',
+    'permission_name' => '일괄영구삭제',
+    'permission_description' => '계정과목 일괄 영구 삭제',
+    'name' => '계정과목 일괄영구삭제',
+    'description' => '회계관리 > 기초정보관리 > 계정과목 > 일괄영구삭제',
+    'category' => '회계관리 > 기초정보관리',
+    'auth' => true,
+    'permissions' => ['delete'],
+    'log' => true,
+]);
+
+$router->post('/api/ledger/account/purge-all', 'ChartAccountController@apiPurgeAll', [
+    'key' => 'api.ledger.account.purge_all',
+    'page' => '계정과목',
+    'page_description' => '계정과목 관리',
+    'permission_name' => '전체영구삭제',
+    'permission_description' => '계정과목 전체 영구 삭제',
+    'name' => '계정과목 전체영구삭제',
+    'description' => '회계관리 > 기초정보관리 > 계정과목 > 전체영구삭제',
+    'category' => '회계관리 > 기초정보관리',
+    'auth' => true,
+    'permissions' => ['delete'],
     'log' => true,
 ]);
 
@@ -377,20 +419,6 @@ $router->post('/api/ledger/account/hard-delete-all', 'ChartAccountController@api
     'category' => '회계관리 > 기초정보관리',
     'auth' => true,
     'permissions' => ['delete'],
-    'log' => true,
-]);
-
-$router->get('/api/ledger/account/excel', 'ChartAccountController@apiDownloadAllExcel', [
-    'key' => 'api.ledger.account.excel',
-    'page' => '계정과목',
-    'page_description' => '계정과목 관리',
-    'permission_name' => '엑셀다운로드',
-    'permission_description' => '계정과목 엑셀 다운로드',
-    'name' => '계정과목 엑셀다운로드',
-    'description' => '회계관리 > 기초정보관리 > 계정과목 > 엑셀다운로드',
-    'category' => '회계관리 > 기초정보관리',
-    'auth' => true,
-    'permissions' => ['view'],
     'log' => true,
 ]);
 

@@ -9,6 +9,7 @@ use RuntimeException;
 class DatabaseActiveSwitchService
 {
     private const STATUS_STALE_SECONDS = 300;
+    private const TRACE_RECENT_SECONDS = 120;
 
     private string $legacyConfigPath;
     private string $topologyConfigPath;
@@ -43,7 +44,7 @@ class DatabaseActiveSwitchService
     public function getSwitchGuardStatus(): array
     {
         $syncStatus = $this->readJsonStatus($this->logDir . 'secondary_restore_status.json');
-        if ($this->isRunningAndFresh($syncStatus)) {
+        if ($this->isSyncRunning($syncStatus)) {
             return [
                 'blocked' => true,
                 'source' => 'sync',
@@ -52,7 +53,7 @@ class DatabaseActiveSwitchService
         }
 
         $restoreStatus = $this->readJsonStatus($this->logDir . 'active_restore_status.json');
-        if ($this->isRunningAndFresh($restoreStatus)) {
+        if ($this->isRestoreRunning($restoreStatus)) {
             return [
                 'blocked' => true,
                 'source' => 'restore',
@@ -141,7 +142,7 @@ class DatabaseActiveSwitchService
             }
         }
 
-        throw new RuntimeException('현재 Active DB를 판별할 수 없습니다.');
+        throw new RuntimeException('현재 Active DB를 확인할 수 없습니다.');
     }
 
     private function normalizeNodeConfig(array $topology, string $target, ?array $legacy): array
@@ -249,7 +250,7 @@ class DatabaseActiveSwitchService
     private function appendLog(array $payload): void
     {
         $line = sprintf(
-            "[%s] %s -> %s / 사용자 %s (%s)\n",
+            "[%s] %s -> %s / 사용자=%s (%s)\n",
             $payload['executed_at'] ?? '-',
             $payload['before_active_db'] ?? '-',
             $payload['after_active_db'] ?? '-',
@@ -304,17 +305,69 @@ class DatabaseActiveSwitchService
         return is_array($data) ? $data : null;
     }
 
-    private function isRunningAndFresh(?array $status): bool
+    private function isSyncRunning(?array $status): bool
     {
-        if (!is_array($status)) {
+        if (!$this->isRunningStatus($status)) {
             return false;
         }
 
-        if ((string) ($status['state'] ?? '') !== 'running') {
+        if (!$this->isStatusStale($status)) {
+            return true;
+        }
+
+        $runtime = $this->inspectTraceRuntime(
+            $this->logDir . 'secondary_restore_trace.log',
+            $this->logDir . 'secondary_restore_runner.lock'
+        );
+
+        return (bool) ($runtime['trace_recent'] || $runtime['runner_active']);
+    }
+
+    private function isRestoreRunning(?array $status): bool
+    {
+        if (!$this->isRunningStatus($status)) {
             return false;
         }
 
-        return !$this->isStatusStale($status);
+        if (!$this->isStatusStale($status)) {
+            return true;
+        }
+
+        $runtime = $this->inspectTraceRuntime($this->logDir . 'active_restore_trace.log');
+        return (bool) ($runtime['trace_recent']);
+    }
+
+    private function isRunningStatus(?array $status): bool
+    {
+        return is_array($status) && (string) ($status['state'] ?? '') === 'running';
+    }
+
+    private function inspectTraceRuntime(string $tracePath, ?string $lockPath = null): array
+    {
+        $traceUpdatedAt = is_file($tracePath) ? @filemtime($tracePath) : false;
+        $traceRecent = is_int($traceUpdatedAt) && ((time() - $traceUpdatedAt) < self::TRACE_RECENT_SECONDS);
+
+        $lockData = null;
+        $runnerActive = false;
+
+        if ($lockPath && is_file($lockPath)) {
+            $decoded = json_decode((string) @file_get_contents($lockPath), true);
+            if (is_array($decoded)) {
+                $lockData = $decoded;
+                $heartbeat = strtotime((string) ($decoded['heartbeat_at'] ?? $decoded['started_at'] ?? ''));
+                if ($heartbeat) {
+                    $runnerActive = (time() - $heartbeat) < self::STATUS_STALE_SECONDS;
+                }
+            }
+        }
+
+        return [
+            'trace_updated_at' => is_int($traceUpdatedAt) ? date('Y-m-d H:i:s', $traceUpdatedAt) : null,
+            'trace_recent' => $traceRecent,
+            'lock_exists' => $lockPath ? is_file($lockPath) : false,
+            'runner_active' => $runnerActive,
+            'lock' => $lockData,
+        ];
     }
 
     private function isStatusStale(array $status): bool

@@ -6,6 +6,7 @@ use App\Services\Auth\UserContextService;
 use App\Services\Backup\DatabaseBackupService;
 use App\Services\System\DatabaseActiveSwitchService;
 use App\Services\System\DatabaseReplicationStatusService;
+use App\Services\System\DataTableColumnMetaService;
 use App\Services\System\SettingService;
 use Core\DbPdo;
 
@@ -15,6 +16,7 @@ class SystemController
     private DatabaseBackupService $backupService;
     private DatabaseActiveSwitchService $activeSwitchService;
     private UserContextService $userContextService;
+    private DataTableColumnMetaService $dataTableColumnMetaService;
 
     public function __construct()
     {
@@ -22,6 +24,7 @@ class SystemController
         $this->backupService = new DatabaseBackupService(DbPdo::conn());
         $this->activeSwitchService = new DatabaseActiveSwitchService();
         $this->userContextService = new UserContextService();
+        $this->dataTableColumnMetaService = new DataTableColumnMetaService(DbPdo::conn());
     }
 
     private function respondJson(array $payload, int $status = 200): void
@@ -212,6 +215,43 @@ class SystemController
                 'error' => get_class($e),
                 'message' => $e->getMessage(),
             ], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    public function apiDataTableColumns(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+
+        try {
+            $domain = trim((string) ($_GET['domain'] ?? ''));
+            if ($domain === '') {
+                $this->respondJson([
+                    'success' => false,
+                    'message' => '테이블 메타 도메인이 필요합니다.',
+                ], 400);
+                return;
+            }
+
+            if (!$this->dataTableColumnMetaService->hasDomain($domain)) {
+                $this->respondJson([
+                    'success' => false,
+                    'message' => '지원하지 않는 테이블 메타 도메인입니다.',
+                    'data' => [
+                        'supported_domains' => $this->dataTableColumnMetaService->supportedDomains(),
+                    ],
+                ], 404);
+                return;
+            }
+
+            $this->respondJson([
+                'success' => true,
+                'data' => $this->dataTableColumnMetaService->columnsForDomain($domain),
+            ]);
+        } catch (\Throwable) {
+            $this->respondJson([
+                'success' => false,
+                'message' => '테이블 메타 조회 중 오류가 발생했습니다.',
+            ], 500);
         }
     }
 

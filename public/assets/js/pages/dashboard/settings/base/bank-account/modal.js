@@ -1,9 +1,183 @@
+import {
+    readDataTableSettingsState,
+    resolveDataTableColumnDisplayName,
+    resolveDataTableColumnRequirementPolicy,
+} from '/public/assets/js/common/datatable/dataTableSettings.js';
+
 export function createBankAccountModalModule({
     API,
     formModule,
     formatAccountNumber,
     state,
 }) {
+    let accountPolicyBound = false;
+
+    const ACCOUNT_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.base-info.bank-account.account-table.v1';
+    const ACCOUNT_MODAL_FIELD_POLICIES = Object.freeze([
+        { selector: '#accountForm [name="account_name"]', key: 'account_name', fallback: '계좌명' },
+        { selector: '#modal_bank_name', key: 'bank_name', fallback: '은행명' },
+        { selector: '#accountForm [name="account_number"]', key: 'account_number', fallback: '계좌번호' },
+        { selector: '#accountForm [name="account_holder"]', key: 'account_holder', fallback: '예금주' },
+        { selector: '#modal_account_type', key: 'account_type', fallback: '계좌구분' },
+        { selector: '#modal_account_currency', key: 'currency', fallback: '통화' },
+        { selector: '#accountForm [name="is_active"]', key: 'is_active', fallback: '사용여부' },
+        { selector: '#accountForm [name="note"]', key: 'note', fallback: '비고' },
+        { selector: '#accountForm [name="memo"]', key: 'memo', fallback: '메모' },
+        { selector: '#modal_bank_file', key: 'bank_file', fallback: '통장사본' },
+    ]);
+
+    function currentAccountPolicyState() {
+        return readDataTableSettingsState(ACCOUNT_TABLE_SETTINGS_STORAGE_KEY) || {};
+    }
+
+    function accountFieldLabel(key, _fallback = '') {
+        const normalizedKey = String(key || '').trim();
+        return resolveDataTableColumnDisplayName(
+            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+            currentAccountPolicyState(),
+            normalizedKey
+        );
+    }
+
+    function accountFieldRequirement(key) {
+        const normalizedKey = String(key || '').trim();
+        return resolveDataTableColumnRequirementPolicy(
+            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+            currentAccountPolicyState()
+        );
+    }
+
+    function accountFieldStarMarkup(key) {
+        const policy = accountFieldRequirement(key);
+        if (policy === 'required') {
+            return '<span class="column-policy-star is-required" aria-hidden="true">*</span>';
+        }
+        if (policy === 'optional') {
+            return '<span class="column-policy-star is-optional" aria-hidden="true">*</span>';
+        }
+        return '';
+    }
+
+    function isAccountFilePolicyKey(key) {
+        return String(key || '').trim() === 'bank_file';
+    }
+
+    function isAccountFieldVisible(field) {
+        if (!field) return false;
+        if (field.type === 'hidden') return false;
+        if (field.disabled) return false;
+        const style = window.getComputedStyle(field);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        return true;
+    }
+
+    function shouldValidateAccountPolicyField(field) {
+        const selector = String(field?.selector || '').trim();
+        if (!selector) return false;
+        const input = document.querySelector(selector);
+        return isAccountFieldVisible(input);
+    }
+
+    function hasAccountBankFileValue() {
+        const input = formModule.getBankBookInputEl?.();
+        const deleteFlag = formModule.getDeleteBankBookEl?.();
+        const drop = document.getElementById('bankBookUpload') || document.getElementById('bankCopyUpload');
+        const hasExisting = String(drop?.dataset?.original || '0') === '1';
+        return (input?.files?.length || 0) > 0 || (hasExisting && String(deleteFlag?.value || '0') !== '1');
+    }
+
+    function collectAccountDetailValues(form, formData) {
+        const values = {};
+
+        ACCOUNT_MODAL_FIELD_POLICIES.forEach((field) => {
+            const key = String(field?.key || '').trim();
+            const selector = String(field?.selector || '').trim();
+            if (!key || !selector || isAccountFilePolicyKey(key)) return;
+
+            const input = form?.querySelector(selector) || document.querySelector(selector);
+            if (!input) return;
+
+            const fieldName = String(input.name || key).trim();
+            values[key] = formData.get(fieldName) ?? input.value ?? '';
+        });
+
+        return values;
+    }
+
+    function validateAccountRequiredPolicies(fields = [], values = {}) {
+        for (const field of fields) {
+            const key = String(field?.key || '').trim();
+            if (!key || accountFieldRequirement(key) !== 'required') {
+                continue;
+            }
+            if (!shouldValidateAccountPolicyField(field)) {
+                continue;
+            }
+
+            const label = accountFieldLabel(key, field?.fallback || key);
+            if (isAccountFilePolicyKey(key)) {
+                if (!hasAccountBankFileValue()) {
+                    return `${label} 항목은 필수입니다.`;
+                }
+                continue;
+            }
+
+            const value = values[key];
+            if (Array.isArray(value)) {
+                if (value.length === 0) {
+                    return `${label} 항목은 필수입니다.`;
+                }
+                continue;
+            }
+
+            if (String(value ?? '').trim() === '') {
+                return `${label} 항목은 필수입니다.`;
+            }
+        }
+
+        return '';
+    }
+
+    function findAccountModalLabel(fieldSelector, root = document) {
+        const field = root.querySelector(fieldSelector);
+        if (!field) return null;
+
+        if (field.id) {
+            const labelByFor = root.querySelector(`label[for="${field.id}"]`);
+            if (labelByFor) return labelByFor;
+        }
+
+        const column = field.closest('div[class*="col-"]');
+        if (column) {
+            const label = column.querySelector('label.form-label');
+            if (label) return label;
+        }
+
+        return field.closest('label.form-label') || null;
+    }
+
+    function applyAccountModalPolicyLabels(root = document) {
+        ACCOUNT_MODAL_FIELD_POLICIES.forEach((field) => {
+            const labelEl = findAccountModalLabel(field.selector, root);
+            if (!labelEl) return;
+
+            const displayName = accountFieldLabel(field.key, field.fallback);
+            const starMarkup = accountFieldStarMarkup(field.key);
+            labelEl.innerHTML = `${displayName}${starMarkup ? ` ${starMarkup}` : ''}`;
+        });
+    }
+
+    function bindAccountPolicySync() {
+        if (accountPolicyBound) return;
+        accountPolicyBound = true;
+
+        document.addEventListener('datatable-settings:updated', (event) => {
+            const storageKey = String(event?.detail?.storageKey || '').trim();
+            if (storageKey && storageKey !== ACCOUNT_TABLE_SETTINGS_STORAGE_KEY) return;
+            applyAccountModalPolicyLabels(document);
+        });
+    }
+
     function initModal() {
         const modalEl = document.getElementById('accountModal');
         if (!modalEl) return;
@@ -14,6 +188,9 @@ export function createBankAccountModalModule({
         if (excelEl) {
             state.excelModal = new bootstrap.Modal(excelEl);
         }
+
+        bindAccountPolicySync();
+        applyAccountModalPolicyLabels(document);
 
         modalEl.addEventListener('hidden.bs.modal', () => {
             const form = document.getElementById('accountForm');
@@ -29,16 +206,18 @@ export function createBankAccountModalModule({
 
             const titleEl = document.querySelector('#accountModal .modal-title');
             if (titleEl) {
-                titleEl.textContent = '怨꾩쥖 ?뺣낫';
+                titleEl.textContent = '계좌 정보';
             }
 
             formModule.resetBankBookUI();
+            applyAccountModalPolicyLabels(document);
         });
 
         formModule.bindDateIconPicker();
 
         modalEl.addEventListener('shown.bs.modal', () => {
             formModule.bindAdminDateInputs();
+            applyAccountModalPolicyLabels(document);
         });
     }
 
@@ -76,6 +255,7 @@ export function createBankAccountModalModule({
         if (fileInput) fileInput.value = '';
 
         formModule.resetBankBookUI();
+        applyAccountModalPolicyLabels(document);
         state.accountModal?.show();
 
         try {
@@ -130,6 +310,7 @@ export function createBankAccountModalModule({
         }
 
         formModule.renderBankBook(data);
+        applyAccountModalPolicyLabels(document);
     }
 
     function setSelectValueByCodeOrText(select, value) {
@@ -138,10 +319,10 @@ export function createBankAccountModalModule({
         const option = Array.from(select.options || []).find((item) => {
             const optionValue = String(item.value ?? '').trim();
             const optionText = String(item.textContent ?? '').trim();
-            return optionValue === raw ||
-                optionValue.toUpperCase() === normalized ||
-                optionText === raw ||
-                optionText.toUpperCase() === normalized;
+            return optionValue === raw
+                || optionValue.toUpperCase() === normalized
+                || optionText === raw
+                || optionText.toUpperCase() === normalized;
         });
 
         select.value = option?.value ?? raw;
@@ -157,6 +338,15 @@ export function createBankAccountModalModule({
 
             const form = this;
             const formData = new FormData(form);
+            const requiredMessage = validateAccountRequiredPolicies(
+                ACCOUNT_MODAL_FIELD_POLICIES,
+                collectAccountDetailValues(form, formData)
+            );
+            if (requiredMessage) {
+                formModule.notify('warning', requiredMessage);
+                return;
+            }
+
             const errorMessage = formModule.validateAccountForm(formData);
             if (errorMessage) {
                 formModule.notify('warning', errorMessage);
@@ -178,7 +368,7 @@ export function createBankAccountModalModule({
             })
                 .done((res) => {
                     if (!res.success) {
-                        formModule.notify('error', res.message || '????ㅽ뙣');
+                        formModule.notify('error', res.message || '저장에 실패했습니다.');
                         return;
                     }
 
@@ -201,7 +391,7 @@ export function createBankAccountModalModule({
             $.post(API.DELETE, { id })
                 .done((res) => {
                     if (res.success) {
-                        formModule.notify('success', '삭제되었습니다.');
+                        formModule.notify('success', '삭제했습니다.');
                         getTable()?.ajax.reload(null, false);
                         state.accountModal?.hide();
                     } else {

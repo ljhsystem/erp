@@ -30,11 +30,31 @@ trait ImportControllerBusinessInfoTrait
 
     private function partyFromRow(array $row, string $prefix, ?string $fallbackPrefix = null): array
     {
-        $businessNumber = (string) ($row[$prefix . '_business_number'] ?? '');
-        $companyName = (string) ($row[$prefix . '_company_name'] ?? '');
+        $businessNumber = (string) (
+            $row[$prefix . '_business_number']
+            ?? $row['raw_' . $prefix . '_business_number']
+            ?? ''
+        );
+        $companyName = (string) (
+            $row[$prefix . '_company_name']
+            ?? $row['raw_' . $prefix . '_company_name']
+            ?? $row[$prefix . '_name']
+            ?? $row['raw_' . $prefix . '_name']
+            ?? ''
+        );
         if ($fallbackPrefix !== null) {
-            $businessNumber = $businessNumber !== '' ? $businessNumber : (string) ($row[$fallbackPrefix . '_business_number'] ?? '');
-            $companyName = $companyName !== '' ? $companyName : (string) ($row[$fallbackPrefix . '_company_name'] ?? '');
+            $businessNumber = $businessNumber !== '' ? $businessNumber : (string) (
+                $row[$fallbackPrefix . '_business_number']
+                ?? $row['raw_' . $fallbackPrefix . '_business_number']
+                ?? ''
+            );
+            $companyName = $companyName !== '' ? $companyName : (string) (
+                $row[$fallbackPrefix . '_company_name']
+                ?? $row['raw_' . $fallbackPrefix . '_company_name']
+                ?? $row[$fallbackPrefix . '_name']
+                ?? $row['raw_' . $fallbackPrefix . '_name']
+                ?? ''
+            );
         }
 
         return [
@@ -140,8 +160,8 @@ trait ImportControllerBusinessInfoTrait
     {
         $companyName = trim($companyName);
         $companyName = preg_replace('/\s+/u', ' ', $companyName) ?? $companyName;
-        $companyName = preg_replace('/^\s*[\(??\s*??s*[\)??\s*/u', '', $companyName) ?? $companyName;
-        $companyName = preg_replace('/\s*[\(??\s*??s*[\)??\s*$/u', '', $companyName) ?? $companyName;
+        $companyName = preg_replace('/^\s*(?:\(\s*주\s*\)|㈜)\s*/u', '', $companyName) ?? $companyName;
+        $companyName = preg_replace('/\s*(?:\(\s*주\s*\)|㈜)\s*$/u', '', $companyName) ?? $companyName;
         return trim($companyName);
     }
 }

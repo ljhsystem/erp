@@ -91,11 +91,6 @@ class ProcessingItemModel
         return $this->ensureDefaultItem('ledger_data_evidences', $evidence);
     }
 
-    public function ensureDefaultItemForBankTransaction(array $bankTransaction): ?array
-    {
-        return $this->ensureDefaultItem('ledger_bank_transactions', $bankTransaction);
-    }
-
     public function updateStatus(
         string $id,
         string $transactionStatus,
@@ -177,9 +172,7 @@ class ProcessingItemModel
 
         $timestamp = date('Y-m-d H:i:s');
         $id = UuidHelper::generate();
-        $sourceType = $sourceTable === 'ledger_bank_transactions'
-            ? 'BANK_TRANSACTION'
-            : (string) ($source['source_type'] ?? '');
+        $sourceType = (string) ($source['source_type'] ?? '');
         $totalAmount = $source['total_amount']
             ?? max((float) ($source['deposit_amount'] ?? 0), (float) ($source['withdraw_amount'] ?? 0));
         $displayPath = $this->rootDisplayPath($sourceTable, $source);
@@ -382,7 +375,6 @@ class ProcessingItemModel
     {
         return match ($sourceTable) {
             'ledger_data_evidences' => 'EVIDENCE',
-            'ledger_bank_transactions' => 'BANK',
             default => null,
         };
     }

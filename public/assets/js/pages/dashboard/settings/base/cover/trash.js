@@ -3,8 +3,9 @@ export function initTrashColumns(deps) {
 
     window.TrashColumns = window.TrashColumns || {};
     window.TrashColumns.cover = function (row) {
-        const preview = row.url
-            ? `<img src="${escapeHtmlAttr(row.url)}" style="width:60px;height:60px;object-fit:cover;">`
+        const previewSrc = row.url || row.src;
+        const preview = previewSrc
+            ? `<img src="${escapeHtmlAttr(previewSrc)}" style="width:60px;height:60px;object-fit:cover;">`
             : '<span class="text-muted">이미지 없음</span>';
 
         return `
@@ -33,8 +34,9 @@ export function bindTrashEvents(deps) {
         const detailBox = modal.querySelector('.trash-detail');
         if (!detailBox) return;
 
-        const preview = data?.url
-            ? `<img src="${escapeHtmlAttr(data.url)}" class="cover-trash-detail-image" alt="${escapeHtmlAttr(data?.title ?? '')}">`
+        const previewSrc = data?.url || data?.src;
+        const preview = previewSrc
+            ? `<img src="${escapeHtmlAttr(previewSrc)}" class="cover-trash-detail-image" alt="${escapeHtmlAttr(data?.title ?? '')}">`
             : '<div class="cover-trash-empty-preview">이미지 없음</div>';
 
         detailBox.innerHTML = `
@@ -46,7 +48,7 @@ export function bindTrashEvents(deps) {
                 <div class="cover-trash-preview">${preview}</div>
                 <div class="cover-trash-detail-grid">
                     <div class="label">순번</div><div class="value">${escapeHtml(data?.sort_no ?? '')}</div>
-                    <div class="label">해당년도</div><div class="value">${escapeHtml(data?.year ?? '')}</div>
+                    <div class="label">해당연도</div><div class="value">${escapeHtml(data?.year ?? '')}</div>
                     <div class="label">타이틀</div><div class="value">${escapeHtml(data?.title ?? '')}</div>
                     <div class="label">Alt</div><div class="value">${escapeHtml(data?.alt ?? '')}</div>
                     <div class="label">설명</div><div class="value">${escapeHtml(data?.description ?? '')}</div>
@@ -83,8 +85,8 @@ export function bindTrashEvents(deps) {
         }
 
         window.jQuery(`${DOM.trashTable} tbody tr`).removeClass('active');
-        qsa('.tooltip-container').forEach(t => {
-            t.style.display = 'none';
+        qsa('.tooltip-container').forEach((tooltip) => {
+            tooltip.style.display = 'none';
         });
     });
 }

@@ -1,0 +1,3 @@
+-- No-op rollback.
+-- Tax-invoice raw item columns are no longer part of the supported schema.
+-- If restoration is required, perform it with a dedicated approved migration.

@@ -25,6 +25,7 @@ import '/public/assets/js/components/trash-manager.js';
     const form = document.getElementById('transactionForm');
     const modalEl = document.getElementById('transactionModal');
     const gridEl = document.getElementById('transactionLineGrid');
+    const settlementGridEl = document.getElementById('transactionSettlementGrid');
     const deleteBtn = document.getElementById('btnDeleteTransaction');
     const countEl = document.getElementById('transactionCount');
     const importToggle = document.getElementById('is_import');
@@ -44,23 +45,33 @@ import '/public/assets/js/components/trash-manager.js';
     const pickerLayerEl = document.getElementById('transaction-today-picker');
     const clientSelectEl = document.getElementById('client_id');
     const projectSelectEl = document.getElementById('project_id');
+    const bankAccountSelectEl = document.getElementById('bank_account_id');
+    const cardSelectEl = document.getElementById('card_id');
+    const teamSelectEl = document.getElementById('team_id');
+    const employeeSelectEl = document.getElementById('employee_id');
     const currencySelectEl = document.getElementById('currency');
     const exchangeRateEl = document.getElementById('exchange_rate');
+    const headerForeignAmountEl = document.getElementById('transaction_foreign_amount');
     const headerSupplyAmountEl = document.getElementById('transaction_supply_amount');
-    const headerVatAmountEl = document.getElementById('transaction_vat_amount');
-    const headerTotalAmountEl = document.getElementById('transaction_total_amount');
+    const headerSettlementAmountEl = document.getElementById('transaction_settlement_amount');
+    const headerFinalAmountEl = document.getElementById('transaction_final_amount');
+    const settlementTitleEl = document.getElementById('transactionSettlementTitle');
+    const settlementSubtitleEl = document.getElementById('transactionSettlementSubtitle');
+    const settlementTargetEls = Array.from(document.querySelectorAll('input[name="settlement_target_scope"]'));
+    const settlementCurrentSelectionEl = document.getElementById('transactionCurrentSelection');
     const modalBodyEl = modalEl?.querySelector('.transaction-modal-body');
     const AG_GRID_STYLE_URL = 'https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/styles/ag-grid.css';
     const AG_GRID_THEME_URL = 'https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/styles/ag-theme-quartz.css';
     const AG_GRID_SCRIPT_URL = 'https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/dist/ag-grid-community.min.js';
 
-    if (!form || !modalEl || !gridEl) {
+    if (!form || !modalEl || !gridEl || !settlementGridEl) {
         return;
     }
 
     const modal = window.bootstrap ? new bootstrap.Modal(modalEl, { focus: false }) : null;
     let transactionTable = null;
     let lineGrid = null;
+    let settlementGrid = null;
     let currentFiles = [];
     let pendingFiles = [];
     let fileRowOrder = [];
@@ -72,12 +83,18 @@ import '/public/assets/js/components/trash-manager.js';
     let activeLineDateInputHandler = null;
     let unitCodeSelectEl = null;
     let unitOptions = [];
-    let lineTypeCodeSelectEl = null;
-    let lineTypeOptions = [];
     let pendingUnitCell = null;
     let lastInvalidUnitNotice = '';
     let taxTypeCodeSelectEl = null;
     let taxTypeOptions = [];
+    let settlementTypeCodeSelectEl = null;
+    let settlementTypeOptions = [];
+    let amountSignCodeSelectEl = null;
+    let amountSignOptions = [];
+    let settlementLineKeySeed = 0;
+    let selectedLineKey = '';
+    let selectedSettlementScope = 'header';
+    let lineSettlementMap = new Map();
     let modalBaselineSnapshot = '';
     let allowModalClose = false;
     let floatingLineHeaderEl = null;
@@ -87,6 +104,8 @@ import '/public/assets/js/components/trash-manager.js';
     let fileDropzoneEmptyText = '파일을 드래그해서 첨부하세요';
     let modalControlsInitialized = false;
     let agGridLoadPromise = null;
+    let pendingLineGridInitAfterShow = false;
+    let modalShownResolvers = [];
 
     if (pickerLayerEl && pickerLayerEl.parentElement !== document.body) {
         document.body.appendChild(pickerLayerEl);
@@ -106,13 +125,19 @@ import '/public/assets/js/components/trash-manager.js';
         unlinkVoucher: '/api/ledger/transaction/unlink-voucher',
         clientSearch: '/api/settings/base-info/client/search-picker',
         projectSearch: '/api/settings/base-info/project/search-picker',
+        employeeSearch: '/api/settings/organization/employee/search-picker',
+        bankAccountSearch: '/api/settings/base-info/bank-account/search-picker',
+        cardSearch: '/api/settings/base-info/card/search-picker',
+        workTeamList: '/api/settings/base-info/work-team/list',
         filePolicyList: '/api/system/file-policies',
     };
 
     const DATE_OPTIONS = [
-        { value: 'transaction_date', label: '거래일자' },
+        { value: 'transaction_date', label: '거래일' },
         { value: 'updated_at', label: '수정일시' },
     ];
+
+    const HEADER_SETTLEMENT_KEY = '__header__';
 
     const HOT_DATE_PICKER_CONFIG = {
         firstDay: 0,
@@ -150,68 +175,82 @@ import '/public/assets/js/components/trash-manager.js';
         },
     };
 
-    const LINE_ITEM_DATE_COL = 3;
-    const LINE_UNIT_COL = 6;
+    const LINE_ITEM_DATE_COL = 2;
+    const LINE_UNIT_COL = 5;
     const TAX_TYPE_DEFAULT_LABEL = '과세';
     const UNIT_EMPTY_LABEL = '선택(없음)';
     const UNIT_QUICK_ADD_LABEL = '+기준추가';
 
+    const DEFAULT_SETTLEMENT_TYPE_OPTIONS = [
+        { code: 'VAT', label: 'VAT' },
+        { code: 'WITHHOLDING_INCOME', label: 'WITHHOLDING_INCOME' },
+        { code: 'WITHHOLDING_BUSINESS', label: 'WITHHOLDING_BUSINESS' },
+        { code: 'LOCAL_INCOME_TAX', label: 'LOCAL_INCOME_TAX' },
+        { code: 'NATIONAL_PENSION', label: 'NATIONAL_PENSION' },
+        { code: 'HEALTH_INSURANCE', label: 'HEALTH_INSURANCE' },
+        { code: 'EMPLOYMENT_INSURANCE', label: 'EMPLOYMENT_INSURANCE' },
+    ];
+    const DEFAULT_AMOUNT_SIGN_OPTIONS = [
+        { code: 'PLUS', label: 'PLUS' },
+        { code: 'MINUS', label: 'MINUS' },
+    ];
     const LINE_COLUMNS = [
         {
             field: '__move',
-            headerName: '<i class="bi bi-arrows-move"></i>',
+            headerName: '',
+            headerComponent: dragHandleHeaderComponent(),
             editable: false,
-            width: 24,
-            minWidth: 22,
-            maxWidth: 24,
-            rowDrag: true,
+            width: 34,
+            resizable: true,
+            rowDrag: false,
             rowDragText: '',
             suppressSizeToFit: false,
-            headerClass: 'transaction-line-move-head text-center',
-            cellClass: ['transaction-line-move-cell', 'text-center'],
-            cellRenderer: lineMoveRenderer,
+            headerClass: 'text-center transaction-line-drag-head',
+            cellClass: 'text-center transaction-line-drag-cell',
+            cellRenderer: dragHandleCellRenderer,
         },
         {
             field: '__row_no',
             headerName: '순번',
             editable: false,
-            width: 34,
-            minWidth: 32,
-            maxWidth: 36,
+            width: 58,
+            resizable: true,
             valueGetter: (params) => `${Number(params.node?.rowIndex || 0) + 1}`,
             cellClass: 'transaction-line-row-no-cell',
         },
         {
-            field: 'line_type',
-            headerName: '라인유형',
-            ...selectEditor(['ITEM']),
-            valueFormatter: ({ value }) => String(value ?? ''),
-            width: 58,
-            minWidth: 54,
-        },
-        {
             field: 'item_date',
             headerName: '거래일',
-            width: 66,
-            minWidth: 62,
+            width: 100,
+            resizable: true,
             ...dateStringEditor(),
         },
-        { field: 'item_name', headerName: '품명', width: 58, minWidth: 54, flex: 0.45 },
-        { field: 'specification', headerName: '규격', width: 96, minWidth: 84, flex: 0.75 },
+        {
+            field: 'item_name',
+            headerName: '품명',
+            width: 160,
+            resizable: true,
+        },
+        {
+            field: 'specification',
+            headerName: '규격',
+            width: 120,
+            resizable: true,
+        },
         {
             field: 'unit_name',
             headerName: '단위',
             ...selectEditor([UNIT_EMPTY_LABEL]),
             valueFormatter: ({ value }) => String(value ?? ''),
-            width: 34,
-            minWidth: 32,
+            width: 70,
+            resizable: true,
             cellClass: 'transaction-line-unit-cell text-center',
         },
         {
             field: 'quantity',
             headerName: '수량',
-            width: 42,
-            minWidth: 38,
+            width: 80,
+            resizable: true,
             type: 'numericColumn',
             valueFormatter: gridNumberFormatter,
             valueParser: gridNumberParser,
@@ -220,8 +259,8 @@ import '/public/assets/js/components/trash-manager.js';
         {
             field: 'unit_price',
             headerName: '단가',
-            width: 52,
-            minWidth: 46,
+            width: 100,
+            resizable: true,
             type: 'numericColumn',
             valueFormatter: gridNumberFormatter,
             valueParser: gridNumberParser,
@@ -229,22 +268,95 @@ import '/public/assets/js/components/trash-manager.js';
         },
         {
             field: 'amount',
-            headerName: '금액',
-            width: 54,
-            minWidth: 48,
+            headerName: '공급가액',
+            width: 110,
+            resizable: true,
             type: 'numericColumn',
             valueFormatter: gridNumberFormatter,
             valueParser: gridNumberParser,
             cellClass: 'text-end',
         },
-        { field: 'description', headerName: '적요', width: 64, minWidth: 58, flex: 0.4 },
+        {
+            field: 'description',
+            headerName: '적요',
+            width: 160,
+            resizable: true,
+        },
         {
             field: '__actions',
             headerName: '+추가',
             editable: false,
-            width: 50,
-            minWidth: 48,
-            maxWidth: 52,
+            width: 70,
+            resizable: true,
+            headerClass: 'transaction-line-add-head text-center',
+            cellClass: 'transaction-line-action-cell text-center',
+            cellRenderer: lineActionRenderer,
+            suppressKeyboardEvent: () => true,
+        },
+    ];
+
+    const SETTLEMENT_COLUMNS = [
+        {
+            field: '__move',
+            headerName: '',
+            headerComponent: dragHandleHeaderComponent(),
+            editable: false,
+            width: 34,
+            resizable: true,
+            rowDrag: false,
+            rowDragText: '',
+            suppressSizeToFit: false,
+            headerClass: 'text-center transaction-line-drag-head',
+            cellClass: 'text-center transaction-line-drag-cell',
+            cellRenderer: dragHandleCellRenderer,
+        },
+        {
+            field: '__row_no',
+            headerName: '순번',
+            editable: false,
+            width: 58,
+            resizable: true,
+            valueGetter: (params) => `${Number(params.node?.rowIndex || 0) + 1}`,
+            cellClass: 'transaction-line-row-no-cell',
+        },
+        {
+            field: 'settlement_type',
+            headerName: '정산유형',
+            ...selectEditor(DEFAULT_SETTLEMENT_TYPE_OPTIONS.map((option) => option.label)),
+            width: 140,
+            resizable: true,
+        },
+        {
+            field: 'amount_sign',
+            headerName: '가감유형',
+            ...selectEditor(DEFAULT_AMOUNT_SIGN_OPTIONS.map((option) => option.label)),
+            width: 102,
+            resizable: true,
+            cellClass: 'text-center',
+        },
+        {
+            field: 'amount',
+            headerName: '정산금액',
+            width: 118,
+            resizable: true,
+            type: 'numericColumn',
+            valueFormatter: gridNumberFormatter,
+            valueParser: gridNumberParser,
+            cellClass: 'text-end',
+        },
+        {
+            field: 'description',
+            headerName: '적요',
+            width: 210,
+            resizable: true,
+        },
+        {
+            field: '__actions',
+            headerName: '+추가',
+            editable: false,
+            width: 70,
+            resizable: true,
+            headerClass: 'transaction-line-add-head text-center',
             cellClass: 'transaction-line-action-cell text-center',
             cellRenderer: lineActionRenderer,
             suppressKeyboardEvent: () => true,
@@ -252,16 +364,13 @@ import '/public/assets/js/components/trash-manager.js';
     ];
 
     function getLineColumns() {
-        const lineTypeItems = lineTypeOptions.length > 0
-            ? lineTypeOptions.map((option) => option.label)
-            : defaultLineTypeOptions().map((option) => option.label);
-        const unitItems = [UNIT_EMPTY_LABEL, ...unitOptions.map((option) => option.label), UNIT_QUICK_ADD_LABEL];
+        const foreignMode = usesForeignCurrency();
         const baseColumns = LINE_COLUMNS.map((column) => {
-            if (column.field === 'line_type') {
-                return { ...column, ...selectEditor(lineTypeItems) };
-            }
             if (column.field === 'unit_name') {
-                return { ...column, ...selectEditor(unitItems) };
+                return {
+                    ...column,
+                    ...selectEditor(() => [UNIT_EMPTY_LABEL, ...unitOptions.map((option) => option.label), UNIT_QUICK_ADD_LABEL]),
+                };
             }
             if (column.field === 'item_date') {
                 return { ...column, ...dateStringEditor() };
@@ -272,38 +381,60 @@ import '/public/assets/js/components/trash-manager.js';
             return { ...column };
         });
 
-        if (!usesForeignCurrency()) {
-            return baseColumns.filter((column) => !['foreign_unit_price', 'foreign_amount'].includes(column.field));
-        }
-
         const columns = [];
         baseColumns.forEach((column) => {
             columns.push(column);
-            if (column.field === 'unit_price') {
+            if (column.field === 'quantity') {
                 columns.push(
                     {
                         field: 'foreign_unit_price',
                         headerName: '외화단가',
+                        hide: !foreignMode,
+                        headerClass: 'transaction-line-foreign-head',
                         type: 'numericColumn',
                         valueFormatter: gridNumberFormatter,
                         valueParser: gridNumberParser,
-                        width: 62,
-                        cellClass: 'text-end',
+                        width: 110,
+                        resizable: true,
+                        cellClass: 'transaction-line-foreign-cell text-end',
                     },
                     {
                         field: 'foreign_amount',
                         headerName: '외화금액',
+                        hide: !foreignMode,
+                        headerClass: 'transaction-line-foreign-head',
                         type: 'numericColumn',
                         valueFormatter: gridNumberFormatter,
                         valueParser: gridNumberParser,
-                        width: 82,
-                        cellClass: 'text-end',
+                        width: 120,
+                        resizable: true,
+                        cellClass: 'transaction-line-foreign-cell text-end',
                     },
                 );
             }
         });
 
         return columns;
+    }
+
+    function getSettlementColumns() {
+        return SETTLEMENT_COLUMNS.map((column) => {
+            if (column.field === 'settlement_type') {
+                return {
+                    ...column,
+                    ...selectEditor(() => (settlementTypeOptions.length > 0 ? settlementTypeOptions : DEFAULT_SETTLEMENT_TYPE_OPTIONS)
+                        .map((option) => option.label)),
+                };
+            }
+            if (column.field === 'amount_sign') {
+                return {
+                    ...column,
+                    ...selectEditor(() => (amountSignOptions.length > 0 ? amountSignOptions : DEFAULT_AMOUNT_SIGN_OPTIONS)
+                        .map((option) => option.label)),
+                };
+            }
+            return { ...column };
+        });
     }
 
     function escapeHtml(value) {
@@ -524,115 +655,69 @@ import '/public/assets/js/components/trash-manager.js';
             `"${text}"은(는) 현재 단위 기준정보 목록에 없습니다. 목록에서 선택하거나 +기준추가로 등록해주세요.`
         );
     }
-
-    function defaultLineTypeOptions() {
-        return [
-            { code: 'ITEM', label: '품목' },
-            { code: 'VAT', label: '부가세' },
-            { code: 'SERVICE', label: '봉사료' },
-            { code: 'WITHHOLDING', label: '원천세' },
-        ];
-    }
-
-    function updateLineTypeOptionsFromCodeState(options = {}) {
-        const rows = Array.isArray(options.TRANSACTION_LINE_TYPE) ? options.TRANSACTION_LINE_TYPE : [];
-        const allowedCodes = new Set(defaultLineTypeOptions().map((option) => option.code));
-        lineTypeOptions = rows
+    function updateSettlementTypeOptionsFromCodeState(options = {}) {
+        const rows = Array.isArray(options.SETTLEMENT_TYPE) ? options.SETTLEMENT_TYPE : [];
+        settlementTypeOptions = rows
             .map((row) => ({
                 code: String(row.code ?? '').trim().toUpperCase(),
                 label: String(row.code_name || row.code || '').trim(),
             }))
-            .map((row) => {
-                if (row.code === 'WITHHOLDING_INCOME' || row.code === 'WITHHOLDING_LOCAL') {
-                    return { code: 'WITHHOLDING', label: '원천세' };
-                }
-                return row;
-            })
-            .filter((row) => allowedCodes.has(row.code) && row.label)
-            .filter((row, index, list) => list.findIndex((item) => item.code === row.code) === index);
+            .filter((row) => row.code && row.label);
 
-        if (lineTypeOptions.length === 0) {
-            lineTypeOptions = defaultLineTypeOptions();
+        if (settlementTypeOptions.length === 0) {
+            settlementTypeOptions = DEFAULT_SETTLEMENT_TYPE_OPTIONS.slice();
         }
 
-        lineGrid?.updateSettings({
-            columns: getLineColumns(),
-            colHeaders: getLineColumns().map((column) => column.headerName || column.title || String(column.field || '')),
-        });
-
-        (lineGrid?.getSourceData() || []).forEach((row, index) => {
-            const normalized = normalizeLineTypeCellValue(row?.line_type);
-            if (row && row.line_type !== normalized) {
-                lineGrid.setSourceDataAtCell(index, 'line_type', normalized);
-            }
-        });
-        lineGrid?.render();
+        settlementGrid?.render();
     }
 
-    function findLineTypeOption(value) {
+    function updateAmountSignOptionsFromCodeState(options = {}) {
+        const rows = Array.isArray(options.AMOUNT_SIGN) ? options.AMOUNT_SIGN : [];
+        amountSignOptions = rows
+            .map((row) => ({
+                code: String(row.code ?? '').trim(),
+                label: String(row.code_name || row.code || '').trim(),
+            }))
+            .filter((row) => row.code && row.label);
+
+        if (amountSignOptions.length === 0) {
+            amountSignOptions = DEFAULT_AMOUNT_SIGN_OPTIONS.slice();
+        }
+
+        settlementGrid?.render();
+    }
+
+    function findSettlementTypeOption(value) {
         const text = String(value ?? '').trim();
         const upper = text.toUpperCase();
-        const options = lineTypeOptions.length > 0 ? lineTypeOptions : defaultLineTypeOptions();
-        const aliases = {
-            '부가가치세': 'VAT',
-            '서비스료': 'SERVICE',
-            '용역수수료': 'SERVICE',
-            '원천징수': 'WITHHOLDING',
-            '소득세': 'WITHHOLDING',
-            '지방세': 'WITHHOLDING',
-            WITHHOLDING_INCOME: 'WITHHOLDING',
-            WITHHOLDING_LOCAL: 'WITHHOLDING',
-        };
-        const aliasCode = aliases[text] || aliases[upper] || '';
-        if (aliasCode) {
-            return defaultLineTypeOptions().find((option) => option.code === aliasCode)
-                || options.find((option) => option.code === aliasCode);
-        }
-        return options.find((option) => (
-            option.code === upper ||
-            option.label === text
-        ));
+        const options = settlementTypeOptions.length > 0 ? settlementTypeOptions : DEFAULT_SETTLEMENT_TYPE_OPTIONS;
+        return options.find((option) => option.code === upper || option.label === text);
     }
 
-    function lineTypeDropdownSource(query, process) {
-        const keyword = String(query ?? '').trim().toLowerCase();
-        const options = lineTypeOptions.length > 0 ? lineTypeOptions : defaultLineTypeOptions();
-        const isCurrentSelection = options.some((option) => (
-            option.label.toLowerCase() === keyword ||
-            option.code.toLowerCase() === keyword
-        ));
-        const rows = options.filter((option) => {
-            if (!keyword || isCurrentSelection) return true;
-
-            return option.label.toLowerCase().includes(keyword)
-                || option.code.toLowerCase().includes(keyword);
-        });
-
-        process(rows.map((option) => option.label));
+    function settlementTypeLabelFromCode(value) {
+        const found = findSettlementTypeOption(value);
+        return found?.label || String(value ?? '').trim() || 'VAT';
     }
 
-    function normalizeLineTypeCellValue(value) {
+    function settlementTypeCodeFromCell(value) {
+        const found = findSettlementTypeOption(value);
+        return found?.code || String(value ?? '').trim().toUpperCase();
+    }
+
+    function findAmountSignOption(value) {
         const text = String(value ?? '').trim();
-        if (!text) return lineTypeLabelFromCode('ITEM');
-
-        const found = findLineTypeOption(text);
-        return found?.label || text;
+        const options = amountSignOptions.length > 0 ? amountSignOptions : DEFAULT_AMOUNT_SIGN_OPTIONS;
+        return options.find((option) => option.code === text || option.label === text);
     }
 
-    function lineTypeCodeFromCell(value) {
-        const text = String(value ?? '').trim();
-        if (!text) return 'ITEM';
-
-        const found = findLineTypeOption(text);
-        return found?.code || text.toUpperCase();
+    function amountSignLabelFromCode(value) {
+        const found = findAmountSignOption(value);
+        return found?.label || (String(value ?? '').trim().toUpperCase() === 'MINUS' ? 'MINUS' : 'PLUS');
     }
 
-    function lineTypeLabelFromCode(value) {
-        const text = String(value ?? '').trim();
-        if (!text) return '품목';
-
-        const found = findLineTypeOption(text);
-        return found?.label || text;
+    function amountSignCodeFromCell(value) {
+        const found = findAmountSignOption(value);
+        return found?.code || (String(value ?? '').trim().toUpperCase() === 'MINUS' ? 'MINUS' : 'PLUS');
     }
 
     function updateUnitOptionsFromCodeState(options = {}) {
@@ -643,11 +728,6 @@ import '/public/assets/js/components/trash-manager.js';
                 label: String(row.code_name || row.code || '').trim(),
             }))
             .filter((row) => row.label);
-
-        lineGrid?.updateSettings({
-            columns: getLineColumns(),
-            colHeaders: getLineColumns().map((column) => column.title),
-        });
 
         (lineGrid?.getSourceData() || []).forEach((row, index) => {
             const normalized = normalizeUnitCellValue(row?.unit_name);
@@ -667,10 +747,6 @@ import '/public/assets/js/components/trash-manager.js';
             }))
             .filter((row) => row.code && row.label);
 
-        lineGrid?.updateSettings({
-            columns: getLineColumns(),
-            colHeaders: getLineColumns().map((column) => column.title),
-        });
         (lineGrid?.getSourceData() || []).forEach((row, index) => {
             const normalized = normalizeTaxTypeCellValue(row?.tax_type);
             if (row && row.tax_type !== normalized) {
@@ -766,16 +842,6 @@ import '/public/assets/js/components/trash-manager.js';
             document.body.appendChild(unitCodeSelectEl);
         }
 
-        lineTypeCodeSelectEl = document.getElementById('transaction_line_type_code_select');
-        if (!lineTypeCodeSelectEl) {
-            lineTypeCodeSelectEl = document.createElement('select');
-            lineTypeCodeSelectEl.id = 'transaction_line_type_code_select';
-            lineTypeCodeSelectEl.dataset.codeGroup = 'TRANSACTION_LINE_TYPE';
-            lineTypeCodeSelectEl.className = 'd-none';
-            lineTypeCodeSelectEl.tabIndex = -1;
-            document.body.appendChild(lineTypeCodeSelectEl);
-        }
-
         taxTypeCodeSelectEl = document.getElementById('transaction_tax_type_code_select');
         if (!taxTypeCodeSelectEl) {
             taxTypeCodeSelectEl = document.createElement('select');
@@ -786,13 +852,29 @@ import '/public/assets/js/components/trash-manager.js';
             document.body.appendChild(taxTypeCodeSelectEl);
         }
 
-        onCodeOptionsLoaded(updateLineTypeOptionsFromCodeState);
+        settlementTypeCodeSelectEl = document.getElementById('transaction_settlement_type_code_select');
+        if (!settlementTypeCodeSelectEl) {
+            settlementTypeCodeSelectEl = document.createElement('select');
+            settlementTypeCodeSelectEl.id = 'transaction_settlement_type_code_select';
+            settlementTypeCodeSelectEl.dataset.codeGroup = 'SETTLEMENT_TYPE';
+            settlementTypeCodeSelectEl.className = 'd-none';
+            settlementTypeCodeSelectEl.tabIndex = -1;
+            document.body.appendChild(settlementTypeCodeSelectEl);
+        }
+
+        amountSignCodeSelectEl = document.getElementById('transaction_amount_sign_code_select');
+        if (!amountSignCodeSelectEl) {
+            amountSignCodeSelectEl = document.createElement('select');
+            amountSignCodeSelectEl.id = 'transaction_amount_sign_code_select';
+            amountSignCodeSelectEl.dataset.codeGroup = 'AMOUNT_SIGN';
+            amountSignCodeSelectEl.className = 'd-none';
+            amountSignCodeSelectEl.tabIndex = -1;
+            document.body.appendChild(amountSignCodeSelectEl);
+        }
         onCodeOptionsLoaded(updateUnitOptionsFromCodeState);
         onCodeOptionsLoaded(updateTaxTypeOptionsFromCodeState);
-        await createCodeSelect({
-            selectId: lineTypeCodeSelectEl.id,
-            codeGroup: 'TRANSACTION_LINE_TYPE',
-        });
+        onCodeOptionsLoaded(updateSettlementTypeOptionsFromCodeState);
+        onCodeOptionsLoaded(updateAmountSignOptionsFromCodeState);
         await createCodeSelect({
             selectId: unitCodeSelectEl.id,
             codeGroup: 'UNIT',
@@ -800,6 +882,14 @@ import '/public/assets/js/components/trash-manager.js';
         await createCodeSelect({
             selectId: taxTypeCodeSelectEl.id,
             codeGroup: 'TAX_TYPE',
+        });
+        await createCodeSelect({
+            selectId: settlementTypeCodeSelectEl.id,
+            codeGroup: 'SETTLEMENT_TYPE',
+        });
+        await createCodeSelect({
+            selectId: amountSignCodeSelectEl.id,
+            codeGroup: 'AMOUNT_SIGN',
         });
     }
 
@@ -839,46 +929,90 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function setHeaderAmountValues(data = {}) {
+        if (headerForeignAmountEl) {
+            const foreignAmount = data.transaction_foreign_amount ?? data.foreign_amount;
+            headerForeignAmountEl.value = foreignAmount === undefined || foreignAmount === null || numberValue(foreignAmount) === 0
+                ? ''
+                : formatNumber(foreignAmount);
+        }
         if (headerSupplyAmountEl) {
-            const baseAmount = data.base_amount ?? data.supply_amount;
+            const baseAmount = data.base_amount ?? data.transaction_supply_amount ?? data.supply_amount;
             headerSupplyAmountEl.value = baseAmount === undefined || baseAmount === null ? '' : formatNumber(baseAmount);
         }
-        if (headerVatAmountEl) {
-            const adjustmentAmount = data.adjustment_amount ?? data.vat_amount;
-            headerVatAmountEl.value = adjustmentAmount === undefined || adjustmentAmount === null ? '' : formatNumber(adjustmentAmount);
+        if (headerSettlementAmountEl) {
+            const adjustmentAmount = data.adjustment_amount
+                ?? data.transaction_settlement_amount
+                ?? data.settlement_amount
+                ?? data.vat_amount;
+            headerSettlementAmountEl.value = adjustmentAmount === undefined || adjustmentAmount === null ? '' : formatNumber(adjustmentAmount);
         }
-        syncHeaderTotalAmount();
-        if (headerTotalAmountEl && data.total_amount !== undefined && data.total_amount !== null) {
-            headerTotalAmountEl.value = formatNumber(data.total_amount);
+        syncHeaderFinalAmount();
+        if (headerFinalAmountEl) {
+            const finalAmount = data.transaction_final_amount ?? data.final_amount ?? data.total_amount;
+            if (finalAmount !== undefined && finalAmount !== null) {
+                headerFinalAmountEl.value = formatNumber(finalAmount);
+            }
         }
     }
 
-    function syncHeaderTotalAmount() {
-        if (!headerTotalAmountEl) return;
-        const total = parseNumber(headerSupplyAmountEl?.value || '') + parseNumber(headerVatAmountEl?.value || '');
-        headerTotalAmountEl.value = total > 0 ? formatNumber(total) : '';
+    function syncHeaderFinalAmount() {
+        if (!headerFinalAmountEl) return;
+        const total = parseNumber(headerSupplyAmountEl?.value || '') + parseNumber(headerSettlementAmountEl?.value || '');
+        headerFinalAmountEl.value = total !== 0 ? formatNumber(total) : '';
     }
 
     function normalizeHeaderAmountFormData(formData) {
-        syncHeaderTotalAmount();
-        ['supply_amount', 'vat_amount', 'total_amount'].forEach((name) => {
+        syncHeaderFinalAmount();
+        ['foreign_amount', 'supply_amount', 'settlement_amount', 'final_amount'].forEach((name) => {
             const raw = String(formData.get(name) ?? '').trim();
             formData.set(name, raw === '' ? '' : String(parseNumber(raw)));
         });
+        formData.set('transaction_foreign_amount', formData.get('foreign_amount') || '0');
         formData.set('base_amount', formData.get('supply_amount') || '0');
-        formData.set('adjustment_amount', formData.get('vat_amount') || '0');
-    }
-
-    function lineMoveRenderer() {
-        return '<span class="transaction-line-move-handle" aria-label="순서 변경"><i class="bi bi-list"></i></span>';
+        formData.set('adjustment_amount', formData.get('settlement_amount') || '0');
+        formData.set('transaction_supply_amount', formData.get('supply_amount') || '0');
+        formData.set('transaction_settlement_amount', formData.get('settlement_amount') || '0');
+        formData.set('transaction_final_amount', formData.get('final_amount') || '0');
+        formData.set('transaction_description', String(formData.get('description') ?? ''));
+        formData.set('transaction_note', String(formData.get('note') ?? ''));
+        formData.set('transaction_memo', String(formData.get('memo') ?? ''));
+        formData.set('transaction_exchange_rate', String(formData.get('exchange_rate') ?? ''));
     }
 
     function lineRowNoRenderer(params = {}) {
         return `${Number(params.node?.rowIndex || 0) + 1}`;
     }
 
+    function dragHandleHeaderComponent() {
+        function DragHandleHeader() {}
+
+        DragHandleHeader.prototype.init = function init() {
+            this.eGui = document.createElement('div');
+            this.eGui.className = 'transaction-line-drag-head-inner';
+            this.eGui.innerHTML = '<i class="bi bi-arrows-move" aria-hidden="true"></i>';
+        };
+
+        DragHandleHeader.prototype.getGui = function getGui() {
+            return this.eGui;
+        };
+
+        return DragHandleHeader;
+    }
+
+    function dragHandleCellRenderer(params = {}) {
+        const icon = document.createElement('span');
+        icon.className = 'transaction-line-drag-cell-inner';
+        icon.innerHTML = '<i class="bi bi-list" aria-hidden="true"></i>';
+
+        if (typeof params.registerRowDragger === 'function') {
+            params.registerRowDragger(icon, 4);
+        }
+
+        return icon;
+    }
+
     function lineActionRenderer() {
-        return '<button type="button" class="transaction-line-delete-action">-삭제</button>';
+        return '<span class="transaction-line-delete-text">-삭제</span>';
     }
 
     function formatBytes(value) {
@@ -977,9 +1111,51 @@ import '/public/assets/js/components/trash-manager.js';
         }
     }
 
+    function statusDisplayLabel(value) {
+        const labels = {
+            draft: '입력',
+            approved: '승인',
+            rejected: '반려',
+            deleted: '삭제',
+        };
+
+        return labels[normalizeTransactionStatus(value)] || labels.draft;
+    }
+
+    function matchStatusDisplayLabel(value) {
+        const labels = {
+            none: '미연결',
+            matched: '연결완료',
+            partial: '부분연결',
+            pending: '대기',
+        };
+
+        return labels[String(value || 'none').trim().toLowerCase()] || '미연결';
+    }
+
+    function setSystemInfoFields(data = {}) {
+        const createdAtEl = document.getElementById('transaction_created_at_display');
+        const createdByEl = document.getElementById('transaction_created_by_display');
+        const updatedAtEl = document.getElementById('transaction_updated_at_display');
+        const updatedByEl = document.getElementById('transaction_updated_by_display');
+        const deletedAtEl = document.getElementById('transaction_deleted_at_display');
+        const deletedByEl = document.getElementById('transaction_deleted_by_display');
+        const statusEl = document.getElementById('transaction_status_display');
+        const matchStatusEl = document.getElementById('transaction_match_status_display');
+
+        if (createdAtEl) createdAtEl.value = data.created_at || '';
+        if (createdByEl) createdByEl.value = data.created_by_name || data.created_by || '';
+        if (updatedAtEl) updatedAtEl.value = data.updated_at || '';
+        if (updatedByEl) updatedByEl.value = data.updated_by_name || data.updated_by || '';
+        if (deletedAtEl) deletedAtEl.value = data.deleted_at || '';
+        if (deletedByEl) deletedByEl.value = data.deleted_by_name || data.deleted_by || '';
+        if (statusEl) statusEl.value = statusDisplayLabel(data.status || 'draft');
+        if (matchStatusEl) matchStatusEl.value = matchStatusDisplayLabel(data.match_status || 'none');
+    }
+
     function setTransactionModalEditable(editable) {
         form.querySelectorAll('input, select, textarea, button').forEach((control) => {
-            if (control.matches('[data-bs-dismiss="modal"], .btn-close')) return;
+            if (control.matches('[data-bs-dismiss="modal"], .btn-close, .transaction-card-toggle')) return;
 
             control.disabled = !editable;
         });
@@ -987,6 +1163,8 @@ import '/public/assets/js/components/trash-manager.js';
         deleteBtn?.classList.toggle('d-none', !editable || !document.getElementById('transaction_id')?.value);
         lineGrid?.updateSettings({ readOnly: !editable });
         lineGrid?.render();
+        settlementGrid?.updateSettings({ readOnly: !editable });
+        settlementGrid?.render();
     }
 
     function renderCodeName(field, value) {
@@ -1067,7 +1245,7 @@ import '/public/assets/js/components/trash-manager.js';
                 visible: true,
                 className: 'text-center transaction-sort-no-cell',
             }),
-            textColumn('transaction_date', '작성일자', { visible: true }),
+            textColumn('transaction_date', '거래일', { visible: true }),
             textColumn('business_unit', '사업구분'),
             textColumn('transaction_type', '거래유형', {
                 visible: true,
@@ -1093,11 +1271,12 @@ import '/public/assets/js/components/trash-manager.js';
                     return escapeHtml(data || row.project_name || '-');
                 },
             },
+            amountColumn('transaction_foreign_amount', '외화금액', true),
+            amountColumn('transaction_supply_amount', '공급가액', true),
+            amountColumn('transaction_settlement_amount', '정산금액', true),
+            amountColumn('transaction_final_amount', '최종금액', true),
             textColumn('currency', '통화'),
             textColumn('exchange_rate', '환율', { className: 'text-end' }),
-            amountColumn('base_amount', '공급가액'),
-            amountColumn('adjustment_amount', '가감금액'),
-            amountColumn('total_amount', '합계금액', true),
             {
                 data: 'transaction_line_status',
                 title: '거래내역',
@@ -1288,7 +1467,8 @@ import '/public/assets/js/components/trash-manager.js';
 
     function blankLine() {
         return {
-            line_type: lineTypeLabelFromCode('ITEM'),
+            __item_id: '',
+            __line_key: `line-${Date.now()}-${++settlementLineKeySeed}`,
             item_date: document.getElementById('transaction_date')?.value || today(),
             item_name: '',
             specification: '',
@@ -1299,69 +1479,65 @@ import '/public/assets/js/components/trash-manager.js';
             foreign_amount: '',
             amount: '',
             supply_amount: 0,
-            vat_amount: 0,
-            total_amount: 0,
             tax_type: defaultLineTaxTypeLabel(),
             description: '',
         };
     }
 
-    function normalizeLine(item = {}) {
-        const inferredLineType = (() => {
-            const rawType = lineTypeCodeFromCell(item.line_type || item.amount_type || 'ITEM');
-            const name = String(item.item_name || item.description || '').trim().toUpperCase();
-            if (rawType === 'ITEM' && ['VAT', '부가세', '부가가치세'].includes(name)) {
-                return 'VAT';
-            }
-            return rawType;
-        })();
-
+    function blankSettlement() {
         return {
-            line_type: lineTypeLabelFromCode(inferredLineType),
-            item_date: item.item_date || document.getElementById('transaction_date')?.value || today(),
-            item_name: item.item_name || '',
-            specification: item.specification || '',
-            unit_name: item.unit_name || '',
-            quantity: item.quantity === undefined || item.quantity === null || item.quantity === ''
-                ? ''
-                : numberValue(item.quantity),
-            unit_price: numberValue(item.unit_price ?? 0),
-            foreign_unit_price: item.foreign_unit_price === undefined || item.foreign_unit_price === null || item.foreign_unit_price === ''
-                ? ''
-                : numberValue(item.foreign_unit_price),
-            foreign_amount: item.foreign_amount === undefined || item.foreign_amount === null || item.foreign_amount === ''
-                ? ''
-                : numberValue(item.foreign_amount),
-            amount: numberValue(item.amount ?? item.total_amount ?? item.supply_amount ?? 0),
-            supply_amount: numberValue(item.supply_amount ?? 0),
-            vat_amount: numberValue(item.vat_amount ?? 0),
-            total_amount: numberValue(item.total_amount ?? 0),
-            tax_type: taxTypeLabelFromCode(item.tax_type || defaultLineTaxTypeCode()),
-            description: item.description || '',
+            transaction_item_id: null,
+            settlement_type: settlementTypeLabelFromCode('VAT'),
+            amount_sign: amountSignLabelFromCode('PLUS'),
+            amount: '',
+            description: '',
         };
     }
 
+    function normalizeLine(item = {}) {
+        const lineKey = String(item.__line_key || item.id || item.transaction_item_id || `line-${Date.now()}-${++settlementLineKeySeed}`);
+
+        return {
+            __item_id: String(item.id || item.transaction_item_id || ''),
+            __line_key: lineKey,
+            item_date: item.item_date || document.getElementById('transaction_date')?.value || today(),
+            item_name: item.item_name || '',
+            specification: item.specification || item.item_specification || '',
+            unit_name: item.unit_name || item.item_unit_name || '',
+            quantity: item.quantity === undefined || item.quantity === null || item.quantity === ''
+                ? (item.item_quantity === undefined || item.item_quantity === null || item.item_quantity === '' ? '' : numberValue(item.item_quantity))
+                : numberValue(item.quantity),
+            unit_price: numberValue(item.unit_price ?? item.item_unit_price ?? 0),
+            foreign_unit_price: item.foreign_unit_price === undefined || item.foreign_unit_price === null || item.foreign_unit_price === ''
+                ? (item.item_foreign_unit_price === undefined || item.item_foreign_unit_price === null || item.item_foreign_unit_price === '' ? '' : numberValue(item.item_foreign_unit_price))
+                : numberValue(item.foreign_unit_price),
+            foreign_amount: item.foreign_amount === undefined || item.foreign_amount === null || item.foreign_amount === ''
+                ? (item.item_foreign_amount === undefined || item.item_foreign_amount === null || item.item_foreign_amount === '' ? '' : numberValue(item.item_foreign_amount))
+                : numberValue(item.foreign_amount),
+            amount: numberValue(item.amount ?? item.supply_amount ?? item.item_supply_amount ?? 0),
+            supply_amount: numberValue(item.supply_amount ?? item.item_supply_amount ?? 0),
+            tax_type: taxTypeLabelFromCode(item.tax_type || item.item_tax_type || defaultLineTaxTypeCode()),
+            description: item.description || item.item_description || '',
+        };
+    }
+
+    function normalizeSettlement(row = {}) {
+        return {
+            transaction_item_id: row.transaction_item_id || null,
+            settlement_type: settlementTypeLabelFromCode(row.settlement_type || 'VAT'),
+            amount_sign: amountSignLabelFromCode(row.amount_sign || 'PLUS'),
+            amount: row.amount === undefined || row.amount === null || row.amount === ''
+                ? ''
+                : numberValue(row.amount),
+            description: row.description || row.settlement_description || '',
+        };
+    }
     function getExchangeRateValue() {
         const value = parseNumber(exchangeRateEl?.value || '');
         return value > 0 ? value : 0;
     }
 
     function calculateLine(row) {
-        const lineType = lineTypeCodeFromCell(row.line_type || 'ITEM');
-        row.line_type = lineTypeLabelFromCode(lineType);
-        if (lineType !== 'ITEM') {
-            const amount = numberValue(row.amount ?? row.total_amount);
-            if (!String(row.item_name || '').trim()) {
-                row.item_name = row.line_type;
-            }
-            row.quantity = numberValue(row.quantity) || 1;
-            row.unit_price = amount;
-            row.supply_amount = 0;
-            row.vat_amount = lineType === 'VAT' ? amount : 0;
-            row.total_amount = amount;
-            row.amount = amount;
-            return row;
-        }
 
         const quantity = numberValue(row.quantity);
         const foreignMode = usesForeignCurrency();
@@ -1375,7 +1551,7 @@ import '/public/assets/js/components/trash-manager.js';
             ? Math.round(foreignAmount * exchangeRate)
             : Math.round(quantity * unitPrice);
         const taxType = normalizeTaxTypeCode(row.tax_type || defaultLineTaxTypeCode());
-        const enteredAmount = numberValue(row.amount ?? row.total_amount);
+        const enteredAmount = numberValue(row.amount);
         const amount = quantity > 0 && (unitPrice !== 0 || foreignAmount !== 0)
             ? supply
             : enteredAmount;
@@ -1386,14 +1562,16 @@ import '/public/assets/js/components/trash-manager.js';
         row.foreign_amount = foreignMode ? foreignAmount : '';
         row.amount = amount;
         row.supply_amount = row.amount;
-        row.vat_amount = 0;
-        row.total_amount = row.amount;
         row.tax_type = taxTypeLabelFromCode(taxType);
         return row;
     }
 
     function setLineCellValue(row, prop, value, source = 'program') {
         if (!lineGrid || row < 0) return;
+        const currentValue = lineGrid.getDataAtRowProp?.(row, prop);
+        if (String(currentValue ?? '') === String(value ?? '')) {
+            return;
+        }
 
         if (typeof lineGrid.setSourceDataAtCell === 'function') {
             lineGrid.setSourceDataAtCell(row, prop, value, source);
@@ -1403,53 +1581,332 @@ import '/public/assets/js/components/trash-manager.js';
         lineGrid.setDataAtRowProp(row, prop, value, source);
     }
 
+    function setSettlementCellValue(row, prop, value, source = 'program') {
+        if (!settlementGrid || row < 0) return;
+        const currentValue = settlementGrid.getDataAtRowProp?.(row, prop);
+        if (String(currentValue ?? '') === String(value ?? '')) {
+            return;
+        }
+
+        if (typeof settlementGrid.setSourceDataAtCell === 'function') {
+            settlementGrid.setSourceDataAtCell(row, prop, value, source);
+            return;
+        }
+
+        settlementGrid.setDataAtRowProp(row, prop, value, source);
+    }
+
+    function calculateSettlementRow(row) {
+        return normalizeSettlement(row);
+    }
+
+    function getLineKey(row = {}) {
+        const raw = String(row?.__line_key || row?.__item_id || '').trim();
+        if (raw !== '') return raw;
+        const nextKey = `line-${Date.now()}-${++settlementLineKeySeed}`;
+        row.__line_key = nextKey;
+        return nextKey;
+    }
+
+    function ensureLineRowIdentity(row = {}) {
+        if (!row || typeof row !== 'object') return row;
+        if (!String(row.__line_key || '').trim()) {
+            row.__line_key = `line-${Date.now()}-${++settlementLineKeySeed}`;
+        }
+        row.__item_id = String(row.__item_id || row.id || row.transaction_item_id || '');
+        return row;
+    }
+
+    function getLineRows() {
+        return (lineGrid?.getSourceData() || []).map((row) => ensureLineRowIdentity(row));
+    }
+
+    function getLineRowByKey(lineKey) {
+        return getLineRows().find((row) => getLineKey(row) === lineKey) || null;
+    }
+
+    function getLineDisplayName(row = {}) {
+        const itemName = String(row?.item_name || '').trim();
+        return itemName || '\uC120\uD0DD \uD56D\uBAA9';
+    }
+
+    function getActiveSettlementBucketKey() {
+        if (selectedSettlementScope === 'header') {
+            return HEADER_SETTLEMENT_KEY;
+        }
+        return selectedLineKey || '';
+    }
+
+    function updateSettlementSectionHeading() {
+        const lineRow = selectedLineKey ? getLineRowByKey(selectedLineKey) : null;
+        if (settlementTitleEl) {
+            settlementTitleEl.textContent = '거래정산 (선택 품목)';
+        }
+        if (settlementSubtitleEl) {
+            settlementSubtitleEl.textContent = lineRow
+                ? `${getLineDisplayName(lineRow)} 품목의 정산만 표시합니다.`
+                : '선택된 거래품목의 정산만 표시합니다.';
+        }
+    }
+
+    function getStoredSettlements(lineKey) {
+        return (lineSettlementMap.get(lineKey) || []).map((row) => normalizeSettlement(row));
+    }
+
+    function saveCurrentSettlementRows() {
+        if (!selectedLineKey || !settlementGrid) return;
+        const rows = (settlementGrid.getSourceData() || [])
+            .map((row) => calculateSettlementRow(row))
+            .filter((row) => String(row.settlement_type || '').trim() !== '' || numberValue(row.amount) !== 0 || String(row.description || '').trim() !== '');
+        lineSettlementMap.set(selectedLineKey, rows);
+    }
+
+    function loadSettlementRowsForSelectedLine() {
+        initSettlementGrid();
+        const rows = selectedLineKey ? getStoredSettlements(selectedLineKey) : [];
+        settlementGrid?.loadData(rows);
+        updateSettlementSectionHeading();
+        // Step 1 binary-search test: keep only the first modal-entry refresh.
+    }
+
+    function ensureSettlementBuckets() {
+        const rows = getLineRows();
+        const activeKeys = new Set();
+        rows.forEach((row) => {
+            const lineKey = getLineKey(row);
+            activeKeys.add(lineKey);
+            if (!lineSettlementMap.has(lineKey)) {
+                lineSettlementMap.set(lineKey, []);
+            }
+        });
+
+        Array.from(lineSettlementMap.keys()).forEach((lineKey) => {
+            if (!activeKeys.has(lineKey)) {
+                lineSettlementMap.delete(lineKey);
+            }
+        });
+
+        if (!selectedLineKey || !activeKeys.has(selectedLineKey)) {
+            selectedLineKey = rows.length > 0 ? getLineKey(rows[0]) : '';
+        }
+    }
+
+    function syncSettlementSelection(rowIndex = -1, options = {}) {
+        saveCurrentSettlementRows();
+        ensureSettlementBuckets();
+
+        const rows = getLineRows();
+        const selectedRow = rowIndex >= 0 ? rows[rowIndex] : rows.find((row) => getLineKey(row) === selectedLineKey) || rows[0] || null;
+        selectedLineKey = selectedRow ? getLineKey(selectedRow) : '';
+
+        if (options.focusRow === true && selectedRow) {
+            const index = rows.findIndex((row) => getLineKey(row) === selectedLineKey);
+            if (index >= 0) {
+                lineGrid?.selectCell(index, 1);
+            }
+        }
+
+        loadSettlementRowsForSelectedLine();
+        calculateTotals();
+    }
+
     function calculateTotals() {
+        saveCurrentSettlementRows();
         const rows = lineGrid ? lineGrid.getSourceData() : [];
         let base = 0;
-        let adjustment = 0;
-        let total = 0;
+        let foreign = 0;
+        let settlement = 0;
 
         rows.forEach((row, index) => {
             if (!row || (!row.item_name && !row.specification && !numberValue(row.amount) && !numberValue(row.unit_price) && !numberValue(row.foreign_amount) && !numberValue(row.foreign_unit_price))) return;
             const calculated = calculateLine(row);
-            const lineAmount = numberValue(calculated.amount ?? calculated.total_amount);
-            if (lineTypeCodeFromCell(calculated.line_type) === 'ITEM') {
-                base += lineAmount;
-            } else {
-                adjustment += lineAmount;
-            }
-            total += lineAmount;
+            const lineAmount = numberValue(calculated.amount ?? calculated.supply_amount);
+            base += lineAmount;
+            foreign += numberValue(calculated.foreign_amount);
 
             if (lineGrid) {
                 setLineCellValue(index, 'unit_price', calculated.unit_price, 'calc');
                 setLineCellValue(index, 'foreign_amount', calculated.foreign_amount, 'calc');
                 setLineCellValue(index, 'amount', calculated.amount, 'calc');
                 setLineCellValue(index, 'supply_amount', calculated.supply_amount, 'calc');
-                setLineCellValue(index, 'vat_amount', calculated.vat_amount, 'calc');
-                setLineCellValue(index, 'total_amount', calculated.total_amount, 'calc');
             }
         });
 
+        Array.from(lineSettlementMap.values()).flat().forEach((row) => {
+            if (!row || (!String(row.settlement_type || '').trim() && !numberValue(row.amount))) return;
+            const calculated = calculateSettlementRow(row);
+            const amount = numberValue(calculated.amount);
+            const signed = (amountSignCodeFromCell(calculated.amount_sign) === 'MINUS' ? -1 : 1) * amount;
+            settlement += signed;
+        });
+
+        const total = base + settlement;
+
+        document.getElementById('transaction_foreign_total').value = formatAmount(foreign);
         document.getElementById('transaction_supply_total').value = formatAmount(base);
-        document.getElementById('transaction_vat_total').value = formatAmount(adjustment);
-        document.getElementById('transaction_grand_total').value = formatAmount(total);
-        if (total > 0) {
-            setHeaderAmountValues({
-                base_amount: base,
-                adjustment_amount: adjustment,
-                supply_amount: base,
-                vat_amount: adjustment,
-                total_amount: total,
-            });
+        const supplyTotalViewEl = document.getElementById('transaction_supply_total_view');
+        if (supplyTotalViewEl) {
+            supplyTotalViewEl.value = formatAmount(base);
         }
+        document.getElementById('transaction_settlement_total').value = formatAmount(settlement);
+        const settlementTotalViewEl = document.getElementById('transaction_settlement_total_view');
+        if (settlementTotalViewEl) {
+            settlementTotalViewEl.value = formatAmount(settlement);
+        }
+        const finalTotalEl = document.getElementById('transaction_final_total');
+        if (finalTotalEl) {
+            finalTotalEl.value = formatAmount(total);
+        }
+        setHeaderAmountValues({
+            transaction_foreign_amount: foreign,
+            base_amount: base,
+            adjustment_amount: settlement,
+            supply_amount: base,
+            settlement_amount: settlement,
+            final_amount: total,
+        });
+    }
+
+    function measureTransactionGridDebugElement(element) {
+        if (!element) return null;
+        const rect = element.getBoundingClientRect();
+        return {
+            selector: element.id ? `#${element.id}` : (element.className || element.tagName || ''),
+            offsetWidth: Number(element.offsetWidth || 0),
+            clientWidth: Number(element.clientWidth || 0),
+            scrollWidth: Number(element.scrollWidth || 0),
+            rectWidth: Number(rect.width || 0),
+            styleWidth: element.style?.width || '',
+            computedWidth: window.getComputedStyle ? window.getComputedStyle(element).width : '',
+        };
+    }
+
+    function collectTransactionGridDebugDom(host) {
+        if (!host) return {};
+        const elements = [
+            ['#transactionLineGrid', host],
+            ['.ag-root', host.querySelector('.ag-root')],
+            ['.ag-root-wrapper', host.querySelector('.ag-root-wrapper')],
+            ['.ag-root-wrapper-body', host.querySelector('.ag-root-wrapper-body')],
+            ['.ag-header', host.querySelector('.ag-header')],
+            ['.ag-header-viewport', host.querySelector('.ag-header-viewport')],
+            ['.ag-header-container', host.querySelector('.ag-header-container')],
+            ['.ag-body', host.querySelector('.ag-body')],
+            ['.ag-body-viewport', host.querySelector('.ag-body-viewport')],
+            ['.ag-center-cols-viewport', host.querySelector('.ag-center-cols-viewport')],
+            ['.ag-center-cols-container', host.querySelector('.ag-center-cols-container')],
+            ['.ag-body-horizontal-scroll', host.querySelector('.ag-body-horizontal-scroll')],
+            ['.ag-body-horizontal-scroll-container', host.querySelector('.ag-body-horizontal-scroll-container')],
+        ];
+        return Object.fromEntries(
+            elements.map(([selector, element]) => [selector, measureTransactionGridDebugElement(element)])
+        );
+    }
+
+    function collectTransactionGridDebugColumns(api, columnDefs = [], host = null) {
+        if (!api) return [];
+        const jsWidthMap = new Map(
+            (Array.isArray(columnDefs) ? columnDefs : [])
+                .filter((column) => column?.field)
+                .map((column) => [String(column.field), {
+                    width: Number(column.width || 0) || null,
+                    minWidth: Number(column.minWidth || 0) || null,
+                    maxWidth: Number(column.maxWidth || 0) || null,
+                    hide: Boolean(column.hide),
+                }])
+        );
+        const displayedColumns = api.getAllDisplayedColumns?.()
+            || api.getColumnApi?.()?.getAllDisplayedColumns?.()
+            || [];
+        return displayedColumns.map((column) => {
+            const field = String(column?.getColId?.() || column?.colId || '');
+            const headerCell = host?.querySelector(`.ag-header-cell[col-id="${field}"]`) || null;
+            const jsWidths = jsWidthMap.get(field) || null;
+            return {
+                field,
+                headerName: String(column?.getColDef?.()?.headerName || ''),
+                jsWidth: jsWidths?.width ?? null,
+                jsMinWidth: jsWidths?.minWidth ?? null,
+                jsMaxWidth: jsWidths?.maxWidth ?? null,
+                actualWidth: Number(column?.getActualWidth?.() || 0),
+                minWidth: Number(column?.getMinWidth?.() || 0),
+                maxWidth: Number(column?.getMaxWidth?.() || 0),
+                left: Number(column?.getLeft?.() || 0),
+                visible: typeof column?.isVisible === 'function' ? column.isVisible() : true,
+                domHeaderOffsetWidth: Number(headerCell?.offsetWidth || 0),
+                domHeaderClientWidth: Number(headerCell?.clientWidth || 0),
+                domHeaderScrollWidth: Number(headerCell?.scrollWidth || 0),
+                domHeaderComputedWidth: headerCell && window.getComputedStyle
+                    ? window.getComputedStyle(headerCell).width
+                    : '',
+            };
+        });
+    }
+
+    function logTransactionGridDebug(label, host, api, columnDefs = []) {
+        console.group(`[TransactionGridDebug] ${label}`);
+        console.log('host', measureTransactionGridDebugElement(host));
+        console.log('dom', collectTransactionGridDebugDom(host));
+        console.log('columns', collectTransactionGridDebugColumns(api, columnDefs, host));
+        console.groupEnd();
     }
 
     function refreshLineGridDimensions() {
+        console.group('[TransactionGridDebug] refreshLineGridDimensions');
+        logTransactionGridDebug('refreshLineGridDimensions:before', gridEl, lineGrid?.api, getLineColumns());
         window.requestAnimationFrame(() => {
+            logTransactionGridDebug('refreshLineGridDimensions:raf:start', gridEl, lineGrid?.api, getLineColumns());
             lineGrid?.refreshDimensions?.();
-            lineGrid?.render?.();
-            syncFloatingLineHeader();
+            settlementGrid?.refreshDimensions?.();
+            syncGridAutoWidth(lineGrid, gridEl);
+            syncGridAutoWidth(settlementGrid, settlementGridEl);
+            logTransactionGridDebug('refreshLineGridDimensions:raf:end', gridEl, lineGrid?.api, getLineColumns());
         });
+        console.groupEnd();
+    }
+
+    function syncGridAutoWidth(gridAdapter, host) {
+        const resolvedAdapter = gridAdapter?.api ? gridAdapter : { api: gridAdapter };
+        if (!resolvedAdapter.api || !host) return;
+    }
+
+    function getDisplayedColumnActualWidths(gridAdapter) {
+        const resolvedAdapter = gridAdapter?.api ? gridAdapter : { api: gridAdapter };
+        const columns = resolvedAdapter.api?.getAllDisplayedColumns?.()
+            || resolvedAdapter.api?.getColumnApi?.()?.getAllDisplayedColumns?.()
+            || [];
+        if (Array.isArray(columns) && columns.length > 0) {
+            return columns.map((column) => Number(column?.getActualWidth?.() || column?.getMinWidth?.() || 0));
+        }
+
+        const defs = resolvedAdapter.columnDefs || [];
+        return Array.isArray(defs)
+            ? defs.map((column) => Number(column?.width || column?.minWidth || 0))
+            : [];
+    }
+
+    function forceGridColumnWidths(api, columnDefs = []) {
+        if (!api || !Array.isArray(columnDefs)) return;
+
+        console.group('[TransactionGridDebug] forceGridColumnWidths');
+        logTransactionGridDebug('forceGridColumnWidths:before', gridEl, api, columnDefs);
+        columnDefs.forEach((column) => {
+            const field = String(column?.field || '');
+            const width = Number(column?.width || column?.minWidth || 0);
+            if (field === '' || !Number.isFinite(width) || width <= 0) return;
+            if (column.hide) return;
+
+            // api.setColumnWidth?.(field, width, false);
+        });
+        logTransactionGridDebug('forceGridColumnWidths:after', gridEl, api, columnDefs);
+        console.groupEnd();
+    }
+
+    function syncLineForeignColumns() {
+        if (!lineGrid?.api) return;
+        const visible = usesForeignCurrency();
+        lineGrid.api.setColumnsVisible?.(['foreign_unit_price', 'foreign_amount'], visible);
+        forceGridColumnWidths(lineGrid.api, getLineColumns());
     }
 
     function getLineHeaderRow() {
@@ -1458,21 +1915,7 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function ensureFloatingLineHeader() {
-        if (floatingLineHeaderEl) return floatingLineHeaderEl;
-
-        floatingLineHeaderEl = document.createElement('div');
-        floatingLineHeaderEl.className = 'transaction-line-floating-head';
-        floatingLineHeaderEl.setAttribute('aria-hidden', 'true');
-        floatingLineHeaderEl.innerHTML = '<table><colgroup></colgroup><thead></thead></table>';
-        document.body.appendChild(floatingLineHeaderEl);
-
-        floatingLineHeaderEl.addEventListener('click', (event) => {
-            if (!event.target.closest('.transaction-line-add-action')) return;
-            event.preventDefault();
-            addLine();
-        });
-
-        return floatingLineHeaderEl;
+        return null;
     }
 
     function hideFloatingLineHeader() {
@@ -1483,43 +1926,7 @@ import '/public/assets/js/components/trash-manager.js';
 
     function updateFloatingLineHeader() {
         lineHeaderFrame = null;
-
-        if (!modalBodyEl || !lineGrid || !modalEl.classList.contains('show')) {
-            hideFloatingLineHeader();
-            return;
-        }
-
-        const wrap = gridEl.closest('.transaction-grid-wrap');
-        const sourceRow = getLineHeaderRow();
-        if (!wrap || !sourceRow) {
-            hideFloatingLineHeader();
-            return;
-        }
-
-        const bodyRect = modalBodyEl.getBoundingClientRect();
-        const wrapRect = wrap.getBoundingClientRect();
-        const headerRect = sourceRow.getBoundingClientRect();
-        const shouldStick = headerRect.top <= bodyRect.top && wrapRect.bottom > bodyRect.top + headerRect.height;
-
-        if (!shouldStick) {
-            hideFloatingLineHeader();
-            return;
-        }
-
-        const floating = ensureFloatingLineHeader();
-        const colgroup = floating.querySelector('colgroup');
-        const thead = floating.querySelector('thead');
-        const headerCells = Array.from(sourceRow.children);
-
-        colgroup.innerHTML = headerCells
-            .map((cell) => `<col style="width:${cell.getBoundingClientRect().width}px">`)
-            .join('');
-        thead.innerHTML = `<tr>${headerCells.map((cell) => cell.outerHTML).join('')}</tr>`;
-
-        floating.style.top = `${Math.round(bodyRect.top)}px`;
-        floating.style.left = `${Math.round(wrapRect.left)}px`;
-        floating.style.width = `${Math.round(wrapRect.width)}px`;
-        floating.classList.add('is-visible');
+        hideFloatingLineHeader();
     }
 
     function syncFloatingLineHeader() {
@@ -1528,25 +1935,97 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function bindLineHeaderStickiness() {
-        if (!modalBodyEl || modalBodyEl.dataset.lineHeaderStickyBound === 'true') return;
-
-        modalBodyEl.dataset.lineHeaderStickyBound = 'true';
-        modalBodyEl.addEventListener('scroll', syncFloatingLineHeader, { passive: true });
-        window.addEventListener('resize', syncFloatingLineHeader);
-        modalEl.addEventListener('shown.bs.modal', syncFloatingLineHeader);
+        hideFloatingLineHeader();
     }
 
     function initLineGrid() {
         if (lineGrid) return;
 
+        console.group('[TransactionGridDebug] initLineGrid');
+        console.log('host', measureTransactionGridDebugElement(gridEl));
+        console.log('columnDefs', getLineColumns().map((column) => ({
+            field: String(column?.field || ''),
+            headerName: String(column?.headerName || ''),
+            width: Number(column?.width || 0) || null,
+            minWidth: Number(column?.minWidth || 0) || null,
+            maxWidth: Number(column?.maxWidth || 0) || null,
+            hide: Boolean(column?.hide),
+        })));
+        console.groupEnd();
         lineGrid = createAgGridInputAdapter(gridEl, {
             rowData: [blankLine()],
             columnDefs: getLineColumns(),
-        className: 'transaction-line-ag-grid ag-theme-quartz',
+            autoFitColumns: false,
+            className: 'transaction-line-ag-grid ag-theme-quartz',
+            gridOptions: {
+                domLayout: 'normal',
+                headerHeight: 40,
+                singleClickEdit: true,
+                suppressClickEdit: false,
+                suppressColumnVirtualisation: true,
+                stopEditingWhenCellsLoseFocus: false,
+                alwaysShowHorizontalScroll: true,
+                enterNavigatesVertically: true,
+                enterNavigatesVerticallyAfterEdit: true,
+                onGridReady(event) {
+                    const api = event?.api;
+                    const defs = getLineColumns();
+                    console.group('[TransactionGridDebug] initLineGrid:onGridReady');
+                    logTransactionGridDebug('onGridReady:beforeForce', gridEl, event?.api, defs);
+                    console.log('===== AG GRID COLUMNS =====');
+                    console.table(
+                        api?.getColumns?.().map((c) => ({
+                            field: c.getColDef().field,
+                            hide: c.getColDef().hide,
+                            visible: c.isVisible(),
+                            actualWidth: c.getActualWidth()
+                        })) || []
+                    );
+                    console.log('===== DISPLAYED =====');
+                    console.table(
+                        api?.getAllDisplayedColumns?.().map((c) => ({
+                            field: c.getColDef().field,
+                            actualWidth: c.getActualWidth()
+                        })) || []
+                    );
+                    console.log('===== HEADER DOM =====');
+                    console.table(
+                        Array.from(
+                            document.querySelectorAll(
+                                '#transactionLineGrid .ag-header-cell'
+                            )
+                        ).map((e) => ({
+                            colId: e.getAttribute('col-id'),
+                            text: e.innerText,
+                            width: e.offsetWidth
+                        }))
+                    );
+                    forceGridColumnWidths(event?.api, defs);
+                    syncLineForeignColumns();
+                    syncGridAutoWidth({ api: event?.api, columnDefs: defs }, gridEl);
+                    logTransactionGridDebug('onGridReady:afterHandler', gridEl, event?.api, defs);
+                    console.groupEnd();
+                },
+                onColumnResized(event) {
+                    if (!event.finished) return;
+                    syncGridAutoWidth(lineGrid, gridEl);
+                },
+                onDisplayedColumnsChanged() {
+                    console.group('[TransactionGridDebug] initLineGrid:onDisplayedColumnsChanged');
+                    logTransactionGridDebug('onDisplayedColumnsChanged:beforeForce', gridEl, lineGrid?.api, getLineColumns());
+                    forceGridColumnWidths(lineGrid?.api, getLineColumns());
+                    syncGridAutoWidth(lineGrid, gridEl);
+                    logTransactionGridDebug('onDisplayedColumnsChanged:afterHandler', gridEl, lineGrid?.api, getLineColumns());
+                    console.groupEnd();
+                },
+                onSortChanged() {
+                    syncGridAutoWidth(lineGrid, gridEl);
+                },
+            },
             deleteColumnField: '__actions',
-            deleteButtonSelector: 'button',
+            deleteButtonSelector: '.transaction-line-delete-text',
             addHeaderColumnField: '__actions',
-            focusColumnAfterAdd: 'line_type',
+            focusColumnAfterAdd: 'item_date',
             addRow: () => blankLine(),
             onCellEditingStarted(event) {
                 lineGridEditing = true;
@@ -1571,9 +2050,7 @@ import '/public/assets/js/components/trash-manager.js';
             onCellValueChanged(event) {
                 const field = event.colDef?.field || '';
                 const row = event.rowIndex;
-                if (field === 'line_type') {
-                    setLineCellValue(row, 'line_type', normalizeLineTypeCellValue(event.newValue));
-                }
+                ensureLineRowIdentity(event.data || {});
                 if (field === 'unit_name') {
                     const normalized = normalizeUnitCellValue(event.newValue);
                     if (normalized === UNIT_QUICK_ADD_LABEL) {
@@ -1600,8 +2077,12 @@ import '/public/assets/js/components/trash-manager.js';
                 if (field === 'tax_type') {
                     setLineCellValue(row, 'tax_type', normalizeTaxTypeCellValue(event.newValue));
                 }
+                syncSettlementSelection(row);
                 calculateTotals();
-                refreshLineGridDimensions();
+                // Step 1 binary-search test: disabled duplicate refresh.
+            },
+            onCellClicked(event) {
+                syncSettlementSelection(event.rowIndex, { recalculate: false });
             },
             onCellKeyDown(event) {
                 const selected = lineGrid?.getSelectedLast?.() || [];
@@ -1619,21 +2100,106 @@ import '/public/assets/js/components/trash-manager.js';
                 const col = String(event.column?.getColId?.() || '');
                 const fields = getLineColumns().map((column) => column.field);
                 const colIndex = fields.indexOf(col);
+                if (row >= 0) {
+                    syncSettlementSelection(row, { recalculate: false });
+                }
                 if (!isLineDateCell(row, colIndex)) {
                     closeGridDatePicker();
                 }
             },
             onRowDragEnd() {
+                syncSettlementSelection();
                 calculateTotals();
-                refreshLineGridDimensions();
+                updateLineEmptyState();
+                // Step 1 binary-search test: disabled duplicate refresh.
+            },
+            onChanged() {
+                ensureSettlementBuckets();
+                if (lineGrid && lineGrid.countRows() === 0) {
+                    selectedLineKey = '';
+                }
+                loadSettlementRowsForSelectedLine();
+                calculateTotals();
+                updateLineEmptyState();
+                // Step 1 binary-search test: disabled duplicate refresh.
             },
         });
 
         updateLineEmptyState();
     }
 
+    function initSettlementGrid() {
+        if (settlementGrid) return;
+
+        settlementGrid = createAgGridInputAdapter(settlementGridEl, {
+            rowData: [],
+            columnDefs: getSettlementColumns(),
+            autoFitColumns: false,
+            className: 'transaction-line-ag-grid ag-theme-quartz',
+            gridOptions: {
+                domLayout: 'normal',
+                headerHeight: 40,
+                singleClickEdit: true,
+                suppressClickEdit: false,
+                suppressColumnVirtualisation: true,
+                stopEditingWhenCellsLoseFocus: false,
+                alwaysShowHorizontalScroll: true,
+                enterNavigatesVertically: true,
+                enterNavigatesVerticallyAfterEdit: true,
+                onGridReady(event) {
+                    const defs = getSettlementColumns();
+                    forceGridColumnWidths(event?.api, defs);
+                    syncGridAutoWidth({ api: event?.api, columnDefs: defs }, settlementGridEl);
+                },
+                onColumnResized(event) {
+                    if (!event.finished) return;
+                    syncGridAutoWidth(settlementGrid, settlementGridEl);
+                },
+                onDisplayedColumnsChanged() {
+                    forceGridColumnWidths(settlementGrid?.api, getSettlementColumns());
+                    syncGridAutoWidth(settlementGrid, settlementGridEl);
+                },
+                onSortChanged() {
+                    syncGridAutoWidth(settlementGrid, settlementGridEl);
+                },
+            },
+            deleteColumnField: '__actions',
+            deleteButtonSelector: '.transaction-line-delete-text',
+            addHeaderColumnField: '__actions',
+            focusColumnAfterAdd: 'settlement_type',
+            addRow: () => blankSettlement(),
+            onCellValueChanged(event) {
+                const field = event.colDef?.field || '';
+                const row = event.rowIndex;
+                if (field === 'settlement_type') {
+                    setSettlementCellValue(row, 'settlement_type', settlementTypeLabelFromCode(event.newValue));
+                }
+                if (field === 'amount_sign') {
+                    setSettlementCellValue(row, 'amount_sign', amountSignLabelFromCode(event.newValue));
+                }
+                saveCurrentSettlementRows();
+                calculateTotals();
+                // Step 1 binary-search test: disabled duplicate refresh.
+            },
+            onRowDragEnd() {
+                saveCurrentSettlementRows();
+                calculateTotals();
+                // Step 1 binary-search test: disabled duplicate refresh.
+            },
+            onChanged() {
+                saveCurrentSettlementRows();
+                calculateTotals();
+                // Step 1 binary-search test: disabled duplicate refresh.
+            },
+        });
+    }
+
     function updateLineEmptyState() {
-        gridEl.classList.toggle('is-empty', (lineGrid?.countRows() || 0) === 0);
+        const sourceRows = lineGrid?.getSourceData?.();
+        const rowCount = Array.isArray(sourceRows)
+            ? sourceRows.length
+            : (lineGrid?.countRows() || 0);
+        gridEl.classList.toggle('is-empty', rowCount === 0);
     }
 
     function bindLineActionEvents() {
@@ -1670,26 +2236,41 @@ import '/public/assets/js/components/trash-manager.js';
 
     function setLines(items = []) {
         initLineGrid();
-        const seenAdjustmentKeys = new Set();
         const rows = (Array.isArray(items) ? items : [])
-            .map((item) => calculateLine(normalizeLine(item)))
-            .filter((row) => {
-                const lineType = lineTypeCodeFromCell(row.line_type || 'ITEM');
-                if (lineType === 'ITEM') return true;
-
-                const key = [
-                    lineType,
-                    row.item_date || '',
-                    Math.round(numberValue(row.amount) * 100) / 100,
-                ].join('|');
-                if (seenAdjustmentKeys.has(key)) return false;
-                seenAdjustmentKeys.add(key);
-                return true;
-            });
+            .map((item) => ensureLineRowIdentity(calculateLine(normalizeLine(item))));
         lineGrid?.loadData(rows);
         updateLineEmptyState();
+        ensureSettlementBuckets();
+        syncSettlementSelection(rows.length > 0 ? 0 : -1);
+        // Step 1 binary-search test: disabled duplicate refresh.
+    }
+
+    function setSettlements(rows = []) {
+        const lineRows = getLineRows();
+        const itemIdToLineKey = new Map(
+            lineRows
+                .filter((row) => String(row.__item_id || '').trim() !== '')
+                .map((row) => [String(row.__item_id || '').trim(), getLineKey(row)])
+        );
+        lineSettlementMap = new Map();
+        lineRows.forEach((row) => {
+            lineSettlementMap.set(getLineKey(row), []);
+        });
+
+        (Array.isArray(rows) ? rows : []).forEach((row) => {
+            const normalized = normalizeSettlement(row);
+            const itemId = String(row?.transaction_item_id || normalized.transaction_item_id || '').trim();
+            const targetKey = itemIdToLineKey.get(itemId) || selectedLineKey || (lineRows[0] ? getLineKey(lineRows[0]) : '');
+            if (!targetKey) return;
+            const bucket = lineSettlementMap.get(targetKey) || [];
+            bucket.push(normalized);
+            lineSettlementMap.set(targetKey, bucket);
+        });
+
+        ensureSettlementBuckets();
+        loadSettlementRowsForSelectedLine();
         calculateTotals();
-        refreshLineGridDimensions();
+        // Step 1 binary-search test: disabled duplicate refresh.
     }
 
     function addLine() {
@@ -1698,8 +2279,7 @@ import '/public/assets/js/components/trash-manager.js';
             lineGrid.loadData([blankLine()]);
             updateLineEmptyState();
             lineGrid?.selectCell(0, 1);
-            calculateTotals();
-            refreshLineGridDimensions();
+            syncSettlementSelection(0);
             return;
         }
 
@@ -1707,16 +2287,14 @@ import '/public/assets/js/components/trash-manager.js';
         lineGrid?.addRow?.(blankLine(), rowIndex);
         lineGrid?.selectCell(rowIndex, 1);
         updateLineEmptyState();
-        calculateTotals();
-        refreshLineGridDimensions();
+        syncSettlementSelection(rowIndex);
     }
 
     function removeLineAt(rowIndex) {
         if (!lineGrid) return;
         lineGrid.alter('remove_row', rowIndex, 1);
         updateLineEmptyState();
-        calculateTotals();
-        refreshLineGridDimensions();
+        syncSettlementSelection();
     }
 
     function collectLines() {
@@ -1726,7 +2304,6 @@ import '/public/assets/js/components/trash-manager.js';
             .filter((row) => String(row.item_name || row.description || '').trim() !== '' || numberValue(row.amount) !== 0)
             .map((row, index) => ({
                 sort_no: index + 1,
-                line_type: lineTypeCodeFromCell(row.line_type || 'ITEM'),
                 item_date: row.item_date || document.getElementById('transaction_date')?.value || today(),
                 item_name: String(row.item_name || '').trim(),
                 specification: String(row.specification || '').trim(),
@@ -1735,12 +2312,210 @@ import '/public/assets/js/components/trash-manager.js';
                 unit_price: row.unit_price,
                 foreign_unit_price: usesForeignCurrency() ? row.foreign_unit_price : '',
                 foreign_amount: usesForeignCurrency() ? row.foreign_amount : '',
-                amount: row.amount,
                 supply_amount: row.supply_amount,
-                vat_amount: row.vat_amount,
-                total_amount: row.total_amount,
+                item_supply_amount: row.supply_amount,
                 tax_type: normalizeTaxTypeCode(row.tax_type || defaultLineTaxTypeCode()) || defaultLineTaxTypeCode(),
                 description: String(row.description || '').trim(),
+            }));
+    }
+
+    function collectSettlements() {
+        saveCurrentSettlementRows();
+        initSettlementGrid();
+        const lineRows = getLineRows();
+        const itemIdByLineKey = new Map(lineRows.map((row) => [getLineKey(row), String(row.__item_id || '').trim()]));
+        return Array.from(lineSettlementMap.entries())
+            .flatMap(([lineKey, rows]) => rows.map((row) => ({ lineKey, row })))
+            .map(({ lineKey, row }) => ({ lineKey, row: calculateSettlementRow(row) }))
+            .filter(({ row }) => String(row.settlement_type || '').trim() !== '' && numberValue(row.amount) !== 0)
+            .map(({ lineKey, row }, index) => ({
+                sort_no: index + 1,
+                transaction_item_id: itemIdByLineKey.get(lineKey) || null,
+                settlement_type: settlementTypeCodeFromCell(row.settlement_type || 'VAT'),
+                amount_sign: amountSignCodeFromCell(row.amount_sign || 'PLUS'),
+                amount: numberValue(row.amount),
+                settlement_description: String(row.description || '').trim(),
+            }));
+    }
+
+    function updateSettlementSectionHeading() {
+        const lineRow = selectedLineKey ? getLineRowByKey(selectedLineKey) : null;
+        const settlementSection = settlementGridEl?.closest('.transaction-lines-section');
+        if (settlementTitleEl) {
+            settlementTitleEl.textContent = '거래정산';
+        }
+        if (settlementSubtitleEl) {
+            settlementSubtitleEl.textContent = selectedSettlementScope === 'header'
+                ? '거래 전체 기준 정산을 표시합니다.'
+                : (lineRow
+                    ? `${getLineDisplayName(lineRow)} 품목 기준 정산을 표시합니다.`
+                    : '선택된 거래품목 기준 정산을 표시합니다.');
+        }
+        if (settlementCurrentSelectionEl) {
+            settlementCurrentSelectionEl.textContent = selectedSettlementScope === 'header'
+                ? '현재 선택 ▶ 거래 전체'
+                : `현재 선택 ▶ ${lineRow ? getLineDisplayName(lineRow) : '선택 품목'}`;
+        }
+        settlementTargetEls.forEach((radio) => {
+            radio.checked = radio.value === selectedSettlementScope;
+        });
+        settlementSection?.classList.toggle('is-item-focused', selectedSettlementScope === 'item');
+    }
+
+    function updateSettlementSectionHeading() {
+        const lineRow = selectedLineKey ? getLineRowByKey(selectedLineKey) : null;
+        if (settlementTitleEl) {
+            settlementTitleEl.textContent = '거래정산';
+        }
+        if (settlementSubtitleEl) {
+            settlementSubtitleEl.textContent = selectedSettlementScope === 'header'
+                ? '거래 전체 기준 정산을 표시합니다.'
+                : (lineRow
+                    ? `${getLineDisplayName(lineRow)} 품목 기준 정산을 표시합니다.`
+                    : '선택된 거래품목 기준 정산을 표시합니다.');
+        }
+        settlementTargetEls.forEach((radio) => {
+            radio.checked = radio.value === selectedSettlementScope;
+        });
+    }
+
+    function saveCurrentSettlementRows() {
+        const bucketKey = selectedSettlementScope === 'header' ? HEADER_SETTLEMENT_KEY : (selectedLineKey || '');
+        if (!bucketKey || !settlementGrid) return;
+        const rows = (settlementGrid.getSourceData() || [])
+            .map((row) => calculateSettlementRow(row))
+            .filter((row) => String(row.settlement_type || '').trim() !== '' || numberValue(row.amount) !== 0 || String(row.description || '').trim() !== '');
+        lineSettlementMap.set(bucketKey, rows);
+    }
+
+    function loadSettlementRowsForSelectedLine() {
+        initSettlementGrid();
+        const bucketKey = selectedSettlementScope === 'header' ? HEADER_SETTLEMENT_KEY : (selectedLineKey || '');
+        const rows = bucketKey ? getStoredSettlements(bucketKey) : [];
+        settlementGrid?.loadData(rows);
+        updateSettlementSectionHeading();
+    }
+
+    function ensureSettlementBuckets() {
+        const rows = getLineRows();
+        const activeKeys = new Set([HEADER_SETTLEMENT_KEY]);
+        rows.forEach((row) => {
+            const lineKey = getLineKey(row);
+            activeKeys.add(lineKey);
+            if (!lineSettlementMap.has(lineKey)) {
+                lineSettlementMap.set(lineKey, []);
+            }
+        });
+
+        if (!lineSettlementMap.has(HEADER_SETTLEMENT_KEY)) {
+            lineSettlementMap.set(HEADER_SETTLEMENT_KEY, []);
+        }
+
+        Array.from(lineSettlementMap.keys()).forEach((lineKey) => {
+            if (!activeKeys.has(lineKey)) {
+                lineSettlementMap.delete(lineKey);
+            }
+        });
+
+        if (!selectedLineKey || !activeKeys.has(selectedLineKey)) {
+            selectedLineKey = rows.length > 0 ? getLineKey(rows[0]) : '';
+        }
+        if (selectedSettlementScope === 'item' && selectedLineKey === '') {
+            selectedSettlementScope = 'header';
+        }
+    }
+
+    function syncSettlementSelection(rowIndex = -1, options = {}) {
+        const rows = getLineRows();
+        const previousLineKey = selectedLineKey;
+        const selectedRow = rowIndex >= 0 ? rows[rowIndex] : rows.find((row) => getLineKey(row) === selectedLineKey) || rows[0] || null;
+        const nextLineKey = selectedRow ? getLineKey(selectedRow) : '';
+
+        ensureSettlementBuckets();
+
+        if (previousLineKey === nextLineKey && options.forceReload !== true) {
+            if (options.focusRow === true && selectedRow) {
+                const index = rows.findIndex((row) => getLineKey(row) === nextLineKey);
+                if (index >= 0) {
+                    lineGrid?.selectCell(index, 1);
+                }
+            }
+            updateSettlementSectionHeading();
+            return;
+        }
+
+        saveCurrentSettlementRows();
+        selectedLineKey = nextLineKey;
+
+        if (options.focusRow === true && selectedRow) {
+            const index = rows.findIndex((row) => getLineKey(row) === selectedLineKey);
+            if (index >= 0) {
+                lineGrid?.selectCell(index, 1);
+            }
+        }
+
+        loadSettlementRowsForSelectedLine();
+        if (options.recalculate !== false) {
+            calculateTotals();
+        }
+    }
+
+    function setSettlementScope(scope = 'header') {
+        const nextScope = scope === 'item' ? 'item' : 'header';
+        saveCurrentSettlementRows();
+        ensureSettlementBuckets();
+        if (nextScope === 'item' && !selectedLineKey) {
+            const rows = getLineRows();
+            selectedLineKey = rows.length > 0 ? getLineKey(rows[0]) : '';
+        }
+        selectedSettlementScope = nextScope === 'item' && selectedLineKey ? 'item' : 'header';
+        loadSettlementRowsForSelectedLine();
+        calculateTotals();
+    }
+
+    function setSettlements(rows = []) {
+        const lineRows = getLineRows();
+        const itemIdToLineKey = new Map(
+            lineRows
+                .filter((row) => String(row.__item_id || '').trim() !== '')
+                .map((row) => [String(row.__item_id || '').trim(), getLineKey(row)])
+        );
+        lineSettlementMap = new Map([[HEADER_SETTLEMENT_KEY, []]]);
+        lineRows.forEach((row) => {
+            lineSettlementMap.set(getLineKey(row), []);
+        });
+
+        (Array.isArray(rows) ? rows : []).forEach((row) => {
+            const normalized = normalizeSettlement(row);
+            const itemId = String(row?.transaction_item_id || normalized.transaction_item_id || '').trim();
+            const targetKey = itemId === '' ? HEADER_SETTLEMENT_KEY : (itemIdToLineKey.get(itemId) || selectedLineKey || (lineRows[0] ? getLineKey(lineRows[0]) : HEADER_SETTLEMENT_KEY));
+            const bucket = lineSettlementMap.get(targetKey) || [];
+            bucket.push(normalized);
+            lineSettlementMap.set(targetKey, bucket);
+        });
+
+        ensureSettlementBuckets();
+        loadSettlementRowsForSelectedLine();
+        calculateTotals();
+        // Step 1 binary-search test: disabled duplicate refresh.
+    }
+
+    function collectSettlements() {
+        saveCurrentSettlementRows();
+        initSettlementGrid();
+        const lineRows = getLineRows();
+        const itemIdByLineKey = new Map(lineRows.map((row) => [getLineKey(row), String(row.__item_id || '').trim()]));
+        return Array.from(lineSettlementMap.entries())
+            .flatMap(([lineKey, rows]) => rows.map((row) => ({ lineKey, row })))
+            .map(({ lineKey, row }) => ({ lineKey, row: calculateSettlementRow(row) }))
+            .filter(({ row }) => String(row.settlement_type || '').trim() !== '' && numberValue(row.amount) !== 0)
+            .map(({ lineKey, row }, index) => ({
+                sort_no: index + 1,
+                transaction_item_id: lineKey === HEADER_SETTLEMENT_KEY ? null : (itemIdByLineKey.get(lineKey) || null),
+                settlement_type: settlementTypeCodeFromCell(row.settlement_type || 'VAT'),
+                amount_sign: amountSignCodeFromCell(row.amount_sign || 'PLUS'),
+                amount: numberValue(row.amount),
+                settlement_description: String(row.description || '').trim(),
             }));
     }
 
@@ -1756,18 +2531,16 @@ import '/public/assets/js/components/trash-manager.js';
         }
 
         const importEnabled = usesForeignCurrency();
-        modalEl.querySelectorAll('.transaction-currency-field, .transaction-exchange-field').forEach((field) => {
-            field.classList.remove('d-none');
+        modalEl.querySelectorAll('.transaction-exchange-field').forEach((field) => {
+            field.classList.toggle('d-none', !importEnabled);
         });
 
         if (lineGrid) {
-            lineGrid.updateSettings({
-                columns: getLineColumns(),
-                colHeaders: getLineColumns().map((column) => column.headerName || column.title),
-            });
-
+            syncLineForeignColumns();
             applyForeignTaxTypeToLines();
             calculateTotals();
+            lineGrid.render();
+            // Step 1 binary-search test: disabled duplicate refresh.
         }
     }
 
@@ -1785,6 +2558,14 @@ import '/public/assets/js/components/trash-manager.js';
 
     function setCurrencyValue(value) {
         setCodeSelectValue('currency', value || '');
+    }
+
+    function setSourceTypeValue(value) {
+        setCodeSelectValue('source_type', value || '');
+    }
+
+    function setImportTypeValue(value) {
+        setCodeSelectValue('import_type', value || '');
     }
 
     function setCodeSelectValue(selectId, value) {
@@ -1959,6 +2740,137 @@ import '/public/assets/js/components/trash-manager.js';
         }
 
         projectSelectEl.value = projectId;
+    }
+
+    function initReferenceAjaxSelect(select, options = {}) {
+        if (!select || !window.jQuery?.fn?.select2) return;
+
+        AdminPicker.select2Ajax(select, {
+            url: options.url,
+            placeholder: options.placeholder || '선택(없음)',
+            allowClear: true,
+            minimumInputLength: 0,
+            dropdownParent: window.jQuery(modalEl),
+            width: '100%',
+            dataBuilder(params) {
+                return {
+                    q: params.term || '',
+                    limit: 20,
+                    is_active: 1,
+                };
+            },
+            processResults(data) {
+                const rows = data?.results ?? data?.data ?? [];
+                return {
+                    results: [
+                        { id: '', text: '선택(없음)' },
+                        ...rows.map((row) => ({
+                            id: String(row.id ?? ''),
+                            text: options.labelForRow ? options.labelForRow(row) : String(row.text || row.name || ''),
+                        })).filter((item) => item.id !== ''),
+                    ],
+                };
+            },
+        });
+    }
+
+    function initTeamSelect() {
+        if (!teamSelectEl || !window.jQuery?.fn?.select2) return;
+
+        AdminPicker.select2Ajax(teamSelectEl, {
+            url: API.workTeamList,
+            placeholder: '팀선택',
+            allowClear: true,
+            minimumInputLength: 0,
+            dropdownParent: window.jQuery(modalEl),
+            width: '100%',
+            dataBuilder(params) {
+                const keyword = String(params.term || '').trim();
+                return keyword === ''
+                    ? {}
+                    : {
+                        filters: JSON.stringify([
+                            { field: 'team_name', value: keyword },
+                        ]),
+                    };
+            },
+            processResults(data) {
+                const rows = Array.isArray(data?.data) ? data.data : [];
+                return {
+                    results: rows.map((row) => ({
+                        id: String(row.id ?? ''),
+                        text: String(row.team_name || row.text || '').trim(),
+                    })).filter((row) => row.id !== '' && row.text !== ''),
+                };
+            },
+        });
+    }
+
+    function initBankAccountSelect() {
+        initReferenceAjaxSelect(bankAccountSelectEl, {
+            url: API.bankAccountSearch,
+            placeholder: '계좌선택',
+            labelForRow: (row) => row.account_name || row.bank_account_name || row.name || '',
+        });
+    }
+
+    function initCardSelect() {
+        initReferenceAjaxSelect(cardSelectEl, {
+            url: API.cardSearch,
+            placeholder: '카드선택',
+            labelForRow: (row) => row.text || row.card_name || row.card_number || row.card_company_name || '',
+        });
+    }
+
+    function initEmployeeSelect() {
+        initReferenceAjaxSelect(employeeSelectEl, {
+            url: API.employeeSearch,
+            placeholder: '직원선택',
+            labelForRow: (row) => row.text || row.employee_name || row.name || '',
+        });
+    }
+
+    function setStaticSelectValue(select, value = '', text = '', emptyLabel = '') {
+        if (!select) return;
+
+        const itemId = String(value || '').trim();
+        const isSelect2Ready = Boolean(window.jQuery?.fn?.select2 && window.jQuery(select).hasClass('select2-hidden-accessible'));
+        const $select = isSelect2Ready ? window.jQuery(select) : null;
+
+        select.innerHTML = '';
+        select.appendChild(new Option(emptyLabel, '', itemId === '', itemId === ''));
+
+        if (itemId !== '') {
+            const label = String(text || itemId).trim() || itemId;
+            const option = new Option(label, itemId, true, true);
+            select.appendChild(option);
+            select.value = itemId;
+            if ($select) {
+                $select.append(option).val(itemId).trigger('change');
+            }
+            return;
+        }
+
+        select.value = '';
+        if ($select) {
+            $select.val('').trigger('change');
+        }
+    }
+
+    function setBankAccountValue(value = '', text = '') {
+        setStaticSelectValue(bankAccountSelectEl, value, text, '계좌선택');
+    }
+
+    function setCardValue(value = '', text = '') {
+        setStaticSelectValue(cardSelectEl, value, text, '카드선택');
+    }
+
+    function setTeamValue(value = '', text = '') {
+        setStaticSelectValue(teamSelectEl, value, text, '팀선택');
+    }
+
+    function setEmployeeValue(value = '', text = '') {
+        setStaticSelectValue(employeeSelectEl, value, text, '직원선택');
     }
 
     function renderFiles(files = currentFiles) {
@@ -2249,8 +3161,13 @@ import '/public/assets/js/components/trash-manager.js';
         modalControlsInitialized = true;
         initTransactionDatePicker();
         bindLineHeaderStickiness();
+        initSettlementGrid();
         initClientSelect();
         initProjectSelect();
+        initBankAccountSelect();
+        initCardSelect();
+        initTeamSelect();
+        initEmployeeSelect();
         bindFileReorderEvents();
         modalEl.querySelectorAll('.number-input').forEach((input) => bindNumberInput(input));
         void loadTransactionFilePolicy();
@@ -2355,19 +3272,23 @@ import '/public/assets/js/components/trash-manager.js';
             'status',
             'match_status',
             'transaction_date',
+            'source_type',
+            'import_type',
             'business_unit',
             'transaction_direction',
             'transaction_type',
             'client_id',
             'project_id',
+            'bank_account_id',
+            'card_id',
+            'team_id',
+            'employee_id',
             'description',
             'currency',
             'exchange_rate',
-            'base_amount',
-            'adjustment_amount',
             'supply_amount',
-            'vat_amount',
-            'total_amount',
+            'settlement_amount',
+            'final_amount',
             'note',
             'memo',
         ];
@@ -2378,9 +3299,7 @@ import '/public/assets/js/components/trash-manager.js';
             fields[name] = field ? String(field.value ?? '') : '';
         });
 
-        const lines = (lineGrid?.getSourceData() || []).map((row) => ({
-            line_type: String(row?.line_type ?? ''),
-            item_date: String(row?.item_date ?? ''),
+        const lines = (lineGrid?.getSourceData() || []).map((row) => ({            item_date: String(row?.item_date ?? ''),
             item_name: String(row?.item_name ?? ''),
             specification: String(row?.specification ?? ''),
             unit_name: String(row?.unit_name ?? ''),
@@ -2392,6 +3311,14 @@ import '/public/assets/js/components/trash-manager.js';
             tax_type: String(row?.tax_type ?? ''),
             description: String(row?.description ?? ''),
         }));
+        saveCurrentSettlementRows();
+        const settlements = Array.from(lineSettlementMap.entries()).flatMap(([lineKey, rows]) => rows.map((row) => ({
+            line_key: String(lineKey || ''),
+            settlement_type: String(row?.settlement_type ?? ''),
+            amount_sign: String(row?.amount_sign ?? ''),
+            amount: String(row?.amount ?? ''),
+            description: String(row?.description ?? ''),
+        })));
 
         const deleteFileIds = Array.from(form.querySelectorAll('[data-generated-delete-file="true"]'))
             .map((input) => String(input.value || ''))
@@ -2404,6 +3331,7 @@ import '/public/assets/js/components/trash-manager.js';
                 use_file_reference: Boolean(fileToggle?.checked),
             },
             lines,
+            settlements,
             currentFiles: currentFiles.map((file) => String(file.id || file.file_name || '')).sort(),
             pendingFiles: pendingFiles.map((file) => ({
                 name: String(file.name || ''),
@@ -2491,14 +3419,22 @@ import '/public/assets/js/components/trash-manager.js';
         form.querySelectorAll('[data-generated-delete-file="true"]').forEach((input) => input.remove());
         document.getElementById('transaction_id').value = '';
         document.getElementById('transaction_date').value = today();
+        setSourceTypeValue('');
+        setImportTypeValue('');
         setBusinessUnitValue('');
         setTransactionTypeValue('');
+        setTransactionDirectionValue('');
         setCurrencyValue('');
+        setBankAccountValue('', '');
+        setCardValue('', '');
+        setTeamValue('', '');
+        setEmployeeValue('', '');
         if (exchangeRateEl) exchangeRateEl.value = '';
         setHeaderAmountValues({});
         document.getElementById('transaction_status').value = 'draft';
         document.getElementById('transaction_match_status').value = 'none';
         updateTransactionStatusBadge('draft');
+        setSystemInfoFields({});
         document.getElementById('transactionModalLabel').textContent = '거래 등록';
         if (fileToggle) fileToggle.checked = false;
         if (importToggle) importToggle.checked = false;
@@ -2508,8 +3444,12 @@ import '/public/assets/js/components/trash-manager.js';
         currentFiles = [];
         pendingFiles = [];
         fileRowOrder = [];
+        selectedSettlementScope = 'header';
+        selectedLineKey = '';
+        lineSettlementMap = new Map();
         if (fileInput) fileInput.value = '';
         setLines([]);
+        setSettlements([]);
         renderFiles([]);
         renderVoucherState({});
         clearVoucherSelection();
@@ -2523,12 +3463,21 @@ import '/public/assets/js/components/trash-manager.js';
         }
         allowModalClose = true;
         modalBaselineSnapshot = '';
+        pendingLineGridInitAfterShow = true;
         setTransactionModalLoading(true);
         setTransactionModalEditable(false);
         modal?.show();
         window.setTimeout(() => {
             allowModalClose = false;
         }, 0);
+    }
+
+    function waitForTransactionModalShown() {
+        if (!modal) return Promise.resolve();
+        if (modalEl.classList.contains('show')) return Promise.resolve();
+        return new Promise((resolve) => {
+            modalShownResolvers.push(resolve);
+        });
     }
 
     function setTransactionModalLoading(isLoading = false) {
@@ -2541,10 +3490,11 @@ import '/public/assets/js/components/trash-manager.js';
         showTransactionModalShell('거래 등록');
         try {
             await initModalControls();
+            await waitForTransactionModalShown();
             resetModal();
             markTransactionModalClean();
             setTransactionModalLoading(false);
-            setTimeout(refreshLineGridDimensions, 150);
+            // Step 1 binary-search test: disabled final remaining refresh trigger.
         } catch (error) {
             notify('error', error.message || '거래 입력 모달을 준비하지 못했습니다.');
             setTransactionModalLoading(false);
@@ -2563,6 +3513,7 @@ import '/public/assets/js/components/trash-manager.js';
                 fetchJson(`${API.detail}?id=${encodeURIComponent(id)}`),
                 initModalControls(),
             ]);
+            await waitForTransactionModalShown();
         } catch (error) {
             notify('error', error.message || '거래 상세 정보를 불러오지 못했습니다.');
             setTransactionModalLoading(false);
@@ -2575,6 +3526,8 @@ import '/public/assets/js/components/trash-manager.js';
 
         document.getElementById('transaction_id').value = data.id || '';
         document.getElementById('transaction_date').value = data.transaction_date || today();
+        setSourceTypeValue(data.source_type || '');
+        setImportTypeValue(data.import_type || '');
         setBusinessUnitValue(data.business_unit || '');
         setTransactionDirectionValue(data.transaction_direction || '');
         setTransactionTypeValue(data.transaction_type || '');
@@ -2583,11 +3536,19 @@ import '/public/assets/js/components/trash-manager.js';
         setHeaderAmountValues(data);
         setClientSelectValue(data.client_id || '', data.client_name || '');
         setProjectSelectValue(data.project_id || '', data.project_name || '');
+        setBankAccountValue(data.bank_account_id || '', data.bank_account_name || data.account_name || '');
+        setCardValue(data.card_id || '', data.card_name || '');
+        setTeamValue(data.team_id || '', data.team_name || '');
+        setEmployeeValue(data.employee_id || '', data.employee_name || data.user_name || '');
         document.getElementById('transaction_description').value = data.description || '';
         const transactionStatus = normalizeTransactionStatus(data.status);
         document.getElementById('transaction_status').value = transactionStatus;
         updateTransactionStatusBadge(transactionStatus);
         document.getElementById('transaction_match_status').value = data.match_status || 'none';
+        setSystemInfoFields({
+            ...data,
+            status: transactionStatus,
+        });
         document.getElementById('transaction_note').value = data.note || '';
         document.getElementById('transaction_memo').value = data.memo || '';
         document.getElementById('transactionModalLabel').textContent = '거래 수정';
@@ -2599,7 +3560,9 @@ import '/public/assets/js/components/trash-manager.js';
         }
         deleteBtn?.classList.remove('d-none');
 
+        selectedSettlementScope = 'header';
         setLines(data.items || []);
+        setSettlements(Array.isArray(data.settlements) ? data.settlements : []);
         currentFiles = Array.isArray(data.files) ? data.files : [];
         pendingFiles = [];
         fileRowOrder = [];
@@ -2611,16 +3574,18 @@ import '/public/assets/js/components/trash-manager.js';
         setTransactionModalEditable(!['approved', 'deleted'].includes(transactionStatus));
         markTransactionModalClean();
         setTransactionModalLoading(false);
-        setTimeout(refreshLineGridDimensions, 150);
+        // Step 1 binary-search test: disabled duplicate refresh after detail load.
     }
 
     async function saveTransaction() {
         const lines = collectLines();
+        const settlements = collectSettlements();
         const formData = new FormData(form);
         formData.set('items', JSON.stringify(lines));
+        formData.set('settlements', JSON.stringify(settlements));
         formData.delete('tax_type');
         normalizeHeaderAmountFormData(formData);
-        if (parseNumber(formData.get('total_amount') || '') <= 0) {
+        if (parseNumber(formData.get('final_amount') || '') <= 0) {
             notify('warning', '거래헤더 금액을 입력해 주세요.');
             return;
         }
@@ -2631,8 +3596,10 @@ import '/public/assets/js/components/trash-manager.js';
                 return;
             }
             formData.set('exchange_rate', rawExchangeRate === '' ? '' : String(parseNumber(rawExchangeRate)));
+            formData.set('transaction_exchange_rate', formData.get('exchange_rate') || '');
         } else if (rawExchangeRate !== '') {
             formData.set('exchange_rate', String(parseNumber(rawExchangeRate)));
+            formData.set('transaction_exchange_rate', formData.get('exchange_rate') || '');
         }
 
         await fetchJson(API.save, { method: 'POST', body: formData });
@@ -2664,7 +3631,7 @@ import '/public/assets/js/components/trash-manager.js';
             <td>${escapeHtml(row.transaction_date || '')}</td>
             <td>${escapeHtml(row.client_name || '-')}</td>
             <td>${escapeHtml(row.description || '')}</td>
-            <td class="text-end">${escapeHtml(formatAmount(row.total_amount || 0))}</td>
+            <td class="text-end">${escapeHtml(formatAmount(row.final_amount || row.transaction_final_amount || 0))}</td>
             <td>${renderMatchStatus(row.match_status)}</td>
             <td>${escapeHtml(row.deleted_at || '')}</td>
             <td>${escapeHtml(row.deleted_by_name || row.deleted_by || '')}</td>
@@ -2680,10 +3647,10 @@ import '/public/assets/js/components/trash-manager.js';
         fileToggle?.addEventListener('change', syncConditionalPanels);
         exchangeRateEl?.addEventListener('change', calculateTotals);
         exchangeRateEl?.addEventListener('input', calculateTotals);
-        headerSupplyAmountEl?.addEventListener('input', syncHeaderTotalAmount);
-        headerSupplyAmountEl?.addEventListener('change', syncHeaderTotalAmount);
-        headerVatAmountEl?.addEventListener('input', syncHeaderTotalAmount);
-        headerVatAmountEl?.addEventListener('change', syncHeaderTotalAmount);
+        headerSupplyAmountEl?.addEventListener('input', syncHeaderFinalAmount);
+        headerSupplyAmountEl?.addEventListener('change', syncHeaderFinalAmount);
+        headerSettlementAmountEl?.addEventListener('input', syncHeaderFinalAmount);
+        headerSettlementAmountEl?.addEventListener('change', syncHeaderFinalAmount);
         fileInput?.addEventListener('change', () => assignPendingFiles(fileInput.files));
 
         fileDropzoneEl?.addEventListener('click', () => {
@@ -2719,6 +3686,13 @@ import '/public/assets/js/components/trash-manager.js';
             });
         });
 
+        settlementTargetEls.forEach((radio) => {
+            radio.addEventListener('change', () => {
+                if (!radio.checked) return;
+                setSettlementScope(radio.value || 'header');
+            });
+        });
+
         modalEl.addEventListener('click', (event) => {
             if (!event.target.closest('.date-icon')) return;
             event.preventDefault();
@@ -2739,6 +3713,16 @@ import '/public/assets/js/components/trash-manager.js';
             allowModalClose = true;
         });
 
+        modalEl.addEventListener('shown.bs.modal', () => {
+            if (pendingLineGridInitAfterShow) {
+                initLineGrid();
+                pendingLineGridInitAfterShow = false;
+            }
+            const resolvers = modalShownResolvers;
+            modalShownResolvers = [];
+            resolvers.forEach((resolve) => resolve());
+        });
+
         modalEl.addEventListener('esc:modal-before-close', (event) => {
             if (event.detail?.modal !== modalEl || allowModalClose || !hasTransactionModalChanges()) {
                 return;
@@ -2757,6 +3741,8 @@ import '/public/assets/js/components/trash-manager.js';
             allowModalClose = false;
             modalBaselineSnapshot = '';
             lineGridEditing = false;
+            pendingLineGridInitAfterShow = false;
+            modalShownResolvers = [];
             hideFloatingLineHeader();
             unbindLineDateInputFormatter();
             unbindLineDateEscHandler();
@@ -2816,7 +3802,7 @@ import '/public/assets/js/components/trash-manager.js';
             detailEl.innerHTML = `
                 <div class="transaction-trash-detail">
                     <dl class="row mb-0 small">
-                        <dt class="col-4">거래일자</dt>
+                        <dt class="col-4">거래일</dt>
                         <dd class="col-8">${escapeHtml(row.transaction_date || '-')}</dd>
                         <dt class="col-4">거래처</dt>
                         <dd class="col-8">${escapeHtml(row.client_name || '-')}</dd>
@@ -2825,7 +3811,7 @@ import '/public/assets/js/components/trash-manager.js';
                         <dt class="col-4">프로젝트</dt>
                         <dd class="col-8">${escapeHtml(row.description || '-')}</dd>
                         <dt class="col-4">적요</dt>
-                        <dd class="col-8">${escapeHtml(formatAmount(row.total_amount || 0))}</dd>
+                        <dd class="col-8">${escapeHtml(formatAmount(row.final_amount || row.transaction_final_amount || 0))}</dd>
                         <dt class="col-4">금액</dt>
                         <dd class="col-8">${renderMatchStatus(row.match_status)}</dd>
                         <dt class="col-4">전표연결</dt>

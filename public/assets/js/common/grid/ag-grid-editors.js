@@ -1,8 +1,11 @@
 export function selectEditor(values = []) {
     return {
         cellEditor: 'agSelectCellEditor',
-        cellEditorParams: {
-            values: values.map((value) => String(value ?? '')),
+        cellEditorParams: () => {
+            const resolved = typeof values === 'function' ? values() : values;
+            return {
+                values: (Array.isArray(resolved) ? resolved : []).map((value) => String(value ?? '')),
+            };
         },
     };
 }

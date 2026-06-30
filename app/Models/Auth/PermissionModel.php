@@ -1,9 +1,9 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/Models/Auth/AuthPermissionModel.php'
+// Path: PROJECT_ROOT . '/app/Models/Auth/PermissionModel.php'
 namespace App\Models\Auth;
 
-use PDO;
 use Core\Database;
+use PDO;
 
 class PermissionModel
 {
@@ -19,9 +19,20 @@ class PermissionModel
         try {
             $sql = "
                 SELECT
-                    id, sort_no, permission_key, permission_name,
-                    description, category, page_key, is_active,
-                    created_at, created_by, updated_at, updated_by
+                    id,
+                    sort_no,
+                    permission_key,
+                    permission_name,
+                    description,
+                    category,
+                    page_key,
+                    page,
+                    permission_source,
+                    is_active,
+                    created_at,
+                    created_by,
+                    updated_at,
+                    updated_by
                 FROM auth_permissions
                 WHERE 1=1
             ";
@@ -30,18 +41,20 @@ class PermissionModel
 
             if (!empty($filters)) {
                 $fieldMap = [
-                    'id'              => ['expr' => 'id', 'type' => 'exact'],
-                    'sort_no'            => ['expr' => 'sort_no', 'type' => 'like'],
-                    'permission_key'  => ['expr' => 'permission_key', 'type' => 'like'],
+                    'id' => ['expr' => 'id', 'type' => 'exact'],
+                    'sort_no' => ['expr' => 'sort_no', 'type' => 'like'],
+                    'permission_key' => ['expr' => 'permission_key', 'type' => 'like'],
                     'permission_name' => ['expr' => 'permission_name', 'type' => 'like'],
-                    'category'        => ['expr' => 'category', 'type' => 'like'],
-                    'description'     => ['expr' => 'description', 'type' => 'like'],
-                    'page_key'        => ['expr' => 'page_key', 'type' => 'like'],
-                    'is_active'       => ['expr' => 'is_active', 'type' => 'exact'],
-                    'created_at'      => ['expr' => 'created_at', 'type' => 'datetime'],
-                    'created_by'      => ['expr' => 'created_by', 'type' => 'like'],
-                    'updated_at'      => ['expr' => 'updated_at', 'type' => 'datetime'],
-                    'updated_by'      => ['expr' => 'updated_by', 'type' => 'like'],
+                    'category' => ['expr' => 'category', 'type' => 'like'],
+                    'description' => ['expr' => 'description', 'type' => 'like'],
+                    'page_key' => ['expr' => 'page_key', 'type' => 'like'],
+                    'page' => ['expr' => 'page', 'type' => 'like'],
+                    'permission_source' => ['expr' => 'permission_source', 'type' => 'like'],
+                    'is_active' => ['expr' => 'is_active', 'type' => 'exact'],
+                    'created_at' => ['expr' => 'created_at', 'type' => 'datetime'],
+                    'created_by' => ['expr' => 'created_by', 'type' => 'like'],
+                    'updated_at' => ['expr' => 'updated_at', 'type' => 'datetime'],
+                    'updated_by' => ['expr' => 'updated_by', 'type' => 'like'],
                 ];
 
                 $globalSearchValues = [];
@@ -68,8 +81,8 @@ class PermissionModel
 
                     if ($type === 'datetime') {
                         if (is_array($value) && isset($value['start'], $value['end'])) {
-                            $start = trim((string)($value['start'] ?? ''));
-                            $end   = trim((string)($value['end'] ?? ''));
+                            $start = trim((string) ($value['start'] ?? ''));
+                            $end = trim((string) ($value['end'] ?? ''));
 
                             if ($start !== '' && $end !== '') {
                                 $sql .= " AND {$expr} BETWEEN ? AND ?";
@@ -81,7 +94,7 @@ class PermissionModel
                                     : $end;
                             }
                         } else {
-                            $stringValue = trim((string)$value);
+                            $stringValue = trim((string) $value);
 
                             if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $stringValue)) {
                                 $sql .= " AND {$expr} BETWEEN ? AND ?";
@@ -102,8 +115,7 @@ class PermissionModel
                         continue;
                     }
 
-                    $keywords = array_filter(array_map('trim', explode(',', (string)$value)));
-
+                    $keywords = array_filter(array_map('trim', explode(',', (string) $value)));
                     if (!$keywords) {
                         continue;
                     }
@@ -118,15 +130,25 @@ class PermissionModel
                 }
 
                 foreach ($globalSearchValues as $value) {
-                    $keywords = array_filter(array_map('trim', explode(',', (string)$value)));
-
+                    $keywords = array_filter(array_map('trim', explode(',', (string) $value)));
                     if (!$keywords) {
                         continue;
                     }
 
                     $orParts = [];
                     foreach ($keywords as $keyword) {
-                        foreach (['permission_name', 'category', 'permission_key', 'page_key', 'sort_no', 'description', 'created_by', 'updated_by'] as $expr) {
+                        foreach ([
+                            'permission_name',
+                            'category',
+                            'permission_key',
+                            'page_key',
+                            'page',
+                            'permission_source',
+                            'sort_no',
+                            'description',
+                            'created_by',
+                            'updated_by',
+                        ] as $expr) {
                             $orParts[] = "{$expr} LIKE ?";
                             $params[] = '%' . $keyword . '%';
                         }
@@ -144,7 +166,6 @@ class PermissionModel
             $stmt->execute($params);
 
             return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
         } catch (\Throwable $e) {
             return [];
         }
@@ -152,14 +173,27 @@ class PermissionModel
 
     public function getById(string $id): ?array
     {
-        if (!$id) return null;
+        if (!$id) {
+            return null;
+        }
 
         try {
             $stmt = $this->db->prepare("
                 SELECT
-                    id, sort_no, permission_key, permission_name,
-                    description, category, page_key, is_active,
-                    created_at, created_by, updated_at, updated_by
+                    id,
+                    sort_no,
+                    permission_key,
+                    permission_name,
+                    description,
+                    category,
+                    page_key,
+                    page,
+                    permission_source,
+                    is_active,
+                    created_at,
+                    created_by,
+                    updated_at,
+                    updated_by
                 FROM auth_permissions
                 WHERE id = ?
                 LIMIT 1
@@ -167,7 +201,6 @@ class PermissionModel
             $stmt->execute([$id]);
 
             return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-
         } catch (\Throwable $e) {
             return null;
         }
@@ -188,7 +221,6 @@ class PermissionModel
             $stmt->execute($params);
 
             return $stmt->fetchColumn() > 0;
-
         } catch (\Throwable $e) {
             return true;
         }
@@ -199,29 +231,52 @@ class PermissionModel
         try {
             $stmt = $this->db->prepare("
                 INSERT INTO auth_permissions (
-                    id, sort_no, permission_key, permission_name,
-                    description, category, page_key, is_active,
-                    created_at, created_by, updated_at, updated_by
+                    id,
+                    sort_no,
+                    permission_key,
+                    permission_name,
+                    description,
+                    category,
+                    page_key,
+                    page,
+                    permission_source,
+                    is_active,
+                    created_at,
+                    created_by,
+                    updated_at,
+                    updated_by
                 ) VALUES (
-                    :id, :sort_no, :pkey, :pname,
-                    :description, :category, :page_key, :is_active,
-                    NOW(), :created_by, NOW(), :updated_by
+                    :id,
+                    :sort_no,
+                    :permission_key,
+                    :permission_name,
+                    :description,
+                    :category,
+                    :page_key,
+                    :page,
+                    :permission_source,
+                    :is_active,
+                    NOW(),
+                    :created_by,
+                    NOW(),
+                    :updated_by
                 )
             ");
 
             return $stmt->execute([
-                ':id'          => $data['id'],
-                ':sort_no'        => $data['sort_no'],
-                ':pkey'        => $data['permission_key'],
-                ':pname'       => $data['permission_name'],
+                ':id' => $data['id'],
+                ':sort_no' => $data['sort_no'],
+                ':permission_key' => $data['permission_key'],
+                ':permission_name' => $data['permission_name'],
                 ':description' => $data['description'] ?? null,
-                ':category'    => $data['category'] ?? null,
-                ':page_key'    => $data['page_key'] ?? null,
-                ':is_active'   => $data['is_active'] ?? 1,
-                ':created_by'  => $data['created_by'] ?? null,
-                ':updated_by'  => $data['updated_by'] ?? null
+                ':category' => $data['category'] ?? null,
+                ':page_key' => $data['page_key'] ?? null,
+                ':page' => $data['page'] ?? null,
+                ':permission_source' => $data['permission_source'] ?? null,
+                ':is_active' => $data['is_active'] ?? 1,
+                ':created_by' => $data['created_by'] ?? null,
+                ':updated_by' => $data['updated_by'] ?? null,
             ]);
-
         } catch (\Throwable $e) {
             return false;
         }
@@ -229,16 +284,28 @@ class PermissionModel
 
     public function update(string $id, array $data): bool
     {
-        if (!$id) return false;
+        if (!$id) {
+            return false;
+        }
 
         try {
             $fields = [];
             $params = [];
 
-            foreach (['permission_key', 'permission_name', 'description', 'category', 'page_key', 'is_active', 'updated_by'] as $col) {
-                if (array_key_exists($col, $data)) {
-                    $fields[] = "$col = ?";
-                    $params[] = $data[$col];
+            foreach ([
+                'permission_key',
+                'permission_name',
+                'description',
+                'category',
+                'page_key',
+                'page',
+                'permission_source',
+                'is_active',
+                'updated_by',
+            ] as $column) {
+                if (array_key_exists($column, $data)) {
+                    $fields[] = "{$column} = ?";
+                    $params[] = $data[$column];
                 }
             }
 
@@ -246,11 +313,10 @@ class PermissionModel
             $params[] = $id;
 
             $stmt = $this->db->prepare(
-                "UPDATE auth_permissions SET " . implode(", ", $fields) . " WHERE id = ?"
+                "UPDATE auth_permissions SET " . implode(', ', $fields) . " WHERE id = ?"
             );
 
             return $stmt->execute($params);
-
         } catch (\Throwable $e) {
             return false;
         }
@@ -261,7 +327,6 @@ class PermissionModel
         try {
             $stmt = $this->db->prepare("DELETE FROM auth_permissions WHERE id = ?");
             return $stmt->execute([$id]);
-
         } catch (\Throwable $e) {
             return false;
         }
@@ -277,13 +342,12 @@ class PermissionModel
             ");
 
             return $stmt->execute([$active, $id]);
-
         } catch (\Throwable $e) {
             return false;
         }
     }
 
-    public function updateSortNo(string $id, int $sort_no): bool
+    public function updateSortNo(string $id, int $sortNo): bool
     {
         try {
             $stmt = $this->db->prepare("
@@ -292,7 +356,7 @@ class PermissionModel
                 WHERE id = ?
             ");
 
-            return $stmt->execute([$sort_no, $id]);
+            return $stmt->execute([$sortNo, $id]);
         } catch (\Throwable $e) {
             return false;
         }

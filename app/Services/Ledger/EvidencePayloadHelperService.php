@@ -67,6 +67,19 @@ class EvidencePayloadHelperService
         return json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
+    public function evidenceTypeFromPayload(array $payload): string
+    {
+        $candidates = ['import_type', 'data_type', 'type', 'evidence_type', 'source_type', 'seed_type'];
+        foreach ($candidates as $key) {
+            $value = trim((string) ($payload[$key] ?? ''));
+            if ($value !== '') {
+                return $this->call('normalizeDataType', $value);
+            }
+        }
+
+        return '';
+    }
+
     public function seedRowIdsFromPayload(array $payload): array
     {
         $ids = [];
@@ -88,6 +101,16 @@ class EvidencePayloadHelperService
     public function evidenceTotalAmountForStorage(array $payload, string $dataType): float
     {
         $dataType = $this->call('normalizeDataType', $dataType);
+        if ($dataType === 'BANK_TRANSACTION') {
+            $deposit = $this->call('amountOrNull', $payload['raw_deposit_amount'] ?? $payload['deposit_amount'] ?? null);
+            $withdraw = $this->call('amountOrNull', $payload['raw_withdraw_amount'] ?? $payload['withdraw_amount'] ?? $payload['withdrawal_amount'] ?? null);
+            if ($deposit !== null && abs((float) $deposit) > 0) {
+                return (float) abs((float) $deposit);
+            }
+            if ($withdraw !== null && abs((float) $withdraw) > 0) {
+                return (float) abs((float) $withdraw);
+            }
+        }
         $candidates = ['total_amount', 'amount'];
         if (in_array($dataType, ['CARD_STATEMENT', 'CARD_APPROVAL'], true)) {
             $candidates = [

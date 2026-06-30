@@ -5,6 +5,8 @@ export function createWorkTeamExcelModule({ reloadTable }) {
         createExcelManagerSettingsCore({
             domain: 'work-team',
             formSelector: '#workTeamExcelForm',
+            tableSettingsStorageKey: 'datatable.settings.dashboard.settings.base-info.work-team.work-team-table.v1',
+            tableSettingsMetaDomain: 'work-team',
         });
     }
 

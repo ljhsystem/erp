@@ -25,12 +25,29 @@ class EvidenceTemplateDropdownService
         $lineSheetIndex = null;
         $accountColumnIndex = null;
         $rowTypeColumnIndex = null;
+        $codeColumns = [
+            'SOURCE_TYPE' => null,
+            'IMPORT_TYPE' => null,
+            'BUSINESS_UNIT' => null,
+            'TRANSACTION_DIRECTION' => null,
+            'TRANSACTION_TYPE' => null,
+        ];
+        $codeFields = [
+            'source_type' => 'SOURCE_TYPE',
+            'import_type' => 'IMPORT_TYPE',
+            'data_type' => 'IMPORT_TYPE',
+            'business_unit' => 'BUSINESS_UNIT',
+            'transaction_direction' => 'TRANSACTION_DIRECTION',
+            'bank_direction' => 'TRANSACTION_DIRECTION',
+            'transaction_type' => 'TRANSACTION_TYPE',
+        ];
         $businessRefColumns = [
             'CLIENT' => null,
             'PROJECT' => null,
             'EMPLOYEE' => null,
             'ACCOUNT' => null,
             'CARD' => null,
+            'TEAM' => null,
         ];
         $businessRefFields = [
             'client_id' => 'CLIENT',
@@ -51,6 +68,8 @@ class EvidenceTemplateDropdownService
             'card_id' => 'CARD',
             'card_name' => 'CARD',
             'card_number' => 'CARD',
+            'team_id' => 'TEAM',
+            'team_name' => 'TEAM',
         ];
         $businessRefFieldPriority = [
             'client_name' => 10,
@@ -71,6 +90,8 @@ class EvidenceTemplateDropdownService
             'card_name' => 10,
             'card_id' => 20,
             'card_number' => 30,
+            'team_name' => 10,
+            'team_id' => 20,
         ];
         $businessRefColumnPriorities = [
             'CLIENT' => PHP_INT_MAX,
@@ -78,6 +99,7 @@ class EvidenceTemplateDropdownService
             'EMPLOYEE' => PHP_INT_MAX,
             'ACCOUNT' => PHP_INT_MAX,
             'CARD' => PHP_INT_MAX,
+            'TEAM' => PHP_INT_MAX,
         ];
 
         foreach ($sheetSpecs as $index => $spec) {
@@ -86,6 +108,11 @@ class EvidenceTemplateDropdownService
                 $fields = is_array($spec['fields'] ?? null) ? array_values($spec['fields']) : [];
                 foreach ($fields as $fieldIndex => $field) {
                     $field = (string) $field;
+                    $codeType = $codeFields[$field] ?? null;
+                    if ($codeType !== null && $codeColumns[$codeType] === null) {
+                        $codeColumns[$codeType] = $fieldIndex + 1;
+                    }
+
                     $refType = $businessRefFields[$field] ?? null;
                     $priority = $businessRefFieldPriority[$field] ?? 100;
                     if ($refType !== null && $priority < $businessRefColumnPriorities[$refType]) {
@@ -118,15 +145,23 @@ class EvidenceTemplateDropdownService
         }
 
         $accountOptions = $this->accountDropdownOptions();
+        $codeOptions = [
+            'SOURCE_TYPE' => $this->codeDropdownOptionsForGroups(['SOURCE_TYPE', 'IMPORT_SOURCE']),
+            'IMPORT_TYPE' => $this->codeDropdownOptions('IMPORT_TYPE'),
+            'BUSINESS_UNIT' => $this->codeDropdownOptions('BUSINESS_UNIT', ['HQ', 'CONSTRUCTION', 'ECOMMERCE']),
+            'TRANSACTION_DIRECTION' => $this->codeDropdownOptions('TRANSACTION_DIRECTION'),
+            'TRANSACTION_TYPE' => $this->codeDropdownOptions('TRANSACTION_TYPE', ['GENERAL', 'PURCHASE', 'SALES']),
+        ];
         $businessRefOptions = [
             'CLIENT' => $this->businessRefDropdownOptions('CLIENT'),
             'PROJECT' => $this->businessRefDropdownOptions('PROJECT'),
             'EMPLOYEE' => $this->businessRefDropdownOptions('EMPLOYEE'),
             'ACCOUNT' => $this->businessRefDropdownOptions('ACCOUNT'),
             'CARD' => $this->businessRefDropdownOptions('CARD'),
+            'TEAM' => $this->businessRefDropdownOptions('TEAM'),
         ];
         $rowTypeOptions = ['A', 'B'];
-        if ($accountOptions === [] && $rowTypeColumnIndex === null && !array_filter($businessRefOptions)) {
+        if ($accountOptions === [] && $rowTypeColumnIndex === null && !array_filter($businessRefOptions) && !array_filter($codeOptions)) {
             return;
         }
 
@@ -144,9 +179,22 @@ class EvidenceTemplateDropdownService
             'EMPLOYEE' => 'E',
             'ACCOUNT' => 'F',
             'CARD' => 'G',
+            'TEAM' => 'H',
+        ];
+        $codeListColumns = [
+            'SOURCE_TYPE' => 'I',
+            'IMPORT_TYPE' => 'J',
+            'BUSINESS_UNIT' => 'K',
+            'TRANSACTION_DIRECTION' => 'L',
+            'TRANSACTION_TYPE' => 'M',
         ];
         foreach ($businessRefListColumns as $refType => $column) {
             foreach ($businessRefOptions[$refType] as $rowIndex => $option) {
+                $referenceSheet->setCellValue($column . ($rowIndex + 1), $option);
+            }
+        }
+        foreach ($codeListColumns as $codeType => $column) {
+            foreach ($codeOptions[$codeType] as $rowIndex => $option) {
                 $referenceSheet->setCellValue($column . ($rowIndex + 1), $option);
             }
         }
@@ -157,23 +205,37 @@ class EvidenceTemplateDropdownService
             $this->applyListValidation(
                 $lineSheet,
                 Coordinate::stringFromColumnIndex($accountColumnIndex),
-                "'_?????????????????????????????????썹땟戮녹??諭?????⑸㎦???????????븐뼐?????????????????饔낅떽???????????!\$A\$1:\$A\$" . count($accountOptions),
+                "'" . $referenceSheet->getTitle() . "'!\$A\$1:\$A\$" . count($accountOptions),
                 'List selection error',
-                '?????????????????????????????????썹땟戮녹??諭?????⑸㎦???????????븐뼐?????????????????饔낅떽??????????????????????????????????????????됰Ŧ?????????????????????대첐???????????????????????????????????????????????????????????????????????癲??????????????????????筌????'
+                'Select an account from the list.'
             );
         }
         if ($rowTypeColumnIndex !== null) {
             $this->applyListValidation(
                 $lineSheet,
                 Coordinate::stringFromColumnIndex($rowTypeColumnIndex),
-                "'_?????????????????????????????????썹땟戮녹??諭?????⑸㎦???????????븐뼐?????????????????饔낅떽???????????!\$B\$1:\$B\$" . count($rowTypeOptions),
+                "'" . $referenceSheet->getTitle() . "'!\$B\$1:\$B\$" . count($rowTypeOptions),
                 'List selection error',
-                '????????????????????????????????怨뺤떪????????????????遺얘턁??????嶺뚮ㅎ?볟퐲??????????거?????????????????????????????????癲??????????????????????筌????'
+                'Select a row type from the list.'
             );
         }
 
         if ($headerSheetIndex !== null && $spreadsheet->getSheetCount() > $headerSheetIndex) {
             $headerSheet = $spreadsheet->getSheet($headerSheetIndex);
+            foreach ($codeColumns as $codeType => $columnIndex) {
+                if ($columnIndex === null || $codeOptions[$codeType] === []) {
+                    continue;
+                }
+                $listColumn = $codeListColumns[$codeType];
+                $this->applyListValidation(
+                    $headerSheet,
+                    Coordinate::stringFromColumnIndex($columnIndex),
+                    "'" . $referenceSheet->getTitle() . "'!$" . $listColumn . '$1:$' . $listColumn . '$' . count($codeOptions[$codeType]),
+                    'List selection error',
+                    'Select a value from the list.'
+                );
+            }
+
             foreach ($businessRefColumns as $refType => $columnIndex) {
                 if ($columnIndex === null || $businessRefOptions[$refType] === []) {
                     continue;
@@ -193,36 +255,51 @@ class EvidenceTemplateDropdownService
     public function applySimpleBankTemplateDropdowns(Spreadsheet $spreadsheet, Worksheet $sheet, array $headers): void
     {
         $targetColumns = [
-            '????????????????????怨뺤떪?????' => 'BUSINESS_UNIT',
-            '???????????????????????????' => 'TRANSACTION_TYPE',
-            '???????????????????????????' => 'CLIENT',
-            '???????????????????????' => 'CLIENT',
-            '???????????熬곣뫖利당춯??쎾퐲???????????????????꿔꺂?㏘틠??怨몄젦??????????????????????' => 'PROJECT',
-            '???????????熬곣뫖利당춯??쎾퐲???????????????????꿔꺂?㏘틠??怨몄젦????????????????????' => 'PROJECT',
-            '????????????????????????' => 'EMPLOYEE',
-            '????????????????' => 'EMPLOYEE',
-            '??????????????????????????????????怨뚰뇠???????????????????蹂㏓??嶺뚮㉡?????' => 'ACCOUNT',
-            '??????????????' => 'ACCOUNT',
-            '?????????釉먮폁???????????곕츥????브???????????????됰Ŧ?????????????????????대첐??' => 'CARD',
-            '?????????釉먮폁???????????곕츥????브??????' => 'CARD',
+            'Source Type' => 'SOURCE_TYPE',
+            'Import Type' => 'IMPORT_TYPE',
+            'Data Type' => 'IMPORT_TYPE',
+            'Business Unit' => 'BUSINESS_UNIT',
+            'Transaction Direction' => 'TRANSACTION_DIRECTION',
+            'Bank Direction' => 'TRANSACTION_DIRECTION',
+            'Transaction Type' => 'TRANSACTION_TYPE',
+            'Client Name' => 'CLIENT',
+            'Client' => 'CLIENT',
+            'Project Name' => 'PROJECT',
+            'Project' => 'PROJECT',
+            'Employee Name' => 'EMPLOYEE',
+            'Employee' => 'EMPLOYEE',
+            'Bank Account Name' => 'ACCOUNT',
+            'Bank Account' => 'ACCOUNT',
+            'Card Name' => 'CARD',
+            'Card' => 'CARD',
+            'Team Name' => 'TEAM',
+            'Team' => 'TEAM',
         ];
         $listColumns = [
-            'BUSINESS_UNIT' => 'A',
-            'TRANSACTION_TYPE' => 'B',
-            'CLIENT' => 'C',
-            'PROJECT' => 'D',
-            'EMPLOYEE' => 'E',
-            'ACCOUNT' => 'F',
-            'CARD' => 'G',
+            'SOURCE_TYPE' => 'A',
+            'IMPORT_TYPE' => 'B',
+            'BUSINESS_UNIT' => 'C',
+            'TRANSACTION_DIRECTION' => 'D',
+            'TRANSACTION_TYPE' => 'E',
+            'CLIENT' => 'F',
+            'PROJECT' => 'G',
+            'EMPLOYEE' => 'H',
+            'ACCOUNT' => 'I',
+            'CARD' => 'J',
+            'TEAM' => 'K',
         ];
         $options = [
+            'SOURCE_TYPE' => $this->codeDropdownOptionsForGroups(['SOURCE_TYPE', 'IMPORT_SOURCE']),
+            'IMPORT_TYPE' => $this->codeDropdownOptions('IMPORT_TYPE'),
             'BUSINESS_UNIT' => $this->codeDropdownOptions('BUSINESS_UNIT', ['HQ', 'CONSTRUCTION', 'ECOMMERCE']),
+            'TRANSACTION_DIRECTION' => $this->codeDropdownOptions('TRANSACTION_DIRECTION'),
             'TRANSACTION_TYPE' => $this->codeDropdownOptions('TRANSACTION_TYPE', ['GENERAL', 'PURCHASE', 'SALES']),
             'CLIENT' => $this->businessRefDropdownOptions('CLIENT'),
             'PROJECT' => $this->businessRefDropdownOptions('PROJECT'),
             'EMPLOYEE' => $this->businessRefDropdownOptions('EMPLOYEE'),
             'ACCOUNT' => $this->businessRefDropdownOptions('ACCOUNT'),
             'CARD' => $this->businessRefDropdownOptions('CARD'),
+            'TEAM' => $this->businessRefDropdownOptions('TEAM'),
         ];
 
         $targetHeaderColumns = [];
@@ -238,7 +315,7 @@ class EvidenceTemplateDropdownService
         }
 
         $referenceSheet = $spreadsheet->createSheet();
-        $referenceSheet->setTitle('_??????????????????????????????????밸븶筌믩끃??獄???????멥렑???????????釉먮폁?????????????????耀붾굝????????????');
+        $referenceSheet->setTitle('_simple_bank_refs');
         foreach ($listColumns as $refType => $listColumn) {
             foreach ($options[$refType] as $rowIndex => $option) {
                 $referenceSheet->setCellValue($listColumn . ($rowIndex + 1), $option);
@@ -251,9 +328,9 @@ class EvidenceTemplateDropdownService
             $this->applyListValidation(
                 $sheet,
                 Coordinate::stringFromColumnIndex($columnIndex),
-                "'_?????????????????????????????????썹땟戮녹??諭?????⑸㎦???????????븐뼐?????????????????饔낅떽???????????!$" . $listColumn . '$1:$' . $listColumn . '$' . count($options[$refType]),
-                '??????????????????????????????????밸븶筌믩끃??獄???????멥렑???????????釉먮폁?????????????????耀붾굝???????????????????????????????????????????',
-                '?????????????????????????????????썹땟戮녹??諭?????⑸㎦???????????븐뼐?????????????????饔낅떽?????????????????????????????????????????????????????????癲??????????????????????筌????'
+                "'" . $referenceSheet->getTitle() . "'!$" . $listColumn . '$1:$' . $listColumn . '$' . count($options[$refType]),
+                'List selection error',
+                'Select a value from the list.'
             );
         }
     }
@@ -278,7 +355,7 @@ class EvidenceTemplateDropdownService
                 continue;
             }
 
-            $option = $fieldOptions[$field] ?? null;
+            $option = $this->fallbackTemplateFieldOption($field) ?? ($fieldOptions[$field] ?? null);
             if (!is_array($option)) {
                 continue;
             }
@@ -303,7 +380,7 @@ class EvidenceTemplateDropdownService
         }
 
         $referenceSheet = $spreadsheet->createSheet();
-        $referenceSheet->setTitle($this->call('uniqueSheetTitle', $spreadsheet, '_?????????????????????????????????썹땟戮녹??諭?????⑸㎦???????????븐뼐?????????????????饔낅떽???????????'));
+        $referenceSheet->setTitle($this->call('uniqueSheetTitle', $spreadsheet, '_template_refs'));
 
         $listColumns = [];
         $listIndex = 1;
@@ -330,8 +407,8 @@ class EvidenceTemplateDropdownService
                 $sheet,
                 Coordinate::stringFromColumnIndex($columnIndex),
                 "{$quotedSheet}!$" . $listColumn . '$1:$' . $listColumn . '$' . $rowCount,
-                '??????????????????????????????????밸븶筌믩끃??獄???????멥렑???????????釉먮폁?????????????????耀붾굝???????????????????????????????????????????',
-                '?????????????????????????????????썹땟戮녹??諭?????⑸㎦???????????븐뼐?????????????????饔낅떽?????????????????????????????????????????????????????????癲??????????????????????筌????'
+                'List selection error',
+                'Select a value from the list.'
             );
         }
     }
@@ -384,10 +461,24 @@ class EvidenceTemplateDropdownService
 
     public function templateDropdownListKey(array $fieldOption): string
     {
+        $refType = trim((string) ($fieldOption['ref_type'] ?? ''));
+        if ($refType !== '') {
+            return 'ref:' . strtoupper($refType);
+        }
+
         $table = trim((string) ($fieldOption['table'] ?? ''));
         $column = trim((string) ($fieldOption['column'] ?? ''));
         if ($table === '' || $column === '') {
             return '';
+        }
+
+        $codeGroups = is_array($fieldOption['code_groups'] ?? null) ? array_values($fieldOption['code_groups']) : [];
+        if ($codeGroups !== []) {
+            $normalizedGroups = array_values(array_filter(array_map(
+                static fn(mixed $group): string => trim((string) $group),
+                $codeGroups
+            )));
+            return $normalizedGroups !== [] ? 'code:' . implode('|', $normalizedGroups) : '';
         }
 
         if ($table === 'system_codes') {
@@ -401,6 +492,7 @@ class EvidenceTemplateDropdownService
             'user_employees',
             'system_bank_accounts',
             'system_cards',
+            'system_work_teams',
             'system_company',
             'user_departments',
         ], true)) {
@@ -412,10 +504,20 @@ class EvidenceTemplateDropdownService
 
     public function templateDropdownOptionsForField(array $fieldOption): array
     {
+        $refType = trim((string) ($fieldOption['ref_type'] ?? ''));
+        if ($refType !== '') {
+            return $this->businessRefDropdownOptions($refType);
+        }
+
         $table = trim((string) ($fieldOption['table'] ?? ''));
         $column = trim((string) ($fieldOption['column'] ?? ''));
         if ($table === '' || $column === '') {
             return [];
+        }
+
+        $codeGroups = is_array($fieldOption['code_groups'] ?? null) ? array_values($fieldOption['code_groups']) : [];
+        if ($codeGroups !== []) {
+            return $this->codeDropdownOptionsForGroups($codeGroups);
         }
 
         if ($table === 'system_codes') {
@@ -424,6 +526,60 @@ class EvidenceTemplateDropdownService
         }
 
         return $this->tableColumnDropdownOptions($table, $column);
+    }
+
+    public function fallbackTemplateFieldOption(string $field): ?array
+    {
+        $normalizedField = trim($field);
+        if ($normalizedField === '') {
+            return null;
+        }
+
+        $businessRefType = match ($normalizedField) {
+            'client_id', 'client_name', 'client_company_name', 'supplier_company_name', 'customer_company_name' => 'CLIENT',
+            'project_id', 'project_name' => 'PROJECT',
+            'employee_id', 'employee_name', 'user_name' => 'EMPLOYEE',
+            'bank_account_id', 'bank_account_name', 'bank_account', 'account_name', 'payment_account_name', 'payment_account_number', 'payment_bank_name' => 'ACCOUNT',
+            'card_id', 'card_name', 'card_number', 'card_company_name' => 'CARD',
+            'team_id', 'team_name' => 'TEAM',
+            default => '',
+        };
+
+        if ($businessRefType !== '') {
+            return [
+                'value' => $normalizedField,
+                'ref_type' => $businessRefType,
+            ];
+        }
+
+        $codeGroup = match ($normalizedField) {
+            'import_type', 'data_type', 'evidence_type' => 'IMPORT_TYPE',
+            'business_unit' => 'BUSINESS_UNIT',
+            'transaction_direction', 'bank_direction' => 'TRANSACTION_DIRECTION',
+            'transaction_type' => 'TRANSACTION_TYPE',
+            'currency', 'currency_code' => 'CURRENCY',
+            default => '',
+        };
+
+        if ($codeGroup !== '') {
+            return [
+                'value' => $normalizedField,
+                'table' => 'system_codes',
+                'column' => 'code',
+                'code_group' => $codeGroup,
+            ];
+        }
+
+        if ($normalizedField === 'source_type') {
+            return [
+                'value' => $normalizedField,
+                'table' => 'system_codes',
+                'column' => 'code',
+                'code_groups' => ['SOURCE_TYPE', 'IMPORT_SOURCE'],
+            ];
+        }
+
+        return null;
     }
 
     public function tableColumnDropdownOptions(string $table, string $column): array
@@ -535,6 +691,24 @@ class EvidenceTemplateDropdownService
         return $options !== [] ? array_values(array_unique($options)) : $fallback;
     }
 
+    public function codeDropdownOptionsForGroups(array $codeGroups): array
+    {
+        $options = [];
+        foreach ($codeGroups as $codeGroup) {
+            $codeGroup = trim((string) $codeGroup);
+            if ($codeGroup === '') {
+                continue;
+            }
+
+            array_push($options, ...$this->codeDropdownOptions($codeGroup));
+        }
+
+        return array_values(array_unique(array_filter(
+            $options,
+            static fn(string $option): bool => trim($option) !== ''
+        )));
+    }
+
     public function accountDropdownOptions(): array
     {
         try {
@@ -575,11 +749,12 @@ class EvidenceTemplateDropdownService
     public function businessRefDropdownOptions(string $refType): array
     {
         $config = match ($this->call('normalizeVoucherRefType', $refType)) {
-            'CLIENT' => ['system_clients', ['client_name', 'company_name', 'business_number'], ['client_name', 'company_name']],
-            'PROJECT' => ['system_projects', ['project_name', 'project_code'], ['project_name', 'project_code']],
+            'CLIENT' => ['system_clients', ['client_name'], ['client_name']],
+            'PROJECT' => ['system_projects', ['project_name'], ['sort_no', 'project_name']],
             'EMPLOYEE' => ['user_employees', ['employee_name', 'name'], ['employee_name', 'name']],
-            'ACCOUNT' => ['system_bank_accounts', ['account_name', 'account_number', 'bank_name'], ['account_name', 'bank_name', 'account_number']],
-            'CARD' => ['system_cards', ['card_name', 'card_number'], ['card_name', 'card_number']],
+            'ACCOUNT' => ['system_bank_accounts', ['account_name'], ['account_name']],
+            'CARD' => ['system_cards', ['card_name'], ['card_name']],
+            'TEAM' => ['system_work_teams', ['team_name', 'team_code'], ['team_name', 'team_code']],
             default => null,
         };
         if ($config === null) {
@@ -609,9 +784,6 @@ class EvidenceTemplateDropdownService
         }
 
         $where = $this->call('tableColumnExists', $table, 'deleted_at') ? 'WHERE deleted_at IS NULL' : '';
-        if ($this->call('tableColumnExists', $table, 'is_active')) {
-            $where .= ($where === '' ? 'WHERE' : ' AND') . ' COALESCE(is_active, 1) = 1';
-        }
 
         try {
             $stmt = $this->pdo->query(
@@ -627,14 +799,15 @@ class EvidenceTemplateDropdownService
 
         $options = [];
         foreach ($rows as $row) {
-            $label = '';
+            $labelParts = [];
             foreach ($selects as $column) {
                 $value = trim((string) ($row[$column] ?? ''));
                 if ($value !== '') {
-                    $label = $value;
-                    break;
+                    $labelParts[] = $value;
                 }
             }
+            $labelParts = array_values(array_unique($labelParts));
+            $label = trim(implode(' ', $labelParts));
             if ($label !== '') {
                 $options[] = $label;
             }
@@ -660,10 +833,10 @@ class EvidenceTemplateDropdownService
 
         if ($lineColumns === []) {
             $lineColumns = [
-                ['excel_column_name' => '?????????????썹땟戮녹??諭?????⑸㎦??????????????????????癲????????????', 'system_field_name' => 'header_row_no', 'is_required' => 1],
+                ['excel_column_name' => '???????????????袁⑸즴筌?씛彛???돗??????????????癲ル슢二??곸젞???????????????????????????????????', 'system_field_name' => 'header_row_no', 'is_required' => 1],
                 ['excel_column_name' => '????????????', 'system_field_name' => 'account_id', 'is_required' => 1],
-                ['excel_column_name' => '?????????????????????곕춴????????????????轅붽틓???????', 'system_field_name' => 'debit', 'is_required' => 0],
-                ['excel_column_name' => '???????????????곕춴????', 'system_field_name' => 'credit', 'is_required' => 0],
+                ['excel_column_name' => '?????????????????????????곕춴????????????????????釉먮폁??????????', 'system_field_name' => 'debit', 'is_required' => 0],
+                ['excel_column_name' => '???????????????????곕춴?????', 'system_field_name' => 'credit', 'is_required' => 0],
                 ['excel_column_name' => '???????????????????????????', 'system_field_name' => 'line_summary', 'is_required' => 0],
             ];
         } elseif ($ensureLineRowType && !$this->columnsContainSystemField($lineColumns, 'line_row_type')) {

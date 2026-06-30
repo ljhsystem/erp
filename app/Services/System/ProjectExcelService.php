@@ -3,11 +3,17 @@
 namespace App\Services\System;
 
 use App\Models\System\ProjectModel;
+use Core\Helpers\ExcelTemplateFilenameHelper;
+use Core\Helpers\ExcelValueFormatterHelper;
+use Core\Helpers\ColumnPolicyRequestHelper;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PDO;
 
 class ProjectExcelService
 {
@@ -95,6 +101,7 @@ class ProjectExcelService
     ];
 
     public function __construct(
+        private readonly PDO $pdo,
         private readonly ProjectModel $model
     ) {
     }
@@ -108,7 +115,9 @@ class ProjectExcelService
             $this->buildHeaders($columns),
             $rows,
             '프로젝트 업로드',
-            'project_template.xlsx'
+            'project_template.xlsx',
+            $columns,
+            true
         );
     }
 
@@ -134,13 +143,23 @@ class ProjectExcelService
         }
 
         $count = 0;
+        $requiredValueErrors = [];
 
-        foreach ($rows as $row) {
+        foreach ($rows as $index => $row) {
             if ($this->isBlankRow($row)) {
                 continue;
             }
 
             $payload = $this->buildUploadPayload($row, $headerMap, $columns);
+            $missingRequiredValues = $this->findMissingRequiredValues($payload, $columns);
+            if ($missingRequiredValues !== []) {
+                $rowNo = $index + 2;
+                foreach ($missingRequiredValues as $label) {
+                    $requiredValueErrors[] = sprintf('%d행 : %s 필수', $rowNo, $label);
+                }
+                continue;
+            }
+
             if (($payload['project_name'] ?? '') === '') {
                 continue;
             }
@@ -153,13 +172,20 @@ class ProjectExcelService
             }
         }
 
+        if ($requiredValueErrors !== []) {
+            return [
+                'success' => false,
+                'message' => "업로드할 수 없습니다.\n\n" . implode("\n", array_values(array_unique($requiredValueErrors))),
+            ];
+        }
+
         return ['success' => true, 'message' => "{$count}건 업로드되었습니다."];
     }
 
     public function downloadExcel(?string $columnsCsv = null): void
     {
         $columns = $this->resolveColumns('download', $columnsCsv);
-        $projects = $this->model->getList();
+        $projects = ExcelValueFormatterHelper::sortRowsBySortNo($this->model->getList());
         $rows = [];
 
         foreach ($projects as $project) {
@@ -170,7 +196,8 @@ class ProjectExcelService
             $this->buildHeaders($columns),
             $rows,
             '프로젝트 목록',
-            'project_list.xlsx'
+            'project_list.xlsx',
+            $columns
         );
     }
 
@@ -187,6 +214,24 @@ class ProjectExcelService
     public function downloadMigrationExcel(?string $columnsCsv = null): void
     {
         $this->downloadExcel($columnsCsv);
+    }
+
+    private function sortRowsForDownload(array $rows): array
+    {
+        $indexedRows = array_values(array_map(
+            static fn(array $row, int $index): array => ['row' => $row, '_index' => $index],
+            $rows,
+            array_keys($rows)
+        ));
+
+        usort($indexedRows, static function (array $left, array $right): int {
+            $leftSortNo = is_numeric($left['row']['sort_no'] ?? null) ? (int) $left['row']['sort_no'] : PHP_INT_MAX;
+            $rightSortNo = is_numeric($right['row']['sort_no'] ?? null) ? (int) $right['row']['sort_no'] : PHP_INT_MAX;
+
+            return [$leftSortNo, (int) $left['_index']] <=> [$rightSortNo, (int) $right['_index']];
+        });
+
+        return array_map(static fn(array $item): array => $item['row'], $indexedRows);
     }
 
     public function getProjectMigrationHeaders(?string $columnsCsv = null): array
@@ -246,12 +291,6 @@ class ProjectExcelService
                     $selectedKeys[] = $key;
                 }
             }
-
-            foreach (self::COLUMN_DEFINITIONS as $column) {
-                if ($column['required'] && !in_array($column['key'], $selectedKeys, true)) {
-                    $selectedKeys[] = $column['key'];
-                }
-            }
         }
 
         if ($selectedKeys === []) {
@@ -281,17 +320,29 @@ class ProjectExcelService
 
     private function decorateColumns(array $columns): array
     {
+        $displayNameMap = ColumnPolicyRequestHelper::displayNameMap($_REQUEST['column_display_name'] ?? null);
+        $requirementPolicyMap = ColumnPolicyRequestHelper::requirementPolicyMap($_REQUEST['column_requirement_policy'] ?? null);
         $labelCounts = [];
         foreach ($columns as $column) {
-            $labelCounts[$column['label']] = ($labelCounts[$column['label']] ?? 0) + 1;
+            $label = ColumnPolicyRequestHelper::displayNameForColumn($column, $displayNameMap, (string) ($column['label'] ?? ''));
+            $labelCounts[$label] = ($labelCounts[$label] ?? 0) + 1;
         }
 
-        return array_map(function (array $column) use ($labelCounts): array {
-            $header = ($labelCounts[$column['label']] ?? 0) > 1
-                ? sprintf('%s [%s]', $column['label'], $column['key'])
-                : $column['label'];
+        return array_map(function (array $column) use ($labelCounts, $displayNameMap, $requirementPolicyMap): array {
+            $label = ColumnPolicyRequestHelper::displayNameForColumn($column, $displayNameMap, (string) ($column['label'] ?? ''));
+            $policy = ColumnPolicyRequestHelper::requirementPolicyForColumn(
+                $column,
+                $requirementPolicyMap,
+                !empty($column['required']) ? 'required' : 'none'
+            );
+            $header = ($labelCounts[$label] ?? 0) > 1
+                ? sprintf('%s [%s]', $label, $column['key'])
+                : $label;
 
             return $column + [
+                'label' => $label,
+                'required' => $policy === 'required',
+                'requirement_policy' => $policy,
                 'alias_of' => $column['alias_of'] ?? null,
                 'source_key' => $column['source_key'] ?? $column['key'],
                 'payload_key' => $column['payload_key'] ?? $column['key'],
@@ -364,6 +415,10 @@ class ProjectExcelService
         foreach ($columns as $column) {
             $this->registerLookupAlias($lookup, $column['header'], $column['key']);
             $this->registerLookupAlias($lookup, $column['label'], $column['key']);
+            if (($column['requirement_policy'] ?? 'none') !== 'none') {
+                $this->registerLookupAlias($lookup, $column['header'] . ' *', $column['key']);
+                $this->registerLookupAlias($lookup, $column['label'] . ' *', $column['key']);
+            }
             $this->registerLookupAlias($lookup, $column['key'], $column['key']);
 
             if (!empty($column['alias_of'])) {
@@ -437,6 +492,36 @@ class ProjectExcelService
         return $missing;
     }
 
+    private function findMissingRequiredValues(array $payload, array $columns): array
+    {
+        $missing = [];
+
+        foreach ($columns as $column) {
+            if (empty($column['required'])) {
+                continue;
+            }
+
+            $payloadKey = (string) ($column['payload_key'] ?? $column['key'] ?? '');
+            if ($payloadKey === '') {
+                continue;
+            }
+
+            $value = $payload[$payloadKey] ?? null;
+            if (is_array($value)) {
+                if ($value === []) {
+                    $missing[] = $column['label'];
+                }
+                continue;
+            }
+
+            if (trim((string) $value) === '') {
+                $missing[] = $column['label'];
+            }
+        }
+
+        return $missing;
+    }
+
     private function buildUploadPayload(array $row, array $headerMap, array $columns): array
     {
         $payload = [];
@@ -481,15 +566,24 @@ class ProjectExcelService
         return true;
     }
 
-    private function writeSpreadsheet(array $headers, array $rows, string $title, string $filename): void
+    private function writeSpreadsheet(
+        array $headers,
+        array $rows,
+        string $title,
+        string $filename,
+        array $columns = [],
+        bool $showRequiredAsterisk = false
+    ): void
     {
+        $filename = ExcelTemplateFilenameHelper::normalize($filename, 'project');
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle($title);
-        $sheet->fromArray($headers, null, 'A1');
-
-        if ($rows !== []) {
-            $sheet->fromArray($rows, null, 'A2');
+        ExcelValueFormatterHelper::writeTable($sheet, $headers, $rows, 'A1', $columns, [
+            'showRequiredAsterisk' => $showRequiredAsterisk,
+        ]);
+        if ($showRequiredAsterisk) {
+            $this->applyTemplateDropdowns($spreadsheet, $sheet, $columns);
         }
 
         for ($index = 1; $index <= count($headers); $index++) {
@@ -503,5 +597,114 @@ class ProjectExcelService
         $writer->save('php://output');
         $spreadsheet->disconnectWorksheets();
         exit;
+    }
+
+    private function applyTemplateDropdowns(Spreadsheet $spreadsheet, Worksheet $sheet, array $columns): void
+    {
+        $dropdownOptions = [
+            'employee_name' => $this->tableColumnDropdownOptions('user_employees', 'employee_name'),
+            'site_agent' => $this->tableColumnDropdownOptions('user_employees', 'employee_name'),
+            'client_name' => $this->tableColumnDropdownOptions('system_clients', 'client_name'),
+            'linked_client_name' => $this->tableColumnDropdownOptions('system_clients', 'client_name'),
+            'is_active' => ['진행중', '종료', '사용', '미사용'],
+        ];
+
+        $targets = [];
+        foreach (array_values($columns) as $index => $column) {
+            $key = trim((string) ($column['key'] ?? ''));
+            $options = $dropdownOptions[$key] ?? [];
+            if ($key === '' || $options === []) {
+                continue;
+            }
+
+            $targets[] = [
+                'columnIndex' => $index + 1,
+                'options' => $options,
+            ];
+        }
+
+        if ($targets === []) {
+            return;
+        }
+
+        $referenceSheet = $spreadsheet->createSheet();
+        $referenceSheet->setTitle('_project_refs');
+
+        foreach ($targets as $listIndex => $target) {
+            $listColumn = Coordinate::stringFromColumnIndex($listIndex + 1);
+            foreach (array_values($target['options']) as $rowIndex => $option) {
+                $referenceSheet->setCellValue($listColumn . ($rowIndex + 1), $option);
+            }
+
+            $this->applyListValidation(
+                $sheet,
+                Coordinate::stringFromColumnIndex($target['columnIndex']),
+                "'_project_refs'!$" . $listColumn . '$1:$' . $listColumn . '$' . count($target['options'])
+            );
+        }
+
+        $referenceSheet->setSheetState(Worksheet::SHEETSTATE_HIDDEN);
+    }
+
+    private function applyListValidation(Worksheet $sheet, string $column, string $formula): void
+    {
+        $range = "{$column}2:{$column}1048576";
+        $validation = new DataValidation();
+        $validation->setType(DataValidation::TYPE_LIST);
+        $validation->setErrorStyle(DataValidation::STYLE_STOP);
+        $validation->setAllowBlank(true);
+        $validation->setShowDropDown(true);
+        $validation->setShowErrorMessage(true);
+        $validation->setErrorTitle('목록 선택 오류');
+        $validation->setError('목록에 있는 값만 선택할 수 있습니다.');
+        $validation->setFormula1($formula);
+        $validation->setSqref($range);
+        $sheet->setDataValidation($range, $validation);
+    }
+
+    private function tableColumnDropdownOptions(string $table, string $column): array
+    {
+        $tableSql = '`' . str_replace('`', '``', $table) . '`';
+        $columnSql = '`' . str_replace('`', '``', $column) . '`';
+        $where = [];
+
+        if ($this->tableColumnExists($table, 'deleted_at')) {
+            $where[] = 'deleted_at IS NULL';
+        }
+        if ($this->tableColumnExists($table, 'is_active')) {
+            $where[] = 'COALESCE(is_active, 1) = 1';
+        }
+
+        try {
+            $stmt = $this->pdo->query(
+                "SELECT DISTINCT {$columnSql} AS dropdown_value FROM {$tableSql}"
+                . ($where !== [] ? ' WHERE ' . implode(' AND ', $where) : '')
+                . " ORDER BY {$columnSql} ASC"
+            );
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $options = [];
+        foreach ($rows as $row) {
+            $value = trim((string) ($row['dropdown_value'] ?? ''));
+            if ($value !== '') {
+                $options[] = $value;
+            }
+        }
+
+        return array_values(array_unique($options));
+    }
+
+    private function tableColumnExists(string $table, string $column): bool
+    {
+        try {
+            $stmt = $this->pdo->prepare("SHOW COLUMNS FROM `{$table}` LIKE :column");
+            $stmt->execute([':column' => $column]);
+            return (bool) $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (\Throwable) {
+            return false;
+        }
     }
 }

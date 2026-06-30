@@ -1,3 +1,9 @@
+import {
+    readDataTableSettingsState,
+    resolveDataTableColumnDisplayName,
+    resolveDataTableColumnRequirementPolicy,
+} from '/public/assets/js/common/datatable/dataTableSettings.js';
+
 export function createProjectModalModule({
     AdminPicker,
     API,
@@ -10,6 +16,175 @@ export function createProjectModalModule({
     let employeeSelect2Inited = false;
     let siteAgentSelect2Inited = false;
     let clientSelect2Inited = false;
+    let projectPolicyBound = false;
+
+    const PROJECT_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.base-info.project.project-table.v1';
+    const PROJECT_MODAL_FIELD_POLICIES = Object.freeze([
+        { selector: '#modal_project_name', key: 'project_name', fallback: '프로젝트명' },
+        { selector: '#modal_construction_name', key: 'construction_name', fallback: '공사명/계약명' },
+        { selector: '#modal_employee_id', key: 'employee_id', fallback: '담당직원' },
+        { selector: '#modal_is_active', key: 'is_active', fallback: '진행상황' },
+        { selector: '#modal_client_name', key: 'client_name', fallback: '발주처명' },
+        { selector: '#modal_client_type', key: 'client_type', fallback: '발주처구분' },
+        { selector: '#modal_bid_type', key: 'bid_type', fallback: '입찰방법' },
+        { selector: '#modal_site_agent', key: 'site_agent', fallback: '현장대리인' },
+        { selector: '#modal_project_client_id', key: 'client_id', fallback: '거래처' },
+        { selector: '#modal_director', key: 'director', fallback: '감리원 / 소장' },
+        { selector: '#modal_manager', key: 'manager', fallback: '담당자' },
+        { selector: '#modal_contract_method', key: 'contract_method', fallback: '계약방식' },
+        { selector: '#modal_housing_type', key: 'housing_type', fallback: '공사유형' },
+        { selector: '#modal_contract_type', key: 'contract_type', fallback: '도급종류' },
+        { selector: '#modal_work_type', key: 'work_type', fallback: '공종' },
+        { selector: '#modal_work_subtype', key: 'work_subtype', fallback: '공종 세부구분' },
+        { selector: '#modal_business_type', key: 'business_type', fallback: '업종(주업종)' },
+        { selector: '#modal_work_detail_type', key: 'work_detail_type', fallback: '세부 공사종류(주력분야)' },
+        { selector: '#modal_site_region_city', key: 'site_region_city', fallback: '시/도' },
+        { selector: '#modal_site_region_district', key: 'site_region_district', fallback: '시/군/구' },
+        { selector: '#modal_site_region_address', key: 'site_region_address', fallback: '주소' },
+        { selector: '#modal_site_region_address_detail', key: 'site_region_address_detail', fallback: '상세주소' },
+        { selector: '#modal_permit_date', key: 'permit_date', fallback: '허가일자' },
+        { selector: '#modal_contract_date', key: 'contract_date', fallback: '계약일자' },
+        { selector: '#modal_start_date', key: 'start_date', fallback: '착공일자' },
+        { selector: '#modal_completion_date', key: 'completion_date', fallback: '준공일자' },
+        { selector: '#modal_bid_notice_date', key: 'bid_notice_date', fallback: '입찰공고일' },
+        { selector: '#modal_initial_contract_amount', key: 'initial_contract_amount', fallback: '최초 계약금액' },
+        { selector: '#modal_permit_agency', key: 'permit_agency', fallback: '허가기관' },
+        { selector: '#modal_authorized_company_seal', key: 'authorized_company_seal', fallback: '사용인감명' },
+        { selector: '#modal_note', key: 'note', fallback: '비고' },
+        { selector: '#modal_memo', key: 'memo', fallback: '메모' },
+    ]);
+
+    function currentProjectPolicyState() {
+        return readDataTableSettingsState(PROJECT_TABLE_SETTINGS_STORAGE_KEY) || {};
+    }
+
+    function projectFieldLabel(key, _fallback = '') {
+        const normalizedKey = String(key || '').trim();
+        return resolveDataTableColumnDisplayName(
+            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+            currentProjectPolicyState(),
+            normalizedKey
+        );
+    }
+
+    function projectFieldRequirement(key) {
+        const normalizedKey = String(key || '').trim();
+        return resolveDataTableColumnRequirementPolicy(
+            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+            currentProjectPolicyState()
+        );
+    }
+
+    function projectFieldStarMarkup(key) {
+        const policy = projectFieldRequirement(key);
+        if (policy === 'required') {
+            return '<span class="column-policy-star is-required" aria-hidden="true">*</span>';
+        }
+        if (policy === 'optional') {
+            return '<span class="column-policy-star is-optional" aria-hidden="true">*</span>';
+        }
+        return '';
+    }
+
+    function isProjectFieldVisible(field) {
+        if (!field) return false;
+        if (field.type === 'hidden') return false;
+        if (field.disabled) return false;
+        const style = window.getComputedStyle(field);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        return true;
+    }
+
+    function shouldValidateProjectPolicyField(field) {
+        const selector = String(field?.selector || '').trim();
+        if (!selector) return false;
+        const input = document.querySelector(selector);
+        return isProjectFieldVisible(input);
+    }
+
+    function collectProjectDetailValues(form, formData) {
+        const values = {};
+
+        PROJECT_MODAL_FIELD_POLICIES.forEach((field) => {
+            const key = String(field?.key || '').trim();
+            const selector = String(field?.selector || '').trim();
+            if (!key || !selector) return;
+
+            const input = form?.querySelector(selector) || document.querySelector(selector);
+            if (!input) return;
+
+            const fieldName = String(input.name || key).trim();
+            values[key] = formData.get(fieldName) ?? input.value ?? '';
+        });
+
+        return values;
+    }
+
+    function validateProjectRequiredPolicies(fields = [], values = {}) {
+        for (const field of fields) {
+            const key = String(field?.key || '').trim();
+            if (!key || projectFieldRequirement(key) !== 'required') {
+                continue;
+            }
+            if (!shouldValidateProjectPolicyField(field)) {
+                continue;
+            }
+
+            const value = values[key];
+            if (Array.isArray(value)) {
+                if (value.length === 0) {
+                    return `${projectFieldLabel(key, field?.fallback || key)} 항목은 필수입니다.`;
+                }
+                continue;
+            }
+
+            if (String(value ?? '').trim() === '') {
+                return `${projectFieldLabel(key, field?.fallback || key)} 항목은 필수입니다.`;
+            }
+        }
+
+        return '';
+    }
+
+    function findProjectModalLabel(fieldSelector, root = document) {
+        const field = root.querySelector(fieldSelector);
+        if (!field) return null;
+
+        if (field.id) {
+            const labelByFor = root.querySelector(`label[for="${field.id}"]`);
+            if (labelByFor) return labelByFor;
+        }
+
+        const column = field.closest('div[class*="col-"]');
+        if (column) {
+            const label = column.querySelector('label.form-label');
+            if (label) return label;
+        }
+
+        return field.closest('label.form-label') || null;
+    }
+
+    function applyProjectModalPolicyLabels(root = document) {
+        PROJECT_MODAL_FIELD_POLICIES.forEach((field) => {
+            const labelEl = findProjectModalLabel(field.selector, root);
+            if (!labelEl) return;
+
+            const displayName = projectFieldLabel(field.key, field.fallback);
+            const starMarkup = projectFieldStarMarkup(field.key);
+            labelEl.innerHTML = `${displayName}${starMarkup ? ` ${starMarkup}` : ''}`;
+        });
+    }
+
+    function bindProjectPolicySync() {
+        if (projectPolicyBound) return;
+        projectPolicyBound = true;
+
+        document.addEventListener('datatable-settings:updated', (event) => {
+            const storageKey = String(event?.detail?.storageKey || '').trim();
+            if (storageKey && storageKey !== PROJECT_TABLE_SETTINGS_STORAGE_KEY) return;
+            applyProjectModalPolicyLabels(document);
+        });
+    }
 
     function initModal() {
         const modalEl = document.getElementById('projectModal');
@@ -19,17 +194,22 @@ export function createProjectModalModule({
         const excelModalEl = document.getElementById('projectExcelUploadModal');
         if (excelModalEl) state.excelModal = new bootstrap.Modal(excelModalEl);
 
+        bindProjectPolicySync();
+        applyProjectModalPolicyLabels(document);
+
         modalEl.addEventListener('hidden.bs.modal', () => {
             document.getElementById('project-edit-form')?.reset();
             resetProjectModalSelect2();
             const amountInput = document.getElementById('modal_initial_contract_amount');
             if (amountInput) amountInput.value = '';
+            applyProjectModalPolicyLabels(document);
         });
 
         formModule.bindDateIconPicker();
         modalEl.addEventListener('shown.bs.modal', () => {
             formModule.bindAdminDateInputs();
             initProjectModalSelect2();
+            applyProjectModalPolicyLabels(document);
         });
     }
 
@@ -229,6 +409,7 @@ export function createProjectModalModule({
             setProjectEmployeeSelect2(data);
             setProjectSiteAgentSelect2(data);
             setProjectClientSelect2(data);
+            applyProjectModalPolicyLabels(document);
         }, 50);
     }
 
@@ -256,6 +437,7 @@ export function createProjectModalModule({
         if (titleEl) titleEl.textContent = '프로젝트 신규 등록';
         const amountInput = document.getElementById('modal_initial_contract_amount');
         if (amountInput) amountInput.value = '';
+        applyProjectModalPolicyLabels(document);
         state.projectModal?.show();
         void formModule.prepareProjectModalControls().catch((error) => {
             console.error('[project] modal controls prepare failed', error);
@@ -278,6 +460,7 @@ export function createProjectModalModule({
         document.getElementById('projectModalLabel').textContent = '프로젝트 정보 수정';
         window.jQuery('#btnDeleteProject').show();
         window.jQuery('#modal_project_id').val(projectId);
+        applyProjectModalPolicyLabels(document);
         state.projectModal?.show();
         try {
             const [data] = await Promise.all([fetchProjectDetail(projectId), formModule.prepareProjectModalControls()]);
@@ -300,6 +483,11 @@ export function createProjectModalModule({
             const submitButton = this.querySelector('button[type="submit"]');
             const amountInput = document.getElementById('modal_initial_contract_amount');
             if (amountInput) formData.set('initial_contract_amount', String(amountInput.value || '').replace(/,/g, ''));
+            const requiredMessage = validateProjectRequiredPolicies(
+                PROJECT_MODAL_FIELD_POLICIES,
+                collectProjectDetailValues(this, formData)
+            );
+            if (requiredMessage) return formModule.notify('warning', requiredMessage);
             const validationMessage = formModule.validateProjectForm(formData);
             if (validationMessage) return formModule.notify('warning', validationMessage);
             if (submitButton) submitButton.disabled = true;
@@ -346,5 +534,6 @@ export function createProjectModalModule({
         openProjectEditModal,
         bindModalEvents,
         fetchProjectDetail,
+        fillModal,
     };
 }

@@ -3,6 +3,11 @@ import {
     createDataTable,
     bindTableHighlight
 } from '/public/assets/js/common/table/data-table.js';
+import {
+    readDataTableSettingsState,
+    resolveDataTableColumnDisplayName,
+    resolveDataTableColumnRequirementPolicy
+} from '/public/assets/js/common/datatable/dataTableSettings.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.cover.js';
 import { API, COVER_COLUMN_MAP, DATE_OPTIONS } from './api.js';
@@ -44,6 +49,16 @@ window.AdminPicker = AdminPicker;
     let globalBound = false;
     let yearMonthOpenTimer = null;
     let DOM = null;
+    const COVER_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.base-info.cover.cover-table.v1';
+    const COVER_TABLE_SETTINGS_META_DOMAIN = 'cover';
+    const COVER_MODAL_FIELD_POLICIES = Object.freeze([
+        { selector: 'label[for="modal_year"]', key: 'year', fallback: 'Year' },
+        { selector: 'label[for="modal_cover_image"]', key: 'src', fallback: 'Image' },
+        { selector: 'label[for="modal_is_active"]', key: 'is_active', fallback: 'Status' },
+        { selector: 'label[for="modal_title"]', key: 'title', fallback: 'Title' },
+        { selector: 'label[for="modal_alt"]', key: 'alt', fallback: 'Alt' },
+        { selector: 'label[for="modal_description"]', key: 'description', fallback: 'Description' },
+    ]);
 
 
     function resolveDOM() {
@@ -119,16 +134,15 @@ window.AdminPicker = AdminPicker;
         bindRowReorder(coverTable, {
             api: API.REORDER,
             onSuccess() {
-                notifyMessage('success', '커버이미지 순번이 저장되었습니다.');
+                notifyMessage('success', 'Cover image order saved.');
                 coverTable?.ajax.reload(null, false);
             },
             onError(json) {
-                notifyMessage('error', json?.message || '커버이미지 순번 저장에 실패했습니다.');
+                notifyMessage('error', json?.message || 'Failed to save cover image order.');
                 coverTable?.ajax.reload(null, false);
             }
-        });  // 드래그 순서 변경 저장
+        });
         bindTableEvents($);
-        bindModalEvents($);
 
         bindTooltipEvents();
         bindTrashEvents();
@@ -166,6 +180,134 @@ window.AdminPicker = AdminPicker;
         window.alert(message);
     }
 
+    function currentCoverPolicyState() {
+        return readDataTableSettingsState(COVER_TABLE_SETTINGS_STORAGE_KEY) || {};
+    }
+
+    function resolveCoverPolicyDisplayName(key, _fallback = '') {
+        const normalizedKey = String(key || '').trim();
+        return resolveDataTableColumnDisplayName(
+            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+            currentCoverPolicyState(),
+            normalizedKey
+        );
+    }
+
+    function resolveCoverPolicyRequirement(key) {
+        const normalizedKey = String(key || '').trim();
+        return resolveDataTableColumnRequirementPolicy(
+            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+            currentCoverPolicyState()
+        );
+    }
+
+    function coverFieldLabel(key, _fallback = '') {
+        return resolveCoverPolicyDisplayName(key, String(key || '').trim());
+    }
+
+    function coverFieldStarMarkup(key) {
+        const policy = resolveCoverPolicyRequirement(key);
+        if (policy === 'required') {
+            return '<span class="column-policy-star is-required" aria-hidden="true">*</span>';
+        }
+        if (policy === 'optional') {
+            return '<span class="column-policy-star is-optional" aria-hidden="true">*</span>';
+        }
+        return '';
+    }
+
+    function applyCoverModalPolicyLabels() {
+        COVER_MODAL_FIELD_POLICIES.forEach((field) => {
+            const labelEl = document.querySelector(field.selector);
+            if (!labelEl) {
+                return;
+            }
+
+            const displayName = coverFieldLabel(field.key, field.fallback);
+            const starMarkup = coverFieldStarMarkup(field.key);
+            labelEl.innerHTML = `${displayName}${starMarkup ? ` ${starMarkup}` : ''}`;
+        });
+    }
+
+    function isCoverFieldVisible(selector) {
+        const field = document.querySelector(selector);
+        if (!field) return false;
+        if (field.type === 'hidden') return false;
+        if (field.disabled) return false;
+        const style = window.getComputedStyle(field);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        return true;
+    }
+
+    function validateCoverRequiredPolicies({
+        coverId,
+        hasFile,
+        year,
+        title,
+        alt,
+        description,
+    } = {}) {
+        const values = {
+            year,
+            src: hasFile ? '__uploaded__' : (coverId ? '__existing__' : ''),
+            title,
+            alt,
+            description,
+        };
+
+        for (const field of COVER_MODAL_FIELD_POLICIES) {
+            const key = String(field?.key || '').trim();
+            const selector = String(field?.selector || '').trim();
+            if (!key || !selector) {
+                continue;
+            }
+            if (resolveCoverPolicyRequirement(key) !== 'required') {
+                continue;
+            }
+            if (!isCoverFieldVisible(selector)) {
+                continue;
+            }
+
+            if (String(values[key] ?? '').trim() === '') {
+                const label = coverFieldLabel(key, field?.fallback || key);
+                notifyMessage('warning', `${label} 항목은 필수입니다.`);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    function validateCoverModalFields({
+        year,
+        title,
+        alt,
+        description,
+        labels = {},
+    } = {}) {
+        if (String(year || '').trim() !== '' && !/^\d{4}$/.test(String(year || '').trim())) {
+            notifyMessage('warning', `${labels.yearLabel || '연도'}는 4자리 숫자여야 합니다.`);
+            return true;
+        }
+
+        if (String(title || '').trim().length > 120) {
+            notifyMessage('warning', `${labels.titleLabel || '제목'}은 120자 이하로 입력해야 합니다.`);
+            return true;
+        }
+
+        if (String(alt || '').trim().length > 180) {
+            notifyMessage('warning', `${labels.altLabel || '대체문구'}는 180자 이하로 입력해야 합니다.`);
+            return true;
+        }
+
+        if (String(description || '').trim().length > 500) {
+            notifyMessage('warning', `${labels.descriptionLabel || '설명'}은 500자 이하로 입력해야 합니다.`);
+            return true;
+        }
+
+        return false;
+    }
+
     function deferCoverModalWork(callback) {
         if (typeof callback !== 'function') return;
 
@@ -200,6 +342,7 @@ window.AdminPicker = AdminPicker;
             focus: false,
             keyboard: true
         });
+        applyCoverModalPolicyLabels();
 
         modalEl.addEventListener('hidden.bs.modal', () => {
             const form = qs(DOM.form);
@@ -208,12 +351,17 @@ window.AdminPicker = AdminPicker;
             populateCoverYearOptions();
             window.jQuery(DOM.modalIsActive).val('1');
             setCoverModalMode('create');
+            applyCoverModalPolicyLabels();
 
             const preview = qs(DOM.modalImagePreview);
             if (preview) {
                 preview.setAttribute('src', '');
                 preview.style.display = 'none';
             }
+        });
+
+        modalEl.addEventListener('shown.bs.modal', () => {
+            applyCoverModalPolicyLabels();
         });
 
         const trashModalEl = qs(DOM.trashModal);
@@ -241,6 +389,17 @@ window.AdminPicker = AdminPicker;
             if (coverModal) {
                 coverModal.hide();
             }
+        });
+
+        document.addEventListener('datatable-settings:updated', (event) => {
+            const detail = event?.detail || {};
+            const storageKey = String(detail.storageKey || '').trim();
+            const metaDomain = String(detail.metaDomain || '').trim();
+            if (storageKey !== COVER_TABLE_SETTINGS_STORAGE_KEY && metaDomain !== COVER_TABLE_SETTINGS_META_DOMAIN) {
+                return;
+            }
+
+            applyCoverModalPolicyLabels();
         });
     }
 
@@ -472,20 +631,25 @@ window.AdminPicker = AdminPicker;
             api: API.LIST,
             deleteApi: API.DELETE,
             columns,
+            tableSettings: {
+                pageKey: 'dashboard.settings.base-info.cover',
+                tableKey: 'cover-table',
+                storageKey: 'datatable.settings.dashboard.settings.base-info.cover.cover-table.v1',
+                metaDomain: 'cover',
+                tableLabel: 'cover',
+                title: 'Cover Table Settings',
+            },
             defaultOrder: [[1, 'asc']],
             buttons: [
                 {
-                    text: '휴지통',
+                    text: '\ud734\uc9c0\ud1b5',
                     className: 'btn btn-danger btn-sm',
                     action: function () {
-
                         if (!trashModalEl) return;
 
-
-                        trashModalEl.dataset.listUrl      = API.TRASH;
-                        trashModalEl.dataset.restoreUrl   = API.RESTORE;
-
-                        trashModalEl.dataset.deleteUrl    = API.PURGE;
+                        trashModalEl.dataset.listUrl = API.TRASH;
+                        trashModalEl.dataset.restoreUrl = API.RESTORE;
+                        trashModalEl.dataset.deleteUrl = API.PURGE;
                         trashModalEl.dataset.deleteAllUrl = API.PURGE_ALL;
 
                         const modal = new bootstrap.Modal(trashModalEl);
@@ -493,7 +657,7 @@ window.AdminPicker = AdminPicker;
                     }
                 },
                 {
-                    text: '새 커버사진',
+                    text: '\uc0c8 \uc774\ubbf8\uc9c0',
                     className: 'btn btn-warning btn-sm',
                     action: function () {
                         const form = qs(DOM.form);
@@ -534,7 +698,7 @@ window.AdminPicker = AdminPicker;
                 tableId: 'cover',
                 defaultSearchField: 'title',
                 dateOptions: DATE_OPTIONS,
-                excludeFields: ['url'],
+                excludeFields: ['src'],
                 normalizeFilters: normalizeCoverFilters
             });
 
@@ -554,7 +718,7 @@ window.AdminPicker = AdminPicker;
     function updateCoverCount(count) {
         const el = document.getElementById('coverCount');
         if (!el) return;
-        el.textContent = `총 ${count ?? 0}건`;
+        el.textContent = `\ucd1d ${count ?? 0}\uac74`;
     }
 
     function buildCoverColumns() {
@@ -563,6 +727,7 @@ window.AdminPicker = AdminPicker;
         columns.push({
             data: null,
             title: '<i class="bi bi-arrows-move"></i>',
+            settingsKey: '__reorder',
             className: 'reorder-handle no-colvis text-center',
             orderable: false,
             searchable: false,
@@ -578,23 +743,22 @@ window.AdminPicker = AdminPicker;
                 render: function (data, type, row) {
                     if (data === null || data === undefined) return '';
 
-                    if (field === 'url' && type === 'display') {
-                        return data
-                            ? `<img src="${escapeHtmlAttr(data)}" class="table-img-preview" style="width:80px;cursor:pointer;">`
-                            : `<span class="text-muted">이미지 없음</span>`;
+                    if (field === 'src' && type === 'display') {
+                        const previewSrc = (row && row.url) ? row.url : data;
+                        return previewSrc
+                            ? '<img src="' + escapeHtmlAttr(previewSrc) + '" class="table-img-preview" style="width:80px;cursor:pointer;">'
+                            : '<span class="text-muted">No image</span>';
                     }
 
                     if (field === 'is_active' && type === 'display') {
                         const active = Number(data) === 1;
-                        return `
-                            <div class="form-check form-switch d-inline-flex justify-content-center m-0">
-                                <input type="checkbox"
-                                       class="form-check-input cover-active-toggle"
-                                       data-id="${escapeHtmlAttr(row.id || '')}"
-                                       ${active ? 'checked' : ''}
-                                       aria-label="상태 변경">
-                            </div>
-                        `;
+                        return '<div class="form-check form-switch d-inline-flex justify-content-center m-0">' +
+                            '<input type="checkbox" ' +
+                            'class="form-check-input cover-active-toggle" ' +
+                            'data-id="' + escapeHtmlAttr(row.id || '') + '" ' +
+                            (active ? 'checked ' : '') +
+                            'aria-label="toggle status">' +
+                            '</div>';
                     }
 
                     if (field === 'created_by' && type === 'display') {
@@ -607,26 +771,24 @@ window.AdminPicker = AdminPicker;
 
                     return data;
                 },
-                searchable: field !== 'url'
+                searchable: field !== 'src'
             });
         });
 
         columns.push({
             data: null,
-            title: '관리',
+            title: '\uad00\ub9ac',
             className: 'text-center no-colvis',
             orderable: false,
             searchable: false,
             defaultContent: '',
             render: function (_data, type, row) {
                 if (type !== 'display') return '';
-                return `
-                    <button type="button"
-                            class="btn btn-outline-primary btn-sm cover-edit-btn"
-                            data-id="${escapeHtmlAttr(row.id || '')}">
-                        수정
-                    </button>
-                `;
+                return '<button type="button"'
+                    + ' class="btn btn-outline-primary btn-sm cover-edit-btn"'
+                    + ' data-id="' + escapeHtmlAttr(row.id || '') + '">'
+                    + '\uc218\uc815'
+                    + '</button>';
             }
         });
 
@@ -669,8 +831,9 @@ window.AdminPicker = AdminPicker;
             window.jQuery(DOM.modalDescription).val(rowData.description || '');
             window.jQuery(DOM.modalIsActive).val(String(Number(rowData.is_active ?? 1) === 1 ? 1 : 0));
 
-            if (rowData.url) {
-                window.jQuery(DOM.modalImagePreview).attr('src', rowData.url).show();
+            const previewSrc = rowData.url || rowData.src || '';
+            if (previewSrc) {
+                window.jQuery(DOM.modalImagePreview).attr('src', previewSrc).show();
             } else {
                 window.jQuery(DOM.modalImagePreview).attr('src', '').hide();
             }
@@ -703,7 +866,7 @@ window.AdminPicker = AdminPicker;
             dataType: 'json',
             success: function (res) {
                 if (res && res.success) {
-                    notifyMessage('success', active ? '사용으로 변경되었습니다.' : '미사용으로 변경되었습니다.');
+                    notifyMessage('success', active ? 'Cover image activated.' : 'Cover image deactivated.');
                     reloadCoverTable(false);
                     return;
                 }
@@ -711,13 +874,13 @@ window.AdminPicker = AdminPicker;
                 if (toggleEl) {
                     toggleEl.checked = !active;
                 }
-                notifyMessage('error', res?.message || '상태 변경에 실패했습니다.');
+                notifyMessage('error', res?.message || 'Failed to change cover image status.');
             },
             error: function () {
                 if (toggleEl) {
                     toggleEl.checked = !active;
                 }
-                notifyMessage('error', '상태 변경 요청에 실패했습니다.');
+                notifyMessage('error', 'Cover image status request failed.');
             },
             complete: function () {
                 if (toggleEl) {
@@ -809,39 +972,36 @@ window.AdminPicker = AdminPicker;
             const alt = String($(DOM.modalAlt).val() || '').trim();
             const description = String($(DOM.modalDescription).val() || '').trim();
             const isActive = String($(DOM.modalIsActive).val() || '1');
+            const yearLabel = coverFieldLabel('year', 'Year');
+            const imageLabel = coverFieldLabel('src', 'Image Path');
+            const titleLabel = coverFieldLabel('title', 'Title');
+            const altLabel = coverFieldLabel('alt', 'Alt Text');
+            const descriptionLabel = coverFieldLabel('description', 'Description');
 
-            if (!coverId && !hasFile) {
-                notifyMessage('warning', '커버 이미지를 선택하세요.');
+            if (validateCoverRequiredPolicies({
+                coverId,
+                hasFile,
+                year,
+                title,
+                alt,
+                description,
+            })) {
                 return;
             }
 
-            if (!/^\d{4}$/.test(year)) {
-                notifyMessage('warning', '해당년도는 4자리 숫자로 입력하세요.');
-                return;
-            }
-
-            if (!title) {
-                notifyMessage('warning', '타이틀을 입력하세요.');
-                return;
-            }
-
-            if (!alt) {
-                notifyMessage('warning', '이미지 문구(Alt)를 입력하세요.');
-                return;
-            }
-
-            if (title.length > 120) {
-                notifyMessage('warning', '타이틀은 120자 이하로 입력하세요.');
-                return;
-            }
-
-            if (alt.length > 180) {
-                notifyMessage('warning', '이미지 문구(Alt)는 180자 이하로 입력하세요.');
-                return;
-            }
-
-            if (description.length > 500) {
-                notifyMessage('warning', '설명은 500자 이하로 입력하세요.');
+            if (validateCoverModalFields({
+                year,
+                title,
+                alt,
+                description,
+                labels: {
+                    yearLabel,
+                    imageLabel,
+                    titleLabel,
+                    altLabel,
+                    descriptionLabel,
+                },
+            })) {
                 return;
             }
 
@@ -858,35 +1018,36 @@ window.AdminPicker = AdminPicker;
                 success: function (res) {
                     if (res && res.success) {
                         resetCoverAfterAction();
-                        notifyMessage('success', '저장이 완료되었습니다.');
+                        notifyMessage('success', 'Saved successfully.');
                     } else {
-                        notifyMessage('error', res?.message || '저장에 실패했습니다.');
+                        notifyMessage('error', res?.message || 'Save failed.');
                     }
                 },
                 error: function () {
-                    notifyMessage('error', '저장 요청에 실패했습니다.');
+                    notifyMessage('error', 'Save request failed.');
                 }
             });
         });
+
         $(document).off('click', DOM.modalDeleteBtn);
         $(document).on('click', DOM.modalDeleteBtn, function () {
             const coverId = $(DOM.modalId).val();
             if (!coverId) {
-                notifyMessage('warning', '삭제할 항목이 없습니다.');
+                notifyMessage('warning', 'No item to delete.');
                 return;
             }
 
-            if (!confirm('정말 삭제하시겠습니까?')) return;
+            if (!confirm('Are you sure you want to delete this item?')) return;
 
             $.post(API.DELETE, { id: coverId }, function (res) {
                 if (res && res.success) {
-                        resetCoverAfterAction();
-                        notifyMessage('success', '삭제가 완료되었습니다.');
+                    resetCoverAfterAction();
+                    notifyMessage('success', 'Deleted successfully.');
                 } else {
-                    notifyMessage('error', res?.message || '삭제에 실패했습니다.');
+                    notifyMessage('error', res?.message || 'Delete failed.');
                 }
             }, 'json').fail(function () {
-                notifyMessage('error', '삭제 요청에 실패했습니다.');
+                notifyMessage('error', 'Delete request failed.');
             });
         });
     }
@@ -913,7 +1074,7 @@ window.AdminPicker = AdminPicker;
 
         cols.forEach(col => {
             if (col.data === null) return;
-            if (col.data === 'url') return;
+            if (col.data === 'src') return;
             if (col.bSearchable === false) return;
 
             const label = window.jQuery(col.nTh).text().trim();
@@ -1011,7 +1172,7 @@ window.AdminPicker = AdminPicker;
     }
 
     /* =========================================================
-     * 엑셀 업로드 연동
+     * Excel manager event binding
     ========================================================= */
     function bindExcelEvents() {
         attachExcelEvents({

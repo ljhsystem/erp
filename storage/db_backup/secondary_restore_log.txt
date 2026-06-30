@@ -108,3 +108,6 @@ ERROR 1050 (42S01) at line 13: Table 'auth_logs' already exists
 [2026-06-16 16:16:14] FAILED: sukhyang_2026-06-16_134643.sql / target=STANDBY (3307) / 동기화 상태가 시간 초과되었습니다. 대기 DB 상태를 확인해 주세요.
 [2026-06-16 16:42:32] FAILED: sukhyang_2026-06-16_134643.sql / target=STANDBY (3307) / 동기화 상태 갱신이 오래 중단되어 실패로 전환했습니다.
 [2026-06-16 16:56:53] SUCCESS: sukhyang_2026-06-16_134643.sql / target=- / DB 동기화가 완료되었습니다.
+[2026-06-16 18:13:45] SUCCESS: sukhyang_2026-06-16_134643.sql / target=STANDBY (3306) / DB 동기화가 완료되었습니다.
+[2026-06-16 18:35:04] SUCCESS: sukhyang_2026-06-16_181944.sql / target=STANDBY (3306) / DB 동기화가 완료되었습니다.
+[2026-06-25 17:52:15] SUCCESS: sukhyang_2026-06-25_173704.sql / target=STANDBY (3306) / DB 동기화가 완료되었습니다.

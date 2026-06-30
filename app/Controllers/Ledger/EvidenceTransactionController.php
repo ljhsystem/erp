@@ -249,6 +249,7 @@ class EvidenceTransactionController
         if ($this->evidenceUploadValidationService === null) {
             $this->evidenceUploadValidationService = new EvidenceUploadValidationService([
                 'amountOrNull' => fn(mixed $value): ?float => $this->amountOrNull($value),
+                'dateTimeValue' => fn(mixed $value): ?string => $this->dateTimeValue($value),
                 'resolveUploadTransactionContext' => fn(array $row, string $dataType): array => $this->evidenceTransactionContextService()->resolveUploadTransactionContext($row, $dataType),
                 'normalizeDataType' => fn(string $dataType): string => self::normalizeDataType($dataType),
                 'requiredFormatMissingMessages' => fn(array $payload, array $columns): array => $this->evidencePayloadNormalizeService()->requiredFormatMissingMessages($payload, $columns),

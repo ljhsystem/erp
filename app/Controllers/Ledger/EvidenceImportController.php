@@ -7,7 +7,6 @@ use App\Controllers\Ledger\Concerns\ImportControllerUploadTrait;
 use App\Controllers\Ledger\Concerns\ImportControllerUtilityTrait;
 use App\Services\Ledger\EvidenceBankHelperService;
 use App\Services\Ledger\EvidenceBusinessRefService;
-use App\Services\Ledger\EvidenceFormatMappingService;
 use App\Services\Ledger\EvidencePayloadHelperService;
 use App\Services\Ledger\EvidencePayloadNormalizeService;
 use App\Services\Ledger\EvidenceReferenceResolverService;
@@ -38,6 +37,7 @@ class EvidenceImportController
 
     private const EVIDENCE_UPLOAD_TYPES = [
         'TAX_INVOICE',
+        'TAX_INVOICE_MANUAL',
         'CASH_RECEIPT',
         'CARD',
         'CARD_HOMETAX',
@@ -75,6 +75,9 @@ class EvidenceImportController
     private const LEGACY_DATA_TYPE_MAP = [
         'DATA' => 'TAX_INVOICE',
         'TAX' => 'TAX_INVOICE',
+        'MANUAL_TAX_INVOICE' => 'TAX_INVOICE_MANUAL',
+        'TAX_INVOICE_PURCHASE_SALES_MANUAL' => 'TAX_INVOICE_MANUAL',
+        'TAX_INVOICE_BUY_SELL_MANUAL' => 'TAX_INVOICE_MANUAL',
         'CARD' => 'CARD_STATEMENT',
         'CARD_PURCHASE' => 'CARD_STATEMENT',
         'CARD_SALE' => 'CARD_STATEMENT',
@@ -92,7 +95,6 @@ class EvidenceImportController
     private ?EvidenceTemplateService $evidenceTemplateService = null;
     private ?SystemFieldService $systemFieldService = null;
     private ?EvidenceUploadService $evidenceUploadService = null;
-    private ?EvidenceFormatMappingService $evidenceFormatMappingService = null;
     private ?EvidenceUploadParserService $evidenceUploadParserService = null;
     private ?EvidenceUploadValidationService $evidenceUploadValidationService = null;
     private ?EvidencePayloadHelperService $evidencePayloadHelperService = null;
@@ -122,17 +124,35 @@ class EvidenceImportController
         try {
             $type = self::normalizeDataType((string) ($_GET['type'] ?? 'TAX_INVOICE'));
             if (!$this->isAllowedDataType($type)) {
-                $this->json(['success' => false, 'message' => '???????????????????????????????????????????????????????? ????????????????????????????????????????????????????'], 400);
+                $this->json(['success' => false, 'message' => '지원하지 않는 자료유형입니다. 자료유형을 확인해 주세요.'], 400);
                 return;
             }
 
-            [$filename, $title, $headers, $samples, $required, $fields] = array_pad($this->evidenceTemplateService()->templateSpec($type), 6, []);
+            $columnsCsv = trim((string) ($_GET['columns'] ?? ''));
+            $columnDisplayName = $this->requestColumnDisplayName($_GET);
+            $columnRequirementPolicy = $this->requestColumnRequirementPolicy($_GET);
+            $format = $this->syntheticFormatForDataType($type, $columnsCsv, $columnDisplayName, $columnRequirementPolicy);
+            $columns = is_array($format['columns'] ?? null) ? $format['columns'] : [];
+            $headers = $this->evidenceTemplateService()->excelHeadersForColumns($columns);
+            $samples = $columns !== []
+                ? [$this->evidenceTemplateService()->sampleRowForColumns($columns, $type)]
+                : [];
+            $required = array_map(
+                static fn(array $column): int => (int) ($column['is_required'] ?? 0),
+                $columns
+            );
+            $fields = array_map(
+                static fn(array $column): string => (string) ($column['system_field_name'] ?? ''),
+                $columns
+            );
+            $filename = strtolower($type) . '_template.xlsx';
+            $title = $this->evidenceTypePolicyService()->importTypeLabel($type) ?: $type;
             $this->evidenceTemplateService()->downloadTemplate($filename, $title, $headers, $samples, $required, $fields, $type);
         } catch (\Throwable $e) {
             error_log('[ImportController] Template download failed: ' . $e->getMessage());
             if (!headers_sent()) {
                 self::clearOutputBuffers();
-                $this->json(['success' => false, 'message' => '?????????????????????????????????????????????????????????????????????????⑤벡????????????????????????????????'], 500);
+                $this->json(['success' => false, 'message' => '엑셀 템플릿 다운로드 중 오류가 발생했습니다.'], 500);
             }
         }
     }
@@ -147,7 +167,7 @@ class EvidenceImportController
 
         $this->json([
             'success' => true,
-            'data' => $this->systemFieldService()->fieldOptions($dataType),
+            'data' => $this->systemFieldService()->sourceColumnOptions($dataType),
             'target_table' => $this->systemFieldService()->targetTableForDataType($dataType),
         ]);
     }
@@ -157,27 +177,29 @@ class EvidenceImportController
         $this->evidenceUploadService()->prepareLargeUploadRuntime();
         \Core\Session::write();
 
-        $formatId = trim((string) ($_POST['format_id'] ?? ''));
-        $format = $this->evidenceFormatMappingService()->formatWithColumns($formatId);
+        $dataType = $this->requestedImportType($_POST, 'TAX_INVOICE');
+        $columnsCsv = trim((string) ($_POST['excel_template_columns'] ?? ''));
+        $columnDisplayName = $this->requestColumnDisplayName($_POST);
+        $columnRequirementPolicy = $this->requestColumnRequirementPolicy($_POST);
+        $format = $this->syntheticFormatForDataType($dataType, $columnsCsv, $columnDisplayName, $columnRequirementPolicy);
         if (!$format || empty($_FILES['file'])) {
-            $this->json(['success' => false, 'message' => '???????????????????????????????????????????????????????????????'], 400);
+            $this->json(['success' => false, 'message' => '업로드 파일을 선택해 주세요.'], 400);
             return;
         }
 
         try {
-            $dataType = self::normalizeDataType((string) ($format['data_type'] ?? 'ETC'));
             if (!$this->isAllowedDataType($dataType)) {
-                throw new \RuntimeException('??????????????????????????????? ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????');
+                throw new \RuntimeException('지원하지 않는 자료유형입니다. 자료유형을 확인해 주세요.');
             }
             $checks = $this->evidenceUploadService()->validateUploadFileColumns($_FILES['file'], $format['columns']);
             $this->evidenceUploadService()->assertUploadFileMatchesFormat($checks, $format['columns']);
             $checkErrors = array_values(array_filter($checks, static fn(array $check): bool => ($check['level'] ?? '') === 'error'));
             if ($checkErrors !== []) {
-                throw new \RuntimeException('?????????????????????????????????????諛몃마嶺뚮?????????????硫λ젒????????????????????遺얘턁??????얜Ŧ堉??????⑤뜪?????????????????????????癲?????????????????????????????????????????????????? ?????????????????????????????????????????????????????????????????????산뭐??????????嫄???????????饔낅떽??????????????????????????????????????????????????????????? ????????????????????????? ' . (string) ($checkErrors[0]['message'] ?? ''));
+                throw new \RuntimeException('엑셀 헤더가 자료유형 템플릿과 일치하지 않습니다. 업로드 파일의 헤더를 확인한 뒤 다시 시도하세요. ' . (string) ($checkErrors[0]['message'] ?? ''));
             }
             $rows = $this->evidenceUploadParserService()->parseUploadedRows($_FILES['file'], $format['columns']);
             if ($rows === []) {
-                throw new \RuntimeException('???????????????????????????????????????????????????????????????????????????? ?????????????????????????2??????????????? ?????????????????????????????????????? ???????????????????????????????????????????????????????');
+                throw new \RuntimeException('업로드할 데이터 행을 찾지 못했습니다. 헤더 아래 2행부터 데이터가 있는지 확인해 주세요.');
             }
             $rows = $this->evidenceUploadValidationService()->enrichUploadRows($rows, $dataType);
             $rows = $this->evidenceUploadValidationService()->validatePreviewRows($rows, $format['columns'], $dataType);
@@ -216,9 +238,9 @@ class EvidenceImportController
                     ? $this->evidenceTypePolicyService()->importTypeLabel($type)
                     : ($type === 'ETC' ? 'ETC' : $type),
                 'formatColumnsInOrder' => fn(array $columns): array => $this->evidencePayloadNormalizeService()->formatColumnsInOrder($columns),
-                'isBasicInfoTemplateColumn' => fn(string $field, string $header, string $dataType = ''): bool => $this->evidenceFormatMappingService()->isBasicInfoTemplateColumn($field, $header, $dataType),
-                'isStandardInfoTemplateColumn' => fn(string $field, string $header, string $dataType): bool => $this->evidenceFormatMappingService()->isStandardInfoTemplateColumn($field, $header, $dataType),
-                'isVoucherTemplateColumn' => fn(string $field, string $header, string $dataType = ''): bool => $this->evidenceFormatMappingService()->isVoucherTemplateColumn($field, $header, $dataType),
+                'isBasicInfoTemplateColumn' => fn(string $field, string $header, string $dataType = ''): bool => $this->isBasicInfoTemplateColumn($field, $header, $dataType),
+                'isStandardInfoTemplateColumn' => fn(string $field, string $header, string $dataType): bool => $this->isStandardInfoTemplateColumn($field, $header, $dataType),
+                'isVoucherTemplateColumn' => fn(string $field, string $header, string $dataType = ''): bool => $this->isVoucherTemplateColumn($field, $header, $dataType),
                 'normalizeRequirementMode' => fn(mixed $value): int => self::normalizeRequirementMode($value),
                 'safeFilename' => fn(string $name): string => self::safeFilename($name),
                 'safeSheetTitle' => fn(string $title): string => self::safeSheetTitle($title),
@@ -280,18 +302,6 @@ class EvidenceImportController
         return $this->evidenceUploadService;
     }
 
-    private function evidenceFormatMappingService(): EvidenceFormatMappingService
-    {
-        if ($this->evidenceFormatMappingService === null) {
-            $this->evidenceFormatMappingService = new EvidenceFormatMappingService([
-                'normalizeDataType' => fn(string $type): string => self::normalizeDataType($type),
-                'systemFieldOptionsByValue' => fn(string $dataType): array => $this->evidenceTemplateDropdownService()->systemFieldOptionsByValue($dataType),
-            ]);
-        }
-
-        return $this->evidenceFormatMappingService;
-    }
-
     private function evidenceUploadParserService(): EvidenceUploadParserService
     {
         if ($this->evidenceUploadParserService === null) {
@@ -309,6 +319,7 @@ class EvidenceImportController
         if ($this->evidenceUploadValidationService === null) {
             $this->evidenceUploadValidationService = new EvidenceUploadValidationService([
                 'amountOrNull' => fn(mixed $value): ?float => $this->amountOrNull($value),
+                'dateTimeValue' => fn(mixed $value): ?string => $this->dateTimeValue($value),
                 'resolveUploadTransactionContext' => fn(array $row, string $dataType): array => $this->evidenceTransactionContextService()->resolveUploadTransactionContext($row, $dataType),
                 'normalizeDataType' => fn(string $dataType): string => self::normalizeDataType($dataType),
                 'requiredFormatMissingMessages' => fn(array $payload, array $columns): array => $this->evidencePayloadNormalizeService()->requiredFormatMissingMessages($payload, $columns),
@@ -392,6 +403,314 @@ class EvidenceImportController
         }
 
         return $this->evidencePayloadNormalizeService;
+    }
+
+    private function requestedImportType(array $payload, string $default = 'TAX_INVOICE'): string
+    {
+        return self::normalizeDataType((string) ($payload['import_type'] ?? $payload['type'] ?? $payload['data_type'] ?? $default));
+    }
+
+    private function syntheticFormatForDataType(string $dataType, string $columnsCsv = '', array $columnDisplayName = [], array $columnRequirementPolicy = []): ?array
+    {
+        $dataType = self::normalizeDataType($dataType);
+        if (!$this->isAllowedDataType($dataType)) {
+            return null;
+        }
+
+        $fieldOptions = $this->sourceFieldOptionsForDataType($dataType);
+        $columns = [];
+        foreach ($fieldOptions as $index => $fieldOption) {
+            $columnKey = trim((string) ($fieldOption['original_column_key'] ?? $fieldOption['value'] ?? ''));
+            $field = trim((string) ($fieldOption['system_field_name'] ?? $fieldOption['value'] ?? ''));
+            $header = trim((string) ($fieldOption['label'] ?? $columnKey ?? $field));
+            if ($columnKey === '' || $field === '' || $header === '') {
+                continue;
+            }
+
+            $columns[] = [
+                'original_column_key' => $columnKey,
+                'excel_column_name' => $header,
+                'system_field_name' => $field,
+                'column_order' => $index + 1,
+                'excel_column_index' => $index + 1,
+                'is_required' => (int) ($fieldOption['is_required'] ?? $this->systemFieldService()->formatFieldRequiredMode($dataType, $field, $fieldOption)),
+                'is_reference_column' => 0,
+                'is_visible' => 1,
+            ];
+        }
+
+        $columns = $this->filterSyntheticColumns($columns, $columnsCsv, $dataType);
+        $columns = $this->applySyntheticColumnPolicies($dataType, $columns, $columnDisplayName, $columnRequirementPolicy);
+        if (!$this->hasUsableSyntheticColumns($columns)) {
+            $columns = $this->fallbackSyntheticColumnsForDataType($dataType, $columnDisplayName, $columnRequirementPolicy);
+        }
+
+        return [
+            'id' => '',
+            'format_name' => strtolower($dataType),
+            'data_type' => $dataType,
+            'columns' => $columns,
+        ];
+    }
+
+    private function filterSyntheticColumns(array $columns, string $columnsCsv, string $dataType = ''): array
+    {
+        $requested = array_values(array_filter(array_map('trim', explode(',', $columnsCsv))));
+        if ($requested === []) {
+            return $columns;
+        }
+
+        $columnMap = [];
+        foreach ($columns as $column) {
+            $columnKey = trim((string) ($column['original_column_key'] ?? ''));
+            $field = trim((string) ($column['system_field_name'] ?? ''));
+            if ($columnKey !== '') {
+                $columnMap[$columnKey] = $column;
+            }
+            if ($field !== '') {
+                $columnMap[$field] = $columnMap[$field] ?? $column;
+            }
+        }
+
+        $filtered = [];
+        foreach ($requested as $index => $requestedKey) {
+            $column = $columnMap[$requestedKey] ?? $this->syntheticColumnForRequestedKey($dataType, $requestedKey);
+            if ($column === null) {
+                continue;
+            }
+
+            $filtered[] = array_replace($column, [
+                'column_order' => $index + 1,
+                'excel_column_index' => $index + 1,
+            ]);
+        }
+
+        return $filtered !== [] ? $filtered : $columns;
+    }
+
+    private function hasUsableSyntheticColumns(array $columns): bool
+    {
+        foreach ($columns as $column) {
+            if (trim((string) ($column['excel_column_name'] ?? '')) !== ''
+                && trim((string) ($column['system_field_name'] ?? '')) !== ''
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function fallbackSyntheticColumnsForDataType(string $dataType, array $columnDisplayName = [], array $columnRequirementPolicy = []): array
+    {
+        $dataType = self::normalizeDataType($dataType);
+        if ($dataType !== 'TAX_INVOICE_MANUAL') {
+            return [];
+        }
+
+        $fields = [
+            'transaction_date' => '거래일자',
+            'business_unit' => '사업구분',
+            'transaction_direction' => '거래구분',
+            'transaction_type' => '거래유형',
+            'supplier_business_number' => '공급자 사업자등록번호',
+            'supplier_company_name' => '공급자 상호',
+            'supplier_ceo_name' => '공급자 대표자명',
+            'supplier_address' => '공급자 주소',
+            'customer_business_number' => '공급받는자 사업자등록번호',
+            'customer_company_name' => '공급받는자 상호',
+            'customer_ceo_name' => '공급받는자 대표자명',
+            'customer_address' => '공급받는자 주소',
+            'project_name' => '프로젝트',
+            'supply_amount' => '공급가액',
+            'vat_amount' => '부가세',
+            'total_amount' => '금액',
+            'receipt_claim_type' => '영수/청구구분',
+            'description' => '적요',
+            'note' => '비고',
+        ];
+
+        $columns = [];
+        $index = 1;
+        foreach ($fields as $field => $label) {
+            $columns[] = [
+                'original_column_key' => $field,
+                'excel_column_name' => trim((string) ($columnDisplayName[$field] ?? $label)),
+                'system_field_name' => $field,
+                'column_order' => $index,
+                'excel_column_index' => $index,
+                'is_required' => $this->systemFieldService()->effectiveFormatRequirementMode(
+                    $dataType,
+                    $field,
+                    $this->requestRequirementPolicyMode($columnRequirementPolicy[$field] ?? 0)
+                ),
+                'is_reference_column' => $this->evidenceTemplateDropdownService()->fallbackTemplateFieldOption($field) !== null ? 1 : 0,
+                'is_visible' => 1,
+            ];
+            $index++;
+        }
+
+        return $columns;
+    }
+
+    private function syntheticColumnForRequestedKey(string $dataType, string $requestedKey): ?array
+    {
+        $field = trim($requestedKey);
+        if ($field === '') {
+            return null;
+        }
+
+        $fallbackOption = $this->evidenceTemplateDropdownService()->fallbackTemplateFieldOption($field);
+        $knownBankRawFields = [
+            'raw_transaction_datetime',
+            'raw_deposit_amount',
+            'raw_withdraw_amount',
+            'raw_balance_amount',
+            'raw_description',
+            'raw_counterparty_account_number',
+            'raw_counterparty_bank_name',
+            'raw_memo',
+            'raw_transaction_type',
+            'raw_check_bill_amount',
+            'raw_cms_code',
+            'raw_counterparty_name',
+        ];
+        if ($fallbackOption === null && !(self::normalizeDataType($dataType) === 'BANK_TRANSACTION' && in_array($field, $knownBankRawFields, true))) {
+            return null;
+        }
+
+        return [
+            'original_column_key' => $field,
+            'excel_column_name' => $field,
+            'system_field_name' => $field,
+            'column_order' => 0,
+            'excel_column_index' => 0,
+            'is_required' => $this->systemFieldService()->formatFieldRequiredMode($dataType, $field),
+            'is_reference_column' => $fallbackOption !== null ? 1 : 0,
+            'is_visible' => 1,
+        ];
+    }
+
+    private function sourceFieldOptionsForDataType(string $dataType): array
+    {
+        $options = [];
+        $fieldOptions = $this->systemFieldService()->sourceColumnOptions($dataType);
+        if ($fieldOptions === []) {
+            $fieldOptions = $this->systemFieldService()->fieldOptions($dataType);
+        }
+
+        foreach ($fieldOptions as $fieldOption) {
+            $field = trim((string) ($fieldOption['value'] ?? ''));
+            $label = trim((string) ($fieldOption['label'] ?? $field));
+            if ($field === '' || $label === '') {
+                continue;
+            }
+
+            $options[] = [
+                'original_column_key' => $field,
+                'label' => $label,
+                'system_field_name' => $field,
+                'is_required' => (int) ($fieldOption['is_required'] ?? $this->systemFieldService()->formatFieldRequiredMode($dataType, $field, $fieldOption)),
+            ];
+        }
+
+        return $options;
+    }
+
+    private function applySyntheticColumnPolicies(string $dataType, array $columns, array $columnDisplayName, array $columnRequirementPolicy): array
+    {
+        foreach ($columns as &$column) {
+            $requirementKey = trim((string) ($column['original_column_key'] ?? $column['system_field_name'] ?? ''));
+            $field = trim((string) ($column['system_field_name'] ?? ''));
+            if ($field === '' || $requirementKey === '') {
+                continue;
+            }
+
+            $displayName = trim((string) ($columnDisplayName[$requirementKey] ?? $columnDisplayName[$field] ?? ''));
+            if ($displayName !== '') {
+                $column['excel_column_name'] = $displayName;
+            }
+
+            $column['is_required'] = $this->systemFieldService()->effectiveFormatRequirementMode(
+                $dataType,
+                $field,
+                $this->requestRequirementPolicyMode($columnRequirementPolicy[$requirementKey] ?? ($columnRequirementPolicy[$field] ?? ($column['is_required'] ?? 0)))
+            );
+        }
+        unset($column);
+
+        return $columns;
+    }
+
+    private function templateFieldGroup(string $field, string $dataType): string
+    {
+        $options = $this->evidenceTemplateDropdownService()->systemFieldOptionsByValue($dataType);
+        return (string) ($options[trim($field)]['group'] ?? '');
+    }
+
+    private function isStandardInfoTemplateColumn(string $field, string $header, string $dataType): bool
+    {
+        $group = $this->templateFieldGroup($field, $dataType);
+        return in_array(trim($field), [
+            'source_type',
+            'import_type',
+            'data_type',
+            'evidence_type',
+            'business_unit',
+            'transaction_type',
+            'transaction_direction',
+            'bank_direction',
+            'currency',
+            'currency_code',
+            'exchange_rate',
+        ], true);
+    }
+
+    private function isBasicInfoTemplateColumn(string $field, string $header, string $dataType = ''): bool
+    {
+        $group = $this->templateFieldGroup($field, $dataType);
+        if (in_array(trim($field), [
+            'client_id',
+            'client_name',
+            'client_company_name',
+            'project_id',
+            'project_name',
+            'employee_id',
+            'employee_name',
+            'bank_account_id',
+            'bank_account_name',
+            'account_name',
+            'card_id',
+            'card_name',
+            'team_id',
+            'team_name',
+            'supplier_company_name',
+            'customer_company_name',
+        ], true)) {
+            return true;
+        }
+
+        return str_contains($group, '기초정보');
+    }
+
+    private function isVoucherTemplateColumn(string $field, string $header, string $dataType = ''): bool
+    {
+        return in_array(trim($field), [
+            'voucher_date',
+            'voucher_no',
+            'summary_text',
+            'note',
+            'voucher_memo',
+            'header_row_no',
+            'line_no',
+            'line_row_type',
+            'account_id',
+            'debit',
+            'credit',
+            'line_summary',
+            'line_ref_type',
+            'line_ref_id',
+        ], true);
     }
 
     private function evidenceBusinessRefService(): EvidenceBusinessRefService

@@ -5,7 +5,7 @@
  */
 // Path: /assets/js/common/table/data-table.js
 import { createTableInteraction } from './index.js';
-import { attachDataTableSettings, prepareDataTableSettingsColumns, updateDataTableSettingsState } from '../datatable/dataTableSettings.js';
+import { applyVisibilityToTable, attachDataTableSettings, prepareDataTableSettingsColumns, updateDataTableSettingsState } from '../datatable/dataTableSettings.js';
 
 const __dtAdjustState = new WeakMap();
 const __dtInstances = new Set();
@@ -145,6 +145,18 @@ function isActionColumn(column = {}) {
 }
 
 function getUtilityColumnSettingsKey(column = {}) {
+    if (typeof column?.settingsKey === 'string' && column.settingsKey.trim() !== '') {
+        return column.settingsKey.trim();
+    }
+    if (typeof column?.key === 'string' && column.key.trim() !== '') {
+        return column.key.trim();
+    }
+    if (typeof column?.name === 'string' && column.name.trim() !== '') {
+        return column.name.trim();
+    }
+    if (typeof column?.data === 'string' && column.data.trim() !== '') {
+        return column.data.trim();
+    }
     if (column.isSelectionColumn === true || tokenizeClasses(column.className, column.headerClassName).includes('dt-select-column')) {
         return '__select';
     }
@@ -204,6 +216,50 @@ function normalizeUtilityColumns(columns = []) {
     return columns.map(withUtilityColumnDefaults);
 }
 
+function parseJsonResponse(response) {
+    return response.text().then((text) => {
+        if (!text) {
+            return {};
+        }
+
+        try {
+            return JSON.parse(text);
+        } catch (_error) {
+            return {
+                success: false,
+                message: text.includes('<')
+                    ? 'Request failed: server response is not JSON.'
+                    : text,
+            };
+        }
+    });
+}
+
+function toArrayValue(value = []) {
+    if (Array.isArray(value)) {
+        return value;
+    }
+
+    if (value === null || value === undefined) {
+        return [];
+    }
+
+    return [value];
+}
+
+function buildDeletePayloadFromContext(deletePayload, context = {}) {
+    if (typeof deletePayload === 'function') {
+        const built = deletePayload(context);
+        return (built && typeof built === 'object') ? { ...built } : {};
+    }
+
+    if (deletePayload && typeof deletePayload === 'object') {
+        return { ...deletePayload };
+    }
+
+    return {};
+}
+
 async function postFormJson(url, data = {}) {
     if (typeof AppAjax.postForm === 'function') {
         return AppAjax.postForm(url, data);
@@ -218,13 +274,29 @@ async function postFormJson(url, data = {}) {
         body: new URLSearchParams(data),
     });
 
-    return response.json();
+    return parseJsonResponse(response);
 }
 
-async function postBulkDeleteJson(url, ids = []) {
+async function postBulkDeleteJson(url, payload = []) {
     if (typeof AppAjax.postBulkJson === 'function') {
-        return AppAjax.postBulkJson(url, ids);
+        const normalizedPayload = (payload && typeof payload === 'object' && !Array.isArray(payload))
+            ? payload
+            : {
+                ids: toArrayValue(payload),
+                seed_row_ids: toArrayValue(payload),
+                evidence_ids: toArrayValue(payload),
+            };
+
+        return AppAjax.postBulkJson(url, normalizedPayload);
     }
+
+    const normalizedPayload = (payload && typeof payload === 'object' && !Array.isArray(payload))
+        ? { ...payload }
+        : {
+            ids: toArrayValue(payload),
+            seed_row_ids: toArrayValue(payload),
+            evidence_ids: toArrayValue(payload),
+        };
 
     const response = await fetch(url, {
         method: 'POST',
@@ -233,13 +305,14 @@ async function postBulkDeleteJson(url, ids = []) {
             'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify({
-            ids,
-            seed_row_ids: ids,
-            evidence_ids: ids,
+            ...normalizedPayload,
+            ids: toArrayValue(normalizedPayload.ids),
+            seed_row_ids: toArrayValue(normalizedPayload.seed_row_ids || normalizedPayload.ids),
+            evidence_ids: toArrayValue(normalizedPayload.evidence_ids || normalizedPayload.ids),
         }),
     });
 
-    return response.json();
+    return parseJsonResponse(response);
 }
 
 function showGlobalLoading(message = '\uCC98\uB9AC \uC911\uC785\uB2C8\uB2E4...') {
@@ -432,6 +505,16 @@ const dataTableModuleLoadingHandle = createPageLoadingHandle({
     message: '\uB370\uC774\uD130\uB97C \uBD88\uB7EC\uC624\uB294 \uC911\uC785\uB2C8\uB2E4...',
 });
 
+// Release the module-level page-loading hold after the script is initialized.
+// Table-specific loading handles still cover actual DataTable creation.
+if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(() => {
+        dataTableModuleLoadingHandle.release();
+    });
+} else {
+    dataTableModuleLoadingHandle.release();
+}
+
 function updateDeleteProgress({ total = 0, processed = 0, step = '\uCC98\uB9AC \uC911' } = {}) {
     const panel = ensureDeleteProgressPanel();
     const safeTotal = Math.max(0, Number(total) || 0);
@@ -489,7 +572,15 @@ function reloadDataTable(table) {
     });
 }
 
-async function softDeleteSelectedRows({ deleteApi, ids, table, selectedIds, buttonNode, bulkDelete = false }) {
+async function softDeleteSelectedRows({
+    deleteApi,
+    ids,
+    table,
+    selectedIds,
+    buttonNode,
+    bulkDelete = false,
+    deletePayload = null,
+}) {
     if (!deleteApi) {
         return false;
     }
@@ -524,7 +615,16 @@ async function softDeleteSelectedRows({ deleteApi, ids, table, selectedIds, butt
                     processed,
                     step: `${index + 1} / ${chunks.length} \uBB36\uC74C \uCC98\uB9AC \uC911`,
                 });
-                const result = await postBulkDeleteJson(deleteApi, chunk);
+                const payload = buildDeletePayloadFromContext(deletePayload, {
+                    ids: chunk,
+                    bulk: true,
+                });
+                const result = await postBulkDeleteJson(deleteApi, {
+                    ...payload,
+                    ids: toArrayValue(chunk),
+                    seed_row_ids: toArrayValue(payload.seed_row_ids || chunk),
+                    evidence_ids: toArrayValue(payload.evidence_ids || chunk),
+                });
                 if (!result?.success) {
                     notify('error', result?.message || '\uC0AD\uC81C\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.');
                     return true;
@@ -551,7 +651,14 @@ async function softDeleteSelectedRows({ deleteApi, ids, table, selectedIds, butt
                     processed: index,
                     step: `${index + 1}\uBC88\uC9F8 \uD589 \uCC98\uB9AC \uC911`,
                 });
-                const result = await postFormJson(deleteApi, { id });
+                const payload = buildDeletePayloadFromContext(deletePayload, {
+                    id,
+                    bulk: false,
+                });
+                const result = await postFormJson(deleteApi, {
+                    ...payload,
+                    id,
+                });
                 if (!result?.success) {
                     notify('error', result?.message || `\uC0AD\uC81C \uC2E4\uD328 (${index + 1}\uBC88\uC9F8)`);
                     return true;
@@ -721,15 +828,16 @@ function shiftOrderForSelection(defaultOrder = [], shouldShift = false, insertIn
     }
 
     return defaultOrder.map((item) => {
-        if (!Array.isArray(item) || typeof item[0] !== 'number') {
+        if (!Array.isArray(item)) {
             return item;
         }
 
-        if (item[0] < insertIndex) {
+        const columnIndex = normalizeColumnIndex(item[0]);
+        if (columnIndex === null || columnIndex < insertIndex) {
             return item;
         }
 
-        return [item[0] + 1, ...item.slice(1)];
+        return [columnIndex + 1, ...item.slice(1)];
     });
 }
 
@@ -754,6 +862,11 @@ function resolveSettingsColumnKey(column = {}) {
 
 function normalizeSortDirection(value = '') {
     return String(value || '').trim().toLowerCase() === 'desc' ? 'desc' : 'asc';
+}
+
+function normalizeColumnIndex(value) {
+    const index = Number(value);
+    return Number.isInteger(index) && index >= 0 ? index : null;
 }
 
 function buildOrderFromSortSettings(sortSettings = [], tableColumns = []) {
@@ -784,11 +897,16 @@ function extractSortSettingsFromTable(table, tableColumns = []) {
 
     return (table.order() || [])
         .map((item) => {
-            if (!Array.isArray(item) || typeof item[0] !== 'number') {
+            if (!Array.isArray(item)) {
                 return null;
             }
 
-            const column = tableColumns[item[0]];
+            const columnIndex = normalizeColumnIndex(item[0]);
+            if (columnIndex === null) {
+                return null;
+            }
+
+            const column = tableColumns[columnIndex];
             const key = resolveSettingsColumnKey(column);
             if (key === '') {
                 return null;
@@ -984,6 +1102,59 @@ function applyColumnWidthPx(table, index, widthPx) {
     getColgroupNodesByIndex(table, index).forEach(applyWidth);
 }
 
+function readExplicitNodeWidth(node) {
+    if (!node?.style) {
+        return 0;
+    }
+
+    const candidates = [
+        parseFloat(node.style.width || '0'),
+        parseFloat(node.style.minWidth || '0'),
+        parseFloat(node.style.maxWidth || '0'),
+    ];
+
+    for (const value of candidates) {
+        if (Number.isFinite(value) && value > 0) {
+            return value;
+        }
+    }
+
+    return 0;
+}
+
+function measureAppliedColumnWidth(table, index) {
+    const colgroupNodes = getColgroupNodesByIndex(table, index);
+    const headerNodes = getHeaderNodesByIndex(table, index);
+    const bodyNodes = getBodyCellNodesByIndex(table, index);
+    const candidates = [
+        ...colgroupNodes,
+        ...headerNodes,
+        ...bodyNodes,
+    ];
+
+    for (const node of candidates) {
+        const explicitWidth = readExplicitNodeWidth(node);
+        if (Number.isFinite(explicitWidth) && explicitWidth > 0) {
+            return Math.round(explicitWidth);
+        }
+    }
+
+    const measuredWidth = candidates.reduce((maxWidth, node) => {
+        if (!node) {
+            return maxWidth;
+        }
+
+        const rectWidth = Math.ceil(node.getBoundingClientRect?.().width || 0);
+        const nextWidth = Math.max(
+            Number.isFinite(rectWidth) ? rectWidth : 0
+        );
+
+        return nextWidth > maxWidth ? nextWidth : maxWidth;
+    }, 0);
+
+    return Math.ceil(measuredWidth);
+}
+
 function freezeVisibleColumnWidths(table, tableColumns = []) {
     tableColumns.forEach((column, index) => {
         if (table.column(index).visible() === false) {
@@ -1056,6 +1227,86 @@ function syncRenderedColumnWidths(table, tableColumns = [], settingsContext = nu
 
         applyColumnWidthPx(table, index, measuredWidth);
     });
+}
+
+function collectVisibleColumnWidths(table, tableColumns = [], settingsContext = null) {
+    const configuredWidths = settingsContext?.state?.columnWidths && typeof settingsContext.state.columnWidths === 'object'
+        ? settingsContext.state.columnWidths
+        : {};
+
+    return tableColumns.reduce((acc, column, index) => {
+        if (table.column(index).visible() === false) {
+            return acc;
+        }
+
+        const key = resolveColumnWidthKey(column, index);
+        const configuredWidth = Number(configuredWidths?.[key]);
+        const width = Number.isFinite(configuredWidth) && configuredWidth > 0
+            ? configuredWidth
+            : measureAppliedColumnWidth(table, index);
+        if (!Number.isFinite(width) || width <= 0) {
+            return acc;
+        }
+
+        acc.push({
+            index,
+            key,
+            width,
+            configured: Number.isFinite(configuredWidth) && configuredWidth > 0,
+        });
+        return acc;
+    }, []);
+}
+
+function normalizeSmallConfiguredWidthOverflow(table, tableColumns = [], settingsContext = null, containerWidth = 0) {
+    if (!table || !settingsContext?.config?.enabled) {
+        return 0;
+    }
+
+    const visibleWidths = collectVisibleColumnWidths(table, tableColumns, settingsContext);
+    const configuredEntries = visibleWidths.filter((entry) => entry.configured);
+    const safeContainerWidth = Math.round(Number(containerWidth) || 0);
+    if (configuredEntries.length === 0 || safeContainerWidth <= 0) {
+        return 0;
+    }
+
+    const totalWidth = Math.round(visibleWidths.reduce((sum, entry) => sum + entry.width, 0));
+    const overflow = totalWidth - safeContainerWidth;
+    const threshold = Math.max(2, Math.min(24, visibleWidths.length * 2));
+    if (overflow <= 0 || overflow > threshold) {
+        return 0;
+    }
+
+    const target = [...configuredEntries].reverse().find((entry) => {
+        const column = tableColumns[entry.index] || {};
+        return isColumnWidthConfigurable(column) && Math.round(entry.width) - overflow >= 32;
+    });
+    if (!target) {
+        return 0;
+    }
+
+    const nextWidth = Math.max(32, Math.round(target.width) - overflow);
+    if (nextWidth === Math.round(target.width)) {
+        return 0;
+    }
+
+    applyColumnWidthPx(table, target.index, nextWidth);
+
+    if (target.key) {
+        const currentWidths = settingsContext.state?.columnWidths && typeof settingsContext.state.columnWidths === 'object'
+            ? settingsContext.state.columnWidths
+            : {};
+        if (Number(currentWidths[target.key]) !== nextWidth) {
+            updateDataTableSettingsState(settingsContext, {
+                columnWidths: {
+                    ...currentWidths,
+                    [target.key]: nextWidth,
+                },
+            });
+        }
+    }
+
+    return overflow;
 }
 
 function scheduleApplyConfiguredColumnWidths(table, tableColumns = [], settingsContext = null, delay = 0) {
@@ -1140,8 +1391,7 @@ function bindColumnResize(table, tableColumns = [], settingsContext = null) {
             return;
         }
 
-        const header = table.column(dragState.index).header?.();
-        const widthPx = Math.ceil(header?.getBoundingClientRect?.().width || 0);
+        const widthPx = measureAppliedColumnWidth(table, dragState.index);
         if (!Number.isFinite(widthPx) || widthPx <= 0) {
             return;
         }
@@ -1297,7 +1547,12 @@ function syncScrollHeadWidth(table) {
     if (!wrapper) return;
 
     const widthScope = getDataTableWidthScope(wrapper);
-    const wrapperWidth = Math.ceil(widthScope.clientWidth || widthScope.getBoundingClientRect().width || wrapper.getBoundingClientRect().width);
+    const wrapperWidth = Math.floor(
+        widthScope.clientWidth
+        || widthScope.getBoundingClientRect().width
+        || wrapper.getBoundingClientRect().width
+        || 0
+    );
     if (Number.isFinite(wrapperWidth) && wrapperWidth > 0) {
         wrapper.style.maxWidth = `${wrapperWidth}px`;
     }
@@ -1331,17 +1586,49 @@ function syncScrollHeadWidth(table) {
     const contentWidth = Math.max(
         explicitContentWidth,
         colgroupWidth,
-        Math.ceil(bodyTable.scrollWidth || 0),
-        Math.ceil(bodyTable.getBoundingClientRect().width)
+        Math.floor(bodyTable.scrollWidth || 0),
+        Math.floor(bodyTable.getBoundingClientRect().width)
     );
-    const configuredWidths = table?.__dtTableSettings?.context?.state?.columnWidths;
+    const settingsContext = table?.__dtTableSettings?.context || null;
+    const tableColumns = table?.__dtTableSettings?.tableColumns || [];
+    const configuredWidths = settingsContext?.state?.columnWidths;
     const hasConfiguredWidths = configuredWidths
         && typeof configuredWidths === 'object'
         && Object.keys(configuredWidths).some((key) => {
             const widthPx = Number(configuredWidths[key]);
             return String(key || '').trim() !== '' && Number.isFinite(widthPx) && widthPx > 0;
         });
-    const width = hasConfiguredWidths ? contentWidth : Math.max(wrapperWidth || 0, contentWidth);
+    const viewportWidth = Math.max(
+        0,
+        Math.floor(
+            scrollBody?.clientWidth
+            || scrollHead?.clientWidth
+            || wrapperWidth
+            || 0
+        )
+    );
+    if (hasConfiguredWidths && viewportWidth > 0) {
+        normalizeSmallConfiguredWidthOverflow(table, tableColumns, settingsContext, viewportWidth);
+    }
+
+    const configuredWidthEntries = hasConfiguredWidths
+        ? collectVisibleColumnWidths(table, tableColumns, settingsContext)
+        : [];
+    const configuredWidthSum = hasConfiguredWidths
+        ? configuredWidthEntries.reduce((sum, entry) => sum + entry.width, 0)
+        : 0;
+    let width = hasConfiguredWidths
+        ? Math.max(0, Math.round(configuredWidthSum || contentWidth))
+        : Math.max(wrapperWidth || 0, contentWidth);
+    if (hasConfiguredWidths && viewportWidth > 0) {
+        const overflow = width - viewportWidth;
+        const snapThreshold = Math.max(2, Math.min(12, Math.max(1, tableColumns.length)));
+        if (overflow > 0 && overflow <= snapThreshold) {
+            width = viewportWidth;
+        } else if (overflow > snapThreshold) {
+            width = Math.max(0, viewportWidth - 1);
+        }
+    }
     if (!Number.isFinite(width) || width <= 0) return;
 
     if (Number.isFinite(wrapperWidth) && wrapperWidth > 0) {
@@ -1745,6 +2032,10 @@ function normalizeTableSettingsConfig(tableSettings, {
         tableLabel: String(baseConfig.tableLabel || tableKey || 'Table').trim(),
         title: String(baseConfig.title || 'Table Settings').trim(),
         columns: Array.isArray(baseConfig.columns) ? baseConfig.columns : columns,
+        metaDomain: String(baseConfig.metaDomain || '').trim(),
+        metaUrl: String(baseConfig.metaUrl || '').trim(),
+        metaCacheKey: String(baseConfig.metaCacheKey || '').trim(),
+        metaColumns: Array.isArray(baseConfig.metaColumns) ? baseConfig.metaColumns : [],
         pageLength: Number(baseConfig.pageLength || pageLength) || null,
         requiredColumns: Array.isArray(baseConfig.requiredColumns) ? baseConfig.requiredColumns : [],
         defaultVisibleColumns: Array.isArray(baseConfig.defaultVisibleColumns) ? baseConfig.defaultVisibleColumns : [],
@@ -1800,6 +2091,77 @@ function disposeCellTooltip(cell) {
     cell.removeAttribute('data-bs-original-title');
     cell.removeAttribute('title');
     cell.removeAttribute('aria-label');
+}
+
+function bindTruncatedHeaderTooltips(table) {
+    const wrapper = table?.table?.().container?.();
+    if (!wrapper || wrapper.dataset.dtHeaderTooltipBound === 'true') {
+        return;
+    }
+
+    wrapper.dataset.dtHeaderTooltipBound = 'true';
+    const scrollHead = wrapper.querySelector('.dataTables_scrollHead');
+    const headerScope = scrollHead || wrapper.querySelector('thead');
+    if (!headerScope) {
+        return;
+    }
+
+    const showTooltip = (event) => {
+        const cell = event.target.closest('th');
+        if (!cell || !headerScope.contains(cell)) {
+            return;
+        }
+
+        if (cell.querySelector('input, select, textarea, button, a, .dropdown-menu')) {
+            disposeCellTooltip(cell);
+            return;
+        }
+
+        const text = resolveCellTooltipText(cell);
+        if (text === '' || !isCellTextTruncated(cell)) {
+            disposeCellTooltip(cell);
+            return;
+        }
+
+        if (!window.bootstrap?.Tooltip) {
+            return;
+        }
+
+        cell.setAttribute('title', text);
+        cell.setAttribute('aria-label', text);
+        cell.setAttribute('data-bs-toggle', 'tooltip');
+        cell.setAttribute('data-bs-placement', 'top');
+        cell.setAttribute('data-bs-trigger', 'manual');
+
+        const tooltip = window.bootstrap.Tooltip.getOrCreateInstance(cell, {
+            container: 'body',
+            placement: 'top',
+            trigger: 'manual',
+        });
+        tooltip.show();
+    };
+
+    const hideTooltip = (event) => {
+        const cell = event.target.closest('th');
+        if (!cell || !headerScope.contains(cell)) {
+            return;
+        }
+
+        disposeCellTooltip(cell);
+    };
+
+    scrollHead?.addEventListener?.('mouseover', showTooltip, true);
+    scrollHead?.addEventListener?.('focusin', showTooltip, true);
+    scrollHead?.addEventListener?.('mouseout', hideTooltip, true);
+    scrollHead?.addEventListener?.('focusout', hideTooltip, true);
+
+    if (scrollHead === null) {
+        const tableNode = wrapper.querySelector('table');
+        tableNode?.addEventListener?.('mouseover', showTooltip, true);
+        tableNode?.addEventListener?.('focusin', showTooltip, true);
+        tableNode?.addEventListener?.('mouseout', hideTooltip, true);
+        tableNode?.addEventListener?.('focusout', hideTooltip, true);
+    }
 }
 
 function bindTruncatedCellTooltips(table, tableSelector) {
@@ -1882,6 +2244,54 @@ function positionTableSettingsTrigger(table) {
     toolbar.appendChild(trigger);
 }
 
+function syncDataTableApiReference(targetTable, sourceTable) {
+    if (!targetTable || !sourceTable || targetTable === sourceTable) {
+        return;
+    }
+
+    Reflect.ownKeys(sourceTable).forEach((key) => {
+        try {
+            targetTable[key] = sourceTable[key];
+        } catch (_error) {
+            // Ignore read-only DataTables API properties.
+        }
+    });
+
+    if (sourceTable.context) {
+        targetTable.context = sourceTable.context;
+    }
+    if (sourceTable.selector) {
+        targetTable.selector = sourceTable.selector;
+    }
+}
+
+function rebuildDataTableFromSettings(table, config = {}) {
+    const tableSelector = String(config?.tableSelector || '').trim();
+    const tableElement = tableSelector !== '' ? document.querySelector(tableSelector) : null;
+    const $ = window.jQuery;
+    if (!tableSelector || !tableElement || !$?.fn?.dataTable) {
+        return false;
+    }
+
+    const savedScrollTop = window.scrollY || window.pageYOffset || 0;
+
+    try {
+        if ($.fn.dataTable.isDataTable(tableElement)) {
+            table.destroy();
+        }
+
+        tableElement.innerHTML = '';
+        const rebuiltTable = createDataTable({ ...config });
+        syncDataTableApiReference(table, rebuiltTable);
+        tableElement.__dtCurrentInstance = rebuiltTable;
+        window.scrollTo(0, savedScrollTop);
+        return true;
+    } catch (error) {
+        console.warn('[datatable] settings rebuild failed:', error);
+        return false;
+    }
+}
+
 export function createDataTable(config) {
     const hasExplicitAutoWidth = Object.prototype.hasOwnProperty.call(config || {}, 'autoWidth');
     const {
@@ -1914,6 +2324,7 @@ export function createDataTable(config) {
         deleteButton = true,
         deleteApi = null,
         bulkDelete = false,
+        deletePayload = null,
         interaction = false,
         pageLoading = true,
         tableSettings = null,
@@ -1943,6 +2354,7 @@ export function createDataTable(config) {
     });
     const preparedTableSettings = prepareDataTableSettingsColumns(sourceColumnsWithSelection, resolvedTableSettings);
     const savedPageLength = Number(preparedTableSettings.context?.state?.pageLength);
+    const savedCurrentPage = Number(preparedTableSettings.context?.state?.currentPage);
     const resolvedColumns = preparedTableSettings.columns || sourceColumnsWithSelection;
     const resolvedAutoWidth = hasExplicitAutoWidth
         ? autoWidth
@@ -2015,6 +2427,9 @@ export function createDataTable(config) {
             ? resolvedInitialOrder
             : shiftOrderForSelection(defaultOrder, shouldAddSelectionColumn, selectionInsertIndex),
         pageLength: resolvedInitialPageLength,
+        displayStart: Number.isFinite(savedCurrentPage) && savedCurrentPage > 0
+            ? savedCurrentPage * resolvedInitialPageLength
+            : 0,
         lengthMenu: PAGE_LENGTH_MENU,
 
         rowReorder: rowReorder ? {
@@ -2125,6 +2540,7 @@ export function createDataTable(config) {
                         selectedIds,
                         buttonNode: buttonNode?.get?.(0) || buttonNode?.[0] || null,
                         bulkDelete,
+                        deletePayload,
                     });
 
                     if (handled) {
@@ -2146,7 +2562,7 @@ export function createDataTable(config) {
             }]),
             ...buttons,
             ...(resolvedTableSettings?.enabled ? [{
-                text: '<i class="bi bi-gear"></i>',
+                text: '<i class="bi bi-gear me-1"></i>설정',
                 className: 'dt-table-settings-trigger',
                 titleAttr: '\uD14C\uC774\uBE14 \uC124\uC815',
                 action: function () {
@@ -2273,6 +2689,19 @@ export function createDataTable(config) {
 
         updateDataTableSettingsState(preparedTableSettings.context, {
             pageLength: normalizedLength,
+            currentPage: 0,
+        });
+    });
+
+    table.on('page.dt', function () {
+        if (!preparedTableSettings.context) {
+            return;
+        }
+
+        const pageInfo = table.page.info?.();
+        const currentPage = Number(pageInfo?.page);
+        updateDataTableSettingsState(preparedTableSettings.context, {
+            currentPage: Number.isFinite(currentPage) && currentPage >= 0 ? currentPage : 0,
         });
     });
 
@@ -2348,10 +2777,67 @@ export function createDataTable(config) {
         table.__dtTableSettings.refreshLayout = (options = {}) => refreshTableSettingsLayout(options);
         table.__dtTableSettings.tableColumns = tableColumns;
         table.__dtTableSettings.context = preparedTableSettings.context;
+        table.__dtTableSettings.applyState = ({ previousState, nextState } = {}) => {
+            const currentOrder = Array.isArray(previousState?.columnOrder)
+                ? previousState.columnOrder
+                : [];
+            const targetOrder = Array.isArray(nextState?.columnOrder)
+                ? nextState.columnOrder
+                : [];
+            const currentVisible = Array.isArray(previousState?.visibleColumns)
+                ? previousState.visibleColumns
+                : [];
+            const targetVisible = Array.isArray(nextState?.visibleColumns)
+                ? nextState.visibleColumns
+                : [];
+            const currentDisplayName = previousState?.columnDisplayName && typeof previousState.columnDisplayName === 'object'
+                ? previousState.columnDisplayName
+                : {};
+            const targetDisplayName = nextState?.columnDisplayName && typeof nextState.columnDisplayName === 'object'
+                ? nextState.columnDisplayName
+                : {};
+            const visibilityChanged = currentVisible.length !== targetVisible.length
+                || currentVisible.some((key, index) => key !== targetVisible[index]);
+            const displayNameChanged = (() => {
+                const currentKeys = Object.keys(currentDisplayName);
+                const targetKeys = Object.keys(targetDisplayName);
+                if (currentKeys.length !== targetKeys.length) {
+                    return true;
+                }
+
+                const keys = new Set([...currentKeys, ...targetKeys]);
+                for (const key of keys) {
+                    if (String(currentDisplayName[key] ?? '') !== String(targetDisplayName[key] ?? '')) {
+                        return true;
+                    }
+                }
+
+                return false;
+            })();
+
+            const orderUnchanged = currentOrder.length === targetOrder.length
+                && currentOrder.every((key, index) => key === targetOrder[index]);
+
+            if (orderUnchanged && !displayNameChanged && visibilityChanged) {
+                applyVisibilityToTable(table, preparedTableSettings.context);
+                refreshTableSettingsLayout({ draw: true });
+                return true;
+            }
+
+            if (orderUnchanged
+                && !visibilityChanged
+                && !displayNameChanged) {
+                refreshTableSettingsLayout({ draw: true });
+                return true;
+            }
+
+            return rebuildDataTableFromSettings(table, config);
+        };
     }
     positionTableSettingsTrigger(table);
     bindTableSettingsTooltip(table);
     bindTruncatedCellTooltips(table, tableSelector);
+    bindTruncatedHeaderTooltips(table);
 
     return table;
 }

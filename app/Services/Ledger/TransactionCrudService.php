@@ -6,6 +6,7 @@ use App\Models\Ledger\TransactionItemModel;
 use App\Models\Ledger\TransactionFileModel;
 use App\Models\Ledger\TransactionLinkModel;
 use App\Models\Ledger\TransactionModel;
+use App\Models\Ledger\TransactionSettlementModel;
 use App\Services\File\FileService;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\SequenceHelper;
@@ -16,6 +17,7 @@ class TransactionCrudService
 {
     private TransactionModel $transactionModel;
     private TransactionItemModel $transactionItemModel;
+    private TransactionSettlementModel $transactionSettlementModel;
     private TransactionFileModel $transactionFileModel;
     private TransactionLinkModel $transactionLinkModel;
     private FileService $fileService;
@@ -24,6 +26,7 @@ class TransactionCrudService
     {
         $this->transactionModel = new TransactionModel($pdo);
         $this->transactionItemModel = new TransactionItemModel($pdo);
+        $this->transactionSettlementModel = new TransactionSettlementModel($pdo);
         $this->transactionFileModel = new TransactionFileModel($pdo);
         $this->transactionLinkModel = new TransactionLinkModel($pdo);
         $this->fileService = new FileService($pdo);
@@ -34,7 +37,10 @@ class TransactionCrudService
         $filters = $this->normalizeSearchFilters($filters);
 
         $allowedKeys = [
+            'source_type',
+            'import_type',
             'business_unit',
+            'transaction_direction',
             'transaction_type',
             'status',
             'match_status',
@@ -61,7 +67,23 @@ class TransactionCrudService
             $normalized[$key] = $value;
         }
 
-        return $this->transactionModel->getList($normalized);
+        $rows = $this->transactionModel->getList($normalized);
+
+        return array_map(function (array $row): array {
+            $row['description'] = $row['transaction_description'] ?? '';
+            $row['note'] = $row['transaction_note'] ?? '';
+            $row['memo'] = $row['transaction_memo'] ?? '';
+            $row['exchange_rate'] = $row['transaction_exchange_rate'] ?? null;
+            $row['foreign_amount'] = $row['transaction_foreign_amount'] ?? 0;
+            $row['supply_amount'] = $row['transaction_supply_amount'] ?? 0;
+            $row['settlement_amount'] = $row['transaction_settlement_amount'] ?? 0;
+            $row['final_amount'] = $row['transaction_final_amount'] ?? 0;
+            $row['base_amount'] = $row['supply_amount'];
+            $row['adjustment_amount'] = $row['settlement_amount'];
+            $row['total_amount'] = $row['final_amount'];
+
+            return $row;
+        }, $rows);
     }
 
     private function normalizeSearchFilters(array $filters): array
@@ -80,24 +102,35 @@ class TransactionCrudService
         $searchConditions = [];
         $searchableFields = [
             'sort_no',
+            'source_type',
+            'import_type',
             'business_unit',
+            'transaction_direction',
             'transaction_type',
             'transaction_date',
+            'bank_account_id',
+            'card_id',
+            'team_id',
+            'employee_id',
             'project_id',
             'project_name',
             'client_id',
             'client_name',
-            'adjustment_amount',
+            'foreign_amount',
             'supply_amount',
-            'vat_amount',
-            'total_amount',
-            'description',
+            'settlement_amount',
+            'final_amount',
+            'transaction_supply_amount',
+            'transaction_settlement_amount',
+            'transaction_final_amount',
+            'transaction_foreign_amount',
+            'transaction_description',
             'currency',
-            'exchange_rate',
+            'transaction_exchange_rate',
             'status',
             'match_status',
-            'note',
-            'memo',
+            'transaction_note',
+            'transaction_memo',
             'created_at',
             'created_by',
             'updated_at',
@@ -151,8 +184,21 @@ class TransactionCrudService
         }
 
         $transaction['items'] = $this->transactionItemModel->getByTransactionId($id);
+        $transaction['settlements'] = $this->transactionSettlementModel->getByTransactionId($id);
         $transaction['files'] = $this->transactionFileModel->getByTransactionId($id);
         $transaction['links'] = $this->transactionLinkModel->getByTransactionId($id);
+
+        $transaction['description'] = $transaction['transaction_description'] ?? '';
+        $transaction['note'] = $transaction['transaction_note'] ?? '';
+        $transaction['memo'] = $transaction['transaction_memo'] ?? '';
+        $transaction['exchange_rate'] = $transaction['transaction_exchange_rate'] ?? null;
+        $transaction['foreign_amount'] = $transaction['transaction_foreign_amount'] ?? 0;
+        $transaction['supply_amount'] = $transaction['transaction_supply_amount'] ?? 0;
+        $transaction['settlement_amount'] = $transaction['transaction_settlement_amount'] ?? 0;
+        $transaction['final_amount'] = $transaction['transaction_final_amount'] ?? 0;
+        $transaction['base_amount'] = $transaction['supply_amount'];
+        $transaction['adjustment_amount'] = $transaction['settlement_amount'];
+        $transaction['total_amount'] = $transaction['final_amount'];
 
         return $transaction;
     }
@@ -176,7 +222,7 @@ class TransactionCrudService
             'updated_at' => date('Y-m-d H:i:s'),
             'updated_by' => $actor,
         ])) {
-            throw new \RuntimeException('嫄곕옒 ?곌껐 ?곹깭 媛깆떊???ㅽ뙣?덉뒿?덈떎.');
+            throw new \RuntimeException('거래 연결 상태 갱신에 실패했습니다.');
         }
     }
 
@@ -330,12 +376,12 @@ class TransactionCrudService
         }
 
         $ids = [];
-        if ($this->tableExists('ledger_transaction_lines')
-            && $this->tableColumnExists('ledger_transaction_lines', 'processing_item_id')
+        if ($this->tableExists('ledger_transaction_items')
+            && $this->tableColumnExists('ledger_transaction_items', 'processing_item_id')
         ) {
             $stmt = $this->pdo->prepare("
                 SELECT processing_item_id
-                FROM ledger_transaction_lines
+                FROM ledger_transaction_items
                 WHERE transaction_id = :transaction_id
                   AND processing_item_id IS NOT NULL
             ");
@@ -392,7 +438,7 @@ class TransactionCrudService
 
         $importType = trim((string) ($transaction['import_type'] ?? ''));
         $transactionDate = $this->dateString($transaction['transaction_date'] ?? null);
-        $totalAmount = $this->numberOrNull($transaction['total_amount'] ?? null);
+        $totalAmount = $this->numberOrNull($transaction['transaction_final_amount'] ?? null);
         if ($importType === '' || $transactionDate === '' || $totalAmount === null) {
             return;
         }
@@ -429,8 +475,8 @@ class TransactionCrudService
                 continue;
             }
 
-            $transactionDescription = trim((string) ($transaction['description'] ?? ''));
-            $mappedDescription = trim((string) ($mapped['description'] ?? ''));
+            $transactionDescription = trim((string) ($transaction['transaction_description'] ?? ''));
+            $mappedDescription = trim((string) ($mapped['transaction_description'] ?? $mapped['description'] ?? ''));
             if ($transactionDescription !== '' && $mappedDescription !== '' && $transactionDescription !== $mappedDescription) {
                 continue;
             }
@@ -644,10 +690,12 @@ class TransactionCrudService
         $timestamp = date('Y-m-d H:i:s');
         $transactionId = trim((string) ($data['id'] ?? ''));
         $items = $this->normalizeItems($data['items'] ?? [], $data);
+        $settlements = $this->normalizeSettlements($data['settlements'] ?? [], $data);
 
-        $lineTotals = $this->calculateTotals($items);
-        $totals = $this->resolveTransactionTotals($data, $lineTotals);
-        if (abs((float) $totals['total_amount']) <= 0) {
+        $itemTotals = $this->calculateItemTotals($items);
+        $settlementTotals = $this->calculateSettlementTotals($settlements);
+        $totals = $this->resolveTransactionTotals($data, $itemTotals, $settlementTotals);
+        if (abs((float) $totals['transaction_final_amount']) <= 0) {
             return [
                 'success' => false,
                 'message' => '거래헤더 금액을 입력해 주세요.',
@@ -670,6 +718,7 @@ class TransactionCrudService
                 if (!$this->transactionModel->update($transactionId, $transactionPayload['update'])) {
                     throw new \RuntimeException('거래 수정에 실패했습니다.');
                 }
+                $this->recreateSettlements($transactionId, [], $actor, $timestamp);
             } else {
                 $transactionId = UuidHelper::generate();
                 $insertPayload = $transactionPayload['insert'];
@@ -690,6 +739,7 @@ class TransactionCrudService
                 }
             } else {
                 $this->recreateItems($transactionId, $items, $actor, $timestamp);
+                $this->recreateSettlements($transactionId, $settlements, $actor, $timestamp);
             }
             $this->syncFiles($transactionId, $data, $files, $actor, $timestamp);
 
@@ -729,25 +779,34 @@ class TransactionCrudService
             throw new \InvalidArgumentException('거래유형을 선택해 주세요.');
         }
 
+        $transactionId = trim((string) ($data['id'] ?? ''));
+
         $base = [
+            'source_type' => $this->nullable($data['source_type'] ?? null),
+            'import_type' => $this->nullable($data['import_type'] ?? null),
             'transaction_date' => $transactionDate,
             'business_unit' => $businessUnit,
-            'transaction_type' => $transactionType,
             'transaction_direction' => $this->nullable($data['transaction_direction'] ?? null),
-            'import_type' => $this->nullable($data['import_type'] ?? $data['source_type'] ?? null),
+            'transaction_type' => $transactionType,
             'client_id' => $this->nullable($data['client_id'] ?? null),
             'project_id' => $this->nullable($data['project_id'] ?? null),
-            'currency' => trim((string) ($data['currency'] ?? 'KRW')) ?: 'KRW',
-            'exchange_rate' => $this->numericOrNull($data['exchange_rate'] ?? null),
-            'adjustment_amount' => $totals['adjustment_amount'],
-            'supply_amount' => $totals['supply_amount'],
-            'vat_amount' => $totals['vat_amount'],
-            'total_amount' => $totals['total_amount'],
-            'description' => $this->nullable($data['description'] ?? null),
+            'bank_account_id' => $this->nullable($data['bank_account_id'] ?? null),
+            'card_id' => $this->nullable($data['card_id'] ?? null),
+            'team_id' => $this->nullable($data['team_id'] ?? null),
+            'employee_id' => $this->nullable($data['employee_id'] ?? null),
+            'currency' => !empty($data['is_import']) ? $this->normalizeCurrencyCode($data['currency'] ?? 'KRW') : 'KRW',
+            'transaction_exchange_rate' => !empty($data['is_import'])
+                ? $this->numericOrNull($data['transaction_exchange_rate'] ?? $data['exchange_rate'] ?? null)
+                : $this->numericOrNull($data['transaction_exchange_rate'] ?? $data['exchange_rate'] ?? null),
+            'transaction_foreign_amount' => !empty($data['is_import']) ? $totals['transaction_foreign_amount'] : null,
+            'transaction_supply_amount' => $totals['transaction_supply_amount'],
+            'transaction_settlement_amount' => $totals['transaction_settlement_amount'],
+            'transaction_final_amount' => $totals['transaction_final_amount'],
+            'transaction_description' => $this->nullable($data['transaction_description'] ?? $data['description'] ?? null),
             'status' => $this->normalizeTransactionStatus($data['status'] ?? 'draft'),
-            'match_status' => trim((string) ($data['match_status'] ?? 'none')) ?: 'none',
-            'note' => $this->nullable($data['note'] ?? null),
-            'memo' => $this->nullable($data['memo'] ?? null),
+            'match_status' => $this->resolveMatchStatusForSave($transactionId),
+            'transaction_note' => $this->nullable($data['transaction_note'] ?? $data['note'] ?? null),
+            'transaction_memo' => $this->nullable($data['transaction_memo'] ?? $data['memo'] ?? null),
             'updated_at' => $timestamp,
             'updated_by' => $actor,
         ];
@@ -776,23 +835,17 @@ class TransactionCrudService
                 'sort_no' => $index + 1,
                 'transaction_id' => $transactionId,
                 'processing_item_id' => $item['processing_item_id'] ?? null,
-                'line_type' => $item['line_type'],
                 'item_date' => $item['item_date'],
                 'item_name' => $item['item_name'],
-                'specification' => $item['specification'],
-                'unit_name' => $item['unit_name'],
-                'quantity' => $item['quantity'],
-                'unit_price' => $item['unit_price'],
-                'currency_code' => $item['currency_code'],
-                'exchange_rate' => $item['exchange_rate'],
-                'foreign_unit_price' => $item['foreign_unit_price'],
-                'foreign_amount' => $item['foreign_amount'],
-                'amount' => $item['amount'],
-                'supply_amount' => $item['supply_amount'],
-                'vat_amount' => $item['vat_amount'],
-                'total_amount' => $item['total_amount'],
-                'tax_type' => $item['tax_type'],
-                'description' => $item['description'],
+                'item_specification' => $item['item_specification'],
+                'item_unit_name' => $item['item_unit_name'],
+                'item_quantity' => $item['item_quantity'],
+                'item_unit_price' => $item['item_unit_price'],
+                'item_foreign_unit_price' => $item['item_foreign_unit_price'],
+                'item_foreign_amount' => $item['item_foreign_amount'],
+                'item_supply_amount' => $item['item_supply_amount'],
+                'item_tax_type' => $item['item_tax_type'],
+                'item_description' => $item['item_description'],
                 'created_at' => $timestamp,
                 'created_by' => $actor,
                 'updated_at' => $timestamp,
@@ -805,6 +858,40 @@ class TransactionCrudService
         }
     }
 
+    private function recreateSettlements(string $transactionId, array $settlements, string $actor, string $timestamp): void
+    {
+        $existingRows = $this->transactionSettlementModel->getByTransactionId($transactionId);
+        foreach ($existingRows as $row) {
+            if (!$this->transactionSettlementModel->hardDelete((string) $row['id'])) {
+                throw new \RuntimeException('거래정산 기존 행 정리에 실패했습니다.');
+            }
+        }
+
+        foreach ($settlements as $index => $settlement) {
+            $payload = [
+                'id' => UuidHelper::generate(),
+                'sort_no' => $index + 1,
+                'transaction_id' => $transactionId,
+                'transaction_item_id' => $settlement['transaction_item_id'] ?? null,
+                'settlement_type' => $settlement['settlement_type'],
+                'amount_sign' => $settlement['amount_sign'],
+                'amount' => $settlement['amount'],
+                'currency' => $settlement['currency'],
+                'exchange_rate' => $settlement['exchange_rate'],
+                'settlement_description' => $settlement['settlement_description'],
+                'meta_json' => $settlement['meta_json'],
+                'created_at' => $timestamp,
+                'created_by' => $actor,
+                'updated_at' => $timestamp,
+                'updated_by' => $actor,
+            ];
+
+            if (!$this->transactionSettlementModel->insert($payload)) {
+                throw new \RuntimeException(($index + 1) . '踰덉㎏ 嫄곕옒 ?뺣궛 ??μ뿉 ?ㅽ뙣?덉뒿?덈떎.');
+            }
+        }
+    }
+
     private function normalizeTaxType(mixed $value): ?string
     {
         $taxType = strtoupper(trim((string) ($value ?? '')));
@@ -813,43 +900,49 @@ class TransactionCrudService
 
     private function normalizeTransactionStatus(mixed $value): string
     {
-        // TODO: ledger_transactions.status DEFAULT 'active' differs from the code values draft/approved/rejected; add a DB migration.
         $status = strtolower(trim((string) ($value ?? 'draft')));
-        return in_array($status, ['draft', 'approved', 'rejected'], true) ? $status : 'draft';
+        return in_array($status, ['draft', 'completed', 'closed', 'cancelled'], true) ? $status : 'draft';
     }
 
-    private function calculateTotals(array $items): array
+    private function calculateItemTotals(array $items): array
     {
-        $adjustmentAmount = 0.0;
+        $foreignAmount = 0.0;
         $supplyAmount = 0.0;
-        $vatAmount = 0.0;
-        $totalAmount = 0.0;
 
         foreach ($items as $item) {
-            $lineType = strtoupper(trim((string) ($item['line_type'] ?? 'GOODS'))) ?: 'GOODS';
-            $amount = (float) ($item['amount'] ?? $item['total_amount'] ?? 0);
-            if ($this->isBaseLineType($lineType)) {
-                $supplyAmount += $amount;
-            } else {
-                $adjustmentAmount += $amount;
-                if ($lineType === 'VAT') {
-                    $vatAmount += $amount;
-                }
-            }
-            $totalAmount += $amount;
+            $foreignAmount += (float) ($item['item_foreign_amount'] ?? 0);
+            $supplyAmount += (float) ($item['item_supply_amount'] ?? 0);
         }
 
         return [
-            'adjustment_amount' => round($adjustmentAmount, 2),
-            'supply_amount' => round($supplyAmount, 2),
-            'vat_amount' => round($vatAmount, 2),
-            'total_amount' => round($totalAmount ?: ($supplyAmount + $adjustmentAmount), 2),
+            'transaction_foreign_amount' => round($foreignAmount, 2),
+            'transaction_supply_amount' => round($supplyAmount, 2),
         ];
     }
 
-    private function isBaseLineType(string $lineType): bool
+    private function calculateSettlementTotals(array $settlements): array
     {
-        return in_array(strtoupper($lineType), ['GOODS', 'ITEM', 'SERVICE'], true);
+        $settlementAmount = 0.0;
+
+        foreach ($settlements as $settlement) {
+            $signedBaseAmount = (float) ($settlement['signed_base_amount'] ?? 0);
+            $settlementAmount += $signedBaseAmount;
+        }
+
+        return [
+            'transaction_settlement_amount' => round($settlementAmount, 2),
+        ];
+    }
+
+    private function resolveMatchStatusForSave(string $transactionId): string
+    {
+        if ($transactionId === '') {
+            return 'none';
+        }
+
+        return $this->transactionLinkModel->countActiveByTransactionId($transactionId) > 0
+            ? 'matched'
+            : 'none';
     }
 
     private function normalizeCurrencyCode(mixed $value): string
@@ -858,29 +951,38 @@ class TransactionCrudService
         return preg_match('/^[A-Z]{3}$/', $currency) ? $currency : 'KRW';
     }
 
-    private function resolveTransactionTotals(array $data, array $lineTotals): array
+    private function resolveTransactionTotals(array $data, array $itemTotals, array $settlementTotals): array
     {
-        if (abs((float) ($lineTotals['total_amount'] ?? 0)) > 0) {
-            return $lineTotals;
+        $supplyAmount = (float) ($itemTotals['transaction_supply_amount'] ?? 0);
+        $foreignAmount = (float) ($itemTotals['transaction_foreign_amount'] ?? 0);
+        $settlementAmount = (float) ($settlementTotals['transaction_settlement_amount'] ?? 0);
+        $finalAmount = $supplyAmount + $settlementAmount;
+
+        if (abs($supplyAmount) > 0 || abs($settlementAmount) > 0) {
+            return [
+                'transaction_foreign_amount' => round($foreignAmount, 2),
+                'transaction_supply_amount' => round($supplyAmount, 2),
+                'transaction_settlement_amount' => round($settlementAmount, 2),
+                'transaction_final_amount' => round($finalAmount, 2),
+            ];
         }
 
-        $baseAmount = (float) ($this->numericOrNull($data['supply_amount'] ?? null) ?? 0);
-        $adjustmentAmount = (float) ($this->numericOrNull($data['adjustment_amount'] ?? null) ?? $this->numericOrNull($data['vat_amount'] ?? null) ?? 0);
-        $supplyAmount = (float) ($this->numericOrNull($data['supply_amount'] ?? null) ?? 0);
-        $vatAmount = (float) ($this->numericOrNull($data['vat_amount'] ?? null) ?? 0);
-        $totalAmount = (float) ($this->numericOrNull($data['total_amount'] ?? null) ?? 0);
-        if (abs($totalAmount) <= 0 && (abs($supplyAmount) > 0 || abs($vatAmount) > 0)) {
-            $totalAmount = $supplyAmount + $vatAmount;
+        $foreignAmount = (float) ($this->numericOrNull($data['transaction_foreign_amount'] ?? null) ?? 0);
+        $supplyAmount = (float) ($this->numericOrNull($data['transaction_supply_amount'] ?? $data['supply_amount'] ?? null) ?? 0);
+        $settlementAmount = (float) ($this->numericOrNull($data['transaction_settlement_amount'] ?? $data['settlement_amount'] ?? null) ?? 0);
+        $finalAmount = (float) ($this->numericOrNull($data['transaction_final_amount'] ?? $data['final_amount'] ?? null) ?? 0);
+        if (abs($finalAmount) <= 0 && (abs($supplyAmount) > 0 || abs($settlementAmount) > 0)) {
+            $finalAmount = $supplyAmount + $settlementAmount;
         }
-        if (abs($totalAmount) <= 0 && (abs($baseAmount) > 0 || abs($adjustmentAmount) > 0)) {
-            $totalAmount = $baseAmount + $adjustmentAmount;
+        if (abs($finalAmount) <= 0 && (abs($supplyAmount) > 0 || abs($settlementAmount) > 0)) {
+            $finalAmount = $supplyAmount + $settlementAmount;
         }
 
         return [
-            'adjustment_amount' => round($adjustmentAmount, 2),
-            'supply_amount' => round($supplyAmount, 2),
-            'vat_amount' => round($vatAmount, 2),
-            'total_amount' => round($totalAmount, 2),
+            'transaction_foreign_amount' => round($foreignAmount, 2),
+            'transaction_supply_amount' => round($supplyAmount, 2),
+            'transaction_settlement_amount' => round($settlementAmount, 2),
+            'transaction_final_amount' => round($finalAmount, 2),
         ];
     }
 
@@ -1021,150 +1123,133 @@ class TransactionCrudService
                 continue;
             }
 
-            $itemName = trim((string) ($item['item_name'] ?? $item['name'] ?? ''));
+            $itemName = trim((string) ($item['item_name'] ?? ''));
             if ($itemName === '') {
                 continue;
             }
 
-            $quantity = (float) ($this->numericOrNull($item['quantity'] ?? $item['item_qty'] ?? 0) ?? 0);
-            $currencyCode = $this->normalizeCurrencyCode($item['currency_code'] ?? $item['currency'] ?? 'KRW');
-            $exchangeRate = (float) ($this->numericOrNull($item['exchange_rate'] ?? null) ?? 0);
-            $foreignUnitPrice = $this->numericOrNull($item['foreign_unit_price'] ?? null);
-            $foreignAmount = $this->numericOrNull($item['foreign_amount'] ?? null);
-            $usesForeignAmount = $exchangeRate > 0 && ($foreignUnitPrice !== null || $foreignAmount !== null);
-            if ($usesForeignAmount && $foreignAmount === null) {
-                $foreignAmount = round($quantity * (float) $foreignUnitPrice, 2);
+            $itemQuantity = (float) ($this->numericOrNull($item['item_quantity'] ?? $item['quantity'] ?? 0) ?? 0);
+            $exchangeRate = (float) ($this->numericOrNull($data['transaction_exchange_rate'] ?? $data['exchange_rate'] ?? null) ?? 0);
+            $itemForeignUnitPrice = $this->numericOrNull($item['item_foreign_unit_price'] ?? $item['foreign_unit_price'] ?? null);
+            $itemForeignAmount = $this->numericOrNull($item['item_foreign_amount'] ?? $item['foreign_amount'] ?? null);
+            $usesForeignAmount = $exchangeRate > 0 && ($itemForeignUnitPrice !== null || $itemForeignAmount !== null);
+            if ($usesForeignAmount && $itemForeignAmount === null) {
+                $itemForeignAmount = round($itemQuantity * (float) $itemForeignUnitPrice, 2);
             }
-            $unitPrice = $usesForeignAmount && $quantity > 0
-                ? round(((float) $foreignAmount * $exchangeRate) / $quantity, 2)
-                : (float) ($this->numericOrNull($item['unit_price'] ?? 0) ?? 0);
-            $taxType = $this->normalizeTaxType($item['tax_type'] ?? null)
+            $itemUnitPrice = $usesForeignAmount && $itemQuantity > 0
+                ? round(((float) $itemForeignAmount * $exchangeRate) / $itemQuantity, 2)
+                : (float) ($this->numericOrNull($item['item_unit_price'] ?? $item['unit_price'] ?? 0) ?? 0);
+            $itemTaxType = $this->normalizeTaxType($item['item_tax_type'] ?? $item['tax_type'] ?? null)
                 ?? ($usesForeignAmount ? 'ZERO' : 'TAXABLE');
             $itemDate = trim((string) ($item['item_date'] ?? ($data['transaction_date'] ?? date('Y-m-d'))));
             if ($itemDate === '') {
                 $itemDate = date('Y-m-d');
             }
 
-            $givenSupplyAmount = $this->numericOrNull($item['supply_amount'] ?? null);
-            $givenVatAmount = $this->numericOrNull($item['vat_amount'] ?? null);
-            $givenTotalAmount = $this->numericOrNull($item['total_amount'] ?? null);
+            $givenSupplyAmount = $this->numericOrNull($item['item_supply_amount'] ?? $item['supply_amount'] ?? $item['amount'] ?? null);
 
             $supplyAmount = $usesForeignAmount
-                ? round((float) $foreignAmount * $exchangeRate, 2)
-                : round($quantity * $unitPrice, 2);
-            $vatAmount = $taxType === 'TAXABLE' ? round($supplyAmount * 0.1, 2) : 0.0;
-            $totalAmount = round($supplyAmount + $vatAmount, 2);
-
-            if ($givenSupplyAmount !== null || $givenVatAmount !== null || $givenTotalAmount !== null) {
-                $supplyAmount = round((float) ($givenSupplyAmount ?? (
-                    $givenTotalAmount !== null ? ((float) $givenTotalAmount - (float) ($givenVatAmount ?? 0)) : $supplyAmount
-                )), 2);
-                $vatAmount = round((float) ($givenVatAmount ?? (
-                    $givenTotalAmount !== null ? ((float) $givenTotalAmount - $supplyAmount) : ($taxType === 'TAXABLE' ? round($supplyAmount * 0.1, 2) : 0)
-                )), 2);
-                $totalAmount = round((float) ($givenTotalAmount ?? ($supplyAmount + $vatAmount)), 2);
-                if ($quantity <= 0) {
-                    $quantity = 1.0;
+                ? round((float) $itemForeignAmount * $exchangeRate, 2)
+                : round($itemQuantity * $itemUnitPrice, 2);
+            if ($givenSupplyAmount !== null) {
+                $supplyAmount = round((float) $givenSupplyAmount, 2);
+                if ($itemQuantity <= 0) {
+                    $itemQuantity = 1.0;
                 }
-                if ($unitPrice <= 0 && $quantity > 0) {
-                    $unitPrice = round($supplyAmount / $quantity, 2);
+                if ($itemUnitPrice <= 0 && $itemQuantity > 0) {
+                    $itemUnitPrice = round($supplyAmount / $itemQuantity, 2);
                 }
             }
 
-            $lineType = $this->normalizeLineType($item['line_type'] ?? $item['amount_type'] ?? '');
-            $givenAmount = $this->numericOrNull($item['amount'] ?? null);
-            if ($lineType === '') {
-                $lineType = 'GOODS';
+            if ($itemQuantity <= 0) {
+                $itemQuantity = 1.0;
             }
-            $lineAmount = round((float) ($givenAmount ?? (
-                $lineType === 'VAT'
-                    ? ($givenVatAmount ?? $givenTotalAmount ?? $vatAmount)
-                    : ($this->isBaseLineType($lineType) ? $supplyAmount : ($givenTotalAmount ?? $supplyAmount))
-            )), 2);
-
-            if (!$this->isBaseLineType($lineType)) {
-                if ($quantity <= 0) {
-                    $quantity = 1.0;
-                }
-                if ($unitPrice <= 0 && $quantity > 0) {
-                    $unitPrice = round($lineAmount / $quantity, 2);
-                }
-                $supplyAmount = 0.0;
-                $vatAmount = $lineType === 'VAT' ? $lineAmount : 0.0;
-                $totalAmount = $lineAmount;
-            } else {
-                $supplyAmount = $lineAmount;
-                $vatAmount = 0.0;
-                $totalAmount = $lineAmount;
+            if ($itemUnitPrice <= 0 && $itemQuantity > 0 && abs($supplyAmount) > 0) {
+                $itemUnitPrice = round($supplyAmount / $itemQuantity, 2);
             }
 
             $rows[] = [
-                'line_type' => $lineType,
                 'item_date' => $itemDate,
                 'item_name' => $itemName,
-                'specification' => $this->nullable($item['specification'] ?? null),
-                'unit_name' => $this->nullable($item['unit_name'] ?? null),
-                'quantity' => $quantity,
-                'unit_price' => $unitPrice,
-                'currency_code' => $currencyCode,
-                'exchange_rate' => $exchangeRate > 0 ? $exchangeRate : null,
-                'foreign_unit_price' => $usesForeignAmount ? (float) ($foreignUnitPrice ?? 0) : null,
-                'foreign_amount' => $usesForeignAmount ? (float) ($foreignAmount ?? 0) : null,
-                'amount' => $lineAmount,
-                'supply_amount' => $supplyAmount,
-                'vat_amount' => $vatAmount,
-                'total_amount' => $lineAmount,
-                'tax_type' => $taxType,
-                'description' => $this->nullable($item['description'] ?? null),
+                'item_specification' => $this->nullable($item['item_specification'] ?? $item['specification'] ?? null),
+                'item_unit_name' => $this->nullable($item['item_unit_name'] ?? $item['unit_name'] ?? null),
+                'item_quantity' => $itemQuantity,
+                'item_unit_price' => $itemUnitPrice,
+                'item_foreign_unit_price' => $usesForeignAmount ? (float) ($itemForeignUnitPrice ?? 0) : null,
+                'item_foreign_amount' => $usesForeignAmount ? (float) ($itemForeignAmount ?? 0) : null,
+                'item_supply_amount' => $supplyAmount,
+                'item_tax_type' => $itemTaxType,
+                'item_description' => $this->nullable($item['item_description'] ?? $item['description'] ?? null),
                 'processing_item_id' => $this->nullable($item['processing_item_id'] ?? null),
             ];
-
-            if (!isset($item['line_type'], $item['amount_type'], $item['amount']) && abs($vatAmount) > 0) {
-                $rows[] = [
-                    'line_type' => 'VAT',
-                    'item_date' => $itemDate,
-                    'item_name' => 'VAT',
-                    'specification' => null,
-                    'unit_name' => null,
-                    'quantity' => 1,
-                    'unit_price' => $vatAmount,
-                    'currency_code' => 'KRW',
-                    'exchange_rate' => null,
-                    'foreign_unit_price' => null,
-                    'foreign_amount' => null,
-                    'amount' => $vatAmount,
-                    'supply_amount' => 0.0,
-                    'vat_amount' => $vatAmount,
-                    'total_amount' => $vatAmount,
-                    'tax_type' => $taxType,
-                    'description' => 'VAT',
-                ];
-            }
         }
 
         return $rows;
     }
 
-    private function normalizeLineType(mixed $value): string
+    private function normalizeSettlements(mixed $settlements, array $data = []): array
     {
-        $raw = trim((string) ($value ?? ''));
-        $mapped = match ($raw) {
-            '품목' => 'ITEM',
-            '부가세', '부가가치세' => 'VAT',
-            '봉사료', '서비스료', '용역수수료' => 'SERVICE',
-            '원천세', '원천징수', '소득세', '지방세' => 'WITHHOLDING',
-            'WITHHOLDING_INCOME', 'WITHHOLDING_LOCAL' => 'WITHHOLDING',
-            default => $raw,
-        };
-        $type = strtoupper($mapped);
-        if ($type === 'ITEM') {
-            $type = 'GOODS';
+        $decoded = $this->decodeArrayInput($settlements);
+        if (!is_array($decoded)) {
+            return [];
         }
-        if (in_array($type, ['DEBIT', 'CREDIT', 'CASH', 'SALES', 'COGS'], true)) {
-            error_log('[TransactionCrudService] forbidden transaction line_type normalized: ' . $type);
-            return '';
+
+        $rows = [];
+        $defaultCurrency = $this->normalizeCurrencyCode($data['currency'] ?? 'KRW');
+        $defaultExchangeRate = $this->numericOrNull($data['transaction_exchange_rate'] ?? $data['exchange_rate'] ?? null);
+
+        foreach ($decoded as $settlement) {
+            if (!is_array($settlement)) {
+                continue;
+            }
+
+            $settlementType = $this->normalizeSettlementType($settlement['settlement_type'] ?? null);
+            $amount = (float) ($this->numericOrNull($settlement['amount'] ?? null) ?? 0);
+            if ($settlementType === '' || abs($amount) <= 0) {
+                continue;
+            }
+
+            $amountSign = $this->normalizeAmountSign($settlement['amount_sign'] ?? null);
+            $currency = $this->normalizeCurrencyCode($settlement['currency'] ?? $defaultCurrency);
+            $exchangeRate = $this->numericOrNull($settlement['exchange_rate'] ?? $defaultExchangeRate);
+            $baseAmount = $currency !== 'KRW'
+                ? round($amount * (float) ($exchangeRate ?? 0), 2)
+                : round($amount, 2);
+            $signedBaseAmount = $amountSign === 'MINUS' ? (-1 * $baseAmount) : $baseAmount;
+
+            $meta = $settlement['meta_json'] ?? null;
+            if (is_array($meta)) {
+                $meta = json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            } elseif (!is_string($meta) || trim($meta) === '') {
+                $meta = null;
+            }
+
+            $rows[] = [
+                'transaction_item_id' => $this->nullable($settlement['transaction_item_id'] ?? null),
+                'settlement_type' => $settlementType,
+                'amount_sign' => $amountSign,
+                'amount' => round($amount, 2),
+                'currency' => $currency,
+                'exchange_rate' => $currency === 'KRW' ? null : $exchangeRate,
+                'settlement_description' => $this->nullable($settlement['settlement_description'] ?? $settlement['description'] ?? null),
+                'meta_json' => $meta,
+                'signed_base_amount' => round($signedBaseAmount, 2),
+            ];
         }
+
+        return $rows;
+    }
+
+    private function normalizeSettlementType(mixed $value): string
+    {
+        $type = strtoupper(trim((string) ($value ?? '')));
         return preg_match('/^[A-Z0-9_]+$/', $type) ? $type : '';
+    }
+
+    private function normalizeAmountSign(mixed $value): string
+    {
+        $raw = strtoupper(trim((string) ($value ?? 'PLUS')));
+        return in_array($raw, ['-', 'MINUS', 'NEGATIVE'], true) ? 'MINUS' : 'PLUS';
     }
 
     private function decodeArrayInput(mixed $value): mixed

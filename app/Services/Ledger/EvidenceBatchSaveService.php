@@ -6,6 +6,20 @@ use PDO;
 
 class EvidenceBatchSaveService
 {
+    private const EVIDENCE_BODY_TABLES = [
+        'ledger_evidence_bank_transaction',
+        'ledger_evidence_tax_invoice',
+        'ledger_evidence_cash_receipt',
+        'ledger_evidence_card_hometax',
+        'ledger_evidence_card_statement',
+        'ledger_evidence_card_sales',
+        'ledger_evidence_employee_expense',
+        'ledger_evidence_payroll',
+        'ledger_evidence_daily_worker',
+        'ledger_evidence_business_income',
+        'ledger_evidence_cash_sales',
+    ];
+
     public function __construct(private PDO $pdo, private array $callbacks = [])
     {
     }
@@ -80,7 +94,58 @@ class EvidenceBatchSaveService
             }
         }
 
+        if ($key === '_create_sort_no') {
+            $max = max($max, $this->currentIssuedEvidenceSortNo());
+        }
+
         return $max + 1;
+    }
+
+    private function currentIssuedEvidenceSortNo(): int
+    {
+        $max = 0;
+
+        if ($this->tableExists('ledger_evidence_number_sequences')) {
+            $stmt = $this->pdo->prepare("
+                SELECT COALESCE(MAX(last_evidence_sort_no), 0)
+                FROM ledger_evidence_number_sequences
+                WHERE scope_code = 'EVIDENCE_GLOBAL'
+            ");
+            $stmt->execute();
+            $max = max($max, (int) ($stmt->fetchColumn() ?: 0));
+        }
+
+        foreach (self::EVIDENCE_BODY_TABLES as $table) {
+            if (!$this->tableExists($table)) {
+                continue;
+            }
+
+            $stmt = $this->pdo->query("SELECT COALESCE(MAX(evidence_sort_no), 0) FROM `{$table}`");
+            $max = max($max, (int) ($stmt->fetchColumn() ?: 0));
+        }
+
+        return $max;
+    }
+
+    private function tableExists(string $table): bool
+    {
+        static $cache = [];
+
+        if (array_key_exists($table, $cache)) {
+            return $cache[$table];
+        }
+
+        $stmt = $this->pdo->prepare("
+            SELECT 1
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = :table_name
+            LIMIT 1
+        ");
+        $stmt->execute([':table_name' => $table]);
+        $cache[$table] = (bool) $stmt->fetchColumn();
+
+        return $cache[$table];
     }
 
     public function assignEvidenceJsonSortNo(array &$payload, array $existingPayload, string $key, int &$nextSortNo): void
@@ -209,7 +274,7 @@ class EvidenceBatchSaveService
             ':source_type' => $dataType,
             ':source_key' => $sourceKey,
             ':format_id' => $formatId,
-            ':evidence_date' => $this->call('dateValue', $parsedPayload['evidence_date'] ?? $parsedPayload['transaction_date'] ?? $parsedPayload['issue_date'] ?? '') ?: null,
+            ':evidence_date' => $this->call('dateValue', $parsedPayload['raw_transaction_datetime'] ?? $parsedPayload['evidence_date'] ?? $parsedPayload['transaction_date'] ?? $parsedPayload['issue_date'] ?? '') ?: null,
             ':client_id' => $this->call('businessRefIdForStorage', 'CLIENT', $parsedPayload),
             ':project_id' => $this->call('businessRefIdForStorage', 'PROJECT', $parsedPayload),
             ':employee_id' => $this->call('businessRefIdForStorage', 'EMPLOYEE', $parsedPayload),

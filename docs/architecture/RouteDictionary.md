@@ -50,6 +50,29 @@
 | `api.settings.rolepermission.reorder` | `/api/settings/organization/role-permission/reorder` | Saves the flattened permission display order into `auth_permissions.sort_no` |
 | `api.account.sub_accounts.list` | `/api/account/sub-accounts` | Shared `SubChartAccountController@apiList` endpoint used by journal, evidence, and data-create screens for account-dependent sub-account lookup |
 | `api.ledger.sub_account.list` | `/api/ledger/sub-account/list` | Shared `SubChartAccountController@apiList` endpoint used by the ledger account screen for sub-account management lookup |
+| `web.ledger.settings.accounts` | `/ledger/settings/accounts` | Canonical ledger account basic-info page route handled by `ChartAccountController@index` |
+| `web.ledger.data.index` | `/ledger/data` | Entry route for evidence source pages; redirects to the first active `IMPORT_TYPE` page in code-order |
+| `web.ledger.data.list` | `/ledger/data/list` | Legacy evidence-source entry route; normalizes `import_type` queries into dedicated type-page URLs |
+| `web.ledger.data.bank-transactions` | `/ledger/data/bank-transactions` | Dedicated evidence-source page route for `BANK_TRANSACTION` |
+| `web.ledger.data.tax-invoices` | `/ledger/data/tax-invoices` | Dedicated evidence-source page route for `TAX_INVOICE` |
+| `web.ledger.data.manual-tax-invoices` | `/ledger/data/manual-tax-invoices` | Dedicated evidence-source page route for `TAX_INVOICE_MANUAL` |
+| `web.ledger.data.card-hometax` | `/ledger/data/card-hometax` | Dedicated evidence-source page route for `CARD_HOMETAX` |
+| `web.ledger.data.card-approvals` | `/ledger/data/card-approvals` | Dedicated evidence-source page route for `CARD_APPROVAL` |
+| `web.ledger.data.card-statements` | `/ledger/data/card-statements` | Dedicated evidence-source page route for `CARD_STATEMENT` |
+| `web.ledger.data.cash-receipts` | `/ledger/data/cash-receipts` | Dedicated evidence-source page route for `CASH_RECEIPT` |
+| `web.ledger.data.cash-receipt-purchases` | `/ledger/data/cash-receipt-purchases` | Dedicated evidence-source page route for `CASH_RECEIPT_PURCHASE` |
+| `web.ledger.data.cash-receipt-sales` | `/ledger/data/cash-receipt-sales` | Dedicated evidence-source page route for `CASH_RECEIPT_SALES` |
+| `web.ledger.data.import-invoices` | `/ledger/data/import-invoices` | Dedicated evidence-source page route for `IMPORT_INVOICE` |
+| `web.ledger.data.shopping-orders` | `/ledger/data/shopping-orders` | Dedicated evidence-source page route for `SHOPPING_ORDER` |
+| `web.ledger.data.payroll-withholdings` | `/ledger/data/payroll-withholdings` | Dedicated evidence-source page route for `PAYROLL_WITHHOLDING` |
+| `web.ledger.data.business-data` | `/ledger/data/business-data` | Dedicated evidence-source page route for `BUSINESS_DATA` |
+| `web.ledger.data.payroll` | `/ledger/data/payroll` | Dedicated evidence-source page route for `PAYROLL` |
+| `web.ledger.data.business-income` | `/ledger/data/business-income` | Dedicated evidence-source page route for `BUSINESS_INCOME` |
+| `web.ledger.data.employee-expenses` | `/ledger/data/employee-expenses` | Dedicated evidence-source page route for `EMPLOYEE_EXPENSE` |
+| `web.ledger.data.construction` | `/ledger/data/construction` | Dedicated evidence-source page route for `CONSTRUCTION` |
+| `api.ledger.account.list` | `/api/ledger/account/list` | Canonical ledger account list endpoint handled by `ChartAccountController@apiList` |
+| `web.ledger.journal_rules` | `/ledger/settings/journal-rules` | Canonical ledger journal-rule basic-info page route handled by `JournalRuleController@index` |
+| `api.ledger.journal_rules.list` | `/api/ledger/journal-rules/list` | Canonical ledger journal-rule list endpoint handled by `JournalRuleController@apiList` |
 | `web.settings.base-info.brand_logo` | `/dashboard/settings/base-info/brand` | Canonical brand page route with legacy permission key compatibility |
 | `api.settings.base-info.brand.list` | `/api/settings/base-info/brand/list` | Initial rollout target for new permission metadata |
 | `api.settings.base-info.brand.detail` | `/api/settings/base-info/brand/detail` | Initial rollout target for new permission metadata |
@@ -74,6 +97,7 @@
 | `api.settings.system.database.restore` | `/api/settings/system/database/restore` | Applies the selected SQL backup file to the current Active DB through the PDO-based restore engine |
 | `api.settings.system.database.restore-info` | `/api/settings/system/database/restore-info` | Returns the latest Active DB restore result, file, timestamp, and last error for the restore card |
 | `api.settings.system.database.activity-log` | `/api/settings/system/database/activity-log` | Returns the combined backup, sync, and restore log view for the database backup screen |
+| `api.settings.system.data_table_columns` | `/api/settings/system/data-table-columns` | Returns canonical DB physical-column metadata for shared DataTable table-settings screens so column order, required flags, and visibility defaults come from DB SSOT instead of page JS columns |
 
 ## SSOT Alias Notes
 

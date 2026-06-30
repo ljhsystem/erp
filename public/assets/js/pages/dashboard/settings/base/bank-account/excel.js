@@ -11,6 +11,8 @@ export function initExcelDataset(api) {
     createExcelManagerSettingsCore({
         domain: 'bank-account',
         formSelector: '#accountExcelForm',
+        tableSettingsStorageKey: 'datatable.settings.dashboard.settings.base-info.bank-account.account-table.v1',
+        tableSettingsMetaDomain: 'bank-account',
     });
 }
 

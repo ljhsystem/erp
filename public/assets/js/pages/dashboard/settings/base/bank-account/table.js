@@ -58,10 +58,22 @@ export function createBankAccountTableModule({
                     if (data == null) return '';
                     if (type !== 'display') return data;
 
+                    if (field === 'created_by') {
+                        return row?.created_by_name || data;
+                    }
+
+                    if (field === 'updated_by') {
+                        return row?.updated_by_name || data;
+                    }
+
+                    if (field === 'deleted_by') {
+                        return row?.deleted_by_name || data;
+                    }
+
                     if (field === 'bank_file') {
                         if (!data) return '';
                         const path = encodeURIComponent(data);
-                        return `<a href="/api/file/preview?path=${path}" target="_blank">蹂닿린</a>`;
+                        return `<a href="/api/file/preview?path=${path}" target="_blank">미리보기</a>`;
                     }
 
                     if (field === 'currency' || field === 'account_type') {
@@ -121,7 +133,7 @@ export function createBankAccountTableModule({
                     <button type="button"
                             class="btn btn-outline-primary btn-sm account-edit-btn"
                             data-id="${formModule.escapeHtml(row.id || '')}">
-                        ?섏젙
+                        수정
                     </button>
                 `;
             },
@@ -141,6 +153,14 @@ export function createBankAccountTableModule({
             autoWidth: false,
             selectionColumn: {
                 widthResizable: true,
+            },
+            tableSettings: {
+                pageKey: 'dashboard.settings.base-info.bank-account',
+                tableKey: 'account-table',
+                storageKey: 'datatable.settings.dashboard.settings.base-info.bank-account.account-table.v1',
+                metaDomain: 'bank-account',
+                tableLabel: '계좌',
+                title: '계좌 테이블 설정',
             },
             buttons: [
                 {

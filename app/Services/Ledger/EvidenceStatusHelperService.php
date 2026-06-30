@@ -36,12 +36,18 @@ class EvidenceStatusHelperService
     {
         $rowId = (string) ($row['id'] ?? '');
         $transactionId = trim((string) ($row['transaction_id'] ?? ''));
+        $sourceType = strtoupper(trim((string) ($row['source_type'] ?? '')));
         if ($transactionId !== '' && $this->activeTransactionExists($transactionId)) {
             return true;
         }
 
         if ($this->activeVoucherExistsForEvidence($rowId, $transactionId)) {
             return true;
+        }
+
+        // BANK_TRANSACTION 삭제 차단은 화면에 보이는 명시적 링크/상태 기준과 맞춘다.
+        if ($sourceType === 'BANK_TRANSACTION') {
+            return false;
         }
 
         return $this->activeTransactionExistsForEvidenceFingerprint($row);

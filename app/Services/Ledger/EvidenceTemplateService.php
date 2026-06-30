@@ -2,6 +2,8 @@
 
 namespace App\Services\Ledger;
 
+use Core\Helpers\ExcelTemplateFilenameHelper;
+use Core\Helpers\ExcelValueFormatterHelper;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\RichText\RichText;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -50,10 +52,10 @@ class EvidenceTemplateService
             (new Xlsx($spreadsheet))->save($tempFile);
             $spreadsheet->disconnectWorksheets();
 
-            $filename = $this->call('safeFilename', $filename);
-            if (!str_ends_with(strtolower($filename), '.xlsx')) {
-                $filename .= '.xlsx';
-            }
+            $filename = ExcelTemplateFilenameHelper::normalize(
+                $this->call('safeFilename', $filename),
+                strtolower($dataType !== '' ? $dataType : 'upload')
+            );
             $asciiFallback = preg_replace('#[^A-Za-z0-9_.-]+#', '_', $filename) ?: 'upload_template.xlsx';
             $encodedFilename = rawurlencode($filename);
 
@@ -93,18 +95,27 @@ class EvidenceTemplateService
             $cell = Coordinate::stringFromColumnIndex($index + 1) . '1';
             $header = (string) $header;
             $requirementMode = $this->call('normalizeRequirementMode', $required[$index] ?? 0);
-            if ($requirementMode !== 0 && $header !== '') {
+            if ($requirementMode === 1 && $header !== '') {
                 $richText = new RichText();
                 $richText->createText($header . ' ');
                 $asterisk = $richText->createTextRun('*');
-                $asterisk->getFont()->setBold(true)->getColor()->setARGB($requirementMode === 1 ? 'FFDC2626' : 'FF2563EB');
+                $asterisk->getFont()->setBold(true)->getColor()->setARGB('FFDC2626');
                 $sheet->setCellValue($cell, $richText);
             } else {
                 $sheet->setCellValue($cell, $header);
             }
         }
         if ($samples !== []) {
-            $sheet->fromArray($samples, null, 'A2');
+            $columnMeta = array_map(static function ($index) use ($fields, $headers, $required): array {
+                return [
+                    'key' => (string) ($fields[$index] ?? ''),
+                    'system_field_name' => (string) ($fields[$index] ?? ''),
+                    'header' => (string) ($headers[$index] ?? ''),
+                    'required' => (int) ($required[$index] ?? 0) === 1,
+                ];
+            }, array_keys($headers));
+
+            ExcelValueFormatterHelper::writeRows($sheet, $samples, 'A2', $columnMeta, $headers);
         }
 
         $lastColumn = $sheet->getHighestColumn();
@@ -121,14 +132,14 @@ class EvidenceTemplateService
                 $sheet->getStyle($cell)->getFill()
                     ->setFillType(Fill::FILL_SOLID)
                     ->getStartColor()
-                    ->setARGB('FFF3E8FF');
+                    ->setARGB('FFF5D0FE');
                 continue;
             }
             if ($this->call('isBasicInfoTemplateColumn', $field, (string) $header, $dataType)) {
                 $sheet->getStyle($cell)->getFill()
                     ->setFillType(Fill::FILL_SOLID)
                     ->getStartColor()
-                    ->setARGB('FFE2F0D9');
+                    ->setARGB('FFB7D7A8');
                 continue;
             }
             if ($this->call('isVoucherTemplateColumn', $field, (string) $header, $dataType)) {
@@ -148,7 +159,7 @@ class EvidenceTemplateService
         $label = $this->call('dataTypeLabel', $type);
         if ($type === 'BANK_TRANSACTION') {
             return [
-                'bank_upload_template.xlsx',
+                'bank_transaction_template.xlsx',
                 'BANK template',
                 ['Transaction Date', 'Bank Direction', 'Business Unit', 'Transaction Type', 'Client Name', 'Project Name', 'Employee Name', 'Bank Account Name', 'Card Name', 'Amount', 'Balance Amount', 'Description', 'Counterparty Name', 'Memo', 'Note'],
                 [
@@ -159,7 +170,7 @@ class EvidenceTemplateService
         }
 
         return [
-            strtolower($type) . '_upload_template.xlsx',
+            strtolower($type) . '_template.xlsx',
             $label . ' template',
             ['Evidence Date', 'Supplier Business No', 'Supplier Name', 'Customer Business No', 'Customer Name', 'Business Unit', 'Summary', 'Amount', 'Tax Amount', 'Total Amount', 'Note', 'Memo', 'Line Note'],
             [
@@ -232,6 +243,14 @@ class EvidenceTemplateService
             'item_supply_amount' => 50000,
             'item_vat_amount' => $dataType === 'BANK_TRANSACTION' ? 0 : 5000,
             'item_note' => '',
+            'raw_item_date' => '2026-05-04',
+            'raw_item_name' => 'Sample Item',
+            'raw_item_spec' => 'EA',
+            'raw_item_quantity' => 1,
+            'raw_item_unit_price' => 50000,
+            'raw_item_supply_amount' => 50000,
+            'raw_item_tax_amount' => $dataType === 'BANK_TRANSACTION' ? 0 : 5000,
+            'raw_item_note' => '',
             'note' => 'Sample Note',
             'memo' => '',
         ];
@@ -277,13 +296,38 @@ class EvidenceTemplateService
         );
         $nameSet = array_flip($names);
 
-        foreach (['?????????????????????嚥싲갭큔?댁쉩??????', '???????????', '?????????????????????嚥싲갭큔?댁쉩?????', '??????????', '???????????????????????????????ш끽維뽳쭩?뱀땡???얩맪???????????????????轅붽틓??섑떊???⑤챷????', '??????????????', '????????????????????????????????????袁⑸즴筌?씛彛???돗?????????????????癲?????????', '???????????????????????????????????????????嫄?????????', '?????????????'] as $header) {
-            if (isset($nameSet[$header])) {
+        $dateHeaders = ['거래일자', '표준일자', 'Transaction Date'];
+        $directionHeaders = ['입출금구분', '거래구분', 'Bank Direction'];
+        $bankSpecificHeaders = [
+            '계좌명',
+            '카드명',
+            '금액',
+            '잔액',
+            '적요',
+            '상대방명',
+            '상대계좌예금주명',
+            'Bank Account Name',
+            'Card Name',
+            'Amount',
+            'Balance Amount',
+            'Description',
+            'Counterparty Name',
+        ];
+
+        return $this->hasAnyHeader($nameSet, $dateHeaders)
+            && $this->hasAnyHeader($nameSet, $directionHeaders)
+            && $this->hasAnyHeader($nameSet, $bankSpecificHeaders);
+    }
+
+    private function hasAnyHeader(array $nameSet, array $candidates): bool
+    {
+        foreach ($candidates as $candidate) {
+            if (isset($nameSet[$candidate])) {
                 return true;
             }
         }
 
-        return isset($nameSet['???????????????????????????????????⑤슦????????????????????癰귙룗???癲ル슢??????']) && (isset($nameSet['??????????????????????????????????????????']) || isset($nameSet['????????????거?????????????????']));
+        return false;
     }
 
     public function sampleBankVoucherLineRows(array $columns): array

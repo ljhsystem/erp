@@ -7,7 +7,7 @@ use PDO;
 
 class TransactionItemModel
 {
-    protected string $table = 'ledger_transaction_lines';
+    protected string $table = 'ledger_transaction_items';
 
     private PDO $db;
 
@@ -31,9 +31,9 @@ class TransactionItemModel
             $params[':transaction_id'] = $filters['transaction_id'];
         }
 
-        if (!empty($filters['tax_type'])) {
-            $sql .= " AND tax_type = :tax_type";
-            $params[':tax_type'] = $filters['tax_type'];
+        if (!empty($filters['item_tax_type'])) {
+            $sql .= " AND item_tax_type = :item_tax_type";
+            $params[':item_tax_type'] = $filters['item_tax_type'];
         }
 
         $sql .= " ORDER BY transaction_id ASC, sort_no ASC";
@@ -78,23 +78,17 @@ class TransactionItemModel
             'sort_no',
             'transaction_id',
             'processing_item_id',
-            'line_type',
             'item_date',
             'item_name',
-            'specification',
-            'unit_name',
-            'quantity',
-            'unit_price',
-            'currency_code',
-            'exchange_rate',
-            'foreign_unit_price',
-            'foreign_amount',
-            'amount',
-            'supply_amount',
-            'vat_amount',
-            'total_amount',
-            'tax_type',
-            'description',
+            'item_specification',
+            'item_unit_name',
+            'item_quantity',
+            'item_unit_price',
+            'item_foreign_unit_price',
+            'item_foreign_amount',
+            'item_supply_amount',
+            'item_tax_type',
+            'item_description',
             'created_at',
             'created_by',
             'updated_at',
@@ -130,23 +124,17 @@ class TransactionItemModel
             'transaction_id',
             'sort_no',
             'processing_item_id',
-            'line_type',
             'item_date',
             'item_name',
-            'specification',
-            'unit_name',
-            'quantity',
-            'unit_price',
-            'currency_code',
-            'exchange_rate',
-            'foreign_unit_price',
-            'foreign_amount',
-            'amount',
-            'supply_amount',
-            'vat_amount',
-            'total_amount',
-            'tax_type',
-            'description',
+            'item_specification',
+            'item_unit_name',
+            'item_quantity',
+            'item_unit_price',
+            'item_foreign_unit_price',
+            'item_foreign_amount',
+            'item_supply_amount',
+            'item_tax_type',
+            'item_description',
             'updated_at',
             'updated_by',
             'deleted_at',

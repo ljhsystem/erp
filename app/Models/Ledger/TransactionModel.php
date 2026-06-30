@@ -24,10 +24,10 @@ class TransactionModel
                 t.*,
                 COALESCE(sc.client_name, '') AS client_name,
                 COALESCE(sp.project_name, '') AS project_name,
-                COALESCE(tls.line_count, 0) AS transaction_line_count,
+                COALESCE(tls.item_count, 0) AS transaction_line_count,
                 COALESCE(tls.incomplete_count, 0) AS transaction_line_incomplete_count,
                 CASE
-                    WHEN COALESCE(tls.line_count, 0) = 0 THEN 'NONE'
+                    WHEN COALESCE(tls.item_count, 0) = 0 THEN 'NONE'
                     WHEN COALESCE(tls.incomplete_count, 0) > 0 THEN 'INCOMPLETE'
                     ELSE 'COMPLETE'
                 END AS transaction_line_status
@@ -54,7 +54,7 @@ class TransactionModel
 
         if (!empty($filters['status'])) {
             $status = strtolower(trim((string) $filters['status']));
-            if (in_array($status, ['draft', 'approved', 'rejected', 'deleted'], true)) {
+            if (in_array($status, ['draft', 'completed', 'closed', 'cancelled'], true)) {
                 $sql .= " AND t.status = :status";
                 $params[':status'] = $status;
             }
@@ -101,23 +101,32 @@ class TransactionModel
                 'business_unit' => 't.business_unit',
                 'transaction_type' => 't.transaction_type',
                 'transaction_direction' => 't.transaction_direction',
+                'source_type' => 't.source_type',
                 'import_type' => 't.import_type',
                 'transaction_date' => 't.transaction_date',
+                'bank_account_id' => 't.bank_account_id',
+                'card_id' => 't.card_id',
+                'team_id' => 't.team_id',
+                'employee_id' => 't.employee_id',
                 'project_id' => 't.project_id',
                 'project_name' => 'sp.project_name',
                 'client_id' => 't.client_id',
                 'client_name' => 'sc.client_name',
-                'adjustment_amount' => 't.adjustment_amount',
-                'supply_amount' => 't.supply_amount',
-                'vat_amount' => 't.vat_amount',
-                'total_amount' => 't.total_amount',
-                'description' => 't.description',
+                'foreign_amount' => 't.transaction_foreign_amount',
+                'supply_amount' => 't.transaction_supply_amount',
+                'settlement_amount' => 't.transaction_settlement_amount',
+                'final_amount' => 't.transaction_final_amount',
+                'transaction_foreign_amount' => 't.transaction_foreign_amount',
+                'transaction_supply_amount' => 't.transaction_supply_amount',
+                'transaction_settlement_amount' => 't.transaction_settlement_amount',
+                'transaction_final_amount' => 't.transaction_final_amount',
+                'transaction_description' => 't.transaction_description',
                 'currency' => 't.currency',
-                'exchange_rate' => 't.exchange_rate',
+                'transaction_exchange_rate' => 't.transaction_exchange_rate',
                 'status' => 't.status',
                 'match_status' => 't.match_status',
-                'note' => 't.note',
-                'memo' => 't.memo',
+                'transaction_note' => 't.transaction_note',
+                'transaction_memo' => 't.transaction_memo',
                 'created_at' => 't.created_at',
                 'created_by' => 't.created_by',
                 'updated_at' => 't.updated_at',
@@ -153,18 +162,18 @@ class TransactionModel
 
     private function lineStatusJoinSql(): string
     {
-        if (!$this->tableExists('ledger_transaction_lines') || !$this->tableColumnExists('ledger_transaction_lines', 'transaction_id')) {
+        if (!$this->tableExists('ledger_transaction_items') || !$this->tableColumnExists('ledger_transaction_items', 'transaction_id')) {
             return "
                 LEFT JOIN (
-                    SELECT NULL AS transaction_id, 0 AS line_count, 0 AS incomplete_count
+                    SELECT NULL AS transaction_id, 0 AS item_count, 0 AS incomplete_count
                 ) tls ON tls.transaction_id = t.id
             ";
         }
 
-        $where = $this->tableColumnExists('ledger_transaction_lines', 'deleted_at')
+        $where = $this->tableColumnExists('ledger_transaction_items', 'deleted_at')
             ? 'WHERE deleted_at IS NULL'
             : '';
-        $itemNameExpr = $this->tableColumnExists('ledger_transaction_lines', 'item_name')
+        $itemNameExpr = $this->tableColumnExists('ledger_transaction_items', 'item_name')
             ? "TRIM(COALESCE(item_name, '')) = ''"
             : '0 = 1';
         $amountExpr = $this->lineAmountExpression();
@@ -173,12 +182,12 @@ class TransactionModel
             LEFT JOIN (
                 SELECT
                     transaction_id,
-                    COUNT(*) AS line_count,
+                    COUNT(*) AS item_count,
                     SUM(CASE
                         WHEN {$itemNameExpr} OR {$amountExpr} = 0 THEN 1
                         ELSE 0
                     END) AS incomplete_count
-                FROM ledger_transaction_lines
+                FROM ledger_transaction_items
                 {$where}
                 GROUP BY transaction_id
             ) tls
@@ -188,16 +197,8 @@ class TransactionModel
 
     private function lineAmountExpression(): string
     {
-        if ($this->tableColumnExists('ledger_transaction_lines', 'amount')) {
-            return 'COALESCE(amount, 0)';
-        }
-        if ($this->tableColumnExists('ledger_transaction_lines', 'total_amount')) {
-            return 'COALESCE(total_amount, 0)';
-        }
-        if ($this->tableColumnExists('ledger_transaction_lines', 'supply_amount') || $this->tableColumnExists('ledger_transaction_lines', 'vat_amount')) {
-            $supply = $this->tableColumnExists('ledger_transaction_lines', 'supply_amount') ? 'COALESCE(supply_amount, 0)' : '0';
-            $vat = $this->tableColumnExists('ledger_transaction_lines', 'vat_amount') ? 'COALESCE(vat_amount, 0)' : '0';
-            return "({$supply} + {$vat})";
+        if ($this->tableColumnExists('ledger_transaction_items', 'item_supply_amount')) {
+            return 'COALESCE(item_supply_amount, 0)';
         }
 
         return '1';
@@ -269,12 +270,24 @@ class TransactionModel
             SELECT
                 t.*,
                 COALESCE(sc.client_name, '') AS client_name,
-                COALESCE(sp.project_name, '') AS project_name
+                COALESCE(sp.project_name, '') AS project_name,
+                COALESCE(sba.account_name, '') AS bank_account_name,
+                COALESCE(scd.card_name, '') AS card_name,
+                COALESCE(swt.team_name, '') AS team_name,
+                COALESCE(ue.employee_name, '') AS employee_name
             FROM {$this->table} t
             LEFT JOIN system_clients sc
                 ON t.client_id = sc.id
             LEFT JOIN system_projects sp
                 ON t.project_id = sp.id
+            LEFT JOIN system_bank_accounts sba
+                ON t.bank_account_id = sba.id
+            LEFT JOIN system_cards scd
+                ON t.card_id = scd.id
+            LEFT JOIN system_work_teams swt
+                ON t.team_id = swt.id
+            LEFT JOIN user_employees ue
+                ON t.employee_id = ue.id
             WHERE t.id = :id
             LIMIT 1
         ");
@@ -293,24 +306,29 @@ class TransactionModel
         $allowed = [
             'id',
             'sort_no',
-            'transaction_date',
-            'business_unit',
-            'transaction_type',
-            'transaction_direction',
+            'source_type',
             'import_type',
+            'business_unit',
+            'transaction_direction',
+            'transaction_type',
+            'currency',
             'client_id',
             'project_id',
-            'currency',
-            'exchange_rate',
-            'adjustment_amount',
-            'supply_amount',
-            'vat_amount',
-            'total_amount',
-            'description',
+            'bank_account_id',
+            'card_id',
+            'team_id',
+            'employee_id',
+            'transaction_date',
+            'transaction_description',
+            'transaction_exchange_rate',
+            'transaction_foreign_amount',
+            'transaction_supply_amount',
+            'transaction_settlement_amount',
+            'transaction_final_amount',
+            'transaction_note',
+            'transaction_memo',
             'status',
             'match_status',
-            'note',
-            'memo',
             'created_at',
             'created_by',
             'updated_at',
@@ -344,23 +362,28 @@ class TransactionModel
     {
         $allowed = [
             'business_unit',
+            'source_type',
             'transaction_type',
             'transaction_direction',
             'import_type',
             'transaction_date',
             'client_id',
             'project_id',
+            'bank_account_id',
+            'card_id',
+            'team_id',
+            'employee_id',
             'currency',
-            'exchange_rate',
-            'adjustment_amount',
-            'supply_amount',
-            'vat_amount',
-            'total_amount',
-            'description',
+            'transaction_exchange_rate',
+            'transaction_foreign_amount',
+            'transaction_supply_amount',
+            'transaction_settlement_amount',
+            'transaction_final_amount',
+            'transaction_description',
             'status',
             'match_status',
-            'note',
-            'memo',
+            'transaction_note',
+            'transaction_memo',
             'updated_at',
             'updated_by',
             'deleted_at',

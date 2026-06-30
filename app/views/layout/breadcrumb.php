@@ -35,6 +35,8 @@ $pageMap = [
     '/ledger/opening-balances' => ['items' => ['회계관리', '기초정보관리', '기초금액']],
     '/ledger/data/upload' => ['items' => ['회계관리', '자료관리', '자료업로드']],
     '/ledger/data/list' => ['items' => ['회계관리', '자료관리', '증빙원본']],
+    '/ledger/data/bank-transactions' => ['items' => ['회계관리', '자료관리', '입출금(은행)']],
+    '/ledger/data/tax-invoices' => ['items' => ['회계관리', '자료관리', '세금계산서매입매출(홈택스)']],
     '/ledger/data/raw' => ['items' => ['회계관리', '자료관리', '원본자료']],
     '/ledger/data/create' => ['items' => ['회계관리', '자료관리', '생성센터']],
     '/ledger/data' => ['items' => ['회계관리', '자료관리', '증빙원본']],

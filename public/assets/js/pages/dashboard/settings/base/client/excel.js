@@ -11,6 +11,8 @@ export function initExcelDataset(api) {
     createExcelManagerSettingsCore({
         domain: 'client',
         formSelector: '#clientExcelForm',
+        tableSettingsStorageKey: 'datatable.settings.dashboard.settings.base-info.client.client-table.v1',
+        tableSettingsMetaDomain: 'client',
     });
 }
 

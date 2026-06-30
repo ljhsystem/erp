@@ -1,3 +1,9 @@
+import {
+    readDataTableSettingsState,
+    resolveDataTableColumnDisplayName,
+    resolveDataTableColumnRequirementPolicy,
+} from '/public/assets/js/common/datatable/dataTableSettings.js';
+
 export function createClientModalModule({
     API,
     CLIENT_QUICK_API,
@@ -10,6 +16,54 @@ export function createClientModalModule({
     let clientQuickBound = false;
     let clientDetailQuickBound = false;
     let clientSharedModalRoot = null;
+    let clientPolicyBound = false;
+
+    const CLIENT_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.base-info.client.client-table.v1';
+    const CLIENT_MODAL_FIELD_POLICIES = Object.freeze([
+        { selector: '#modal_client_name', key: 'client_name', fallback: 'Client Name' },
+        { selector: '#modal_company_name', key: 'company_name', fallback: 'Company Name' },
+        { selector: '#modal_registration_date', key: 'registration_date', fallback: 'Registration Date' },
+        { selector: '#modal_client_grade', key: 'client_grade', fallback: 'Client Grade' },
+        { selector: '#modal_is_active', key: 'is_active', fallback: 'Status' },
+        { selector: '#modal_business_number', key: 'business_number', fallback: 'Business Number' },
+        { selector: '#modal_rrn', key: 'rrn', fallback: 'Corporate / Resident Number' },
+        { selector: '#modal_client_type', key: 'client_type', fallback: 'Client Type' },
+        { selector: '#modal_business_type', key: 'business_type', fallback: 'Business Type' },
+        { selector: '#modal_business_category', key: 'business_category', fallback: 'Business Category' },
+        { selector: '#modal_business_status', key: 'business_status', fallback: 'Business Status' },
+        { selector: '#modal_business_certificate', key: 'business_certificate', fallback: 'Business Certificate' },
+        { selector: '#modal_rrn_image', key: 'rrn_image', fallback: 'ID Image' },
+        { selector: '#modal_ceo_name', key: 'ceo_name', fallback: 'CEO Name' },
+        { selector: '#modal_ceo_phone', key: 'ceo_phone', fallback: 'CEO Phone' },
+        { selector: '#modal_manager_name', key: 'manager_name', fallback: 'Manager Name' },
+        { selector: '#modal_manager_phone', key: 'manager_phone', fallback: 'Manager Phone' },
+        { selector: '#modal_phone', key: 'phone', fallback: 'Phone' },
+        { selector: '#modal_fax', key: 'fax', fallback: 'Fax' },
+        { selector: '#modal_email', key: 'email', fallback: 'Email' },
+        { selector: '#modal_address', key: 'address', fallback: 'Address' },
+        { selector: '#modal_address_detail', key: 'address_detail', fallback: 'Address Detail' },
+        { selector: '#modal_homepage', key: 'homepage', fallback: 'Homepage' },
+        { selector: '#modal_client_category', key: 'client_category', fallback: 'Client Category' },
+        { selector: '#modal_bank_name', key: 'bank_name', fallback: 'Bank Name' },
+        { selector: '#modal_account_number', key: 'account_number', fallback: 'Account Number' },
+        { selector: '#modal_account_holder', key: 'account_holder', fallback: 'Account Holder' },
+        { selector: '#modal_trade_category', key: 'trade_category', fallback: 'Trade Category' },
+        { selector: '#modal_tax_type', key: 'tax_type', fallback: 'Tax Type' },
+        { selector: '#modal_payment_term', key: 'payment_term', fallback: 'Payment Term' },
+        { selector: '#modal_bank_file', key: 'bank_file', fallback: 'Bank File' },
+        { selector: '#modal_default_account_id', key: 'default_account_id', fallback: 'Default Account' },
+        { selector: '#modal_item_category', key: 'item_category', fallback: 'Item Category' },
+        { selector: '#modal_note', key: 'note', fallback: 'Note' },
+        { selector: '#modal_memo', key: 'memo', fallback: 'Memo' },
+    ]);
+    const CLIENT_QUICK_MODAL_FIELD_POLICIES = Object.freeze([
+        { key: 'client_name', fallback: 'Client Name' },
+        { key: 'company_name', fallback: 'Company Name' },
+        { key: 'business_number', fallback: 'Business Number' },
+        { key: 'business_status', fallback: 'Business Status' },
+        { key: 'ceo_name', fallback: 'CEO Name' },
+        { key: 'phone', fallback: 'Phone' },
+    ]);
 
     const {
         notify,
@@ -80,6 +134,205 @@ export function createClientModalModule({
         if (field) field.value = value ?? '';
     }
 
+    function currentClientPolicyState() {
+        return readDataTableSettingsState(CLIENT_TABLE_SETTINGS_STORAGE_KEY) || {};
+    }
+
+    function clientFieldLabel(key, _fallback = '') {
+        const normalizedKey = String(key || '').trim();
+        return resolveDataTableColumnDisplayName(
+            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+            currentClientPolicyState(),
+            normalizedKey
+        );
+    }
+
+    function clientFieldRequirement(key) {
+        const normalizedKey = String(key || '').trim();
+        return resolveDataTableColumnRequirementPolicy(
+            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+            currentClientPolicyState()
+        );
+    }
+
+    function clientFieldStarMarkup(key) {
+        const policy = clientFieldRequirement(key);
+        if (policy === 'required') {
+            return '<span class="column-policy-star is-required" aria-hidden="true">*</span>';
+        }
+        if (policy === 'optional') {
+            return '<span class="column-policy-star is-optional" aria-hidden="true">*</span>';
+        }
+        return '';
+    }
+
+    function isClientFilePolicyKey(key) {
+        return ['business_certificate', 'rrn_image', 'bank_file'].includes(String(key || '').trim());
+    }
+
+    function isFieldVisible(field) {
+        if (!field) return false;
+        if (field.type === 'hidden') return false;
+        if (field.disabled) return false;
+        const style = window.getComputedStyle(field);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        return true;
+    }
+
+    function shouldValidateClientPolicyField(field, options = {}) {
+        const mode = String(options.mode || 'detail').trim();
+        const key = String(field?.key || '').trim();
+        if (!key) return false;
+
+        if (mode === 'quick') {
+            return CLIENT_QUICK_MODAL_FIELD_POLICIES.some((item) => item.key === key);
+        }
+
+        const selector = String(field?.selector || '').trim();
+        if (!selector) return false;
+        const input = document.querySelector(selector);
+        return isFieldVisible(input);
+    }
+
+    function hasDetailClientFileValue(key) {
+        const normalizedKey = String(key || '').trim();
+
+        if (normalizedKey === 'business_certificate') {
+            const input = document.getElementById('modal_business_certificate');
+            const deleteFlag = document.getElementById('delete_business_certificate');
+            const list = document.getElementById('bizCertList');
+            const hasExisting = String(list?.dataset?.original || '0') === '1';
+            return (input?.files?.length || 0) > 0 || (hasExisting && String(deleteFlag?.value || '0') !== '1');
+        }
+
+        if (normalizedKey === 'rrn_image') {
+            const input = document.getElementById('modal_rrn_image');
+            const deleteFlag = document.getElementById('delete_rrn_image');
+            const list = document.getElementById('rrnImageList');
+            const hasExisting = String(list?.textContent || '').trim() !== '';
+            return (input?.files?.length || 0) > 0 || (hasExisting && String(deleteFlag?.value || '0') !== '1');
+        }
+
+        if (normalizedKey === 'bank_file') {
+            const input = document.getElementById('modal_bank_file');
+            const deleteFlag = document.getElementById('delete_bank_file');
+            const drop = document.getElementById('bankCopyUpload');
+            const hasExisting = String(drop?.dataset?.original || '0') === '1';
+            return (input?.files?.length || 0) > 0 || (hasExisting && String(deleteFlag?.value || '0') !== '1');
+        }
+
+        return false;
+    }
+
+    function validateClientRequiredPolicies(fields = [], values = {}, options = {}) {
+        const mode = String(options.mode || 'detail').trim();
+
+        for (const field of fields) {
+            const key = String(field?.key || '').trim();
+            if (!key || clientFieldRequirement(key) !== 'required') {
+                continue;
+            }
+            if (!shouldValidateClientPolicyField(field, options)) {
+                continue;
+            }
+
+            const label = clientFieldLabel(key, field?.fallback || key);
+            if (isClientFilePolicyKey(key)) {
+                const hasFile = mode === 'detail' ? hasDetailClientFileValue(key) : false;
+                if (!hasFile) {
+                    return `${label} 항목은 필수입니다.`;
+                }
+                continue;
+            }
+
+            const value = values[key];
+            if (Array.isArray(value)) {
+                if (value.length === 0) {
+                    return `${label} 항목은 필수입니다.`;
+                }
+                continue;
+            }
+
+            if (String(value ?? '').trim() === '') {
+                return `${label} 항목은 필수입니다.`;
+            }
+        }
+
+        return '';
+    }
+
+    function collectClientDetailValues(form, formData) {
+        const values = {};
+
+        CLIENT_MODAL_FIELD_POLICIES.forEach((field) => {
+            const key = String(field?.key || '').trim();
+            if (!key || isClientFilePolicyKey(key)) {
+                return;
+            }
+
+            const fieldName = key;
+            const input = form?.elements?.namedItem?.(fieldName) || document.getElementById(`modal_${fieldName}`);
+            if (!input) {
+                return;
+            }
+
+            values[key] = formData.get(fieldName) ?? input.value ?? '';
+        });
+
+        return values;
+    }
+
+    function collectClientQuickValuesForValidation(formData) {
+        return {
+            client_name: formData.get('client_name') ?? '',
+            company_name: formData.get('company_name') ?? '',
+            business_number: formData.get('business_number') ?? '',
+            business_status: formData.get('business_status') ?? '',
+            ceo_name: formData.get('ceo_name') ?? '',
+            phone: formData.get('phone') ?? '',
+        };
+    }
+
+    function findClientModalLabel(fieldSelector, root = document) {
+        const field = root.querySelector(fieldSelector);
+        if (!field) return null;
+
+        if (field.id) {
+            const labelByFor = root.querySelector(`label[for="${field.id}"]`);
+            if (labelByFor) return labelByFor;
+        }
+
+        const column = field.closest('div[class*="col-"]');
+        if (column) {
+            const label = column.querySelector('label.form-label');
+            if (label) return label;
+        }
+
+        return field.closest('label.form-label') || null;
+    }
+
+    function applyClientModalPolicyLabels(root = document) {
+        CLIENT_MODAL_FIELD_POLICIES.forEach((field) => {
+            const labelEl = findClientModalLabel(field.selector, root);
+            if (!labelEl) return;
+
+            const displayName = clientFieldLabel(field.key, field.fallback);
+            const starMarkup = clientFieldStarMarkup(field.key);
+            labelEl.innerHTML = `${displayName}${starMarkup ? ` ${starMarkup}` : ''}`;
+        });
+    }
+
+    function bindClientPolicySync() {
+        if (clientPolicyBound) return;
+        clientPolicyBound = true;
+
+        document.addEventListener('datatable-settings:updated', (event) => {
+            const storageKey = String(event?.detail?.storageKey || '').trim();
+            if (storageKey && storageKey !== CLIENT_TABLE_SETTINGS_STORAGE_KEY) return;
+            applyClientModalPolicyLabels(document);
+        });
+    }
+
     function getClientQuickValues(form) {
         return Object.fromEntries(new FormData(form).entries());
     }
@@ -109,6 +362,16 @@ export function createClientModalModule({
             if (submitButton) submitButton.disabled = true;
             const formData = new FormData(form);
             if (!formData.get('is_active')) formData.set('is_active', '1');
+            const requiredMessage = validateClientRequiredPolicies(
+                CLIENT_MODAL_FIELD_POLICIES,
+                collectClientDetailValues(form, formData),
+                { mode: 'detail' }
+            );
+            if (requiredMessage) {
+                notify('warning', requiredMessage);
+                if (submitButton) submitButton.disabled = false;
+                return;
+            }
             if (!validateClientSubTypeRules(form)) {
                 if (submitButton) submitButton.disabled = false;
                 return;
@@ -179,6 +442,17 @@ export function createClientModalModule({
             const formData = new FormData(form);
             formData.set('business_number', String(formData.get('business_number') || '').replace(/\D/g, ''));
             formData.set('is_active', formData.get('is_active') || '1');
+            const requiredMessage = validateClientRequiredPolicies(
+                CLIENT_QUICK_MODAL_FIELD_POLICIES,
+                collectClientQuickValuesForValidation(formData),
+                { mode: 'quick' }
+            );
+            if (requiredMessage) {
+                if (messageEl) messageEl.textContent = requiredMessage;
+                if (submitButton) submitButton.disabled = false;
+                if (detailButton) detailButton.disabled = false;
+                return;
+            }
             if (!validateClientSubTypeRules(form)) {
                 if (submitButton) submitButton.disabled = false;
                 if (detailButton) detailButton.disabled = false;
@@ -242,12 +516,23 @@ export function createClientModalModule({
         clientQuickState = options;
         const values = options.initialValues || {};
         if (titleEl) titleEl.textContent = options.title || '거래처 빠른 등록';
+        const quickClientNameLabel = clientFieldLabel('client_name', 'Client Name');
+        const quickCompanyNameLabel = clientFieldLabel('company_name', 'Company Name');
+        const quickBusinessNumberLabel = clientFieldLabel('business_number', 'Business Number');
+        const quickBusinessStatusLabel = clientFieldLabel('business_status', 'Business Status');
+        const quickCeoNameLabel = clientFieldLabel('ceo_name', 'CEO Name');
+        const quickPhoneLabel = clientFieldLabel('phone', 'Phone');
+        const quickClientNameStar = clientFieldStarMarkup('client_name');
+        const quickCompanyNameStar = clientFieldStarMarkup('company_name');
+        const quickBusinessNumberStar = clientFieldStarMarkup('business_number');
+        const quickCeoNameStar = clientFieldStarMarkup('ceo_name');
+        const quickPhoneStar = clientFieldStarMarkup('phone');
         bodyEl.innerHTML = `
-            <label class="form-label w-100"><span class="fw-bold d-block mb-1">거래처명</span><input type="text" class="form-control form-control-sm" name="client_name" value="${String(values.client_name || '').replace(/"/g, '&quot;')}" required></label>
-            <label class="form-label w-100"><span class="fw-bold d-block mb-1">상호</span><input type="text" class="form-control form-control-sm" name="company_name" value="${String(values.company_name || '').replace(/"/g, '&quot;')}"></label>
-            <label class="form-label w-100"><span class="fw-bold d-block mb-1">사업자등록번호</span><div class="input-group input-group-sm"><input type="text" class="form-control form-control-sm" name="business_number" data-format="biz" value="${formatBizNumber?.(String(values.business_number || '')) || String(values.business_number || '').replace(/"/g, '&quot;')}"><button type="button" class="btn btn-outline-primary" data-action="quick-biz-status">상태확인</button></div><input type="hidden" name="business_status" value="${String(values.business_status || '').replace(/"/g, '&quot;')}"><span class="form-text" data-role="quick-biz-status-text"></span></label>
-            <label class="form-label w-100"><span class="fw-bold d-block mb-1">대표자명</span><input type="text" class="form-control form-control-sm" name="ceo_name" value="${String(values.ceo_name || '').replace(/"/g, '&quot;')}"></label>
-            <label class="form-label w-100"><span class="fw-bold d-block mb-1">전화번호</span><input type="text" class="form-control form-control-sm" name="phone" data-format="phone" value="${formatPhone?.(String(values.phone || '')) || String(values.phone || '').replace(/"/g, '&quot;')}"></label>
+            <label class="form-label w-100"><span class="fw-bold d-block mb-1">${quickClientNameLabel}${quickClientNameStar ? ` ${quickClientNameStar}` : ''}</span><input type="text" class="form-control form-control-sm" name="client_name" value="${String(values.client_name || '').replace(/"/g, '&quot;')}" required></label>
+            <label class="form-label w-100"><span class="fw-bold d-block mb-1">${quickCompanyNameLabel}${quickCompanyNameStar ? ` ${quickCompanyNameStar}` : ''}</span><input type="text" class="form-control form-control-sm" name="company_name" value="${String(values.company_name || '').replace(/"/g, '&quot;')}"></label>
+            <label class="form-label w-100"><span class="fw-bold d-block mb-1">${quickBusinessNumberLabel}${quickBusinessNumberStar ? ` ${quickBusinessNumberStar}` : ''}</span><div class="input-group input-group-sm"><input type="text" class="form-control form-control-sm" name="business_number" data-format="biz" value="${formatBizNumber?.(String(values.business_number || '')) || String(values.business_number || '').replace(/"/g, '&quot;')}"><button type="button" class="btn btn-outline-primary" data-action="quick-biz-status">${quickBusinessStatusLabel}</button></div><input type="hidden" name="business_status" value="${String(values.business_status || '').replace(/"/g, '&quot;')}"><span class="form-text" data-role="quick-biz-status-text"></span></label>
+            <label class="form-label w-100"><span class="fw-bold d-block mb-1">${quickCeoNameLabel}${quickCeoNameStar ? ` ${quickCeoNameStar}` : ''}</span><input type="text" class="form-control form-control-sm" name="ceo_name" value="${String(values.ceo_name || '').replace(/"/g, '&quot;')}"></label>
+            <label class="form-label w-100"><span class="fw-bold d-block mb-1">${quickPhoneLabel}${quickPhoneStar ? ` ${quickPhoneStar}` : ''}</span><input type="text" class="form-control form-control-sm" name="phone" data-format="phone" value="${formatPhone?.(String(values.phone || '')) || String(values.phone || '').replace(/"/g, '&quot;')}"></label>
         `;
         applyClientSubTypeRules(form);
         if (detailButton) detailButton.hidden = !document.getElementById('clientModal') && typeof options.openDetail !== 'function';
@@ -315,6 +600,7 @@ export function createClientModalModule({
         renderBusinessCertificate(data.business_certificate || '', notify);
         renderRrnImage(data.rrn_image || '', notify);
         renderBankFile(data.bank_file || '', notify);
+        applyClientModalPolicyLabels(document);
     }
 
     function initModal() {
@@ -322,6 +608,8 @@ export function createClientModalModule({
         state.clientModal = modalEl ? new bootstrap.Modal(modalEl, { focus: false }) : null;
         state.excelModal = document.getElementById('clientExcelModal') ? new bootstrap.Modal(document.getElementById('clientExcelModal')) : null;
         if (!modalEl) return;
+        bindClientPolicySync();
+        applyClientModalPolicyLabels(document);
         modalEl.addEventListener('hide.bs.modal', closeClientModalSelect2);
         modalEl.addEventListener('hidden.bs.modal', () => {
             closeClientModalSelect2();
@@ -342,9 +630,13 @@ export function createClientModalModule({
                 rrnField.dataset.real = '';
             }
             resetRrnVisibility();
+            applyClientModalPolicyLabels(document);
         });
         formModule.bindDateIconPicker();
-        modalEl.addEventListener('shown.bs.modal', () => formModule.bindAdminDateInputs());
+        modalEl.addEventListener('shown.bs.modal', () => {
+            formModule.bindAdminDateInputs();
+            applyClientModalPolicyLabels(document);
+        });
     }
 
     function openClientCreateDetailModal(initialValues = {}) {
@@ -381,6 +673,7 @@ export function createClientModalModule({
             field.dispatchEvent(new Event('input', { bubbles: true }));
             field.dispatchEvent(new Event('change', { bubbles: true }));
         });
+        applyClientModalPolicyLabels(document);
         state.clientModal?.show();
         void prepareClientModalControls().catch((error) => {
             console.error('[client] modal controls prepare failed', error);
@@ -399,6 +692,15 @@ export function createClientModalModule({
             const formData = new FormData(form);
             formData.set('account_number', formModule.unformatAccountNumber?.(formData.get('account_number') || '') || '');
             if (formData.get('default_account_id') === '__none__') formData.set('default_account_id', '');
+            const requiredMessage = validateClientRequiredPolicies(
+                CLIENT_MODAL_FIELD_POLICIES,
+                collectClientDetailValues(form, formData),
+                { mode: 'detail' }
+            );
+            if (requiredMessage) {
+                notify('warning', requiredMessage);
+                return;
+            }
             if (!validateClientSubTypeRules(form)) return;
             const rrnInput = document.getElementById('modal_rrn');
             if (rrnInput) {

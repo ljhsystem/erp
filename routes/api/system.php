@@ -130,6 +130,20 @@ $router->get('/api/settings/system/code/list', 'CodeController@apiList', [
     'log' => true,
 ]);
 
+$router->get('/api/settings/system/data-table-columns', 'SystemController@apiDataTableColumns', [
+    'key' => 'api.settings.system.data_table_columns',
+    'page' => '테이블설정',
+    'page_description' => '공용 DataTable 컬럼 메타 조회',
+    'permission_name' => '컬럼메타조회',
+    'permission_description' => '공용 DataTable DB 컬럼 메타 조회',
+    'name' => '공용 DataTable 컬럼 메타 조회',
+    'description' => '설정 > 시스템설정 > 공용 DataTable 컬럼 메타 조회',
+    'category' => '설정 > 시스템설정',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
+]);
+
 $router->get('/api/settings/system/code/detail', 'CodeController@apiDetail', [
     'key' => 'code.view',
     'page' => '코드관리',

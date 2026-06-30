@@ -157,7 +157,7 @@ $router->get('/api/import/batches', 'EvidenceUploadController@apiBatchList', [
     'log' => false,
 ]);
 
-$router->get('/api/import/evidences', 'EvidenceGenerationController@apiList', [
+$router->get('/api/import/evidences', 'EvidenceListController@apiList', [
     'key' => 'api.import.evidences',
     'page' => '생성센터',
     'page_description' => '생성센터 관리',
@@ -171,7 +171,7 @@ $router->get('/api/import/evidences', 'EvidenceGenerationController@apiList', [
     'log' => false,
 ]);
 
-$router->get('/api/import/evidences/download', 'EvidencePayloadController@apiDownload', [
+$router->get('/api/import/evidences/download', 'EvidenceDownloadController@apiDownload', [
     'key' => 'api.import.evidences.download',
     'page' => '생성센터',
     'page_description' => '생성센터 관리',
@@ -213,7 +213,7 @@ $router->get('/api/import/batch/rows', 'EvidenceUploadController@apiBatchRows', 
     'log' => false,
 ]);
 
-$router->post('/api/import/evidence/save', 'EvidenceGenerationController@apiSave', [
+$router->post('/api/import/evidence/save', 'EvidenceSaveController@apiSave', [
     'key' => 'api.import.evidence.save',
     'page' => '생성센터',
     'page_description' => '생성센터 관리',
@@ -227,7 +227,7 @@ $router->post('/api/import/evidence/save', 'EvidenceGenerationController@apiSave
     'log' => true,
 ]);
 
-$router->post('/api/import/evidence/create', 'EvidenceGenerationController@apiCreate', [
+$router->post('/api/import/evidence/create', 'EvidenceSaveController@apiCreate', [
     'key' => 'api.import.evidence.create',
     'page' => '생성센터',
     'page_description' => '생성센터 관리',
@@ -241,7 +241,7 @@ $router->post('/api/import/evidence/create', 'EvidenceGenerationController@apiCr
     'log' => true,
 ]);
 
-$router->post('/api/import/evidence/split-child', 'EvidenceGenerationController@apiSplitChild', [
+$router->post('/api/import/evidence/split-child', 'EvidenceSplitController@apiSplitChild', [
     'key' => 'api.import.evidence.split_child',
     'page' => '생성센터',
     'page_description' => '생성센터 관리',
@@ -255,7 +255,7 @@ $router->post('/api/import/evidence/split-child', 'EvidenceGenerationController@
     'log' => true,
 ]);
 
-$router->post('/api/import/evidence/processing-child/delete', 'EvidenceGenerationController@apiDeleteProcessingChild', [
+$router->post('/api/import/evidence/processing-child/delete', 'EvidenceProcessingController@apiDeleteProcessingChild', [
     'key' => 'api.import.evidence.processing_child.delete',
     'page' => '생성센터',
     'page_description' => '생성센터 관리',
@@ -269,7 +269,7 @@ $router->post('/api/import/evidence/processing-child/delete', 'EvidenceGeneratio
     'log' => true,
 ]);
 
-$router->post('/api/import/evidence/processing-child/update', 'EvidenceGenerationController@apiUpdateProcessingChild', [
+$router->post('/api/import/evidence/processing-child/update', 'EvidenceProcessingController@apiUpdateProcessingChild', [
     'key' => 'api.import.evidence.processing_child.update',
     'page' => '생성센터',
     'page_description' => '생성센터 관리',
@@ -283,7 +283,7 @@ $router->post('/api/import/evidence/processing-child/update', 'EvidenceGeneratio
     'log' => true,
 ]);
 
-$router->get('/api/import/evidence/summary-search', 'EvidencePayloadController@apiSearchSummary', [
+$router->get('/api/import/evidence/summary-search', 'EvidenceDownloadController@apiSearchSummary', [
     'key' => 'api.import.evidence.summary_search',
     'page' => '생성센터',
     'page_description' => '생성센터 관리',
@@ -297,7 +297,7 @@ $router->get('/api/import/evidence/summary-search', 'EvidencePayloadController@a
     'log' => true,
 ]);
 
-$router->post('/api/import/evidences/bulk-save', 'EvidenceGenerationController@apiBulkSave', [
+$router->post('/api/import/evidences/bulk-save', 'EvidenceSaveController@apiBulkSave', [
     'key' => 'api.import.evidences.bulk_save',
     'page' => '생성센터',
     'page_description' => '생성센터 관리',
@@ -534,4 +534,3 @@ $router->get('/api/system/storage/bucket-browse', 'FileController@apiBucketBrows
     'permissions' => ['view'],
     'log' => true,
 ]);
-

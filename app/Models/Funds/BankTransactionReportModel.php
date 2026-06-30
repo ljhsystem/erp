@@ -6,6 +6,8 @@ use PDO;
 
 class BankTransactionReportModel
 {
+    private const BANK_TABLE = 'ledger_evidence_bank_transaction';
+
     private array $columnCache = [];
 
     public function __construct(private PDO $pdo)
@@ -14,68 +16,74 @@ class BankTransactionReportModel
 
     public function rows(array $filters = []): array
     {
-        if (!$this->tableExists('ledger_bank_transactions')) {
+        if (!$this->tableExists(self::BANK_TABLE)) {
             return [];
         }
 
         [$where, $params] = $this->whereSql($filters, false);
         $payloadTableExists = $this->tableExists('ledger_evidence_payloads');
+        $processingTableExists = $this->tableExists('ledger_evidence_processing');
         $evidenceMappedPayloadSelect = $payloadTableExists && $this->columnExists('ledger_evidence_payloads', 'mapped_payload_json')
             ? 'p.mapped_payload_json'
             : 'NULL';
         $evidencePayloadJoin = $payloadTableExists ? "
             LEFT JOIN ledger_evidence_payloads p
-                ON p.evidence_type = e.source_type COLLATE utf8mb4_unicode_ci
-               AND p.evidence_id = e.id COLLATE utf8mb4_unicode_ci" : '';
+                ON p.evidence_type = 'BANK_TRANSACTION'
+               AND p.evidence_id = eb.id COLLATE utf8mb4_unicode_ci" : '';
+        $evidenceProcessingJoin = $processingTableExists ? "
+            LEFT JOIN ledger_evidence_processing ep
+                ON ep.evidence_type = 'BANK_TRANSACTION'
+               AND ep.evidence_id = eb.id COLLATE utf8mb4_unicode_ci" : '';
         $clientNameSelect = $this->clientNameSql();
         $sql = "
             SELECT
-                b.id,
-                b.evidence_id,
-                " . $this->selectColumn('b', 'transaction_datetime', "TIMESTAMP(b.transaction_date, COALESCE(b.transaction_time, '00:00:00'))") . " AS transaction_datetime,
-                b.transaction_date,
-                b.transaction_time,
-                b.bank_account_id,
-                COALESCE(NULLIF(ba.account_name, ''), b.bank_account_id, '-') AS account_name,
+                eb.id,
+                eb.id AS evidence_id,
+                " . $this->selectColumn('eb', 'transaction_datetime', 'NULL') . " AS transaction_datetime,
+                " . $this->selectColumn('eb', 'transaction_date', 'NULL') . " AS transaction_date,
+                " . $this->selectColumn('eb', 'transaction_time', 'NULL') . " AS transaction_time,
+                eb.bank_account_id,
+                COALESCE(NULLIF(ba.account_name, ''), eb.bank_account_id, '-') AS account_name,
                 COALESCE(NULLIF(ba.bank_name, ''), '') AS bank_name,
                 COALESCE(NULLIF(ba.account_number, ''), '') AS account_number,
-                UPPER(COALESCE(b.transaction_type, '')) AS transaction_type,
-                COALESCE(b.deposit_amount, 0) AS deposit_amount,
-                COALESCE(b.withdraw_amount, 0) AS withdraw_amount,
-                b.balance_amount,
-                COALESCE(b.description, '') AS description,
-                COALESCE(b.memo, '') AS memo,
+                UPPER(COALESCE(eb.transaction_type, '')) AS transaction_type,
+                COALESCE(" . $this->selectColumn('eb', 'deposit_amount', '0') . ", 0) AS deposit_amount,
+                COALESCE(" . $this->selectColumn('eb', 'withdraw_amount', '0') . ", 0) AS withdraw_amount,
+                " . $this->selectColumn('eb', 'balance_amount', 'NULL') . " AS balance_amount,
+                COALESCE(" . $this->selectColumn('eb', 'description', "''") . ", '') AS description,
+                COALESCE(" . $this->selectColumn('eb', 'memo', "''") . ", '') AS memo,
                 {$clientNameSelect} AS client_name,
-                COALESCE(b.counterparty_name, '') AS counterparty_name,
-                " . $this->selectColumn('b', 'counterparty_account_number', "''") . " AS counterparty_account_number,
-                " . $this->selectColumn('b', 'counterparty_bank_name', "''") . " AS counterparty_bank_name,
-                b.bank_reference_no,
-                b.currency_code,
-                b.created_at AS uploaded_at,
-                b.updated_at,
-                b.deleted_at AS bank_deleted_at,
-                COALESCE(b.deleted_at, e.deleted_at) AS deleted_at,
-                e.source_type AS evidence_source_type,
+                COALESCE(" . $this->selectColumn('eb', 'counterparty_name', "''") . ", '') AS counterparty_name,
+                " . $this->selectColumn('eb', 'counterparty_account_number', "''") . " AS counterparty_account_number,
+                " . $this->selectColumn('eb', 'counterparty_bank_name', "''") . " AS counterparty_bank_name,
+                COALESCE(" . $this->selectColumn('eb', 'bank_reference_no', 'eb.external_key') . ", '') AS bank_reference_no,
+                " . $this->selectColumn('eb', 'currency_code', 'NULL') . " AS currency_code,
+                eb.created_at AS uploaded_at,
+                eb.updated_at,
+                eb.deleted_at AS bank_deleted_at,
+                eb.deleted_at,
+                eb.source_type AS evidence_source_type,
                 {$evidenceMappedPayloadSelect} AS evidence_mapped_payload_json,
-                e.evidence_status,
-                e.voucher_status,
-                e.transaction_status,
-                e.deleted_at AS evidence_deleted_at,
+                eb.evidence_status,
+                NULL AS voucher_status,
+                NULL AS transaction_status,
+                " . ($processingTableExists ? 'ep.processing_status' : "'READY'") . " AS process_status,
+                " . ($processingTableExists ? 'ep.processing_status' : "'READY'") . " AS status,
+                eb.deleted_at AS evidence_deleted_at,
                 COALESCE(vlink.voucher_count, 0) AS voucher_count,
                 vlink.voucher_id,
                 vlink.voucher_no,
                 vlink.voucher_date
-            FROM ledger_bank_transactions b
+            FROM " . self::BANK_TABLE . " eb
             LEFT JOIN system_bank_accounts ba
-                ON ba.id = b.bank_account_id
-            LEFT JOIN ledger_data_evidences e
-                ON e.id = b.evidence_id
+                ON ba.id = eb.bank_account_id
             {$evidencePayloadJoin}
+            {$evidenceProcessingJoin}
             LEFT JOIN " . $this->voucherLinkSubquery() . " vlink
-                ON vlink.evidence_id = b.evidence_id
+                ON vlink.evidence_id = eb.id
             WHERE {$where}
-            ORDER BY COALESCE(" . $this->selectColumn('b', 'transaction_datetime', 'NULL') . ", TIMESTAMP(b.transaction_date, COALESCE(b.transaction_time, '00:00:00'))) DESC,
-                     b.created_at DESC
+            ORDER BY COALESCE(" . $this->selectColumn('eb', 'transaction_datetime', 'NULL') . ", eb.created_at) DESC,
+                     eb.created_at DESC
         ";
 
         $stmt = $this->pdo->prepare($sql);
@@ -106,24 +114,28 @@ class BankTransactionReportModel
 
     public function summary(array $filters = []): array
     {
-        if (!$this->tableExists('ledger_bank_transactions')) {
+        if (!$this->tableExists(self::BANK_TABLE)) {
             return $this->emptySummary();
         }
 
         [$where, $params] = $this->whereSql($filters, false);
+        $payloadTableExists = $this->tableExists('ledger_evidence_payloads');
+        $evidencePayloadJoin = $payloadTableExists ? "
+            LEFT JOIN ledger_evidence_payloads p
+                ON p.evidence_type = 'BANK_TRANSACTION'
+               AND p.evidence_id = eb.id COLLATE utf8mb4_unicode_ci" : '';
         $sql = "
             SELECT
-                COALESCE(SUM(COALESCE(b.deposit_amount, 0)), 0) AS deposit_total,
-                COALESCE(SUM(COALESCE(b.withdraw_amount, 0)), 0) AS withdraw_total,
+                COALESCE(SUM(COALESCE(" . $this->selectColumn('eb', 'deposit_amount', '0') . ", 0)), 0) AS deposit_total,
+                COALESCE(SUM(COALESCE(" . $this->selectColumn('eb', 'withdraw_amount', '0') . ", 0)), 0) AS withdraw_total,
                 COALESCE(SUM(CASE WHEN COALESCE(vlink.voucher_count, 0) = 0 THEN 1 ELSE 0 END), 0) AS unlinked_count,
                 COALESCE(SUM(CASE WHEN COALESCE(vlink.voucher_count, 0) > 0 THEN 1 ELSE 0 END), 0) AS voucher_linked_count
-            FROM ledger_bank_transactions b
+            FROM " . self::BANK_TABLE . " eb
             LEFT JOIN system_bank_accounts ba
-                ON ba.id = b.bank_account_id
-            LEFT JOIN ledger_data_evidences e
-                ON e.id = b.evidence_id
+                ON ba.id = eb.bank_account_id
+            {$evidencePayloadJoin}
             LEFT JOIN " . $this->voucherLinkSubquery() . " vlink
-                ON vlink.evidence_id = b.evidence_id
+                ON vlink.evidence_id = eb.id
             WHERE {$where}
         ";
         $stmt = $this->pdo->prepare($sql);
@@ -164,28 +176,28 @@ class BankTransactionReportModel
             return false;
         }
 
+        $actor = $this->auditActor($actor);
         $this->pdo->beginTransaction();
         try {
+            $params = [':id' => $id];
             $stmt = $this->pdo->prepare("
-                UPDATE ledger_bank_transactions
-                SET deleted_at = NOW(),
-                    deleted_by = :actor,
-                    updated_at = NOW(),
-                    updated_by = :actor
+                UPDATE " . self::BANK_TABLE . "
+                SET " . $this->softDeleteSetSql($params, $actor) . "
                 WHERE id = :id
                   AND deleted_at IS NULL
             ");
-            $stmt->execute([':id' => $id, ':actor' => $actor]);
+            $stmt->execute($params);
 
             $evidenceId = (string) ($row['evidence_id'] ?? '');
-            if ($evidenceId !== '' && $this->tableExists('ledger_data_evidences')) {
+            if ($evidenceId !== '' && $this->tableExists('ledger_evidence_payloads')) {
                 $this->pdo->prepare("
-                    UPDATE ledger_data_evidences
+                    UPDATE ledger_evidence_payloads
                     SET deleted_at = NOW(),
                         deleted_by = :actor,
                         updated_at = NOW(),
                         updated_by = :actor
-                    WHERE id = :id
+                    WHERE evidence_type = 'BANK_TRANSACTION'
+                      AND evidence_id = :id
                       AND deleted_at IS NULL
                 ")->execute([':id' => $evidenceId, ':actor' => $actor]);
             }
@@ -205,26 +217,26 @@ class BankTransactionReportModel
             return false;
         }
 
+        $actor = $this->auditActor($actor);
         $this->pdo->beginTransaction();
         try {
+            $params = [':id' => $id];
             $this->pdo->prepare("
-                UPDATE ledger_bank_transactions
-                SET deleted_at = NULL,
-                    deleted_by = NULL,
-                    updated_at = NOW(),
-                    updated_by = :actor
+                UPDATE " . self::BANK_TABLE . "
+                SET " . $this->restoreSetSql($params, $actor) . "
                 WHERE id = :id
-            ")->execute([':id' => $id, ':actor' => $actor]);
+            ")->execute($params);
 
             $evidenceId = (string) ($row['evidence_id'] ?? '');
-            if ($evidenceId !== '' && $this->tableExists('ledger_data_evidences')) {
+            if ($evidenceId !== '' && $this->tableExists('ledger_evidence_payloads')) {
                 $this->pdo->prepare("
-                    UPDATE ledger_data_evidences
+                    UPDATE ledger_evidence_payloads
                     SET deleted_at = NULL,
                         deleted_by = NULL,
                         updated_at = NOW(),
                         updated_by = :actor
-                    WHERE id = :id
+                    WHERE evidence_type = 'BANK_TRANSACTION'
+                      AND evidence_id = :id
                 ")->execute([':id' => $evidenceId, ':actor' => $actor]);
             }
 
@@ -261,8 +273,8 @@ class BankTransactionReportModel
                     continue;
                 }
                 $column = match ($field) {
-                    'uploaded_at', 'created_at' => 'b.created_at',
-                    default => "COALESCE(" . $this->selectColumn('b', 'transaction_datetime', 'NULL') . ", TIMESTAMP(b.transaction_date, COALESCE(b.transaction_time, '00:00:00')))",
+                    'uploaded_at', 'created_at' => 'eb.created_at',
+                    default => "COALESCE(" . $this->selectColumn('eb', 'transaction_datetime', 'NULL') . ", eb.created_at)",
                 };
                 $where[] = "{$column} BETWEEN :start_{$index} AND :end_{$index}";
                 $params[":start_{$index}"] = strlen($start) === 10 ? $start . ' 00:00:00' : $start;
@@ -273,16 +285,16 @@ class BankTransactionReportModel
             $param = ":filter_{$index}";
             switch ($field) {
                 case 'id':
-                    $where[] = 'b.id = ' . $param;
+                    $where[] = 'eb.id = ' . $param;
                     $params[$param] = (string) $value;
                     break;
                 case 'transaction_datetime':
-                    $where[] = "COALESCE(" . $this->selectColumn('b', 'transaction_datetime', 'NULL') . ", TIMESTAMP(b.transaction_date, COALESCE(b.transaction_time, '00:00:00'))) LIKE " . $param;
+                    $where[] = "COALESCE(" . $this->selectColumn('eb', 'transaction_datetime', 'NULL') . ", eb.created_at) LIKE " . $param;
                     $params[$param] = '%' . (string) $value . '%';
                     break;
                 case 'bank_account_id':
                 case 'account':
-                    $where[] = 'b.bank_account_id = ' . $param;
+                    $where[] = 'eb.bank_account_id = ' . $param;
                     $params[$param] = (string) $value;
                     break;
                 case 'account_name':
@@ -301,11 +313,11 @@ class BankTransactionReportModel
                 case 'transaction_type':
                     $direction = strtoupper((string) $value);
                     if ($direction === 'IN' || $direction === '입금') {
-                        $where[] = 'COALESCE(b.deposit_amount, 0) > 0';
+                        $where[] = 'COALESCE(' . $this->selectColumn('eb', 'deposit_amount', '0') . ', 0) > 0';
                     } elseif ($direction === 'OUT' || $direction === '출금') {
-                        $where[] = 'COALESCE(b.withdraw_amount, 0) > 0';
+                        $where[] = 'COALESCE(' . $this->selectColumn('eb', 'withdraw_amount', '0') . ', 0) > 0';
                     } else {
-                        $where[] = 'UPPER(COALESCE(b.transaction_type, "")) = ' . $param;
+                        $where[] = 'UPPER(COALESCE(eb.transaction_type, "")) = ' . $param;
                         $params[$param] = $direction;
                     }
                     break;
@@ -314,7 +326,7 @@ class BankTransactionReportModel
                     if ($amount === null) {
                         break;
                     }
-                    $where[] = 'COALESCE(b.deposit_amount, 0) = ' . $param;
+                    $where[] = 'COALESCE(' . $this->selectColumn('eb', 'deposit_amount', '0') . ', 0) = ' . $param;
                     $params[$param] = $amount;
                     break;
                 case 'withdraw_amount':
@@ -322,7 +334,7 @@ class BankTransactionReportModel
                     if ($amount === null) {
                         break;
                     }
-                    $where[] = 'COALESCE(b.withdraw_amount, 0) = ' . $param;
+                    $where[] = 'COALESCE(' . $this->selectColumn('eb', 'withdraw_amount', '0') . ', 0) = ' . $param;
                     $params[$param] = $amount;
                     break;
                 case 'client_name':
@@ -330,20 +342,20 @@ class BankTransactionReportModel
                     $params[$param] = '%' . (string) $value . '%';
                     break;
                 case 'counterparty_name':
-                    $where[] = 'COALESCE(b.counterparty_name, "") LIKE ' . $param;
+                    $where[] = 'COALESCE(' . $this->selectColumn('eb', 'counterparty_name', "''") . ', "") LIKE ' . $param;
                     $params[$param] = '%' . (string) $value . '%';
                     break;
                 case 'counterparty_account_number':
-                    $where[] = 'COALESCE(' . $this->selectColumn('b', 'counterparty_account_number', 'NULL') . ', "") LIKE ' . $param;
+                    $where[] = 'COALESCE(' . $this->selectColumn('eb', 'counterparty_account_number', 'NULL') . ', "") LIKE ' . $param;
                     $params[$param] = $this->filterLikePattern($value);
                     break;
                 case 'counterparty_bank_name':
-                    $where[] = 'COALESCE(' . $this->selectColumn('b', 'counterparty_bank_name', 'NULL') . ', "") LIKE ' . $param;
+                    $where[] = 'COALESCE(' . $this->selectColumn('eb', 'counterparty_bank_name', 'NULL') . ', "") LIKE ' . $param;
                     $params[$param] = '%' . (string) $value . '%';
                     break;
                 case 'description':
                 case 'memo':
-                    $where[] = '(COALESCE(b.description, "") LIKE ' . $param . ' OR COALESCE(b.memo, "") LIKE ' . $param . ')';
+                    $where[] = '(COALESCE(' . $this->selectColumn('eb', 'description', "''") . ', "") LIKE ' . $param . ' OR COALESCE(' . $this->selectColumn('eb', 'memo', "''") . ', "") LIKE ' . $param . ')';
                     $params[$param] = '%' . (string) $value . '%';
                     break;
                 case 'voucher_link_status':
@@ -357,11 +369,11 @@ class BankTransactionReportModel
                 case 'evidence_status':
                     $status = strtoupper((string) $value);
                     if ($status === 'DELETED' || $status === '삭제') {
-                        $where[] = '(b.deleted_at IS NOT NULL OR e.deleted_at IS NOT NULL)';
+                        $where[] = 'eb.deleted_at IS NOT NULL';
                         $deletedScope = 'ALL';
                         break;
                     }
-                    $where[] = 'UPPER(COALESCE(e.evidence_status, "")) = ' . $param;
+                    $where[] = 'UPPER(COALESCE(eb.evidence_status, "")) = ' . $param;
                     $params[$param] = $status;
                     break;
                 case 'amount_min':
@@ -369,7 +381,7 @@ class BankTransactionReportModel
                     if ($amount === null) {
                         break;
                     }
-                    $where[] = 'GREATEST(COALESCE(b.deposit_amount, 0), COALESCE(b.withdraw_amount, 0)) >= ' . $param;
+                    $where[] = 'GREATEST(COALESCE(' . $this->selectColumn('eb', 'deposit_amount', '0') . ', 0), COALESCE(' . $this->selectColumn('eb', 'withdraw_amount', '0') . ', 0)) >= ' . $param;
                     $params[$param] = $amount;
                     break;
                 case 'amount_max':
@@ -377,25 +389,25 @@ class BankTransactionReportModel
                     if ($amount === null) {
                         break;
                     }
-                    $where[] = 'GREATEST(COALESCE(b.deposit_amount, 0), COALESCE(b.withdraw_amount, 0)) <= ' . $param;
+                    $where[] = 'GREATEST(COALESCE(' . $this->selectColumn('eb', 'deposit_amount', '0') . ', 0), COALESCE(' . $this->selectColumn('eb', 'withdraw_amount', '0') . ', 0)) <= ' . $param;
                     $params[$param] = $amount;
                     break;
                 default:
                     $where[] = '(COALESCE(ba.account_name, "") LIKE ' . $param . '
                         OR COALESCE(ba.bank_name, "") LIKE ' . $param . '
-                        OR COALESCE(b.description, "") LIKE ' . $param . '
-                        OR COALESCE(b.memo, "") LIKE ' . $param . '
+                        OR COALESCE(' . $this->selectColumn('eb', 'description', "''") . ', "") LIKE ' . $param . '
+                        OR COALESCE(' . $this->selectColumn('eb', 'memo', "''") . ', "") LIKE ' . $param . '
                         OR ' . $this->clientNameSql() . ' LIKE ' . $param . '
-                        OR COALESCE(b.counterparty_name, "") LIKE ' . $param . ')';
+                        OR COALESCE(' . $this->selectColumn('eb', 'counterparty_name', "''") . ', "") LIKE ' . $param . ')';
                     $params[$param] = '%' . (string) $value . '%';
                     break;
             }
         }
 
         if ($deletedScope === 'DELETED') {
-            $where[] = '(b.deleted_at IS NOT NULL OR e.deleted_at IS NOT NULL)';
+            $where[] = 'eb.deleted_at IS NOT NULL';
         } elseif ($deletedScope !== 'ALL') {
-            $where[] = '(b.deleted_at IS NULL AND e.deleted_at IS NULL)';
+            $where[] = 'eb.deleted_at IS NULL';
         }
 
         return [$where !== [] ? implode(' AND ', $where) : '1 = 1', $params];
@@ -575,15 +587,14 @@ class BankTransactionReportModel
     {
         [$where, $params] = $this->whereSql($filters, false);
         $stmt = $this->pdo->prepare("
-            SELECT b.balance_amount
-            FROM ledger_bank_transactions b
-            LEFT JOIN system_bank_accounts ba ON ba.id = b.bank_account_id
-            LEFT JOIN ledger_data_evidences e ON e.id = b.evidence_id
-            LEFT JOIN " . $this->voucherLinkSubquery() . " vlink ON vlink.evidence_id = b.evidence_id
+            SELECT " . $this->selectColumn('eb', 'balance_amount', 'NULL') . "
+            FROM " . self::BANK_TABLE . " eb
+            LEFT JOIN system_bank_accounts ba ON ba.id = eb.bank_account_id
+            LEFT JOIN " . $this->voucherLinkSubquery() . " vlink ON vlink.evidence_id = eb.id
             WHERE {$where}
-              AND b.balance_amount IS NOT NULL
-            ORDER BY COALESCE(" . $this->selectColumn('b', 'transaction_datetime', 'NULL') . ", TIMESTAMP(b.transaction_date, COALESCE(b.transaction_time, '00:00:00'))) DESC,
-                     b.created_at DESC
+              AND " . $this->selectColumn('eb', 'balance_amount', 'NULL') . " IS NOT NULL
+            ORDER BY COALESCE(" . $this->selectColumn('eb', 'transaction_datetime', 'NULL') . ", eb.created_at) DESC,
+                     eb.created_at DESC
             LIMIT 1
         ");
         $stmt->execute($params);
@@ -632,21 +643,111 @@ class BankTransactionReportModel
 
     private function selectColumn(string $alias, string $column, string $fallback): string
     {
-        return $this->columnExists($alias === 'b' ? 'ledger_bank_transactions' : $alias, $column)
+        if ($alias === 'eb') {
+            $mapped = $this->mappedBankColumn($alias, $column);
+            if ($mapped !== null) {
+                return $mapped;
+            }
+        }
+
+        return $this->columnExists($alias === 'eb' ? self::BANK_TABLE : $alias, $column)
             ? "{$alias}.{$column}"
             : $fallback;
     }
 
+    private function mappedBankColumn(string $alias, string $column): ?string
+    {
+        return match ($column) {
+            'transaction_datetime' => $this->columnExists(self::BANK_TABLE, 'raw_transaction_datetime') ? "{$alias}.raw_transaction_datetime" : null,
+            'transaction_date' => $this->columnExists(self::BANK_TABLE, 'raw_transaction_datetime') ? "DATE({$alias}.raw_transaction_datetime)" : null,
+            'transaction_time' => $this->columnExists(self::BANK_TABLE, 'raw_transaction_datetime') ? "TIME({$alias}.raw_transaction_datetime)" : null,
+            'deposit_amount' => $this->columnExists(self::BANK_TABLE, 'raw_deposit_amount') ? "{$alias}.raw_deposit_amount" : null,
+            'withdraw_amount' => $this->columnExists(self::BANK_TABLE, 'raw_withdraw_amount') ? "{$alias}.raw_withdraw_amount" : null,
+            'balance_amount' => $this->columnExists(self::BANK_TABLE, 'raw_balance_amount') ? "{$alias}.raw_balance_amount" : null,
+            'description' => $this->columnExists(self::BANK_TABLE, 'raw_description') ? "{$alias}.raw_description" : null,
+            'memo' => $this->columnExists(self::BANK_TABLE, 'raw_memo') ? "{$alias}.raw_memo" : null,
+            'counterparty_name' => $this->columnExists(self::BANK_TABLE, 'raw_counterparty_name') ? "{$alias}.raw_counterparty_name" : null,
+            'counterparty_account_number' => $this->columnExists(self::BANK_TABLE, 'raw_counterparty_account_number') ? "{$alias}.raw_counterparty_account_number" : null,
+            'counterparty_bank_name' => $this->columnExists(self::BANK_TABLE, 'raw_counterparty_bank_name') ? "{$alias}.raw_counterparty_bank_name" : null,
+            'bank_reference_no' => $this->columnExists(self::BANK_TABLE, 'raw_cms_code')
+                ? "COALESCE({$alias}.raw_cms_code, {$alias}.external_key)"
+                : "{$alias}.external_key",
+            'currency_code' => 'NULL',
+            default => null,
+        };
+    }
+
     private function clientNameSql(): string
     {
-        $bankClientName = $this->columnExists('ledger_bank_transactions', 'client_name')
-            ? "NULLIF(b.client_name, '')"
+        $bankClientName = $this->columnExists(self::BANK_TABLE, 'raw_client_name')
+            ? "NULLIF(eb.raw_client_name, '')"
             : 'NULL';
-        $evidenceClientName = $this->columnExists('ledger_data_evidences', 'client_name')
-            ? "NULLIF(e.client_name, '')"
+        $payloadClientName = $this->tableExists('ledger_evidence_payloads') && $this->columnExists('ledger_evidence_payloads', 'mapped_payload_json')
+            ? "NULLIF(JSON_UNQUOTE(JSON_EXTRACT(p.mapped_payload_json, '$.client_name')), '')"
+            : 'NULL';
+        $payloadClientCompanyName = $this->tableExists('ledger_evidence_payloads') && $this->columnExists('ledger_evidence_payloads', 'mapped_payload_json')
+            ? "NULLIF(JSON_UNQUOTE(JSON_EXTRACT(p.mapped_payload_json, '$.client_company_name')), '')"
             : 'NULL';
 
-        return "COALESCE({$bankClientName}, {$evidenceClientName}, '')";
+        return "COALESCE({$bankClientName}, {$payloadClientName}, {$payloadClientCompanyName}, '')";
+    }
+
+    private function softDeleteSetSql(array &$params, string $actor): string
+    {
+        $sets = [
+            'deleted_at = NOW()',
+            'updated_at = NOW()',
+        ];
+
+        if ($this->columnExists(self::BANK_TABLE, 'evidence_status')) {
+            $sets[] = "evidence_status = 'DELETED'";
+        }
+        if ($this->columnExists(self::BANK_TABLE, 'deleted_by')) {
+            $sets[] = 'deleted_by = :deleted_by';
+            $params[':deleted_by'] = $actor;
+        }
+        if ($this->columnExists(self::BANK_TABLE, 'updated_by')) {
+            $sets[] = 'updated_by = :updated_by';
+            $params[':updated_by'] = $actor;
+        }
+
+        return implode(",\n                    ", $sets);
+    }
+
+    private function restoreSetSql(array &$params, string $actor): string
+    {
+        $sets = [
+            'deleted_at = NULL',
+            'updated_at = NOW()',
+        ];
+
+        if ($this->columnExists(self::BANK_TABLE, 'evidence_status')) {
+            $sets[] = "evidence_status = 'ACTIVE'";
+        }
+        if ($this->columnExists(self::BANK_TABLE, 'deleted_by')) {
+            $sets[] = 'deleted_by = NULL';
+        }
+        if ($this->columnExists(self::BANK_TABLE, 'updated_by')) {
+            $sets[] = 'updated_by = :updated_by';
+            $params[':updated_by'] = $actor;
+        }
+
+        return implode(",\n                    ", $sets);
+    }
+
+    private function auditActor(string $actor): string
+    {
+        $actor = trim($actor);
+        if ($actor === '') {
+            return 'SYSTEM';
+        }
+
+        if (str_starts_with($actor, 'USER:')) {
+            $userId = substr($actor, 5);
+            return $userId !== '' ? substr($userId, 0, 36) : 'SYSTEM';
+        }
+
+        return substr($actor, 0, 36);
     }
 
     private function decodeJsonObject(mixed $value): array

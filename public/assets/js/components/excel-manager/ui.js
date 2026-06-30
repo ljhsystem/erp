@@ -7,14 +7,119 @@ function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
+function isTemplateType(type) {
+    return String(type || '').trim().toLowerCase() === 'template';
+}
+
+function normalizeRequirementPolicy(value = '') {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (normalized === 'required') return 'required';
+    if (normalized === 'optional') return 'optional';
+    return 'none';
+}
+
 function panelTitle(type) {
-    return type === 'template' ? '\uc591\uc2dd \uc124\uc815' : '\ub2e4\uc6b4\ub85c\ub4dc \uc124\uc815';
+    return isTemplateType(type) ? '업로드 양식설정' : '다운로드 설정';
 }
 
 function panelDescription(type) {
-    return type === 'template'
-        ? '\uc5c5\ub85c\ub4dc\uc6a9 \uc591\uc2dd\uc5d0 \ud3ec\ud568\ud560 \uceec\ub7fc\uc744 \uc120\ud0dd\ud558\uc138\uc694.'
-        : '\ub370\uc774\ud130 \ub2e4\uc6b4\ub85c\ub4dc\uc5d0 \ud3ec\ud568\ud560 \uceec\ub7fc\uacfc \uc21c\uc11c\ub97c \uc124\uc815\ud558\uc138\uc694.';
+    return isTemplateType(type)
+        ? '업로드 양식에 포함할 컬럼과 순서를 설정합니다.'
+        : '다운로드에 포함할 컬럼과 순서를 설정합니다.';
+}
+
+function requirementStarHtml(policy = '') {
+    const normalized = normalizeRequirementPolicy(policy);
+    if (normalized === 'required') {
+        return '<span class="column-policy-star is-required" aria-hidden="true">*</span>';
+    }
+    if (normalized === 'optional') {
+        return '<span class="column-policy-star is-optional" aria-hidden="true">*</span>';
+    }
+    return '';
+}
+
+function isLockedColumn(column) {
+    return column?.systemRequired === true || column?.required === true;
+}
+
+function renderColumnLabel(column) {
+    const displayLabel = String(column?.displayLabel || column?.label || '').trim();
+    const sourceLabel = String(column?.sourceLabel || column?.key || '').trim();
+    const combinedLabel = displayLabel && sourceLabel
+        ? `${displayLabel}(${sourceLabel})`
+        : (displayLabel || sourceLabel || String(column?.key || '').trim());
+
+    return `${escapeHtml(combinedLabel)} ${requirementStarHtml(column?.requirementPolicy)}`.trim();
+}
+
+function renderDragHeader() {
+    return `
+        <span class="excel-settings-head-icon" aria-hidden="true">
+            <i class="bi bi-arrows-move"></i>
+        </span>
+        <span class="visually-hidden">정렬</span>
+    `;
+}
+
+function renderUsageHeader(type, columns) {
+    const editableColumns = (Array.isArray(columns) ? columns : [])
+        .filter((column) => !(isTemplateType(type) && isLockedColumn(column)));
+    const checkedCount = editableColumns.filter((column) => column.visible !== false).length;
+    const allChecked = editableColumns.length > 0 && checkedCount === editableColumns.length;
+    const partiallyChecked = checkedCount > 0 && checkedCount < editableColumns.length;
+
+    return `
+        <label class="excel-settings-head-toggle" aria-label="전체 선택">
+            <input class="form-check-input mt-0"
+                   type="checkbox"
+                   data-excel-column-toggle-all
+                   data-type="${escapeHtml(type)}"
+                   ${allChecked ? 'checked' : ''}
+                   ${partiallyChecked ? 'data-indeterminate="true"' : ''}
+                   ${editableColumns.length === 0 ? 'disabled' : ''}>
+        </label>
+    `;
+}
+
+function renderRows(type, columns) {
+    return columns.map((column, index) => {
+        const checked = column.visible !== false ? 'checked' : '';
+        const locked = isTemplateType(type) && isLockedColumn(column);
+
+        return `
+            <div class="excel-settings-grid-row ${isTemplateType(type) ? 'excel-settings-grid-row-template' : 'excel-settings-grid-row-download'}"
+                 draggable="true"
+                 data-excel-column-row
+                 data-type="${escapeHtml(type)}"
+                 data-key="${escapeHtml(column.key)}">
+                <div class="excel-settings-grid-cell excel-settings-grid-cell-usage">
+                    <input class="form-check-input mt-0"
+                           type="checkbox"
+                           data-excel-column-toggle
+                           data-type="${escapeHtml(type)}"
+                           data-key="${escapeHtml(column.key)}"
+                           ${locked ? 'disabled' : ''}
+                           ${checked}>
+                </div>
+                <div class="excel-settings-grid-cell excel-settings-grid-cell-handle">
+                    <button type="button"
+                            class="excel-settings-drag-handle"
+                            aria-label="${escapeHtml(String(column.displayLabel || column.label || column.key || '컬럼'))} 순서 변경"
+                            tabindex="-1"
+                            data-excel-drag-handle>
+                        <i class="bi bi-list" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <div class="excel-settings-grid-cell excel-settings-grid-cell-order">
+                    <span class="excel-settings-order-value">${index + 1}</span>
+                </div>
+                <div class="excel-settings-grid-cell excel-settings-grid-cell-label">
+                    <div class="excel-settings-column-label">${renderColumnLabel(column)}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 export function ensureExcelSettingsLayout(form) {
@@ -36,18 +141,18 @@ export function ensureExcelSettingsLayout(form) {
                 class="btn btn-outline-dark btn-sm excel-settings-trigger"
                 data-excel-settings-root-toggle
                 aria-expanded="false">
-            <span>\uc5d1\uc140\uad00\ub9ac</span>
+            <span>컬럼설정</span>
             <i class="bi bi-gear ms-1" aria-hidden="true"></i>
         </button>
         <div class="excel-settings-shell d-none mt-3" data-excel-settings-shell>
-            <div class="excel-settings-heading">\uc5d1\uc140 \uc124\uc815</div>
+            <div class="excel-settings-heading">엑셀 컬럼 설정</div>
             <div class="excel-settings-accordion">
                 <div class="excel-settings-item" data-excel-settings-item="template">
                     <button type="button"
                             class="excel-settings-accordion-toggle"
                             data-excel-settings-toggle="template"
                             aria-expanded="false">
-                        <span>\uc591\uc2dd \uc124\uc815</span>
+                        <span>업로드 양식설정</span>
                         <i class="bi bi-chevron-right" data-excel-settings-icon aria-hidden="true"></i>
                     </button>
                     <div class="d-none" data-excel-settings-panel="template"></div>
@@ -57,7 +162,7 @@ export function ensureExcelSettingsLayout(form) {
                             class="excel-settings-accordion-toggle"
                             data-excel-settings-toggle="download"
                             aria-expanded="false">
-                        <span>\ub2e4\uc6b4\ub85c\ub4dc \uc124\uc815</span>
+                        <span>다운로드 설정</span>
                         <i class="bi bi-chevron-right" data-excel-settings-icon aria-hidden="true"></i>
                     </button>
                     <div class="d-none" data-excel-settings-panel="download"></div>
@@ -78,46 +183,38 @@ export function renderExcelSettingsPanel(form, type, columns) {
         return;
     }
 
-    const rowsHtml = columns.map((column, index) => {
-        const checked = column.visible !== false ? 'checked' : '';
-        const disabled = column.required ? 'disabled' : '';
-        const requiredBadge = column.required
-            ? '<span class="badge text-bg-primary ms-2">\ud544\uc218</span>'
-            : '';
-
-        return `
-            <div class="list-group-item d-flex align-items-center gap-2" data-excel-column-row data-type="${type}" data-key="${escapeHtml(column.key)}">
-                <span class="text-muted small">${index + 1}</span>
-                <input class="form-check-input mt-0" type="checkbox" data-excel-column-toggle data-type="${type}" data-key="${escapeHtml(column.key)}" ${checked} ${disabled}>
-                <div class="flex-grow-1">
-                    <div class="fw-semibold">${escapeHtml(column.label)}${requiredBadge}</div>
-                    <div class="text-muted small">${escapeHtml(column.key)}</div>
-                </div>
-                <div class="btn-group btn-group-sm" role="group" aria-label="${panelTitle(type)} \uc21c\uc11c \ubcc0\uacbd">
-                    <button type="button" class="btn btn-outline-secondary" data-excel-move="up" data-type="${type}" data-key="${escapeHtml(column.key)}">\uc704</button>
-                    <button type="button" class="btn btn-outline-secondary" data-excel-move="down" data-type="${type}" data-key="${escapeHtml(column.key)}">\uc544\ub798</button>
-                </div>
-            </div>
-        `;
-    }).join('');
-
     const selectedCount = columns.filter((column) => column.visible !== false).length;
-
     panel.innerHTML = `
         <div class="excel-settings-panel-body">
             <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
-                <div>
-                    <div class="text-muted small">${panelDescription(type)}</div>
-                </div>
-                <div class="text-muted small">\uc120\ud0dd ${selectedCount}\uac1c / \uc804\uccb4 ${columns.length}\uac1c</div>
+                <div class="text-muted small">${panelDescription(type)}</div>
+                <div class="text-muted small">선택 ${selectedCount}개 / 전체 ${columns.length}개</div>
             </div>
-            <div class="list-group">${rowsHtml}</div>
+            <div class="excel-settings-grid is-download" role="table" aria-label="${panelTitle(type)}">
+                <div class="excel-settings-grid-header excel-settings-grid-header-download" role="row">
+                    <div class="excel-settings-grid-head excel-settings-grid-cell-usage">${renderUsageHeader(type, columns)}</div>
+                    <div class="excel-settings-grid-head excel-settings-grid-cell-handle">${renderDragHeader()}</div>
+                    <div class="excel-settings-grid-head excel-settings-grid-cell-order">순번</div>
+                    <div class="excel-settings-grid-head excel-settings-grid-cell-label">컬럼리스트</div>
+                </div>
+                <div class="excel-settings-grid-body">${renderRows(type, columns)}</div>
+            </div>
             <div class="d-flex justify-content-end gap-2 mt-3">
-                <button type="button" class="btn btn-outline-secondary btn-sm" data-excel-settings-action="reset" data-type="${type}">\uae30\ubcf8\uac12 \ubcf5\uc6d0</button>
-                <button type="button" class="btn btn-primary btn-sm" data-excel-settings-action="save" data-type="${type}">\uc800\uc7a5</button>
+                <button type="button"
+                        class="btn btn-outline-secondary btn-sm"
+                        data-excel-settings-action="reset"
+                        data-type="${type}">기본값 복원</button>
+                <button type="button"
+                        class="btn btn-primary btn-sm"
+                        data-excel-settings-action="save"
+                        data-type="${type}">저장</button>
             </div>
         </div>
     `;
+
+    panel.querySelectorAll('[data-indeterminate="true"]').forEach((checkbox) => {
+        checkbox.indeterminate = true;
+    });
 }
 
 export function toggleExcelSettingsRoot(form) {
@@ -155,4 +252,17 @@ export function toggleExcelSettingsPanel(form, targetType) {
             icon.classList.toggle('bi-chevron-down', shouldShow);
         }
     });
+}
+
+export function resetExcelSettingsUi(form) {
+    const shell = form?.querySelector('[data-excel-settings-shell]');
+    const trigger = form?.querySelector('[data-excel-settings-root-toggle]');
+    if (shell) {
+        shell.classList.add('d-none');
+    }
+    if (trigger) {
+        trigger.setAttribute('aria-expanded', 'false');
+    }
+
+    toggleExcelSettingsPanel(form, '');
 }

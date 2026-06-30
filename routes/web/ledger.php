@@ -16,7 +16,7 @@ $router->get('/ledger', 'LedgerController@webIndex', [
     'log' => false,
 ]);
 
-$router->get('/ledger/settings/accounts', 'LedgerController@webAccount', [
+$router->get('/ledger/settings/accounts', 'ChartAccountController@index', [
     'key' => 'web.ledger.settings.accounts',
     'page' => '계정과목',
     'page_description' => '계정과목 관리',
@@ -58,7 +58,7 @@ $router->get('/ledger/data/formats', 'LedgerController@webDataFormat', [
     'log' => false,
 ]);
 
-$router->get('/ledger/data/list', 'LedgerController@webDataList', [
+$router->get('/ledger/data/list', 'EvidenceController@webList', [
     'key' => 'web.ledger.data.list',
     'page' => '증빙원본',
     'page_description' => '증빙원본 관리',
@@ -72,7 +72,37 @@ $router->get('/ledger/data/list', 'LedgerController@webDataList', [
     'log' => false,
 ]);
 
-$router->get('/ledger/data/raw', 'LedgerController@webDataRaw', [
+$router->get('/ledger/data/bank-transactions', 'EvidenceController@webBankTransactionList', [
+    'key' => 'web.ledger.data.bank-transactions',
+    'page' => '증빙원본',
+    'page_description' => '증빙원본 관리',
+    'permission_name' => '화면조회',
+    'permission_description' => '증빙원본 화면 조회',
+    'name' => '증빙원본',
+    'description' => '회계관리 > 자료관리 > 증빙원본',
+    'category' => '회계관리 > 자료관리',
+    'auth' => true,
+    'skip_permission' => true,
+    'permissions' => ['view'],
+    'log' => false,
+]);
+
+$router->get('/ledger/data/tax-invoices', 'EvidenceController@webTaxInvoiceList', [
+    'key' => 'web.ledger.data.tax-invoices',
+    'page' => '증빙원본',
+    'page_description' => '증빙원본 관리',
+    'permission_name' => '화면조회',
+    'permission_description' => '증빙원본 화면 조회',
+    'name' => '증빙원본',
+    'description' => '회계관리 > 자료관리 > 증빙원본',
+    'category' => '회계관리 > 자료관리',
+    'auth' => true,
+    'skip_permission' => true,
+    'permissions' => ['view'],
+    'log' => false,
+]);
+
+$router->get('/ledger/data/raw', 'EvidenceController@webRaw', [
     'key' => 'web.ledger.data.raw',
     'page' => '원본자료',
     'page_description' => '원본자료 관리',
@@ -156,7 +186,7 @@ $router->get('/ledger/vouchers/input', 'LedgerController@webJournal', [
     'log' => false,
 ]);
 
-$router->get('/ledger/accounts', 'LedgerController@webAccount', [
+$router->get('/ledger/accounts', 'ChartAccountController@index', [
     'key' => 'web.ledger.accounts',
     'page' => '계정과목',
     'page_description' => '계정과목 관리',
@@ -240,7 +270,7 @@ $router->get('/ledger/data/format', 'LedgerController@webDataFormat', [
     'log' => false,
 ]);
 
-$router->get('/ledger/settings/journal-rules', 'LedgerController@webJournalRules', [
+$router->get('/ledger/settings/journal-rules', 'JournalRuleController@index', [
     'key' => 'web.ledger.journal_rules',
     'page' => '분개규칙',
     'page_description' => '분개규칙 관리',
@@ -254,7 +284,7 @@ $router->get('/ledger/settings/journal-rules', 'LedgerController@webJournalRules
     'log' => false,
 ]);
 
-$router->get('/ledger/data/upload', 'LedgerController@webDataUpload', [
+$router->get('/ledger/data/upload', 'EvidenceController@webUpload', [
     'key' => 'web.ledger.data.upload',
     'page' => '자료업로드',
     'page_description' => '자료 업로드',
@@ -268,7 +298,7 @@ $router->get('/ledger/data/upload', 'LedgerController@webDataUpload', [
     'log' => false,
 ]);
 
-$router->get('/ledger/data', 'LedgerController@webDataIndex', [
+$router->get('/ledger/data', 'EvidenceController@webIndex', [
     'key' => 'web.ledger.data.index',
     'page' => '증빙원본',
     'page_description' => '증빙원본 관리',
@@ -757,4 +787,3 @@ $router->get('/ledger/tax/comparison', 'PlaceholderController@index', [
     'permissions' => ['view'],
     'log' => false,
 ]);
-

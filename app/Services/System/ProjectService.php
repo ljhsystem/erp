@@ -36,7 +36,7 @@ class ProjectService
         $this->employeeModel  = new EmployeeModel($this->pdo);
         $this->payloadService = new ProjectPayloadService();
         $this->referenceResolver = new ProjectReferenceResolver($this->pdo);
-        $this->excelService = new ProjectExcelService($this->model);
+        $this->excelService = new ProjectExcelService($this->pdo, $this->model);
         $this->trashService = new ProjectTrashService($this->pdo, $this->model, $this->logger);
         $this->logger->info('ProjectService initialized');
     }

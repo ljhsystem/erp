@@ -57,10 +57,6 @@ trait ImportControllerUploadTrait
 
     private static function isRequiredFormatColumn(array $column): bool
     {
-        if (self::isOptionalEvidenceFormatColumn($column)) {
-            return false;
-        }
-
         return self::normalizeRequirementMode($column['is_required'] ?? 0) === 1;
     }
 
@@ -71,6 +67,42 @@ trait ImportControllerUploadTrait
 
         return in_array($field, ['balance_amount', 'supplier_address', 'customer_address'], true)
             || in_array($label, ['거래후잔액', '잔액', '공급자주소', '공급받는자주소'], true);
+    }
+
+    private function decodeRequestMap(mixed $raw): array
+    {
+        if (is_array($raw)) {
+            return $raw;
+        }
+
+        $text = trim((string) $raw);
+        if ($text === '') {
+            return [];
+        }
+
+        $parsed = json_decode($text, true);
+        return is_array($parsed) ? $parsed : [];
+    }
+
+    private function requestColumnDisplayName(array $payload): array
+    {
+        return $this->decodeRequestMap($payload['column_display_name'] ?? null);
+    }
+
+    private function requestColumnRequirementPolicy(array $payload): array
+    {
+        return $this->decodeRequestMap($payload['column_requirement_policy'] ?? $payload['column_requirement'] ?? $payload['excel_template_column_requirement'] ?? null);
+    }
+
+    private function requestRequirementPolicyMode(mixed $value): int
+    {
+        $normalized = strtolower(trim((string) $value));
+        return match ($normalized) {
+            'required' => 1,
+            'optional' => 2,
+            'none', 'hidden' => 0,
+            default => self::normalizeRequirementMode($value),
+        };
     }
 
     private function normalizedUploadDataType(string $type): string

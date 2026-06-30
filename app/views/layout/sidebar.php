@@ -14,6 +14,15 @@ $icon = static function (string $class): string {
 };
 
 $isActiveLink = static function (string $href) use ($currentPath): bool {
+    if ($href === '/ledger/data') {
+        return in_array($currentPath, [
+            '/ledger/data',
+            '/ledger/data/list',
+            '/ledger/data/bank-transactions',
+            '/ledger/data/tax-invoices',
+        ], true);
+    }
+
     return $currentPath === $href;
 };
 
@@ -62,7 +71,7 @@ $link = static function (string $href, string $label, string $iconClass, string 
             <li>
                 <a href="#menu-ledger-data" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-database') ?><span>자료관리</span></a>
                 <ul id="menu-ledger-data" class="collapse">
-                    <li><?= $link('/ledger/data/list', '증빙원본', 'bi-clipboard-data') ?></li>
+                    <li><?= $link('/ledger/data', '증빙원본', 'bi-clipboard-data') ?></li>
                     <li><?= $link('/ledger/data/create', '생성센터', 'bi-database-check') ?></li>
                 </ul>
             </li>

@@ -56,6 +56,16 @@
   - Updated responsibility: Active DB switch guard validation for running sync/restore status, `db_replication.php` active_target switch, target DB connection validation, latest switch status persistence, switch log persistence
   - Updated out of scope: DB connection recovery, automatic failover, automatic promotion
 
+- `ChartAccountExcelService`
+  - Responsibility: ledger chart-account excel template generation, full-list export, upload parsing, row validation, save-result summary assembly
+  - Controllers: `ChartAccountController`
+  - Out of scope: chart-account page rendering, core account persistence rules, sub-account persistence
+
+- `JournalRuleExcelService`
+  - Responsibility: ledger journal-rule excel template generation, export, upload parsing, code/account resolution, row validation, save-result summary assembly
+  - Controllers: `JournalRuleController`
+  - Out of scope: journal-rule page rendering, core journal-rule persistence rules
+
 - `ClientService`
   - Expanded responsibility: client save request payload normalization, save validation, file-attached save orchestration, duplicate business-number save message mapping
   - Controllers: `ClientController`
@@ -176,9 +186,13 @@
   - Controllers: `ImportController`
   - Out of scope: transaction context resolution, transaction direction policy, business unit policy, DB schema change
 - `EvidenceTemplateService`
-  - Responsibility: template download orchestration, template sheet fill, template spec/sample generation
-  - Controllers: `ImportController`
-  - Out of scope: dropdown option/query lookup, format mapping/query, upload parse/save, DB schema change
+  - Expanded responsibility: template download orchestration, template sheet fill, sample generation, selected-column header rendering for 자료유형별 증빙원본 템플릿
+  - Controllers: `EvidenceImportController`
+  - Out of scope: dropdown option/query lookup, 자료유형 필드 SSOT 결정, upload parse/save, DB schema change
+- `EvidenceDownloadService`
+  - Expanded responsibility: 증빙원본 자료유형별 다운로드 spreadsheet generation, selected-column filtering, `information_schema.COLUMNS` 기반 실DB 컬럼 헤더 출력
+  - Controllers: `EvidenceDownloadController`
+  - Out of scope: 화면 렌더링, DB schema change, controller response output
 - `EvidenceTemplateDropdownService`
   - Responsibility: template dropdown build/apply, dropdown option lookup, bank template dropdown composition
   - Controllers: `ImportController`
@@ -219,6 +233,14 @@
   - Responsibility: upload row enrichment, upload amount normalization, preview validation, business/project validation, upload validation error assertion
   - Controllers: `ImportController`
   - Out of scope: upload batch save, parser, transaction create, voucher create, DB schema change
+- `EvidenceSummarySearchService`
+  - Responsibility: evidence summary text search, evidence summary ranking, `mapped_payload_json` decode/search helper
+  - Controllers: `EvidenceController`
+  - Out of scope: request/response output, page rendering, upload save, DB schema change
+- `EvidenceUploadPersistService`
+  - Responsibility: upload batch persistence entrypoint, payload/processing upsert orchestration, upload transaction boundary, dual-write sync, batch result assembly
+  - Controllers: `EvidenceUploadController`
+  - Out of scope: upload file parse, preview validation, request payload collection, DB schema change
 - `EvidenceLinkHelperService`
   - Responsibility: evidence link purge helper, evidence source reference detach, evidence link soft-delete/delete helper, processing item detach on evidence purge
   - Controllers: `ImportController`
@@ -263,3 +285,9 @@
 - ???살쓴??helper??????????곕쿊 ??????? ??熬곥걿??callback ??낆뒩???????Β?띾쭡??筌먲퐢??
 - Service??좊읈? ????렺???ш끽維곮?嶺뚮ㅎ?닺린??????嶺뚮Ĳ????癲ル슣?????怨뚮뼚??濡ろ뜑???壤?????筌먲퐢??
 - Service 癲??????袁⑸즴????????????뽮덫??? DecisionLog????影?얠맽 ??좊즲????筌먲퐢??
+## 2026-06-27 Addendum
+
+| Service | Responsibility | Used By | Notes |
+| --- | --- | --- | --- |
+| TransactionVoucherService | Owns voucher recommendation, draft voucher creation, voucher link and unlink, and transaction-voucher relation hydration for the transaction domain. | TransactionController | Keeps voucher orchestration out of the transaction controller so transaction entry can stay focused on common transaction management. |
+| TransactionCrudService | Owns transaction header save, pretax item save, settlement save, detail payload hydration, and header total recomputation using the SSOT amounts `transaction_foreign_amount`, `transaction_supply_amount`, `transaction_settlement_amount`, and `transaction_final_amount`. | TransactionController, EvidenceTransactionController, VoucherController | Keeps transaction modal save/read orchestration in one service while leaving voucher approval and posting flows outside the transaction domain; legacy header amounts remain detail/list fallback only and are excluded from new save and recalculation flows. |

@@ -1,4 +1,9 @@
 import {
+    readDataTableSettingsState,
+    resolveDataTableColumnDisplayName,
+    resolveDataTableColumnRequirementPolicy,
+} from '/public/assets/js/common/datatable/dataTableSettings.js';
+import {
     formatDate,
     formatDateInputValue,
     normalizeDateInputValue,
@@ -17,13 +22,164 @@ export function createWorkTeamModalModule({
     let todayPicker = null;
     let clientSelect2Inited = false;
     let modalControlsPromise = null;
+    let workTeamPolicyBound = false;
+    let openCreateContext = null;
+
+    const WORK_TEAM_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.base-info.work-team.work-team-table.v1';
+    const WORK_TEAM_MODAL_FIELD_POLICIES = Object.freeze([
+        { selector: '#modal-work-team-team-name', key: 'team_name', fallback: '팀명' },
+        { selector: '#modal-work-team-is-active', key: 'is_active', fallback: '상태' },
+        { selector: '#modal-work-team-team-leader-client-id', key: 'team_leader_client_id', fallback: '팀장' },
+        { selector: '#modal-work-team-note', key: 'note', fallback: '비고' },
+        { selector: '#modal-work-team-memo', key: 'memo', fallback: '메모' },
+    ]);
+
+    function currentWorkTeamPolicyState() {
+        return readDataTableSettingsState(WORK_TEAM_TABLE_SETTINGS_STORAGE_KEY) || {};
+    }
+
+    function workTeamFieldLabel(key, _fallback = '') {
+        const normalizedKey = String(key || '').trim();
+        return resolveDataTableColumnDisplayName(
+            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+            currentWorkTeamPolicyState(),
+            normalizedKey
+        );
+    }
+
+    function workTeamFieldRequirement(key) {
+        const normalizedKey = String(key || '').trim();
+        return resolveDataTableColumnRequirementPolicy(
+            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
+            currentWorkTeamPolicyState()
+        );
+    }
+
+    function workTeamFieldStarMarkup(key) {
+        const policy = workTeamFieldRequirement(key);
+        if (policy === 'required') {
+            return '<span class="column-policy-star is-required" aria-hidden="true">*</span>';
+        }
+        if (policy === 'optional') {
+            return '<span class="column-policy-star is-optional" aria-hidden="true">*</span>';
+        }
+        return '';
+    }
+
+    function isWorkTeamFieldVisible(field) {
+        if (!field) return false;
+        if (field.type === 'hidden') return false;
+        if (field.disabled) return false;
+        const style = window.getComputedStyle(field);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        return true;
+    }
+
+    function shouldValidateWorkTeamPolicyField(field) {
+        const selector = String(field?.selector || '').trim();
+        if (!selector) return false;
+        const input = document.querySelector(selector);
+        return isWorkTeamFieldVisible(input);
+    }
+
+    function collectWorkTeamDetailValues(form, formData) {
+        const values = {};
+
+        WORK_TEAM_MODAL_FIELD_POLICIES.forEach((field) => {
+            const key = String(field?.key || '').trim();
+            const selector = String(field?.selector || '').trim();
+            if (!key || !selector) return;
+
+            const input = form?.querySelector(selector) || document.querySelector(selector);
+            if (!input) return;
+
+            const fieldName = String(input.name || key).trim();
+            values[key] = formData.get(fieldName) ?? input.value ?? '';
+        });
+
+        return values;
+    }
+
+    function validateWorkTeamRequiredPolicies(fields = [], values = {}) {
+        for (const field of fields) {
+            const key = String(field?.key || '').trim();
+            if (!key || workTeamFieldRequirement(key) !== 'required') {
+                continue;
+            }
+            if (!shouldValidateWorkTeamPolicyField(field)) {
+                continue;
+            }
+
+            const value = values[key];
+            if (Array.isArray(value)) {
+                if (value.length === 0) {
+                    return `${workTeamFieldLabel(key, field?.fallback || key)} 항목은 필수입니다.`;
+                }
+                continue;
+            }
+
+            if (String(value ?? '').trim() === '') {
+                return `${workTeamFieldLabel(key, field?.fallback || key)} 항목은 필수입니다.`;
+            }
+        }
+
+        return '';
+    }
+
+    function findWorkTeamModalLabel(fieldSelector, root = document) {
+        const field = root.querySelector(fieldSelector);
+        if (!field) return null;
+
+        if (field.id) {
+            const labelByFor = root.querySelector(`label[for="${field.id}"]`);
+            if (labelByFor) return labelByFor;
+        }
+
+        const column = field.closest('div[class*="col-"]');
+        if (column) {
+            const label = column.querySelector('label.form-label');
+            if (label) return label;
+        }
+
+        return field.closest('label.form-label') || null;
+    }
+
+    function applyWorkTeamModalPolicyLabels(root = document) {
+        WORK_TEAM_MODAL_FIELD_POLICIES.forEach((field) => {
+            const labelEl = findWorkTeamModalLabel(field.selector, root);
+            if (!labelEl) return;
+
+            const displayName = workTeamFieldLabel(field.key, field.fallback);
+            const starMarkup = workTeamFieldStarMarkup(field.key);
+            labelEl.innerHTML = `${displayName}${starMarkup ? ` ${starMarkup}` : ''}`;
+        });
+    }
+
+    function bindWorkTeamPolicySync() {
+        if (workTeamPolicyBound) return;
+        workTeamPolicyBound = true;
+
+        document.addEventListener('datatable-settings:updated', (event) => {
+            const storageKey = String(event?.detail?.storageKey || '').trim();
+            if (storageKey && storageKey !== WORK_TEAM_TABLE_SETTINGS_STORAGE_KEY) return;
+            applyWorkTeamModalPolicyLabels(document);
+        });
+    }
 
     function initModal() {
         const modalEl = document.getElementById('workTeamModal');
         if (modalEl) {
             workTeamModal = new bootstrap.Modal(modalEl, { focus: false });
-            modalEl.addEventListener('hidden.bs.modal', resetForm);
-            modalEl.addEventListener('shown.bs.modal', deferModalControls);
+            bindWorkTeamPolicySync();
+            applyWorkTeamModalPolicyLabels(document);
+            modalEl.addEventListener('hidden.bs.modal', () => {
+                resetForm();
+                applyWorkTeamModalPolicyLabels(document);
+            });
+            modalEl.addEventListener('shown.bs.modal', () => {
+                deferModalControls();
+                applyWorkTeamModalPolicyLabels(document);
+            });
         }
 
         const excelModalEl = document.getElementById('workTeamExcelModal');
@@ -90,7 +246,7 @@ export function createWorkTeamModalModule({
         const res = await fetch(`${api.DETAIL}?id=${encodeURIComponent(teamId)}`);
         const json = await res.json();
         if (!json.success || !json.data) {
-            throw new Error(json.message || '팀 상세 조회에 실패했습니다.');
+            throw new Error(json.message || '상세 조회에 실패했습니다.');
         }
         return json.data;
     }
@@ -101,6 +257,7 @@ export function createWorkTeamModalModule({
         document.getElementById('workTeamModalLabel').textContent = '팀관리 수정';
         document.getElementById('btnDeleteWorkTeam').style.display = '';
         document.getElementById('modal-work-team-id').value = rowData.id;
+        applyWorkTeamModalPolicyLabels(document);
         workTeamModal?.show();
 
         try {
@@ -113,11 +270,17 @@ export function createWorkTeamModalModule({
         }
     }
 
-    function openCreateModal() {
+    function openCreateModal(options = {}) {
         resetForm();
+        openCreateContext = options && typeof options === 'object' ? options : null;
         document.getElementById('workTeamModalLabel').textContent = '팀관리 등록';
         document.getElementById('btnDeleteWorkTeam').style.display = 'none';
         setTeamLeaderSelect2({});
+        if (openCreateContext?.initialValues && typeof openCreateContext.initialValues === 'object') {
+            fillForm(openCreateContext.initialValues);
+            setTeamLeaderSelect2(openCreateContext.initialValues);
+        }
+        applyWorkTeamModalPolicyLabels(document);
         workTeamModal?.show();
         deferModalControls();
     }
@@ -139,6 +302,7 @@ export function createWorkTeamModalModule({
             if (!el) return;
             el.value = value ?? '';
         });
+        applyWorkTeamModalPolicyLabels(document);
     }
 
     function initClientSelect2() {
@@ -163,13 +327,13 @@ export function createWorkTeamModalModule({
             processResults(json) {
                 const rows = json?.results ?? json?.data ?? [];
                 return {
-                    results: rows.map(row => ({
+                    results: rows.map((row) => ({
                         id: String(row.id ?? ''),
                         text: row.text ?? row.client_name ?? '',
-                        raw: row
-                    })).filter(item => item.id !== '')
+                        raw: row,
+                    })).filter((item) => item.id !== ''),
                 };
-            }
+            },
         });
 
         $el.off('select2:select.workTeamClient');
@@ -211,12 +375,14 @@ export function createWorkTeamModalModule({
         window.jQuery(document).on('submit', '#workTeamForm', function (event) {
             event.preventDefault();
             const formData = new FormData(this);
-            const teamName = String(formData.get('team_name') || '').trim();
-            if (!teamName) {
-                notify('warning', '팀명은 필수입니다.');
+            const requiredMessage = validateWorkTeamRequiredPolicies(
+                WORK_TEAM_MODAL_FIELD_POLICIES,
+                collectWorkTeamDetailValues(this, formData)
+            );
+            if (requiredMessage) {
+                notify('warning', requiredMessage);
                 return;
             }
-
             const submitButton = this.querySelector('button[type="submit"]');
             if (submitButton) submitButton.disabled = true;
 
@@ -225,10 +391,11 @@ export function createWorkTeamModalModule({
                 method: 'POST',
                 data: formData,
                 processData: false,
-                contentType: false
+                contentType: false,
             })
                 .done((res) => {
                     if (res.success) {
+                        openCreateContext?.onSaved?.(res, Object.fromEntries(formData.entries()));
                         workTeamModal?.hide();
                         reloadTable();
                         notify('success', res.message || '저장되었습니다.');
@@ -238,6 +405,7 @@ export function createWorkTeamModalModule({
                 })
                 .fail(() => notify('error', '서버 오류가 발생했습니다.'))
                 .always(() => {
+                    openCreateContext = null;
                     if (submitButton) submitButton.disabled = false;
                 });
         });
@@ -252,7 +420,7 @@ export function createWorkTeamModalModule({
                     if (res.success) {
                         workTeamModal?.hide();
                         reloadTable();
-                        notify('success', res.message || '삭제되었습니다.');
+                        notify('success', res.message || '삭제했습니다.');
                     } else {
                         notify('error', res.message || '삭제에 실패했습니다.');
                     }
@@ -280,7 +448,7 @@ export function createWorkTeamModalModule({
     }
 
     function bindAdminDateInputs() {
-        document.querySelectorAll('.admin-date').forEach(input => {
+        document.querySelectorAll('.admin-date').forEach((input) => {
             if (input.dataset.dateInputBound === '1') return;
             input.dataset.dateInputBound = '1';
             input.addEventListener('input', () => {

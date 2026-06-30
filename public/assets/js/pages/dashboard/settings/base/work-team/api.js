@@ -20,17 +20,16 @@ export const WORK_TEAM_API = {
 export const WORK_TEAM_COLUMN_MAP = {
     sort_no: { label: '순번', visible: true, className: 'text-center' },
     team_name: { label: '팀명', visible: true },
-    team_leader_client_name: { label: '팀장', visible: true },
-    team_leader_client_id: { label: '팀장 거래처 ID', visible: false },
+    team_leader_client_id: { label: '팀장', visible: true },
     note: { label: '비고', visible: true },
     memo: { label: '메모', visible: false },
     is_active: { label: '상태', visible: true, className: 'text-center' },
     created_at: { label: '등록일시', visible: false },
-    created_by_name: { label: '등록자', visible: false },
+    created_by: { label: '등록자', visible: false },
     updated_at: { label: '수정일시', visible: false },
-    updated_by_name: { label: '수정자', visible: false },
+    updated_by: { label: '수정자', visible: false },
     deleted_at: { label: '삭제일시', visible: false },
-    deleted_by_name: { label: '삭제자', visible: false }
+    deleted_by: { label: '삭제자', visible: false }
 };
 
 export const WORK_TEAM_DATE_OPTIONS = [

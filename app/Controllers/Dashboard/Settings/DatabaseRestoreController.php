@@ -102,6 +102,7 @@ class DatabaseRestoreController
                     'last_error' => $this->normalizeText($info['error'] ?? null),
                     'stale' => (bool) ($info['stale'] ?? false),
                     'statement_count' => (int) ($info['statement_count'] ?? 0),
+                    'runtime' => is_array($info['runtime'] ?? null) ? $info['runtime'] : null,
                     'active_db' => $this->normalizeNode($info['active_db'] ?? null),
                     'standby_db' => $this->normalizeNode($info['standby_db'] ?? null),
                 ],
@@ -118,6 +119,7 @@ class DatabaseRestoreController
     {
         return match ((string) ($info['state'] ?? 'idle')) {
             'running' => 'DB 복원이 진행 중입니다.',
+            'stale_suspected' => '복원 상태 확인이 필요합니다.',
             'success' => 'DB 복원이 완료되었습니다.',
             'failed' => 'DB 복원에 실패했습니다.',
             default => 'DB 복원 이력이 없습니다.',
@@ -131,6 +133,7 @@ class DatabaseRestoreController
             'validate-backup-file' => 'validate-backup-file',
             'prepare-active' => 'prepare-active',
             'apply-backup' => 'apply-sql-by-pdo',
+            'stale-suspected' => 'stale-suspected',
             'completed' => 'completed',
             'stale-timeout' => 'timeout',
             'no-backup-file' => 'no-backup-file',

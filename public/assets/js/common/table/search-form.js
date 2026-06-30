@@ -175,6 +175,7 @@ export function SearchForm(config) {
     bindSearchEvents();
     populateFirstSearchFields();
     populateDateOptions(dateOptions);
+    applySavedSearchFormState();
     bindPeriodButtons();
     bindDatePicker();
 
@@ -194,6 +195,18 @@ export function SearchForm(config) {
 
         table?.__dtTableSettings?.updateState?.({
             searchFormExpanded: expanded,
+        });
+    }
+
+    function getSavedSearchFormState() {
+        const value = table?.__dtTableSettings?.getState?.()?.searchFormState;
+        return value && typeof value === 'object' ? value : null;
+    }
+
+    function persistSearchFormState(stateValue = null) {
+        table?.__dtTableSettings?.updateState?.({
+            searchFormState: stateValue,
+            currentPage: 0,
         });
     }
 
@@ -316,6 +329,7 @@ export function SearchForm(config) {
             const filters = collectFilters();
             if (filters === null) return;
             const normalizedFilters = applyFilterNormalizer(filters);
+            persistSearchFormState(readCurrentSearchFormState());
             const url = buildFilterUrl(normalizedFilters);
             table.ajax.url(url).load(() => {
                 refreshTableLayout({ draw: true });
@@ -346,6 +360,7 @@ export function SearchForm(config) {
             }
             populateFirstSearchFields();
             updateRemoveButtons();
+            persistSearchFormState(null);
 
             table.ajax.url(currentApiList()).load(() => {
                 refreshTableLayout({ draw: true });
@@ -506,6 +521,118 @@ export function SearchForm(config) {
                 opt.selected = true;
             }
             firstSelect.appendChild(opt);
+        });
+    }
+
+    function ensureConditionRowCount(count = 1) {
+        const rows = document.querySelectorAll(`${conditionsId} .search-condition`);
+        const currentCount = rows.length;
+        const targetCount = Math.max(1, Number(count) || 1);
+        if (currentCount >= targetCount) {
+            return;
+        }
+
+        const fields = getSearchFields();
+        for (let index = currentCount; index < targetCount; index += 1) {
+            let nextIndex = 0;
+            if (fields.length > 0) {
+                nextIndex = Math.min(index, fields.length - 1);
+            }
+
+            const html = `
+                <div class="search-condition">
+                    ${renderSearchSelect(nextIndex)}
+                    <input type="text"
+                           name="searchValue[]"
+                           class="form-control search-input"
+                           placeholder="검색어 입력">
+                    <button type="button" class="btn btn-danger remove-condition">-</button>
+                </div>
+            `;
+
+            $(`${conditionsId} .search-condition:last`).after(html);
+        }
+    }
+
+    function readCurrentSearchFormState() {
+        const conditions = [];
+        document.querySelectorAll(`${conditionsId} .search-condition`).forEach((row) => {
+            const select = row.querySelector('select[name="searchField[]"]');
+            const input = row.querySelector('input[name="searchValue[]"]');
+            const field = String(select?.value || '').trim();
+            const value = String(input?.value || '').trim();
+            if (!field || !value) {
+                return;
+            }
+            conditions.push({ field, value });
+        });
+
+        const dateType = String(document.querySelector(dateTypeId)?.value || '').trim();
+        const dateStart = String(document.querySelector(`${formId} input[name="dateStart"]`)?.value || '').trim();
+        const dateEnd = String(document.querySelector(`${formId} input[name="dateEnd"]`)?.value || '').trim();
+
+        if (conditions.length === 0 && dateType === '' && dateStart === '' && dateEnd === '') {
+            return null;
+        }
+
+        return {
+            conditions,
+            dateType,
+            dateStart,
+            dateEnd,
+        };
+    }
+
+    function applySavedSearchFormState() {
+        const savedState = getSavedSearchFormState();
+        if (!savedState) {
+            updateRemoveButtons();
+            return;
+        }
+
+        const conditions = Array.isArray(savedState.conditions) ? savedState.conditions : [];
+        ensureConditionRowCount(conditions.length || 1);
+
+        const rows = Array.from(document.querySelectorAll(`${conditionsId} .search-condition`));
+        rows.forEach((row, index) => {
+            const select = row.querySelector('select[name="searchField[]"]');
+            const input = row.querySelector('input[name="searchValue[]"]');
+            const condition = conditions[index] || null;
+            if (select) {
+                select.value = condition?.field || select.value || '';
+            }
+            if (input) {
+                input.value = condition?.value || '';
+            }
+        });
+
+        rows.slice(Math.max(conditions.length, 1)).forEach((row) => row.remove());
+
+        const dateTypeEl = document.getElementById(`${tableId}DateType`);
+        if (dateTypeEl && String(savedState.dateType || '').trim() !== '') {
+            dateTypeEl.value = String(savedState.dateType || '').trim();
+        }
+
+        const dateStartEl = document.querySelector(`${formId} input[name="dateStart"]`);
+        const dateEndEl = document.querySelector(`${formId} input[name="dateEnd"]`);
+        if (dateStartEl) {
+            dateStartEl.value = String(savedState.dateStart || '').trim();
+        }
+        if (dateEndEl) {
+            dateEndEl.value = String(savedState.dateEnd || '').trim();
+        }
+
+        updateRemoveButtons();
+
+        const filters = collectFilters();
+        if (filters === null || filters.length === 0) {
+            return;
+        }
+
+        const normalizedFilters = applyFilterNormalizer(filters);
+        const url = buildFilterUrl(normalizedFilters);
+        table.ajax.url(url).load(() => {
+            refreshTableLayout({ draw: true });
         });
     }
 
