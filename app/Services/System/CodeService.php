@@ -19,76 +19,74 @@ class CodeService
 
     private const REFERENCE_MAP = [
         'BANK' => [
-            ['table' => 'system_bank_accounts', 'column' => 'bank_name', 'label' => '계좌 은행명'],
-            ['table' => 'system_clients', 'column' => 'bank_name', 'label' => '거래처 은행명'],
-            ['table' => 'user_employees', 'column' => 'bank_name', 'label' => '직원 은행명'],
-            ['table' => 'ledger_bank_transactions', 'column' => 'bank_name', 'label' => '계좌별거래내역 은행명'],
+            ['table' => 'system_bank_accounts', 'column' => 'bank_name', 'label' => '은행 계좌'],
+            ['table' => 'system_clients', 'column' => 'bank_name', 'label' => '거래처 계좌'],
+            ['table' => 'user_employees', 'column' => 'bank_name', 'label' => '직원 계좌'],
+            ['table' => 'ledger_bank_transactions', 'column' => 'bank_name', 'label' => '은행 거래 은행'],
         ],
+
         'BANK_ACCOUNT_TYPE' => [
-            ['table' => 'system_bank_accounts', 'column' => 'account_type', 'label' => '계좌구분'],
+            ['table' => 'system_bank_accounts', 'column' => 'account_type', 'label' => '계좌 유형'],
         ],
+
         'BID_TYPE' => [
-            ['table' => 'system_projects', 'column' => 'bid_type', 'label' => '프로젝트 입찰방법'],
+            ['table' => 'system_projects', 'column' => 'bid_type', 'label' => '프로젝트 입찰 유형'],
         ],
         'BUSINESS_UNIT' => [
-            ['table' => 'ledger_transactions', 'column' => 'business_unit', 'label' => '거래 사업구분'],
-            ['table' => 'ledger_journal_rules', 'column' => 'business_unit', 'label' => '분개규칙 사업구분'],
+            ['table' => 'ledger_transactions', 'column' => 'business_unit', 'label' => 'Transaction business unit'],
+            ['table' => 'ledger_journal_rules', 'column' => 'business_unit', 'label' => 'Journal rule business unit'],
         ],
         'CLIENT_CATEGORY' => [
-            ['table' => 'system_clients', 'column' => 'client_category', 'label' => '거래처분류'],
+            ['table' => 'system_clients', 'column' => 'client_category', 'label' => 'Client category'],
         ],
         'CLIENT_TYPE' => [
-            ['table' => 'system_clients', 'column' => 'client_type', 'label' => '거래처구분'],
-            ['table' => 'system_projects', 'column' => 'client_type', 'label' => '프로젝트 거래처구분'],
-            ['table' => 'ledger_journal_rules', 'column' => 'client_type', 'label' => '분개규칙 거래처구분'],
+            ['table' => 'system_clients', 'column' => 'client_type', 'label' => 'Client type'],
+            ['table' => 'system_projects', 'column' => 'client_type', 'label' => 'Project client type'],
+            ['table' => 'ledger_journal_rules', 'column' => 'client_type', 'label' => 'Journal rule client type'],
         ],
         'CONSTRUCTION_TYPE' => [
-            ['table' => 'system_projects', 'column' => 'construction_type', 'label' => '프로젝트 공사구분'],
+            ['table' => 'system_projects', 'column' => 'construction_type', 'label' => 'Project construction type'],
         ],
         'CONTRACT_METHOD' => [
-            ['table' => 'system_projects', 'column' => 'contract_method', 'label' => '프로젝트 계약방식'],
+            ['table' => 'system_projects', 'column' => 'contract_method', 'label' => 'Project contract method'],
         ],
         'CONTRACT_TYPE' => [
-            ['table' => 'system_projects', 'column' => 'contract_type', 'label' => '프로젝트 계약종류'],
+            ['table' => 'system_projects', 'column' => 'contract_type', 'label' => 'Project contract type'],
         ],
         'CURRENCY' => [
-            ['table' => 'system_bank_accounts', 'column' => 'currency', 'label' => '계좌 통화'],
-            ['table' => 'ledger_transactions', 'column' => 'currency', 'label' => '거래 통화'],
-            ['table' => 'ledger_vouchers', 'column' => 'currency', 'label' => '전표 통화'],
+            ['table' => 'system_bank_accounts', 'column' => 'currency', 'label' => 'Bank account currency'],
+            ['table' => 'ledger_transactions', 'column' => 'currency', 'label' => 'Transaction currency'],
+            ['table' => 'ledger_vouchers', 'column' => 'currency', 'label' => 'Voucher currency'],
         ],
         'IMPORT_TYPE' => [
-            ['table' => 'ledger_transactions', 'column' => 'import_type', 'label' => '거래 자료유형'],
-            ['table' => 'ledger_vouchers', 'column' => 'import_type', 'label' => '전표 자료유형'],
-            ['table' => 'ledger_journal_rules', 'column' => 'import_type', 'label' => '분개규칙 자료유형'],
-            ['table' => 'ledger_data_imports', 'column' => 'import_type', 'label' => '자료업로드 유형'],
-            ['table' => 'ledger_data_sources', 'column' => 'source_type', 'label' => '자료출처 유형'],
-            ['table' => 'ledger_import_sources', 'column' => 'source_type', 'label' => '자료출처 유형'],
-            ['table' => 'ledger_data_evidences', 'column' => 'source_type', 'label' => '증빙원본 유형'],
+            ['table' => 'ledger_transactions', 'column' => 'import_type', 'label' => 'Transaction import type'],
+            ['table' => 'ledger_vouchers', 'column' => 'import_type', 'label' => 'Voucher import type'],
+            ['table' => 'ledger_journal_rules', 'column' => 'import_type', 'label' => 'Journal rule import type'],
+            ['table' => 'ledger_data_imports', 'column' => 'import_type', 'label' => 'Data import import type'],
+            ['table' => 'ledger_data_sources', 'column' => 'source_type', 'label' => 'Data source type'],
+            ['table' => 'ledger_import_sources', 'column' => 'source_type', 'label' => 'Import source type'],
+            ['table' => 'ledger_data_evidences', 'column' => 'source_type', 'label' => 'Evidence source type'],
         ],
         'PAYMENT_TERM' => [
-            ['table' => 'system_clients', 'column' => 'payment_term', 'label' => '거래처 결제조건'],
+            ['table' => 'system_clients', 'column' => 'payment_term', 'label' => 'Client payment term'],
         ],
         'SOURCE_TYPE' => [
-            ['table' => 'ledger_vouchers', 'column' => 'source_type', 'label' => '전표 자료출처'],
-            ['table' => 'ledger_transactions', 'column' => 'source_type', 'label' => '거래 자료출처'],
-            ['table' => 'ledger_data_sources', 'column' => 'source_type', 'label' => '자료출처'],
-            ['table' => 'ledger_import_sources', 'column' => 'source_type', 'label' => '자료출처'],
-            ['table' => 'ledger_data_evidences', 'column' => 'source_type', 'label' => '증빙원본 자료출처'],
+            ['table' => 'ledger_vouchers', 'column' => 'source_type', 'label' => 'Voucher source type'],
+            ['table' => 'ledger_transactions', 'column' => 'source_type', 'label' => 'Transaction source type'],
+            ['table' => 'ledger_data_sources', 'column' => 'source_type', 'label' => 'Data source type'],
+            ['table' => 'ledger_import_sources', 'column' => 'source_type', 'label' => 'Import source type'],
+            ['table' => 'ledger_data_evidences', 'column' => 'source_type', 'label' => 'Evidence source type'],
         ],
         'TAX_TYPE' => [
-            ['table' => 'system_clients', 'column' => 'tax_type', 'label' => '거래처 과세구분'],
+            ['table' => 'system_clients', 'column' => 'tax_type', 'label' => '거래처 과세 유형'],
         ],
         'TRANSACTION_DIRECTION' => [
-            ['table' => 'ledger_transactions', 'column' => 'transaction_direction', 'label' => '거래구분'],
+            ['table' => 'ledger_transactions', 'column' => 'transaction_direction', 'label' => '거래 거래구분'],
             ['table' => 'ledger_journal_rules', 'column' => 'transaction_direction', 'label' => '분개규칙 거래구분'],
             ['table' => 'system_clients', 'column' => 'trade_category', 'label' => '거래처 거래구분'],
         ],
-        'TRANSACTION_TYPE' => [
-            ['table' => 'ledger_transactions', 'column' => 'transaction_type', 'label' => '거래유형'],
-            ['table' => 'ledger_journal_rules', 'column' => 'transaction_type', 'label' => '분개규칙 거래유형'],
-        ],
         'WORK_TYPE' => [
-            ['table' => 'system_projects', 'column' => 'work_type', 'label' => '프로젝트 공종'],
+            ['table' => 'system_projects', 'column' => 'work_type', 'label' => '프로젝트 작업 유형'],
         ],
     ];
 
@@ -106,7 +104,6 @@ class CodeService
         'IMPORT_TYPE' => ['import_type', 'data_type'],
         'SOURCE_TYPE' => ['source_type'],
         'TRANSACTION_DIRECTION' => ['transaction_direction'],
-        'TRANSACTION_TYPE' => ['transaction_type'],
     ];
 
     public function __construct(PDO $pdo)
@@ -178,13 +175,13 @@ class CodeService
             $duplicateExcludeId = $id !== '' ? $id : null;
 
             if ($this->model->existsByGroupAndCode($data['code_group'], $data['code'], $duplicateExcludeId)) {
-                throw new \Exception('이미 등록된 코드입니다.');
+                throw new \Exception('같은 코드그룹에 동일한 코드가 이미 등록되어 있습니다.');
             }
 
             if ($id !== '') {
                 $before = $this->model->getById($id);
                 if (!$before) {
-                    throw new \Exception('기준정보를 찾을 수 없습니다.');
+                    throw new \Exception('수정할 코드 정보를 찾을 수 없습니다.');
                 }
 
                 if (!$sortNoProvided) {
@@ -197,7 +194,7 @@ class CodeService
                 unset($data['id']);
 
                 if (!$this->model->updateById($id, $data)) {
-                    throw new \Exception('기준정보 수정에 실패했습니다.');
+                    throw new \Exception('코드 정보 수정에 실패했습니다.');
                 }
 
                 $this->model->updateGroupNameByCodeGroup($data['code_group'], $data['group_name'], $actor);
@@ -224,7 +221,7 @@ class CodeService
             ]);
 
             if (!$this->model->create($insertData)) {
-                throw new \Exception('기준정보 등록에 실패했습니다.');
+                throw new \Exception('코드 정보 저장에 실패했습니다.');
             }
 
             $this->model->updateGroupNameByCodeGroup($data['code_group'], $data['group_name'], $actor);
@@ -257,7 +254,7 @@ class CodeService
         try {
             $row = $this->model->getById($id);
             if (!$row) {
-                return ['success' => false, 'message' => '기준정보를 찾을 수 없습니다.'];
+                return ['success' => false, 'message' => '삭제할 코드 정보를 찾을 수 없습니다.'];
             }
 
             $this->assertDeleteAllowed($row);
@@ -299,7 +296,7 @@ class CodeService
         $count = 0;
 
         if (empty($ids)) {
-            return ['success' => false, 'message' => '복원할 항목을 선택하세요.'];
+            return ['success' => false, 'message' => '처리할 항목을 선택해주세요.'];
         }
 
         foreach ($ids as $id) {
@@ -308,7 +305,7 @@ class CodeService
             }
         }
 
-        return ['success' => true, 'message' => "복원 완료 ({$count}건)"];
+        return ['success' => true, 'message' => "코드가 복원되었습니다.({$count}건)"];
     }
 
     public function restoreAll(string $actorType = 'USER'): array
@@ -324,7 +321,7 @@ class CodeService
         try {
             $row = $this->model->getById($id);
             if (!$row) {
-                return ['success' => false, 'message' => '기준정보를 찾을 수 없습니다.'];
+                return ['success' => false, 'message' => '삭제할 코드 정보를 찾을 수 없습니다.'];
             }
 
             $this->assertDeleteAllowed($row, true);
@@ -341,7 +338,7 @@ class CodeService
         $count = 0;
 
         if (empty($ids)) {
-            return ['success' => false, 'message' => '삭제할 항목을 선택하세요.'];
+            return ['success' => false, 'message' => '영구삭제할 코드를 선택해 주세요.'];
         }
 
         $blocked = [];
@@ -362,7 +359,7 @@ class CodeService
             return ['success' => false, 'message' => $blocked[0]];
         }
 
-        return ['success' => true, 'message' => "영구삭제 완료 ({$count}건)"];
+        return ['success' => true, 'message' => "코드가 영구삭제되었습니다.({$count}건)"];
     }
 
     public function purgeAll(string $actorType = 'USER'): array
@@ -410,11 +407,11 @@ class CodeService
             : null;
 
         if ($data['code_group'] === '' || !preg_match('/^[A-Z_]+$/', $data['code_group'])) {
-            throw new \InvalidArgumentException('코드그룹은 영문 대문자와 _만 사용할 수 있습니다.');
+            throw new \InvalidArgumentException('코드그룹은 영문 대문자와 밑줄(_)만 입력할 수 있습니다.');
         }
 
         if ($data['group_name'] === '') {
-            throw new \InvalidArgumentException('그룹명은 필수입니다.');
+            throw new \InvalidArgumentException('그룹명은 필수 입력값입니다.');
         }
 
         return $data;
@@ -439,7 +436,7 @@ class CodeService
 
         $decoded = json_decode($json, true);
         if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
-            throw new \InvalidArgumentException('추가 속성은 올바른 JSON 객체로 입력해야 합니다.');
+            throw new \InvalidArgumentException('추가정보는 올바른 JSON 형식으로 입력해야 합니다.');
         }
 
         if ($codeGroup === 'BANK') {
@@ -476,7 +473,7 @@ class CodeService
 
             foreach ($formatValue as $length => $pattern) {
                 if (!ctype_digit((string)$length) || (int)$length <= 0) {
-                    throw new \InvalidArgumentException('은행 계좌번호 포맷의 자릿수 키는 양수 숫자여야 합니다.');
+                    throw new \InvalidArgumentException('계좌번호 형식 길이 키는 1 이상의 숫자여야 합니다.');
                 }
 
                 if (is_string($pattern)) {
@@ -489,36 +486,36 @@ class CodeService
                     continue;
                 }
 
-                throw new \InvalidArgumentException('은행 계좌번호 포맷은 문자열 패턴 또는 숫자 배열로 입력해야 합니다.');
+                throw new \InvalidArgumentException('계좌번호 형식 값은 문자열 패턴 또는 숫자 배열만 입력할 수 있습니다.');
             }
 
             return;
         }
 
-        throw new \InvalidArgumentException('은행 계좌번호 포맷은 문자열, 배열 또는 자릿수별 객체로 입력해야 합니다.');
+        throw new \InvalidArgumentException('계좌번호 형식은 문자열 패턴, 숫자 배열, 또는 길이별 형식 객체만 입력할 수 있습니다.');
     }
 
     private function assertBankFormatPattern(string $pattern): void
     {
         $pattern = trim($pattern);
         if ($pattern === '' || preg_match('/^[#0]+(?:-[#0]+)*$/', $pattern) !== 1) {
-            throw new \InvalidArgumentException('은행 계좌번호 포맷은 # 또는 0과 하이픈만 사용할 수 있습니다.');
+            throw new \InvalidArgumentException('계좌번호 형식 문자열은 # 또는 0 패턴만 사용할 수 있습니다.');
         }
     }
 
     private function assertBankFormatParts(array $parts): void
     {
         if (empty($parts)) {
-            throw new \InvalidArgumentException('은행 계좌번호 포맷 배열은 비어 있을 수 없습니다.');
+            throw new \InvalidArgumentException('계좌번호 형식 숫자 배열에는 1개 이상의 값이 필요합니다.');
         }
 
         foreach ($parts as $part) {
             if (!is_int($part) && !ctype_digit((string)$part)) {
-                throw new \InvalidArgumentException('은행 계좌번호 포맷 배열은 숫자만 입력해야 합니다.');
+                throw new \InvalidArgumentException('계좌번호 형식 숫자 배열에는 숫자만 입력할 수 있습니다.');
             }
 
             if ((int)$part <= 0) {
-                throw new \InvalidArgumentException('은행 계좌번호 포맷 배열의 각 값은 양수여야 합니다.');
+                throw new \InvalidArgumentException('계좌번호 형식 숫자 배열 값은 0보다 커야 합니다.');
             }
         }
     }
@@ -540,11 +537,11 @@ class CodeService
         }
 
         if ((string)($before['code_group'] ?? '') !== (string)($after['code_group'] ?? '')) {
-            throw new \RuntimeException($this->buildReferenceMessage('사용 중인 기준정보라 코드그룹을 변경할 수 없습니다.', $references));
+            throw new \RuntimeException($this->buildReferenceMessage('참조 중인 코드라 코드그룹을 변경할 수 없습니다.', $references));
         }
 
         if ((string)($before['code'] ?? '') !== (string)($after['code'] ?? '')) {
-            throw new \RuntimeException($this->buildReferenceMessage('사용 중인 기준정보라 코드를 변경할 수 없습니다.', $references));
+            throw new \RuntimeException($this->buildReferenceMessage('참조 중인 코드라 코드값을 변경할 수 없습니다.', $references));
         }
 
         if ((string)($before['code_name'] ?? '') !== (string)($after['code_name'] ?? '')) {
@@ -554,12 +551,12 @@ class CodeService
             );
 
             if (!empty($nameReferences)) {
-                throw new \RuntimeException($this->buildReferenceMessage('사용 중인 기준정보라 코드명을 변경할 수 없습니다.', $nameReferences));
+                throw new \RuntimeException($this->buildReferenceMessage('참조 중인 코드라 코드명을 변경할 수 없습니다.', $nameReferences));
             }
         }
 
         if ((int)($before['is_active'] ?? 1) === 1 && (int)($after['is_active'] ?? 1) === 0) {
-            throw new \RuntimeException($this->buildReferenceMessage('사용 중인 기준정보라 미사용으로 변경할 수 없습니다.', $references));
+            throw new \RuntimeException($this->buildReferenceMessage('참조 중인 코드라 사용여부를 비활성으로 변경할 수 없습니다.', $references));
         }
     }
 
@@ -575,8 +572,8 @@ class CodeService
         }
 
         $message = $hardDelete
-            ? '사용 중인 기준정보라 영구삭제할 수 없습니다.'
-            : '사용 중인 기준정보라 삭제할 수 없습니다.';
+            ? '참조 중인 코드라 영구삭제할 수 없습니다.'
+            : '참조 중인 코드라 삭제할 수 없습니다.';
 
         throw new \RuntimeException($this->buildReferenceMessage($message, $references));
     }
@@ -619,7 +616,7 @@ class CodeService
                     }
                     if ($count > 0) {
                         $references[] = [
-                            'label' => "증빙 매핑 {$jsonKey}",
+                            'label' => "매핑 페이로드 JSON 키 참조 {$jsonKey}",
                             'count' => $count,
                         ];
                     }
@@ -656,7 +653,7 @@ class CodeService
                     $count = $this->model->countJsonValueReferences($table, $column, $jsonKey, $codeName);
                     if ($count > 0) {
                         $references[] = [
-                            'label' => "증빙 매핑 {$jsonKey}",
+                            'label' => "매핑 페이로드 JSON 키 참조 {$jsonKey}",
                             'count' => $count,
                         ];
                     }
@@ -698,20 +695,20 @@ class CodeService
 
         $remaining = count($references) - count($summary);
         if ($remaining > 0) {
-            $summary[] = "외 {$remaining}개";
+            $summary[] = "외 {$remaining}건";
         }
 
-        return $message . ' 참조: ' . implode(', ', $summary);
+        return $message . ' 참조처: ' . implode(', ', $summary);
     }
 
     public function downloadTemplate(): void
     {
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('기준정보 업로드');
+        $sheet->setTitle('시스템코드 업로드양식');
 
-        $headers = ['코드그룹', '그룹명', '코드', '코드명', '비고', '메모', '사용여부', '추가속성'];
-        $sample = ['CLIENT_TYPE', '거래처구분', 'SUPPLIER', '매입처', '거래처구분 예시', '관리자 메모', '1', '{}'];
+        $headers = ['코드그룹', '그룹명', '코드', '코드명', '비고', '메모', '사용여부', '추가정보'];
+        $sample = ['CLIENT_TYPE', '거래처 유형', 'SUPPLIER', '공급자', '거래처 유형 예시 코드', '메모 예시', '1', '{}'];
 
         $sheet->fromArray($headers, null, 'A1');
         $sheet->fromArray([$sample], null, 'A2');
@@ -758,7 +755,7 @@ class CodeService
                     'note' => trim((string)($row[$map['비고'] ?? -1] ?? ($row[$map['설명'] ?? -1] ?? ''))),
                     'memo' => trim((string)($row[$map['메모'] ?? -1] ?? '')),
                     'is_active' => $this->parseActiveValue($row[$map['사용여부'] ?? -1] ?? '1'),
-                    'extra_data' => trim((string)($row[$map['추가속성'] ?? -1] ?? '')),
+                    'extra_data' => trim((string)($row[$map['추가정보'] ?? -1] ?? '')),
                 ];
 
                 if ($payload['code_group'] === '' || $payload['group_name'] === '' || $payload['code'] === '' || $payload['code_name'] === '') {
@@ -773,7 +770,7 @@ class CodeService
 
             $spreadsheet->disconnectWorksheets();
 
-            return ['success' => true, 'message' => "{$count}건 업로드되었습니다."];
+            return ['success' => true, 'message' => "{$count}건의 코드가 저장되었습니다."];
         } catch (\Throwable $e) {
             return ['success' => false, 'message' => $e->getMessage()];
         }
@@ -784,9 +781,9 @@ class CodeService
         $rows = $this->model->getList();
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('기준정보 목록');
+        $sheet->setTitle('시스템코드 목록');
 
-        $sheet->fromArray(['순번', '코드그룹', '그룹명', '코드', '코드명', '비고', '메모', '사용여부', '추가속성'], null, 'A1');
+        $sheet->fromArray(['순번', '코드그룹', '그룹명', '코드', '코드명', '비고', '메모', '사용여부', '추가정보'], null, 'A1');
 
         $rowNo = 2;
         foreach ($rows as $row) {

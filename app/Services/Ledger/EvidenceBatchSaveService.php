@@ -203,11 +203,17 @@ class EvidenceBatchSaveService
             $errorMessages[] = $voucherErrorMessage;
         }
 
+        $requiredMissingMessages = is_array($validation['required_missing_messages'] ?? null)
+            ? array_values(array_filter(array_map('strval', $validation['required_missing_messages'])))
+            : [];
+        $evidenceStatus = $this->call('evidenceStatusFromRequiredMissingMessages', $requiredMissingMessages);
+
         return [
             'validation' => $validation,
             'status' => $status,
             'process_status' => $processStatus,
             'parsed_payload' => $parsedPayload,
+            'evidence_status' => $evidenceStatus,
             'voucher_status' => $voucherStatus,
             'source_key' => $sourceKey,
             'raw_json' => $rawJson,
@@ -263,6 +269,7 @@ class EvidenceBatchSaveService
         ?string $sourceKey,
         array $parsedPayload,
         string $processStatus,
+        string $evidenceStatus,
         string $voucherStatus,
         ?string $errorMessage,
         string $rawJson,
@@ -291,7 +298,9 @@ class EvidenceBatchSaveService
             ':total_amount' => $this->call('evidenceTotalAmountForStorage', $parsedPayload, $dataType),
             ':create_sort_no' => (int) ($parsedPayload['_create_sort_no'] ?? 0) ?: null,
             ':status_sort_no' => (int) ($parsedPayload['_status_sort_no'] ?? 0) ?: null,
-            ':evidence_status' => $processStatus === 'ERROR' ? 'ERROR' : 'ACTIVE',
+            ':evidence_status' => strtoupper(trim($evidenceStatus)) !== ''
+                ? strtoupper(trim($evidenceStatus))
+                : 'COMPLETED',
             ':transaction_status' => $processStatus === 'ERROR' ? 'ERROR' : 'NONE',
             ':voucher_status' => $voucherStatus,
             ':error_message' => $errorMessage,
@@ -341,6 +350,7 @@ class EvidenceBatchSaveService
         string $rawJson,
         string $parsedJson,
         string $processStatus,
+        string $evidenceStatus,
         string $voucherStatus
     ): ?array {
         if ($sourceKey === null || $sourceKey === '') {
@@ -352,7 +362,9 @@ class EvidenceBatchSaveService
             'source_key' => $sourceKey,
             'raw_json' => $rawJson,
             'mapped_payload_json' => $parsedJson,
-            'evidence_status' => $processStatus === 'ERROR' ? 'ERROR' : 'ACTIVE',
+            'evidence_status' => strtoupper(trim((string) $evidenceStatus)) !== ''
+                ? strtoupper(trim((string) $evidenceStatus))
+                : 'COMPLETED',
             'transaction_status' => $processStatus === 'ERROR' ? 'ERROR' : 'NONE',
             'voucher_status' => $voucherStatus,
         ];

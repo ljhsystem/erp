@@ -1,4 +1,6 @@
 // 📄 /assets/js/pages/dashboard/calendar/modal.trash.js
+import { actorDisplay } from '/public/assets/js/common/actor.js';
+
 (() => {
   'use strict';
 
@@ -67,7 +69,7 @@
         <td><input type="checkbox" data-uid="${row.uid}"></td>
         <td class="trash-row-title">${row.title || ''}</td>
         <td>${row.deleted_at || ''}</td>
-        <td>${row.deleted_by_name || row.deleted_by || ''}</td>
+        <td>${actorDisplay(row, 'deleted_by')}</td>
         <td>
           <button class="btn btn-sm btn-trash-restore btn-restore" data-uid="${row.uid}">
             복원
@@ -114,8 +116,9 @@
     if (data.deleted_at)
       rows.push(['삭제일', data.deleted_at]);
   
-    if (data.deleted_by_name || data.deleted_by)
-      rows.push(['삭제자', data.deleted_by_name || data.deleted_by]);
+    const deletedBy = actorDisplay(data, 'deleted_by');
+    if (deletedBy !== '(알 수 없음)')
+      rows.push(['삭제자', deletedBy]);
   
     /* ===============================
        🔥 타입별 정보

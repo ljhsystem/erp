@@ -214,7 +214,7 @@ class EvidenceTemplateService
             'transaction_datetime' => '2026-05-04 09:30:00',
             'bank_direction' => 'Deposit',
             'business_unit' => 'GENERAL',
-            'transaction_type' => 'GENERAL',
+            'operation_type' => 'GENERAL',
             'deposit_amount' => 55000,
             'withdraw_amount' => '',
             'balance_amount' => 1055000,
@@ -336,20 +336,20 @@ class EvidenceTemplateService
             [
                 'header_row_no' => 2,
                 'line_no' => 1,
-                'line_row_type' => '??????????????',
+                'line_row_type' => '분개',
                 'account_id' => '1000',
                 'debit' => 55000,
                 'credit' => '',
-                'line_summary' => '?????????????????????????濚밸Ŧ援욃퐲????',
+                'line_summary' => '은행 입금 차변 분개라인',
             ],
             [
                 'header_row_no' => 2,
                 'line_no' => 2,
-                'line_row_type' => '??????????????',
+                'line_row_type' => '분개',
                 'account_id' => '4000',
                 'debit' => '',
                 'credit' => 55000,
-                'line_summary' => '???????????????????',
+                'line_summary' => '은행 입금 대변 분개라인',
             ],
         ];
 

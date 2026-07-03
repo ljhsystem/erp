@@ -2,6 +2,7 @@
 
 namespace App\Models\Funds;
 
+use Core\Helpers\ActorHelper;
 use PDO;
 
 class BankTransactionReportModel
@@ -35,10 +36,15 @@ class BankTransactionReportModel
                 ON ep.evidence_type = 'BANK_TRANSACTION'
                AND ep.evidence_id = eb.id COLLATE utf8mb4_unicode_ci" : '';
         $clientNameSelect = $this->clientNameSql();
+        $sourceTypeExpr = "'BANK'";
+        $importTypeExpr = "'BANK_TRANSACTION'";
         $sql = "
             SELECT
                 eb.id,
                 eb.id AS evidence_id,
+                " . $this->selectColumn('eb', 'sort_no', 'NULL') . " AS actual_sort_no,
+                " . $this->selectColumn('eb', 'evidence_sort_no', 'NULL') . " AS evidence_sort_no,
+                " . $this->selectColumn('eb', 'external_key', 'NULL') . " AS external_key,
                 " . $this->selectColumn('eb', 'transaction_datetime', 'NULL') . " AS transaction_datetime,
                 " . $this->selectColumn('eb', 'transaction_date', 'NULL') . " AS transaction_date,
                 " . $this->selectColumn('eb', 'transaction_time', 'NULL') . " AS transaction_time,
@@ -46,7 +52,12 @@ class BankTransactionReportModel
                 COALESCE(NULLIF(ba.account_name, ''), eb.bank_account_id, '-') AS account_name,
                 COALESCE(NULLIF(ba.bank_name, ''), '') AS bank_name,
                 COALESCE(NULLIF(ba.account_number, ''), '') AS account_number,
-                UPPER(COALESCE(eb.transaction_type, '')) AS transaction_type,
+                {$sourceTypeExpr} AS source_type,
+                {$importTypeExpr} AS import_type,
+                COALESCE(st.code_name, '') AS source_type_name,
+                COALESCE(it.code_name, '') AS import_type_name,
+                UPPER(COALESCE(" . $this->selectColumn('eb', 'transaction_direction', "''") . ", '')) AS transaction_direction,
+                UPPER(COALESCE(" . $this->selectColumn('eb', 'operation_type', "''") . ", '')) AS operation_type,
                 COALESCE(" . $this->selectColumn('eb', 'deposit_amount', '0') . ", 0) AS deposit_amount,
                 COALESCE(" . $this->selectColumn('eb', 'withdraw_amount', '0') . ", 0) AS withdraw_amount,
                 " . $this->selectColumn('eb', 'balance_amount', 'NULL') . " AS balance_amount,
@@ -58,7 +69,11 @@ class BankTransactionReportModel
                 " . $this->selectColumn('eb', 'counterparty_bank_name', "''") . " AS counterparty_bank_name,
                 COALESCE(" . $this->selectColumn('eb', 'bank_reference_no', 'eb.external_key') . ", '') AS bank_reference_no,
                 " . $this->selectColumn('eb', 'currency_code', 'NULL') . " AS currency_code,
+                " . $this->selectColumn('eb', 'created_by', 'NULL') . " AS created_by,
+                " . $this->selectColumn('eb', 'updated_by', 'NULL') . " AS updated_by,
+                " . $this->selectColumn('eb', 'deleted_by', 'NULL') . " AS deleted_by,
                 eb.created_at AS uploaded_at,
+                eb.created_at,
                 eb.updated_at,
                 eb.deleted_at AS bank_deleted_at,
                 eb.deleted_at,
@@ -77,6 +92,16 @@ class BankTransactionReportModel
             FROM " . self::BANK_TABLE . " eb
             LEFT JOIN system_bank_accounts ba
                 ON ba.id = eb.bank_account_id
+            LEFT JOIN system_codes st
+                ON st.deleted_at IS NULL
+               AND st.is_active = 1
+               AND st.code_group IN ('IMPORT_SOURCE', 'SOURCE_TYPE')
+               AND st.code = {$sourceTypeExpr}
+            LEFT JOIN system_codes it
+                ON it.deleted_at IS NULL
+               AND it.is_active = 1
+               AND it.code_group = 'IMPORT_TYPE'
+               AND it.code = {$importTypeExpr}
             {$evidencePayloadJoin}
             {$evidenceProcessingJoin}
             LEFT JOIN " . $this->voucherLinkSubquery() . " vlink
@@ -90,6 +115,11 @@ class BankTransactionReportModel
         $stmt->execute($params);
 
         $rows = array_map(fn(array $row): array => $this->normalizeRow($row), $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+        $rows = ActorHelper::enrichActorNames($rows, [
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
+        ]);
         usort($rows, static function (array $left, array $right): int {
             $leftSortNo = (float) ($left['_evidence_sort_no'] ?? 0);
             $rightSortNo = (float) ($right['_evidence_sort_no'] ?? 0);
@@ -104,7 +134,7 @@ class BankTransactionReportModel
         $this->applyCalculatedBalances($rows);
         $this->applyTransactionDateOrderFlags($rows);
         foreach ($rows as $index => &$row) {
-            $row['sort_no'] = $index + 1;
+            $row['row_no'] = $index + 1;
             unset($row['_evidence_sort_no']);
         }
         unset($row);
@@ -310,16 +340,16 @@ class BankTransactionReportModel
                     $params[$param] = '%' . (string) $value . '%';
                     break;
                 case 'direction':
-                case 'transaction_type':
                     $direction = strtoupper((string) $value);
                     if ($direction === 'IN' || $direction === '입금') {
                         $where[] = 'COALESCE(' . $this->selectColumn('eb', 'deposit_amount', '0') . ', 0) > 0';
                     } elseif ($direction === 'OUT' || $direction === '출금') {
                         $where[] = 'COALESCE(' . $this->selectColumn('eb', 'withdraw_amount', '0') . ', 0) > 0';
-                    } else {
-                        $where[] = 'UPPER(COALESCE(eb.transaction_type, "")) = ' . $param;
-                        $params[$param] = $direction;
                     }
+                    break;
+                case 'operation_type':
+                    $where[] = 'UPPER(COALESCE(' . $this->selectColumn('eb', 'operation_type', "''") . ', "")) = ' . $param;
+                    $params[$param] = strtoupper((string) $value);
                     break;
                 case 'deposit_amount':
                     $amount = $this->filterAmount($value);
@@ -450,7 +480,7 @@ class BankTransactionReportModel
         };
         $sortNo = (float) ($payload['_status_sort_no'] ?? 0);
 
-        $row['sort_no'] = $this->formatSortNo($sortNo);
+        $row['sort_no'] = $row['actual_sort_no'] ?? null;
         $row['_evidence_sort_no'] = $sortNo;
         $row['deposit_amount'] = $deposit;
         $row['withdraw_amount'] = $withdraw;
@@ -466,13 +496,16 @@ class BankTransactionReportModel
         $row['source_counterparty_account_number'] = $payloadValue(['counterparty_account_number', '상대계좌번호'], $row['counterparty_account_number'] ?? '');
         $row['source_counterparty_bank_name'] = $payloadValue(['counterparty_bank_name', '상대은행'], $row['counterparty_bank_name'] ?? '');
         $row['source_memo'] = $payloadValue(['memo', '메모'], $row['memo'] ?? '');
-        $row['source_bank_direction'] = $payloadValue(['bank_direction', '거래구분'], $row['transaction_type'] ?? '');
+        $row['source_bank_direction'] = $payloadValue(
+            ['transaction_direction', 'bank_direction', '거래구분'],
+            $row['transaction_direction'] ?? ''
+        );
         $row['source_check_bill_amount'] = $payloadValue(['check_bill_amount', 'check_amount', '수표어음금액'], 0);
         $row['source_bank_reference_no'] = $payloadValue(['bank_reference_no', 'cms_code', 'CMS코드'], $row['bank_reference_no'] ?? '');
         $row['source_counterparty_name'] = $payloadValue(['counterparty_name', 'counterparty_account_holder_name', 'counterparty_account_name', '상대계좌예금주명'], $row['counterparty_name'] ?? '');
         $row['counterparty_name'] = (string) ($row['source_counterparty_name'] ?? '');
         $row['client_name'] = $payloadValue(['client_name', 'client_company_name', '거래처명', '거래처'], $row['client_name'] ?? '');
-        $row['direction'] = $deposit > 0 ? 'IN' : ($withdraw > 0 ? 'OUT' : strtoupper((string) ($row['transaction_type'] ?? '')));
+        $row['direction'] = $deposit > 0 ? 'IN' : ($withdraw > 0 ? 'OUT' : strtoupper((string) ($row['transaction_direction'] ?? '')));
         $row['account_number'] = (string) ($row['account_number'] ?? '');
         $row['counterparty_account_number'] = (string) ($row['counterparty_account_number'] ?? '');
         unset($row['evidence_mapped_payload_json']);

@@ -77,7 +77,7 @@ function sourceDetailHtml(row = {}) {
         ))],
         ['상대은행', fallback(row.source_counterparty_bank_name || row.counterparty_bank_name)],
         ['메모', fallback(row.source_memo || row.memo)],
-        ['거래구분', fallback(row.source_bank_direction || row.bank_direction || row.transaction_type)],
+        ['거래구분', fallback(row.source_bank_direction || row.transaction_direction || row.bank_direction)],
         ['수표어음금액', amount(row.source_check_bill_amount ?? row.check_bill_amount)],
         ['CMS코드', fallback(row.source_bank_reference_no || row.bank_reference_no)],
         ['거래처명', fallback(row.client_name)],
@@ -91,6 +91,143 @@ function sourceDetailHtml(row = {}) {
 }
 
 let sourceOpenToken = 0;
+
+function sourceDetailHtmlV2(row = {}) {
+    const fallback = (value, defaultValue = '-') => {
+        if (value === null || value === undefined || value === '') return defaultValue;
+        return value;
+    };
+    const labelValue = (primary, secondary, defaultValue = '-') => {
+        if (primary !== null && primary !== undefined && primary !== '') return primary;
+        if (secondary !== null && secondary !== undefined && secondary !== '') return secondary;
+        return defaultValue;
+    };
+    const amount = (value, defaultValue = '0') => {
+        if (value === null || value === undefined || value === '') return defaultValue;
+        const numeric = Number(String(value).replace(/,/g, ''));
+        if (!Number.isFinite(numeric)) return value;
+        return numeric.toLocaleString('ko-KR');
+    };
+    const renderDefinitionList = (items = []) => items.map(([label, value]) => `
+        <dt class="col-4">${escapeHtml(label)}</dt>
+        <dd class="col-8">${escapeHtml(value)}</dd>
+    `).join('');
+
+    const sourceItems = [
+        ['거래일시', fallback(row.source_transaction_datetime || row.transaction_datetime || row.transaction_date)],
+        ['출금', amount(row.source_withdraw_amount ?? row.withdraw_amount)],
+        ['입금', amount(row.source_deposit_amount ?? row.deposit_amount)],
+        ['거래후잔액(원본)', amount(row.source_balance_amount ?? row.original_balance_amount, '-')],
+        ['자동계산 잔액(참고)', amount(row.calculated_balance_amount ?? row.balance_amount, '-')],
+        ['거래내용', fallback(row.source_description || row.description)],
+        ['상대계좌번호', fallback(formatAccountNumber(
+            row.source_counterparty_account_number || row.counterparty_account_number,
+            row.source_counterparty_bank_name || row.counterparty_bank_name
+        ))],
+        ['상대은행명', fallback(row.source_counterparty_bank_name || row.counterparty_bank_name)],
+        ['메모', fallback(row.source_memo || row.memo)],
+        ['거래구분', fallback(row.source_bank_direction || row.transaction_direction || row.bank_direction)],
+        ['수표어음금액', amount(row.source_check_bill_amount ?? row.check_bill_amount)],
+        ['CMS코드', fallback(row.source_bank_reference_no || row.bank_reference_no)],
+        ['거래처명', fallback(row.client_name)],
+        ['상대계좌예금주명', fallback(row.source_counterparty_name || row.counterparty_name)],
+    ];
+    const systemItems = [
+        ['ID', fallback(row.id)],
+        ['순번', fallback(row.sort_no)],
+        ['외부원본식별값', fallback(row.external_key)],
+        ['자료출처', labelValue(row.source_type_name, row.source_type)],
+        ['자료유형', labelValue(row.import_type_name, row.import_type)],
+        ['증빙상태', fallback(row.evidence_status)],
+        ['생성일시', fallback(row.created_at)],
+        ['생성자', labelValue(row.created_by_name, row.created_by)],
+        ['수정일시', fallback(row.updated_at)],
+        ['수정자', labelValue(row.updated_by_name, row.updated_by)],
+        ['삭제일시', fallback(row.deleted_at)],
+        ['삭제자', labelValue(row.deleted_by_name, row.deleted_by)],
+    ];
+
+    return `
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-light fw-semibold">원본 정보</div>
+            <div class="card-body">
+                <dl class="row mb-0">${renderDefinitionList(sourceItems)}</dl>
+            </div>
+        </div>
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-light fw-semibold">시스템 처리정보</div>
+            <div class="card-body">
+                <dl class="row mb-0">${renderDefinitionList(systemItems)}</dl>
+            </div>
+        </div>
+    `;
+}
+
+function sourceDetailHtmlV3(row = {}) {
+    const fallback = (value, defaultValue = '-') => {
+        if (value === null || value === undefined || value === '') return defaultValue;
+        return value;
+    };
+    const amount = (value, defaultValue = '0') => {
+        if (value === null || value === undefined || value === '') return defaultValue;
+        const numeric = Number(String(value).replace(/,/g, ''));
+        if (!Number.isFinite(numeric)) return value;
+        return numeric.toLocaleString('ko-KR');
+    };
+    const renderDefinitionList = (items = []) => items.map(([label, value]) => `
+        <dt class="col-4">${escapeHtml(label)}</dt>
+        <dd class="col-8">${escapeHtml(value)}</dd>
+    `).join('');
+
+    const sourceItems = [
+        ['거래일시', fallback(row.source_transaction_datetime || row.transaction_datetime || row.transaction_date)],
+        ['출금', amount(row.source_withdraw_amount ?? row.withdraw_amount)],
+        ['입금', amount(row.source_deposit_amount ?? row.deposit_amount)],
+        ['거래후잔액(원본)', amount(row.source_balance_amount ?? row.original_balance_amount, '-')],
+        ['자동계산 잔액(참고)', amount(row.calculated_balance_amount ?? row.balance_amount, '-')],
+        ['거래내용', fallback(row.source_description || row.description)],
+        ['상대계좌번호', fallback(formatAccountNumber(
+            row.source_counterparty_account_number || row.counterparty_account_number,
+            row.source_counterparty_bank_name || row.counterparty_bank_name
+        ))],
+        ['상대은행명', fallback(row.source_counterparty_bank_name || row.counterparty_bank_name)],
+        ['메모', fallback(row.source_memo || row.memo)],
+        ['거래구분', fallback(row.source_bank_direction || row.transaction_direction || row.bank_direction)],
+        ['수표어음금액', amount(row.source_check_bill_amount ?? row.check_bill_amount)],
+        ['CMS코드', fallback(row.source_bank_reference_no || row.bank_reference_no)],
+        ['거래처명', fallback(row.client_name)],
+        ['상대계좌예금주명', fallback(row.source_counterparty_name || row.counterparty_name)],
+    ];
+    const systemItems = [
+        ['ID', fallback(row.id)],
+        ['순번', fallback(row.sort_no)],
+        ['외부원본식별값', fallback(row.external_key)],
+        ['자료출처', fallback(row.source_type_name)],
+        ['자료유형', fallback(row.import_type_name)],
+        ['증빙상태', fallback(row.evidence_status)],
+        ['생성일시', fallback(row.created_at)],
+        ['생성자', fallback(row.created_by_name)],
+        ['수정일시', fallback(row.updated_at)],
+        ['수정자', fallback(row.updated_by_name)],
+        ['삭제일시', fallback(row.deleted_at)],
+        ['삭제자', fallback(row.deleted_by_name)],
+    ];
+
+    return `
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-light fw-semibold">원본 정보</div>
+            <div class="card-body">
+                <dl class="row mb-0">${renderDefinitionList(sourceItems)}</dl>
+            </div>
+        </div>
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-light fw-semibold">시스템 처리정보</div>
+            <div class="card-body">
+                <dl class="row mb-0">${renderDefinitionList(systemItems)}</dl>
+            </div>
+        </div>
+    `;
+}
 
 async function openSourceModal(id, rowHint = null) {
     if (!id) return;
@@ -107,7 +244,7 @@ async function openSourceModal(id, rowHint = null) {
 
     if (detail) {
         detail.innerHTML = hintedRow
-            ? sourceDetailHtml(hintedRow)
+            ? sourceDetailHtmlV3(hintedRow)
             : '<dd class="col-12 text-muted mb-0">원본 정보를 불러오는 중입니다.</dd>';
     }
     if (editBtn) editBtn.dataset.evidenceId = hintedRow?.evidence_id || '';
@@ -116,7 +253,7 @@ async function openSourceModal(id, rowHint = null) {
     try {
         const row = rememberTransaction(await fetchTransaction(id, { force: true }));
         if (token !== sourceOpenToken) return;
-        if (detail) detail.innerHTML = sourceDetailHtml(row);
+        if (detail) detail.innerHTML = sourceDetailHtmlV3(row);
         if (editBtn) editBtn.dataset.evidenceId = row.evidence_id || '';
     } catch (error) {
         if (!hintedRow) throw error;
@@ -171,11 +308,11 @@ async function ensureEvidenceEditor() {
 
 async function openVoucher(voucherId) {
     if (!voucherId) {
-        notify('warning', '?곌껐??꾪몴媛 ?놁뒿?덈떎.');
+        notify('warning', '연결된 전표가 없습니다.');
         return;
     }
     if (!window.LedgerJournalModal?.openVoucher) {
-        notify('error', '?꾪몴 ?섏젙 紐⑤떖???湲?以묒엯?덈떎. ?좎떆 ??떎???쒕룄?댁＜?몄슂.');
+        notify('error', '전표 보기 기능을 아직 불러오지 못했습니다. 페이지를 새로고침한 뒤 다시 시도해주세요.');
         return;
     }
     const manageModalEl = document.getElementById('fundsBankManageModal');

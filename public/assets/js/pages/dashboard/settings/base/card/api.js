@@ -32,11 +32,11 @@ export const CARD_COLUMN_MAP = {
     memo: { label: '메모', visible: false, width: '220px' },
     is_active: { label: '상태', visible: true, width: '90px', className: 'text-center' },
     created_at: { label: '등록일시', visible: false, width: '150px' },
-    created_by: { label: '등록자', visible: false, width: '140px' },
+    created_by: { label: '등록자', visible: false, width: '140px', type: 'actor' },
     updated_at: { label: '수정일시', visible: false, width: '150px' },
-    updated_by: { label: '수정자', visible: false, width: '140px' },
+    updated_by: { label: '수정자', visible: false, width: '140px', type: 'actor' },
     deleted_at: { label: '삭제일시', visible: false, width: '150px' },
-    deleted_by: { label: '삭제자', visible: false, width: '140px' },
+    deleted_by: { label: '삭제자', visible: false, width: '140px', type: 'actor' },
 };
 
 export const DATE_OPTIONS = [

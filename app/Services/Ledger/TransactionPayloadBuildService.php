@@ -54,7 +54,6 @@ class TransactionPayloadBuildService
             'import_type' => $this->call('normalizeDataType', $dataType),
             'business_unit' => $this->call('businessUnitForUpload', $row, $dataType),
             'transaction_direction' => $this->call('transactionDirectionForStorage', (string) ($context['transaction_direction'] ?? ''), $row, $dataType),
-            'transaction_type' => (string) ($context['transaction_type'] ?? 'GENERAL'),
             'client_id' => $clientId,
             'project_id' => $this->call('findProjectId', (string) ($row['project_name'] ?? '')),
             'transaction_description' => trim((string) ($row['transaction_description'] ?? $row['description'] ?? '')),

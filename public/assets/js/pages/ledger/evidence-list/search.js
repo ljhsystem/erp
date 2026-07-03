@@ -15,7 +15,6 @@ export function createEvidenceSearchModule({
         'TAX_INVOICE',
         'TAX_INVOICE_MANUAL',
         'CASH_RECEIPT',
-        'CASH_RECEIPT_PURCHASE',
         'CARD_HOMETAX',
         'CARD_STATEMENT',
     ];

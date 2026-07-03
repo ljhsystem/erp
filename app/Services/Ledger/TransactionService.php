@@ -59,10 +59,7 @@ class TransactionService
             $transactionPayload = [
                 'id' => $transactionId,
                 'sort_no' => SequenceHelper::next('ledger_transactions', 'sort_no'),
-                'source_type' => $data['source_type'] ?? null,
-                'import_type' => $data['import_type'] ?? $data['source_type'] ?? null,
                 'business_unit' => $data['business_unit'] ?? 'HQ',
-                'transaction_type' => $data['transaction_type'] ?? 'ETC',
                 'transaction_direction' => $data['transaction_direction'] ?? null,
                 'transaction_date' => $data['transaction_date'] ?? date('Y-m-d'),
                 'client_id' => $data['client_id'] ?? null,
@@ -751,13 +748,6 @@ class TransactionService
         $payload = $decoded['voucher_match'] ?? null;
 
         return is_array($payload) ? $payload : null;
-    }
-
-    private function resolveVoucherSourceType(array $transaction): string
-    {
-        $sourceType = strtoupper(trim((string) ($transaction['source_type'] ?? 'MANUAL')));
-
-        return in_array($sourceType, ['TAX', 'CARD', 'BANK', 'MANUAL'], true) ? $sourceType : 'MANUAL';
     }
 
     private function validateRefTarget(string $refType, string $refId): void

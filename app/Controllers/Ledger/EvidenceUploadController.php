@@ -46,8 +46,6 @@ class EvidenceUploadController
         'CARD_STATEMENT',
         'CARD_APPROVAL',
         'BANK_TRANSACTION',
-        'CASH_RECEIPT_PURCHASE',
-        'CASH_RECEIPT_SALES',
     ];
 
     private const BUSINESS_DATA_TYPES = [
@@ -83,10 +81,12 @@ class EvidenceUploadController
         'CARD' => 'CARD_STATEMENT',
         'CARD_PURCHASE' => 'CARD_STATEMENT',
         'CARD_SALE' => 'CARD_STATEMENT',
-        'CASH_RECEIPT_PURCHAS' => 'CASH_RECEIPT_PURCHASE',
-        'CASH_RECEIPT_BUY' => 'CASH_RECEIPT_PURCHASE',
-        'CASH_RECEIPT_SALE' => 'CASH_RECEIPT_SALES',
-        'CASH_RECEIPT_SELL' => 'CASH_RECEIPT_SALES',
+        'CASH_RECEIPT_PURCHASE' => 'CASH_RECEIPT',
+        'CASH_RECEIPT_PURCHAS' => 'CASH_RECEIPT',
+        'CASH_RECEIPT_BUY' => 'CASH_RECEIPT',
+        'CASH_RECEIPT_SALES' => 'CASH_RECEIPT',
+        'CASH_RECEIPT_SALE' => 'CASH_RECEIPT',
+        'CASH_RECEIPT_SELL' => 'CASH_RECEIPT',
         'BANK' => 'BANK_TRANSACTION',
         'SHOPPING' => 'SHOPPING_ORDER',
         'TRADE_IMPORT' => 'IMPORT_INVOICE',
@@ -161,20 +161,20 @@ class EvidenceUploadController
             $columnRequirementPolicy = $this->requestColumnRequirementPolicy($_POST);
             $format = $this->syntheticFormatForDataType($dataType, $columnsCsv, $columnDisplayName, $columnRequirementPolicy);
             if (!$format) {
-                $this->json(['success' => false, 'message' => '?낅줈???묒떇 ?ㅼ젙??遺덈윭?ㅼ? 紐삵뻽?듬땲??'], 400);
+                $this->json(['success' => false, 'message' => '업로드 양식 설정을 불러오지 못했습니다.'], 400);
                 return;
             }
             if (!$format) {
-                $this->json(['success' => false, 'message' => '?낅줈???묒떇 ?ㅼ젙??遺덈윭?ㅼ? 紐삵뻽?듬땲??'], 400);
+                $this->json(['success' => false, 'message' => '업로드 양식 설정을 불러오지 못했습니다.'], 400);
                 return;
             }
 
             try {
                 if (!$this->isAllowedDataType($dataType)) {
-                    throw new \RuntimeException('吏?먰븯吏 ?딅뒗 ?먮즺?좏삎?낅땲??');
+                    throw new \RuntimeException('지원하지 않는 자료유형입니다.');
                 }
                 if (!$this->isAllowedDataType($dataType)) {
-                    throw new \RuntimeException('??????????????????????????????? ???????????????????????????????????????癲꾩뾽濡쒕뱶 ?묒떇 ?ㅼ젙??遺덈윭?ㅼ? 紐삵뻽?듬땲??????????');
+                    throw new \RuntimeException('업로드 양식 설정을 불러오지 못했습니다.');
                 }
                 $prepared = $this->evidenceUploadService()->prepareSeedUploadFilePath(
                     $format,
@@ -270,7 +270,7 @@ class EvidenceUploadController
             return;
             $this->evidenceUploadService()->clearPreviewSession($token);
             $this->evidenceUploadService()->clearUploadCancelToken($cancelToken);
-            $this->json(['success' => true, 'data' => $result, 'message' => 'Seed 엑셀 업로드가 완료되었습니다.']);
+            $this->json(['success' => true, 'data' => $result, 'message' => '엑셀 업로드가 완료되었습니다.']);
         } catch (\Throwable $e) {
             $this->evidenceUploadService()->uploadTrace('failed_preview', $this->evidenceUploadService()->buildFailedPreviewTraceContext($cancelToken, $startedAt, $e));
             $this->json(['success' => false, 'message' => $e->getMessage()], 400);
@@ -419,6 +419,10 @@ class EvidenceUploadController
                 'businessRefNameForStorage' => fn(string $refType, array $payload): ?string => $this->evidenceBusinessRefService()->businessRefNameForStorage($refType, $payload),
                 'number' => fn(mixed $value): float => $this->number($value),
                 'evidenceTotalAmountForStorage' => fn(array $payload, string $dataType): float => $this->evidencePayloadHelperService()->evidenceTotalAmountForStorage($payload, $dataType),
+                'evidenceStatusFromRequiredMissingMessages' => fn(array $missingMessages): string => $this->evidenceStatusHelperService()->evidenceStatusFromRequiredMissingMessages($missingMessages),
+                'applyReadinessToEvidenceRow' => function (array &$row): void {
+                    $this->evidenceStatusHelperService()->applyReadinessToEvidenceRow($row);
+                },
             ]);
         }
 
@@ -638,25 +642,25 @@ class EvidenceUploadController
         }
 
         $fields = [
-            'transaction_date' => '거래일자',
-            'business_unit' => '사업구분',
-            'transaction_direction' => '거래구분',
-            'transaction_type' => '거래유형',
-            'supplier_business_number' => '공급자 사업자등록번호',
-            'supplier_company_name' => '공급자 상호',
-            'supplier_ceo_name' => '공급자 대표자명',
-            'supplier_address' => '공급자 주소',
-            'customer_business_number' => '공급받는자 사업자등록번호',
-            'customer_company_name' => '공급받는자 상호',
-            'customer_ceo_name' => '공급받는자 대표자명',
-            'customer_address' => '공급받는자 주소',
-            'project_name' => '프로젝트',
-            'supply_amount' => '공급가액',
-            'vat_amount' => '부가세',
-            'total_amount' => '금액',
-            'receipt_claim_type' => '영수/청구구분',
-            'description' => '적요',
-            'note' => '비고',
+            'transaction_date' => 'Transaction Date',
+            'business_unit' => 'Business Unit',
+            'transaction_direction' => 'Transaction Direction',
+            'operation_type' => 'Operation Type',
+            'supplier_business_number' => 'Supplier Business Number',
+            'supplier_company_name' => 'Supplier Company Name',
+            'supplier_ceo_name' => 'Supplier CEO Name',
+            'supplier_address' => 'Supplier Address',
+            'customer_business_number' => 'Customer Business Number',
+            'customer_company_name' => 'Customer Company Name',
+            'customer_ceo_name' => 'Customer CEO Name',
+            'customer_address' => 'Customer Address',
+            'project_name' => 'Project Name',
+            'supply_amount' => 'Supply Amount',
+            'vat_amount' => 'VAT Amount',
+            'total_amount' => 'Total Amount',
+            'receipt_claim_type' => 'Receipt/Claim Type',
+            'description' => 'Description',
+            'note' => 'Note',
         ];
 
         $columns = [];
@@ -806,6 +810,7 @@ class EvidenceUploadController
             $this->evidenceStatusHelperService = new EvidenceStatusHelperService($this->pdo, [
                 'amountOrNull' => fn(mixed $value): ?float => $this->amountOrNull($value),
                 'bankVoucherValidationMessage' => fn(array $payload): ?string => $this->evidenceBankHelperService()->bankVoucherValidationMessage($payload),
+                'businessReadinessForEvidenceRow' => fn(array $row, array $payload): array => $this->evidenceRuleEngineService()->businessReadinessForEvidenceRow($row, $payload),
                 'dateValue' => fn(mixed $value): string => $this->dateValue($value),
                 'hasVoucherLinesPayload' => fn(array $payload): bool => $this->evidenceBankHelperService()->hasVoucherLinesPayload($payload),
                 'normalizeDataType' => fn(string $type): string => self::normalizeDataType($type),
@@ -966,8 +971,8 @@ class EvidenceUploadController
                     continue;
                 }
 
-                $label = preg_replace('/\s*필수값 없음$/u', '', $message) ?? $message;
-                $requiredErrors[] = ($rowNo > 0 ? "{$rowNo}행: " : '') . "{$label} 필수";
+                $label = preg_replace('/\s*required missing$/i', '', $message) ?? $message;
+                $requiredErrors[] = ($rowNo > 0 ? (string) $rowNo . '행: ' : '') . $label . ' 필수값 누락';
             }
         }
 

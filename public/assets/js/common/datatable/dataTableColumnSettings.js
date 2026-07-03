@@ -27,6 +27,13 @@ function requirementStarHtml(policy = '') {
     return '';
 }
 
+function requirementPolicySelectClass(policy = '') {
+    const normalized = normalizeRequirementPolicy(policy);
+    if (normalized === 'required') return 'is-required';
+    if (normalized === 'optional') return 'is-optional';
+    return 'is-none';
+}
+
 function ensureModal() {
     let modal = document.getElementById(MODAL_ID);
     if (modal) {
@@ -178,7 +185,7 @@ function renderList(modal, entries = [], dragMode = 'native') {
                        value="${escapeHtml(entry.displayName || entry.title || entry.key)}">
             </div>
             <div class="excel-settings-grid-cell dt-column-settings-policy-cell">
-                <select class="form-select form-select-sm"
+                <select class="form-select form-select-sm dt-requirement-policy-select ${requirementPolicySelectClass(entry.requirementPolicy)}"
                         data-dt-settings-requirement-policy
                         data-key="${escapeHtml(entry.key)}">
                     <option value="none" ${entry.requirementPolicy === 'none' ? 'selected' : ''}>선택안함</option>
@@ -476,9 +483,12 @@ export function openDataTableColumnSettings(options = {}) {
         }
 
         const key = select.dataset.key || '';
+        const nextPolicy = normalizeRequirementPolicy(select.value);
+        select.classList.remove('is-none', 'is-optional', 'is-required');
+        select.classList.add(requirementPolicySelectClass(nextPolicy));
         state.entries = state.entries.map((entry) => (
             entry.key === key
-                ? { ...entry, requirementPolicy: normalizeRequirementPolicy(select.value) }
+                ? { ...entry, requirementPolicy: nextPolicy }
                 : entry
         ));
         rerender();

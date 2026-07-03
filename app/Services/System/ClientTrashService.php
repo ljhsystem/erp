@@ -423,7 +423,7 @@ class ClientTrashService
                     empty($row['id']) ||
                     !isset($row['newSortNo'])
                 ) {
-                    throw new \Exception('reorder ?곗씠???ㅻ쪟');
+                    throw new \Exception('reorder 데이터가 올바르지 않습니다.');
                 }
             }
 

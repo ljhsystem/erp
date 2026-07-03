@@ -2,6 +2,7 @@
 
 namespace App\Models\Ledger;
 
+use Core\Helpers\ActorHelper;
 use Core\Database;
 use PDO;
 
@@ -72,42 +73,28 @@ class ChartAccountModel
             SELECT
                 a.*,
                 p.account_name AS parent_name,
-                CASE
-                    WHEN p1.employee_name IS NOT NULL
-                        THEN CONCAT('USER:', p1.employee_name)
-                    ELSE a.created_by
-                END AS created_by_name,
-                CASE
-                    WHEN p2.employee_name IS NOT NULL
-                        THEN CONCAT('USER:', p2.employee_name)
-                    ELSE a.updated_by
-                END AS updated_by_name
+                a.created_by AS created_by_name,
+                a.updated_by AS updated_by_name
             FROM ledger_accounts a
             LEFT JOIN ledger_accounts p
                 ON a.parent_id = p.id
-            LEFT JOIN user_employees p1
-                ON p1.user_id = CASE
-                    WHEN a.created_by LIKE 'USER:%' THEN REPLACE(a.created_by, 'USER:', '')
-                    WHEN a.created_by LIKE 'SYSTEM:%' THEN REPLACE(a.created_by, 'SYSTEM:', '')
-                    WHEN a.created_by LIKE 'SYSTEM(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(a.created_by, '(', -1), ')', 1)
-                    WHEN a.created_by LIKE 'USER(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(a.created_by, '(', -1), ')', 1)
-                    ELSE NULL
-                END
-            LEFT JOIN user_employees p2
-                ON p2.user_id = CASE
-                    WHEN a.updated_by LIKE 'USER:%' THEN REPLACE(a.updated_by, 'USER:', '')
-                    WHEN a.updated_by LIKE 'SYSTEM:%' THEN REPLACE(a.updated_by, 'SYSTEM:', '')
-                    WHEN a.updated_by LIKE 'SYSTEM(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(a.updated_by, '(', -1), ')', 1)
-                    WHEN a.updated_by LIKE 'USER(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(a.updated_by, '(', -1), ')', 1)
-                    ELSE NULL
-                END
             WHERE a.account_code = :account_code
             LIMIT 1
         ";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':account_code' => $accountCode]);
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            return null;
+        }
+
+        return ActorHelper::enrichActorNamesRow($row, [
+            'created_by_name' => 'created_by_name',
+            'updated_by_name' => 'updated_by_name',
+            'deleted_by_name' => 'deleted_by_name',
+        ]);
     }
 
     public function getDetailByAccountCode(string $accountCode): ?array
@@ -116,55 +103,29 @@ class ChartAccountModel
             SELECT
                 a.*,
                 p.account_name AS parent_name,
-                CASE
-                    WHEN p1.employee_name IS NOT NULL
-                        THEN CONCAT('USER:', p1.employee_name)
-                    ELSE a.created_by
-                END AS created_by_name,
-                CASE
-                    WHEN p2.employee_name IS NOT NULL
-                        THEN CONCAT('USER:', p2.employee_name)
-                    ELSE a.updated_by
-                END AS updated_by_name,
-                CASE
-                    WHEN p3.employee_name IS NOT NULL
-                        THEN CONCAT('USER:', p3.employee_name)
-                    ELSE a.deleted_by
-                END AS deleted_by_name
+                a.created_by AS created_by_name,
+                a.updated_by AS updated_by_name,
+                a.deleted_by AS deleted_by_name
             FROM ledger_accounts a
             LEFT JOIN ledger_accounts p
                 ON a.parent_id = p.id
-            LEFT JOIN user_employees p1
-                ON p1.user_id = CASE
-                    WHEN a.created_by LIKE 'USER:%' THEN REPLACE(a.created_by, 'USER:', '')
-                    WHEN a.created_by LIKE 'SYSTEM:%' THEN REPLACE(a.created_by, 'SYSTEM:', '')
-                    WHEN a.created_by LIKE 'SYSTEM(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(a.created_by, '(', -1), ')', 1)
-                    WHEN a.created_by LIKE 'USER(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(a.created_by, '(', -1), ')', 1)
-                    ELSE NULL
-                END
-            LEFT JOIN user_employees p2
-                ON p2.user_id = CASE
-                    WHEN a.updated_by LIKE 'USER:%' THEN REPLACE(a.updated_by, 'USER:', '')
-                    WHEN a.updated_by LIKE 'SYSTEM:%' THEN REPLACE(a.updated_by, 'SYSTEM:', '')
-                    WHEN a.updated_by LIKE 'SYSTEM(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(a.updated_by, '(', -1), ')', 1)
-                    WHEN a.updated_by LIKE 'USER(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(a.updated_by, '(', -1), ')', 1)
-                    ELSE NULL
-                END
-            LEFT JOIN user_employees p3
-                ON p3.user_id = CASE
-                    WHEN a.deleted_by LIKE 'USER:%' THEN REPLACE(a.deleted_by, 'USER:', '')
-                    WHEN a.deleted_by LIKE 'SYSTEM:%' THEN REPLACE(a.deleted_by, 'SYSTEM:', '')
-                    WHEN a.deleted_by LIKE 'SYSTEM(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(a.deleted_by, '(', -1), ')', 1)
-                    WHEN a.deleted_by LIKE 'USER(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(a.deleted_by, '(', -1), ')', 1)
-                    ELSE NULL
-                END
             WHERE a.account_code = :account_code
             LIMIT 1
         ";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':account_code' => $accountCode]);
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            return null;
+        }
+
+        return ActorHelper::enrichActorNamesRow($row, [
+            'created_by_name' => 'created_by_name',
+            'updated_by_name' => 'updated_by_name',
+            'deleted_by_name' => 'deleted_by_name',
+        ]);
     }
 
     public function create(array $data): bool
@@ -323,25 +284,18 @@ class ChartAccountModel
                 c.account_group,
                 c.deleted_at,
                 c.deleted_by,
-                CASE
-                    WHEN p.employee_name IS NOT NULL THEN CONCAT('USER:', p.employee_name)
-                    ELSE c.deleted_by
-                END AS deleted_by_name
+                c.deleted_by AS deleted_by_name
             FROM ledger_accounts c
-            LEFT JOIN user_employees p
-                ON p.user_id = CASE
-                    WHEN c.deleted_by LIKE 'USER:%' THEN REPLACE(c.deleted_by, 'USER:', '')
-                    WHEN c.deleted_by LIKE 'SYSTEM:%' THEN REPLACE(c.deleted_by, 'SYSTEM:', '')
-                    WHEN c.deleted_by LIKE 'SYSTEM(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(c.deleted_by, '(', -1), ')', 1)
-                    WHEN c.deleted_by LIKE 'USER(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(c.deleted_by, '(', -1), ')', 1)
-                    ELSE NULL
-                END
             WHERE c.deleted_at IS NOT NULL
             ORDER BY c.deleted_at DESC
         ";
 
         $stmt = $this->db->query($sql);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        return ActorHelper::enrichActorNames($rows, [
+            'deleted_by_name' => 'deleted_by_name',
+        ]);
     }
 
     public function getChildren(string $parentId): array
@@ -476,21 +430,9 @@ class ChartAccountModel
                 {$treeSortExpr} AS tree_sort,
                 p.account_name AS parent_name,
                 {$parentPathExpr} AS parent_path,
-                CASE
-                    WHEN p1.employee_name IS NOT NULL
-                        THEN CONCAT('USER:', p1.employee_name)
-                    ELSE a.created_by
-                END AS created_by_name,
-                CASE
-                    WHEN p2.employee_name IS NOT NULL
-                        THEN CONCAT('USER:', p2.employee_name)
-                    ELSE a.updated_by
-                END AS updated_by_name,
-                CASE
-                    WHEN p3.employee_name IS NOT NULL
-                        THEN CONCAT('USER:', p3.employee_name)
-                    ELSE a.deleted_by
-                END AS deleted_by_name,
+                a.created_by AS created_by_name,
+                a.updated_by AS updated_by_name,
+                a.deleted_by AS deleted_by_name,
                 CASE
                     WHEN EXISTS (
                         SELECT 1
@@ -505,30 +447,6 @@ class ChartAccountModel
                 ON a.parent_id = p.id
             LEFT JOIN ledger_sub_accounts sa
                 ON sa.account_id = a.id
-            LEFT JOIN user_employees p1
-                ON p1.user_id = CASE
-                    WHEN a.created_by LIKE 'USER:%' THEN REPLACE(a.created_by, 'USER:', '')
-                    WHEN a.created_by LIKE 'SYSTEM:%' THEN REPLACE(a.created_by, 'SYSTEM:', '')
-                    WHEN a.created_by LIKE 'SYSTEM(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(a.created_by, '(', -1), ')', 1)
-                    WHEN a.created_by LIKE 'USER(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(a.created_by, '(', -1), ')', 1)
-                    ELSE NULL
-                END
-            LEFT JOIN user_employees p2
-                ON p2.user_id = CASE
-                    WHEN a.updated_by LIKE 'USER:%' THEN REPLACE(a.updated_by, 'USER:', '')
-                    WHEN a.updated_by LIKE 'SYSTEM:%' THEN REPLACE(a.updated_by, 'SYSTEM:', '')
-                    WHEN a.updated_by LIKE 'SYSTEM(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(a.updated_by, '(', -1), ')', 1)
-                    WHEN a.updated_by LIKE 'USER(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(a.updated_by, '(', -1), ')', 1)
-                    ELSE NULL
-                END
-            LEFT JOIN user_employees p3
-                ON p3.user_id = CASE
-                    WHEN a.deleted_by LIKE 'USER:%' THEN REPLACE(a.deleted_by, 'USER:', '')
-                    WHEN a.deleted_by LIKE 'SYSTEM:%' THEN REPLACE(a.deleted_by, 'SYSTEM:', '')
-                    WHEN a.deleted_by LIKE 'SYSTEM(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(a.deleted_by, '(', -1), ')', 1)
-                    WHEN a.deleted_by LIKE 'USER(%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(a.deleted_by, '(', -1), ')', 1)
-                    ELSE NULL
-                END
             WHERE a.deleted_at IS NULL
         ";
 
@@ -581,12 +499,12 @@ class ChartAccountModel
                     break;
 
                 case 'created_by_name':
-                    $sql .= " AND (p1.employee_name LIKE {$key} OR a.created_by LIKE {$key})";
+                    $sql .= " AND a.created_by LIKE {$key}";
                     $params[$key] = "%{$value}%";
                     break;
 
                 case 'updated_by_name':
-                    $sql .= " AND (p2.employee_name LIKE {$key} OR a.updated_by LIKE {$key})";
+                    $sql .= " AND a.updated_by LIKE {$key}";
                     $params[$key] = "%{$value}%";
                     break;
 
@@ -647,7 +565,13 @@ class ChartAccountModel
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        return ActorHelper::enrichActorNames($rows, [
+            'created_by_name' => 'created_by_name',
+            'updated_by_name' => 'updated_by_name',
+            'deleted_by_name' => 'deleted_by_name',
+        ]);
     }
 
     public function updateAllowSubAccount(string $id, int $allowSubAccount): bool

@@ -1,3 +1,5 @@
+import { actorDisplay } from '/public/assets/js/common/actor.js';
+
 export function createProjectTableModule({
     createDataTable,
     bindTableHighlight,
@@ -48,11 +50,11 @@ export function createProjectTableModule({
         memo: { label: '메모', visible: false },
         is_active: { label: '진행상황', visible: true },
         created_at: { label: '등록일시', visible: false },
-        created_by: { label: '등록자', visible: false },
+        created_by: { label: '등록자', visible: false, type: 'actor' },
         updated_at: { label: '수정일시', visible: false },
-        updated_by: { label: '수정자', visible: false },
+        updated_by: { label: '수정자', visible: false, type: 'actor' },
         deleted_at: { label: '삭제일시', visible: false },
-        deleted_by: { label: '삭제자', visible: false },
+        deleted_by: { label: '삭제자', visible: false, type: 'actor' },
     };
 
     function getProjectColumnAlignClass(field) {
@@ -139,9 +141,7 @@ export function createProjectTableModule({
                     if (field === 'site_agent') return row?.site_agent_name || data;
                     if (field === 'employee_id') return row?.employee_name || data;
                     if (field === 'client_id') return row?.linked_client_name || data;
-                    if (field === 'created_by') return row?.created_by_name || data;
-                    if (field === 'updated_by') return row?.updated_by_name || data;
-                    if (field === 'deleted_by') return row?.deleted_by_name || data;
+                    if (config.type === 'actor') return actorDisplay(row, field);
                     if (['permit_date', 'contract_date', 'start_date', 'completion_date', 'bid_notice_date'].includes(field)) {
                         return formatDateDisplay(data);
                     }
@@ -171,6 +171,7 @@ export function createProjectTableModule({
         columns.push({
             data: null,
             settingsKey: '__actions',
+            __dtColumnKind: 'virtual',
             title: '관리',
             className: 'text-center no-colvis',
             headerClassName: 'text-center no-colvis',

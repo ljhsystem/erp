@@ -62,6 +62,11 @@ export function createEvidenceTableModule({
     renderVoucherWorkflowStatus,
     readDataTableSettingsState,
 }) {
+    function isBankTransactionEvidenceRow(row = {}) {
+        const payload = mapped(row);
+        return String(row.import_type || row.seed_source_type || row.source_type || payload.import_type || '').trim().toUpperCase() === 'BANK_TRANSACTION';
+    }
+
     function currentTableSettingsStorageKey(type = state.currentType) {
         return evidenceStatusTableSettingsStorageKey(type);
     }
@@ -295,14 +300,14 @@ export function createEvidenceTableModule({
                 row.__business_unit_label = businessUnitLabel;
             }
 
-            const transactionTypeSource = valueText(
-                row.transaction_type
-                ?? mappedPayload.transaction_type
+            const operationTypeSource = valueText(
+                row.operation_type
+                ?? mappedPayload.operation_type
                 ?? ''
             );
-            const transactionTypeLabel = codeFieldDisplayText('transaction_type', transactionTypeSource);
-            if (transactionTypeLabel !== '') {
-                row.__transaction_type_label = transactionTypeLabel;
+            const operationTypeLabel = codeFieldDisplayText('operation_type', operationTypeSource);
+            if (operationTypeLabel !== '') {
+                row.__operation_type_label = operationTypeLabel;
             }
 
             return row;
@@ -311,6 +316,12 @@ export function createEvidenceTableModule({
     function evidenceStatusDisplay(value) {
             const raw = valueText(value).trim().toUpperCase();
             if (raw === '') return { text: '-', className: 'text-bg-light' };
+            if (['COMPLETED', 'READY', 'VERIFY_ONLY'].includes(raw)) {
+                return { text: '완료', className: 'text-bg-success' };
+            }
+            if (['CORRECTION_REQUIRED', 'NOT_READY', 'REVIEW_REQUIRED'].includes(raw)) {
+                return { text: '보정필요', className: 'text-bg-warning' };
+            }
 
             if (raw === 'ACTIVE') return { text: '활성', className: 'text-bg-success' };
             if (raw === 'DELETED') return { text: '삭제', className: 'text-bg-secondary' };
@@ -353,9 +364,10 @@ export function createEvidenceTableModule({
                 column.key,
                 column.data,
             ].map((value) => String(value || '').trim().toLowerCase());
+            const isBankTransaction = String(state.currentType || '').trim().toUpperCase() === 'BANK_TRANSACTION';
 
             if (keys.includes('business_unit')) return 'business_unit';
-            if (keys.includes('transaction_type')) return 'transaction_type';
+            if (keys.includes('operation_type')) return 'operation_type';
             if (keys.includes('transaction_direction') || keys.includes('bank_transaction_transaction_direction')) return 'transaction_direction';
 
             return '';
@@ -433,8 +445,8 @@ export function createEvidenceTableModule({
                                 if (codeField === 'business_unit') {
                                     return valueText(row.__business_unit_label) || codeFieldDisplayText('business_unit', rawValue) || valueText(rawValue);
                                 }
-                                if (codeField === 'transaction_type') {
-                                    return valueText(row.__transaction_type_label) || codeFieldDisplayText('transaction_type', rawValue) || valueText(rawValue);
+                                if (codeField === 'operation_type') {
+                                    return valueText(row.__operation_type_label) || codeFieldDisplayText('operation_type', rawValue) || valueText(rawValue);
                                 }
                                 if (isEvidenceStatusColumn(column)) {
                                     return valueText(evidenceStatusDisplay(rawValue).text);
@@ -453,8 +465,8 @@ export function createEvidenceTableModule({
                             if (codeField === 'business_unit') {
                                 return escapeHtml(valueText(row.__business_unit_label) || codeFieldDisplayText('business_unit', rawValue) || '-');
                             }
-                            if (codeField === 'transaction_type') {
-                                return escapeHtml(valueText(row.__transaction_type_label) || codeFieldDisplayText('transaction_type', rawValue) || '-');
+                            if (codeField === 'operation_type') {
+                                return escapeHtml(valueText(row.__operation_type_label) || codeFieldDisplayText('operation_type', rawValue) || '-');
                             }
                             if (referenceField !== '') {
                                 return escapeHtml(referenceDisplayValue(row, column, rawValue) || '-');
@@ -534,8 +546,8 @@ export function createEvidenceTableModule({
                             if (codeField === 'business_unit') {
                                 return escapeHtml(valueText(row.__business_unit_label) || codeFieldDisplayText('business_unit', value) || '-');
                             }
-                            if (codeField === 'transaction_type') {
-                                return escapeHtml(valueText(row.__transaction_type_label) || codeFieldDisplayText('transaction_type', value) || '-');
+                            if (codeField === 'operation_type') {
+                                return escapeHtml(valueText(row.__operation_type_label) || codeFieldDisplayText('operation_type', value) || '-');
                             }
                             if (referenceField !== '') {
                                 return escapeHtml(referenceDisplayValue(row, referenceColumn, value) || '-');

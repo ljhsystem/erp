@@ -1,3 +1,5 @@
+import { actorDisplay } from '/public/assets/js/common/actor.js';
+
 export function createBankAccountTableModule({
     createDataTable,
     bindTableHighlight,
@@ -58,17 +60,7 @@ export function createBankAccountTableModule({
                     if (data == null) return '';
                     if (type !== 'display') return data;
 
-                    if (field === 'created_by') {
-                        return row?.created_by_name || data;
-                    }
-
-                    if (field === 'updated_by') {
-                        return row?.updated_by_name || data;
-                    }
-
-                    if (field === 'deleted_by') {
-                        return row?.deleted_by_name || data;
-                    }
+                    if (config.type === 'actor') return actorDisplay(row, field);
 
                     if (field === 'bank_file') {
                         if (!data) return '';
@@ -122,6 +114,7 @@ export function createBankAccountTableModule({
         columns.push({
             data: null,
             settingsKey: '__actions',
+            __dtColumnKind: 'virtual',
             title: '관리',
             className: 'text-center no-colvis',
             orderable: false,

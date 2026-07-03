@@ -45,17 +45,18 @@ class EvidenceDeleteRestoreService
 
     public function softDeleteEvidenceBodyByEvidenceIds(array $evidenceIds, string $actor, ?string $evidenceType = null): void
     {
-        $this->updateEvidenceBodyDeletedAtByEvidenceIds($evidenceIds, 'NOW()', $evidenceType);
+        $this->updateEvidenceBodyDeletedAtByEvidenceIds($evidenceIds, $actor, true, $evidenceType);
     }
 
     public function restoreEvidenceBodyByEvidenceIds(array $evidenceIds, string $actor, ?string $evidenceType = null): void
     {
-        $this->updateEvidenceBodyDeletedAtByEvidenceIds($evidenceIds, 'NULL', $evidenceType);
+        $this->updateEvidenceBodyDeletedAtByEvidenceIds($evidenceIds, $actor, false, $evidenceType);
     }
 
     public function updateEvidenceBodyDeletedAtByEvidenceIds(
         array $evidenceIds,
-        string $deletedAtSql,
+        string $actor,
+        bool $isDelete,
         ?string $evidenceType = null
     ): void {
         if ($evidenceType !== null) {
@@ -88,12 +89,35 @@ class EvidenceDeleteRestoreService
 
         foreach ($tables as $table) {
             [$inSql, $params] = $this->placeholdersForIds($evidenceIds, 'body_' . $table . '_id');
+            $sets = [];
+            $queryParams = $params;
+            if ($this->tableColumnExists($table, 'deleted_at')) {
+                $sets[] = 'deleted_at = ' . ($isDelete ? 'NOW()' : 'NULL');
+            }
+            if ($this->tableColumnExists($table, 'deleted_by')) {
+                if ($isDelete) {
+                    $sets[] = 'deleted_by = :deleted_by';
+                    $queryParams[':deleted_by'] = $actor;
+                } else {
+                    $sets[] = 'deleted_by = NULL';
+                }
+            }
+            if ($this->tableColumnExists($table, 'updated_at')) {
+                $sets[] = 'updated_at = NOW()';
+            }
+            if ($this->tableColumnExists($table, 'updated_by')) {
+                $sets[] = 'updated_by = :updated_by';
+                $queryParams[':updated_by'] = $actor;
+            }
+            if ($sets === []) {
+                continue;
+            }
+
             $this->pdo->prepare("
                 UPDATE {$table}
-                SET deleted_at = {$deletedAtSql},
-                    updated_at = NOW()
+                SET " . implode(",\n                    ", $sets) . "
                 WHERE id IN ({$inSql})
-            ")->execute($params);
+            ")->execute($queryParams);
         }
     }
 
@@ -103,7 +127,7 @@ class EvidenceDeleteRestoreService
             'BANK_TRANSACTION' => ['ledger_evidence_bank_transaction'],
             'TAX_INVOICE' => ['ledger_evidence_tax_invoice'],
             'TAX_INVOICE_MANUAL' => ['ledger_evidence_tax_invoice_manual'],
-            'CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES' => ['ledger_evidence_cash_receipt'],
+            'CASH_RECEIPT' => ['ledger_evidence_cash_receipt'],
             'CARD_HOMETAX' => ['ledger_evidence_card_hometax'],
             'CARD', 'CARD_STATEMENT', 'CARD_APPROVAL' => ['ledger_evidence_card_statement'],
             'EMPLOYEE_EXPENSE' => ['ledger_evidence_employee_expense'],
@@ -142,6 +166,24 @@ class EvidenceDeleteRestoreService
     private function tableExists(string $tableName): bool
     {
         return $this->call('tableExists', $tableName);
+    }
+
+    private function tableColumnExists(string $tableName, string $columnName): bool
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT 1
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = :table_name
+              AND COLUMN_NAME = :column_name
+            LIMIT 1
+        ");
+        $stmt->execute([
+            ':table_name' => $tableName,
+            ':column_name' => $columnName,
+        ]);
+
+        return (bool) $stmt->fetchColumn();
     }
 
     private function call(string $name, mixed ...$args): mixed

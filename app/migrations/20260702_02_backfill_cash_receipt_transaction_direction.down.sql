@@ -1,0 +1,2 @@
+-- Data backfill is intentionally not reversed.
+-- Reverting transaction_direction would delete user-visible business classification.

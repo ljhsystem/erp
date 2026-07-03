@@ -9,7 +9,7 @@
                 <div class="modal-header transaction-modal-header">
                     <div>
                         <h5 class="modal-title" id="transactionModalLabel">거래 등록</h5>
-                        <p class="transaction-modal-subtitle mb-0">원본 거래와 품목, 증빙 파일, 전표 연결 상태를 관리합니다.</p>
+                        <p class="transaction-modal-subtitle mb-0">거래 기본정보, 품목, 정산, 전표 연결 정보를 한 화면에서 관리합니다.</p>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
                 </div>
@@ -23,39 +23,11 @@
                         <div class="transaction-card-header">
                             <div class="transaction-card-heading">
                                 <h6 class="transaction-card-title">업무분류정보</h6>
-                                <p class="transaction-card-description">업무분류, 기초정보, 참조정보를 같은 카드 구조로 관리합니다.</p>
+                                <p class="transaction-card-description">사업구분, 거래구분, 업무유형, 기초정보와 담당 정보를 증빙원본과 같은 카드 구조로 관리합니다.</p>
                             </div>
                         </div>
 
                         <div class="transaction-modal-grid transaction-business-grid">
-                            <label class="transaction-field transaction-field-standard">
-                                <span class="transaction-field-label">
-                                    <span class="transaction-field-label-text">자료출처</span>
-                                    <span class="transaction-field-badge transaction-field-badge-code">코드관리</span>
-                                </span>
-                                <select class="form-select form-select-sm"
-                                        name="source_type"
-                                        id="source_type"
-                                        data-code-group="SOURCE_TYPE"
-                                        data-empty-label="자료출처선택">
-                                    <option value="">자료출처선택</option>
-                                </select>
-                            </label>
-
-                            <label class="transaction-field transaction-field-standard">
-                                <span class="transaction-field-label">
-                                    <span class="transaction-field-label-text">자료유형</span>
-                                    <span class="transaction-field-badge transaction-field-badge-code">코드관리</span>
-                                </span>
-                                <select class="form-select form-select-sm"
-                                        name="import_type"
-                                        id="import_type"
-                                        data-code-group="IMPORT_TYPE"
-                                        data-empty-label="자료유형선택">
-                                    <option value="">자료유형선택</option>
-                                </select>
-                            </label>
-
                             <label class="transaction-field transaction-field-standard">
                                 <span class="transaction-field-label">
                                     <span class="transaction-field-label-text">사업구분</span>
@@ -65,9 +37,9 @@
                                         name="business_unit"
                                         id="business_unit"
                                         data-code-group="BUSINESS_UNIT"
-                                        data-empty-label="사업구분선택"
+                                        data-empty-label="사업구분 선택"
                                         required>
-                                    <option value="">사업구분선택</option>
+                                    <option value="">사업구분 선택</option>
                                 </select>
                             </label>
 
@@ -80,49 +52,48 @@
                                         name="transaction_direction"
                                         id="transaction_direction"
                                         data-code-group="TRANSACTION_DIRECTION"
-                                        data-empty-label="거래구분선택">
-                                    <option value="">거래구분선택</option>
+                                        data-empty-label="거래구분 선택">
+                                    <option value="">거래구분 선택</option>
                                 </select>
                             </label>
 
                             <label class="transaction-field transaction-field-standard">
                                 <span class="transaction-field-label">
-                                    <span class="transaction-field-label-text">거래유형</span>
+                                    <span class="transaction-field-label-text">업무유형</span>
                                     <span class="transaction-field-badge transaction-field-badge-code">코드관리</span>
                                 </span>
                                 <select class="form-select form-select-sm"
-                                        name="transaction_type"
-                                        id="transaction_type"
-                                        data-code-group="TRANSACTION_TYPE"
-                                        data-empty-label="거래유형선택"
-                                        required>
-                                    <option value="">거래유형선택</option>
+                                        name="operation_type"
+                                        id="operation_type"
+                                        data-code-group="OPERATION_TYPE"
+                                        data-empty-label="업무유형 선택">
+                                    <option value="">업무유형 선택</option>
                                 </select>
                             </label>
 
                             <label class="transaction-field transaction-field-standard">
                                 <span class="transaction-field-label">
                                     <span class="transaction-field-label-text">통화</span>
-                                    <span class="transaction-field-badge transaction-field-badge-code">코드관리</span>
+                                    <span class="transaction-field-badge transaction-field-badge-code">코드 선택</span>
                                 </span>
                                 <select class="form-select form-select-sm"
                                         name="currency"
                                         id="currency"
                                         data-code-group="CURRENCY"
-                                        data-empty-label="통화선택">
-                                    <option value="">통화선택</option>
+                                        data-empty-label="통화 선택">
+                                    <option value="">통화 선택</option>
                                 </select>
                             </label>
 
                             <label class="transaction-field transaction-field-basic">
                                 <span class="transaction-field-label">
                                     <span class="transaction-field-label-text">거래처</span>
-                                    <span class="transaction-field-badge transaction-field-badge-basic">기초정보</span>
+                                    <span class="transaction-field-badge transaction-field-badge-basic">기본 선택</span>
                                 </span>
                                 <select class="form-select form-select-sm"
                                         name="client_id"
                                         id="client_id"
-                                        data-placeholder="거래처검색"
+                                        data-placeholder="거래처 검색"
                                         required>
                                     <option value=""></option>
                                 </select>
@@ -131,7 +102,7 @@
                             <label class="transaction-field transaction-field-basic">
                                 <span class="transaction-field-label">
                                     <span class="transaction-field-label-text">프로젝트</span>
-                                    <span class="transaction-field-badge transaction-field-badge-basic">기초정보</span>
+                                    <span class="transaction-field-badge transaction-field-badge-basic">기본 선택</span>
                                 </span>
                                 <select class="form-select form-select-sm"
                                         name="project_id"
@@ -144,7 +115,7 @@
                             <label class="transaction-field transaction-field-basic">
                                 <span class="transaction-field-label">
                                     <span class="transaction-field-label-text">계좌</span>
-                                    <span class="transaction-field-badge transaction-field-badge-basic">기초정보</span>
+                                    <span class="transaction-field-badge transaction-field-badge-basic">기본 선택</span>
                                 </span>
                                 <select class="form-select form-select-sm"
                                         name="bank_account_id"
@@ -156,7 +127,7 @@
                             <label class="transaction-field transaction-field-basic">
                                 <span class="transaction-field-label">
                                     <span class="transaction-field-label-text">카드</span>
-                                    <span class="transaction-field-badge transaction-field-badge-basic">기초정보</span>
+                                    <span class="transaction-field-badge transaction-field-badge-basic">기본 선택</span>
                                 </span>
                                 <select class="form-select form-select-sm"
                                         name="card_id"
@@ -168,7 +139,7 @@
                             <label class="transaction-field transaction-field-basic">
                                 <span class="transaction-field-label">
                                     <span class="transaction-field-label-text">팀</span>
-                                    <span class="transaction-field-badge transaction-field-badge-basic">기초정보</span>
+                                    <span class="transaction-field-badge transaction-field-badge-basic">기본 선택</span>
                                 </span>
                                 <select class="form-select form-select-sm"
                                         name="team_id"
@@ -180,7 +151,7 @@
                             <label class="transaction-field transaction-field-basic">
                                 <span class="transaction-field-label">
                                     <span class="transaction-field-label-text">직원</span>
-                                    <span class="transaction-field-badge transaction-field-badge-basic">기초정보</span>
+                                    <span class="transaction-field-badge transaction-field-badge-basic">기본 선택</span>
                                 </span>
                                 <select class="form-select form-select-sm"
                                         name="employee_id"
@@ -191,16 +162,16 @@
                         </div>
                     </section>
 
-                    <section class="transaction-card transaction-overview-card" aria-label="거래개요">
+                    <section class="transaction-card transaction-overview-card" aria-label="거래 개요 정보">
                         <div class="transaction-card-header">
                             <div class="transaction-card-heading">
-                                <h6 class="transaction-card-title">거래개요</h6>
-                                <p class="transaction-card-description">거래일자, 설명, 통화 정보와 대표 금액을 한 화면에서 확인합니다.</p>
+                                <h6 class="transaction-card-title">거래 개요 정보</h6>
+                                <p class="transaction-card-description">거래일자, 적요, 메모, 첨부 파일과 금액 흐름을 확인합니다.</p>
                             </div>
                             <div class="transaction-overview-header-actions">
                                 <div class="form-check form-switch transaction-switch">
                                     <input class="form-check-input" type="checkbox" role="switch" id="use_file_reference" name="use_file_reference" value="1">
-                                    <label class="form-check-label" for="use_file_reference">파일첨부</label>
+                                    <label class="form-check-label" for="use_file_reference">파일 첨부 사용</label>
                                 </div>
                             </div>
                         </div>
@@ -209,13 +180,13 @@
                             <div class="transaction-overview-column transaction-overview-left">
                                 <div class="transaction-modal-grid transaction-modal-grid-overview-left">
                                     <label class="transaction-field transaction-field-date transaction-overview-date-field">
-                                        <span class="transaction-field-label">거래일</span>
+                                        <span class="transaction-field-label">거래일자</span>
                                         <div class="date-input">
                                             <input type="text"
                                                    class="form-control form-control-sm admin-date"
                                                    name="transaction_date"
                                                    id="transaction_date"
-                                                   placeholder="날짜 선택"
+                                                   placeholder="날짜를 선택하세요"
                                                    autocomplete="off"
                                                    inputmode="numeric"
                                                    maxlength="10"
@@ -226,7 +197,7 @@
 
                                     <label class="transaction-field transaction-field-raw transaction-overview-description">
                                         <span class="transaction-field-label">적요</span>
-                                        <input type="text" class="form-control form-control-sm" name="description" id="transaction_description" placeholder="거래 내용을 입력하세요">
+                                        <input type="text" class="form-control form-control-sm" name="description" id="transaction_description" placeholder="거래 적요를 입력하세요">
                                     </label>
 
                                     <label class="transaction-field transaction-field-raw transaction-exchange-field d-none">
@@ -282,7 +253,7 @@
                             </div>
 
                             <div class="transaction-overview-column transaction-overview-right">
-                                <div class="transaction-total-flow" aria-label="최종금액 계산 흐름">
+                                <div class="transaction-total-flow" aria-label="금액 합계 흐름">
                                     <div class="transaction-total-row">
                                         <span class="transaction-total-operator transaction-total-operator-placeholder" aria-hidden="true"></span>
                                         <label class="transaction-total-card">
@@ -329,16 +300,16 @@
                         </div>
                     </section>
 
-                    <section class="transaction-card transaction-lines-section" aria-label="거래내역">
+                    <section class="transaction-card transaction-lines-section" aria-label="거래 품목">
                         <div class="transaction-card-header">
                             <div class="transaction-card-heading">
-                                <h6 class="transaction-card-title">거래내역</h6>
-                                <p class="transaction-card-description">세전 업무 품목을 AG Grid로 입력하고 공급가합계를 확인합니다.</p>
+                                <h6 class="transaction-card-title">거래 품목</h6>
+                                <p class="transaction-card-description">AG Grid에서 품목별 공급가액과 적요를 관리합니다.</p>
                             </div>
                             <div class="transaction-overview-header-actions">
                                 <div class="form-check form-switch transaction-switch">
                                     <input class="form-check-input" type="checkbox" role="switch" id="is_import" name="is_import" value="1">
-                                    <label class="form-check-label" for="is_import">외화거래</label>
+                                    <label class="form-check-label" for="is_import">외화 거래</label>
                                 </div>
                             </div>
                         </div>
@@ -354,7 +325,7 @@
                                 <input type="hidden" id="transaction_settlement_total" value="0">
 
                                 <label class="transaction-total-card transaction-total-card-footer">
-                                    <span class="transaction-total-label">공급가합계</span>
+                                    <span class="transaction-total-label">공급가액 합계</span>
                                     <input type="text" class="form-control form-control-sm text-end transaction-total-input" id="transaction_supply_total_view" value="0" readonly>
                                 </label>
                             </div>
@@ -365,8 +336,8 @@
                         <div class="transaction-card-header">
                             <div class="transaction-card-heading">
                                 <h6 class="transaction-card-title" id="transactionSettlementTitle">거래정산</h6>
-                                <p class="transaction-card-description" id="transactionSettlementSubtitle">거래 전체 또는 선택 품목 기준으로 정산을 관리합니다.</p>
-                                <div class="transaction-current-selection" id="transactionCurrentSelection">현재 선택 ▶ 거래 전체</div>
+                                <p class="transaction-card-description" id="transactionSettlementSubtitle">거래 전체 기준 정산을 관리합니다.</p>
+                                <div class="transaction-current-selection" id="transactionCurrentSelection">현재 선택된 거래 전체 정산</div>
                             </div>
                             <div class="transaction-settlement-target" id="transactionSettlementTarget">
                                 <span class="transaction-settlement-target-label">정산 대상</span>
@@ -376,7 +347,7 @@
                                 </label>
                                 <label class="transaction-settlement-target-option">
                                     <input type="radio" name="settlement_target_scope" value="item">
-                                    <span>선택 품목</span>
+                                    <span>선택한 품목</span>
                                 </label>
                             </div>
                         </div>
@@ -388,14 +359,14 @@
                         <div class="transaction-lines-footer transaction-settlement-footer">
                             <div class="transaction-summary-grid">
                                 <label class="transaction-total-card transaction-total-card-footer">
-                                    <span class="transaction-total-label">정산합계</span>
+                                    <span class="transaction-total-label">정산금액 합계</span>
                                     <input type="text" class="form-control form-control-sm text-end transaction-total-input" id="transaction_settlement_total_view" value="0" readonly>
                                 </label>
                             </div>
                         </div>
                     </section>
 
-                    <section class="transaction-card transaction-system-card" aria-label="시스템처리정보">
+                    <section class="transaction-card transaction-system-card" aria-label="시스템 관리 정보">
                         <button type="button"
                                 class="transaction-card-toggle collapsed"
                                 data-bs-toggle="collapse"
@@ -403,8 +374,8 @@
                                 aria-expanded="false"
                                 aria-controls="transactionSystemInfoCollapse">
                             <span class="transaction-card-heading">
-                                <span class="transaction-card-title">시스템처리정보</span>
-                                <span class="transaction-card-description">생성, 수정, 삭제 이력과 상태값은 접힘 영역에서만 확인합니다.</span>
+                                <span class="transaction-card-title">시스템 관리 정보</span>
+                                <span class="transaction-card-description">상태, 매칭상태, 생성/수정/삭제 이력을 확인합니다.</span>
                             </span>
                             <i class="bi bi-chevron-down transaction-card-icon" aria-hidden="true"></i>
                         </button>
@@ -413,10 +384,10 @@
                                 <div class="transaction-modal-grid transaction-system-grid">
                                     <label class="transaction-field transaction-field-readonly">
                                         <span class="transaction-field-label">상태</span>
-                                        <input type="text" class="form-control form-control-sm" id="transaction_status_display" value="입력" readonly>
+                                        <input type="text" class="form-control form-control-sm" id="transaction_status_display" value="임시저장" readonly>
                                     </label>
                                     <label class="transaction-field transaction-field-readonly">
-                                        <span class="transaction-field-label">전표연결상태</span>
+                                        <span class="transaction-field-label">매칭상태</span>
                                         <input type="text" class="form-control form-control-sm" id="transaction_match_status_display" value="미연결" readonly>
                                     </label>
                                     <label class="transaction-field transaction-field-readonly">
@@ -425,7 +396,7 @@
                                     </label>
                                     <label class="transaction-field transaction-field-readonly">
                                         <span class="transaction-field-label">생성자</span>
-                                        <input type="text" class="form-control form-control-sm" id="transaction_created_by_display" value="" readonly>
+                                        <input type="text" class="form-control form-control-sm" id="transaction_created_by_name" value="" readonly>
                                     </label>
                                     <label class="transaction-field transaction-field-readonly">
                                         <span class="transaction-field-label">수정일시</span>
@@ -433,7 +404,7 @@
                                     </label>
                                     <label class="transaction-field transaction-field-readonly">
                                         <span class="transaction-field-label">수정자</span>
-                                        <input type="text" class="form-control form-control-sm" id="transaction_updated_by_display" value="" readonly>
+                                        <input type="text" class="form-control form-control-sm" id="transaction_updated_by_name" value="" readonly>
                                     </label>
                                     <label class="transaction-field transaction-field-readonly">
                                         <span class="transaction-field-label">삭제일시</span>
@@ -441,14 +412,14 @@
                                     </label>
                                     <label class="transaction-field transaction-field-readonly">
                                         <span class="transaction-field-label">삭제자</span>
-                                        <input type="text" class="form-control form-control-sm" id="transaction_deleted_by_display" value="" readonly>
+                                        <input type="text" class="form-control form-control-sm" id="transaction_deleted_by_name" value="" readonly>
                                     </label>
                                 </div>
                             </div>
                         </div>
                     </section>
 
-                    <section class="transaction-card transaction-voucher-card" aria-label="전표 등록 및 연결관리">
+                    <section class="transaction-card transaction-voucher-card" aria-label="전표 연결 정보">
                         <button type="button"
                                 class="transaction-card-toggle collapsed"
                                 data-bs-toggle="collapse"
@@ -456,8 +427,8 @@
                                 aria-expanded="false"
                                 aria-controls="transactionVoucherCollapse">
                             <span class="transaction-card-heading">
-                                <span class="transaction-card-title">전표등록 및 연결관리</span>
-                                <span class="transaction-card-description">현재 연결 전표와 전표 생성, 연결, 해제 기능만 별도 접힘 영역으로 관리합니다.</span>
+                                <span class="transaction-card-title">전표 연결 정보</span>
+                                <span class="transaction-card-description">저장 후 전표를 생성하거나 기존 전표와 연결할 수 있습니다.</span>
                             </span>
                             <span class="transaction-card-toggle-meta">
                                 <span class="transaction-status none" id="transactionVoucherStatus">미연결</span>
@@ -468,7 +439,7 @@
                             <div class="transaction-card-body">
                                 <div class="transaction-voucher-layout">
                                     <div class="transaction-voucher-summary" id="transaction_voucher_summary">
-                                        저장 후 전표를 생성하거나 기존 전표와 연결할 수 있습니다.
+                                        연결된 전표가 없습니다.
                                     </div>
 
                                     <div class="transaction-voucher-actions">

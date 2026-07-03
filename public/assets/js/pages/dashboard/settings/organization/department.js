@@ -481,6 +481,7 @@ window.AdminPicker = AdminPicker;
             data: null,
             title: '관리',
             settingsKey: '__actions',
+            __dtColumnKind: 'virtual',
             width: DEPARTMENT_COLUMN_WIDTHS.__actions,
             widthResizable: true,
             className: 'text-center no-colvis',

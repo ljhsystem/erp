@@ -27,6 +27,7 @@ class EvidenceBankHelperService
             'import_type' => (string) ($row['import_type'] ?? 'BANK_TRANSACTION'),
             'business_unit' => (string) ($row['business_unit'] ?? ''),
             'transaction_direction' => $transactionDirection,
+            'operation_type' => (string) ($row['operation_type'] ?? ''),
             'bank_account_id' => (string) ($row['bank_account_id'] ?? ''),
             'bank_account_name' => $this->bankAccountNameById((string) ($row['bank_account_id'] ?? '')),
             'card_id' => (string) ($row['card_id'] ?? ''),
@@ -44,20 +45,19 @@ class EvidenceBankHelperService
             'raw_counterparty_bank_name' => (string) ($row['raw_counterparty_bank_name'] ?? $row['counterparty_bank_name'] ?? ''),
             'raw_cms_code' => (string) ($row['raw_cms_code'] ?? $row['bank_reference_no'] ?? ''),
             'raw_memo' => (string) ($row['raw_memo'] ?? $row['memo'] ?? ''),
-            'raw_transaction_type' => (string) ($row['raw_transaction_type'] ?? $row['transaction_type'] ?? ''),
-            'transaction_type' => (string) ($row['transaction_type'] ?? ''),
+            'raw_transaction_type' => (string) ($row['raw_transaction_type'] ?? ''),
         ];
     }
 
-    public function bankDirectionLabel(string $transactionType): string
+    public function bankDirectionLabel(string $directionCode): string
     {
-        return match (strtoupper(trim($transactionType))) {
-            'DEPOSIT', 'IN' => '??????????????????????關?쒎첎?嫄??怨몃룯?????',
-            'WITHDRAW', 'OUT' => '??????????',
-            'TRANSFER' => '??????????????????????',
-            'FEE' => '???????????????????????????????????????',
-            'INTEREST' => '??????????????',
-            default => $transactionType,
+        return match (strtoupper(trim($directionCode))) {
+            'DEPOSIT', 'IN' => '입금',
+            'WITHDRAW', 'OUT' => '출금',
+            'TRANSFER' => '이체',
+            'FEE' => '수수료',
+            'INTEREST' => '이자',
+            default => $directionCode,
         };
     }
 
@@ -140,33 +140,6 @@ class EvidenceBankHelperService
         ]);
     }
 
-    public function bankTransactionType(mixed $value, array $payload = []): string
-    {
-        $type = strtoupper(trim((string) $value));
-        $aliases = [
-            'IN' => 'DEPOSIT',
-            'OUT' => 'WITHDRAW',
-            '??????????????????????關?쒎첎?嫄??怨몃룯?????' => 'DEPOSIT',
-            '??????????' => 'WITHDRAW',
-            '??????????????????????關?쒎첎?嫄??怨몃룯???????????????????????산뭐???????' => 'DEPOSIT',
-            '??????????????????濾????????????????곗뿨???????????????????????怨뺤떪?????' => 'WITHDRAW',
-            '??????????????????????' => 'TRANSFER',
-            '???????????????????????????????????????' => 'FEE',
-            '??????????????' => 'INTEREST',
-        ];
-        $type = $aliases[$type] ?? $type;
-        if ($type === 'ETC' || $type === '') {
-            $deposit = $this->call('amountOrNull', $payload['deposit_amount'] ?? null);
-            $withdraw = $this->call('amountOrNull', $payload['withdraw_amount'] ?? $payload['withdrawal_amount'] ?? null);
-            if ($withdraw !== null && $withdraw > 0) {
-                $type = 'WITHDRAW';
-            } elseif ($deposit !== null && $deposit > 0) {
-                $type = 'DEPOSIT';
-            }
-        }
-
-        return in_array($type, ['DEPOSIT', 'WITHDRAW', 'TRANSFER', 'CARD_PAYMENT', 'FEE', 'INTEREST', 'ETC'], true) ? $type : 'ETC';
-    }
 
     public function nullableString(mixed $value): ?string
     {
@@ -211,13 +184,14 @@ class EvidenceBankHelperService
         $row['raw_counterparty_bank_name'] = trim((string) ($row['raw_counterparty_bank_name'] ?? $row['counterparty_bank_name'] ?? $row['counterparty_bank'] ?? $row['bank_name'] ?? ''));
         $row['raw_memo'] = trim((string) ($row['raw_memo'] ?? $row['memo'] ?? ''));
         $row['raw_cms_code'] = trim((string) ($row['raw_cms_code'] ?? $row['bank_reference_no'] ?? ''));
-        $row['raw_transaction_type'] = trim((string) ($row['raw_transaction_type'] ?? $row['transaction_type'] ?? ''));
+        $row['raw_transaction_type'] = trim((string) ($row['raw_transaction_type'] ?? ''));
 
+        $hasExplicitRawCounterpartyName = array_key_exists('raw_counterparty_name', $row);
         $counterpartyName = $this->bankCounterpartyName($row);
-        if ($counterpartyName !== '') {
+        if (!$hasExplicitRawCounterpartyName && $counterpartyName !== '') {
             $row['raw_counterparty_name'] = $counterpartyName;
             $row['client_company_name'] = $counterpartyName;
-        } elseif (!empty($row['client_company_name']) && $this->looksLikeBankAccountNumber((string) $row['client_company_name'])) {
+        } elseif (!$hasExplicitRawCounterpartyName && !empty($row['client_company_name']) && $this->looksLikeBankAccountNumber((string) $row['client_company_name'])) {
             $row['raw_counterparty_account_number'] = $row['raw_counterparty_account_number'] ?? $row['client_company_name'];
             unset($row['client_company_name']);
         }
@@ -256,20 +230,17 @@ class EvidenceBankHelperService
     private function normalizeDirection(array $row): string
     {
         $direction = $this->call('normalizeTransactionDirection', (string) ($row['transaction_direction'] ?? $row['bank_direction'] ?? ''));
-        if ($direction === '') {
-            $legacyTypeDirection = $this->call('normalizeTransactionDirection', (string) ($row['transaction_type'] ?? ''));
-            if (in_array($legacyTypeDirection, ['IN', 'OUT'], true)) {
-                $direction = $legacyTypeDirection;
-            }
+        if ($direction === 'FUND') {
+            return 'FUND';
         }
         if ($direction === '') {
             $withdraw = $this->call('amountOrNull', $row['raw_withdraw_amount'] ?? $row['withdraw_amount'] ?? $row['withdrawal_amount'] ?? null);
             $deposit = $this->call('amountOrNull', $row['raw_deposit_amount'] ?? $row['deposit_amount'] ?? null);
             if ($withdraw !== null && $withdraw > 0) {
-                return 'OUT';
+                return 'FUND';
             }
             if ($deposit !== null && $deposit > 0) {
-                return 'IN';
+                return 'FUND';
             }
         }
 

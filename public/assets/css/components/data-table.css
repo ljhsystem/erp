@@ -80,6 +80,26 @@
   color: #2563eb;
 }
 
+.dt-requirement-policy-select.is-optional {
+  color: #2563eb;
+}
+
+.dt-requirement-policy-select.is-required {
+  color: #dc2626;
+}
+
+.dt-requirement-policy-select option[value="none"] {
+  color: inherit;
+}
+
+.dt-requirement-policy-select option[value="optional"] {
+  color: #2563eb;
+}
+
+.dt-requirement-policy-select option[value="required"] {
+  color: #dc2626;
+}
+
 .dataTables_wrapper table.dataTable {
   border-collapse: separate !important;
   border-spacing: 0;

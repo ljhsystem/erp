@@ -123,6 +123,8 @@ class EvidenceGenerationSaveService
             return;
         }
 
+        $currentMapped = json_decode((string) ($current['mapped_payload_json'] ?? ''), true);
+        $currentMapped = is_array($currentMapped) ? $currentMapped : [];
         $parsed = $this->mappedPayloadForStorage($parsed);
         $parsed['_column_display_name'] = is_array($payload['column_display_name'] ?? null) ? $payload['column_display_name'] : ($payload['column_display_name'] ?? []);
         $parsed['_column_requirement_policy'] = is_array($payload['column_requirement_policy'] ?? null) ? $payload['column_requirement_policy'] : ($payload['column_requirement_policy'] ?? []);
@@ -142,8 +144,6 @@ class EvidenceGenerationSaveService
         }
         unset($parsed['_column_display_name'], $parsed['_column_requirement_policy']);
 
-        $currentMapped = json_decode((string) ($current['mapped_payload_json'] ?? ''), true);
-        $currentMapped = is_array($currentMapped) ? $currentMapped : [];
         foreach (['_status_sort_no', '_create_sort_no'] as $sortKey) {
             if (isset($currentMapped[$sortKey])) {
                 $parsed[$sortKey] = $currentMapped[$sortKey];
@@ -184,6 +184,7 @@ class EvidenceGenerationSaveService
         $processingStatus = $voucherErrorMessage === null || trim((string) $voucherErrorMessage) === ''
             ? 'READY'
             : 'REVIEW_REQUIRED';
+        $evidenceStatus = $this->evidenceStatusFromRequiredMissingMessages($missingMessages);
         $voucherStatus = $this->uploadVoucherStatus((string) ($current['source_type'] ?? ''), $parsed, 'READY');
 
         $payloadUpdate = $this->pdo->prepare("
@@ -255,17 +256,19 @@ class EvidenceGenerationSaveService
                 'supply_amount' => $this->amountOrNull($parsed['supply_amount'] ?? null),
                 'vat_amount' => $this->amountOrNull($parsed['vat_amount'] ?? null),
                 'total_amount' => $this->amountOrNull($parsed['total_amount'] ?? null),
-                'evidence_status' => 'ACTIVE',
+                'evidence_status' => $evidenceStatus,
                 'transaction_status' => 'NONE',
                 'voucher_status' => $voucherStatus,
                 'error_message' => $voucherErrorMessage,
                 'raw_json' => $encodedRaw,
                 'mapped_payload_json' => $encodedPayload,
+                'current_payload' => $parsed,
                 'created_at' => $current['created_at'] ?? null,
                 'created_by' => $current['created_by'] ?? null,
                 'updated_at' => date('Y-m-d H:i:s'),
                 'updated_by' => $actor,
                 'deleted_at' => null,
+                'deleted_by' => null,
             ];
             $dualWriteResult = (new \App\Services\Ledger\EvidenceDualWriteService($this->pdo))->syncFromLegacyRow($legacyForEvidence);
             if (($dualWriteResult['dual_write_status'] ?? '') !== 'success') {
@@ -304,7 +307,7 @@ class EvidenceGenerationSaveService
             'status_sort_no' => $statusSortNo,
             'raw_payload' => is_array($raw) ? $raw : [],
             'mapped_payload' => $this->normalizeEvidenceMappedPayloadForResponse($parsed),
-            'evidence_status' => 'ACTIVE',
+            'evidence_status' => $evidenceStatus,
             'transaction_status' => 'NONE',
             'voucher_status' => $voucherStatus,
             'review_status' => 'NORMAL',
@@ -312,8 +315,6 @@ class EvidenceGenerationSaveService
             'process_status' => 'READY',
             'status' => 'READY',
         ];
-        ($this->callbacks['applyReadinessToEvidenceRow'])($responseRow);
-
         $this->json(['success' => true, 'message' => json_decode('"Seed Data\uAC00 \uC218\uC815\uB418\uC5C8\uC2B5\uB2C8\uB2E4."'), 'data' => $responseRow]);
     }
 
@@ -398,6 +399,8 @@ class EvidenceGenerationSaveService
         $processingStatus = $voucherErrorMessage === null || trim((string) $voucherErrorMessage) === ''
             ? 'READY'
             : 'REVIEW_REQUIRED';
+        $evidenceStatus = $this->evidenceStatusFromRequiredMissingMessages($missingMessages);
+        $timestamp = date('Y-m-d H:i:s');
         $legacyForEvidence = [
             'id' => $evidenceId,
             'source_type' => $dataType,
@@ -420,15 +423,18 @@ class EvidenceGenerationSaveService
             'total_amount' => $this->evidenceTotalAmountForStorage($parsed, $dataType),
             'create_sort_no' => $nextCreateSortNo,
             'status_sort_no' => $nextStatusSortNo,
-            'evidence_status' => 'ACTIVE',
+            'evidence_status' => $evidenceStatus,
             'transaction_status' => 'NONE',
             'voucher_status' => $voucherStatus,
             'error_message' => $voucherErrorMessage,
             'raw_json' => $rawJson,
             'mapped_payload_json' => $mappedPayloadJson,
+            'created_at' => $timestamp,
             'created_by' => $actor,
+            'updated_at' => $timestamp,
             'updated_by' => $actor,
             'deleted_at' => null,
+            'deleted_by' => null,
         ];
 
         $startedTransaction = !$this->pdo->inTransaction();
@@ -622,6 +628,8 @@ class EvidenceGenerationSaveService
                 $processingStatus = $voucherErrorMessage === null || trim((string) $voucherErrorMessage) === ''
                     ? 'READY'
                     : 'REVIEW_REQUIRED';
+                $evidenceDate = $this->dateValueOrNull($next['evidence_date'] ?? $next['transaction_date'] ?? $next['purchase_date'] ?? $next['approval_date'] ?? $next['issue_date'] ?? null);
+                $evidenceStatus = $this->businessEvidenceStatusForStorage();
 
                 $payloadUpdate->execute([
                     ':id' => (string) $row['id'],
@@ -647,7 +655,7 @@ class EvidenceGenerationSaveService
                     'id' => (string) $row['id'],
                     'source_type' => $sourceType,
                     'source_key' => (string) ($row['source_key'] ?? ''),
-                    'evidence_date' => $this->dateValueOrNull($next['evidence_date'] ?? $next['transaction_date'] ?? $next['purchase_date'] ?? $next['approval_date'] ?? $next['issue_date'] ?? null),
+                    'evidence_date' => $evidenceDate,
                     'client_id' => $this->businessRefIdForStorage('CLIENT', $next),
                     'project_id' => $this->businessRefIdForStorage('PROJECT', $next),
                     'employee_id' => $this->businessRefIdForStorage('EMPLOYEE', $next),
@@ -662,7 +670,7 @@ class EvidenceGenerationSaveService
                     'supply_amount' => $this->amountOrNull($next['supply_amount'] ?? null),
                     'vat_amount' => $this->amountOrNull($next['vat_amount'] ?? null),
                     'total_amount' => $this->amountOrNull($next['total_amount'] ?? null),
-                    'evidence_status' => 'ACTIVE',
+                    'evidence_status' => $evidenceStatus,
                     'transaction_status' => 'NONE',
                     'voucher_status' => $this->uploadVoucherStatus($sourceType, $next, 'READY'),
                     'error_message' => $voucherErrorMessage,
@@ -673,6 +681,7 @@ class EvidenceGenerationSaveService
                     'updated_at' => date('Y-m-d H:i:s'),
                     'updated_by' => $actor,
                     'deleted_at' => null,
+                    'deleted_by' => null,
                 ];
                 $dualWriteResult = $dualWrite->syncFromLegacyRow($legacyForEvidence);
                 if (($dualWriteResult['dual_write_status'] ?? '') !== 'success') {
@@ -729,6 +738,11 @@ class EvidenceGenerationSaveService
         }
 
         return strlen($actor) > 36 ? substr($actor, 0, 36) : $actor;
+    }
+
+    private function businessEvidenceStatusForStorage(array $missingMessages = []): string
+    {
+        return $this->evidenceStatusFromRequiredMissingMessages($missingMessages);
     }
 
 }

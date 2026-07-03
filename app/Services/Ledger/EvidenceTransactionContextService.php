@@ -43,8 +43,7 @@ class EvidenceTransactionContextService
             }
 
             return [
-                'transaction_direction' => $direction,
-                'transaction_type' => $this->transactionTypeForUpload($dataType),
+                'transaction_direction' => $direction !== '' ? $direction : 'FUND',
                 'client_business_number' => '',
                 'client_company_name' => $this->bankCounterpartyName($bankRow),
                 'own_business_number' => $this->ownCompanyDefaultParty()['business_number'] ?? '',
@@ -63,8 +62,7 @@ class EvidenceTransactionContextService
             ));
 
             return [
-                'transaction_direction' => $this->normalizeTransactionDirection((string) ($row['transaction_direction'] ?? 'PURCHASE')) ?: 'PURCHASE',
-                'transaction_type' => $this->transactionTypeForUpload($dataType),
+                'transaction_direction' => $this->normalizeTransactionDirection((string) ($row['transaction_direction'] ?? 'EXPENSE')) ?: 'EXPENSE',
                 'client_business_number' => $this->normalizeBusinessNumber((string) ($row['merchant_business_number'] ?? $row['client_business_number'] ?? $row['business_number'] ?? '')),
                 'client_company_name' => $merchantName,
                 'own_business_number' => $this->ownCompanyDefaultParty()['business_number'] ?? '',
@@ -87,30 +85,29 @@ class EvidenceTransactionContextService
         $error = null;
 
         if ($customerIsOwn && !$supplierIsOwn) {
-            $direction = 'PURCHASE';
+            $direction = 'EXPENSE';
             $client = $supplier;
             $own = $customer;
         } elseif ($supplierIsOwn && !$customerIsOwn) {
-            $direction = 'SALES';
+            $direction = 'INCOME';
             $client = $customer;
             $own = $supplier;
         } else {
             if ($direction === '') {
                 $direction = match ($dataType) {
-                    'CARD_STATEMENT', 'CARD_APPROVAL', 'CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE' => 'PURCHASE',
-                    'CASH_RECEIPT_SALES' => 'SALES',
+                    'CARD_STATEMENT', 'CARD_APPROVAL', 'CASH_RECEIPT' => 'EXPENSE',
                     default => '',
                 };
             }
             $client = $legacyClient;
             $own = $this->ownCompanyDefaultParty();
 
-            if ($direction === 'PURCHASE' && $supplier['company_name'] . $supplier['business_number'] !== '') {
+            if ($direction === 'EXPENSE' && $supplier['company_name'] . $supplier['business_number'] !== '') {
                 $client = $supplier;
-            } elseif ($direction === 'SALES' && $customer['company_name'] . $customer['business_number'] !== '') {
+            } elseif ($direction === 'INCOME' && $customer['company_name'] . $customer['business_number'] !== '') {
                 $client = $customer;
             } elseif ($legacyClient['company_name'] . $legacyClient['business_number'] === '') {
-                $client = $direction === 'SALES' ? $customer : $supplier;
+                $client = $direction === 'INCOME' ? $customer : $supplier;
             }
 
             if ($isTaxInvoice
@@ -119,7 +116,7 @@ class EvidenceTransactionContextService
                 && !$customerIsOwn
             ) {
                 $direction = $this->inferTaxInvoiceDirection($supplier, $customer, $legacyClient);
-                $client = $direction === 'SALES' ? $customer : $supplier;
+                $client = $direction === 'INCOME' ? $customer : $supplier;
                 if (($client['company_name'] ?? '') . ($client['business_number'] ?? '') === '') {
                     $client = $legacyClient;
                 }
@@ -129,12 +126,12 @@ class EvidenceTransactionContextService
 
         if ($direction === '') {
             $direction = $dataType === 'BANK_TRANSACTION'
-                ? 'BANK'
-                : ($isTaxInvoice ? 'PURCHASE' : 'GENERAL');
+                ? 'FUND'
+                : ($isTaxInvoice ? 'EXPENSE' : 'GENERAL');
         }
 
         if (false && $error === null
-            && in_array($direction, ['PURCHASE', 'SALES'], true)
+            && in_array($direction, ['EXPENSE', 'INCOME'], true)
             && (($client['company_name'] ?? '') . ($client['business_number'] ?? '')) === ''
         ) {
             $error = '상대 거래처사 구분 실패: 거래처로 사용할 공급자 또는 공급받는자 값이 없습니다.';
@@ -142,23 +139,12 @@ class EvidenceTransactionContextService
 
         return [
             'transaction_direction' => $direction,
-            'transaction_type' => $this->transactionTypeForUpload($dataType),
             'client_business_number' => $client['business_number'] ?? '',
             'client_company_name' => $client['company_name'] ?? '',
             'own_business_number' => $own['business_number'] ?? '',
             'own_company_name' => $own['company_name'] ?? '',
             '_direction_error' => $error,
         ];
-    }
-
-    public function transactionTypeForUpload(string $dataType): string
-    {
-        return match ($this->normalizeDataType($dataType)) {
-            'IMPORT_INVOICE' => 'TRADE_IMPORT',
-            'SHOPPING_ORDER' => 'SHOPPING',
-            'TAX_INVOICE', 'CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES', 'CARD_STATEMENT', 'CARD_APPROVAL', 'BANK_TRANSACTION', 'ETC' => 'GENERAL',
-            default => 'GENERAL',
-        };
     }
 
     private function normalizeDataType(string $dataType): string
@@ -226,29 +212,29 @@ class EvidenceTransactionContextService
         $legacyBusiness = (string) ($legacyClient['business_number'] ?? '');
 
         if ($supplierCompany === '' && $supplierBusiness === '' && ($customerCompany !== '' || $customerBusiness !== '')) {
-            return 'SALES';
+            return 'INCOME';
         }
 
         if ($customerCompany === '' && $customerBusiness === '' && ($supplierCompany !== '' || $supplierBusiness !== '')) {
-            return 'PURCHASE';
+            return 'EXPENSE';
         }
 
         if ($legacyBusiness !== '' && $legacyBusiness === $supplierBusiness) {
-            return 'PURCHASE';
+            return 'EXPENSE';
         }
 
         if ($legacyBusiness !== '' && $legacyBusiness === $customerBusiness) {
-            return 'SALES';
+            return 'INCOME';
         }
 
         if ($legacyCompany !== '' && $legacyCompany === $supplierCompany) {
-            return 'PURCHASE';
+            return 'EXPENSE';
         }
 
         if ($legacyCompany !== '' && $legacyCompany === $customerCompany) {
-            return 'SALES';
+            return 'INCOME';
         }
 
-        return 'PURCHASE';
+        return 'EXPENSE';
     }
 }

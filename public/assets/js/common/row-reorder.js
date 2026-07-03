@@ -213,10 +213,10 @@ function bindSelectedRowMove(options = {}) {
         }
 
         const pageInfo = typeof table?.page === 'function' ? table.page.info() : null;
-        const pageOffset = includeAppliedRows && pageInfo && Number.isFinite(Number(pageInfo.start))
+        const pageOffset = pageInfo && Number.isFinite(Number(pageInfo.start))
             ? Number(pageInfo.start)
             : 0;
-        const rows = (state.rows || selectedMoveRows(table, includeAppliedRows))
+        const rows = (state.rows || selectedMoveRows(table))
             .filter((rowData) => isReorderableRow(rowData));
         const beforeKeys = rows.map((row) => selectedMoveKey(row, selectionIdField));
         const selectedKeys = new Set(beforeKeys.filter((key) => selectedIds.has(key)));
@@ -256,12 +256,15 @@ function bindSelectedRowMove(options = {}) {
     tableNode.addEventListener('datatable:move-selected', tableNode.__dtSelectedMoveHandler);
 }
 
-function selectedMoveRows(table, includeAppliedRows = false) {
-    if (table?.rows) {
-        return table.rows({ order: 'applied', search: 'applied' }).data().toArray();
+function selectedMoveRows(table) {
+    const tbody = table?.table?.().body?.();
+    if (!tbody || typeof table?.row !== 'function') {
+        return [];
     }
 
-    return table.rows({ page: 'current', order: 'applied', search: 'applied' }).data().toArray();
+    return Array.from(tbody.querySelectorAll('tr'))
+        .map((row) => table.row(row).data())
+        .filter((rowData) => rowData && typeof rowData === 'object');
 }
 
 function selectedMoveKey(row = {}, field = 'id') {
@@ -296,14 +299,23 @@ function moveSelectedRows(rows = [], selectedKeys = new Set(), selectionIdField 
 }
 
 function applySelectedMoveView(table, rows = [], selectedKeys = new Set(), selectionIdField = 'id', direction = 'up', includeAppliedRows = false) {
-    if (table?.clear && table?.rows?.add && rows.length > 0) {
-        const targetPage = selectedMoveTargetPage(table, rows, selectedKeys, selectionIdField, direction);
-        table.clear();
-        table.rows.add(rows);
-        if (Number.isFinite(targetPage)) {
-            table.page(targetPage);
-        }
-        table.draw(false);
+    const tbody = table?.table?.().body?.();
+    if (tbody && rows.length > 0) {
+        const nodeByKey = new Map();
+        Array.from(tbody.querySelectorAll('tr')).forEach((row) => {
+            const rowData = table.row(row).data();
+            const key = selectedMoveKey(rowData, selectionIdField);
+            if (key) {
+                nodeByKey.set(key, row);
+            }
+        });
+
+        rows.forEach((rowData) => {
+            const row = nodeByKey.get(selectedMoveKey(rowData, selectionIdField));
+            if (row) {
+                tbody.appendChild(row);
+            }
+        });
         requestAnimationFrame(() => {
             updateVisibleSequenceCells(table);
             ensureSelectedRowsInView(table, direction);

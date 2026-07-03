@@ -14,9 +14,6 @@ class EvidenceUploadValidationService
             $this->normalizeUploadAmountFields($row);
             $context = $this->resolveUploadTransactionContext($row, $dataType);
             foreach ($context as $key => $value) {
-                if ($key === 'transaction_type' && trim((string) ($row['transaction_type'] ?? '')) === '') {
-                    continue;
-                }
                 if ($value !== null && $value !== '') {
                     $row[$key] = $value;
                 }
@@ -254,7 +251,8 @@ class EvidenceUploadValidationService
 
     private function clientReferenceWarnings(array $row, array $columns, string $dataType): array
     {
-        if ($dataType === 'CASH_RECEIPT_SALES') {
+        $direction = strtoupper(trim((string) ($row['transaction_direction'] ?? '')));
+        if (in_array($direction, ['INCOME', 'SALES', 'SALE', 'SELL', 'OUT_SALE'], true)) {
             return [];
         }
 

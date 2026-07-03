@@ -60,8 +60,8 @@
 | `web.ledger.data.card-approvals` | `/ledger/data/card-approvals` | Dedicated evidence-source page route for `CARD_APPROVAL` |
 | `web.ledger.data.card-statements` | `/ledger/data/card-statements` | Dedicated evidence-source page route for `CARD_STATEMENT` |
 | `web.ledger.data.cash-receipts` | `/ledger/data/cash-receipts` | Dedicated evidence-source page route for `CASH_RECEIPT` |
-| `web.ledger.data.cash-receipt-purchases` | `/ledger/data/cash-receipt-purchases` | Dedicated evidence-source page route for `CASH_RECEIPT_PURCHASE` |
-| `web.ledger.data.cash-receipt-sales` | `/ledger/data/cash-receipt-sales` | Dedicated evidence-source page route for `CASH_RECEIPT_SALES` |
+| `web.ledger.data.cash-receipt-purchases` | `/ledger/data/cash-receipt-purchases` | Legacy route alias normalized to `CASH_RECEIPT`; purchase/sales are represented by `transaction_direction`, not separate `IMPORT_TYPE` values. |
+| `web.ledger.data.cash-receipt-sales` | `/ledger/data/cash-receipt-sales` | Legacy route alias normalized to `CASH_RECEIPT`; purchase/sales are represented by `transaction_direction`, not separate `IMPORT_TYPE` values. |
 | `web.ledger.data.import-invoices` | `/ledger/data/import-invoices` | Dedicated evidence-source page route for `IMPORT_INVOICE` |
 | `web.ledger.data.shopping-orders` | `/ledger/data/shopping-orders` | Dedicated evidence-source page route for `SHOPPING_ORDER` |
 | `web.ledger.data.payroll-withholdings` | `/ledger/data/payroll-withholdings` | Dedicated evidence-source page route for `PAYROLL_WITHHOLDING` |

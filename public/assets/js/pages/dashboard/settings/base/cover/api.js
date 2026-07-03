@@ -22,9 +22,9 @@ export const COVER_COLUMN_MAP = {
     alt: { label: '대체문구(Alt)', visible: true },
     description: { label: '설명(Description)', visible: true },
     created_at: { label: '등록일시', visible: false },
-    created_by: { label: '등록자', visible: false },
+    created_by: { label: '등록자', visible: false, type: 'actor' },
     updated_at: { label: '수정일시', visible: false },
-    updated_by: { label: '수정자', visible: false },
+    updated_by: { label: '수정자', visible: false, type: 'actor' },
     is_active: { label: '상태', visible: true }
 };
 

@@ -92,9 +92,6 @@ export function createTableInteraction(options = {}) {
         if (!effectiveDebug) {
             return;
         }
-        if (typeof console !== 'undefined' && console.debug) {
-            console.debug(`[table-interaction] ${type}`, payload);
-        }
     }
 
     const state = createInteractionState({

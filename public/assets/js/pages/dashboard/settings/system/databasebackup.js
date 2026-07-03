@@ -203,7 +203,7 @@
         try {
             const json = await fetchJson(API.SETTINGS_GET);
             if (!json?.success) {
-                throw new Error(json?.message || '?먮룞 諛깆뾽 ?ㅼ젙??遺덈윭?ㅼ? 紐삵뻽?듬땲??');
+                throw new Error(json?.message || '자동 백업 설정을 불러오지 못했습니다.');
             }
 
             const data = json.data || {};
@@ -215,7 +215,7 @@
             syncBackupModeUi();
             syncCleanupUi();
         } catch (error) {
-            notify('error', error.message || '?먮룞 諛깆뾽 ?ㅼ젙 議고쉶???ㅽ뙣?덉뒿?덈떎.');
+            notify('error', error.message || '자동 백업 설정 조회에 실패했습니다.');
         }
     }
 
@@ -223,7 +223,7 @@
         try {
             const json = await fetchJson(API.BACKUP_INFO);
             if (!json?.success) {
-                throw new Error(json?.message || 'SQL 諛깆뾽 ?뺣낫瑜?遺덈윭?ㅼ? 紐삵뻽?듬땲??');
+               throw new Error(json?.message || 'SQL 백업 정보를 불러오지 못했습니다.');
             }
 
             const data = json.data || {};
@@ -231,7 +231,7 @@
             renderBackupFileList(data.backup_files || []);
             renderPrimaryRestoreOptions(data.backup_files || []);
         } catch (error) {
-            notify('error', error.message || 'SQL 諛깆뾽 ?뺣낫 議고쉶???ㅽ뙣?덉뒿?덈떎.');
+            notify('error', error.message || 'SQL 백업 정보 조회에 실패했습니다.');
         }
     }
 
@@ -338,7 +338,7 @@
         try {
             const json = await fetchJson(API.RESTORE_INFO);
             if (!json?.success) {
-                throw new Error(json?.message || 'DB 蹂듭썝 ?곹깭瑜?遺덈윭?ㅼ? 紐삵뻽?듬땲??');
+              throw new Error(json?.message || 'DB 복원 상태를 불러오지 못했습니다.');
             }
 
             const data = json.data || {};
@@ -356,7 +356,7 @@
             state.restoreRequestPending = false;
         } catch (error) {
             state.restoreRequestPending = false;
-            notify('error', error.message || 'DB 蹂듭썝 ?곹깭 議고쉶???ㅽ뙣?덉뒿?덈떎.');
+           notify('error', error.message || 'DB 복원 상태 조회에 실패했습니다.');
         }
     }
 
@@ -638,13 +638,13 @@
                 });
 
                 if (!json?.success) {
-                    throw new Error(json?.message || '?먮룞 諛깆뾽 ?ㅼ젙 ??μ뿉 ?ㅽ뙣?덉뒿?덈떎.');
+                    throw new Error(json?.message || '자동 백업 설정 저장에 실패했습니다.');
                 }
 
-                notify('success', json.message || '?먮룞 諛깆뾽 ?ㅼ젙????λ릺?덉뒿?덈떎.');
+                notify('success', json.message || '자동 백업 설정이 저장되었습니다.');
                 await loadBackupSettings();
             } catch (error) {
-                notify('error', error.message || '?먮룞 諛깆뾽 ?ㅼ젙 ??μ뿉 ?ㅽ뙣?덉뒿?덈떎.');
+               notify('error', error.message || '자동 백업 설정 저장에 실패했습니다.');
             } finally {
                 submitButton.disabled = false;
             }

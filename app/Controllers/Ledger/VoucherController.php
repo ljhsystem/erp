@@ -70,14 +70,14 @@ class VoucherController
     public function webInput(): void
     {
         $this->renderPage('/app/views/ledger/journal/index.php', [
-            'pageTitle' => '전표입력',
+            'pageTitle' => 'Voucher Input',
         ]);
     }
 
     public function webReview(): void
     {
         $this->renderPage('/app/views/ledger/voucher/review.php', [
-            'pageTitle' => '전표검토/승인',
+            'pageTitle' => 'Voucher Input',
         ]);
     }
 
@@ -97,7 +97,7 @@ class VoucherController
 
             return [
                 'success' => true,
-                'message' => '조회 완료',
+                'message' => 'List loaded.',
                 'data' => $this->voucherModel->getList($filters),
             ];
         });
@@ -112,7 +112,7 @@ class VoucherController
             if ($changes === []) {
                 return [
                     'success' => false,
-                    'message' => '정렬 데이터가 없습니다.',
+                    'message' => 'No reorder changes provided.',
                 ];
             }
 
@@ -120,7 +120,7 @@ class VoucherController
 
             return [
                 'success' => true,
-                'message' => '정렬 저장 완료',
+                'message' => 'Order saved.',
             ];
         });
     }
@@ -132,7 +132,7 @@ class VoucherController
             if ($id === '') {
                 return [
                     'success' => false,
-                    'message' => '전표 ID가 없습니다.',
+                    'message' => 'Voucher ID is required.',
                 ];
             }
 
@@ -140,7 +140,7 @@ class VoucherController
             if (!$voucher) {
                 return [
                     'success' => false,
-                    'message' => '전표를 찾을 수 없습니다.',
+                    'message' => 'Voucher not found.',
                 ];
             }
 
@@ -227,7 +227,7 @@ class VoucherController
 
             return [
                 'success' => true,
-                'message' => '조회 완료',
+                'message' => 'Detail loaded.',
                 'data' => $voucher,
             ];
         });
@@ -379,7 +379,6 @@ class VoucherController
                     $haystack = implode(' ', [
                         $row['sort_no'] ?? '',
                         $row['transaction_date'] ?? '',
-                        $row['transaction_type'] ?? '',
                         $row['import_type'] ?? '',
                         $row['display_type'] ?? '',
                         $row['client_name'] ?? '',
@@ -398,7 +397,7 @@ class VoucherController
 
             return [
                 'success' => true,
-                'message' => '조회 완료',
+                'message' => 'List loaded.',
                 'data' => array_slice($rows, 0, 50),
             ];
         });
@@ -410,7 +409,7 @@ class VoucherController
             if (!$this->tableExists('ledger_data_evidences')) {
                 return [
                     'success' => true,
-                    'message' => '조회 완료',
+                    'message' => 'List loaded.',
                     'data' => [],
                 ];
             }
@@ -552,7 +551,7 @@ class VoucherController
 
             return [
                 'success' => true,
-                'message' => '조회 완료',
+                'message' => 'List loaded.',
                 'data' => $rows,
             ];
         });
@@ -565,7 +564,7 @@ class VoucherController
 
             return [
                 'success' => false,
-                'message' => '전표에서 거래를 생성할 수 없습니다. 거래입력 화면에서 전표를 생성하거나 연결해 주세요.',
+                'message' => 'Transaction creation is not supported from vouchers. Create it on the transaction page and link it here.',
             ];
         });
     }
@@ -612,7 +611,7 @@ class VoucherController
 
             return [
                 'success' => (bool) ($result['success'] ?? false),
-                'message' => ($result['success'] ?? false) ? '저장 완료' : ($result['message'] ?? '저장 실패'),
+                'message' => (['success'] ?? false) ? 'Saved.' : (['message'] ?? 'Save failed.'),
                 'data' => $result,
             ];
         });
@@ -641,7 +640,7 @@ class VoucherController
     public function apiUpdateStatus(): void
     {
         $this->jsonResponse(function (): array {
-            throw new \RuntimeException('전표 상태 변경은 전표검토/승인 화면에서만 처리할 수 있습니다.');
+            throw new \RuntimeException('?꾪몴 ?곹깭 蹂寃쎌? 吏?먰븯吏 ?딆뒿?덈떎.');
         });
     }
 
@@ -654,7 +653,7 @@ class VoucherController
 
             return [
                 'success' => true,
-                'message' => '검토요청 처리되었습니다.',
+                'message' => 'Review requested.',
                 'data' => array_merge($voucher, $result),
             ];
         });
@@ -669,7 +668,7 @@ class VoucherController
 
             return [
                 'success' => true,
-                'message' => '검토요청이 취소되었습니다.',
+                'message' => 'Review request cancelled.',
                 'data' => array_merge($voucher, $result),
             ];
         });
@@ -684,7 +683,7 @@ class VoucherController
 
             return [
                 'success' => true,
-                'message' => '검토완료 처리되었습니다.',
+                'message' => 'Review completed.',
                 'data' => array_merge($voucher, $result),
             ];
         });
@@ -699,7 +698,7 @@ class VoucherController
 
             return [
                 'success' => true,
-                'message' => '검토완료가 취소되었습니다.',
+                'message' => 'Review completion cancelled.',
                 'data' => array_merge($voucher, $result),
             ];
         });
@@ -714,7 +713,7 @@ class VoucherController
 
             return [
                 'success' => true,
-                'message' => '승인 처리되었습니다.',
+                'message' => 'Voucher posted.',
                 'data' => array_merge($voucher, $result),
             ];
         });
@@ -729,7 +728,7 @@ class VoucherController
 
             return [
                 'success' => true,
-                'message' => '취소전표가 생성되었습니다.',
+                'message' => 'Reversal voucher created.',
                 'data' => array_merge($voucher, $result),
             ];
         });
@@ -746,7 +745,7 @@ class VoucherController
 
             return [
                 'success' => true,
-                'message' => '거래 연결이 저장되었습니다.',
+                'message' => 'Transaction link saved.',
                 'data' => array_merge($voucher, $result),
             ];
         });
@@ -758,7 +757,7 @@ class VoucherController
             $id = $this->requestVoucherId();
             $evidenceId = $this->requestValue('linked_evidence_id') ?: $this->requestValue('evidence_id');
             if ($evidenceId === '') {
-                throw new \RuntimeException('연결할 증빙을 선택해 주세요.');
+                throw new \RuntimeException('연결할 증빙을 선택해주세요.');
             }
 
             $actor = ActorHelper::user();
@@ -773,7 +772,7 @@ class VoucherController
 
             return [
                 'success' => true,
-                'message' => '증빙 연결이 저장되었습니다.',
+                'message' => 'Evidence link saved.',
                 'data' => array_merge($voucher, [
                     'linked_evidence' => $linkedEvidence,
                     'evidence_id' => (string) ($linkedEvidence['id'] ?? $evidenceId),
@@ -798,7 +797,7 @@ class VoucherController
 
             return [
                 'success' => true,
-                'message' => '증빙 연결을 해제했습니다.',
+                'message' => 'Evidence link removed.',
                 'data' => array_merge($voucher, [
                     'linked_evidence' => null,
                     'evidence_id' => '',
@@ -818,7 +817,7 @@ class VoucherController
 
             return [
                 'success' => true,
-                'message' => '반려 처리되었습니다.',
+                'message' => 'Rejected.',
                 'data' => array_merge($voucher, $result),
             ];
         });
@@ -831,7 +830,7 @@ class VoucherController
             if ($id === '') {
                 return [
                     'success' => false,
-                    'message' => '전표 ID가 없습니다.',
+                    'message' => 'Voucher ID is required.',
                 ];
             }
 
@@ -839,7 +838,7 @@ class VoucherController
 
             return [
                 'success' => true,
-                'message' => '삭제 완료',
+                'message' => 'Deleted.',
             ];
         });
     }
@@ -850,23 +849,24 @@ class VoucherController
             $stmt = $this->pdo->query("
                 SELECT
                     v.*,
-                    CASE
-                        WHEN v.deleted_by IS NULL THEN NULL
-                        WHEN v.deleted_by LIKE 'SYSTEM:%' THEN v.deleted_by
-                        WHEN ue.employee_name IS NOT NULL AND ue.employee_name <> '' THEN CONCAT('USER:', ue.employee_name)
-                        ELSE v.deleted_by
-                    END AS deleted_by_name
+                    v.deleted_by AS deleted_by_name
                 FROM ledger_vouchers v
-                LEFT JOIN user_employees ue
-                    ON ue.user_id = REPLACE(v.deleted_by, 'USER:', '')
                 WHERE v.deleted_at IS NOT NULL
                 ORDER BY v.deleted_at DESC, v.sort_no DESC
             ");
 
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $rows = array_map(
+                fn(array $row) => ActorHelper::enrichActorNamesRow($row, [
+                    'deleted_by_name' => 'deleted_by',
+                ]),
+                $rows
+            );
+
             return [
                 'success' => true,
-                'message' => '조회 완료',
-                'data' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+                'message' => 'List loaded.',
+                'data' => $rows,
             ];
         });
     }
@@ -878,7 +878,7 @@ class VoucherController
             if ($id === '') {
                 return [
                     'success' => false,
-                    'message' => '전표 ID가 없습니다.',
+                    'message' => 'Voucher ID is required.',
                 ];
             }
 
@@ -888,7 +888,7 @@ class VoucherController
 
             return [
                 'success' => true,
-                'message' => '복원 완료',
+                'message' => 'Trash loaded.',
             ];
         });
     }
@@ -902,7 +902,7 @@ class VoucherController
             if ($ids === []) {
                 return [
                     'success' => false,
-                    'message' => '복원할 전표를 선택해 주세요.',
+                    'message' => 'No voucher selected for restore.',
                 ];
             }
 
@@ -914,7 +914,7 @@ class VoucherController
 
             return [
                 'success' => true,
-                'message' => '선택 복원 완료',
+                'message' => 'Selected vouchers restored.',
             ];
         });
     }
@@ -937,7 +937,7 @@ class VoucherController
 
             return [
                 'success' => true,
-                'message' => '전체 복원 완료',
+                'message' => 'All vouchers restored.',
             ];
         });
     }
@@ -949,7 +949,7 @@ class VoucherController
             if ($id === '') {
                 return [
                     'success' => false,
-                    'message' => '전표 ID가 없습니다.',
+                    'message' => 'Voucher ID is required.',
                 ];
             }
 
@@ -959,7 +959,7 @@ class VoucherController
 
             return [
                 'success' => true,
-                'message' => '완전 삭제 완료',
+                'message' => 'Purge completed.',
             ];
         });
     }
@@ -973,7 +973,7 @@ class VoucherController
             if ($ids === []) {
                 return [
                     'success' => false,
-                    'message' => '완전 삭제할 전표를 선택해 주세요.',
+                    'message' => 'No voucher selected for purge.',
                 ];
             }
 
@@ -985,7 +985,7 @@ class VoucherController
 
             return [
                 'success' => true,
-                'message' => '선택 완전 삭제 완료',
+                'message' => 'Selected vouchers purged.',
             ];
         });
     }
@@ -1008,7 +1008,7 @@ class VoucherController
 
             return [
                 'success' => true,
-                'message' => '전체 완전 삭제 완료',
+                'message' => 'All vouchers purged.',
             ];
         });
     }
@@ -1049,7 +1049,7 @@ class VoucherController
 
         $id = trim((string) ($_POST['id'] ?? $input['id'] ?? $_GET['id'] ?? ''));
         if ($id === '') {
-            throw new \RuntimeException('전표 ID가 없습니다.');
+            throw new \RuntimeException('전표 ID가 필요합니다.');
         }
 
         return $id;
@@ -1067,15 +1067,29 @@ class VoucherController
 
     private function transactionDisplayType(array $row): string
     {
-        $type = strtoupper(trim((string) ($row['transaction_type'] ?? $row['import_type'] ?? '')));
-        return match ($type) {
-            'IN', 'DEPOSIT', 'SALE', 'SALES' => '입금',
-            'OUT', 'WITHDRAW', 'WITHDRAWAL', 'PURCHASE', 'EXPENSE' => '출금',
-            'BANK_TRANSACTION' => '입출금',
-            'TAX_INVOICE' => '세금계산서',
-            'CASH_RECEIPT' => '현금영수증',
-            'CARD_APPROVAL', 'CARD_HOMETAX', 'CARD_STATEMENT' => '카드',
-            default => $type !== '' ? $type : '거래',
+        $operationType = strtoupper(trim((string) ($row['operation_type'] ?? '')));
+        $importType = strtoupper(trim((string) ($row['import_type'] ?? '')));
+
+        if ($operationType !== '') {
+            return match ($operationType) {
+                'GENERAL'          => 'General',
+                'PAYROLL'          => 'Payroll',
+                'DAILY_WORKER'     => 'Daily Worker',
+                'BUSINESS_INCOME'  => 'Business Income',
+                'FIXED_ASSET'      => 'Fixed Asset',
+                'LOAN'             => 'Loan',
+                default            => $operationType,
+            };
+        }
+
+        return match ($importType) {
+            'BANK_TRANSACTION'                  => 'Bank Transaction',
+            'TAX_INVOICE'                       => 'Tax Invoice',
+            'CASH_RECEIPT'                      => 'Cash Receipt',
+            'CARD_APPROVAL',
+            'CARD_HOMETAX',
+            'CARD_STATEMENT'                    => 'Card',
+            default                             => 'Transaction',
         };
     }
 
@@ -1088,7 +1102,7 @@ class VoucherController
             }
         }
 
-        return '거래 내역';
+        return 'Transaction';
     }
 
     private function linkedVoucherInfoForTransaction(string $transactionId): ?array
@@ -1208,11 +1222,11 @@ class VoucherController
         }
 
         return match ($sourceType) {
-            'BANK_TRANSACTION' => '입출금',
-            'TAX_INVOICE' => '세금계산서',
-            'CASH_RECEIPT' => '현금영수증',
-            'CARD_APPROVAL', 'CARD_HOMETAX', 'CARD_STATEMENT', 'CARD_COMPANY' => '카드',
-            default => $sourceType !== '' ? $sourceType : '증빙',
+            'BANK_TRANSACTION' => 'Bank Transaction',
+            'TAX_INVOICE' => 'Tax Invoice',
+            'CASH_RECEIPT' => 'Cash Receipt',
+            'CARD_APPROVAL', 'CARD_HOMETAX', 'CARD_STATEMENT', 'CARD_COMPANY' => 'Card',
+            default => $sourceType !== '' ? $sourceType : 'Transaction source',
         };
     }
 
@@ -1240,7 +1254,7 @@ class VoucherController
             'note',
             'product_name',
             'item_name',
-        ]) ?: trim((string) ($row['format_name'] ?? $row['source_type'] ?? '증빙'));
+        ]) ?: trim((string) ($row['format_name'] ?? $row['source_type'] ?? '증뺁'));
     }
 
     private function evidenceDisplayAmount(array $row, array $payload): float
@@ -1605,10 +1619,10 @@ class VoucherController
     private function replaceVoucherEvidenceLink(string $voucherId, string $evidenceId, string $transactionId, string $actor): void
     {
         if ($voucherId === '' || $evidenceId === '') {
-            throw new \RuntimeException('전표와 증빙 정보를 확인할 수 없습니다.');
+            throw new \RuntimeException('전표와 증빙을 연결하려면 전표 ID와 증빙 ID가 필요합니다.');
         }
         if (!$this->tableExists('ledger_data_evidences') || !$this->tableExists('ledger_evidence_links')) {
-            throw new \RuntimeException('증빙 연결 테이블을 찾을 수 없습니다.');
+            throw new \RuntimeException('증빙 연결에 필요한 테이블을 찾을 수 없습니다.');
         }
 
         if (!$this->voucherModel->getById($voucherId)) {
@@ -2092,7 +2106,7 @@ class VoucherController
         $this->purgeVoucherChildrenById($id);
 
         if (!$this->voucherModel->hardDelete($id)) {
-            throw new \RuntimeException('전표 완전 삭제에 실패했습니다.');
+            throw new \RuntimeException('?꾪몴瑜??곴뎄??젣?섏? 紐삵뻽?듬땲??');
         }
     }
 

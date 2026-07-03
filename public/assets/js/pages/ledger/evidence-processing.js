@@ -45,7 +45,7 @@ import '/public/assets/js/components/trash-manager.js';
 
     const DISPLAY_CODE_FIELDS = {
         business_unit: 'BUSINESS_UNIT',
-        transaction_type: 'TRANSACTION_TYPE',
+        operation_type: 'OPERATION_TYPE',
         transaction_direction: 'TRANSACTION_DIRECTION',
         line_type: 'TRANSACTION_LINE_TYPE',
         unit_name: 'UNIT',
@@ -120,7 +120,7 @@ import '/public/assets/js/components/trash-manager.js';
         const normalizedType = String(type || selectedTypeFilter || '').trim().toUpperCase();
         if (normalizedType === 'BANK_TRANSACTION') return 'evidence-bank-transaction';
         if (normalizedType === 'TAX_INVOICE') return 'evidence-tax-invoice';
-        if (['CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES'].includes(normalizedType)) return 'evidence-cash-receipt';
+        if (normalizedType === 'CASH_RECEIPT') return 'evidence-cash-receipt';
         if (['CARD', 'CARD_HOMETAX', 'CARD_STATEMENT', 'CARD_APPROVAL'].includes(normalizedType)) return 'evidence-card';
         return '';
     }
@@ -471,7 +471,7 @@ import '/public/assets/js/components/trash-manager.js';
             '카드 선택',
             '사업구분 선택',
             '거래구분 선택',
-            '거래유형 선택',
+            '입출금유형 선택',
             '자료출처 선택',
             '자료유형 선택',
             '라인유형 선택',
@@ -616,11 +616,14 @@ import '/public/assets/js/components/trash-manager.js';
     function directionLabel(value) {
         const key = String(value || '').toUpperCase();
         return {
-            PURCHASE: '매입',
-            SALES: '매출',
-            IN: '입금',
-            OUT: '출금',
-            BANK: '입출금',
+            FUND: '자금',
+            IN: '자금',
+            OUT: '자금',
+            INCOME: '수익',
+            EXPENSE: '비용',
+            PURCHASE: '비용',
+            SALES: '수익',
+            BANK: '자금',
             GENERAL: '일반',
         }[key] || value || '-';
     }
@@ -870,7 +873,7 @@ import '/public/assets/js/components/trash-manager.js';
         if (/거래내용|전표\s*적요|적요|description|summary/i.test(text)) return 'voucher_summary_text';
         if (/품목명|품명|item_name/i.test(text)) return 'item_name';
         if (/거래일자|입출금.*일자|transaction_date/i.test(text)) return 'transaction_date';
-        if (/거래유형|transaction_type/i.test(text)) return 'transaction_type';
+        if (/입출금유형|operation_type/i.test(text)) return 'operation_type';
         if (/거래방향|거래구분|transaction_direction/i.test(text)) return 'transaction_direction';
         if (/거래처|client/i.test(text)) return 'client_id';
         if (/공급가|supply/i.test(text)) return 'supply_amount';
@@ -914,7 +917,7 @@ import '/public/assets/js/components/trash-manager.js';
             amount: '금액이 없습니다.',
             item_note: '라인 적요가 없습니다.',
             transaction_date: '거래일자가 확정되지 않았습니다.',
-            transaction_type: '거래유형이 확정되지 않았습니다.',
+            operation_type: '입출금유형이 확정되지 않았습니다.',
             client_id: '거래처가 확정되지 않았습니다.',
             supply_amount: '공급가액이 확정되지 않았습니다.',
             vat_amount: '부가세가 확정되지 않았습니다.',
@@ -1109,6 +1112,10 @@ import '/public/assets/js/components/trash-manager.js';
     function isBankTransactionRow(row = {}) {
         const payload = mapped(row);
         return String(row.import_type || row.seed_source_type || row.source_type || payload.import_type || '').trim().toUpperCase() === 'BANK_TRANSACTION';
+    }
+
+    function isBankTransactionPayload(payload = {}) {
+        return String(payload.import_type || payload.source_type || '').trim().toUpperCase() === 'BANK_TRANSACTION';
     }
 
     function currentReadinessRow(modal = document.getElementById('seedRowReadinessModal')) {
@@ -1676,10 +1683,11 @@ import '/public/assets/js/components/trash-manager.js';
 
     function legacyReadinessEditFields(row) {
         const missing = Array.isArray(row?.missing_fields) ? row.missing_fields : [];
+        const typeField = isBankTransactionRow(row) ? 'operation_type' : '';
         const base = [
             'transaction_date',
             'transaction_direction',
-            'transaction_type',
+            ...[typeField].filter(Boolean),
             'business_unit',
             'client_id',
             'client_company_name',
@@ -1715,7 +1723,7 @@ import '/public/assets/js/components/trash-manager.js';
             evidence_date: '증빙일자',
             transaction_date: '거래일자',
             transaction_direction: '거래구분',
-            transaction_type: '거래유형',
+            operation_type: '입출금유형',
             business_unit: '사업구분',
             client_id: '거래처',
             project_id: '프로젝트',
@@ -1774,7 +1782,7 @@ import '/public/assets/js/components/trash-manager.js';
             bank_account_name: { kind: 'bankAccount', placeholder: '계좌명 검색' },
             card_id: { kind: 'card', placeholder: '카드 검색' },
             business_unit: { kind: 'code', codeGroup: 'BUSINESS_UNIT', emptyLabel: '사업구분 선택' },
-            transaction_type: { kind: 'code', codeGroup: 'TRANSACTION_TYPE', emptyLabel: '거래유형 선택' },
+            operation_type: { kind: 'code', codeGroup: 'OPERATION_TYPE', emptyLabel: '입출금유형 선택' },
             transaction_direction: { kind: 'code', codeGroup: 'TRANSACTION_DIRECTION', emptyLabel: '거래구분 선택' },
             currency: { kind: 'code', codeGroup: 'CURRENCY', emptyLabel: '선택(없음)' },
             line_type: { kind: 'code', codeGroup: 'TRANSACTION_LINE_TYPE', emptyLabel: '라인유형 선택' },
@@ -1804,11 +1812,12 @@ import '/public/assets/js/components/trash-manager.js';
         const needsVoucher = voucherState !== 'CREATED';
         const needsVoucherLines = needsVoucher;
         const needsReconciliation = readinessStatus(row) !== 'READY' || missing.length > 0;
+        const typeField = isBankTransaction ? 'operation_type' : '';
 
         const transactionHeader = [
             'transaction_date',
             'transaction_direction',
-            'transaction_type',
+            ...[typeField].filter(Boolean),
             'business_unit',
             'client_id',
             'project_id',
@@ -1864,7 +1873,7 @@ import '/public/assets/js/components/trash-manager.js';
         const transactionHeaderRequired = [
             'transaction_date',
             'business_unit',
-            'transaction_type',
+            typeField,
             'client_id',
             'supply_amount',
             'vat_amount',
@@ -1892,7 +1901,7 @@ import '/public/assets/js/components/trash-manager.js';
             {
                 id: 'transaction',
                 label: '거래',
-                description: '거래 생성에 필요한 거래처, 금액, 거래유형 정보를 확인합니다.',
+                description: '거래 생성에 필요한 거래처, 금액, 입출금유형 정보를 확인합니다.',
                 enabled: true,
                 fields: includeMissing(transactionHeader),
                 requiredFields: transactionHeaderRequired,
@@ -1986,7 +1995,7 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function readinessFallbackGroup(key) {
-        if (['business_unit', 'transaction_type', 'transaction_direction'].includes(key)) return '기준정보';
+        if (['business_unit', 'operation_type', 'transaction_direction'].includes(key)) return '기준정보';
         if (['client_id', 'project_id', 'employee_id', 'bank_account_name', 'bank_account_id', 'card_id'].includes(key)) return '기초정보';
         return '';
     }
@@ -2605,7 +2614,10 @@ import '/public/assets/js/components/trash-manager.js';
         const deposit = Math.abs(numericValue(payload.deposit_amount) || 0);
         if (withdraw > 0) return 'OUT';
         if (deposit > 0) return 'IN';
-        return String(payload.transaction_direction || payload.transaction_type || '').toUpperCase();
+        if (isBankTransactionPayload(payload)) {
+            return String(payload.transaction_direction || payload.operation_type || '').toUpperCase();
+        }
+        return String(payload.transaction_direction || payload.operation_type || '').toUpperCase();
     }
 
     function recommendationReasons(payload = {}, baseReason = '') {
@@ -3075,7 +3087,10 @@ import '/public/assets/js/components/trash-manager.js';
         const withdraw = Math.abs(numericValue(payload.withdraw_amount) || 0);
         const deposit = Math.abs(numericValue(payload.deposit_amount) || 0);
         const amountFallback = withdraw > 0 ? 'OUT' : (deposit > 0 ? 'IN' : 'OUT');
-        return normalizePaymentDirection(payload.transaction_direction || payload.transaction_type, amountFallback);
+        const directionValue = isBankTransactionPayload(payload)
+            ? (payload.transaction_direction || payload.operation_type)
+            : (payload.transaction_direction || payload.operation_type);
+        return normalizePaymentDirection(directionValue, amountFallback);
     }
 
     function bankVoucherPaymentRows(payload = {}) {
@@ -4097,7 +4112,7 @@ import '/public/assets/js/components/trash-manager.js';
 
         const criteriaDirection = modal?.querySelector('[data-readiness-key="transaction_direction"]')?.value
             || next.transaction_direction
-            || next.transaction_type
+            || next.operation_type
             || '';
         if (criteriaDirection !== '') {
             syncBankPaymentDirectionFields(modal, criteriaDirection);
@@ -4958,12 +4973,12 @@ import '/public/assets/js/components/trash-manager.js';
 
         const field = String(entry.systemField || column.system_field_name || '').trim();
         const title = String(entry.label || column.excel_column_name || '').trim().replace(/\s+/g, '');
-        const standardFields = new Set(['business_unit', 'transaction_type', 'transaction_direction']);
-        const standardTitles = new Set(['사업구분', '거래유형']);
+        const standardFields = new Set(['business_unit', 'operation_type', 'transaction_direction']);
+        const standardTitles = new Set(['사업구분', '입출금유형']);
         if (standardFields.has(field) || standardTitles.has(title) || !!readinessFieldConfig(field).codeGroup) return 'standard';
 
         const basicFields = new Set(['client_name', 'project_name', 'employee_name', 'bank_account_name', 'card_name']);
-        const basicTitles = new Set(['사업구분', '거래유형', '거래처명', '거래처', '프로젝트명', '프로젝트', '직원명', '직원', '계좌명', '계좌', '카드명', '카드']);
+        const basicTitles = new Set(['사업구분', '입출금유형', '거래처명', '거래처', '프로젝트명', '프로젝트', '직원명', '직원', '계좌명', '계좌', '카드명', '카드']);
         return basicFields.has(field) || basicTitles.has(title) || !!sourceRefPickerForEntry(entry) ? 'basic' : '';
     }
 
@@ -5581,8 +5596,8 @@ import '/public/assets/js/components/trash-manager.js';
             { data: 'source_type', title: '자료출처', className: 'text-nowrap seed-compact-cell seed-source-cell', render: (value, _type, row) => labelBadge(row.source_type_name || importSourceLabel(value)) },
             { data: 'import_type', title: '자료유형', className: 'text-nowrap seed-compact-cell seed-type-cell', render: (value, _type, row) => labelBadge(row.import_type_name || importTypeLabel(value || row.seed_source_type)) },
             { key: 'business_unit', data: null, title: '사업구분', className: 'text-nowrap seed-compact-cell seed-code-cell', render: (_value, _type, row) => escapeHtml(codeDisplayName('business_unit', mapped(row).business_unit || mapped(row).business_unit_code) || '-') },
-            { key: 'transaction_direction', data: null, title: '거래구분', className: 'text-nowrap seed-compact-cell seed-code-cell', render: (_value, _type, row) => escapeHtml(codeDisplayName('transaction_direction', mapped(row).transaction_direction) || directionLabel(mapped(row).transaction_direction || mapped(row).transaction_type || '')) },
-            { key: 'transaction_type', data: null, title: '거래유형', className: 'text-nowrap seed-compact-cell seed-code-cell', render: (_value, _type, row) => escapeHtml(codeDisplayName('transaction_type', mapped(row).transaction_type) || '-') },
+            { key: 'transaction_direction', data: null, title: '거래구분', className: 'text-nowrap seed-compact-cell seed-code-cell', render: (_value, _type, row) => escapeHtml(codeDisplayName('transaction_direction', mapped(row).transaction_direction) || directionLabel(mapped(row).transaction_direction || mapped(row).operation_type || '')) },
+            { key: 'operation_type', data: null, title: '입출금유형', className: 'text-nowrap seed-compact-cell seed-code-cell', render: (_value, _type, row) => escapeHtml(codeDisplayName('operation_type', mapped(row).operation_type) || '-') },
             { key: 'client_name', data: null, title: '거래처', className: 'text-nowrap seed-compact-cell seed-name-cell', render: (_value, _type, row) => `<span title="${escapeHtml(rowClientName(row))}">${escapeHtml(rowClientName(row) || '-')}</span>` },
             { key: 'project_name', data: null, title: '프로젝트', className: 'text-nowrap seed-compact-cell seed-name-cell', render: (_value, _type, row) => `<span title="${escapeHtml(rowProjectName(row))}">${escapeHtml(rowProjectName(row) || '-')}</span>` },
             { key: 'evidence_status', data: null, title: '증빙상태', className: 'text-nowrap seed-compact-cell seed-status-cell', render: (_value, _type, row) => evidenceStatusBadge(row) },

@@ -1,4 +1,5 @@
 import { getColumnMetaList } from '../registry.js';
+import { actorExcel, actorNameField } from '../../actor.js';
 
 function buildExcelColumns(domain, type) {
     const columns = getColumnMetaList(domain);
@@ -6,15 +7,20 @@ function buildExcelColumns(domain, type) {
         ? 'excelTemplate'
         : 'excelDownload';
 
-    return columns.map((column) => ({
-        key: column.key,
-        label: column.label,
-        required: column.required,
-        defaultSelected: column.required === true || column[defaultSelectedField] === true,
-        type: column.type,
-        width: column.width,
-        aliasOf: column.aliasOf,
-    }));
+    return columns.map((column) => {
+        const isActor = column.type === 'actor';
+        return {
+            key: column.key,
+            label: column.label,
+            required: column.required,
+            defaultSelected: column.required === true || column[defaultSelectedField] === true,
+            type: column.type,
+            width: column.width,
+            aliasOf: column.aliasOf,
+            valueKey: isActor ? actorNameField(column.key) : column.key,
+            fallbackKey: isActor ? column.key : null,
+        };
+    });
 }
 
 export function buildExcelTemplateColumns(domain) {
@@ -35,3 +41,5 @@ export function buildExcelColumnSettingsKey(domain, type) {
 
     return `excel.${resolvedType}.${resolvedDomain}.v1`;
 }
+
+export { actorExcel };

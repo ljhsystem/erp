@@ -140,6 +140,11 @@ WHERE e.`source_type` IN ('TAX_INVOICE', 'TAX_INVOICE_MANUAL')
 -- item 정보는 JSON 파싱 가능 DB에서 별도 보강 백필 권장
 
 -- 4) CASH_RECEIPT
+-- NOTE:
+-- CASH_RECEIPT_PURCHASE and CASH_RECEIPT_SALES below are historical source_type values
+-- from legacy evidence rows. They are kept here only to backfill old data.
+-- Runtime SSOT is IMPORT_TYPE = CASH_RECEIPT, and purchase/sales meaning belongs to
+-- transaction_direction, not to separate IMPORT_TYPE codes.
 SET @rn_cash := 0;
 INSERT INTO `ledger_evidence_cash_receipt` (
     `id`, `sort_no`, `evidence_sort_no`, `source_type`, `external_key`, `evidence_date`,

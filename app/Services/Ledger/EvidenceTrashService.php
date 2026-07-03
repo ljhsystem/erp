@@ -56,12 +56,12 @@ class EvidenceTrashService
             $this->pdo->beginTransaction();
             $this->releaseSeedRowsWithoutActiveOutputs($ids);
 
-            $deletableIds = $this->deletableSeedRowIds($ids);
-            $alreadyDeletedIds = $this->alreadyDeletedSeedRowIds($ids);
+            $deletableIds = $this->deletableSeedRowIds($ids, (string) ($evidenceType ?? ''));
+            $alreadyDeletedIds = $this->alreadyDeletedSeedRowIds($ids, (string) ($evidenceType ?? ''));
             $blockedIds = array_values(array_diff($ids, array_merge($deletableIds, $alreadyDeletedIds)));
             $alreadyDeletedCount = count($alreadyDeletedIds);
             if ($deletableIds === []) {
-                $blocked = $this->seedRowDeleteBlockSummary($blockedIds);
+                $blocked = $this->seedRowDeleteBlockSummary($blockedIds, (string) ($evidenceType ?? ''));
                 if ($alreadyDeletedCount > 0) {
                     $blocked .= $blocked === '' ? '' : ' ';
                     $blocked .= '(이미 삭제된 항목 ' . number_format($alreadyDeletedCount) . '건 제외)';
@@ -101,7 +101,7 @@ class EvidenceTrashService
             ($this->softDeleteBody)($deletableIds, $actor, $evidenceType);
             ($this->syncBankSoftDelete)($deletableIds, $actor);
             if ($deletedCount === 0) {
-                $blocked = $this->seedRowDeleteBlockSummary($blockedIds);
+                    $blocked = $this->seedRowDeleteBlockSummary($blockedIds, (string) ($evidenceType ?? ''));
                 if ($alreadyDeletedCount > 0) {
                     $blocked .= $blocked === '' ? '' : ' ';
                     $blocked .= '(이미 삭제된 항목 ' . number_format($alreadyDeletedCount) . '건 제외)';
@@ -119,7 +119,7 @@ class EvidenceTrashService
             $this->pdo->commit();
             $skippedIds = array_values(array_diff($ids, $deletableIds));
             $skippedCount = max(0, count($ids) - $deletedCount);
-            $blocked = $skippedCount > 0 ? $this->seedRowDeleteBlockSummary($blockedIds) : '';
+            $blocked = $skippedCount > 0 ? $this->seedRowDeleteBlockSummary($blockedIds, (string) ($evidenceType ?? '')) : '';
             if ($alreadyDeletedCount > 0) {
                 $blocked .= $blocked === '' ? '' : ' ';
                 $blocked .= '(이미 삭제된 항목 ' . number_format($alreadyDeletedCount) . '건 제외)';
@@ -300,7 +300,7 @@ class EvidenceTrashService
         ")->execute($releaseParams);
     }
 
-    private function deletableSeedRowIds(array $ids): array
+    private function deletableSeedRowIds(array $ids, string $evidenceType = ''): array
     {
         $ids = $this->normalizeIdList($ids);
         if ($ids === []) {
@@ -327,25 +327,17 @@ class EvidenceTrashService
             return $deletableIds;
         }
 
-        [$bankInSql, $bankParams] = ($this->placeholderBuilder)($remainingIds, 'deletable_bank_seed_id');
-        $bankStmt = $this->pdo->prepare("
-            SELECT body.id
-            FROM ledger_evidence_bank_transaction body
-            LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type = 'BANK_TRANSACTION'
-               AND pr.evidence_id = body.id
-               AND pr.deleted_at IS NULL
-            WHERE body.id IN ({$bankInSql})
-              AND COALESCE(pr.processing_status, 'READY') IN ('NONE', 'READY', 'REVIEW_REQUIRED', 'ERROR', 'DUPLICATED')
-              AND body.deleted_at IS NULL
-        ");
-        $bankStmt->execute($bankParams);
-        $bankIds = array_values(array_filter(array_map('strval', $bankStmt->fetchAll(PDO::FETCH_COLUMN) ?: [])));
+        $bodyIds = $this->bodyRowIdsByDeleteStatus(
+            $remainingIds,
+            $evidenceType,
+            'active',
+            'deletable_body_seed_id'
+        );
 
-        return array_values(array_unique(array_merge($deletableIds, $bankIds)));
+        return array_values(array_unique(array_merge($deletableIds, $bodyIds)));
     }
 
-    private function alreadyDeletedSeedRowIds(array $ids): array
+    private function alreadyDeletedSeedRowIds(array $ids, string $evidenceType = ''): array
     {
         $ids = $this->normalizeIdList($ids);
         if ($ids === []) {
@@ -367,20 +359,17 @@ class EvidenceTrashService
             return $deletedIds;
         }
 
-        [$bankInSql, $bankParams] = ($this->placeholderBuilder)($remainingIds, 'already_deleted_bank_seed_id');
-        $bankStmt = $this->pdo->prepare("
-            SELECT body.id AS id
-            FROM ledger_evidence_bank_transaction body
-            WHERE body.id IN ({$bankInSql})
-              AND body.deleted_at IS NOT NULL
-        ");
-        $bankStmt->execute($bankParams);
-        $bankDeletedIds = array_values(array_filter(array_map('strval', $bankStmt->fetchAll(PDO::FETCH_COLUMN) ?: [])));
+        $bodyDeletedIds = $this->bodyRowIdsByDeleteStatus(
+            $remainingIds,
+            $evidenceType,
+            'deleted',
+            'already_deleted_body_seed_id'
+        );
 
-        return array_values(array_unique(array_merge($deletedIds, $bankDeletedIds)));
+        return array_values(array_unique(array_merge($deletedIds, $bodyDeletedIds)));
     }
 
-    private function seedRowDeleteBlockSummary(array $ids): string
+    private function seedRowDeleteBlockSummary(array $ids, string $evidenceType = ''): string
     {
         $ids = $this->normalizeIdList($ids);
         if ($ids === []) {
@@ -418,31 +407,11 @@ class EvidenceTrashService
         )));
         $remainingIds = array_values(array_diff($ids, $resolvedIds));
         if ($remainingIds !== []) {
-            [$bankInSql, $bankParams] = ($this->placeholderBuilder)($remainingIds, 'delete_block_bank_id');
-            $bankStmt = $this->pdo->prepare("
-                SELECT
-                    body.id AS id,
-                    'BANK_TRANSACTION' AS source_type,
-                    body.external_key AS source_key,
-                    body.raw_transaction_datetime AS evidence_date,
-                    COALESCE(pr.processing_status, 'READY') AS transaction_status,
-                    body.deleted_at,
-                    NULL AS mapped_payload_json,
-                    tx.target_id AS transaction_id
-                FROM ledger_evidence_bank_transaction body
-                LEFT JOIN ledger_evidence_processing pr
-                    ON pr.evidence_type = 'BANK_TRANSACTION'
-                   AND pr.evidence_id = body.id
-                   AND pr.deleted_at IS NULL
-                LEFT JOIN ledger_evidence_links tx
-                    ON tx.evidence_type = 'BANK_TRANSACTION'
-                   AND tx.evidence_id = body.id
-                   AND tx.target_type = 'TRANSACTION'
-                   AND tx.deleted_at IS NULL
-                WHERE body.id IN ({$bankInSql})
-            ");
-            $bankStmt->execute($bankParams);
-            $rows = array_merge($rows, $bankStmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+            $rows = array_merge($rows, $this->bodyRowsForDeleteBlockSummary(
+                $remainingIds,
+                $evidenceType,
+                'delete_block_body_id'
+            ));
         }
         if ($rows === []) {
             return $this->msg('7IKt7KCcIOuMgOyDgSDrjbDsnbTthLDrpbwg7LC+7J2EIOyImCDsl4bsirXri4jri6Qu');
@@ -598,7 +567,7 @@ class EvidenceTrashService
             'BANK_TRANSACTION' => ['ledger_evidence_bank_transaction'],
             'TAX_INVOICE' => ['ledger_evidence_tax_invoice'],
             'TAX_INVOICE_MANUAL' => ['ledger_evidence_tax_invoice_manual'],
-            'CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES' => ['ledger_evidence_cash_receipt'],
+            'CASH_RECEIPT' => ['ledger_evidence_cash_receipt'],
             'CARD_HOMETAX' => ['ledger_evidence_card_hometax'],
             'CARD', 'CARD_STATEMENT', 'CARD_APPROVAL' => ['ledger_evidence_card_statement'],
             'EMPLOYEE_EXPENSE' => ['ledger_evidence_employee_expense'],
@@ -622,6 +591,119 @@ class EvidenceTrashService
                 'ledger_evidence_cash_sales',
             ],
         };
+    }
+
+    private function activeBodyTablesForImportType(string $importType = ''): array
+    {
+        return $this->deletedBodyTablesForImportType($importType);
+    }
+
+    private function bodyRowIdsByDeleteStatus(array $ids, string $evidenceType, string $status, string $prefix): array
+    {
+        $ids = $this->normalizeIdList($ids);
+        if ($ids === []) {
+            return [];
+        }
+
+        $tables = $status === 'deleted'
+            ? $this->deletedBodyTablesForImportType(($this->dataTypeNormalizer)($evidenceType))
+            : $this->activeBodyTablesForImportType(($this->dataTypeNormalizer)($evidenceType));
+
+        $selectedIds = [];
+        foreach ($tables as $index => $table) {
+            if (!$this->tableExists($table)) {
+                continue;
+            }
+            [$inSql, $params] = ($this->placeholderBuilder)($ids, $prefix . '_' . $index);
+            $deletedClause = $status === 'deleted' ? 'IS NOT NULL' : 'IS NULL';
+            $stmt = $this->pdo->prepare("
+                SELECT body.id
+                FROM {$table} body
+                LEFT JOIN ledger_evidence_processing pr
+                    ON pr.evidence_id = body.id
+                   AND pr.deleted_at IS NULL
+                WHERE body.id IN ({$inSql})
+                  AND body.deleted_at {$deletedClause}
+                  AND COALESCE(pr.processing_status, 'READY') IN ('NONE', 'READY', 'REVIEW_REQUIRED', 'ERROR', 'DUPLICATED')
+            ");
+            $stmt->execute($params);
+            $selectedIds = array_merge($selectedIds, array_values(array_filter(array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []))));
+        }
+
+        return array_values(array_unique($selectedIds));
+    }
+
+    private function bodyRowsForDeleteBlockSummary(array $ids, string $evidenceType, string $prefix): array
+    {
+        $ids = $this->normalizeIdList($ids);
+        if ($ids === []) {
+            return [];
+        }
+
+        $evidenceType = ($this->dataTypeNormalizer)($evidenceType);
+        $tables = $this->activeBodyTablesForImportType($evidenceType);
+        $rows = [];
+
+        foreach ($tables as $index => $table) {
+            if (!$this->tableExists($table)) {
+                continue;
+            }
+
+            [$inSql, $params] = ($this->placeholderBuilder)($ids, $prefix . '_' . $index);
+            $sourceType = $evidenceType !== '' ? $evidenceType : strtoupper(trim(str_replace('ledger_evidence_', '', $table)));
+            $sourceKeyExpr = $this->tableColumnExists($table, 'external_key')
+                ? 'body.external_key'
+                : ($this->tableColumnExists($table, 'source_key') ? 'body.source_key' : "''");
+            $evidenceDateExpr = $this->tableColumnExists($table, 'raw_transaction_datetime')
+                ? 'body.raw_transaction_datetime'
+                : ($this->tableColumnExists($table, 'transaction_date') ? 'body.transaction_date' : ($this->tableColumnExists($table, 'evidence_date') ? 'body.evidence_date' : 'NULL'));
+
+            $stmt = $this->pdo->prepare("
+                SELECT
+                    body.id AS id,
+                    :source_type AS source_type,
+                    {$sourceKeyExpr} AS source_key,
+                    {$evidenceDateExpr} AS evidence_date,
+                    COALESCE(pr.processing_status, 'READY') AS transaction_status,
+                    body.deleted_at,
+                    NULL AS mapped_payload_json,
+                    tx.target_id AS transaction_id
+                FROM {$table} body
+                LEFT JOIN ledger_evidence_processing pr
+                    ON pr.evidence_id = body.id
+                   AND pr.deleted_at IS NULL
+                LEFT JOIN ledger_evidence_links tx
+                    ON tx.evidence_id = body.id
+                   AND tx.target_type = 'TRANSACTION'
+                   AND tx.deleted_at IS NULL
+                WHERE body.id IN ({$inSql})
+            ");
+            $stmt->execute([':source_type' => $sourceType] + $params);
+            $rows = array_merge($rows, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+        }
+
+        return $rows;
+    }
+
+    private function tableColumnExists(string $table, string $column): bool
+    {
+        try {
+            $stmt = $this->pdo->prepare("
+                SELECT 1
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = :table
+                  AND COLUMN_NAME = :column
+                LIMIT 1
+            ");
+            $stmt->execute([
+                ':table' => $table,
+                ':column' => $column,
+            ]);
+            return (bool) $stmt->fetchColumn();
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     private function logPurgeAllDiagnostics(string $importType, array $selection): void

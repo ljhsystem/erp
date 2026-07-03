@@ -31,6 +31,7 @@ export {
     buildTableVisibilityDefaults,
 } from './adapters/table.js';
 export {
+    actorExcel,
     buildExcelColumnSettingsKey,
     buildExcelDownloadColumns,
     buildExcelTemplateColumns,

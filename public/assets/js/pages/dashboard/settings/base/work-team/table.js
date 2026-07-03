@@ -1,3 +1,5 @@
+import { actorDisplay } from '/public/assets/js/common/actor.js';
+
 export function createWorkTeamTableModule({
     api,
     columnMap,
@@ -114,9 +116,7 @@ export function createWorkTeamTableModule({
                     if (data === null || data === undefined) return '';
                     if (type !== 'display') return data;
                     if (field === 'team_leader_client_id') return row?.team_leader_client_name || data;
-                    if (field === 'created_by') return row?.created_by_name || data;
-                    if (field === 'updated_by') return row?.updated_by_name || data;
-                    if (field === 'deleted_by') return row?.deleted_by_name || data;
+                    if (config.type === 'actor') return actorDisplay(row, field);
                     return data;
                 }
             });
@@ -148,6 +148,7 @@ export function createWorkTeamTableModule({
         columns.push({
             data: null,
             settingsKey: '__actions',
+            __dtColumnKind: 'virtual',
             title: '관리',
             className: 'text-center no-colvis',
             headerClassName: 'text-center no-colvis',

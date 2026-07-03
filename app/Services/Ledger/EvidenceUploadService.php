@@ -342,12 +342,12 @@ class EvidenceUploadService
             'elapsed_ms' => (int) round((microtime(true) - $startedAt) * 1000),
         ]);
         if (!$preview) {
-            throw new \RuntimeException('????????? ?? ? ????. ?????????? ???.');
+            throw new \RuntimeException('미리보기 정보를 찾을 수 없습니다. 파일을 다시 업로드해 주세요.');
         }
         $this->assertUploadNotCanceled($cancelToken);
         $previewFile = is_array($preview['file'] ?? null) ? $preview['file'] : [];
         if (trim((string) ($previewFile['tmp_name'] ?? '')) === '' || !is_file((string) $previewFile['tmp_name'])) {
-            throw new \RuntimeException('?????????? ?? ? ????. ?????????? ???.');
+            throw new \RuntimeException('미리보기 파일을 찾을 수 없습니다. 파일을 다시 업로드해 주세요.');
         }
         $dataType = ($this->dataTypeNormalizer)((string) ($preview['format']['data_type'] ?? 'ETC'));
         $rows = is_array($preview['rows'] ?? null) ? $preview['rows'] : [];
@@ -362,7 +362,7 @@ class EvidenceUploadService
         $preview['file'] = $previewFile;
         $preview['rows'] = $rows;
         if (($preview['rows'] ?? []) === []) {
-            throw new \RuntimeException('???? ??????????????. ?????????? ???.');
+            throw new \RuntimeException('미리보기 데이터가 없습니다. 파일을 다시 업로드해 주세요.');
         }
         return [
             'cancel_token' => $cancelToken,
@@ -605,7 +605,7 @@ class EvidenceUploadService
         }
         $minimumMatched = min(2, $configuredCount);
         if ($matchedCount < $minimumMatched) {
-            throw new \RuntimeException("??? ??? ????? ??? ???? ????. ??? ?? {$matchedCount}? / ?? ?? {$configuredCount}????. ?? ???????????? ??? ???.");
+            throw new \RuntimeException("업로드 파일 헤더와 양식이 충분히 일치하지 않습니다. 일치 컬럼 {$matchedCount}건 / 설정 컬럼 {$configuredCount}건입니다. 열 이름을 다시 확인해 주세요.");
         }
     }
     public function annotateSeedComparison(array $rows, string $dataType): array

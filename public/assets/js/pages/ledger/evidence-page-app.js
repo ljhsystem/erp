@@ -61,21 +61,22 @@ export function bootEvidencePage(options = {}) {
 
     const DISPLAY_CODE_FIELDS = {
         business_unit: 'BUSINESS_UNIT',
-        transaction_type: 'TRANSACTION_TYPE',
+        operation_type: 'OPERATION_TYPE',
         transaction_direction: 'TRANSACTION_DIRECTION',
+        source_type: 'SOURCE_TYPE',
+        import_type: 'IMPORT_TYPE',
     };
     const CODE_NAME_ALIASES = {
         transaction_direction: {
-            IN: '입금',
-            OUT: '출금',
-            PURCHASE: '매입',
-            SALES: '매출',
+            FUND: '자금',
+            IN: '자금',
+            OUT: '자금',
+            INCOME: '수익',
+            EXPENSE: '비용',
+            PURCHASE: '비용',
+            SALES: '수익',
         },
     };
-    CODE_NAME_ALIASES.transaction_direction.IN = '입금';
-    CODE_NAME_ALIASES.transaction_direction.OUT = '출금';
-    CODE_NAME_ALIASES.transaction_direction.PURCHASE = '매입';
-    CODE_NAME_ALIASES.transaction_direction.SALES = '매출';
     const EVIDENCE_TYPE_COLUMN_CONFIG = {};
     const pageRoot = document.getElementById('ledgerDataStatusPage');
     const initialPageReady = pageRoot?.dataset?.pageReady !== '0';
@@ -319,10 +320,10 @@ export function bootEvidencePage(options = {}) {
             emptyLabel: '\uC0AC\uC5C5\uBD80\uB97C \uC120\uD0DD\uD558\uC138\uC694.',
             titles: ['\uC0AC\uC5C5\uBD80'],
         },
-        transaction_type: {
-            codeGroup: 'TRANSACTION_TYPE',
-            emptyLabel: '\uAC70\uB798\uC720\uD615\uC744 \uC120\uD0DD\uD558\uC138\uC694.',
-            titles: ['\uAC70\uB798\uC720\uD615'],
+        operation_type: {
+            codeGroup: 'OPERATION_TYPE',
+            emptyLabel: '\uC5C5\uBB34\uC720\uD615\uC744 \uC120\uD0DD\uD558\uC138\uC694.',
+            titles: ['\uC785\uCD9C\uAE08\uC720\uD615'],
         },
         transaction_direction: {
             codeGroup: 'TRANSACTION_DIRECTION',
@@ -402,6 +403,7 @@ export function bootEvidencePage(options = {}) {
             '__none',
             'none__',
             '--none--',
+            'none',
             '\uC120\uD0DD\uD558\uC138\uC694.',
         ].includes(text);
     }
@@ -464,11 +466,106 @@ export function bootEvidencePage(options = {}) {
         return undefined;
     }
 
+    const BUSINESS_ONLY_RAW_FIELD_ALIASES = Object.freeze({
+        written_date: 'raw_written_date',
+        write_date: 'raw_written_date',
+        issue_date: 'raw_issue_date',
+        transmit_date: 'raw_transmit_date',
+        approval_number: 'raw_approval_no',
+        supplier_business_number: 'raw_supplier_business_number',
+        supplier_branch_number: 'raw_supplier_branch_no',
+        supplier_company_name: 'raw_supplier_company_name',
+        supplier_name: 'raw_supplier_company_name',
+        supplier_ceo_name: 'raw_supplier_ceo_name',
+        supplier_address: 'raw_supplier_address',
+        supplier_email: 'raw_supplier_email',
+        customer_business_number: 'raw_customer_business_number',
+        customer_branch_number: 'raw_customer_branch_no',
+        customer_company_name: 'raw_customer_company_name',
+        customer_name: 'raw_customer_company_name',
+        customer_ceo_name: 'raw_customer_ceo_name',
+        customer_address: 'raw_customer_address',
+        customer_email_1: 'raw_customer_email1',
+        customer_email_2: 'raw_customer_email2',
+        tax_invoice_category: 'raw_invoice_category',
+        tax_invoice_type: 'raw_invoice_kind',
+        issue_type: 'raw_issue_type',
+        receipt_claim_type: 'raw_claim_type',
+        supply_amount: 'raw_supply_amount',
+        vat_amount: 'raw_vat_amount',
+        total_amount: 'raw_total_amount',
+        note: 'raw_note',
+        description: 'raw_note',
+        item_date: 'raw_item_date',
+        item_name: 'raw_item_name',
+        item_spec: 'raw_item_spec',
+        item_qty: 'raw_item_quantity',
+        quantity: 'raw_item_quantity',
+        item_price: 'raw_item_unit_price',
+        unit_price: 'raw_item_unit_price',
+        item_supply_amount: 'raw_item_supply_amount',
+        item_vat_amount: 'raw_item_tax_amount',
+        item_note: 'raw_item_note',
+    });
+
+    const BUSINESS_ONLY_RAW_SOURCE_ALIASES = Object.freeze({
+        raw_written_date: ['written_date', 'write_date', '작성일자', '작성일'],
+        raw_issue_date: ['issue_date', '발급일자', '발행일자'],
+        raw_transmit_date: ['transmit_date', '전송일자'],
+        raw_approval_no: ['approval_number', '승인번호'],
+        raw_supplier_business_number: ['supplier_business_number', '공급자사업자등록번호'],
+        raw_supplier_branch_no: ['supplier_branch_number', '공급자종사업장번호'],
+        raw_supplier_company_name: ['supplier_company_name', 'supplier_name', '공급자상호', '공급자명'],
+        raw_supplier_ceo_name: ['supplier_ceo_name', '공급자대표자명'],
+        raw_supplier_address: ['supplier_address', '공급자주소'],
+        raw_supplier_email: ['supplier_email', '공급자이메일'],
+        raw_customer_business_number: ['customer_business_number', '공급받는자사업자등록번호'],
+        raw_customer_branch_no: ['customer_branch_number', '공급받는자종사업장번호'],
+        raw_customer_company_name: ['customer_company_name', 'customer_name', '공급받는자상호', '공급받는자명'],
+        raw_customer_ceo_name: ['customer_ceo_name', '공급받는자대표자명'],
+        raw_customer_address: ['customer_address', '공급받는자주소'],
+        raw_customer_email1: ['customer_email_1', '공급받는자이메일1'],
+        raw_customer_email2: ['customer_email_2', '공급받는자이메일2'],
+        raw_invoice_category: ['tax_invoice_category', '전자세금계산서분류'],
+        raw_invoice_kind: ['tax_invoice_type', '전자세금계산서종류'],
+        raw_issue_type: ['issue_type', '발급유형'],
+        raw_claim_type: ['receipt_claim_type', '영수청구구분'],
+        raw_supply_amount: ['supply_amount', '공급가액'],
+        raw_vat_amount: ['vat_amount', '세액'],
+        raw_total_amount: ['total_amount', '합계금액'],
+        raw_note: ['note', 'description', '비고'],
+        raw_item_date: ['item_date', '품목일자'],
+        raw_item_name: ['item_name', '품목명', '품목'],
+        raw_item_spec: ['item_spec', '품목규격', '규격'],
+        raw_item_quantity: ['item_qty', 'quantity', '품목수량', '수량'],
+        raw_item_unit_price: ['item_price', 'unit_price', '품목단가', '단가'],
+        raw_item_supply_amount: ['item_supply_amount', '품목공급가액'],
+        raw_item_tax_amount: ['item_vat_amount', '품목세액', '품목부가세액'],
+        raw_item_note: ['item_note', '품목비고'],
+    });
+
+    function businessOnlyFieldKey(key = '') {
+        const normalized = String(key || '').trim();
+        return BUSINESS_ONLY_RAW_FIELD_ALIASES[normalized] || normalized;
+    }
+
+    function isBusinessOnlyEvidenceType(row = {}) {
+        const type = normalizeEvidenceType(
+            row?.import_type
+            || row?.source_type
+            || state.currentType
+            || ''
+        );
+        return String(evidenceTypePolicy(type)?.modalPreset || '').trim().toLowerCase() === 'business_only';
+    }
+
     function columnAliasKeys(column = {}) {
         const field = String(column.system_field_name || '').trim();
         const excelName = String(column.excel_column_name || '').trim();
         const keys = [field, excelName];
         const aliasMap = {
+            external_key: ['source_key', 'approval_number', 'approval_no'],
+            source_key: ['external_key', 'approval_number', 'approval_no'],
             supplier_company_name: ['supplier_name', '\uACF5\uAE09\uC790\uBA85', '\uACF5\uAE09\uC790'],
             supplier_name: ['supplier_company_name', '\uACF5\uAE09\uC790\uBA85', '\uACF5\uAE09\uC790'],
             customer_company_name: ['customer_name', '\uACE0\uAC1D\uC0AC\uBA85', '\uACE0\uAC1D\uC0AC'],
@@ -476,6 +573,14 @@ export function bootEvidencePage(options = {}) {
             item_name: ['\uD488\uBAA9\uBA85', '\uD488\uBAA9'],
             issue_date: ['\uC791\uC131\uC77C\uC790', '\uC791\uC131\uC77C'],
             transmit_date: ['\uC804\uC1A1\uC77C\uC790'],
+            raw_item_date: ['item_date', '\uD488\uBAA9\uC77C\uC790'],
+            raw_item_name: ['item_name', '\uD488\uBAA9\uBA85', '\uD488\uBAA9'],
+            raw_item_spec: ['item_spec', '\uD488\uBAA9\uADDC\uACA9', '\uADDC\uACA9'],
+            raw_item_quantity: ['item_qty', 'quantity', '\uD488\uBAA9\uC218\uB7C9', '\uC218\uB7C9'],
+            raw_item_unit_price: ['item_price', 'unit_price', '\uD488\uBAA9\uB2E8\uAC00', '\uB2E8\uAC00'],
+            raw_item_supply_amount: ['item_supply_amount', '\uD488\uBAA9\uACF5\uAE09\uAC00\uC561'],
+            raw_item_tax_amount: ['item_vat_amount', '\uD488\uBAA9\uC138\uC561', '\uD488\uBAA9\uBD80\uAC00\uC138\uC561'],
+            raw_item_note: ['item_note', '\uD488\uBAA9\uBE44\uACE0'],
         };
         if (aliasMap[field]) keys.push(...aliasMap[field]);
         if (aliasMap[excelName]) keys.push(...aliasMap[excelName]);
@@ -1038,12 +1143,89 @@ export function bootEvidencePage(options = {}) {
     }
 
     function normalizedStatus(row = {}) {
-        if (row.deleted_at) return 'DELETED';
+        const currentProcessStatus = String(row?.status || '').trim().toUpperCase();
+        if (currentProcessStatus === 'DELETED' || currentProcessStatus === '\uC0AD\uC81C') {
+            return 'DELETED';
+        }
+        if (isDeletedRowByEvidenceStatus(row)) return 'DELETED';
         return processStatus(row);
+    }
+
+    function isDeletedRowByEvidenceStatus(row = {}) {
+        const processStatus = String(row?.status || '').trim().toUpperCase();
+        if (processStatus === 'DELETED' || processStatus === '\uC0AD\uC81C') {
+            return true;
+        }
+        if (processStatus === 'USED' || processStatus === 'PROCESSED') {
+            return false;
+        }
+        const deletedAt = valueText(row?.deleted_at);
+        return deletedAt !== '';
+    }
+
+    function businessEvidenceStatusText(value = '') {
+        const status = String(value || '').trim().toUpperCase();
+        if (status === 'COMPLETED' || status === 'READY' || status === 'VERIFY_ONLY') {
+            return '\uC644\uB8CC';
+        }
+        if (status === 'CORRECTION_REQUIRED' || status === 'NOT_READY' || status === 'REVIEW_REQUIRED') {
+            return '\uBCF4\uC815\uD544\uC694';
+        }
+        return valueText(value);
     }
 
     function editFieldKey(column = {}) {
         return String(column.system_field_name || column.excel_column_name || '').trim();
+    }
+
+    function normalizeActorFieldValue(value = '') {
+        return valueText(value);
+    }
+
+    function resolveEditFieldKey(column = {}, row = {}) {
+        const key = editFieldKey(column);
+        if (key === '') {
+            return key;
+        }
+
+        if (isBusinessOnlyEvidenceType(row)) {
+            return businessOnlyFieldKey(key);
+        }
+
+        const lowerKey = String(key).toLowerCase();
+        if (lowerKey === 'created_by' || lowerKey === 'created_by_name') {
+            return 'created_by';
+        }
+        if (lowerKey === 'updated_by' || lowerKey === 'updated_by_name') {
+            return 'updated_by';
+        }
+        if (lowerKey === 'deleted_by' || lowerKey === 'deleted_by_name') {
+            return 'deleted_by';
+        }
+        if (isDateColumn(column) || isTimeColumn(column)) {
+            return key;
+        }
+
+        const title = String(column.excel_column_name || column.label || '').trim();
+        const lowerTitle = title.toLowerCase();
+        const hasCreatedBy = valueText(row?.created_by) !== '' || valueText(row?.created_by_name) !== '';
+        const hasUpdatedBy = valueText(row?.updated_by) !== '' || valueText(row?.updated_by_name) !== '';
+        const hasDeletedBy = valueText(row?.deleted_by) !== '' || valueText(row?.deleted_by_name) !== '';
+        const hasCreatedHint = lowerTitle.includes('\uc0dd\uc131\uc790') || lowerTitle.includes('created by') || lowerTitle.includes('creator');
+        const hasUpdatedHint = lowerTitle.includes('\uc218\uc815\uc790') || lowerTitle.includes('updated by') || lowerTitle.includes('modifier');
+        const hasDeletedHint = lowerTitle.includes('\uc0ad\uc81c\uc790') || lowerTitle.includes('deleted by') || lowerTitle.includes('deleter');
+
+        if (hasCreatedBy && hasCreatedHint) {
+            return 'created_by';
+        }
+        if (hasUpdatedBy && (hasUpdatedHint || lowerTitle.includes('\uc218\uc815'))) {
+            return 'updated_by';
+        }
+        if (hasDeletedBy && (hasDeletedHint || lowerTitle.includes('\uc0ad\uc81c'))) {
+            return 'deleted_by';
+        }
+
+        return key;
     }
 
     function isDeprecatedFormatColumn(column = {}) {
@@ -1057,8 +1239,11 @@ export function bootEvidencePage(options = {}) {
 
     function editFieldValue(row = {}, column = {}) {
         const payload = mapped(row);
-        const key = editFieldKey(column);
+        const key = resolveEditFieldKey(column, row);
         const raw = row && typeof row === 'object' ? row : {};
+        if (key === 'deleted_at' && normalizedStatus(row) !== 'DELETED') {
+            return '';
+        }
         if (isDateTimeColumn(column)) {
             const dateTimeValue = firstPayloadValue(payload, [
                 'raw_transaction_datetime',
@@ -1088,16 +1273,30 @@ export function bootEvidencePage(options = {}) {
                 return `${valueText(dateValue)}${timeText !== '' ? ` ${timeText}` : ''}`;
             }
         }
+        const actorField = (key === 'created_by' || key === 'updated_by' || key === 'deleted_by');
+        if (actorField) {
+            return normalizeActorFieldValue(raw[`${key}_name`] ?? raw[key] ?? '');
+        }
+        if (key === 'evidence_status') {
+            return businessEvidenceStatusText(raw[key] ?? '');
+        }
         const value = firstPayloadValue(payload, columnAliasKeys(column));
         if (valueText(value) !== '') {
-            return valueText(value);
+            return codeDisplayName(key, value) || valueText(value);
         }
 
-        return valueText(raw[column.excel_column_name] ?? raw[column.system_field_name] ?? '');
+        const fallbackValue = valueText(raw[column.excel_column_name] ?? raw[column.system_field_name] ?? '');
+        if (key === 'evidence_status') {
+            return businessEvidenceStatusText(fallbackValue);
+        }
+        return codeDisplayName(key, fallbackValue) || fallbackValue;
     }
 
-    function editInputType(column = {}, value = '') {
-        const key = editFieldKey(column).toLowerCase();
+    function editInputType(column = {}, value = '', row = {}) {
+        const key = resolveEditFieldKey(column, row).toLowerCase();
+        if (key === 'created_by' || key === 'updated_by' || key === 'deleted_by') {
+            return 'text';
+        }
         if (businessRefPickerForColumn(column)) return 'ref';
         if (bankCodePickerForColumn(column)) return 'code';
         if (isTimeColumn(column)) return 'time';
@@ -1329,6 +1528,7 @@ export function bootEvidencePage(options = {}) {
         isDeprecatedFormatColumn,
         infoColumnTone,
         editFieldKey,
+        resolveEditFieldKey,
         editInputType,
         editFieldValue,
         businessRefPickerForColumn,

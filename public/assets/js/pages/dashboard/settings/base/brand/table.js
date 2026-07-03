@@ -1,3 +1,5 @@
+import { actorDisplay } from '/public/assets/js/common/actor.js';
+
 export function createBrandTableModule({ api, notify }) {
     function loadExistingFiles() {
         window.jQuery.post(api.LIST, {}, (response) => {
@@ -14,7 +16,7 @@ export function createBrandTableModule({ api, notify }) {
                 const fileName = escapeHtml(file.file_name || '-');
                 const typeLabel = escapeHtml(file.asset_type_label || file.asset_type || '-');
                 const createdAt = escapeHtml(file.created_at || '-');
-                const createdBy = escapeHtml(file.created_by || '-');
+                const createdBy = escapeHtml(actorDisplay(file, 'created_by'));
                 const activeBadge = Number(file.is_active) === 1
                     ? '<span class="badge bg-success">활성</span>'
                     : '<span class="badge bg-secondary">비활성</span>';

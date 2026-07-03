@@ -124,7 +124,7 @@ function confidenceBadge(confidence) {
 function setHeader(transaction = {}) {
     setValue('voucherRecommendationClientName', transaction.client_name || '');
     setValue('voucherRecommendationProjectName', transaction.project_name || '');
-    setValue('voucherRecommendationTransactionType', transaction.transaction_type || '');
+    setValue('voucherRecommendationOperationType', transaction.operation_type || '');
     setValue('voucherRecommendationTransactionDirection', transaction.transaction_direction || '');
     setValue('voucherRecommendationSupplyAmount', formatNumber(transaction.supply_amount || 0));
     setValue('voucherRecommendationVatAmount', formatNumber(transaction.vat_amount || 0));

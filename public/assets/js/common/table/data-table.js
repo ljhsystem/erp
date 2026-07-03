@@ -6,6 +6,7 @@
 // Path: /assets/js/common/table/data-table.js
 import { createTableInteraction } from './index.js';
 import { applyVisibilityToTable, attachDataTableSettings, prepareDataTableSettingsColumns, updateDataTableSettingsState } from '../datatable/dataTableSettings.js';
+import { applyActorDataTableColumn } from '../actor.js';
 
 const __dtAdjustState = new WeakMap();
 const __dtInstances = new Set();
@@ -214,6 +215,10 @@ function withUtilityColumnDefaults(column = {}) {
 
 function normalizeUtilityColumns(columns = []) {
     return columns.map(withUtilityColumnDefaults);
+}
+
+function normalizeActorColumns(columns = []) {
+    return columns.map(applyActorDataTableColumn);
 }
 
 function parseJsonResponse(response) {
@@ -791,6 +796,7 @@ function createSelectionColumn(tableSelector, selectedIds, rowIdField, isRowSele
     const settingsKey = String(options?.settingsKey || '__select').trim() || '__select';
 
     return {
+        key: settingsKey,
         data: null,
         title: `<input type="checkbox" class="form-check-input dt-select-all" id="${escapeAttr(checkAllId)}" aria-label="\uC804\uCCB4 \uC120\uD0DD">`,
         className: 'dt-select-column no-colvis text-center',
@@ -800,6 +806,7 @@ function createSelectionColumn(tableSelector, selectedIds, rowIdField, isRowSele
         defaultContent: '',
         isSelectionColumn: true,
         settingsKey,
+        __dtColumnKind: 'virtual',
         ...(width !== '' ? { width } : {}),
         ...(widthResizable ? { widthResizable: true } : {}),
         render: (_value, _type, row) => {
@@ -2359,7 +2366,7 @@ export function createDataTable(config) {
     const resolvedAutoWidth = hasExplicitAutoWidth
         ? autoWidth
         : (resolvedTableSettings?.enabled ? false : autoWidth);
-    const tableColumns = normalizeUtilityColumns(resolvedColumns);
+    const tableColumns = normalizeUtilityColumns(normalizeActorColumns(resolvedColumns));
     if (preparedTableSettings.context) {
         preparedTableSettings.context.tableColumns = tableColumns.map((column) => ({ ...column }));
     }
@@ -2401,20 +2408,10 @@ export function createDataTable(config) {
             dataSrc: function (json) {
                 if (typeof dataSrc === 'function') {
                     const rows = dataSrc(json);
-                    if (isClientTableDiagnostic) {
-                        console.log('[CLIENT] response', json);
-                        console.log('[CLIENT] count', json?.data?.length);
-                        console.log('[CLIENT] rows', rows?.length);
-                    }
                     return Array.isArray(rows) ? rows : [];
                 }
 
                 const rows = json.data ?? [];
-                if (isClientTableDiagnostic) {
-                    console.log('[CLIENT] response', json);
-                    console.log('[CLIENT] count', json?.data?.length);
-                    console.log('[CLIENT] rows', rows?.length);
-                }
                 return rows;
             }
             },

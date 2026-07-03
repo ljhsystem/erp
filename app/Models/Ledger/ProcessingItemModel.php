@@ -176,6 +176,19 @@ class ProcessingItemModel
         $totalAmount = $source['total_amount']
             ?? max((float) ($source['deposit_amount'] ?? 0), (float) ($source['withdraw_amount'] ?? 0));
         $displayPath = $this->rootDisplayPath($sourceTable, $source);
+        $lineType = $sourceType;
+        foreach ([
+            $source['operation_type'] ?? null,
+            $source['transaction_direction'] ?? null,
+            $source['import_type'] ?? null,
+            $source['source_type'] ?? null,
+        ] as $candidateLineType) {
+            $candidateLineType = trim((string) ($candidateLineType ?? ''));
+            if ($candidateLineType !== '') {
+                $lineType = $candidateLineType;
+                break;
+            }
+        }
 
         $ok = $this->insert([
             'id' => $id,
@@ -188,7 +201,7 @@ class ProcessingItemModel
             'is_current' => 1,
             'sort_no' => ctype_digit($displayPath) ? (int) $displayPath : 1,
             'item_type' => 'DEFAULT',
-            'line_type' => $source['transaction_type'] ?? $sourceType,
+            'line_type' => $lineType,
             'item_status' => $source['evidence_status'] ?? $source['status'] ?? 'ACTIVE',
             'transaction_status' => $source['transaction_status'] ?? 'NONE',
             'voucher_status' => $source['voucher_status'] ?? 'NONE',

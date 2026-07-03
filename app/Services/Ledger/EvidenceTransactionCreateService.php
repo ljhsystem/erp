@@ -317,10 +317,10 @@ class EvidenceTransactionCreateService
             'COALESCE(pr.processing_status, \'READY\') IN (' . implode(', ', $claimableStatuses) . ')',
             'p.deleted_at IS NULL',
         ];
-        $transactionTypes = $this->transactionProcessingDataTypes();
+        $eligibleImportTypes = $this->transactionProcessingDataTypes();
         $typePlaceholders = [];
-        foreach ($transactionTypes as $index => $type) {
-            $key = ':transaction_type_' . $index;
+        foreach ($eligibleImportTypes as $index => $type) {
+            $key = ':import_type_' . $index;
             $typePlaceholders[] = $key;
             $params[$key] = $type;
         }
@@ -425,7 +425,7 @@ class EvidenceTransactionCreateService
             : "COALESCE(pr.processing_status, 'READY') = 'READY'";
         $typePlaceholders = [];
         foreach ($this->transactionProcessingDataTypes() as $index => $type) {
-            $key = ':transaction_type_' . $index;
+            $key = ':import_type_' . $index;
             $typePlaceholders[] = $key;
             $params[$key] = $type;
         }

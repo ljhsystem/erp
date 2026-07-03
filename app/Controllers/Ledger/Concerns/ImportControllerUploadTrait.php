@@ -11,10 +11,9 @@ trait ImportControllerUploadTrait
         $direction = strtoupper(trim($direction));
 
         return match ($direction) {
-            'PURCHASE', 'BUY', '매입' => 'PURCHASE',
-            'SALES', 'SALE', 'SELL', '매출' => 'SALES',
-            'IN', 'DEPOSIT', 'RECEIPT', '입금' => 'IN',
-            'OUT', 'WITHDRAWAL', 'PAYMENT', '출금' => 'OUT',
+            'PURCHASE', 'BUY', 'EXPENSE', '지출', '매입' => 'EXPENSE',
+            'SALES', 'SALE', 'SELL', 'INCOME', '수입', '매출' => 'INCOME',
+            'IN', 'OUT', 'DEPOSIT', 'RECEIPT', 'WITHDRAWAL', 'PAYMENT', 'WITHDRAW', 'FUND', '자금', '입금', '출금' => 'FUND',
             default => '',
         };
     }

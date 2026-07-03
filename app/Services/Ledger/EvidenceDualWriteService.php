@@ -111,7 +111,7 @@ class EvidenceDualWriteService
         $row['total_amount'] = $payload['total_amount'] ?? null;
         $row['create_sort_no'] = $payload['_create_sort_no'] ?? 0;
         $row['status_sort_no'] = $payload['_status_sort_no'] ?? 0;
-        $row['evidence_status'] = !empty($row['deleted_at']) ? 'DELETED' : 'ACTIVE';
+        $row['evidence_status'] = $this->storedEvidenceStatusForSync((string) ($row['source_type'] ?? ''), $evidenceId);
 
         return $this->syncFromLegacyRow($row);
     }
@@ -242,7 +242,7 @@ class EvidenceDualWriteService
         $deposit = $this->decimal($payload['raw_deposit_amount'] ?? ($payload['deposit_amount'] ?? null));
         $withdraw = $this->decimal($payload['raw_withdraw_amount'] ?? ($payload['withdraw_amount'] ?? null));
 
-        return [
+        $payload = [
             'id' => (string) $legacy['id'],
             'sort_no' => $this->sortNo($legacy, self::BANK_TABLE),
             'evidence_sort_no' => $this->evidenceSortNo($legacy, self::BANK_TABLE),
@@ -251,7 +251,7 @@ class EvidenceDualWriteService
             'import_type' => $this->importTypeForBody($payload, (string) ($legacy['source_type'] ?? '')),
             'business_unit' => $this->nullableString($payload['business_unit'] ?? null),
             'transaction_direction' => $transactionDirection,
-            'transaction_type' => $this->nullableString($payload['transaction_type'] ?? null),
+            'operation_type' => $this->nullableString($payload['operation_type'] ?? null),
             'client_id' => $this->nullableString($legacy['client_id'] ?? null),
             'project_id' => $this->nullableString($legacy['project_id'] ?? null),
             'bank_account_id' => $bankAccountId !== '' ? $bankAccountId : null,
@@ -266,44 +266,41 @@ class EvidenceDualWriteService
             'raw_counterparty_account_number' => $this->nullableString($payload['raw_counterparty_account_number'] ?? ($payload['counterparty_account_number'] ?? null)),
             'raw_counterparty_bank_name' => $this->nullableString($payload['raw_counterparty_bank_name'] ?? ($payload['counterparty_bank_name'] ?? null)),
             'raw_memo' => $this->nullableString($payload['raw_memo'] ?? ($payload['memo'] ?? null)),
-            'raw_transaction_type' => $this->nullableString($payload['raw_transaction_type'] ?? ($payload['transaction_type'] ?? null)),
+            'raw_transaction_type' => $this->nullableString($payload['raw_transaction_type'] ?? null),
             'raw_check_bill_amount' => $this->decimal($payload['raw_check_bill_amount'] ?? ($payload['check_bill_amount'] ?? null)),
             'raw_cms_code' => $this->nullableString($payload['raw_cms_code'] ?? ($payload['bank_reference_no'] ?? null)),
             'raw_counterparty_name' => $this->nullableString($payload['raw_counterparty_name'] ?? ($payload['counterparty_name'] ?? null)),
             'balance_status' => $this->nullableString($payload['balance_status'] ?? null),
             'evidence_status' => $this->evidenceStatus($legacy),
-            'created_by' => $this->actorColumnValue($legacy['created_by'] ?? null),
-            'updated_at' => $this->dateTime($legacy['updated_at'] ?? null),
-            'updated_by' => $this->actorColumnValue($legacy['updated_by'] ?? null),
-            'deleted_at' => $this->dateTime($legacy['deleted_at'] ?? null),
-            'deleted_by' => $this->actorColumnValue($legacy['deleted_by'] ?? null),
         ];
+
+        return $this->withAuditColumns($payload, $legacy);
     }
 
     private function buildTaxInvoicePayload(array $legacy, string $targetTable = self::TAX_TABLE): ?array
     {
         $payload = $this->mappedPayload($legacy);
-        $writtenDate = $this->dateOnly($this->firstValue($payload, ['raw_written_date', 'written_date', 'write_date', 'evidence_date']));
-        $approvalNo = $this->nullableString($this->firstValue($payload, ['raw_approval_no', 'approval_number']));
-        $issueDate = $this->dateOnly($this->firstValue($payload, ['raw_issue_date', 'issue_date']));
-        $transmitDate = $this->dateOnly($this->firstValue($payload, ['raw_transmit_date', 'transmit_date']));
-        $supplierBranchNo = $this->nullableString($this->firstValue($payload, ['raw_supplier_branch_no', 'supplier_branch_number']));
-        $supplierCeoName = $this->nullableString($this->firstValue($payload, ['raw_supplier_ceo_name', 'supplier_ceo_name']));
-        $supplierAddress = $this->nullableString($this->firstValue($payload, ['raw_supplier_address', 'supplier_address']));
-        $supplierEmail = $this->nullableString($this->firstValue($payload, ['raw_supplier_email', 'supplier_email']));
-        $customerBranchNo = $this->nullableString($this->firstValue($payload, ['raw_customer_branch_no', 'customer_branch_number']));
-        $customerCeoName = $this->nullableString($this->firstValue($payload, ['raw_customer_ceo_name', 'customer_ceo_name']));
-        $customerAddress = $this->nullableString($this->firstValue($payload, ['raw_customer_address', 'customer_address']));
-        $customerEmail1 = $this->nullableString($this->firstValue($payload, ['raw_customer_email1', 'customer_email_1']));
-        $customerEmail2 = $this->nullableString($this->firstValue($payload, ['raw_customer_email2', 'customer_email_2']));
-        $invoiceCategory = $this->nullableString($this->firstValue($payload, ['raw_invoice_category', 'tax_invoice_category']));
-        $invoiceKind = $this->nullableString($this->firstValue($payload, ['raw_invoice_kind', 'tax_invoice_type']));
-        $issueType = $this->nullableString($this->firstValue($payload, ['raw_issue_type', 'issue_type']));
-        $claimType = $this->nullableString($this->firstValue($payload, ['raw_claim_type', 'receipt_claim_type']));
-        $rawSupplyAmount = $this->decimal($this->firstValue($payload, ['raw_supply_amount', 'supply_amount']) ?? ($legacy['supply_amount'] ?? null));
-        $rawVatAmount = $this->decimal($this->firstValue($payload, ['raw_vat_amount', 'vat_amount']) ?? ($legacy['vat_amount'] ?? null));
-        $rawTotalAmount = $this->decimal($this->firstValue($payload, ['raw_total_amount', 'total_amount']) ?? ($legacy['total_amount'] ?? null));
-        $rawNote = $this->nullableString($this->firstValue($payload, ['raw_note', 'note', 'description']));
+        $writtenDate = $this->dateOnlyWithExplicitPreference($payload, ['raw_written_date'], ['written_date', 'write_date', 'evidence_date']);
+        $approvalNo = $this->nullableStringWithExplicitPreference($payload, ['raw_approval_no'], ['approval_number']);
+        $issueDate = $this->dateOnlyWithExplicitPreference($payload, ['raw_issue_date'], ['issue_date']);
+        $transmitDate = $this->dateOnlyWithExplicitPreference($payload, ['raw_transmit_date'], ['transmit_date']);
+        $supplierBranchNo = $this->nullableStringWithExplicitPreference($payload, ['raw_supplier_branch_no'], ['supplier_branch_number']);
+        $supplierCeoName = $this->nullableStringWithExplicitPreference($payload, ['raw_supplier_ceo_name'], ['supplier_ceo_name']);
+        $supplierAddress = $this->nullableStringWithExplicitPreference($payload, ['raw_supplier_address'], ['supplier_address']);
+        $supplierEmail = $this->nullableStringWithExplicitPreference($payload, ['raw_supplier_email'], ['supplier_email']);
+        $customerBranchNo = $this->nullableStringWithExplicitPreference($payload, ['raw_customer_branch_no'], ['customer_branch_number']);
+        $customerCeoName = $this->nullableStringWithExplicitPreference($payload, ['raw_customer_ceo_name'], ['customer_ceo_name']);
+        $customerAddress = $this->nullableStringWithExplicitPreference($payload, ['raw_customer_address'], ['customer_address']);
+        $customerEmail1 = $this->nullableStringWithExplicitPreference($payload, ['raw_customer_email1'], ['customer_email_1']);
+        $customerEmail2 = $this->nullableStringWithExplicitPreference($payload, ['raw_customer_email2'], ['customer_email_2']);
+        $invoiceCategory = $this->nullableStringWithExplicitPreference($payload, ['raw_invoice_category'], ['tax_invoice_category']);
+        $invoiceKind = $this->nullableStringWithExplicitPreference($payload, ['raw_invoice_kind'], ['tax_invoice_type']);
+        $issueType = $this->nullableStringWithExplicitPreference($payload, ['raw_issue_type'], ['issue_type']);
+        $claimType = $this->nullableStringWithExplicitPreference($payload, ['raw_claim_type'], ['receipt_claim_type']);
+        $rawSupplyAmount = $this->decimalWithExplicitPreference($payload, ['raw_supply_amount'], ['supply_amount'], $legacy['supply_amount'] ?? null);
+        $rawVatAmount = $this->decimalWithExplicitPreference($payload, ['raw_vat_amount'], ['vat_amount'], $legacy['vat_amount'] ?? null);
+        $rawTotalAmount = $this->decimalWithExplicitPreference($payload, ['raw_total_amount'], ['total_amount'], $legacy['total_amount'] ?? null);
+        $rawNote = $this->nullableStringWithExplicitPreference($payload, ['raw_note'], ['note', 'description']);
         $evidenceDate = $this->dateOnly(
             $legacy['evidence_date']
             ?? $this->firstValue($payload, ['evidence_date', 'raw_written_date', 'written_date', 'write_date', 'transaction_date', 'raw_issue_date', 'issue_date'])
@@ -316,14 +313,14 @@ class EvidenceDualWriteService
         $supplierName = trim((string) ($this->firstValue($payload, ['supplier_company_name', 'raw_supplier_company_name']) ?? ''));
         $customerBn = trim((string) ($this->firstValue($payload, ['customer_business_number', 'raw_customer_business_number']) ?? ''));
         $customerName = trim((string) ($this->firstValue($payload, ['customer_company_name', 'raw_customer_company_name']) ?? ''));
-        $rawItemDate = $this->dateOnly($this->firstValue($payload, ['raw_item_date', 'item_date']));
-        $rawItemName = $this->nullableString($this->firstValue($payload, ['raw_item_name', 'item_name']));
-        $rawItemSpec = $this->nullableString($this->firstValue($payload, ['raw_item_spec', 'item_spec']));
-        $rawItemQuantity = $this->decimal($this->firstValue($payload, ['raw_item_quantity', 'item_qty', 'quantity']));
-        $rawItemUnitPrice = $this->decimal($this->firstValue($payload, ['raw_item_unit_price', 'item_price', 'unit_price']));
-        $rawItemSupplyAmount = $this->decimal($this->firstValue($payload, ['raw_item_supply_amount', 'item_supply_amount']));
-        $rawItemTaxAmount = $this->decimal($this->firstValue($payload, ['raw_item_tax_amount', 'item_vat_amount']));
-        $rawItemNote = $this->nullableString($this->firstValue($payload, ['raw_item_note', 'item_note']));
+        $rawItemDate = $this->dateOnlyWithExplicitPreference($payload, ['raw_item_date'], ['item_date']);
+        $rawItemName = $this->nullableStringWithExplicitPreference($payload, ['raw_item_name'], ['item_name']);
+        $rawItemSpec = $this->nullableStringWithExplicitPreference($payload, ['raw_item_spec'], ['item_spec']);
+        $rawItemQuantity = $this->decimalWithExplicitPreference($payload, ['raw_item_quantity'], ['item_qty', 'quantity']);
+        $rawItemUnitPrice = $this->decimalWithExplicitPreference($payload, ['raw_item_unit_price'], ['item_price', 'unit_price']);
+        $rawItemSupplyAmount = $this->decimalWithExplicitPreference($payload, ['raw_item_supply_amount'], ['item_supply_amount']);
+        $rawItemTaxAmount = $this->decimalWithExplicitPreference($payload, ['raw_item_tax_amount'], ['item_vat_amount']);
+        $rawItemNote = $this->nullableStringWithExplicitPreference($payload, ['raw_item_note'], ['item_note']);
         $supplyAmount = $rawSupplyAmount;
         $vatAmount = $rawVatAmount;
         $totalAmount = $rawTotalAmount;
@@ -332,7 +329,7 @@ class EvidenceDualWriteService
             return null;
         }
 
-        return [
+        $payload = [
             'id' => (string) $legacy['id'],
             'sort_no' => $this->sortNo($legacy, $targetTable),
             'evidence_sort_no' => $this->evidenceSortNo($legacy, $targetTable),
@@ -351,9 +348,9 @@ class EvidenceDualWriteService
             'raw_transmit_date' => $transmitDate,
             'issue_date' => $issueDate,
             'transmit_date' => $transmitDate,
-            'raw_supplier_business_number' => $this->nullableString($this->firstValue($payload, ['raw_supplier_business_number', 'supplier_business_number'])),
+            'raw_supplier_business_number' => $this->nullableStringWithExplicitPreference($payload, ['raw_supplier_business_number'], ['supplier_business_number']),
             'raw_supplier_branch_no' => $supplierBranchNo,
-            'raw_supplier_company_name' => $this->nullableString($this->firstValue($payload, ['raw_supplier_company_name', 'supplier_company_name'])),
+            'raw_supplier_company_name' => $this->nullableStringWithExplicitPreference($payload, ['raw_supplier_company_name'], ['supplier_company_name']),
             'raw_supplier_ceo_name' => $supplierCeoName,
             'raw_supplier_address' => $supplierAddress,
             'raw_supplier_email' => $supplierEmail,
@@ -363,9 +360,9 @@ class EvidenceDualWriteService
             'supplier_ceo_name' => $supplierCeoName,
             'supplier_address' => $supplierAddress,
             'supplier_email' => $supplierEmail,
-            'raw_customer_business_number' => $this->nullableString($this->firstValue($payload, ['raw_customer_business_number', 'customer_business_number'])),
+            'raw_customer_business_number' => $this->nullableStringWithExplicitPreference($payload, ['raw_customer_business_number'], ['customer_business_number']),
             'raw_customer_branch_no' => $customerBranchNo,
-            'raw_customer_company_name' => $this->nullableString($this->firstValue($payload, ['raw_customer_company_name', 'customer_company_name'])),
+            'raw_customer_company_name' => $this->nullableStringWithExplicitPreference($payload, ['raw_customer_company_name'], ['customer_company_name']),
             'raw_customer_ceo_name' => $customerCeoName,
             'raw_customer_address' => $customerAddress,
             'raw_customer_email1' => $customerEmail1,
@@ -401,37 +398,73 @@ class EvidenceDualWriteService
             'service_amount' => $this->decimal($payload['service_amount'] ?? null),
             'total_amount' => $totalAmount,
             'raw_note' => $rawNote,
-            'description' => $this->nullableString($this->firstValue($payload, ['description', 'raw_note'])),
-            'memo' => $this->nullableString($this->firstValue($payload, ['memo', 'raw_note'])),
-            'updated_at' => $this->dateTime($legacy['updated_at'] ?? null),
-            'deleted_at' => $this->dateTime($legacy['deleted_at'] ?? null),
+            'description' => $this->nullableStringWithExplicitPreference($payload, ['raw_note'], ['description']),
+            'memo' => $this->nullableStringWithExplicitPreference($payload, ['raw_note'], ['memo']),
         ];
+
+        return $this->withAuditColumns($payload, $legacy);
     }
 
     private function buildCashReceiptPayload(array $legacy): ?array
     {
         $payload = $this->mappedPayload($legacy);
-        $evidenceDate = $this->dateOnly($legacy['evidence_date'] ?? ($payload['evidence_date'] ?? null));
-        $supplyAmount = $this->decimal($payload['supply_amount'] ?? ($legacy['supply_amount'] ?? null));
-        $vatAmount = $this->decimal($payload['vat_amount'] ?? ($legacy['vat_amount'] ?? null));
-        $totalAmount = $this->decimal($payload['total_amount'] ?? ($legacy['total_amount'] ?? null));
+        $evidenceDate = $this->dateOnly(
+            $legacy['evidence_date']
+            ?? $this->firstValue($payload, [
+                'purchase_datetime',
+                'purchase_date',
+                'raw_purchase_datetime',
+                'raw_purchase_date',
+                'evidence_date',
+            ])
+        );
+        $supplyAmount = $this->decimalWithExplicitPreference(
+            $payload,
+            ['raw_supply_amount'],
+            ['supply_amount'],
+            $legacy['supply_amount'] ?? null
+        );
+        $vatAmount = $this->decimalWithExplicitPreference(
+            $payload,
+            ['raw_vat_amount'],
+            ['vat_amount'],
+            $legacy['vat_amount'] ?? null
+        );
+        $totalAmount = $this->decimalWithExplicitPreference(
+            $payload,
+            ['raw_total_amount'],
+            ['total_amount'],
+            $legacy['total_amount'] ?? null
+        );
+        $cashReceiptImportType = $this->cashReceiptImportTypeForBody($payload, (string) ($legacy['source_type'] ?? ''));
+        $transactionDirection = $this->normalizeCashReceiptTransactionDirection($payload, $cashReceiptImportType);
         if ($evidenceDate === null || $supplyAmount === null || $vatAmount === null || $totalAmount === null) {
             return null;
         }
 
-        return [
+        $payload = [
             'id' => (string) $legacy['id'],
             'sort_no' => $this->sortNo($legacy, self::CASH_TABLE),
             'evidence_sort_no' => $this->evidenceSortNo($legacy, self::CASH_TABLE),
             'source_type' => $this->sourceTypeForBody((string) ($legacy['source_type'] ?? '')),
-            'import_type' => $this->importTypeForBody($payload, (string) ($legacy['source_type'] ?? '')),
+            'import_type' => $cashReceiptImportType,
+            'transaction_direction' => $transactionDirection,
             'external_key' => (string) ($legacy['source_key'] ?? ''),
             'evidence_date' => $evidenceDate,
             'client_id' => $this->nullableString($legacy['client_id'] ?? null),
             'project_id' => $this->nullableString($legacy['project_id'] ?? null),
             'raw_client_name' => $this->nullableString($legacy['client_name'] ?? null),
             'evidence_status' => $this->evidenceStatus($legacy),
-            'write_date' => $this->dateTime($payload['write_date'] ?? ($payload['transaction_datetime'] ?? null)),
+            'write_date' => $this->dateTime(
+                $this->firstValue($payload, [
+                    'purchase_datetime',
+                    'purchase_date',
+                    'raw_purchase_datetime',
+                    'raw_purchase_date',
+                    'write_date',
+                    'transaction_datetime',
+                ])
+            ),
             'issue_method' => $this->nullableString($payload['issue_method'] ?? null),
             'merchant_business_number' => $this->nullableString($payload['merchant_business_number'] ?? null),
             'merchant_company_name' => $this->nullableString($payload['merchant_company_name'] ?? null),
@@ -440,118 +473,278 @@ class EvidenceDualWriteService
             'service_amount' => $this->decimal($payload['service_amount'] ?? null),
             'total_amount' => $totalAmount,
             'memo' => $this->nullableString($payload['memo'] ?? null),
-            'updated_at' => $this->dateTime($legacy['updated_at'] ?? null),
-            'deleted_at' => $this->dateTime($legacy['deleted_at'] ?? null),
         ];
+
+        return $this->withAuditColumns($payload, $legacy);
     }
 
     private function buildCardHometaxPayload(array $legacy): ?array
     {
         $payload = $this->mappedPayload($legacy);
-        $evidenceDate = $this->dateOnly($legacy['evidence_date'] ?? ($payload['evidence_date'] ?? null));
-        $supplyAmount = $this->decimal($payload['supply_amount'] ?? ($legacy['supply_amount'] ?? null));
-        $vatAmount = $this->decimal($payload['vat_amount'] ?? ($legacy['vat_amount'] ?? null));
-        $totalAmount = $this->decimal($payload['total_amount'] ?? ($legacy['total_amount'] ?? null));
+        $externalKeyCandidates = [
+            'payload_external_key' => $payload['external_key'] ?? null,
+            'raw_approval_no' => $payload['raw_approval_no'] ?? null,
+            'raw_approval_number' => $payload['raw_approval_number'] ?? null,
+            'approval_no' => $payload['approval_no'] ?? null,
+            'approval_number' => $payload['approval_number'] ?? null,
+            'legacy_external_key' => $legacy['external_key'] ?? null,
+            'payload_source_key' => $payload['source_key'] ?? null,
+            'legacy_source_key' => $legacy['source_key'] ?? null,
+        ];
+        $externalKey = $this->nullableString($this->firstValue($externalKeyCandidates, array_keys($externalKeyCandidates)));
+        $evidenceDate = $this->dateOnly(
+            $legacy['evidence_date']
+            ?? $this->firstValue($payload, [
+                'evidence_date',
+                'approval_datetime',
+                'approval_date',
+                'approved_at',
+                'approved_date',
+                'purchase_datetime',
+                'purchase_date',
+                'raw_approval_date',
+                'raw_purchase_datetime',
+                'raw_purchase_date',
+            ])
+        );
+        $approvalDate = $this->dateOnlyWithExplicitPreference(
+            $payload,
+            ['raw_approval_date'],
+            ['approval_datetime', 'approval_date', 'approved_at', 'approved_date', 'purchase_datetime', 'purchase_date']
+        );
+        $billingDate = $this->dateOnlyWithExplicitPreference(
+            $payload,
+            ['raw_billing_date'],
+            ['billing_date']
+        );
+        $cardNumber = $this->nullableStringWithExplicitPreference(
+            $payload,
+            ['raw_card_number'],
+            ['card_number']
+        );
+        $merchantBusinessNumber = $this->nullableStringWithExplicitPreference(
+            $payload,
+            ['raw_merchant_business_number'],
+            ['merchant_business_number']
+        );
+        $merchantCompanyName = $this->nullableStringWithExplicitPreference(
+            $payload,
+            ['raw_merchant_company_name'],
+            ['merchant_company_name']
+        );
+        $supplyAmount = $this->decimalWithExplicitPreference(
+            $payload,
+            ['raw_supply_amount'],
+            ['supply_amount'],
+            $legacy['supply_amount'] ?? null
+        );
+        $vatAmount = $this->decimalWithExplicitPreference(
+            $payload,
+            ['raw_vat_amount'],
+            ['vat_amount'],
+            $legacy['vat_amount'] ?? null
+        );
+        $totalAmount = $this->decimalWithExplicitPreference(
+            $payload,
+            ['raw_total_amount'],
+            ['total_amount'],
+            $legacy['total_amount'] ?? null
+        );
+        $serviceAmount = $this->decimalWithExplicitPreference(
+            $payload,
+            ['raw_service_amount'],
+            ['service_amount']
+        );
+        $feeAmount = $this->decimalWithExplicitPreference(
+            $payload,
+            ['raw_fee_amount'],
+            ['fee_amount']
+        );
         if ($evidenceDate === null || $supplyAmount === null || $vatAmount === null || $totalAmount === null) {
             return null;
         }
 
-        return [
+        $payload = [
             'id' => (string) $legacy['id'],
             'sort_no' => $this->sortNo($legacy, self::CARD_HOMETAX_TABLE),
             'evidence_sort_no' => $this->evidenceSortNo($legacy, self::CARD_HOMETAX_TABLE),
             'source_type' => $this->sourceTypeForBody((string) ($legacy['source_type'] ?? '')),
             'import_type' => $this->importTypeForBody($payload, (string) ($legacy['source_type'] ?? '')),
-            'external_key' => (string) ($legacy['source_key'] ?? ''),
+            'external_key' => $externalKey,
             'evidence_date' => $evidenceDate,
             'client_id' => $this->nullableString($legacy['client_id'] ?? null),
             'project_id' => $this->nullableString($legacy['project_id'] ?? null),
             'raw_client_name' => $this->nullableString($legacy['client_name'] ?? null),
             'evidence_status' => $this->evidenceStatus($legacy),
             'card_id' => $this->nullableString($legacy['card_id'] ?? ($payload['card_id'] ?? null)),
-            'raw_card_name' => $this->nullableString($legacy['card_name'] ?? ($payload['card_name'] ?? null)),
-            'raw_card_number' => $this->nullableString($payload['card_number'] ?? null),
-            'approval_date' => $this->dateOnly($payload['approval_date'] ?? null),
-            'billing_date' => $this->dateOnly($payload['billing_date'] ?? null),
-            'merchant_business_number' => $this->nullableString($payload['merchant_business_number'] ?? null),
-            'merchant_company_name' => $this->nullableString($payload['merchant_company_name'] ?? null),
+            'raw_card_name' => $this->nullableString($legacy['card_name'] ?? ($payload['card_name'] ?? ($payload['source_card_company_name'] ?? null))),
+            'raw_card_number' => $cardNumber,
+            'approval_date' => $approvalDate,
+            'billing_date' => $billingDate,
+            'merchant_business_number' => $merchantBusinessNumber,
+            'merchant_company_name' => $merchantCompanyName,
             'supply_amount' => $supplyAmount,
             'vat_amount' => $vatAmount,
-            'service_amount' => $this->decimal($payload['service_amount'] ?? null),
+            'service_amount' => $serviceAmount,
             'total_amount' => $totalAmount,
-            'fee_amount' => $this->decimal($payload['fee_amount'] ?? null),
-            'updated_at' => $this->dateTime($legacy['updated_at'] ?? null),
-            'deleted_at' => $this->dateTime($legacy['deleted_at'] ?? null),
+            'fee_amount' => $feeAmount,
         ];
+
+        return $this->withAuditColumns($payload, $legacy);
     }
 
     private function buildCardStatementPayload(array $legacy): ?array
     {
         $payload = $this->mappedPayload($legacy);
-        $approvalDate = $this->dateOnly($payload['approval_date'] ?? ($payload['transaction_date'] ?? ($legacy['evidence_date'] ?? null)));
-        return [
+        $approvalDate = $this->dateOnlyWithExplicitPreference(
+            $payload,
+            ['raw_approval_date'],
+            ['approval_date', 'approved_date', 'approval_datetime', 'approved_at', 'transaction_date', 'evidence_date']
+        ) ?? $this->dateOnly($legacy['evidence_date'] ?? null);
+        $externalKey = $this->nullableString($this->firstValue($payload, [
+            'external_key',
+            'source_key',
+            'raw_approval_number',
+            'raw_approval_no',
+            'approval_number',
+            'approval_no',
+            'raw_purchase_number',
+            'purchase_number',
+        ]) ?? ($legacy['external_key'] ?? ($legacy['source_key'] ?? '')));
+
+        $payloadForBody = [
             'id' => (string) $legacy['id'],
             'sort_no' => $this->sortNo($legacy, self::CARD_STATEMENT_TABLE),
             'evidence_sort_no' => $this->evidenceSortNo($legacy, self::CARD_STATEMENT_TABLE),
             'source_type' => $this->sourceTypeForBody((string) ($legacy['source_type'] ?? '')),
             'import_type' => $this->importTypeForBody($payload, (string) ($legacy['source_type'] ?? '')),
-            'external_key' => (string) ($legacy['source_key'] ?? ''),
+            'external_key' => $externalKey,
+            'evidence_date' => $approvalDate,
             'client_id' => $this->nullableString($legacy['client_id'] ?? null),
             'project_id' => $this->nullableString($legacy['project_id'] ?? null),
             'bank_account_id' => $this->nullableString($legacy['bank_account_id'] ?? ($payload['bank_account_id'] ?? null)),
             'card_id' => $this->nullableString($legacy['card_id'] ?? ($payload['card_id'] ?? null)),
             'team_id' => $this->nullableString($payload['team_id'] ?? null),
             'employee_id' => $this->nullableString($legacy['employee_id'] ?? ($payload['employee_id'] ?? null)),
-            'raw_receive_info_type_code' => $this->nullableString($payload['receive_info_type_code'] ?? null),
-            'raw_card_number' => $this->nullableString($payload['card_number'] ?? null),
-            'raw_card_type' => $this->nullableString($payload['card_type'] ?? null),
-            'raw_payment_account_number' => $this->nullableString($payload['payment_account_number'] ?? null),
-            'raw_payment_account_bank_name' => $this->nullableString($payload['payment_bank_name'] ?? null),
-            'raw_holder_name' => $this->nullableString($payload['designee_korean_name'] ?? null),
-            'raw_domestic_overseas_type' => $this->nullableString($payload['domestic_foreign_type'] ?? null),
-            'raw_approval_number' => $this->nullableString($payload['approval_number'] ?? null),
+            'raw_receive_info_type_code' => $this->nullableStringWithExplicitPreference($payload, ['raw_receive_info_type_code'], ['receive_info_type_code']),
+            'raw_card_number' => $this->nullableStringWithExplicitPreference($payload, ['raw_card_number'], ['card_number']),
+            'raw_card_type' => $this->nullableStringWithExplicitPreference($payload, ['raw_card_type'], ['card_type']),
+            'raw_payment_account_number' => $this->nullableStringWithExplicitPreference($payload, ['raw_payment_account_number'], ['payment_account_number']),
+            'raw_payment_account_bank_name' => $this->nullableStringWithExplicitPreference($payload, ['raw_payment_account_bank_name'], ['payment_bank_name']),
+            'raw_holder_name' => $this->nullableStringWithExplicitPreference($payload, ['raw_holder_name'], ['designee_korean_name', 'holder_name']),
+            'raw_domestic_overseas_type' => $this->nullableStringWithExplicitPreference($payload, ['raw_domestic_overseas_type'], ['domestic_foreign_type']),
+            'raw_approval_number' => $this->nullableStringWithExplicitPreference($payload, ['raw_approval_number', 'raw_approval_no'], ['approval_number', 'approval_no']),
             'raw_approval_date' => $approvalDate,
-            'raw_sales_type' => $this->nullableString($payload['sales_type'] ?? null),
-            'raw_amount_sign_code' => $this->nullableString($payload['amount_sign_code'] ?? null),
-            'raw_transaction_amount_krw' => $this->decimal($payload['transaction_amount_krw'] ?? ($payload['total_amount'] ?? null)),
-            'raw_vat_amount' => $this->decimal($payload['vat_amount'] ?? null),
-            'raw_service_fee_amount' => $this->decimal($payload['service_amount'] ?? null),
-            'raw_installment_period' => $this->nullableString($payload['installment_period'] ?? null),
-            'raw_installment_round' => $this->nullableString($payload['installment_sequence'] ?? null),
-            'raw_purchase_amount_krw' => $this->decimal($payload['purchase_amount_krw'] ?? null),
-            'raw_billing_date' => $this->dateOnly($payload['billing_date'] ?? null),
-            'raw_billing_amount' => $this->decimal($payload['billing_amount'] ?? null),
-            'raw_billing_fee_amount' => $this->decimal($payload['fee_amount'] ?? null),
-            'raw_actual_billing_amount' => $this->decimal($payload['actual_billing_amount'] ?? null),
-            'raw_prior_notice_amount' => $this->decimal($payload['previous_notice_amount'] ?? null),
-            'raw_transaction_amount_foreign' => $this->decimal($payload['foreign_amount'] ?? null),
-            'raw_local_amount' => $this->decimal($payload['local_amount'] ?? null),
-            'raw_local_currency_code' => $this->nullableString($payload['currency_code'] ?? null),
-            'raw_exchange_rate' => $this->decimal($payload['exchange_rate'] ?? null),
-            'raw_country_code' => $this->nullableString($payload['foreign_country_code'] ?? null),
-            'raw_country_name' => $this->nullableString($payload['foreign_country_name'] ?? null),
-            'raw_city_name' => $this->nullableString($payload['foreign_city_name'] ?? null),
-            'raw_merchant_business_number' => $this->nullableString($payload['merchant_business_number'] ?? null),
-            'raw_merchant_company_name' => $this->nullableString($payload['merchant_company_name'] ?? null),
-            'raw_merchant_business_name' => $this->nullableString($payload['merchant_business_name'] ?? ($payload['merchant_business_category'] ?? null)),
-            'raw_merchant_zip_code' => $this->nullableString($payload['merchant_zip_code'] ?? null),
-            'raw_merchant_address1' => $this->nullableString($payload['merchant_address1'] ?? ($payload['merchant_address'] ?? null)),
-            'raw_merchant_address2' => $this->nullableString($payload['merchant_address2'] ?? null),
-            'raw_merchant_phone' => $this->nullableString($payload['merchant_phone'] ?? null),
-            'raw_account_code_name' => $this->nullableString($payload['accounting_code_name'] ?? null),
-            'raw_account_code' => $this->nullableString($payload['accounting_code'] ?? null),
-            'raw_headquarters_name' => $this->nullableString($payload['headquarters_name'] ?? null),
-            'raw_department_name' => $this->nullableString($payload['department_name'] ?? null),
+            'raw_sales_type' => $this->nullableStringWithExplicitPreference($payload, ['raw_sales_type'], ['sales_type']),
+            'raw_amount_sign_code' => $this->nullableStringWithExplicitPreference($payload, ['raw_amount_sign_code'], ['amount_sign_code']),
+            'raw_transaction_amount_krw' => $this->decimalWithExplicitPreference($payload, ['raw_transaction_amount_krw'], ['transaction_amount_krw', 'total_amount']),
+            'raw_vat_amount' => $this->decimalWithExplicitPreference($payload, ['raw_vat_amount'], ['vat_amount']),
+            'raw_service_fee_amount' => $this->decimalWithExplicitPreference($payload, ['raw_service_fee_amount'], ['service_amount']),
+            'raw_installment_period' => $this->nullableStringWithExplicitPreference($payload, ['raw_installment_period'], ['installment_period']),
+            'raw_installment_round' => $this->nullableStringWithExplicitPreference($payload, ['raw_installment_round'], ['installment_sequence']),
+            'raw_purchase_amount_krw' => $this->decimalWithExplicitPreference($payload, ['raw_purchase_amount_krw'], ['purchase_amount_krw']),
+            'raw_billing_date' => $this->dateOnlyWithExplicitPreference($payload, ['raw_billing_date'], ['billing_date']),
+            'raw_billing_amount' => $this->decimalWithExplicitPreference($payload, ['raw_billing_amount'], ['billing_amount']),
+            'raw_billing_fee_amount' => $this->decimalWithExplicitPreference($payload, ['raw_billing_fee_amount'], ['fee_amount']),
+            'raw_actual_billing_amount' => $this->decimalWithExplicitPreference($payload, ['raw_actual_billing_amount'], ['actual_billing_amount']),
+            'raw_prior_notice_amount' => $this->decimalWithExplicitPreference($payload, ['raw_prior_notice_amount'], ['previous_notice_amount']),
+            'raw_transaction_amount_foreign' => $this->decimalWithExplicitPreference($payload, ['raw_transaction_amount_foreign'], ['foreign_amount']),
+            'raw_local_amount' => $this->decimalWithExplicitPreference($payload, ['raw_local_amount'], ['local_amount']),
+            'raw_local_currency_code' => $this->nullableStringWithExplicitPreference($payload, ['raw_local_currency_code'], ['currency_code']),
+            'raw_exchange_rate' => $this->decimalWithExplicitPreference($payload, ['raw_exchange_rate'], ['exchange_rate']),
+            'raw_country_code' => $this->nullableStringWithExplicitPreference($payload, ['raw_country_code'], ['foreign_country_code']),
+            'raw_country_name' => $this->nullableStringWithExplicitPreference($payload, ['raw_country_name'], ['foreign_country_name']),
+            'raw_city_name' => $this->nullableStringWithExplicitPreference($payload, ['raw_city_name'], ['foreign_city_name']),
+            'raw_merchant_business_number' => $this->nullableStringWithExplicitPreference($payload, ['raw_merchant_business_number'], ['merchant_business_number']),
+            'raw_merchant_company_name' => $this->nullableStringWithExplicitPreference($payload, ['raw_merchant_company_name'], ['merchant_company_name']),
+            'raw_merchant_business_name' => $this->nullableStringWithExplicitPreference($payload, ['raw_merchant_business_name'], ['merchant_business_name', 'merchant_business_category']),
+            'raw_merchant_zip_code' => $this->nullableStringWithExplicitPreference($payload, ['raw_merchant_zip_code'], ['merchant_zip_code']),
+            'raw_merchant_address1' => $this->nullableStringWithExplicitPreference($payload, ['raw_merchant_address1'], ['merchant_address1', 'merchant_address']),
+            'raw_merchant_address2' => $this->nullableStringWithExplicitPreference($payload, ['raw_merchant_address2'], ['merchant_address2']),
+            'raw_merchant_phone' => $this->nullableStringWithExplicitPreference($payload, ['raw_merchant_phone'], ['merchant_phone']),
+            'raw_account_code_name' => $this->nullableStringWithExplicitPreference($payload, ['raw_account_code_name'], ['accounting_code_name']),
+            'raw_account_code' => $this->nullableStringWithExplicitPreference($payload, ['raw_account_code'], ['accounting_code']),
+            'raw_headquarters_name' => $this->nullableStringWithExplicitPreference($payload, ['raw_headquarters_name'], ['headquarters_name']),
+            'raw_department_name' => $this->nullableStringWithExplicitPreference($payload, ['raw_department_name'], ['department_name']),
             'evidence_status' => $this->evidenceStatus($legacy),
-            'updated_at' => $this->dateTime($legacy['updated_at'] ?? null),
-            'deleted_at' => $this->dateTime($legacy['deleted_at'] ?? null),
         ];
+
+        return $this->withAuditColumns($payloadForBody, $legacy);
     }
 
     private function mappedPayload(array $legacy): array
     {
+        if (isset($legacy['current_payload']) && is_array($legacy['current_payload'])) {
+            return $legacy['current_payload'];
+        }
+
         $json = json_decode((string) ($legacy['mapped_payload_json'] ?? ''), true);
         return is_array($json) ? $json : [];
+    }
+
+    private function withAuditColumns(array $payload, array $legacy): array
+    {
+        $createdAt = $this->auditDateTime(
+            $legacy['created_at'] ?? null,
+            $legacy['updated_at'] ?? null,
+            date('Y-m-d H:i:s')
+        );
+        $updatedAt = $this->auditDateTime(
+            $legacy['updated_at'] ?? null,
+            $legacy['created_at'] ?? null,
+            $createdAt
+        );
+        $deletedAt = $this->dateTime($legacy['deleted_at'] ?? null);
+        $createdBy = $this->auditActorValue(
+            $legacy['created_by'] ?? null,
+            $legacy['updated_by'] ?? null
+        );
+        $updatedBy = $this->auditActorValue(
+            $legacy['updated_by'] ?? null,
+            $legacy['created_by'] ?? null
+        );
+        $deletedBy = $deletedAt === null
+            ? null
+            : $this->auditActorValue($legacy['deleted_by'] ?? null, null);
+
+        $payload['created_at'] = $createdAt;
+        $payload['created_by'] = $createdBy;
+        $payload['updated_at'] = $updatedAt;
+        $payload['updated_by'] = $updatedBy;
+        $payload['deleted_at'] = $deletedAt;
+        $payload['deleted_by'] = $deletedBy;
+
+        return $payload;
+    }
+
+    private function auditDateTime(mixed $primary, mixed $secondary = null, mixed $fallback = null): ?string
+    {
+        $normalized = $this->dateTime($primary);
+        if ($normalized !== null) {
+            return $normalized;
+        }
+
+        $normalized = $this->dateTime($secondary);
+        if ($normalized !== null) {
+            return $normalized;
+        }
+
+        return $this->dateTime($fallback);
+    }
+
+    private function auditActorValue(mixed $primary, mixed $secondary = null): ?string
+    {
+        $normalized = $this->actorColumnValue($primary);
+        if ($normalized !== null && $normalized !== '') {
+            return $normalized;
+        }
+
+        $normalized = $this->actorColumnValue($secondary);
+        if ($normalized !== null && $normalized !== '') {
+            return $normalized;
+        }
+
+        return null;
     }
 
     private function tableExists(string $table): bool
@@ -682,7 +875,7 @@ class EvidenceDualWriteService
         }
 
         $stmt = $this->pdo->prepare("
-            SELECT id, sort_no, evidence_sort_no
+            SELECT id, sort_no, evidence_sort_no, evidence_status
             FROM `{$table}`
             WHERE id = :id
             LIMIT 1
@@ -697,11 +890,39 @@ class EvidenceDualWriteService
 
     private function evidenceStatus(array $legacy): string
     {
-        if (!empty($legacy['deleted_at'])) {
-            return 'DELETED';
+        $status = strtoupper(trim((string) ($legacy['evidence_status'] ?? '')));
+
+        return match ($status) {
+            'COMPLETED', 'READY', 'VERIFY_ONLY', '완료' => 'COMPLETED',
+            'CORRECTION_REQUIRED', 'NOT_READY', 'REVIEW_REQUIRED', 'INVALID', 'ERROR', '보정필요' => 'CORRECTION_REQUIRED',
+            default => 'CORRECTION_REQUIRED',
+        };
+    }
+
+    private function storedEvidenceStatusForSync(string $sourceType, string $id): string
+    {
+        $id = trim($id);
+        if ($id === '') {
+            return 'CORRECTION_REQUIRED';
         }
-        $status = strtoupper(trim((string) ($legacy['evidence_status'] ?? 'ACTIVE')));
-        return in_array($status, ['ACTIVE', 'DELETED', 'INVALID'], true) ? $status : 'ACTIVE';
+
+        $table = match (true) {
+            $this->isBankSource($sourceType) => self::BANK_TABLE,
+            $this->isTaxInvoiceSource($sourceType) => $sourceType === 'TAX_INVOICE_MANUAL' ? self::TAX_MANUAL_TABLE : self::TAX_TABLE,
+            $this->isCashReceiptSource($sourceType) => self::CASH_TABLE,
+            $sourceType === 'CARD_HOMETAX' => self::CARD_HOMETAX_TABLE,
+            $this->isCardPurchaseSource($sourceType) => self::CARD_STATEMENT_TABLE,
+            default => '',
+        };
+
+        if ($table === '') {
+            return 'CORRECTION_REQUIRED';
+        }
+
+        $existing = $this->existingRow($table, $id);
+        $status = strtoupper(trim((string) ($existing['evidence_status'] ?? '')));
+
+        return $status !== '' ? $this->evidenceStatus(['evidence_status' => $status]) : 'CORRECTION_REQUIRED';
     }
 
     private function firstValue(array $source, array $keys): mixed
@@ -724,6 +945,58 @@ class EvidenceDualWriteService
         }
 
         return null;
+    }
+
+    private function explicitValue(array $source, array $keys): array
+    {
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $source)) {
+                return [
+                    'found' => true,
+                    'value' => $source[$key],
+                ];
+            }
+        }
+
+        return [
+            'found' => false,
+            'value' => null,
+        ];
+    }
+
+    private function nullableStringWithExplicitPreference(array $source, array $preferredKeys, array $fallbackKeys = []): ?string
+    {
+        $explicit = $this->explicitValue($source, $preferredKeys);
+        if ($explicit['found']) {
+            return $this->nullableString($explicit['value']);
+        }
+
+        return $this->nullableString($this->firstValue($source, $fallbackKeys));
+    }
+
+    private function dateOnlyWithExplicitPreference(array $source, array $preferredKeys, array $fallbackKeys = []): ?string
+    {
+        $explicit = $this->explicitValue($source, $preferredKeys);
+        if ($explicit['found']) {
+            return $this->dateOnly($explicit['value']);
+        }
+
+        return $this->dateOnly($this->firstValue($source, $fallbackKeys));
+    }
+
+    private function decimalWithExplicitPreference(array $source, array $preferredKeys, array $fallbackKeys = [], mixed $default = null): ?float
+    {
+        $explicit = $this->explicitValue($source, $preferredKeys);
+        if ($explicit['found']) {
+            return $this->decimal($explicit['value']);
+        }
+
+        $fallback = $this->firstValue($source, $fallbackKeys);
+        if ($fallback !== null) {
+            return $this->decimal($fallback);
+        }
+
+        return $this->decimal($default);
     }
 
     private function nullableString(mixed $value): ?string
@@ -803,7 +1076,9 @@ class EvidenceDualWriteService
         return match ($normalized) {
             'BANK' => 'BANK_TRANSACTION',
             'HOMETAX' => 'TAX_INVOICE',
-            'CARD_COMPANY', 'CARD', 'CREDIT_CARD' => 'CARD_STATEMENT',
+            'CARD_COMPANY', 'CARD', 'CARD_PURCHASE', 'CREDIT_CARD' => 'CARD_STATEMENT',
+            'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_PURCHAS', 'CASH_RECEIPT_BUY',
+            'CASH_RECEIPT_SALES', 'CASH_RECEIPT_SALE', 'CASH_RECEIPT_SELL' => 'CASH_RECEIPT',
             default => $normalized,
         };
     }
@@ -814,7 +1089,7 @@ class EvidenceDualWriteService
 
         return match ($importType) {
             'BANK_TRANSACTION' => 'BANK',
-            'TAX_INVOICE', 'CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES', 'CARD_HOMETAX' => 'HOMETAX',
+            'TAX_INVOICE', 'CASH_RECEIPT', 'CARD_HOMETAX' => 'HOMETAX',
             'CARD_STATEMENT', 'CARD_APPROVAL' => 'CARD_COMPANY',
             'SHOPPING_ORDER' => 'SHOPPING',
             'IMPORT_INVOICE' => 'TRADE',
@@ -833,28 +1108,56 @@ class EvidenceDualWriteService
     private function normalizeBankTransactionDirection(array $payload): string
     {
         $direction = strtoupper(trim((string) ($payload['transaction_direction'] ?? $payload['bank_direction'] ?? '')));
-        if (in_array($direction, ['IN', 'OUT'], true)) {
-            return $direction;
+        if (in_array($direction, ['INCOME', 'SALES', 'SALE', 'SELL', 'OUT_SALE'], true)) {
+            return 'INCOME';
         }
-
-        $transactionType = strtoupper(trim((string) ($payload['transaction_type'] ?? '')));
-        if (in_array($transactionType, ['DEPOSIT', 'IN'], true)) {
-            return 'IN';
+        if (in_array($direction, ['EXPENSE', 'PURCHASE', 'BUY', 'IN_PURCHASE'], true)) {
+            return 'EXPENSE';
         }
-        if (in_array($transactionType, ['WITHDRAW', 'OUT'], true)) {
-            return 'OUT';
+        if (in_array($direction, ['FUND', 'IN', 'OUT'], true)) {
+            return 'FUND';
         }
 
         $deposit = $this->decimal($payload['raw_deposit_amount'] ?? ($payload['deposit_amount'] ?? null));
         $withdraw = $this->decimal($payload['raw_withdraw_amount'] ?? ($payload['withdraw_amount'] ?? null));
         if ($withdraw !== null && $withdraw > 0) {
-            return 'OUT';
+            return 'FUND';
         }
         if ($deposit !== null && $deposit > 0) {
-            return 'IN';
+            return 'FUND';
         }
 
         return '';
+    }
+
+    private function cashReceiptImportTypeForBody(array $payload, string $fallbackSourceType): string
+    {
+        return 'CASH_RECEIPT';
+    }
+
+    private function normalizeCashReceiptTransactionDirection(array $payload, string $importType): string
+    {
+        $direction = strtoupper(trim((string) ($payload['transaction_direction'] ?? '')));
+        $normalizedDirection = match ($direction) {
+            'INCOME', 'SALES', 'SALE', 'SELL', 'OUT_SALE' => 'INCOME',
+            'EXPENSE', 'PURCHASE', 'BUY', 'IN_PURCHASE' => 'EXPENSE',
+            default => '',
+        };
+        if ($normalizedDirection !== '') {
+            return $normalizedDirection;
+        }
+
+        $sourceHint = strtoupper(trim((string) (
+            $payload['import_type']
+            ?? $payload['data_type']
+            ?? $payload['source_type']
+            ?? $importType
+        )));
+        if (in_array($sourceHint, ['CASH_RECEIPT_SALES', 'CASH_RECEIPT_SALE', 'CASH_RECEIPT_SELL'], true)) {
+            return 'INCOME';
+        }
+
+        return 'EXPENSE';
     }
 
     private function isTaxInvoiceSource(string $sourceType): bool

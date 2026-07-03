@@ -226,6 +226,41 @@ function closeOpenSelect2Dropdowns() {
     return true;
 }
 
+function redirectFocusFromHiddenSelect(select) {
+    const $ = window.jQuery || window.$;
+    if (!select || !$?.fn?.select2) {
+        return;
+    }
+
+    if (!$(select).hasClass('select2-hidden-accessible')) {
+        return;
+    }
+
+    if (document.activeElement !== select) {
+        return;
+    }
+
+    const instance = $(select).data('select2');
+    const container = instance?.$container?.get?.(0) || select.nextElementSibling;
+    const selection = container?.querySelector('.select2-selection');
+
+    select.blur?.();
+
+    if (!selection) {
+        return;
+    }
+
+    if (!selection.hasAttribute('tabindex')) {
+        selection.setAttribute('tabindex', '0');
+    }
+
+    try {
+        selection.focus({ preventScroll: true });
+    } catch (error) {
+        selection.focus?.();
+    }
+}
+
 function bindModalCleanup() {
     if (modalCleanupBound) {
         return;
@@ -258,6 +293,11 @@ function closeSelect2InModal(modal) {
         } catch (error) {
             console.warn('[picker.select2] Select2 닫기 실패', error);
         }
+    });
+
+    modal.querySelectorAll('select.select2-hidden-accessible').forEach((select) => {
+        select.blur?.();
+        redirectFocusFromHiddenSelect(select);
     });
 }
 
@@ -467,9 +507,27 @@ function createSelect2(target, options = {}) {
     }
 
     $el.select2(finalOptions);
+    if (el.dataset.select2FocusFixBound !== 'true') {
+        el.dataset.select2FocusFixBound = 'true';
+        el.addEventListener('focus', () => {
+            redirectFocusFromHiddenSelect(el);
+        });
+    }
     bindCommonSelect2Options($el);
     $el.off('select2:open.pickerSearchFocusLocal')
-        .on('select2:open.pickerSearchFocusLocal', focusOpenSelect2Search);
+        .on('select2:open.pickerSearchFocusLocal', focusOpenSelect2Search)
+        .off('select2:close.pickerFocusFix')
+        .on('select2:close.pickerFocusFix', () => {
+            window.setTimeout(() => {
+                redirectFocusFromHiddenSelect(el);
+            }, 0);
+        })
+        .off('select2:closing.pickerFocusFix')
+        .on('select2:closing.pickerFocusFix', () => {
+            window.setTimeout(() => {
+                redirectFocusFromHiddenSelect(el);
+            }, 0);
+        });
 
     return $el;
 }
@@ -576,6 +634,7 @@ function createAjaxSelect2(target, options = {}) {
         minimumInputLength = 0,
         dataBuilder,
         processResults,
+        returnEmptyOnError = true,
         includeCommonNone,
         includeCommonAdd,
         quickAddEnabled: optionQuickAddEnabled,
@@ -596,6 +655,31 @@ function createAjaxSelect2(target, options = {}) {
             url,
             type: method,
             delay,
+            transport(params, success, failure) {
+                const request = $.ajax(params);
+                request.then((data) => {
+                    if (returnEmptyOnError && data?.success === false) {
+                        console.warn('[picker.select2] AJAX search returned success=false. Fallback to empty results.', {
+                            url,
+                            response: data
+                        });
+                        success({ results: [] });
+                        return;
+                    }
+                    success(data);
+                }).catch((error) => {
+                    if (returnEmptyOnError) {
+                        console.warn('[picker.select2] AJAX search failed. Fallback to empty results.', {
+                            url,
+                            error
+                        });
+                        success({ results: [] });
+                        return;
+                    }
+                    failure(error);
+                });
+                return request;
+            },
             data(params) {
                 if (typeof dataBuilder === 'function') {
                     return dataBuilder(params);
@@ -617,7 +701,7 @@ function createAjaxSelect2(target, options = {}) {
                     });
                 }
 
-                const rows = data?.data ?? data?.items ?? [];
+                const rows = data?.results ?? data?.data ?? data?.items ?? [];
 
                 return withCommonAjaxOptions({
                     results: rows.map(row => ({

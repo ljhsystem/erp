@@ -199,19 +199,42 @@ class DatabaseBackupService
             'warning' => 'If restore fails, Secondary DB will be recovered from the snapshot when possible.',
         ];
         $this->writeRestoreStatus($status);
-        $this->writeRestoreProgress('running', $latestFile, $startedAt, 'starting', 'Secondary DB 蹂듦뎄瑜?以鍮꾪븯怨??덉뒿?덈떎.');
+        $this->writeRestoreProgress(
+            'running',
+            $latestFile,
+            $startedAt,
+            'starting',
+            'Secondary DB 복구를 준비하고 있습니다.'
+        );
 
         try {
             $db = $this->getCurrentDatabaseName();
 
-            $this->writeRestoreProgress('running', $latestFile, $startedAt, 'load-secondary-config', 'Secondary DB ?ㅼ젙??遺덈윭?ㅺ퀬 ?덉뒿?덈떎.');
+            $this->writeRestoreProgress(
+                'running',
+                $latestFile,
+                $startedAt,
+                'load-secondary-config',
+                'Secondary DB 설정을 불러오고 있습니다.'
+            );
             $secondaryConfig = $this->getSecondaryConfig();
 
-            $this->writeRestoreProgress('running', $latestFile, $startedAt, 'connect-secondary', 'Secondary DB ?곌껐???뺤씤?섍퀬 ?덉뒿?덈떎.');
+            $this->writeRestoreProgress(
+                'running',
+                $latestFile,
+                $startedAt,
+                'connect-secondary',
+                'Secondary DB 연결을 확인하고 있습니다.'
+            );
             $secondaryPdo = $this->connectSecondaryPdo($secondaryConfig, $db);
 
-
-            $this->writeRestoreProgress('running', $latestFile, $startedAt, 'snapshot-secondary', 'Secondary DB ?ㅻ깄?룹쓣 ?앹꽦?섍퀬 ?덉뒿?덈떎.');
+            $this->writeRestoreProgress(
+                'running',
+                $latestFile,
+                $startedAt,
+                'snapshot-secondary',
+                'Secondary DB 스냅샷을 생성하고 있습니다.'
+            );
             $snapshotPath = $this->createSecondarySnapshot($secondaryPdo, $db);
             $dropCompleted = false;
 
@@ -229,18 +252,24 @@ class DatabaseBackupService
                 $rollbackResult = [
                     'attempted' => false,
                     'success' => false,
-                    'message' => '濡ㅻ갚???섑뻾?섏? 紐삵뻽?듬땲??',
+                    'message' => '롤백을 수행하지 못했습니다.',
                 ];
 
                 if ($dropCompleted) {
-                    $this->writeRestoreProgress('running', $latestFile, $startedAt, 'rollback-secondary', '蹂듦뎄 ?ㅽ뙣濡?Secondary DB 濡ㅻ갚??吏꾪뻾?섍퀬 ?덉뒿?덈떎.');
+                    $this->writeRestoreProgress(
+                        'running',
+                        $latestFile,
+                        $startedAt,
+                        'rollback-secondary',
+                        '복구 실패로 Secondary DB 롤백을 진행하고 있습니다.'
+                    );
                     $rollbackResult = $this->rollbackSecondaryFromSnapshot($snapshotPath, $secondaryConfig, $db);
                 }
 
                 $result = [
                     'success' => false,
                     'state' => 'failed',
-                    'message' => 'Secondary DB 蹂듦뎄???ㅽ뙣?덉뒿?덈떎.',
+                    'message' => 'Secondary DB 복구에 실패했습니다.',
                     'error' => $restoreError->getMessage(),
                     'file' => $latestFile,
                     'started_at' => $startedAt,
@@ -250,7 +279,7 @@ class DatabaseBackupService
                     'rollback_attempted' => $rollbackResult['attempted'],
                     'rollback_success' => $rollbackResult['success'],
                     'rollback_message' => $rollbackResult['message'],
-                    'warning' => '蹂듦뎄 ?ㅽ뙣 ??濡ㅻ갚???꾨즺?섏? ?딆븯?듬땲?? Secondary DB ?곹깭瑜?吏곸젒 ?뺤씤??二쇱꽭??',
+                    'warning' => '복구 실패 후 롤백도 완료하지 못했습니다. Secondary DB 상태를 직접 확인해 주세요.',
                 ];
 
                 $this->writeRestoreStatus($result);
@@ -586,8 +615,9 @@ class DatabaseBackupService
         }
 
         $config = require $configPath;
+
         if (empty($config['secondary']) || !is_array($config['secondary'])) {
-            throw new \RuntimeException('Secondary DB ?ㅼ젙???щ컮瑜댁? ?딆뒿?덈떎.');
+            throw new \RuntimeException('Secondary DB 설정이 올바르지 않습니다.');
         }
 
         return $config['secondary'];
@@ -682,7 +712,10 @@ class DatabaseBackupService
 
         if (!is_resource($process)) {
             $trace('proc-open-failed');
-            return ['success' => false, 'message' => 'mysql CLI ?ㅽ뻾???ㅽ뙣?덉뒿?덈떎.'];
+            return [
+                'success' => false,
+                'message' => 'mysql CLI 실행에 실패했습니다.',
+            ];
         }
 
         stream_set_blocking($pipes[0], false);
@@ -762,7 +795,7 @@ class DatabaseBackupService
 
                     return [
                         'success' => false,
-                        'message' => trim($stderr ?: $stdout ?: 'mysql ?꾨줈?몄뒪??SQL???꾨떖?섏? 紐삵뻽?듬땲??'),
+                        'message' => trim($stderr ?: $stdout ?: 'mysql 프로세스가 SQL을 처리하지 못했습니다.'),
                     ];
                 }
 
@@ -863,7 +896,7 @@ class DatabaseBackupService
         $result = [
             'attempted' => true,
             'success' => false,
-            'message' => '濡ㅻ갚???ㅽ뙣?덉뒿?덈떎.',
+            'message' => '롤백에 실패했습니다.',
         ];
 
         try {
@@ -873,8 +906,8 @@ class DatabaseBackupService
 
             $result['success'] = (bool) ($import['success'] ?? false);
             $result['message'] = !empty($import['success'])
-                ? '蹂듦뎄 ?ㅽ뙣 ??Secondary DB瑜??ㅻ깄?룹쑝濡?濡ㅻ갚?덉뒿?덈떎.'
-                : ($import['message'] ?? 'An unknown error occurred.');
+                ? '복구 실패 후 Secondary DB를 스냅샷으로 롤백했습니다.'
+                : ($import['message'] ?? '알 수 없는 오류가 발생했습니다.');
         } catch (Throwable $e) {
             $result['message'] = $e->getMessage();
         }

@@ -42,6 +42,35 @@ DB 변경은 별도 승인 필요.
 * 변경 파일 목록 보고
 * 변경 전후 결과 보고
 
+## Actor 처리 규칙
+
+- 생성자(`created_by`), 수정자(`updated_by`), 삭제자(`deleted_by`), 승인자(`approved_by`), 반려자(`rejected_by`), 복구자(`restored_by`), 처리자(`processed_by`), 업로드자(`uploaded_by`) 등 모든 Actor 필드는 공용 규칙을 따른다.
+- DB에는 Actor ID(UUID) 또는 Actor Token만 저장한다.
+- 저장 시 Actor 값은 반드시 `ActorHelper::user()` 또는 `ActorHelper::system()` 등 `ActorHelper`를 통해 공급받는다.
+- `AuthHelper::userId()`, `$_SESSION`, `$userId`, `$adminId` 등을 Actor 저장값으로 직접 저장하지 않는다.
+- Actor 문자열(`USER:`, `SYSTEM:`, `ADMIN:`, `EMPLOYEE:` 등)의 해석과 표시명 생성은 반드시 `ActorHelper`에서만 수행한다.
+- 조회/API 응답은 `ActorHelper::enrichActorNames()` 또는 `ActorHelper::enrichActorNamesRow()`를 통해 `*_by_name` 표시 필드를 제공한다.
+- 표준 표시 필드명은 `created_by_name`, `updated_by_name`, `deleted_by_name`, `approved_by_name`, `rejected_by_name`, `restored_by_name`, `processed_by_name`, `uploaded_by_name` 형식을 사용한다.
+- Actor 전용 표시명 필드는 신규 생성하지 않으며, 기존에 추가된 경우 제거 대상으로 분류한다.
+- SQL에서 `CONCAT('USER:'`, `CONCAT('SYSTEM:'`, `CONCAT('ADMIN:'`, `CONCAT('EMPLOYEE:'` 등으로 Actor 표시명을 생성하지 않는다.
+- JS(UI)는 Actor 문자열을 직접 가공하지 않는다.
+- JS에서 `replace()`, `split()`, `substring()`, `trim()`, 정규식 등으로 `USER:`, `SYSTEM:`, `ADMIN:`, `EMPLOYEE:` 접두사를 제거하거나 해석하지 않는다.
+- UI는 `*_by_name`을 우선 출력하고, 없을 경우에만 원본 `*_by` 값을 fallback으로 사용한다.
+- 엑셀 다운로드와 공용 컬럼 렌더링도 동일한 `*_by_name` 표시 규칙을 따른다.
+- 새로운 화면, 신규 기능, 리팩토링에서 `created_by`, `updated_by`, `deleted_by` 등 Actor 원본 필드를 직접 출력하지 않는다.
+- 화면별 Actor 표시 로직, Actor 문자열 파싱 로직, 별도 Actor 표시 필드 생성 로직을 새로 구현하지 않는다.
+- Actor 표시는 반드시 `ActorHelper`, `actorDisplay()`, `actorColumn()`, `actorExcel()`, `type: 'actor'` 공용 구조를 사용한다.
+- Actor 처리 공용 구조를 사용할 수 없는 예외가 있으면 구현 전에 사유와 영향 범위를 먼저 보고한다.
+
+## SSOT 보호 규칙
+
+- 다음 공용 SSOT는 변경하거나 우회 구현하지 않는다.
+- Actor SSOT는 `ActorHelper`, `actorDisplay()`, `actorColumn()`, `actorExcel()`, `type: 'actor'`를 기준으로 한다.
+- Transaction SSOT는 `business_unit`, `transaction_direction`, `operation_type`, `import_type`, `source_type`를 기준으로 한다.
+- 새로운 화면 또는 기능 개발 시 기존 SSOT를 우회하는 개별 구현을 금지한다.
+- 신규 구현과 리팩토링은 공용 SSOT를 사용하도록 개발한다.
+- 공용 SSOT를 사용할 수 없는 예외가 있으면 구현 전에 사유와 영향 범위를 먼저 보고한다.
+
 ## ERP 개발 표준 규칙
 
 ### 0. Architecture Guide
@@ -103,6 +132,59 @@ DB 변경은 별도 승인 필요.
 - JS 파일이 1000라인을 초과하면 분리 검토 대상이다.
 - JS 파일이 1500라인을 초과하면 분리 계획 수립이 필수다.
 - JS 파일이 2000라인을 초과하면 최우선 분리 대상으로 분류한다.
+- JS 파일 줄 수를 줄이기 위한 우회 분리를 금지한다.
+- `String.raw`, `eval`, `Function()`, 코드 내장용 template string 안에 기존 함수 본문이나 화면 로직을 문자열로 넣어 분리하는 방식을 금지한다.
+- JS 분리는 반드시 실제 함수, 실제 파일, 실제 ES 모듈 단위로 수행한다.
+- 모듈 분리 후에도 브라우저가 직접 읽는 파일에는 사람이 읽을 수 있는 실제 코드가 존재해야 한다.
+- 파일 줄 수가 많은 JS를 리팩토링할 때는 원본 파일 전체를 먼저 복사해서 분리 대상 파일을 만든다.
+- 대형 JS 분리는 필요한 부분만 일부 발췌해서 옮기는 방식보다 원본 전체 복사 후 각 파일에서 해당하지 않는 함수만 삭제하는 방식을 기본 원칙으로 사용한다.
+- 큰 덩어리의 원본 파일을 나눌 때는 복사본 기준으로 정리하고, 부분 이동 방식은 예기치 않은 의존성 누락과 구문 오류 위험이 있으므로 기본 방식으로 사용하지 않는다.
+
+### 4-1. 공통 옵션 병합(Merge) 규칙
+
+- 공통 Adapter에서 기본 옵션과 화면별 옵션을 병합할 때는 공통 기본값이 spread 순서 때문에 덮어써지지 않도록 한다.
+- `defaultColDef`, `defaultColGroupDef`, `components`, `frameworkComponents`, `context`, `localeText`, `statusBar`, `sideBar`, `popupParent`, `icons` 등 공통 Adapter가 제공하는 설정은 마지막 최종 객체에서 반드시 유지되어야 한다.
+- 아래 구조를 금지한다.
+
+```js
+const options = {
+    defaultColDef: mergedDefaultColDef,
+    ...
+    ...(config.gridOptions || {})
+}
+```
+
+- 위 구조처럼 공통 기본값보다 뒤에 오는 spread가 동일 키를 다시 펼치면 공통 기본 설정이 overwrite 되므로 사용하지 않는다.
+- 아래 두 방식을 허용한다.
+
+```js
+const options = {
+    ...
+    ...(config.gridOptions || {}),
+    defaultColDef: mergedDefaultColDef,
+}
+```
+
+```js
+const options = {
+    ...(config.gridOptions || {}),
+}
+
+options.defaultColDef = mergedDefaultColDef;
+```
+
+- 중첩 옵션은 먼저 병합 객체를 만든 뒤 최종 옵션에 마지막으로 적용한다.
+
+```js
+const mergedDefaultColDef = {
+    ...
+    ...(config.defaultColDef || {}),
+    ...(config.gridOptions?.defaultColDef || {}),
+}
+```
+
+- Adapter 수정 시 `createGrid()` 직전 기준으로 공통 기본값이 실제 최종 옵션에 남아 있는지 확인한다.
+- 검증 기준은 `console.log(gridOptions.defaultColDef)` 또는 동등한 런타임 캡처이며, `editable`, `resizable`, `sortable`, `suppressMovable` 같은 공통 기본값이 유지되어야 한다.
 
 ### 5. View 규칙
 
@@ -273,6 +355,12 @@ DB 변경은 별도 승인 필요.
 - 잘라내기(Cut)보다 복사(Copy) → 검증 → 제거(Delete) 순서를 우선한다.
 - 대규모 구조 변경 시 원본이 항상 살아 있어야 한다.
 - "복제 → 검증 → 제거" 원칙을 기본 리팩토링 전략으로 사용한다.
+- JS 모듈 분리 시 문자열 실행 기반 구조를 금지한다.
+- `String.raw`, `eval`, `Function()`, template string 안에 코드를 넣고 런타임에 해석하는 방식은 리팩토링으로 인정하지 않는다.
+- JS 모듈 분리는 함수 선언, export/import, 실제 파일 이동 기준으로만 수행한다.
+- 파일 줄 수가 많은 대형 JS 리팩토링은 반드시 원본 파일 전체 복사로 시작한다.
+- 분리 대상 파일은 원본을 복사한 뒤 파일별 책임에 맞지 않는 함수만 삭제하는 방식으로 정리한다.
+- 필요한 함수만 부분 발췌해서 신규 파일로 옮기는 방식은 의존성 누락과 런타임 오류 위험이 크므로 원칙적으로 금지한다.
 
 ### 10. 파일 크기 규칙
 
@@ -1243,3 +1331,18 @@ php -l 확인
 비정상 파일을 수정한 경우
 
 작업 실패로 간주한다.
+
+### 31. 증빙원본 Body Builder 규칙
+
+- 모든 자료유형은 공용 저장 프레임을 사용한다.
+- 저장 프레임은 다음 순서를 따른다.
+  - Form
+  - collectEditPayload()
+  - parsed_json
+  - mapped_payload_json
+  - syncFromLegacyRow()
+  - buildXXXPayload()
+  - Body Table
+- 자료유형별 차이는 `buildXXXPayload`에서만 처리한다.
+- SaveService, Controller, DualWrite 실행 구조, payload 생성 구조를 자료유형별로 새로 만들지 않는다.
+- Body Builder의 역할은 Form SSOT 기준 데이터만을 해석해 Body Table에 반영하는 것이다.

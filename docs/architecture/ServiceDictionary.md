@@ -154,7 +154,7 @@
   - Controllers: `ImportController`
   - Out of scope: readiness, rule engine, payload merge, reference resolution
 - `EvidenceRuleEngineService`
-  - Responsibility: readiness evaluation, readiness result assembly, transaction create error formatting
+  - Responsibility: business-required readiness evaluation, system readiness evaluation, readiness result assembly, transaction create error formatting
   - Controllers: `ImportController`
   - Out of scope: reference resolution, transaction context resolution, payload normalization
 - `EvidenceTypePolicyService`
@@ -186,13 +186,13 @@
   - Controllers: `ImportController`
   - Out of scope: transaction context resolution, transaction direction policy, business unit policy, DB schema change
 - `EvidenceTemplateService`
-  - Expanded responsibility: template download orchestration, template sheet fill, sample generation, selected-column header rendering for 자료유형별 증빙원본 템플릿
+  - Expanded responsibility: template download orchestration, template sheet fill, sample generation, and selected-column header rendering for evidence source templates.
   - Controllers: `EvidenceImportController`
-  - Out of scope: dropdown option/query lookup, 자료유형 필드 SSOT 결정, upload parse/save, DB schema change
+  - Out of scope: dropdown option/query lookup, evidence type field SSOT decisions, upload parse/save, DB schema change
 - `EvidenceDownloadService`
-  - Expanded responsibility: 증빙원본 자료유형별 다운로드 spreadsheet generation, selected-column filtering, `information_schema.COLUMNS` 기반 실DB 컬럼 헤더 출력
+  - Expanded responsibility: evidence source type spreadsheet download generation, selected-column filtering, and DB column header rendering based on `information_schema.COLUMNS`
   - Controllers: `EvidenceDownloadController`
-  - Out of scope: 화면 렌더링, DB schema change, controller response output
+  - Out of scope: page rendering, DB schema change, controller response output
 - `EvidenceTemplateDropdownService`
   - Responsibility: template dropdown build/apply, dropdown option lookup, bank template dropdown composition
   - Controllers: `ImportController`
@@ -214,7 +214,7 @@
   - Controllers: `ImportController`
   - Out of scope: evidence status helper, payload helper, DB schema change
 - `EvidenceStatusHelperService`
-  - Responsibility: evidence status helper, readiness apply helper, active output detection, transaction/voucher existence helper, evidence status SQL helper
+  - Responsibility: evidence status helper, business-status apply helper, readiness apply helper, active output detection, transaction/voucher existence helper, evidence status SQL helper
   - Controllers: `ImportController`
   - Out of scope: payload helper, link helper, sort helper, DB schema change
 - `EvidencePayloadHelperService`
@@ -257,37 +257,38 @@
   - Responsibility: voucher learning save, voucher learning line build, reference payload normalize, amount bucket classification
   - Controllers: `ImportController`
   - Out of scope: voucher create orchestration, bundled voucher, DB schema change
+## Legacy Ledger Evidence Service Notes
 
-??ш끽維?????源놁졆 ?熬곣뫀?????れ삀?? Ledger Evidence Service ???????? Service ??獄쏅똻?????獒?癲?????怨뚮뼚??????????뽮덫?臾먯뒞筌???影?얠맽 ??좊즲????筌먲퐢??
+This section preserves the older evidence-service split reference in readable form until the active service inventory above fully replaces it.
 
-| Service癲?| ?????????| ????Controller | ??????ヂ??? ???ㅼ굡??|
+| Service | Responsibility | Used By | Out of Scope |
 | --- | --- | --- | --- |
-| EvidencePayloadService | 癲ル슣鍮섌뜮??payload ???源낅??棺??짆?삠궘? 癲ル슣鍮섌뜮????釉먯뒠???濡ろ떟??? payload ?釉뚰???濚욌꼬?댄꺁????れ삀??????????筌먲퐢?? | ImportController, EvidencePayloadController ??ш끽維쀨굢??濡ろ뜑?灌鍮?| ????겾?????ㅺ컼???怨뚮뼚??? ?????怨뚮옖甕걔?? 癲꾧퀗??????獄쏅똻??|
-| EvidenceStatusService | 癲ル슣鍮섌뜮??癲ル슪?ｇ몭?????ㅺ컼???怨뚮뼚??濡ろ뜑????嶺뚮㉡?ｈ????筌?留??怨뚮뼚??濡ろ뜑?????????筌먲퐢?? | ImportController, EvidenceStatusController ??ш끽維쀨굢??濡ろ뜑?灌鍮?| payload ?怨뚮옖筌?쑜猷????? ????겾??????? ?????怨뚮옖甕걔?? 癲꾧퀗??????ш낄援????獄쏅똻??|
-| EvidenceTrashService | 癲ル슣鍮섌뜮?????? ?怨뚮옖甕걔?? purge ???????釉뚰????嶺뚮Ĳ??????????筌먲퐢?? | ImportController, EvidenceGenerationController ??ш끽維쀨굢??濡ろ뜑?灌鍮?| ????겾??????? payload ?怨뚮옖??? 癲꾧퀗??????獄쏅똻?? ??ш낄援????獄쏅똻??|
-| EvidenceUploadService | ????겾???袁⑸즲????釉뚰??? ????겾?????釉뚰??? ????겾?????爾???롢걫???????筌먲퐢?? | ImportController, EvidenceUploadController ??ш끽維쀨굢??濡ろ뜑?灌鍮?| ??獄쏅똻????醫롫뙃 ???? split/merge, 癲꾧퀗??????獄쏅똻?? ??ш낄援????獄쏅똻??|
-| EvidenceGenerationService | ??獄쏅똻????醫롫뙃 癲ル슢?꾤땟戮⑤뭄??釉뚰??? ??ш낄援?? ?嶺뚮㉡?ｈ?? processing item ?嶺뚮Ĳ????釉뚰???袁ⓦ걫???????筌먲퐢?? | ImportController, EvidenceGenerationController ??ш끽維쀨굢??濡ろ뜑?灌鍮?| ???? ????겾??????? 癲꾧퀗??????獄쏅똻??|
-| EvidencePayloadNormalizeService | payload ???????쑩?젆?normalize, ??ш끽維??????筌???ш끽維곲??濡ろ떟??? format column ?嶺뚮㉡?ｈ?????????筌먲퐢?? | ImportController, EvidenceGenerationSaveService, EvidenceGenerationService, EvidenceUploadService ??ш끽維쀨굢??濡ろ뜑?灌鍮?| readiness, reference resolve, transaction helper, voucher ???ㅺ컼???????|
-| EvidenceRuleEngineService | readiness ????? readiness result ?釉뚰????, transaction create error format?????????筌먲퐢?? | ImportController, EvidenceGenerationService, EvidenceTransactionCreateService ??ш끽維쀨굢??濡ろ뜑?灌鍮?| reference resolve, transaction context resolve, payload normalize |
-| EvidenceTypePolicyService | import/source type ?嶺뚮Ĳ????嶺???? ???⑤슢?? SQL 癲ル슢???⑸눀? legacy data type ?嶺뚮Ĳ????釉뚰???袁ⓦ걫???????筌먲퐢?? | ImportController, EvidenceGenerationService, EvidenceStatusService, EvidenceTrashService ??ш끽維쀨굢??濡ろ뜑?灌鍮?| readiness, payload ?嶺???? 癲꾧퀗??????獄쏅똻?? ??ш낄援????獄쏅똻??|
-| EvidenceGenerationSplitService | ??獄쏅똻????醫롫뙃 split child ??獄쏅똻?????쒓낯????????processing item split ?怨뚮옖???癲ル슪?ｇ몭???????????筌먲퐢?? | ImportController, EvidenceGenerationController ??ш끽維쀨굢??濡ろ뜑?灌鍮?| ????겾?????? bulk save, 癲꾧퀗??????獄쏅똻?? ??ш낄援????獄쏅똻??|
-| EvidenceGenerationSaveService | ??獄쏅똻????醫롫뙃 ??影?뉕틧 ???? ??癲ル슣鍮섌뜮????獄쏅똻?? ????源??怨뚮옖???????????????筌먲퐢?? | ImportController, EvidenceGenerationController ??ш끽維쀨굢??濡ろ뜑?灌鍮?| ???살쓴??helper ???띠룇??? ????겾??????? 癲꾧퀗??????獄쏅똻?? ??ш낄援????獄쏅똻??|
-| EvidenceTransactionCreateService | 癲ル슣鍮섌뜮????れ삀??뫢?癲꾧퀗??????獄쏅똻??orchestration??Transaction ??ш끽維???釉뚰???濚욌꼬?댄꺇??燁???helper????????筌먲퐢?? | ImportController, EvidenceTransactionController ??ш끽維쀨굢??濡ろ뜑?灌鍮?| Upload helper ????? Generation helper ????? readiness ?嶺뚮Ĳ???????? Route 癲ル슪?ｇ몭??|
-| EvidenceDualWriteService | legacy row ???ㅺ컼???癲ル슣鍮섌뜮?????Β????? ???ル㎦??癲ル슣鍮섌뜮???怨뚮옖筌?쑜猷???????怨?繞?????뗫탿??????? | EvidenceController, ImportController, EvidenceGenerationSaveService | payload/status/link ?嶺뚮Ĳ????濡ろ뜏??? Controller ???쑩?젆?癲ル슪?ｇ몭??|
-| ProcessingItemSplitService | processing item split ?濡ろ뜏???? aggregate ???ㅼ뒭?嚥▲룗????????筌먲퐢?? | EvidenceGenerationSplitService, ImportController ?怨뚮옖?????ш끽維쀨굢??濡ろ뜑?灌鍮?| payload ???? ???ㅺ컼?????? 癲꾧퀗??????ш낄援????獄쏅똻??|
-| ProcessingItemAggregateService | split/merge ?濡ろ뜏???醫듽걫?processing item ??れ삀?????⑥??癲ル슣?띰ℓ???筌먲퐢?? | ProcessingItemSplitService, TransactionCrudService 癲ル슔?蹂?덫???濡ろ뜑?灌鍮?| Controller ???쑩?젆?癲ル슪?ｇ몭?? ????겾???????|
-| ProcessingItemTreeService | processing item 癲ル슢?꾤땟戮⑤뭄???嶺뚮ㅎ遊뉔걡???節뚮쳮嶺?????깼??瑜곷퓠??嶺뚮㉡?섌걡??筌먲퐢?? | EvidenceGenerationService, ImportController ?怨뚮옖?????ш끽維쀨굢??濡ろ뜑?灌鍮?| DB ???? payload ?怨뚮옖???|
-| ProcessingItemActionService | processing item action ??れ삀??쎈뭄??釉뚰???????????????筌먲퐢?? | ProcessingItemActionModel ?????濡ろ뜑?灌鍮?| payload ???? 癲ル슣鍮섌뜮?????ㅺ컼???嶺뚮Ĳ???|
+| EvidencePayloadService | Owns evidence payload read/save, payload normalization entrypoints, and payload-oriented lookup helpers. | `ImportController`, `EvidencePayloadController` | Readiness, transaction creation, voucher creation, and DB schema change |
+| EvidenceStatusService | Owns evidence status updates, readiness-related state changes, and status lookup helpers. | `ImportController`, `EvidenceStatusController` | Payload save orchestration, transaction creation, voucher creation, and DB schema change |
+| EvidenceTrashService | Owns evidence trash, restore, and purge orchestration for evidence lifecycle cleanup. | `ImportController`, `EvidenceGenerationController` | Upload parse/save, payload normalization, transaction creation, and DB schema change |
+| EvidenceUploadService | Owns upload flow orchestration, parsed row handling, and upload batch save coordination. | `ImportController`, `EvidenceUploadController` | Generation split/merge, transaction creation, voucher creation, and DB schema change |
+| EvidenceGenerationService | Owns evidence generation orchestration, processing item handling, and generation-stage save flow coordination. | `ImportController`, `EvidenceGenerationController` | Upload parsing and direct transaction save orchestration |
+| EvidencePayloadNormalizeService | Owns payload value normalization, field-level cleanup, and format-column-based payload normalization helpers. | `ImportController`, `EvidenceGenerationSaveService`, `EvidenceGenerationService`, `EvidenceUploadService` | Readiness, reference resolution, transaction helpers, and voucher orchestration |
+| EvidenceRuleEngineService | Owns business-required readiness evaluation, system readiness validation, readiness result assembly, and transaction-create error formatting. | `ImportController`, `EvidenceGenerationService`, `EvidenceTransactionCreateService` | Reference resolution, transaction context resolution, and payload normalization |
+| EvidenceTypePolicyService | Owns import/source type resolution, type-based SQL target lookup, and legacy evidence type policy helpers. | `ImportController`, `EvidenceGenerationService`, `EvidenceStatusService`, `EvidenceTrashService` | Readiness, payload save, transaction creation, and DB schema change |
+| EvidenceGenerationSplitService | Owns generation split child creation, processing item split handling, and related split orchestration. | `ImportController`, `EvidenceGenerationController` | Upload save, bulk save orchestration, transaction creation, and DB schema change |
+| EvidenceGenerationSaveService | Owns generation save entrypoints, normalized payload save orchestration, and evidence write coordination. | `ImportController`, `EvidenceGenerationController` | Upload-only helpers, transaction creation, voucher creation, and DB schema change |
+| EvidenceTransactionCreateService | Owns evidence-based transaction creation orchestration and transaction-create helper coordination. | `ImportController`, `EvidenceTransactionController` | Upload helpers, generation helpers, readiness policy changes, and route/controller concerns |
+| EvidenceDualWriteService | Owns legacy-row synchronization and dual-write mirroring between evidence payload/state stores. | `EvidenceController`, `ImportController`, `EvidenceGenerationSaveService` | Payload/status/link policy changes and controller request handling |
+| ProcessingItemSplitService | Owns processing item split execution and aggregate recalculation coordination. | `EvidenceGenerationSplitService`, `ImportController` | Payload save, transaction creation, voucher creation, and DB schema change |
+| ProcessingItemAggregateService | Owns split/merge aggregate recalculation and processing item summary recomputation. | `ProcessingItemSplitService`, `TransactionCrudService` | Controller request handling and upload parsing |
+| ProcessingItemTreeService | Owns processing item tree composition, parent-child traversal, and hierarchy lookup helpers. | `EvidenceGenerationService`, `ImportController` | Direct DB migration work and payload save orchestration |
+| ProcessingItemActionService | Owns processing item action execution and action-state update helpers. | `ProcessingItemActionModel` | Payload save and evidence lifecycle policy changes |
 
-## ???⑤㈇猿 ???獒??
+## Legacy Service Principles
 
-- Controller??request ???쒓낯?? Service ?嶺뚮ㅎ??? response ?袁⑸즵???猷뱀떴????얜Ŧ類??筌먲퐢??
-- ???살쓴??helper??????????곕쿊 ??????? ??熬곥걿??callback ??낆뒩???????Β?띾쭡??筌먲퐢??
-- Service??좊읈? ????렺???ш끽維곮?嶺뚮ㅎ?닺린??????嶺뚮Ĳ????癲ル슣?????怨뚮뼚??濡ろ뜑???壤?????筌먲퐢??
-- Service 癲??????袁⑸즴????????????뽮덫??? DecisionLog????影?얠맽 ??좊즲????筌먲퐢??
+- Controllers collect requests, delegate orchestration to services, and return responses.
+- Shared helpers should stay focused on reusable domain behavior rather than controller callbacks.
+- Each service should own one business flow clearly enough that state transitions and side effects remain traceable.
+- If a service split changes architecture decisions, record the reason in `DecisionLog.md`.
 ## 2026-06-27 Addendum
 
 | Service | Responsibility | Used By | Notes |
 | --- | --- | --- | --- |
 | TransactionVoucherService | Owns voucher recommendation, draft voucher creation, voucher link and unlink, and transaction-voucher relation hydration for the transaction domain. | TransactionController | Keeps voucher orchestration out of the transaction controller so transaction entry can stay focused on common transaction management. |
-| TransactionCrudService | Owns transaction header save, pretax item save, settlement save, detail payload hydration, and header total recomputation using the SSOT amounts `transaction_foreign_amount`, `transaction_supply_amount`, `transaction_settlement_amount`, and `transaction_final_amount`. | TransactionController, EvidenceTransactionController, VoucherController | Keeps transaction modal save/read orchestration in one service while leaving voucher approval and posting flows outside the transaction domain; legacy header amounts remain detail/list fallback only and are excluded from new save and recalculation flows. |
+| TransactionCrudService | Owns transaction list/detail/save, pretax item save, settlement save, transaction file download payload resolution, trash list, restore, purge, and header total recomputation using the SSOT amounts `transaction_foreign_amount`, `transaction_supply_amount`, `transaction_settlement_amount`, and `transaction_final_amount`. | TransactionController, EvidenceTransactionController, VoucherController | Keeps transaction modal save/read/trash orchestration in one service while leaving voucher approval and posting flows outside the transaction domain; legacy header amounts remain detail/list fallback only and are excluded from new save and recalculation flows. |

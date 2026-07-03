@@ -4,6 +4,7 @@ namespace App\Services\Ledger;
 
 use App\Models\Ledger\ProcessingItemModel;
 use App\Services\Ledger\ProcessingItemTreeService;
+use Core\Helpers\ActorHelper;
 use PDO;
 
 class EvidenceGenerationService
@@ -145,6 +146,22 @@ class EvidenceGenerationService
         }
 
         return $fallback;
+    }
+
+    private function coalesceExistingColumnExpr(string $tableName, string $alias, array $candidates, string $fallback = 'NULL'): string
+    {
+        $normalizedAlias = trim($alias);
+        $expressions = [];
+        foreach ($candidates as $columnName) {
+            $normalizedColumn = trim((string) $columnName);
+            if ($normalizedColumn !== '' && $this->columnExists($tableName, $normalizedColumn)) {
+                $expressions[] = "NULLIF(TRIM({$normalizedAlias}.{$normalizedColumn}), '')";
+            }
+        }
+
+        return $expressions === []
+            ? $fallback
+            : 'COALESCE(' . implode(', ', $expressions) . ', ' . $fallback . ')';
     }
 
     private function placeholdersForIds(array $ids, string $prefix): array
@@ -312,8 +329,8 @@ class EvidenceGenerationService
             'TAX_INVOICE',
             'TAX_INVOICE_MANUAL',
             'CASH_RECEIPT',
-            'CASH_RECEIPT_PURCHASE',
-            'CASH_RECEIPT_SALES',
+            'CARD_HOMETAX',
+            'CARD_STATEMENT',
         ];
         $useBodyFallbackPaging = in_array($importType, $bodyTableTypes, true);
         $useBodyTable = in_array($importType, $bodyTableTypes, true);
@@ -321,7 +338,9 @@ class EvidenceGenerationService
             if ($useBodyFallbackPaging) {
                 $recordsFiltered = match ($importType) {
                     'BANK_TRANSACTION' => $this->countBankRowsFromBodyTable($status, $requestedId),
-                    'CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES' => $this->countCashRowsFromBodyTable($importType, $status, $requestedId),
+                    'CASH_RECEIPT' => $this->countCashRowsFromBodyTable($importType, $status, $requestedId),
+                    'CARD_HOMETAX' => $this->countCardHometaxRowsFromBodyTable($status, $requestedId),
+                    'CARD_STATEMENT' => $this->countCardStatementRowsFromBodyTable($status, $requestedId),
                     default => $this->countTaxRowsFromBodyTable($importType, $status, $requestedId),
                 };
             } else {
@@ -359,7 +378,9 @@ class EvidenceGenerationService
         if ($useBodyTable) {
             $rows = match ($importType) {
                 'BANK_TRANSACTION' => $this->bankRowsFromBodyTable($status, $requestedId),
-                'CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES' => $this->cashRowsFromBodyTable($importType, $status, $requestedId),
+                'CASH_RECEIPT' => $this->cashRowsFromBodyTable($importType, $status, $requestedId),
+                'CARD_HOMETAX' => $this->cardHometaxRowsFromBodyTable($status, $requestedId),
+                'CARD_STATEMENT' => $this->cardStatementRowsFromBodyTable($status, $requestedId),
                 default => $this->taxRowsFromBodyTable($importType, $status, $requestedId),
             };
         } else {
@@ -393,7 +414,7 @@ class EvidenceGenerationService
                     JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.bank_account_name')) AS bank_account_name,
                     JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.card_name')) AS card_name,
                     JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.team_name')) AS team_name,
-                    CASE WHEN r.deleted_at IS NULL THEN 'ACTIVE' ELSE 'DELETED' END AS evidence_status,
+                    " . $this->evidenceBodyColumnSql('r.evidence_type', 'r.evidence_id', 'evidence_status') . " AS evidence_status,
                     COALESCE(pr.processing_status, 'READY') AS transaction_status,
                     CASE WHEN vx.target_id IS NULL THEN 'WAITING' ELSE 'LINKED' END AS voucher_status,
                     COALESCE(pr.review_status, 'NORMAL') AS review_status,
@@ -1017,41 +1038,41 @@ class EvidenceGenerationService
         );
     }
 
-    private function evidenceBodySortNoSql(string $typeColumn, string $idColumn, string $sortColumn): string
+    private function evidenceBodyColumnSql(string $typeColumn, string $idColumn, string $columnName): string
     {
         $escapedTypeColumn = trim($typeColumn);
         $escapedIdColumn = trim($idColumn);
-        $escapedSortColumn = trim($sortColumn);
+        $escapedColumnName = trim($columnName);
         $idCompareSql = "body.id COLLATE utf8mb4_general_ci = {$escapedIdColumn} COLLATE utf8mb4_general_ci";
 
         return "
             CASE
                 WHEN {$escapedTypeColumn} = 'BANK_TRANSACTION' THEN (
-                    SELECT body.{$escapedSortColumn}
+                    SELECT body.{$escapedColumnName}
                     FROM ledger_evidence_bank_transaction body
                     WHERE {$idCompareSql}
                     LIMIT 1
                 )
                 WHEN {$escapedTypeColumn} = 'TAX_INVOICE' THEN (
-                    SELECT body.{$escapedSortColumn}
+                    SELECT body.{$escapedColumnName}
                     FROM ledger_evidence_tax_invoice body
                     WHERE {$idCompareSql}
                     LIMIT 1
                 )
-                WHEN {$escapedTypeColumn} IN ('CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES') THEN (
-                    SELECT body.{$escapedSortColumn}
+                WHEN {$escapedTypeColumn} = 'CASH_RECEIPT' THEN (
+                    SELECT body.{$escapedColumnName}
                     FROM ledger_evidence_cash_receipt body
                     WHERE {$idCompareSql}
                     LIMIT 1
                 )
                 WHEN {$escapedTypeColumn} = 'CARD_HOMETAX' THEN (
-                    SELECT body.{$escapedSortColumn}
+                    SELECT body.{$escapedColumnName}
                     FROM ledger_evidence_card_hometax body
                     WHERE {$idCompareSql}
                     LIMIT 1
                 )
                 WHEN {$escapedTypeColumn} IN ('CARD', 'CARD_STATEMENT', 'CARD_APPROVAL') THEN (
-                    SELECT body.{$escapedSortColumn}
+                    SELECT body.{$escapedColumnName}
                     FROM ledger_evidence_card_statement body
                     WHERE {$idCompareSql}
                     LIMIT 1
@@ -1059,6 +1080,11 @@ class EvidenceGenerationService
                 ELSE NULL
             END
         ";
+    }
+
+    private function evidenceBodySortNoSql(string $typeColumn, string $idColumn, string $sortColumn): string
+    {
+        return $this->evidenceBodyColumnSql($typeColumn, $idColumn, $sortColumn);
     }
 
     private function evidenceSequenceScopeFromRequest(string $default = '', string $importType = ''): string
@@ -1099,7 +1125,7 @@ class EvidenceGenerationService
         $payload = is_array($row['mapped_payload'] ?? null) ? $row['mapped_payload'] : [];
         $keys = match ($dataType) {
             'TAX_INVOICE' => ['write_date', 'written_date', 'transaction_date', 'evidence_date', 'issue_date'],
-            'CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES' => ['purchase_datetime', 'purchase_at', 'purchase_date', 'transaction_datetime', 'transaction_date', 'evidence_date'],
+            'CASH_RECEIPT' => ['purchase_datetime', 'purchase_at', 'purchase_date', 'transaction_datetime', 'transaction_date', 'evidence_date'],
             'CARD_STATEMENT', 'CARD_APPROVAL', 'CARD_HOMETAX', 'CARD_COMPANY', 'CARD', 'CREDIT_CARD' => ['approval_datetime', 'approved_at', 'approval_date', 'approved_date', 'transaction_datetime', 'transaction_date', 'evidence_date'],
             default => ['transaction_datetime', 'transaction_date', 'evidence_date', 'issue_date'],
         };
@@ -1214,7 +1240,7 @@ class EvidenceGenerationService
                 COALESCE(p.mapped_payload_json, '') AS parsed_json,
                 body.external_key AS source_key,
                 body.raw_transaction_datetime AS evidence_date,
-                CASE WHEN body.deleted_at IS NULL THEN 'ACTIVE' ELSE 'DELETED' END AS evidence_status,
+                body.evidence_status AS evidence_status,
                 COALESCE(pr.processing_status, 'READY') AS transaction_status,
                 CASE WHEN vx.target_id IS NULL THEN 'WAITING' ELSE 'LINKED' END AS voucher_status,
                 COALESCE(pr.review_status, 'NORMAL') AS review_status,
@@ -1231,6 +1257,9 @@ class EvidenceGenerationService
                 pr.last_error_message AS error_message,
                 tx.target_id AS transaction_id,
                 body.updated_at AS processed_at,
+                body.created_by AS created_by_name,
+                body.updated_by AS updated_by_name,
+                body.deleted_by AS deleted_by_name,
                 body.created_at,
                 body.updated_at,
                 body.deleted_at,
@@ -1272,7 +1301,12 @@ class EvidenceGenerationService
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        return ActorHelper::enrichActorNames($rows, [
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
+        ]);
     }
 
     private function countBankRowsFromBodyTable(string $status, string $requestedId): int
@@ -1397,7 +1431,7 @@ class EvidenceGenerationService
                 '' AS bank_account_name,
                 '' AS card_name,
                 '' AS team_name,
-                CASE WHEN body.deleted_at IS NULL THEN 'ACTIVE' ELSE 'DELETED' END AS evidence_status,
+                body.evidence_status AS evidence_status,
                 COALESCE(pr.processing_status, 'READY') AS transaction_status,
                 CASE WHEN vx.target_id IS NULL THEN 'WAITING' ELSE 'LINKED' END AS voucher_status,
                 COALESCE(pr.review_status, 'NORMAL') AS review_status,
@@ -1414,6 +1448,9 @@ class EvidenceGenerationService
                 pr.last_error_message AS error_message,
                 tx.target_id AS transaction_id,
                 body.updated_at AS processed_at,
+                body.created_by AS created_by_name,
+                body.updated_by AS updated_by_name,
+                body.deleted_by AS deleted_by_name,
                 body.created_at,
                 body.updated_at,
                 body.deleted_at,
@@ -1445,7 +1482,12 @@ class EvidenceGenerationService
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        return ActorHelper::enrichActorNames($rows, [
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
+        ]);
     }
 
     private function countTaxRowsFromBodyTable(string $importType, string $status, string $requestedId): int
@@ -1486,12 +1528,253 @@ class EvidenceGenerationService
         return (int) $stmt->fetchColumn();
     }
 
+    private function cardHometaxRowsFromBodyTable(string $status, string $requestedId): array
+    {
+        return $this->cardRowsFromBodyTable(
+            'ledger_evidence_card_hometax',
+            'CARD_HOMETAX',
+            "UPPER(COALESCE(body.source_type, '')) IN ('', 'CARD_HOMETAX', 'CARD_PURCHASE_HOMETAX')",
+            "'HOMETAX'",
+            null,
+            ['external_key', 'source_key', 'approval_number', 'approval_no', 'raw_approval_no', 'raw_approval_number'],
+            ['approval_date', 'billing_date', 'evidence_date', 'purchase_datetime', 'approved_at', 'created_at'],
+            ['purchase_datetime', 'approval_datetime', 'approved_at', 'approval_date', 'approved_date', 'transaction_datetime', 'evidence_date', 'created_at'],
+            ['raw_client_name', 'client_name', 'merchant_company_name'],
+            ['merchant_company_name', 'raw_client_name', 'client_name'],
+            $status,
+            $requestedId
+        );
+    }
+
+    private function countCardHometaxRowsFromBodyTable(string $status, string $requestedId): int
+    {
+        return $this->countCardRowsFromBodyTable('ledger_evidence_card_hometax', 'CARD_HOMETAX', $status, $requestedId);
+    }
+
+    private function cardStatementRowsFromBodyTable(string $status, string $requestedId): array
+    {
+        $sourceWhere = "UPPER(COALESCE(NULLIF(TRIM(body.source_type), ''), 'CARD_STATEMENT')) IN ('CARD_STATEMENT', 'CARD', 'CARD_PURCHASE', 'CARD_COMPANY', 'CREDIT_CARD')";
+
+        return $this->cardRowsFromBodyTable(
+            'ledger_evidence_card_statement',
+            'CARD_STATEMENT',
+            $sourceWhere,
+            "'CARD_COMPANY'",
+            $sourceWhere,
+            ['external_key', 'source_key', 'raw_approval_number', 'raw_approval_no', 'approval_number', 'approval_no', 'raw_purchase_number', 'purchase_number'],
+            ['evidence_date', 'raw_approval_date', 'approval_date', 'raw_billing_date', 'billing_date', 'created_at'],
+            ['raw_approval_date', 'approval_date', 'evidence_date', 'raw_billing_date', 'billing_date', 'created_at'],
+            ['raw_client_name', 'client_name', 'raw_merchant_company_name', 'merchant_company_name'],
+            ['raw_merchant_company_name', 'merchant_company_name', 'raw_client_name', 'client_name'],
+            $status,
+            $requestedId
+        );
+    }
+
+    private function countCardStatementRowsFromBodyTable(string $status, string $requestedId): int
+    {
+        $sourceWhere = "UPPER(COALESCE(NULLIF(TRIM(body.source_type), ''), 'CARD_STATEMENT')) IN ('CARD_STATEMENT', 'CARD', 'CARD_PURCHASE', 'CARD_COMPANY', 'CREDIT_CARD')";
+
+        return $this->countCardRowsFromBodyTable('ledger_evidence_card_statement', 'CARD_STATEMENT', $status, $requestedId, $sourceWhere);
+    }
+
+    private function cardRowsFromBodyTable(
+        string $cardTable,
+        string $evidenceType,
+        string $sourceTypeOutputCondition,
+        string $sourceTypeOutput,
+        ?string $sourceWhere,
+        array $sourceKeyCandidates,
+        array $evidenceDateCandidates,
+        array $purchaseDateTimeCandidates,
+        array $clientNameCandidates,
+        array $merchantNameCandidates,
+        string $status,
+        string $requestedId
+    ): array {
+        $where = [$status === 'DELETED' ? 'body.deleted_at IS NOT NULL' : 'body.deleted_at IS NULL'];
+        $params = [];
+
+        if ($sourceWhere !== null && $this->columnExists($cardTable, 'source_type')) {
+            $where[] = $sourceWhere;
+        }
+
+        if ($requestedId !== '') {
+            $where[] = 'body.id COLLATE utf8mb4_general_ci = :requested_id COLLATE utf8mb4_general_ci';
+            $params[':requested_id'] = $requestedId;
+        }
+
+        if ($status === 'READY') {
+            $where[] = "COALESCE(pr.processing_status, 'READY') = 'READY'";
+        } elseif ($status === 'PROCESSED') {
+            $where[] = "COALESCE(pr.processing_status, '') = 'PROCESSED'";
+        } elseif ($status === 'ERROR') {
+            $where[] = "COALESCE(pr.processing_status, '') = 'ERROR'";
+        } elseif ($status === 'DUPLICATED') {
+            $where[] = "COALESCE(pr.processing_status, '') = 'DUPLICATED'";
+        }
+
+        $cardSourceTypeExpr = $this->columnExists($cardTable, 'source_type')
+            ? "CASE
+                WHEN {$sourceTypeOutputCondition} THEN {$sourceTypeOutput}
+                ELSE body.source_type
+            END"
+            : $sourceTypeOutput;
+        $cardSortNoExpr = $this->firstExistingColumnExpr($cardTable, 'body', ['sort_no'], '0');
+        $cardEvidenceSortNoExpr = $this->firstExistingColumnExpr($cardTable, 'body', ['evidence_sort_no', 'sort_no'], '0');
+        $cardSourceKeyExpr = $this->coalesceExistingColumnExpr($cardTable, 'body', $sourceKeyCandidates, "''");
+        $cardEvidenceDateExpr = $this->firstExistingColumnExpr($cardTable, 'body', $evidenceDateCandidates, 'NULL');
+        $cardPurchaseDateTimeExpr = $this->firstExistingColumnExpr($cardTable, 'body', $purchaseDateTimeCandidates, 'NULL');
+        $cardClientIdExpr = $this->firstExistingColumnExpr($cardTable, 'body', ['client_id'], "''");
+        $cardProjectIdExpr = $this->firstExistingColumnExpr($cardTable, 'body', ['project_id'], "''");
+        $cardEmployeeIdExpr = $this->firstExistingColumnExpr($cardTable, 'body', ['employee_id'], "''");
+        $cardBankAccountIdExpr = $this->firstExistingColumnExpr($cardTable, 'body', ['bank_account_id'], "''");
+        $cardCardIdExpr = $this->firstExistingColumnExpr($cardTable, 'body', ['card_id'], "''");
+        $cardTeamIdExpr = $this->firstExistingColumnExpr($cardTable, 'body', ['team_id'], "''");
+        $cardClientNameExpr = $this->firstExistingColumnExpr($cardTable, 'body', $clientNameCandidates, "''");
+        $cardMerchantNameExpr = $this->firstExistingColumnExpr($cardTable, 'body', $merchantNameCandidates, "''");
+        $cardCreatedAtExpr = $this->firstExistingColumnExpr($cardTable, 'body', ['created_at', 'updated_at'], 'NULL');
+        $cardUpdatedAtExpr = $this->firstExistingColumnExpr($cardTable, 'body', ['updated_at', 'created_at'], 'NULL');
+        $cardDeletedAtExpr = $this->firstExistingColumnExpr($cardTable, 'body', ['deleted_at'], 'NULL');
+
+        $sql = "
+            SELECT
+                body.*,
+                body.id AS id,
+                {$cardSourceTypeExpr} AS source_type,
+                '{$evidenceType}' AS import_type,
+                '' AS source_type_name,
+                '' AS import_type_name,
+                {$cardSortNoExpr} AS sort_no,
+                {$cardEvidenceSortNoExpr} AS evidence_sort_no,
+                NULL AS create_sort_no,
+                NULL AS status_sort_no,
+                0 AS row_no,
+                COALESCE(p.format_id, '') AS format_id,
+                COALESCE(p.raw_json, '') AS raw_json,
+                COALESCE(p.mapped_payload_json, '') AS parsed_json,
+                {$cardSourceKeyExpr} AS external_key,
+                {$cardSourceKeyExpr} AS source_key,
+                {$cardEvidenceDateExpr} AS evidence_date,
+                {$cardEvidenceDateExpr} AS transaction_date,
+                {$cardPurchaseDateTimeExpr} AS purchase_datetime,
+                {$cardClientIdExpr} AS client_id,
+                {$cardProjectIdExpr} AS project_id,
+                {$cardEmployeeIdExpr} AS employee_id,
+                {$cardBankAccountIdExpr} AS bank_account_id,
+                {$cardCardIdExpr} AS card_id,
+                {$cardTeamIdExpr} AS team_id,
+                COALESCE({$cardClientNameExpr}, {$cardMerchantNameExpr}, '') AS client_name,
+                '' AS project_name,
+                '' AS employee_name,
+                '' AS bank_account_name,
+                '' AS card_name,
+                '' AS team_name,
+                body.evidence_status AS evidence_status,
+                COALESCE(pr.processing_status, 'READY') AS transaction_status,
+                CASE WHEN vx.target_id IS NULL THEN 'WAITING' ELSE 'LINKED' END AS voucher_status,
+                COALESCE(pr.review_status, 'NORMAL') AS review_status,
+                CASE
+                    WHEN COALESCE(pr.processing_status, 'READY') IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN pr.processing_status
+                    WHEN tx.target_id IS NOT NULL THEN 'PROCESSED'
+                    ELSE COALESCE(pr.processing_status, 'READY')
+                END AS process_status,
+                CASE
+                    WHEN COALESCE(pr.processing_status, 'READY') IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN pr.processing_status
+                    WHEN tx.target_id IS NOT NULL THEN 'PROCESSED'
+                    ELSE COALESCE(pr.processing_status, 'READY')
+                END AS status,
+                pr.last_error_message AS error_message,
+                tx.target_id AS transaction_id,
+                {$cardUpdatedAtExpr} AS processed_at,
+                body.created_by AS created_by_name,
+                body.updated_by AS updated_by_name,
+                body.deleted_by AS deleted_by_name,
+                {$cardCreatedAtExpr} AS created_at,
+                {$cardUpdatedAtExpr} AS updated_at,
+                {$cardDeletedAtExpr} AS deleted_at,
+                '' AS file_name,
+                '' AS format_name
+            FROM {$cardTable} body
+            LEFT JOIN ledger_evidence_payloads p
+                ON p.evidence_type COLLATE utf8mb4_general_ci = '{$evidenceType}' COLLATE utf8mb4_general_ci
+               AND p.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
+               AND p.deleted_at IS NULL
+            LEFT JOIN ledger_evidence_processing pr
+                ON pr.evidence_type COLLATE utf8mb4_general_ci = '{$evidenceType}' COLLATE utf8mb4_general_ci
+               AND pr.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
+               AND pr.deleted_at IS NULL
+            LEFT JOIN ledger_evidence_links tx
+                ON tx.evidence_type COLLATE utf8mb4_general_ci = '{$evidenceType}' COLLATE utf8mb4_general_ci
+               AND tx.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
+               AND tx.target_type = 'TRANSACTION'
+               AND tx.deleted_at IS NULL
+            LEFT JOIN ledger_evidence_links vx
+                ON vx.evidence_type COLLATE utf8mb4_general_ci = '{$evidenceType}' COLLATE utf8mb4_general_ci
+               AND vx.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
+               AND vx.target_type = 'VOUCHER'
+               AND vx.deleted_at IS NULL
+            WHERE " . implode(' AND ', $where) . "
+            ORDER BY sort_no ASC, updated_at DESC, created_at DESC
+        ";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        return ActorHelper::enrichActorNames($rows, [
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
+        ]);
+    }
+
+    private function countCardRowsFromBodyTable(
+        string $cardTable,
+        string $evidenceType,
+        string $status,
+        string $requestedId,
+        ?string $sourceWhere = null
+    ): int {
+        $where = [$status === 'DELETED' ? 'body.deleted_at IS NOT NULL' : 'body.deleted_at IS NULL'];
+        $params = [];
+
+        if ($sourceWhere !== null && $this->columnExists($cardTable, 'source_type')) {
+            $where[] = $sourceWhere;
+        }
+
+        if ($requestedId !== '') {
+            $where[] = 'body.id COLLATE utf8mb4_general_ci = :requested_id COLLATE utf8mb4_general_ci';
+            $params[':requested_id'] = $requestedId;
+        }
+
+        if ($status === 'READY') {
+            $where[] = "COALESCE(pr.processing_status, 'READY') = 'READY'";
+        } elseif ($status === 'PROCESSED') {
+            $where[] = "COALESCE(pr.processing_status, '') = 'PROCESSED'";
+        } elseif ($status === 'ERROR') {
+            $where[] = "COALESCE(pr.processing_status, '') = 'ERROR'";
+        } elseif ($status === 'DUPLICATED') {
+            $where[] = "COALESCE(pr.processing_status, '') = 'DUPLICATED'";
+        }
+
+        $stmt = $this->pdo->prepare("
+            SELECT COUNT(*)
+            FROM {$cardTable} body
+            LEFT JOIN ledger_evidence_processing pr
+                ON pr.evidence_type COLLATE utf8mb4_general_ci = '{$evidenceType}' COLLATE utf8mb4_general_ci
+               AND pr.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
+               AND pr.deleted_at IS NULL
+            WHERE " . implode(' AND ', $where) . "
+        ");
+        $stmt->execute($params);
+
+        return (int) $stmt->fetchColumn();
+    }
+
     private function cashRowsFromBodyTable(string $importType, string $status, string $requestedId): array
     {
-        $normalizedType = $this->normalizeDataType($importType);
-        $cashEvidenceType = in_array($normalizedType, ['CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES'], true)
-            ? $normalizedType
-            : 'CASH_RECEIPT';
+        $cashEvidenceType = 'CASH_RECEIPT';
         $cashEvidenceTypes = $this->cashEvidenceTypesForBodyQuery($cashEvidenceType);
         $cashEvidenceTypeList = $this->sqlStringList($cashEvidenceTypes);
         $cashTable = 'ledger_evidence_cash_receipt';
@@ -1515,7 +1798,7 @@ class EvidenceGenerationService
             $params[':requested_id'] = $requestedId;
         }
 
-        if ($this->columnExists('ledger_evidence_cash_receipt', 'source_type')) {
+        if ($this->columnExists('ledger_evidence_cash_receipt', 'transaction_direction')) {
             $where[] = $this->cashBodySourceWhereSql($cashEvidenceType);
         }
 
@@ -1534,7 +1817,7 @@ class EvidenceGenerationService
                 body.*,
                 body.id AS id,
                 'HOMETAX' AS source_type,
-                COALESCE(p.evidence_type, '{$cashEvidenceType}') AS import_type,
+                'CASH_RECEIPT' AS import_type,
                 '' AS source_type_name,
                 '' AS import_type_name,
                 {$cashSortNoExpr} AS sort_no,
@@ -1561,7 +1844,7 @@ class EvidenceGenerationService
                 '' AS bank_account_name,
                 '' AS card_name,
                 '' AS team_name,
-                CASE WHEN {$cashDeletedAtExpr} IS NULL THEN 'ACTIVE' ELSE 'DELETED' END AS evidence_status,
+                body.evidence_status AS evidence_status,
                 COALESCE(pr.processing_status, 'READY') AS transaction_status,
                 CASE WHEN vx.target_id IS NULL THEN 'WAITING' ELSE 'LINKED' END AS voucher_status,
                 COALESCE(pr.review_status, 'NORMAL') AS review_status,
@@ -1578,6 +1861,9 @@ class EvidenceGenerationService
                 pr.last_error_message AS error_message,
                 tx.target_id AS transaction_id,
                 {$cashUpdatedAtExpr} AS processed_at,
+                body.created_by AS created_by_name,
+                body.updated_by AS updated_by_name,
+                body.deleted_by AS deleted_by_name,
                 {$cashCreatedAtExpr} AS created_at,
                 {$cashUpdatedAtExpr} AS updated_at,
                 {$cashDeletedAtExpr} AS deleted_at,
@@ -1609,15 +1895,17 @@ class EvidenceGenerationService
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        return ActorHelper::enrichActorNames($rows, [
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
+        ]);
     }
 
     private function countCashRowsFromBodyTable(string $importType, string $status, string $requestedId): int
     {
-        $normalizedType = $this->normalizeDataType($importType);
-        $cashEvidenceType = in_array($normalizedType, ['CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES'], true)
-            ? $normalizedType
-            : 'CASH_RECEIPT';
+        $cashEvidenceType = 'CASH_RECEIPT';
         $cashEvidenceTypes = $this->cashEvidenceTypesForBodyQuery($cashEvidenceType);
         $cashEvidenceTypeList = $this->sqlStringList($cashEvidenceTypes);
         $where = [$status === 'DELETED' ? 'body.deleted_at IS NOT NULL' : 'body.deleted_at IS NULL'];
@@ -1628,7 +1916,7 @@ class EvidenceGenerationService
             $params[':requested_id'] = $requestedId;
         }
 
-        if ($this->columnExists('ledger_evidence_cash_receipt', 'source_type')) {
+        if ($this->columnExists('ledger_evidence_cash_receipt', 'transaction_direction')) {
             $where[] = $this->cashBodySourceWhereSql($cashEvidenceType);
         }
 
@@ -1662,24 +1950,12 @@ class EvidenceGenerationService
 
     private function cashEvidenceTypesForBodyQuery(string $importType): array
     {
-        return match ($this->normalizeDataType($importType)) {
-            'CASH_RECEIPT_SALES' => ['CASH_RECEIPT_SALES'],
-            'CASH_RECEIPT_PURCHASE' => ['CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT'],
-            default => ['CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE'],
-        };
+        return ['CASH_RECEIPT'];
     }
 
     private function cashBodySourceWhereSql(string $importType): string
     {
-        if ($this->normalizeDataType($importType) === 'CASH_RECEIPT_SALES') {
-            return "UPPER(COALESCE(body.source_type, '')) IN ('CASH_RECEIPT_SALES', 'SALES')";
-        }
-
-        return "(
-            body.source_type IS NULL
-            OR TRIM(body.source_type) = ''
-            OR UPPER(body.source_type) NOT IN ('CASH_RECEIPT_SALES', 'SALES')
-        )";
+        return "UPPER(COALESCE(body.transaction_direction, '')) COLLATE utf8mb4_general_ci <> 'INCOME'";
     }
 
     private function sqlStringList(array $values): string
@@ -1716,6 +1992,9 @@ class EvidenceGenerationService
             if ($type === '') {
                 continue;
             }
+            if (in_array($type, ['CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES'], true)) {
+                $type = 'CASH_RECEIPT';
+            }
 
             $counts[$type] = (int) ($counts[$type] ?? 0) + (int) ($row['row_count'] ?? 0);
         }
@@ -1740,27 +2019,11 @@ class EvidenceGenerationService
         }
 
         if ($this->tableExists('ledger_evidence_cash_receipt')) {
-            if ($this->columnExists('ledger_evidence_cash_receipt', 'source_type')) {
-                $purchaseCount = $this->conditionalTableCount(
-                    'ledger_evidence_cash_receipt',
-                    "(
-                        source_type IS NULL
-                        OR TRIM(source_type) = ''
-                        OR UPPER(source_type) NOT IN ('CASH_RECEIPT_SALES', 'SALES')
-                    )"
-                );
-                $salesCount = $this->conditionalTableCount(
-                    'ledger_evidence_cash_receipt',
-                    "UPPER(COALESCE(source_type, '')) IN ('CASH_RECEIPT_SALES', 'SALES')"
-                );
-                $counts['CASH_RECEIPT'] = $purchaseCount;
-                $counts['CASH_RECEIPT_PURCHASE'] = $purchaseCount;
-                $counts['CASH_RECEIPT_SALES'] = $salesCount;
-            } else {
-                $count = $this->simpleTableCount('ledger_evidence_cash_receipt');
-                $counts['CASH_RECEIPT'] = $count;
-                $counts['CASH_RECEIPT_PURCHASE'] = $count;
-            }
+            $counts['CASH_RECEIPT'] = $this->conditionalTableCount(
+                'ledger_evidence_cash_receipt',
+                "UPPER(COALESCE(import_type, '')) COLLATE utf8mb4_general_ci <> 'CASH_RECEIPT_SALES'
+                 AND UPPER(COALESCE(transaction_direction, '')) COLLATE utf8mb4_general_ci <> 'INCOME'"
+            );
         }
 
         if ($this->tableExists('ledger_evidence_card_hometax')) {

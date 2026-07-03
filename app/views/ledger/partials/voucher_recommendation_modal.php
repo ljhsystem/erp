@@ -21,8 +21,8 @@
                             <input type="text" class="form-control form-control-sm" id="voucherRecommendationProjectName" readonly>
                         </label>
                         <label class="voucher-recommendation-field">
-                            <span class="voucher-recommendation-field-label">거래유형</span>
-                            <input type="text" class="form-control form-control-sm" id="voucherRecommendationTransactionType" readonly>
+                            <span class="voucher-recommendation-field-label">입출금유형</span>
+                            <input type="text" class="form-control form-control-sm" id="voucherRecommendationOperationType" readonly>
                         </label>
                         <label class="voucher-recommendation-field">
                             <span class="voucher-recommendation-field-label">거래방향</span>

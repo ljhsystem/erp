@@ -2,6 +2,7 @@
 namespace App\Models\System;
 
 use PDO;
+use Core\Helpers\ActorHelper;
 use Core\Database;
 
 class ProjectModel
@@ -24,35 +25,14 @@ class ProjectModel
                     WHEN COALESCE(sau.is_active, 1) = 0 THEN CONCAT(se.employee_name, ' (비활성)')
                     ELSE se.employee_name
                 END AS site_agent_name,
-                CASE
-                    WHEN p.created_by LIKE 'SYSTEM:%' THEN p.created_by
-                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
-                    ELSE p.created_by
-                END AS created_by_name,
-                CASE
-                    WHEN p.updated_by LIKE 'SYSTEM:%' THEN p.updated_by
-                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
-                    ELSE p.updated_by
-                END AS updated_by_name,
-                CASE
-                    WHEN p.deleted_by LIKE 'SYSTEM:%' THEN p.deleted_by
-                    WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
-                    ELSE p.deleted_by
-                END AS deleted_by_name
+                p.created_by AS created_by_name,
+                p.updated_by AS updated_by_name,
+                p.deleted_by AS deleted_by_name
             FROM system_projects p
             LEFT JOIN system_clients c ON p.client_id = c.id
             LEFT JOIN user_employees e ON p.employee_id = e.id
             LEFT JOIN user_employees se ON p.site_agent = se.id
             LEFT JOIN auth_users sau ON se.user_id = sau.id
-            LEFT JOIN user_employees p1
-                ON p.created_by NOT LIKE 'SYSTEM:%'
-               AND p1.user_id = REPLACE(p.created_by, 'USER:', '')
-            LEFT JOIN user_employees p2
-                ON p.updated_by NOT LIKE 'SYSTEM:%'
-               AND p2.user_id = REPLACE(p.updated_by, 'USER:', '')
-            LEFT JOIN user_employees p3
-                ON p.deleted_by NOT LIKE 'SYSTEM:%'
-               AND p3.user_id = REPLACE(p.deleted_by, 'USER:', '')
             WHERE p.deleted_at IS NULL
         ";
 
@@ -111,13 +91,13 @@ class ProjectModel
             'bid_notice_date'         => ['col'=>'p.bid_notice_date','type'=>'date'],
             'created_at'              => ['col'=>'p.created_at','type'=>'date'],
             'created_by'              => ['col'=>'p.created_by','type'=>'like'],
-            'created_by_name'         => ['col'=>"COALESCE(CONCAT('USER:', p1.employee_name), p.created_by)",'type'=>'like'],
+            'created_by_name'         => ['col'=>'p.created_by','type'=>'like'],
             'updated_at'              => ['col'=>'p.updated_at','type'=>'date'],
             'updated_by'              => ['col'=>'p.updated_by','type'=>'like'],
-            'updated_by_name'         => ['col'=>"COALESCE(CONCAT('USER:', p2.employee_name), p.updated_by)",'type'=>'like'],
+            'updated_by_name'         => ['col'=>'p.updated_by','type'=>'like'],
             'deleted_at'              => ['col'=>'p.deleted_at','type'=>'date'],
             'deleted_by'              => ['col'=>'p.deleted_by','type'=>'like'],
-            'deleted_by_name'         => ['col'=>"COALESCE(CONCAT('USER:', p3.employee_name), p.deleted_by)",'type'=>'like'],
+            'deleted_by_name'         => ['col'=>'p.deleted_by','type'=>'like'],
         ];
 
         $globalSearch = [];
@@ -183,9 +163,9 @@ class ProjectModel
 
                 'c.client_name',
                 'e.employee_name',
-                "COALESCE(CONCAT('USER:', p1.employee_name), p.created_by)",
-                "COALESCE(CONCAT('USER:', p2.employee_name), p.updated_by)",
-                "COALESCE(CONCAT('USER:', p3.employee_name), p.deleted_by)"
+                'p.created_by',
+                'p.updated_by',
+                'p.deleted_by'
             ];
 
             $sql .= " AND (";
@@ -222,7 +202,13 @@ class ProjectModel
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return ActorHelper::enrichActorNames($rows, [
+            'created_by_name' => 'created_by_name',
+            'updated_by_name' => 'updated_by_name',
+            'deleted_by_name' => 'deleted_by_name',
+        ]);
     }
 
     public function getById(string $id): ?array
@@ -239,23 +225,9 @@ class ProjectModel
                     ELSE se.employee_name
                 END AS site_agent_name,
 
-                CASE
-                    WHEN p.created_by LIKE 'SYSTEM:%' THEN p.created_by
-                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
-                    ELSE p.created_by
-                END AS created_by_name,
-
-                CASE
-                    WHEN p.updated_by LIKE 'SYSTEM:%' THEN p.updated_by
-                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
-                    ELSE p.updated_by
-                END AS updated_by_name,
-
-                CASE
-                    WHEN p.deleted_by LIKE 'SYSTEM:%' THEN p.deleted_by
-                    WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
-                    ELSE p.deleted_by
-                END AS deleted_by_name
+                p.created_by AS created_by_name,
+                p.updated_by AS updated_by_name,
+                p.deleted_by AS deleted_by_name
 
             FROM system_projects p
 
@@ -271,18 +243,6 @@ class ProjectModel
             LEFT JOIN auth_users sau
                 ON se.user_id = sau.id
 
-            LEFT JOIN user_employees p1
-                ON p.created_by NOT LIKE 'SYSTEM:%'
-            AND p1.user_id = REPLACE(p.created_by, 'USER:', '')
-
-            LEFT JOIN user_employees p2
-                ON p.updated_by NOT LIKE 'SYSTEM:%'
-            AND p2.user_id = REPLACE(p.updated_by, 'USER:', '')
-
-            LEFT JOIN user_employees p3
-                ON p.deleted_by NOT LIKE 'SYSTEM:%'
-            AND p3.user_id = REPLACE(p.deleted_by, 'USER:', '')
-
             WHERE p.id = :id
             LIMIT 1
         ");
@@ -291,7 +251,15 @@ class ProjectModel
 
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        return $row ?: null;
+        if (!$row) {
+            return null;
+        }
+
+        return ActorHelper::enrichActorNamesRow($row, [
+            'created_by_name' => 'created_by_name',
+            'updated_by_name' => 'updated_by_name',
+            'deleted_by_name' => 'deleted_by_name',
+        ]);
     }
 
     public function searchPicker(string $keyword = '', int $limit = 20): array
@@ -693,23 +661,9 @@ class ProjectModel
                 c.client_name AS linked_client_name,
                 e.employee_name AS employee_name,
 
-                CASE
-                    WHEN p.created_by LIKE 'SYSTEM:%' THEN p.created_by
-                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
-                    ELSE p.created_by
-                END AS created_by_name,
-
-                CASE
-                    WHEN p.updated_by LIKE 'SYSTEM:%' THEN p.updated_by
-                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
-                    ELSE p.updated_by
-                END AS updated_by_name,
-
-                CASE
-                    WHEN p.deleted_by LIKE 'SYSTEM:%' THEN p.deleted_by
-                    WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
-                    ELSE p.deleted_by
-                END AS deleted_by_name
+                p.created_by AS created_by_name,
+                p.updated_by AS updated_by_name,
+                p.deleted_by AS deleted_by_name
 
             FROM system_projects p
 
@@ -719,25 +673,19 @@ class ProjectModel
             LEFT JOIN user_employees e
                 ON p.employee_id = e.id
 
-            LEFT JOIN user_employees p1
-                ON p.created_by NOT LIKE 'SYSTEM:%'
-            AND p1.user_id = REPLACE(p.created_by, 'USER:', '')
-
-            LEFT JOIN user_employees p2
-                ON p.updated_by NOT LIKE 'SYSTEM:%'
-            AND p2.user_id = REPLACE(p.updated_by, 'USER:', '')
-
-            LEFT JOIN user_employees p3
-                ON p.deleted_by NOT LIKE 'SYSTEM:%'
-            AND p3.user_id = REPLACE(p.deleted_by, 'USER:', '')
-
             WHERE p.deleted_at IS NOT NULL
             ORDER BY p.deleted_at DESC
         ");
 
         $stmt->execute();
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return ActorHelper::enrichActorNames($rows, [
+            'created_by_name' => 'created_by_name',
+            'updated_by_name' => 'updated_by_name',
+            'deleted_by_name' => 'deleted_by_name',
+        ]);
     }
 
     public function restoreById(string $id, string $actor): bool

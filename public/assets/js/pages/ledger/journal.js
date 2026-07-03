@@ -9,6 +9,7 @@ import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { createJournalBasicInfoBridge } from '/public/assets/js/pages/ledger/journal.basic-info.js';
 import { initCodeSelectControls, onCodeOptionsLoaded } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
 import { resolveDisplayText } from '/public/assets/js/pages/ledger/shared/utils.js';
+import { actorDisplay } from '/public/assets/js/common/actor.js';
 import '/public/assets/js/components/trash-manager.js';
 
 window.AdminPicker = AdminPicker;
@@ -131,8 +132,8 @@ window.AdminPicker = AdminPicker;
     ];
 
     const SOURCE_TYPE_LABELS = {
-        TAX: '홈택스',
-        CARD: '카드사',
+        TAX: '세금계산서',
+        CARD: '카드',
         BANK: '은행',
         MANUAL: '수기입력',
         TRANSACTION: '거래',
@@ -141,14 +142,14 @@ window.AdminPicker = AdminPicker;
 
     const TYPE_LABELS = {
         TRANSACTION: '거래',
-        ORDER: '주문',
+        ORDER: '발주',
         VOUCHER: '전표',
         CONTRACT: '계약',
         PAYMENT: '결제',
         CLIENT: '거래처',
         PROJECT: '프로젝트',
         EMPLOYEE: '직원',
-        ACCOUNT: '계좌',
+        ACCOUNT: '계정',
         BANK_ACCOUNT: '계좌',
         CARD: '카드',
     };
@@ -222,18 +223,9 @@ window.AdminPicker = AdminPicker;
         }, 250);
     }
 
-    function formatActorName(value) {
-        const actor = String(value ?? '').trim();
-        if (!actor) {
-            return '';
-        }
-
-        return actor.replace(/^(USER|ADMIN|SYSTEM|EMPLOYEE):/i, '').trim() || actor;
-    }
-
     window.TrashColumns = window.TrashColumns || {};
     window.TrashColumns.journal = function (row = {}) {
-        const deletedBy = formatActorName(row.deleted_by_name ?? row.deleted_by ?? '');
+        const deletedBy = actorDisplay(row, 'deleted_by');
         return `
             <td>${escapeHtml(row.voucher_no ?? '')}</td>
             <td>${escapeHtml(row.voucher_date ?? '')}</td>
@@ -243,7 +235,7 @@ window.AdminPicker = AdminPicker;
             <td>${escapeHtml(row.deleted_at ?? '')}</td>
             <td>${escapeHtml(deletedBy)}</td>
             <td class="text-center">
-                <button type="button" class="btn btn-success btn-sm btn-restore" data-id="${escapeHtml(row.id ?? '')}">복원</button>
+                <button type="button" class="btn btn-success btn-sm btn-restore" data-id="${escapeHtml(row.id ?? '')}">복구</button>
                 <button type="button" class="btn btn-danger btn-sm btn-purge" data-id="${escapeHtml(row.id ?? '')}">영구삭제</button>
             </td>
         `;
@@ -492,7 +484,7 @@ window.AdminPicker = AdminPicker;
         if (status === 'draft' && rejectReason !== '') {
             return {
                 key: 'rejected',
-                label: '반려됨',
+                label: '반려',
                 tooltip: rejectReason,
             };
         }
@@ -533,9 +525,7 @@ window.AdminPicker = AdminPicker;
         const key = String(status || 'draft').toLowerCase();
         const currentIndex = Math.max(STATUS_STEPS.findIndex((step) => step.value === key), 0);
         const dateText = String(meta.updated_at || meta.created_at || '').slice(0, 16).replace('T', ' ');
-        const actorText = meta.updated_actor_label
-            || meta.created_actor_label
-            || formatActorName(meta.updated_by_name || meta.updated_by || meta.created_by_name || meta.created_by || '');
+        const actorText = actorDisplay(meta, meta.updated_at ? 'updated_by' : 'created_by');
 
         const steps = STATUS_STEPS.map((step, index) => {
             const isFinal = (key === 'posted' && step.value === 'posted')
@@ -560,7 +550,7 @@ window.AdminPicker = AdminPicker;
                 <div class="voucher-timeline-step voucher-timeline-${step.value} ${stateClass}">
                     <div class="${nodeClass}">${icon}</div>
                     <div class="voucher-timeline-label">${escapeHtml(step.label)}</div>
-                    <div class="voucher-timeline-meta">${detail || '<span>처리 중...</span>'}</div>
+                    <div class="voucher-timeline-meta">${detail || '<span>아직 없음</span>'}</div>
                 </div>
             `;
         }).join('');
@@ -619,8 +609,8 @@ window.AdminPicker = AdminPicker;
             CASH_RECEIPT: '현금영수증',
             CARD_APPROVAL: '카드',
             BANK_TRANSACTION: '입출금',
-            SHOPPING_ORDER: '주문',
-            IMPORT_INVOICE: '수입인보이스',
+            SHOPPING_ORDER: '발주서',
+            IMPORT_INVOICE: '수입신고',
         };
         const key = String(value || '').toUpperCase();
         return labels[key] || value || '-';
@@ -628,10 +618,10 @@ window.AdminPicker = AdminPicker;
 
     function importSourceLabel(value) {
         const key = String(value || '').toUpperCase();
-        if (['TAX_INVOICE', 'CASH_RECEIPT'].includes(key)) return '홈택스';
-        if (key === 'CARD_APPROVAL') return '카드사';
+        if (['TAX_INVOICE', 'CASH_RECEIPT'].includes(key)) return '세금';
+        if (key === 'CARD_APPROVAL') return '카드';
         if (key === 'BANK_TRANSACTION') return '은행';
-        if (key === 'SHOPPING_ORDER') return '쇼핑몰';
+        if (key === 'SHOPPING_ORDER') return '발주';
         if (key === 'IMPORT_INVOICE') return '수입/무역';
         return value ? translateSourceType(value) : '-';
     }
@@ -811,14 +801,14 @@ window.AdminPicker = AdminPicker;
         const matchStatus = String(row.match_status || '').toLowerCase();
 
         if (!hasTransaction) {
-            return '<span class="journal-link-badge journal-link-unlinked">⚠ 미연결</span>';
+            return '<span class="journal-link-badge journal-link-unlinked">미연결</span>';
         }
 
         if (matchStatus === 'matched') {
-            return '<span class="journal-link-badge journal-link-matched">✔ 매칭완료</span>';
+            return '<span class="journal-link-badge journal-link-matched">대사완료</span>';
         }
 
-        return '<span class="journal-link-badge journal-link-linked">✔ 연결됨</span>';
+        return '<span class="journal-link-badge journal-link-linked">연결</span>';
     }
 
     function renderEvidenceLinkedStatus(row = {}) {
@@ -905,7 +895,7 @@ window.AdminPicker = AdminPicker;
         const key = String(value || 'EMPTY').toUpperCase();
         const map = {
             EMPTY: ['분개없음', 'journal-status-empty'],
-            UNBALANCED: ['차대불일치', 'journal-status-unbalanced'],
+            UNBALANCED: ['차변/대변 불일치', 'journal-status-unbalanced'],
             READY: ['완료', 'journal-status-ready'],
             POSTED: ['승인완료', 'journal-status-posted'],
         };
@@ -939,14 +929,14 @@ window.AdminPicker = AdminPicker;
 
     function buildSourceTransactionSummary(row = null, fallbackId = '') {
         if (!row) {
-            return fallbackId ? `원본 거래: ${fallbackId}` : '';
+            return fallbackId ? `원본 거래 ${fallbackId}` : '';
         }
 
         const sortNo = row.sort_no ? `#${row.sort_no}` : (fallbackId || '-');
         const date = row.transaction_date || '-';
         const description = row.description || row.client_name || '';
 
-        return ['원본 거래:', sortNo, date, description].filter(Boolean).join(' ');
+        return ['원본 거래', sortNo, date, description].filter(Boolean).join(' ');
     }
 
     function buildLinkedTransactionSummary(row = null) {
@@ -1036,7 +1026,7 @@ window.AdminPicker = AdminPicker;
         const client = evidences[0]?.client_name || evidences[0]?.counterparty_name || '';
         const summary = evidences[0]?.display_summary || evidences[0]?.description || '';
         const amount = formatAmount(evidences[0]?.display_amount ?? evidences[0]?.total_amount ?? '');
-        const bundleLabel = labels.length > 1 ? '묶음증빙:' : '연결증빙:';
+        const bundleLabel = labels.length > 1 ? '묶음증빙:' : '연결증빙';
 
         return [
             bundleLabel,
@@ -1199,7 +1189,7 @@ window.AdminPicker = AdminPicker;
         }
 
         if (isConfirmed) {
-            setValidationBadge('ok', '검토요청 전표입니다. 분개라인 수정은 제한됩니다.');
+            setValidationBadge('ok', '검토요청된 전표는 내용을 수정할 수 없습니다.');
         }
 
         if (!isDraft) {
@@ -1212,8 +1202,8 @@ window.AdminPicker = AdminPicker;
         if (transactionNoticeEl) {
             const message = isDraft ? '' : voucherEditLockMessage(normalizedStatus);
             /*
-                ? '거래 연결은 가능하지만 회계에는 영향이 없습니다.'
-                : (isClosed ? '마감 상태입니다. 거래 연결은 가능하지만 연결해제는 할 수 없습니다.' : '');
+                ? '거래 연결은 가능하지만 합계에는 영향이 없습니다.'
+                : (isClosed ? '마감 상태입니다. 거래 연결은 가능하지만 연결 해제는 할 수 없습니다.' : '');
             */
             transactionNoticeEl.textContent = message;
             transactionNoticeEl.classList.toggle('d-none', message === '');
@@ -1294,7 +1284,7 @@ window.AdminPicker = AdminPicker;
         });
 
         return [
-            { id: '', text: '계정과목 선택' },
+            { id: '', text: '계정과목을 선택' },
             ...mappedRows,
         ];
     }
@@ -1355,7 +1345,7 @@ window.AdminPicker = AdminPicker;
     const REF_PICKER_CONFIG = {
         CLIENT: {
             url: API.clientList,
-            placeholder: '거래처 선택',
+            placeholder: '거래처를 선택',
             label(row) {
                 return resolveDisplayText(row)
                     || row.client_name || row.business_name || row.name || row.company_name || '-';
@@ -1403,14 +1393,14 @@ window.AdminPicker = AdminPicker;
         },
         TRANSACTION: {
             url: API.transactionSearch,
-            placeholder: '거래 선택',
+            placeholder: '거래를 선택',
             label(row) {
                 return row.item_summary || row.description || row.transaction_date || '-';
             },
         },
         ORDER: {
             url: API.transactionSearch,
-            placeholder: '주문 선택',
+            placeholder: '주문을 선택',
             label(row) {
                 return row.order_ref || row.document_no || row.item_summary || row.summary_text || '-';
             },
@@ -1424,14 +1414,14 @@ window.AdminPicker = AdminPicker;
         },
         CONTRACT: {
             url: API.transactionSearch,
-            placeholder: '계약 선택',
+            placeholder: '계약을 선택',
             label(row) {
                 return row.document_no || row.item_summary || row.description || '-';
             },
         },
         PAYMENT: {
             url: API.list,
-            placeholder: '결제 선택',
+            placeholder: '결제를 선택',
             label(row) {
                 return row.voucher_no || row.summary_text || '-';
             },
@@ -1554,7 +1544,7 @@ window.AdminPicker = AdminPicker;
         }
 
         AdminPicker.select2(selectEl, {
-            placeholder: '계정과목 선택',
+            placeholder: '계정과목을 선택',
             dropdownParent: window.jQuery(modalEl),
             width: '100%',
             templateResult: renderPickerOption,
@@ -1576,7 +1566,7 @@ window.AdminPicker = AdminPicker;
     }
 
     function emptyLineRow() {
-        return '<tr class="voucher-line-empty"><td colspan="7" class="text-center text-muted py-4">분개 라인을 추가해주세요.</td></tr>';
+        return '<tr class="voucher-line-empty"><td colspan="7" class="text-center text-muted py-4">분개 라인을 추가해 주세요.</td></tr>';
     }
 
     function syncLineNumbers() {
@@ -1591,8 +1581,8 @@ window.AdminPicker = AdminPicker;
                             <span class="journal-line-order-cell">
                                 <button type="button"
                                         class="journal-line-drag-handle"
-                                        aria-label="순서 변경"
-                                        title="순서 변경">
+                                        aria-label="순서 이동"
+                                        title="순서 이동">
                                     <i class="bi bi-grip-vertical" aria-hidden="true"></i>
                                 </button>
                                 <span class="journal-line-display-no"></span>
@@ -1718,7 +1708,7 @@ window.AdminPicker = AdminPicker;
         creditTotalEl.value = formatAmountValue(credit) || '0';
 
         if (rows.length === 0) {
-            setValidationBadge('error', '분개 라인을 입력해주세요.');
+            setValidationBadge('error', '분개 라인을 먼저 입력해 주세요.');
             return;
         }
 
@@ -1821,8 +1811,8 @@ window.AdminPicker = AdminPicker;
                 <span class="journal-line-order-cell">
                     <button type="button"
                             class="journal-line-drag-handle"
-                            aria-label="순서 변경"
-                            title="순서 변경">
+                            aria-label="순서 이동"
+                            title="순서 이동">
                         <i class="bi bi-grip-vertical" aria-hidden="true"></i>
                     </button>
                     <span class="journal-line-display-no"></span>
@@ -1830,7 +1820,7 @@ window.AdminPicker = AdminPicker;
             </td>
             <td>
                 <select class="form-select form-select-sm line-account-code-picker">
-                    <option value="">계정과목 선택</option>
+                    <option value="">계정과목을 선택</option>
                 </select>
             </td>
             <td class="line-ref-cell">
@@ -1857,7 +1847,7 @@ window.AdminPicker = AdminPicker;
                        placeholder="라인 적요">
             </td>
             <td class="text-center">
-                <button type="button" class="btn btn-outline-danger btn-sm btn-remove-line">-삭제</button>
+                <button type="button" class="btn btn-outline-danger btn-sm btn-remove-line">삭제</button>
             </td>
         `;
 
@@ -1888,7 +1878,7 @@ window.AdminPicker = AdminPicker;
         document.getElementById('journal_id').value = '';
         setJournalModalLoading(false);
         if (voucherNoDisplayEl) {
-            voucherNoDisplayEl.value = '자동발번';
+            voucherNoDisplayEl.value = '새 전표';
         }
         voucherDateEl.value = formatDate(new Date());
         voucherStatusEl.value = 'draft';
@@ -2068,7 +2058,7 @@ window.AdminPicker = AdminPicker;
     }
 
     function emptyPaymentRow() {
-        return '<tr class="voucher-payment-empty"><td colspan="6" class="text-center text-muted py-3">결제수단이 필요한 경우 추가해주세요.</td></tr>';
+        return '<tr class="voucher-payment-empty"><td colspan="6" class="text-center text-muted py-3">결제수단은 필요할 경우 추가해 주세요.</td></tr>';
     }
 
     function syncPaymentNumbers() {
@@ -2132,7 +2122,7 @@ window.AdminPicker = AdminPicker;
                        placeholder="0">
             </td>
             <td class="text-center">
-                <button type="button" class="btn btn-outline-danger btn-sm btn-remove-payment">-삭제</button>
+                <button type="button" class="btn btn-outline-danger btn-sm btn-remove-payment">삭제</button>
             </td>
         `;
 
@@ -2182,7 +2172,7 @@ window.AdminPicker = AdminPicker;
         const lines = collectLines();
 
         if (requireJournalReady && lines.length === 0) {
-            notify('warning', '분개 라인을 1개 이상 입력해주세요.');
+            notify('warning', '분개 라인을 1개 이상 입력해 주세요.');
             return false;
         }
 
@@ -2195,7 +2185,7 @@ window.AdminPicker = AdminPicker;
             const credit = Number(line.credit || '0');
 
             if (!line.account_id) {
-                notify('warning', `${index + 1}번 라인의 계정과목을 선택해주세요.`);
+                notify('warning', `${index + 1}번째 라인의 계정과목을 선택해 주세요.`);
                 return false;
             }
 
@@ -2205,36 +2195,36 @@ window.AdminPicker = AdminPicker;
             const requiredPickers = refPickers.filter((selectEl) => selectEl.dataset.required === '1');
             const selectedPickers = refPickers.filter((selectEl) => String(selectEl.value || '').trim());
             if (false && refPickers.length > 0 && selectedPickers.length === 0) {
-                notify('warning', `${index + 1}번째 라인은 보조계정을 선택해야 합니다.`);
+                notify('warning', `${index + 1}번째 라인의 보조계정을 선택해 주세요.`);
                 refPickers[0]?.focus();
                 return false;
             }
             if (false && requiredPickers.length > 1) {
-                notify('warning', `${index + 1}번째 라인은 필수 보조계정이 여러 개입니다. 현재 전표라인 DB 구조는 보조계정 1개만 저장할 수 있습니다.`);
+                notify('warning', `${index + 1}번째 라인에는 필수 보조계정이 여러 개 있습니다. 현재 전표라인 DB 구조상 보조계정은 1개만 저장할 수 있습니다.`);
                 requiredPickers[0]?.focus();
                 return false;
             }
             for (const requiredPicker of requiredPickers) {
                 if (!String(requiredPicker.value || '').trim()) {
-                    notify('warning', `${index + 1}번째 라인의 필수 보조계정을 선택해주세요.`);
+                    notify('warning', `${index + 1}번째 라인의 필수 보조계정을 선택해 주세요.`);
                     requiredPicker.focus();
                     return false;
                 }
             }
 
             if (false && selectedPickers.length > 1) {
-                notify('warning', `${index + 1}번째 라인은 보조계정을 1개만 선택할 수 있습니다.`);
+                notify('warning', `${index + 1}번째 라인에는 보조계정을 1개만 선택할 수 있습니다.`);
                 selectedPickers[1]?.focus();
                 return false;
             }
 
             if (debit <= 0 && credit <= 0) {
-                notify('warning', `${index + 1}번 라인의 차변 또는 대변 금액을 입력해주세요.`);
+                notify('warning', `${index + 1}번째 라인의 차변 또는 대변 금액을 입력해 주세요.`);
                 return false;
             }
 
             if (debit > 0 && credit > 0) {
-                notify('warning', `${index + 1}번 라인은 차변과 대변 중 하나만 입력할 수 있습니다.`);
+                notify('warning', `${index + 1}번째 라인은 차변과 대변 중 하나만 입력할 수 있습니다.`);
                 return false;
             }
 
@@ -2251,15 +2241,15 @@ window.AdminPicker = AdminPicker;
         for (let index = 0; index < payments.length; index += 1) {
             const payment = payments[index];
             if (!payment.payment_type) {
-                notify('warning', `${index + 1}번째 결제유형을 선택해주세요.`);
+                notify('warning', `${index + 1}번째 결제유형을 선택해 주세요.`);
                 return false;
             }
             if (!payment.payment_id) {
-                notify('warning', `${index + 1}번째 결제수단을 선택해주세요.`);
+                notify('warning', `${index + 1}번째 결제수단을 선택해 주세요.`);
                 return false;
             }
             if (Number(payment.amount || 0) <= 0) {
-                notify('warning', `${index + 1}번째 결제금액을 입력해주세요.`);
+                notify('warning', `${index + 1}번째 결제금액을 입력해 주세요.`);
                 return false;
             }
         }
@@ -2312,19 +2302,19 @@ window.AdminPicker = AdminPicker;
         const origin = String(renderImportOrigin(row) || '').trim();
 
         if (['BANK', 'BANK_TRANSACTION', 'ACCOUNT_TRANSACTION'].includes(importType)) {
-            return '은행/입출금';
+            return '입출금';
         }
         if (['TAX', 'TAX_INVOICE', 'HOMETAX', 'ETAX'].includes(importType)) {
-            return '홈택스/세금계산서';
+            return '세금계산서';
         }
         if (['CARD', 'CORP_CARD', 'CREDIT_CARD'].includes(importType)) {
-            return '카드사/법인카드';
+            return '카드매입';
         }
         if (importType === 'MANUAL' || (!importType && (!origin || origin === '-'))) {
-            return '직접입력';
+            return '수기입력';
         }
 
-        return origin || importType || '직접입력';
+        return origin || importType || '수기입력';
     }
 
     function renderAmountCell(value = 0, extraClass = '') {
@@ -2421,7 +2411,7 @@ window.AdminPicker = AdminPicker;
             },
             {
                 data: 'transaction_id',
-                title: '거래연결',
+                title: '거래 연결',
                 className: 'text-center journal-transaction-link-cell',
                 defaultContent: '',
                 render(data, type, row) {
@@ -2434,7 +2424,7 @@ window.AdminPicker = AdminPicker;
             },
             {
                 data: 'evidence_link_status',
-                title: '증빙연결',
+                title: '증빙 연결',
                 className: 'journal-evidence-link-cell',
                 defaultContent: '',
                 render(data, type, row) {
@@ -2448,7 +2438,7 @@ window.AdminPicker = AdminPicker;
             {
                 data: null,
                 className: 'journal-source-cell',
-                title: '자료출처',
+                title: '원본 구분',
                 defaultContent: '',
                 render(_data, type, row) {
                     const label = sourceLabel(row);
@@ -2473,7 +2463,7 @@ window.AdminPicker = AdminPicker;
             },
             {
                 data: 'source_id',
-                title: '자료원본ID',
+                title: '원본자료ID',
                 visible: false,
                 defaultContent: '',
                 render(data) {
@@ -2596,12 +2586,12 @@ window.AdminPicker = AdminPicker;
                 },
             },
             {
-                data: 'created_by',
-                title: '생성자ID',
+                data: 'created_by_name',
+                title: '생성자',
                 visible: false,
                 defaultContent: '',
-                render(data) {
-                    return escapeHtml(data || '');
+                render(_data, _type, row) {
+                    return escapeHtml(actorDisplay(row, 'created_by'));
                 },
             },
             {
@@ -2614,12 +2604,12 @@ window.AdminPicker = AdminPicker;
                 },
             },
             {
-                data: 'updated_by',
-                title: '수정자ID',
+                data: 'updated_by_name',
+                title: '수정자',
                 visible: false,
                 defaultContent: '',
-                render(data) {
-                    return escapeHtml(data || '');
+                render(_data, _type, row) {
+                    return escapeHtml(actorDisplay(row, 'updated_by'));
                 },
             },
             {
@@ -2632,12 +2622,12 @@ window.AdminPicker = AdminPicker;
                 },
             },
             {
-                data: 'deleted_by',
-                title: '삭제자ID',
+                data: 'deleted_by_name',
+                title: '삭제자',
                 visible: false,
                 defaultContent: '',
-                render(data) {
-                    return escapeHtml(data || '');
+                render(_data, _type, row) {
+                    return escapeHtml(actorDisplay(row, 'deleted_by'));
                 },
             },
             {
@@ -2804,8 +2794,8 @@ window.AdminPicker = AdminPicker;
                     extend: 'excelHtml5',
                     text: '엑셀 다운로드',
                     className: 'btn btn-outline-success btn-sm',
-                    title: '전표입력',
-                    filename: '전표입력',
+                    title: '전표 목록',
+                    filename: '전표 목록',
                     exportOptions: {
                         columns: ':visible:not(.no-export):not(.no-colvis)',
                     },
@@ -2816,7 +2806,7 @@ window.AdminPicker = AdminPicker;
                     action: openTrashModal,
                 },
                 {
-                    text: '새 전표',
+                    text: '신규전표',
                     className: 'btn btn-warning btn-sm',
                     action: function () {
                         void openCreateModal();
@@ -2831,11 +2821,11 @@ window.AdminPicker = AdminPicker;
         bindRowReorder(journalTable, {
             api: API.reorder,
             onSuccess() {
-                notify('success', '전표 순번이 변경되었습니다.');
+                notify('success', '전표 순번이 저장되었습니다.');
                 journalTable?.ajax.reload(null, false);
             },
             onError(json) {
-                notify('error', json?.message || '전표 순번 변경에 실패했습니다.');
+                notify('error', json?.message || '전표 순번 저장에 실패했습니다.');
                 journalTable?.ajax.reload(null, false);
             }
         });
@@ -3032,7 +3022,7 @@ window.AdminPicker = AdminPicker;
                 return;
             }
 
-            notify('success', '검토요청 처리되었습니다.');
+            notify('success', '검토요청이 완료되었습니다.');
             modal?.hide();
             reloadJournalTable();
         } catch (error) {
@@ -3139,7 +3129,7 @@ window.AdminPicker = AdminPicker;
             return null;
         }
 
-        notify('success', '증빙 연결을 해제했습니다.');
+        notify('success', '증빙 연결이 해제되었습니다.');
         reloadJournalTable();
         return json.data || null;
     }
@@ -3210,7 +3200,6 @@ window.AdminPicker = AdminPicker;
             .toArray()
             .find((item) => String(item.id || '') === id) || null;
     }
-
     async function changeVoucherNumber(row = {}) {
         const id = String(row.id || '').trim();
         if (!id) {
@@ -3225,19 +3214,19 @@ window.AdminPicker = AdminPicker;
         }
 
         const currentNo = String(row.voucher_no || '').trim();
-        const nextNo = window.prompt('변경할 전표번호를 입력하세요. 예: 20260522-0001', currentNo);
+        const nextNo = window.prompt('변경할 전표번호를 입력해 주세요. 예: 20260522-0001', currentNo);
         if (nextNo === null) {
             return;
         }
 
         const normalizedNo = String(nextNo || '').trim();
         if (!VOUCHER_NUMBER_PATTERN.test(normalizedNo)) {
-            notify('warning', '전표번호 형식은 YYYYMMDD-XXXX 입니다.');
+            notify('warning', '전표번호는 YYYYMMDD-XXXX 형식으로 입력해 주세요.');
             return;
         }
 
         if (normalizedNo === currentNo) {
-            notify('info', '변경된 전표번호가 없습니다.');
+            notify('info', '변경할 전표번호가 없습니다.');
             return;
         }
 
@@ -3281,7 +3270,7 @@ window.AdminPicker = AdminPicker;
         }
 
         if (action === 'copy') {
-            notify('info', '전표 복사는 전표 상세 화면의 저장 정책과 함께 연결될 예정입니다.');
+            notify('info', '전표 복사는 전표 상세 화면에서 저장 후 새 행으로 연결되도록 별도 구현이 필요합니다.');
             return;
         }
 
@@ -3292,7 +3281,7 @@ window.AdminPicker = AdminPicker;
                 return;
             }
 
-            notify('info', '원본증빙 보기 연결은 자료관리 공용 모달과 연동 예정입니다.');
+            notify('info', '원본증빙 바로 연결은 추후 공용 모달 또는 상세 화면에서 지원될 예정입니다.');
             return;
         }
 
@@ -3303,7 +3292,6 @@ window.AdminPicker = AdminPicker;
             await deleteVoucher(id);
         }
     }
-
     function renderTransactionSearchRows(rows = []) {
         if (!transactionSearchBody) {
             return;
@@ -3312,7 +3300,7 @@ window.AdminPicker = AdminPicker;
         if (!rows.length) {
             transactionSearchBody.innerHTML = `
                 <tr>
-                    <td colspan="6" class="text-center text-muted py-4">선택한 거래가 없습니다.</td>
+                    <td colspan="6" class="text-center text-muted py-4">선택할 거래가 없습니다.</td>
                 </tr>
             `;
             return;
@@ -3338,7 +3326,7 @@ window.AdminPicker = AdminPicker;
         transactionSearchBody.innerHTML = rows.map((row, index) => `
             <tr data-index="${index}"${linkedRowClass(row)}>
                 <td>${escapeHtml(row.transaction_date || '')}</td>
-                <td>${escapeHtml(row.display_type || row.transaction_type || '-')}</td>
+                <td>${escapeHtml(row.display_type || '-')}</td>
                 <td>${escapeHtml(row.client_name || row.project_name || '-')}</td>
                 <td class="text-end">${escapeHtml(formatAmountValue(row.display_amount ?? row.total_amount ?? 0) || '0')}</td>
                 <td>
@@ -3360,7 +3348,7 @@ window.AdminPicker = AdminPicker;
 
         transactionSearchBody.innerHTML = `
             <tr>
-                <td colspan="6" class="text-center text-muted py-4">거래를 불러오는 중입니다.</td>
+                <td colspan="6" class="text-center text-muted py-4">거래 목록을 불러오는 중입니다.</td>
             </tr>
         `;
 
@@ -3450,7 +3438,7 @@ window.AdminPicker = AdminPicker;
 
         evidenceSearchBody.innerHTML = `
             <tr>
-                <td colspan="6" class="text-center text-muted py-4">증빙을 불러오는 중입니다.</td>
+                <td colspan="6" class="text-center text-muted py-4">증빙 목록을 불러오는 중입니다.</td>
             </tr>
         `;
 
@@ -3474,6 +3462,7 @@ window.AdminPicker = AdminPicker;
             renderEvidenceSearchRows(evidenceRows);
         } catch (error) {
             console.error('[ledger-journal] evidence search failed', error);
+            evidenceRows = [];
             evidenceRows = [];
             evidenceSearchBody.innerHTML = `
                 <tr>
@@ -3689,17 +3678,6 @@ window.AdminPicker = AdminPicker;
 
             setAmountInputValue(input, { formatted: false });
         });
-
-        document.addEventListener('focusout', (event) => {
-            const input = getAmountInputTarget(event.target);
-            if (!input) {
-                return;
-            }
-
-            setAmountInputValue(input);
-            calculateTotals();
-        });
-
         modalDeleteBtn?.addEventListener('click', () => {
             const id = document.getElementById('journal_id')?.value || '';
             if (id && window.confirm('전표를 삭제하시겠습니까?')) {
@@ -3744,6 +3722,7 @@ window.AdminPicker = AdminPicker;
             evidenceModal.show();
             void loadEvidenceSearch();
         });
+
 
         clearEvidenceLinkBtn?.addEventListener('click', () => {
             void clearEvidenceLinkOnly();
@@ -3808,7 +3787,6 @@ window.AdminPicker = AdminPicker;
                 );
                 if (!ok) return;
             }
-
             setLinkedTransaction(row);
             transactionModal?.hide();
             if (form.querySelector('[name="id"]')?.value) {
@@ -3865,7 +3843,7 @@ window.AdminPicker = AdminPicker;
             return;
         }
 
-        const deletedBy = formatActorName(row.deleted_by_name ?? row.deleted_by ?? '-');
+        const deletedBy = actorDisplay(row, 'deleted_by');
         detailEl.innerHTML = `
             <div class="journal-trash-detail">
                 <dl class="row mb-0 small">
@@ -3892,7 +3870,7 @@ window.AdminPicker = AdminPicker;
         async openVoucher(id, options = {}) {
             const voucherId = String(id || '').trim();
             if (!voucherId) {
-                notify('warning', '?곌껐??꾪몴媛 ?놁뒿?덈떎.');
+                notify('warning', '열 전표 ID가 전달되지 않았습니다.');
                 return;
             }
             if (typeof options.onClosed === 'function') {

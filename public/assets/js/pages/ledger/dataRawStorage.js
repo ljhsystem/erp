@@ -1,3 +1,5 @@
+import { actorDisplay } from '/public/assets/js/common/actor.js';
+
 (() => {
     'use strict';
 
@@ -127,7 +129,7 @@
                     <td class="text-end">${formatNumber(batch.duplicate_count)}</td>
                     <td class="text-end">${formatNumber(batch.created_count ?? batch.processed_count)}</td>
                     <td>${statusBadge(batch.status || batch.process_status || '')}</td>
-                    <td>${escapeHtml(batch.created_by || '-')}</td>
+                    <td>${escapeHtml(actorDisplay(batch, 'created_by'))}</td>
                 </tr>
             `;
         }).join('');

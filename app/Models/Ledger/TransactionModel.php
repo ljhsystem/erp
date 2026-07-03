@@ -2,6 +2,7 @@
 
 namespace App\Models\Ledger;
 
+use Core\Helpers\ActorHelper;
 use Core\Database;
 use PDO;
 
@@ -26,6 +27,9 @@ class TransactionModel
                 COALESCE(sp.project_name, '') AS project_name,
                 COALESCE(tls.item_count, 0) AS transaction_line_count,
                 COALESCE(tls.incomplete_count, 0) AS transaction_line_incomplete_count,
+                t.created_by AS created_by_name,
+                t.updated_by AS updated_by_name,
+                t.deleted_by AS deleted_by_name,
                 CASE
                     WHEN COALESCE(tls.item_count, 0) = 0 THEN 'NONE'
                     WHEN COALESCE(tls.incomplete_count, 0) > 0 THEN 'INCOMPLETE'
@@ -45,11 +49,6 @@ class TransactionModel
         if (!empty($filters['business_unit'])) {
             $sql .= " AND t.business_unit = :business_unit";
             $params[':business_unit'] = $filters['business_unit'];
-        }
-
-        if (!empty($filters['transaction_type'])) {
-            $sql .= " AND t.transaction_type = :transaction_type";
-            $params[':transaction_type'] = $filters['transaction_type'];
         }
 
         if (!empty($filters['status'])) {
@@ -99,10 +98,7 @@ class TransactionModel
             $fieldMap = [
                 'sort_no' => 't.sort_no',
                 'business_unit' => 't.business_unit',
-                'transaction_type' => 't.transaction_type',
                 'transaction_direction' => 't.transaction_direction',
-                'source_type' => 't.source_type',
-                'import_type' => 't.import_type',
                 'transaction_date' => 't.transaction_date',
                 'bank_account_id' => 't.bank_account_id',
                 'card_id' => 't.card_id',
@@ -157,12 +153,20 @@ class TransactionModel
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
 
-        return $this->stripHeaderTaxTypeRows($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = ActorHelper::enrichActorNames($rows, [
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+            'deleted_by_name' => 'deleted_by',
+        ]);
+
+        return $this->stripHeaderTaxTypeRows($rows);
     }
 
     private function lineStatusJoinSql(): string
     {
-        if (!$this->tableExists('ledger_transaction_items') || !$this->tableColumnExists('ledger_transaction_items', 'transaction_id')) {
+        $source = $this->resolveLineStatusSource();
+        if ($source === null) {
             return "
                 LEFT JOIN (
                     SELECT NULL AS transaction_id, 0 AS item_count, 0 AS incomplete_count
@@ -170,13 +174,13 @@ class TransactionModel
             ";
         }
 
-        $where = $this->tableColumnExists('ledger_transaction_items', 'deleted_at')
+        $where = $source['has_deleted_at']
             ? 'WHERE deleted_at IS NULL'
             : '';
-        $itemNameExpr = $this->tableColumnExists('ledger_transaction_items', 'item_name')
+        $itemNameExpr = $source['has_item_name']
             ? "TRIM(COALESCE(item_name, '')) = ''"
             : '0 = 1';
-        $amountExpr = $this->lineAmountExpression();
+        $amountExpr = $source['amount_expr'];
 
         return "
             LEFT JOIN (
@@ -187,7 +191,7 @@ class TransactionModel
                         WHEN {$itemNameExpr} OR {$amountExpr} = 0 THEN 1
                         ELSE 0
                     END) AS incomplete_count
-                FROM ledger_transaction_items
+                FROM {$source['table']}
                 {$where}
                 GROUP BY transaction_id
             ) tls
@@ -195,10 +199,40 @@ class TransactionModel
         ";
     }
 
-    private function lineAmountExpression(): string
+    private function resolveLineStatusSource(): ?array
     {
-        if ($this->tableColumnExists('ledger_transaction_items', 'item_supply_amount')) {
+        foreach (['ledger_transaction_items', 'ledger_transaction_lines'] as $tableName) {
+            if (!$this->tableExists($tableName) || !$this->tableColumnExists($tableName, 'transaction_id')) {
+                continue;
+            }
+
+            return [
+                'table' => $tableName,
+                'has_deleted_at' => $this->tableColumnExists($tableName, 'deleted_at'),
+                'has_item_name' => $this->tableColumnExists($tableName, 'item_name'),
+                'amount_expr' => $this->lineAmountExpression($tableName),
+            ];
+        }
+
+        return null;
+    }
+
+    private function lineAmountExpression(string $tableName): string
+    {
+        if ($this->tableColumnExists($tableName, 'item_supply_amount')) {
             return 'COALESCE(item_supply_amount, 0)';
+        }
+        if ($this->tableColumnExists($tableName, 'amount')) {
+            return 'COALESCE(amount, 0)';
+        }
+        if ($this->tableColumnExists($tableName, 'total_amount')) {
+            return 'COALESCE(total_amount, 0)';
+        }
+        if ($this->tableColumnExists($tableName, 'supply_amount') || $this->tableColumnExists($tableName, 'vat_amount')) {
+            $supply = $this->tableColumnExists($tableName, 'supply_amount') ? 'COALESCE(supply_amount, 0)' : '0';
+            $vat = $this->tableColumnExists($tableName, 'vat_amount') ? 'COALESCE(vat_amount, 0)' : '0';
+
+            return "({$supply} + {$vat})";
         }
 
         return '1';
@@ -274,7 +308,10 @@ class TransactionModel
                 COALESCE(sba.account_name, '') AS bank_account_name,
                 COALESCE(scd.card_name, '') AS card_name,
                 COALESCE(swt.team_name, '') AS team_name,
-                COALESCE(ue.employee_name, '') AS employee_name
+                COALESCE(ue.employee_name, '') AS employee_name,
+                t.created_by AS created_by_name,
+                t.updated_by AS updated_by_name,
+                t.deleted_by AS deleted_by_name
             FROM {$this->table} t
             LEFT JOIN system_clients sc
                 ON t.client_id = sc.id
@@ -296,6 +333,11 @@ class TransactionModel
         $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
         if ($row !== null) {
             unset($row['tax_type']);
+            $row = ActorHelper::enrichActorNamesRow($row, [
+                'created_by_name' => 'created_by',
+                'updated_by_name' => 'updated_by',
+                'deleted_by_name' => 'deleted_by',
+            ]);
         }
 
         return $row;
@@ -306,11 +348,8 @@ class TransactionModel
         $allowed = [
             'id',
             'sort_no',
-            'source_type',
-            'import_type',
             'business_unit',
             'transaction_direction',
-            'transaction_type',
             'currency',
             'client_id',
             'project_id',
@@ -336,10 +375,13 @@ class TransactionModel
             'deleted_at',
             'deleted_by',
         ];
+        if ($this->tableColumnExists($this->table, 'operation_type')) {
+            $allowed[] = 'operation_type';
+        }
 
         $payload = $this->filterData($data, $allowed);
 
-        if (!isset($payload['id'], $payload['business_unit'], $payload['transaction_type'], $payload['transaction_date'])) {
+        if (!isset($payload['id'], $payload['business_unit'], $payload['transaction_date'])) {
             return false;
         }
 
@@ -362,10 +404,7 @@ class TransactionModel
     {
         $allowed = [
             'business_unit',
-            'source_type',
-            'transaction_type',
             'transaction_direction',
-            'import_type',
             'transaction_date',
             'client_id',
             'project_id',
@@ -389,6 +428,9 @@ class TransactionModel
             'deleted_at',
             'deleted_by',
         ];
+        if ($this->tableColumnExists($this->table, 'operation_type')) {
+            $allowed[] = 'operation_type';
+        }
 
         $payload = $this->filterData($data, $allowed);
 
@@ -468,7 +510,7 @@ class TransactionModel
         $payload = [];
 
         foreach ($allowed as $column) {
-            if (array_key_exists($column, $data) && $this->tableColumnExists($this->table, $column)) {
+            if (array_key_exists($column, $data)) {
                 $payload[$column] = $data[$column];
             }
         }

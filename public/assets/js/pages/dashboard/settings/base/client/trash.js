@@ -1,3 +1,5 @@
+import { actorDisplay } from '/public/assets/js/common/actor.js';
+
 export function bindTrashEvents({ getClientTable, clientColumnMap }) {
     document.addEventListener('trash:detail-render', function (event) {
         const { data, modal } = event.detail;
@@ -14,8 +16,9 @@ export function bindTrashEvents({ getClientTable, clientColumnMap }) {
         Object.entries(clientColumnMap).forEach(([key, config]) => {
             const value = data[key];
             if (value === null || value === undefined || value === '') return;
+            const displayValue = config.type === 'actor' ? actorDisplay(data, key) : value;
             html += `
-                <div><b>${config.label}:</b> ${value}</div>
+                <div><b>${config.label}:</b> ${displayValue}</div>
             `;
         });
 
@@ -29,7 +32,7 @@ export function bindTrashEvents({ getClientTable, clientColumnMap }) {
             <td>${row.sort_no ?? ''}</td>
             <td>${row.client_name ?? ''}</td>
             <td>${row.deleted_at ?? ''}</td>
-            <td>${row.deleted_by_name ?? ''}</td>
+            <td>${actorDisplay(row, 'deleted_by')}</td>
             <td>
                 <button class="btn btn-success btn-sm btn-restore" data-id="${row.id}">복원</button>
                 <button class="btn btn-danger btn-sm btn-purge" data-id="${row.id}">영구삭제</button>

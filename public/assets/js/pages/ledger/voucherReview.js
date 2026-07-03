@@ -4,6 +4,7 @@ import {
 } from '/public/assets/js/common/table/data-table.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
+import { actorDisplay } from '/public/assets/js/common/actor.js';
 import '/public/assets/js/components/trash-manager.js';
 
 (() => {
@@ -84,8 +85,6 @@ import '/public/assets/js/components/trash-manager.js';
         }
         if (type === 'error') {
             console.error(message);
-        } else {
-            console.log(message);
         }
     }
 
@@ -103,7 +102,7 @@ import '/public/assets/js/components/trash-manager.js';
             <td class="text-end">${escapeHtml(formatNumber(row.voucher_amount ?? row.debit_total ?? 0))}</td>
             <td>${escapeHtml(row.summary_text ?? '')}</td>
             <td>${escapeHtml(row.deleted_at ?? '')}</td>
-            <td>${escapeHtml(row.deleted_by_name ?? row.deleted_by ?? '')}</td>
+            <td>${escapeHtml(actorDisplay(row, 'deleted_by'))}</td>
             <td class="text-nowrap">
                 <button type="button" class="btn btn-success btn-sm btn-restore" data-id="${escapeHtml(row.id ?? '')}">복원</button>
                 <button type="button" class="btn btn-danger btn-sm btn-purge" data-id="${escapeHtml(row.id ?? '')}">영구삭제</button>
@@ -720,7 +719,7 @@ import '/public/assets/js/components/trash-manager.js';
                     <dt class="col-4">삭제일시</dt>
                     <dd class="col-8">${escapeHtml(row.deleted_at ?? '-')}</dd>
                     <dt class="col-4">삭제자</dt>
-                    <dd class="col-8">${escapeHtml(row.deleted_by_name ?? row.deleted_by ?? '-')}</dd>
+                    <dd class="col-8">${escapeHtml(actorDisplay(row, 'deleted_by'))}</dd>
                 </dl>
             </div>
         `;

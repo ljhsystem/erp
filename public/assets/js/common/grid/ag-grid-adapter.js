@@ -2,6 +2,7 @@ import { handleAgGridKeyboard } from './ag-grid-keyboard.js';
 import { fieldFromColumnRef } from './ag-grid-navigation.js';
 import { defaultRowDragOptions } from './ag-grid-defaults.js';
 import { selectedRowIndexes } from './ag-grid-selection.js';
+import { applyActorAgGridColumn } from '../actor.js';
 
 function normalizeRows(rows = []) {
     return Array.isArray(rows) ? rows.map((row) => ({ ...(row || {}) })) : [];
@@ -11,17 +12,17 @@ function normalizeColumnDefs(columns = []) {
     if (!Array.isArray(columns)) return [];
     return columns.map((column) => {
         if (!column || typeof column !== 'object') return column;
-        if (column.field) return { ...column };
+        if (column.field) return applyActorAgGridColumn({ ...column });
 
         const hasData = Object.prototype.hasOwnProperty.call(column, 'data');
-        if (!hasData) return { ...column };
+        if (!hasData) return applyActorAgGridColumn({ ...column });
 
         const { data, title, ...rest } = column;
-        return {
+        return applyActorAgGridColumn({
             ...rest,
             field: String(data),
             headerName: title ?? String(data),
-        };
+        });
     });
 }
 
@@ -60,46 +61,6 @@ function normalizeRowSelection(rowSelection) {
     if (rowSelection && typeof rowSelection === 'object') return { ...defaults, ...rowSelection };
     if (rowSelection === 'multiple') return { ...defaults, mode: 'multiRow' };
     return { ...defaults, mode: 'singleRow' };
-}
-
-function measureAdapterDebugElement(element) {
-    if (!element) return null;
-    const rect = element.getBoundingClientRect();
-    return {
-        selector: element.id ? `#${element.id}` : (element.className || element.tagName || ''),
-        offsetWidth: Number(element.offsetWidth || 0),
-        clientWidth: Number(element.clientWidth || 0),
-        scrollWidth: Number(element.scrollWidth || 0),
-        rectWidth: Number(rect.width || 0),
-        styleWidth: element.style?.width || '',
-        computedWidth: window.getComputedStyle ? window.getComputedStyle(element).width : '',
-    };
-}
-
-function collectAdapterDebugColumns(api) {
-    if (!api) return [];
-    const displayedColumns = api.getAllDisplayedColumns?.()
-        || api.getColumnApi?.()?.getAllDisplayedColumns?.()
-        || [];
-    return displayedColumns.map((column) => ({
-        field: String(column?.getColId?.() || column?.colId || ''),
-        headerName: String(column?.getColDef?.()?.headerName || ''),
-        actualWidth: Number(column?.getActualWidth?.() || 0),
-        minWidth: Number(column?.getMinWidth?.() || 0),
-        maxWidth: Number(column?.getMaxWidth?.() || 0),
-        left: Number(column?.getLeft?.() || 0),
-        visible: typeof column?.isVisible === 'function' ? column.isVisible() : true,
-    }));
-}
-
-function logAdapterDebug(label, adapter, extra = {}) {
-    console.group(`[AgGridAdapterDebug] ${label}`);
-    console.log('host', measureAdapterDebugElement(adapter?.rootElement || null));
-    console.log('columns', collectAdapterDebugColumns(adapter?.api || null));
-    if (Object.keys(extra).length > 0) {
-        console.log('extra', extra);
-    }
-    console.groupEnd();
 }
 
 export function createAgGridAdapter(host, config = {}) {
@@ -211,35 +172,17 @@ export function createAgGridAdapter(host, config = {}) {
         },
 
         fitColumns() {
-            console.group('[AgGridAdapterDebug] fitColumns');
-            try {
-                logAdapterDebug('fitColumns:before', this, {
-                    autoFitColumns: config.autoFitColumns !== false,
-                    hiddenByOffsetParent: this.rootElement.offsetParent === null,
-                });
-                if (!this.api || this.rootElement.offsetParent === null) return;
-                if (config.autoFitColumns === false) return;
-                this.api.sizeColumnsToFit?.();
-                logAdapterDebug('fitColumns:after', this, {
-                    autoFitColumns: config.autoFitColumns !== false,
-                });
-            } finally {
-                console.groupEnd();
-            }
+            if (!this.api || this.rootElement.offsetParent === null) return;
+            if (config.autoFitColumns === false) return;
+            this.api.sizeColumnsToFit?.();
         },
 
         scheduleFitColumns() {
-            console.group('[AgGridAdapterDebug] scheduleFitColumns');
-            logAdapterDebug('scheduleFitColumns:before', this, {
-                resizeFrame: this.resizeFrame,
-            });
             if (this.resizeFrame) window.cancelAnimationFrame(this.resizeFrame);
             this.resizeFrame = window.requestAnimationFrame(() => {
                 this.resizeFrame = 0;
-                logAdapterDebug('scheduleFitColumns:raf', this);
                 this.fitColumns();
             });
-            console.groupEnd();
         },
 
         render() {
@@ -247,12 +190,8 @@ export function createAgGridAdapter(host, config = {}) {
         },
 
         refreshDimensions() {
-            console.group('[AgGridAdapterDebug] refreshDimensions');
-            logAdapterDebug('refreshDimensions:before', this);
             this.refresh();
             this.api?.doLayout?.();
-            logAdapterDebug('refreshDimensions:after', this);
-            console.groupEnd();
         },
 
         updateSettings(settings = {}) {
@@ -382,16 +321,18 @@ export function createAgGridAdapter(host, config = {}) {
         },
     };
 
+    const mergedDefaultColDef = {
+        editable: true,
+        resizable: true,
+        sortable: false,
+        suppressMovable: true,
+        ...(config.defaultColDef || {}),
+        ...(config.gridOptions?.defaultColDef || {}),
+    };
+
     const gridOptions = {
         rowData: adapter.rowData,
         columnDefs: adapter.columnDefs,
-        defaultColDef: {
-            editable: true,
-            resizable: true,
-            sortable: false,
-            suppressMovable: true,
-            ...(config.defaultColDef || {}),
-        },
         rowSelection: normalizeRowSelection(config.rowSelection),
         ...defaultRowDragOptions(config),
         undoRedoCellEditing: config.undoRedoCellEditing !== false,
@@ -448,35 +389,18 @@ export function createAgGridAdapter(host, config = {}) {
             config.onColumnHeaderClicked?.(event, adapter);
         },
         onCellKeyDown(event) {
-            handleAgGridKeyboard(event, adapter);
+            handleAgGridKeyboard(event, adapter, config);
             config.gridOptions?.onCellKeyDown?.(event);
             config.onCellKeyDown?.(event, adapter);
         },
     };
+    gridOptions.defaultColDef = mergedDefaultColDef;
 
     host.classList.add(
         'erp-ag-grid',
         ...String(config.className || 'erp-ag-grid-input').split(/\s+/).filter(Boolean)
     );
-    console.group('[AgGridAdapterDebug] createGrid');
-    console.log('host', measureAdapterDebugElement(host));
-    console.log('gridOptions', {
-        domLayout: gridOptions.domLayout,
-        defaultColDef: gridOptions.defaultColDef,
-        columnDefs: Array.isArray(gridOptions.columnDefs)
-            ? gridOptions.columnDefs.map((column) => ({
-                field: String(column?.field || ''),
-                headerName: String(column?.headerName || ''),
-                width: Number(column?.width || 0) || null,
-                minWidth: Number(column?.minWidth || 0) || null,
-                maxWidth: Number(column?.maxWidth || 0) || null,
-                hide: Boolean(column?.hide),
-            }))
-            : [],
-    });
     adapter.api = window.agGrid.createGrid(host, gridOptions);
-    logAdapterDebug('createGrid:after', adapter);
-    console.groupEnd();
     if (typeof ResizeObserver !== 'undefined') {
         adapter.resizeObserver = new ResizeObserver(() => {
             adapter.api?.doLayout?.();

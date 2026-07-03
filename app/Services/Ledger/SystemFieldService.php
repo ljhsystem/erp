@@ -131,7 +131,7 @@ class SystemFieldService
         'transaction_datetime' => '거래일시',
         'transaction_time' => '거래시간',
         'bank_account_id' => '은행계좌',
-        'transaction_type' => '거래유형',
+        'operation_type' => '입출금유형',
         'transaction_direction' => '거래구분',
         'bank_direction' => '입출금구분',
         'business_unit' => '사업구분',
@@ -170,8 +170,6 @@ class SystemFieldService
         'CARD_STATEMENT',
         'CARD_APPROVAL',
         'CASH_RECEIPT',
-        'CASH_RECEIPT_PURCHASE',
-        'CASH_RECEIPT_SALES',
         'BANK_TRANSACTION',
     ];
 
@@ -185,10 +183,12 @@ class SystemFieldService
         'CARD' => 'CARD_STATEMENT',
         'CARD_PURCHASE' => 'CARD_STATEMENT',
         'CARD_SALE' => 'CARD_STATEMENT',
-        'CASH_RECEIPT_PURCHAS' => 'CASH_RECEIPT_PURCHASE',
-        'CASH_RECEIPT_BUY' => 'CASH_RECEIPT_PURCHASE',
-        'CASH_RECEIPT_SALE' => 'CASH_RECEIPT_SALES',
-        'CASH_RECEIPT_SELL' => 'CASH_RECEIPT_SALES',
+        'CASH_RECEIPT_PURCHASE' => 'CASH_RECEIPT',
+        'CASH_RECEIPT_PURCHAS' => 'CASH_RECEIPT',
+        'CASH_RECEIPT_BUY' => 'CASH_RECEIPT',
+        'CASH_RECEIPT_SALES' => 'CASH_RECEIPT',
+        'CASH_RECEIPT_SALE' => 'CASH_RECEIPT',
+        'CASH_RECEIPT_SELL' => 'CASH_RECEIPT',
         'BANK' => 'BANK_TRANSACTION',
         'SHOPPING' => 'SHOPPING_ORDER',
         'TRADE_IMPORT' => 'IMPORT_INVOICE',
@@ -202,7 +202,7 @@ class SystemFieldService
         ['value' => 'exchange_rate', 'label' => '기본환율', 'group' => '기준정보(JSON)'],
         ['value' => 'adjustment_amount', 'label' => '가감금액', 'group' => '금액 후보(JSON)'],
         ['value' => 'business_unit', 'label' => '사업구분', 'group' => '기준정보(JSON)'],
-        ['value' => 'transaction_type', 'label' => '거래유형', 'group' => '기준정보(JSON)'],
+        ['value' => 'operation_type', 'label' => '입출금유형', 'group' => '기준정보(JSON)'],
         ['value' => 'client_id', 'label' => '거래처 ID', 'group' => '업무 기준정보(JSON)'],
         ['value' => 'client_name', 'label' => '거래처명', 'group' => '기초정보(JSON)'],
         ['value' => 'client_name_ko', 'label' => '거래처(한글)', 'group' => '기초정보(JSON)'],
@@ -225,8 +225,6 @@ class SystemFieldService
         ['value' => 'user_name', 'label' => '사용자명', 'group' => '카드/현금영수증 원본 속성(JSON)'],
         ['value' => 'purchase_datetime', 'label' => '매입일시', 'group' => '카드/현금영수증 원본 속성(JSON)'],
         ['value' => 'issue_method', 'label' => '발급수단', 'group' => '카드/현금영수증 원본 속성(JSON)'],
-        ['value' => 'cash_receipt_transaction_type', 'label' => '현금영수증 거래구분', 'group' => '현금영수증 원본 속성(JSON)'],
-        ['value' => 'card_transaction_type', 'label' => '카드 거래구분', 'group' => '카드 원본 속성(JSON)'],
         ['value' => 'deduction_status', 'label' => '공제여부', 'group' => '카드/현금영수증 원본 속성(JSON)'],
         ['value' => 'note', 'label' => '비고', 'group' => '입출금(은행)원본'],
         ['value' => 'raw_item_date', 'label' => '품목일자', 'group' => '거래라인 후보(JSON)'],
@@ -303,7 +301,7 @@ class SystemFieldService
             'BANK_TRANSACTION' => 'ledger_evidence_bank_transaction',
             'TAX_INVOICE' => 'ledger_evidence_tax_invoice',
             'TAX_INVOICE_MANUAL' => 'ledger_evidence_tax_invoice_manual',
-            'CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES' => 'ledger_evidence_cash_receipt',
+            'CASH_RECEIPT' => 'ledger_evidence_cash_receipt',
             'CARD_HOMETAX' => 'ledger_evidence_card_hometax',
             'CARD', 'CARD_STATEMENT', 'CARD_APPROVAL' => 'ledger_evidence_card_statement',
             default => 'ledger_evidence_tax_invoice',
@@ -321,7 +319,7 @@ class SystemFieldService
         $usesCurrency = $this->dataTypeUsesCurrency($dataType);
         $isManualTaxInvoice = $this->isManualTaxInvoiceDataType($dataType);
         $isTaxInvoiceLike = $dataType === 'TAX_INVOICE' || $isManualTaxInvoice;
-        $isCashReceipt = in_array($dataType, ['CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES'], true);
+        $isCashReceipt = $dataType === 'CASH_RECEIPT';
         $isCardHometax = $dataType === 'CARD_HOMETAX';
         $isCardCompany = in_array($dataType, ['CARD_STATEMENT', 'CARD_APPROVAL'], true);
         $cashReceiptHiddenFields = [
@@ -371,17 +369,12 @@ class SystemFieldService
                 && !($isCardHometax && in_array((string) $row['COLUMN_NAME'], ['source_key', 'approval_number', 'user_name'], true))
                 && !($isCashReceipt && in_array((string) $row['COLUMN_NAME'], $cashReceiptHiddenFields, true))
                 && !($isCardCompany && in_array((string) $row['COLUMN_NAME'], $cardCompanyHiddenFields, true))
-                && !(in_array($tableName, ['ledger_evidence_bank_transaction'], true)
-                    && in_array((string) $row['COLUMN_NAME'], [], true))
         ));
 
         $physicalFields = array_map(static function (array $row) use ($tableName, $dataType): array {
             $columnName = (string) $row['COLUMN_NAME'];
             $comment = trim((string) ($row['COLUMN_COMMENT'] ?? ''));
             $label = self::FIELD_LABELS[$columnName] ?? ($comment !== '' ? $comment : $columnName);
-            if ($tableName === 'ledger_evidence_bank_transaction' && $columnName === 'transaction_type') {
-                $label = '거래유형';
-            }
 
             return [
                 'value' => $columnName,
@@ -537,7 +530,7 @@ class SystemFieldService
         $isTaxInvoiceLike = $dataType === 'TAX_INVOICE' || $isManualTaxInvoice;
         $currencyField = $dataType === 'BANK_TRANSACTION' ? 'currency_code' : 'currency';
         $needsCurrency = $this->dataTypeUsesCurrency($dataType);
-        $isCashReceipt = in_array($dataType, ['CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES'], true);
+        $isCashReceipt = $dataType === 'CASH_RECEIPT';
         $isCardHometax = $dataType === 'CARD_HOMETAX';
         $isCardCompany = in_array($dataType, ['CARD_STATEMENT', 'CARD_APPROVAL'], true);
         $fields = [
@@ -553,10 +546,12 @@ class SystemFieldService
             $this->tableFieldOption('business_unit', '사업구분', '기준정보', 'system_codes', 'code', 'varchar', [
                 'code_group' => 'BUSINESS_UNIT',
             ]),
-            $this->tableFieldOption('transaction_type', '거래유형', '기준정보', 'system_codes', 'code', 'varchar', [
-                'code_group' => 'TRANSACTION_TYPE',
-            ]),
-            ($isManualTaxInvoice || in_array($dataType, ['BANK_TRANSACTION', 'TAX_INVOICE', 'CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES', 'CARD_HOMETAX', 'CARD_STATEMENT', 'CARD_APPROVAL'], true))
+            $dataType === 'BANK_TRANSACTION'
+                ? $this->tableFieldOption('operation_type', '입출금유형', '기준정보', 'system_codes', 'code', 'varchar', [
+                    'code_group' => 'OPERATION_TYPE',
+                ])
+                : null,
+            ($isManualTaxInvoice || in_array($dataType, ['BANK_TRANSACTION', 'TAX_INVOICE', 'CASH_RECEIPT', 'CARD_HOMETAX', 'CARD_STATEMENT', 'CARD_APPROVAL'], true))
                 ? $this->tableFieldOption('transaction_direction', '거래구분', '기준정보', 'system_codes', 'code', 'varchar', [
                     'code_group' => 'TRANSACTION_DIRECTION',
                 ])
@@ -571,7 +566,7 @@ class SystemFieldService
                 'system_clients',
                 'client_name'
             ),
-            in_array($dataType, ['CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES'], true)
+            $dataType === 'CASH_RECEIPT'
                 ? $this->tableFieldOption('user_name', '사용자명', '기초정보', 'system_company', 'company_name_ko')
                 : null,
             ($isCashReceipt || $isCardHometax || $isCardCompany)
@@ -770,8 +765,6 @@ class SystemFieldService
             'BANK_TRANSACTION' => '입출금(은행)원본',
             'TAX_INVOICE' => '세금계산서매입매출(홈택스)원본',
             'CASH_RECEIPT' => '현금영수증(홈택스)원본',
-            'CASH_RECEIPT_PURCHASE' => '현금영수증(홈택스)원본',
-            'CASH_RECEIPT_SALES' => '현금영수증(홈택스)원본',
             'CARD_HOMETAX' => '카드(홈택스)원본',
             'CARD_STATEMENT' => '카드(카드사)원본',
             'CARD_APPROVAL' => '카드(카드사)원본',
@@ -791,7 +784,7 @@ class SystemFieldService
         return match ($dataType) {
             'BANK_TRANSACTION' => '입출금(은행)원본',
             'TAX_INVOICE' => '세금계산서(홈택스)원본',
-            'CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES' => '현금영수증(홈택스)원본',
+            'CASH_RECEIPT' => '현금영수증(홈택스)원본',
             'CARD_HOMETAX' => '카드(홈택스)원본',
             'CARD_STATEMENT', 'CARD_APPROVAL', 'CARD' => '카드(카드사)원본',
             default => '통합증빙 원본컬럼',
@@ -811,7 +804,11 @@ class SystemFieldService
 
         $fieldsByName = [];
         foreach (self::MAPPED_PAYLOAD_FIELDS as $field) {
-            $fieldsByName[(string) $field['value']] = $field;
+            $fieldName = (string) ($field['value'] ?? '');
+            if ($dataType !== 'BANK_TRANSACTION' && $fieldName === 'operation_type') {
+                continue;
+            }
+            $fieldsByName[$fieldName] = $field;
         }
         if ($this->isManualTaxInvoiceDataType($dataType)) {
             unset($fieldsByName['employee_name'], $fieldsByName['bank_account_name'], $fieldsByName['card_name']);
@@ -826,14 +823,6 @@ class SystemFieldService
         if (!in_array($dataType, ['BANK_TRANSACTION', 'CARD_HOMETAX'], true)) {
             unset($fieldsByName['note']);
         }
-        if (in_array($dataType, ['CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES'], true)) {
-            unset($fieldsByName['card_transaction_type']);
-        } elseif ($dataType === 'CARD_HOMETAX') {
-            unset($fieldsByName['cash_receipt_transaction_type']);
-        } else {
-            unset($fieldsByName['cash_receipt_transaction_type'], $fieldsByName['card_transaction_type']);
-        }
-
         $orderedNames = $this->mappedPayloadFieldOrder($dataType);
         $orderedFields = [];
         foreach ($orderedNames as $name) {
@@ -863,7 +852,7 @@ class SystemFieldService
         $value = (string) ($field['value'] ?? '');
         $dataType = $this->normalizeDataType($dataType);
 
-        if (in_array($value, ['transaction_date', 'currency_code', 'exchange_rate', 'business_unit', 'transaction_type', 'transaction_direction'], true)) {
+        if (in_array($value, ['transaction_date', 'currency_code', 'exchange_rate', 'business_unit', 'operation_type', 'transaction_direction'], true)) {
             $field['group'] = '기준정보';
             return $field;
         }
@@ -981,8 +970,6 @@ class SystemFieldService
             'TAX_INVOICE',
             'CARD_HOMETAX',
             'CASH_RECEIPT',
-            'CASH_RECEIPT_PURCHASE',
-            'CASH_RECEIPT_SALES',
         ], true);
     }
 
@@ -1025,7 +1012,6 @@ class SystemFieldService
             'currency_code',
             'exchange_rate',
             'business_unit',
-            'transaction_type',
             'client_name',
             'project_name',
             'employee_name',
@@ -1038,7 +1024,6 @@ class SystemFieldService
             'currency_code',
             'exchange_rate',
             'business_unit',
-            'transaction_type',
             'transaction_direction',
             'client_name',
             'project_name',
@@ -1047,7 +1032,6 @@ class SystemFieldService
         $taxCommon = [
             'transaction_date',
             'business_unit',
-            'transaction_type',
             'transaction_direction',
             'client_name',
             'project_name',
@@ -1056,7 +1040,6 @@ class SystemFieldService
         $cashCommon = [
             'transaction_date',
             'business_unit',
-            'transaction_type',
             'transaction_direction',
             'client_name',
             'project_name',
@@ -1064,7 +1047,6 @@ class SystemFieldService
         $cardHometaxCommon = [
             'transaction_date',
             'business_unit',
-            'transaction_type',
             'transaction_direction',
             'source_card_company_name',
             'client_name',
@@ -1079,7 +1061,7 @@ class SystemFieldService
             'transaction_date',
             'bank_direction',
             'business_unit',
-            'transaction_type',
+            'operation_type',
             'client_name',
             'project_name',
             'employee_name',
@@ -1149,12 +1131,10 @@ class SystemFieldService
             'withholding_amount',
         ];
         $cashReceipt = [
-            'cash_receipt_transaction_type',
             'merchant_industry_code',
         ];
         $cardHometax = [
             'purchase_datetime',
-            'card_transaction_type',
             'deduction_status',
             'service_amount',
             'withholding_amount',
@@ -1175,7 +1155,7 @@ class SystemFieldService
             'TAX_INVOICE' => array_merge($taxCommon, $taxInvoice, $transactionLine),
             'CARD_STATEMENT', 'CARD', 'CARD_APPROVAL' => array_merge($cardCompanyCommon, $cardBase, $merchant, $cardAmounts),
             'CARD_HOMETAX' => array_merge($cardHometaxCommon, $cardHometax, $cardHometaxMerchant),
-            'CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES' => array_merge($cashCommon, $cashAndCardHometax, $cashReceipt),
+            'CASH_RECEIPT' => array_merge($cashCommon, $cashAndCardHometax, $cashReceipt),
             default => $common,
         };
     }

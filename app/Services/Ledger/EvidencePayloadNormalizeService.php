@@ -64,7 +64,6 @@ class EvidencePayloadNormalizeService
         ) {
             $mapped['transaction_datetime'] = $mapped['transaction_date'];
         }
-
         $aliases = [
             'evidence_date' => ['raw_written_date', 'written_date', 'write_date', 'raw_issue_date', 'issue_date'],
             'transaction_date' => ['raw_issue_date', 'issue_date', 'raw_written_date', 'written_date'],
@@ -117,7 +116,9 @@ class EvidencePayloadNormalizeService
             }
         }
 
+        $mapped = $this->syncTaxInvoiceRawAliases($mapped);
         $mapped = $this->normalizeTaxInvoiceRawItemPayload($mapped);
+        $mapped = $this->normalizeTransactionDirectionPayload($mapped);
         $mapped = $this->normalizeMappedPayloadDateValues($this->normalizeMappedClientReference($mapped));
         return ($this->normalizeBusinessRefPayload)($mapped);
     }
@@ -125,6 +126,7 @@ class EvidencePayloadNormalizeService
     public function normalizeEvidenceMappedPayloadForResponse(array $payload): array
     {
         $payload = $this->normalizeMappedClientReference($payload);
+        $payload = $this->syncTaxInvoiceResponseAliases($payload);
         $aliases = [
             'client_name' => ['client_name', '거래처명', '거래처'],
             'project_name' => ['project_name', 'project_code'],
@@ -171,7 +173,88 @@ class EvidencePayloadNormalizeService
             }
         }
 
+        $payload = $this->normalizeTransactionDirectionPayload($payload);
+
         return $this->normalizeMappedClientReference(($this->normalizeBusinessRefPayload)($payload));
+    }
+
+    private function syncTaxInvoiceResponseAliases(array $payload): array
+    {
+        if (!$this->isTaxInvoiceLikePayload($payload)) {
+            return $payload;
+        }
+
+        $pairs = [
+            'raw_written_date' => ['written_date', 'write_date', 'evidence_date'],
+            'raw_issue_date' => ['issue_date', 'transaction_date'],
+            'raw_transmit_date' => ['transmit_date'],
+            'raw_supplier_company_name' => ['supplier_company_name', 'supplier_name'],
+            'raw_customer_company_name' => ['customer_company_name', 'customer_name'],
+            'raw_item_date' => ['item_date'],
+            'raw_item_name' => ['item_name'],
+            'raw_item_spec' => ['item_spec'],
+            'raw_item_quantity' => ['item_qty', 'quantity'],
+            'raw_item_unit_price' => ['item_price', 'unit_price'],
+            'raw_item_supply_amount' => ['item_supply_amount'],
+            'raw_item_tax_amount' => ['item_vat_amount'],
+            'raw_item_note' => ['item_note'],
+        ];
+
+        foreach ($pairs as $rawKey => $normalizedKeys) {
+            if (array_key_exists($rawKey, $payload)) {
+                $rawValue = $this->payloadScalarForStorage($payload[$rawKey] ?? null);
+                foreach ($normalizedKeys as $normalizedKey) {
+                    $payload[$normalizedKey] = $rawValue ?? '';
+                }
+                continue;
+            }
+
+            $rawValue = $this->payloadScalarForStorage($payload[$rawKey] ?? null);
+            if ($rawValue !== null && trim((string) $rawValue) !== '') {
+                foreach ($normalizedKeys as $normalizedKey) {
+                    $normalizedValue = $this->payloadScalarForStorage($payload[$normalizedKey] ?? null);
+                    if ($normalizedValue === null || trim((string) $normalizedValue) === '') {
+                        $payload[$normalizedKey] = $rawValue;
+                    }
+                }
+                continue;
+            }
+
+            foreach ($normalizedKeys as $normalizedKey) {
+                $normalizedValue = $this->payloadScalarForStorage($payload[$normalizedKey] ?? null);
+                if ($normalizedValue !== null && trim((string) $normalizedValue) !== '') {
+                    $payload[$rawKey] = $normalizedValue;
+                    break;
+                }
+            }
+        }
+
+        return $payload;
+    }
+
+    private function normalizeTransactionDirectionPayload(array $payload): array
+    {
+        $direction = $this->normalizeTransactionDirectionValue($payload['transaction_direction'] ?? null);
+        if ($direction !== null) {
+            $payload['transaction_direction'] = $direction;
+        }
+
+        return $payload;
+    }
+
+    private function normalizeTransactionDirectionValue(mixed $value): ?string
+    {
+        $text = strtoupper(trim((string) $this->payloadScalarForStorage($value)));
+        if ($text === '') {
+            return null;
+        }
+
+        return match ($text) {
+            'SALES', 'SALE', 'SELL', 'OUT_SALE', 'INCOME' => 'INCOME',
+            'PURCHASE', 'BUY', 'IN_PURCHASE', 'EXPENSE' => 'EXPENSE',
+            'IN', 'OUT', 'DEPOSIT', 'RECEIPT', 'WITHDRAW', 'WITHDRAWAL', 'PAYMENT', 'FUND' => 'FUND',
+            default => $text,
+        };
     }
 
     public function requiredFormatMissingMessages(array $payload, array $columns): array
@@ -287,6 +370,69 @@ class EvidencePayloadNormalizeService
             'item_note',
         ] as $legacyField) {
             unset($mapped[$legacyField]);
+        }
+
+        return $mapped;
+    }
+
+    private function syncTaxInvoiceRawAliases(array $mapped): array
+    {
+        if (!$this->isTaxInvoiceLikePayload($mapped)) {
+            return $mapped;
+        }
+
+        $rawPriorityMap = [
+            'raw_written_date' => ['written_date', 'write_date', 'evidence_date'],
+            'raw_issue_date' => ['issue_date', 'transaction_date'],
+            'raw_transmit_date' => ['transmit_date'],
+            'raw_supplier_business_number' => ['supplier_business_number'],
+            'raw_supplier_branch_no' => ['supplier_branch_number'],
+            'raw_supplier_company_name' => ['supplier_company_name', 'supplier_name'],
+            'raw_supplier_ceo_name' => ['supplier_ceo_name'],
+            'raw_supplier_address' => ['supplier_address'],
+            'raw_supplier_email' => ['supplier_email'],
+            'raw_customer_business_number' => ['customer_business_number'],
+            'raw_customer_branch_no' => ['customer_branch_number'],
+            'raw_customer_company_name' => ['customer_company_name', 'customer_name'],
+            'raw_customer_ceo_name' => ['customer_ceo_name'],
+            'raw_customer_address' => ['customer_address'],
+            'raw_customer_email1' => ['customer_email_1'],
+            'raw_customer_email2' => ['customer_email_2'],
+            'raw_supply_amount' => ['supply_amount'],
+            'raw_vat_amount' => ['vat_amount'],
+            'raw_total_amount' => ['total_amount'],
+            'raw_invoice_category' => ['tax_invoice_category'],
+            'raw_invoice_kind' => ['tax_invoice_type'],
+            'raw_issue_type' => ['issue_type'],
+            'raw_claim_type' => ['receipt_claim_type'],
+            'raw_item_date' => ['item_date'],
+            'raw_item_name' => ['item_name'],
+            'raw_item_spec' => ['item_spec'],
+            'raw_item_quantity' => ['item_qty', 'quantity'],
+            'raw_item_unit_price' => ['item_price', 'unit_price'],
+            'raw_item_supply_amount' => ['item_supply_amount'],
+            'raw_item_tax_amount' => ['item_vat_amount'],
+            'raw_item_note' => ['item_note'],
+            'raw_note' => ['note', 'description'],
+        ];
+
+        foreach ($rawPriorityMap as $rawKey => $targetKeys) {
+            if (array_key_exists($rawKey, $mapped)) {
+                $rawValue = $this->payloadScalarForStorage($mapped[$rawKey] ?? null);
+                foreach ($targetKeys as $targetKey) {
+                    $mapped[$targetKey] = $rawValue ?? '';
+                }
+                continue;
+            }
+
+            $rawValue = $this->payloadScalarForStorage($mapped[$rawKey] ?? null);
+            if ($rawValue === null || trim((string) $rawValue) === '') {
+                continue;
+            }
+
+            foreach ($targetKeys as $targetKey) {
+                $mapped[$targetKey] = $rawValue;
+            }
         }
 
         return $mapped;

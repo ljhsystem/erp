@@ -1,3 +1,5 @@
+import { actorDisplay } from '/public/assets/js/common/actor.js';
+
 export function bindTrashEvents({ getTable, columnMap, formatAmount }) {
     document.addEventListener('trash:detail-render', (event) => {
         const { data, modal } = event.detail;
@@ -16,6 +18,7 @@ export function bindTrashEvents({ getTable, columnMap, formatAmount }) {
             if (key === 'is_active') displayValue = String(value) === '1' ? '사용' : '미사용';
             if (key === 'limit_amount') displayValue = formatAmount(value);
             if (key === 'card_file') displayValue = value ? '등록됨' : '';
+            if (config.type === 'actor') displayValue = actorDisplay(data, key);
 
             html += `<div><b>${config.label}:</b> ${displayValue}</div>`;
         });
@@ -34,7 +37,7 @@ export function bindTrashEvents({ getTable, columnMap, formatAmount }) {
             <td>${row.account_name ?? ''}</td>
             <td>${String(row.is_active) === '1' ? '사용' : '미사용'}</td>
             <td>${row.deleted_at ?? ''}</td>
-            <td>${row.deleted_by_name ?? row.deleted_by ?? ''}</td>
+            <td>${actorDisplay(row, 'deleted_by')}</td>
             <td>
                 <button class="btn btn-success btn-sm btn-restore" data-id="${row.id}">복원</button>
                 <button class="btn btn-danger btn-sm btn-purge" data-id="${row.id}">영구삭제</button>

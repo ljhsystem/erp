@@ -174,7 +174,6 @@ class JournalRecommendationService
             'client_id' => $this->clientIdFromPayload($payload),
             'project_id' => trim((string) ($payload['project_id'] ?? '')),
             'business_unit' => strtoupper(trim((string) ($payload['business_unit'] ?? 'HQ'))) ?: 'HQ',
-            'transaction_type' => strtoupper(trim((string) ($payload['transaction_type'] ?? 'GENERAL'))) ?: 'GENERAL',
             'transaction_direction' => $direction,
             'import_type' => strtoupper(trim((string) ($payload['import_type'] ?? $payload['source_type'] ?? 'BANK_TRANSACTION'))) ?: 'BANK_TRANSACTION',
             'description' => trim((string) ($payload['description'] ?? $payload['summary_text'] ?? $payload['voucher_summary_text'] ?? '')),
@@ -313,7 +312,6 @@ class JournalRecommendationService
 
         return [
             'business_unit' => strtoupper(trim((string) ($transaction['business_unit'] ?? 'HQ'))) ?: 'HQ',
-            'transaction_type' => strtoupper(trim((string) ($transaction['transaction_type'] ?? 'GENERAL'))) ?: 'GENERAL',
             'transaction_direction' => $this->normalizeDirection($direction),
             'import_type' => $importType !== '' ? $importType : 'ETC',
             'client_type' => $this->clientType((string) ($transaction['client_id'] ?? '')),
@@ -359,7 +357,6 @@ class JournalRecommendationService
             WHERE r.deleted_at IS NULL
               AND r.is_active = 1
               AND r.business_unit = :business_unit
-              AND r.transaction_type = :transaction_type
               AND r.transaction_direction = :transaction_direction
               AND r.import_type = :import_type
               AND (r.client_type = :client_type_filter OR r.client_type IS NULL OR r.client_type = '')
@@ -371,7 +368,6 @@ class JournalRecommendationService
         ");
         $stmt->execute([
             ':business_unit' => $context['business_unit'],
-            ':transaction_type' => $context['transaction_type'],
             ':transaction_direction' => $context['transaction_direction'],
             ':import_type' => $context['import_type'],
             ':client_type_filter' => $context['client_type'],

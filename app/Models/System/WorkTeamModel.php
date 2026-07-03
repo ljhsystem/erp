@@ -2,6 +2,7 @@
 namespace App\Models\System;
 
 use Core\Database;
+use Core\Helpers\ActorHelper;
 use PDO;
 
 class WorkTeamModel
@@ -18,35 +19,14 @@ class WorkTeamModel
         $sql = "
             SELECT
                 t.*,
-                CASE
-                    WHEN t.created_by LIKE 'SYSTEM:%' THEN t.created_by
-                    WHEN e1.employee_name IS NOT NULL THEN CONCAT('USER:', e1.employee_name)
-                    ELSE t.created_by
-                END AS created_by_name,
-                CASE
-                    WHEN t.updated_by LIKE 'SYSTEM:%' THEN t.updated_by
-                    WHEN e2.employee_name IS NOT NULL THEN CONCAT('USER:', e2.employee_name)
-                    ELSE t.updated_by
-                END AS updated_by_name,
-                CASE
-                    WHEN t.deleted_by LIKE 'SYSTEM:%' THEN t.deleted_by
-                    WHEN e3.employee_name IS NOT NULL THEN CONCAT('USER:', e3.employee_name)
-                    ELSE t.deleted_by
-                END AS deleted_by_name,
+                t.created_by AS created_by_name,
+                t.updated_by AS updated_by_name,
+                t.deleted_by AS deleted_by_name,
                 c.client_name AS team_leader_client_name
             FROM system_work_teams t
             LEFT JOIN system_clients c
                 ON c.id = t.team_leader_client_id
                AND c.deleted_at IS NULL
-            LEFT JOIN user_employees e1
-                ON t.created_by NOT LIKE 'SYSTEM:%'
-               AND e1.user_id = REPLACE(t.created_by, 'USER:', '')
-            LEFT JOIN user_employees e2
-                ON t.updated_by NOT LIKE 'SYSTEM:%'
-               AND e2.user_id = REPLACE(t.updated_by, 'USER:', '')
-            LEFT JOIN user_employees e3
-                ON t.deleted_by NOT LIKE 'SYSTEM:%'
-               AND e3.user_id = REPLACE(t.deleted_by, 'USER:', '')
             WHERE t.deleted_at IS NULL
         ";
 
@@ -61,13 +41,13 @@ class WorkTeamModel
             'is_active' => ['col' => 't.is_active', 'type' => 'exact'],
             'created_at' => ['col' => 't.created_at', 'type' => 'date'],
             'created_by' => ['col' => 't.created_by', 'type' => 'like'],
-            'created_by_name' => ['col' => "COALESCE(CONCAT('USER:', e1.employee_name), t.created_by)", 'type' => 'like'],
+            'created_by_name' => ['col' => 't.created_by', 'type' => 'like'],
             'updated_at' => ['col' => 't.updated_at', 'type' => 'date'],
             'updated_by' => ['col' => 't.updated_by', 'type' => 'like'],
-            'updated_by_name' => ['col' => "COALESCE(CONCAT('USER:', e2.employee_name), t.updated_by)", 'type' => 'like'],
+            'updated_by_name' => ['col' => 't.updated_by', 'type' => 'like'],
             'deleted_at' => ['col' => 't.deleted_at', 'type' => 'date'],
             'deleted_by' => ['col' => 't.deleted_by', 'type' => 'like'],
-            'deleted_by_name' => ['col' => "COALESCE(CONCAT('USER:', e3.employee_name), t.deleted_by)", 'type' => 'like'],
+            'deleted_by_name' => ['col' => 't.deleted_by', 'type' => 'like'],
         ];
 
         $globalSearch = [];
@@ -122,8 +102,9 @@ class WorkTeamModel
                 't.memo',
                 't.created_by',
                 't.updated_by',
-                "COALESCE(CONCAT('USER:', e1.employee_name), t.created_by)",
-                "COALESCE(CONCAT('USER:', e2.employee_name), t.updated_by)",
+                't.created_by',
+                't.updated_by',
+                't.deleted_by',
             ];
             $groups = [];
 
@@ -144,7 +125,13 @@ class WorkTeamModel
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return ActorHelper::enrichActorNames($rows, [
+            'created_by_name' => 'created_by_name',
+            'updated_by_name' => 'updated_by_name',
+            'deleted_by_name' => 'deleted_by_name',
+        ]);
     }
 
     public function getById(string $id): ?array
@@ -162,7 +149,16 @@ class WorkTeamModel
         ");
         $stmt->execute([':id' => $id]);
 
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return null;
+        }
+
+        return ActorHelper::enrichActorNamesRow($row, [
+            'created_by_name' => 'created_by_name',
+            'updated_by_name' => 'updated_by_name',
+            'deleted_by_name' => 'deleted_by_name',
+        ]);
     }
 
     public function create(array $data): bool
@@ -244,25 +240,22 @@ class WorkTeamModel
         $stmt = $this->db->prepare("
             SELECT
                 t.*,
-                CASE
-                    WHEN t.deleted_by LIKE 'SYSTEM:%' THEN t.deleted_by
-                    WHEN e.employee_name IS NOT NULL THEN CONCAT('USER:', e.employee_name)
-                    ELSE t.deleted_by
-                END AS deleted_by_name,
+                t.deleted_by AS deleted_by_name,
                 c.client_name AS team_leader_client_name
             FROM system_work_teams t
             LEFT JOIN system_clients c
                 ON c.id = t.team_leader_client_id
                AND c.deleted_at IS NULL
-            LEFT JOIN user_employees e
-                ON t.deleted_by NOT LIKE 'SYSTEM:%'
-               AND e.user_id = REPLACE(t.deleted_by, 'USER:', '')
             WHERE t.deleted_at IS NOT NULL
             ORDER BY t.deleted_at DESC
         ");
         $stmt->execute();
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return ActorHelper::enrichActorNames($rows, [
+            'deleted_by_name' => 'deleted_by_name',
+        ]);
     }
 
     public function restoreById(string $id, string $actor): bool

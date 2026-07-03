@@ -1,0 +1,207 @@
+#transactionModal .transaction-grid-wrap {
+    border: 1px solid #dbe3ee;
+    border-radius: 8px;
+    background: #fff;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    margin: 0 0 16px;
+}
+
+#transactionModal .transaction-line-grid {
+    height: 204px;
+    min-height: 204px;
+    width: 100%;
+}
+
+#transactionModal .transaction-line-add-head {
+    color: #0d6efd;
+    cursor: pointer;
+}
+
+#transactionModal .transaction-line-add-head .ag-header-cell-label,
+#transactionModal .transaction-line-add-head .ag-header-cell-comp-wrapper {
+    justify-content: center;
+}
+
+#transactionModal .transaction-line-add-head .ag-header-cell-text {
+    white-space: nowrap;
+}
+
+#transactionModal .transaction-line-add-head .ag-header-icon,
+#transactionModal .transaction-line-add-head .ag-sort-indicator-container,
+#transactionModal .transaction-line-add-head .ag-header-cell-menu-button,
+#transactionModal .transaction-line-add-head .ag-header-cell-filter-button {
+    display: none !important;
+}
+
+#transactionModal .transaction-line-add-head:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+#transactionModal .transaction-line-drag-head .ag-header-cell-label,
+#transactionModal .transaction-line-drag-head .ag-header-cell-comp-wrapper {
+    justify-content: center;
+}
+
+#transactionModal .transaction-line-drag-head-inner,
+#transactionModal .transaction-line-drag-cell {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    color: #64748b;
+    line-height: 1;
+}
+
+#transactionModal .transaction-line-drag-cell i,
+#transactionModal .transaction-line-drag-head-inner i {
+    display: inline-block;
+    line-height: 1;
+}
+
+#transactionModal .transaction-line-foreign-head,
+#transactionModal .transaction-line-foreign-cell {
+    color: #0f766e;
+}
+
+#transactionModal .transaction-line-grid .ag-header-cell-resize {
+    width: 6px;
+    min-width: 6px;
+    justify-content: center;
+    background: transparent;
+}
+
+#transactionModal .transaction-line-grid .ag-header-cell-resize::after {
+    width: 1px;
+    min-width: 1px;
+    background: currentColor;
+}
+
+#transactionModal .transaction-line-action-cell {
+    color: #dc2626;
+}
+
+#transactionModal .transaction-line-delete-text {
+    color: inherit;
+    cursor: pointer;
+}
+
+#transactionModal .transaction-line-delete-text:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+#transactionModal .transaction-lines-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin: 0;
+    padding-top: 0;
+}
+
+#transactionModal .transaction-summary-grid {
+    display: flex;
+    justify-content: flex-end;
+    width: 100%;
+}
+
+#transactionModal .transaction-voucher-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(420px, auto);
+    gap: 10px;
+    align-items: start;
+}
+
+#transactionModal .transaction-system-grid {
+    padding: 0;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+#transactionModal .transaction-field-readonly {
+    background: #f8fafc;
+    border-color: #dbe3ef;
+    box-shadow: none;
+}
+
+#transactionModal .transaction-field-readonly .form-control {
+    background: rgba(255, 255, 255, 0.96);
+}
+
+#transactionModal .transaction-voucher-summary {
+    min-height: 32px;
+    padding: 8px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 12px;
+}
+
+#transactionModal .transaction-voucher-actions {
+    display: grid;
+    grid-template-columns: repeat(4, max-content);
+    gap: 8px;
+    align-items: center;
+    justify-content: end;
+}
+
+#transactionModal .form-control-sm,
+#transactionModal .form-select-sm {
+    width: 100%;
+    min-width: 0;
+    min-height: 30px;
+    font-size: 12px;
+}
+
+#transactionModal #transaction_memo {
+    min-height: 30px;
+    height: 30px;
+    overflow: hidden;
+    resize: none;
+}
+
+#transactionModal .form-control:focus,
+#transactionModal .form-select:focus,
+#transactionModal textarea.form-control:focus,
+#transactionModal .select2-container--focus .select2-selection--single,
+#transactionModal .select2-container--open .select2-selection--single {
+    border-color: #86b7fe;
+    outline: 0;
+    box-shadow: 0 0 0 .25rem rgba(13, 110, 253, .25);
+}
+
+#transactionModal .select2-container {
+    width: 100% !important;
+    max-width: 100%;
+    min-width: 0;
+}
+
+#transactionModal .select2-container .select2-selection--single {
+    width: 100%;
+    min-width: 0;
+    min-height: 30px;
+    font-size: 12px;
+}
+
+#transactionModal .select2-container .select2-selection--single .select2-selection__rendered {
+    overflow: hidden;
+    padding-right: 24px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#transactionModal .btn-sm {
+    padding: 3px 8px;
+    font-size: 12px;
+}
+
+#transactionModal .transaction-modal-footer {
+    flex: 0 0 auto;
+    gap: 8px;
+    padding: 9px 16px 12px;
+    background: #fff;
+    border-top: 1px solid #e6eaf0;
+}
+
+#transactionModal .transaction-modal-footer .btn {

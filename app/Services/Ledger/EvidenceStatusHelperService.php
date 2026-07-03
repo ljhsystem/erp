@@ -6,6 +6,9 @@ use PDO;
 
 class EvidenceStatusHelperService
 {
+    private const EVIDENCE_STATUS_COMPLETED = 'COMPLETED';
+    private const EVIDENCE_STATUS_CORRECTION_REQUIRED = 'CORRECTION_REQUIRED';
+
     public function __construct(private PDO $pdo, private array $callbacks = [])
     {
     }
@@ -235,6 +238,27 @@ class EvidenceStatusHelperService
         }
 
         return 'INVALID';
+    }
+
+    public function evidenceStatusFromReadiness(array $readiness): string
+    {
+        return $this->evidenceStatusFromBusinessReadiness($readiness);
+    }
+
+    public function evidenceStatusFromBusinessReadiness(array $readiness): string
+    {
+        $status = strtoupper(trim((string) ($readiness['status'] ?? '')));
+
+        return in_array($status, ['READY', 'VERIFY_ONLY'], true)
+            ? self::EVIDENCE_STATUS_COMPLETED
+            : self::EVIDENCE_STATUS_CORRECTION_REQUIRED;
+    }
+
+    public function evidenceStatusFromRequiredMissingMessages(array $missingMessages): string
+    {
+        return $missingMessages === []
+            ? self::EVIDENCE_STATUS_COMPLETED
+            : self::EVIDENCE_STATUS_CORRECTION_REQUIRED;
     }
 
     private function call(string $name, mixed ...$args): mixed

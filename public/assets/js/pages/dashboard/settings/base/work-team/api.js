@@ -25,11 +25,11 @@ export const WORK_TEAM_COLUMN_MAP = {
     memo: { label: '메모', visible: false },
     is_active: { label: '상태', visible: true, className: 'text-center' },
     created_at: { label: '등록일시', visible: false },
-    created_by: { label: '등록자', visible: false },
+    created_by: { label: '등록자', visible: false, type: 'actor' },
     updated_at: { label: '수정일시', visible: false },
-    updated_by: { label: '수정자', visible: false },
+    updated_by: { label: '수정자', visible: false, type: 'actor' },
     deleted_at: { label: '삭제일시', visible: false },
-    deleted_by: { label: '삭제자', visible: false }
+    deleted_by: { label: '삭제자', visible: false, type: 'actor' }
 };
 
 export const WORK_TEAM_DATE_OPTIONS = [

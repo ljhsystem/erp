@@ -1,0 +1,311 @@
+export function registerSelects(ctx) {
+    const { AdminPicker, openClientQuickCreate } = ctx;
+
+    function setCodeSelectValue(selectId, value) {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+
+        const nextValue = value || '';
+        select.value = nextValue;
+
+        if (window.jQuery?.fn?.select2 && window.jQuery(select).hasClass('select2-hidden-accessible')) {
+            window.jQuery(select).val(nextValue).trigger('change.select2');
+        }
+    }
+
+    function initClientSelect() {
+        if (!ctx.clientSelectEl || !window.jQuery?.fn?.select2) return;
+
+        AdminPicker.select2Ajax(ctx.clientSelectEl, {
+            url: ctx.API.clientSearch,
+            placeholder: '거래처 검색',
+            includeCommonAdd: true,
+            minimumInputLength: 0,
+            dropdownParent: window.jQuery(ctx.modalEl),
+            width: '100%',
+            dataBuilder(params) {
+                return {
+                    q: params.term || '',
+                    limit: 20,
+                    is_active: 1,
+                };
+            },
+            processResults(data) {
+                const rows = data?.results ?? data?.data ?? [];
+
+                return {
+                    results: rows.map((row) => ({
+                        id: String(row.id ?? ''),
+                        text: row.text || row.client_name || row.company_name || '',
+                    })).filter((row) => row.id !== ''),
+                };
+            },
+        });
+
+        window.jQuery(ctx.clientSelectEl).off('select2:select.transactionClient');
+        ctx.clientSelectEl.removeEventListener?.('picker:add', ctx.clientSelectEl.__transactionClientPickerAdd);
+        ctx.clientSelectEl.__transactionClientPickerAdd = () => {
+            clearClientSelect();
+            window.jQuery(ctx.clientSelectEl).select2('close');
+            openTransactionClientQuickCreate('');
+        };
+        ctx.clientSelectEl.addEventListener('picker:add', ctx.clientSelectEl.__transactionClientPickerAdd);
+    }
+
+    function clearClientSelect() {
+        if (!ctx.clientSelectEl) return;
+
+        ctx.clientSelectEl.value = '';
+        if (window.jQuery?.fn?.select2) {
+            window.jQuery(ctx.clientSelectEl).val(null).trigger('change');
+        }
+    }
+
+    function setClientSelectValue(value = '', text = '') {
+        if (!ctx.clientSelectEl) return;
+
+        const clientId = String(value || '').trim();
+        if (clientId === '') {
+            clearClientSelect();
+            return;
+        }
+
+        const label = String(text || '-').trim();
+        if (window.jQuery?.fn?.select2) {
+            const option = new Option(label || '-', clientId, true, true);
+            window.jQuery(ctx.clientSelectEl)
+                .find('option')
+                .filter((index, item) => item.value === clientId)
+                .remove();
+            window.jQuery(ctx.clientSelectEl).append(option).val(clientId).trigger('change');
+            return;
+        }
+
+        ctx.clientSelectEl.value = clientId;
+    }
+
+    function openTransactionClientQuickCreate(defaultName = '') {
+        openClientQuickCreate({
+            select: ctx.clientSelectEl,
+
+            title: '신규 거래처 추가',
+
+            initialValues: {
+                client_name: defaultName,
+            },
+
+            getOptionText(values) {
+                return values.client_name || values.company_name || '';
+            },
+
+            onSuccess() {
+                ctx.notify('success', '거래처가 등록되었습니다.');
+            },
+        });
+    }
+
+    function initProjectSelect() {
+        if (!ctx.projectSelectEl || !window.jQuery?.fn?.select2) return;
+
+        AdminPicker.select2Ajax(ctx.projectSelectEl, {
+            url: ctx.API.projectSearch,
+            placeholder: '프로젝트 검색',
+            minimumInputLength: 0,
+            dropdownParent: window.jQuery(ctx.modalEl),
+            width: '100%',
+            dataBuilder(params) {
+                return {
+                    q: params.term || '',
+                    limit: 20,
+                };
+            },
+            processResults(data) {
+                const rows = data?.results ?? data?.data ?? [];
+
+                return {
+                    results: rows.map((row) => ({
+                        id: String(row.id ?? ''),
+                        text: row.text || row.project_name || row.construction_name || '',
+                    })).filter((row) => row.id !== ''),
+                };
+            },
+        });
+
+        window.jQuery(ctx.projectSelectEl)
+            .off('select2:select.transactionProject')
+            .on('select2:select.transactionProject', (event) => {
+                const item = event.params?.data;
+                if (!item) return;
+
+                if (item.id === '__none__') {
+                    clearProjectSelect();
+                }
+            });
+    }
+
+    function clearProjectSelect() {
+        if (!ctx.projectSelectEl) return;
+
+        ctx.projectSelectEl.value = '';
+        if (window.jQuery?.fn?.select2) {
+            window.jQuery(ctx.projectSelectEl).val(null).trigger('change');
+        }
+    }
+
+    function setProjectSelectValue(value = '', text = '') {
+        if (!ctx.projectSelectEl) return;
+
+        const projectId = String(value || '').trim();
+        if (projectId === '') {
+            clearProjectSelect();
+            return;
+        }
+
+        const label = String(text || '-').trim();
+        if (window.jQuery?.fn?.select2) {
+            const option = new Option(label || '-', projectId, true, true);
+            window.jQuery(ctx.projectSelectEl)
+                .find('option')
+                .filter((index, item) => item.value === projectId)
+                .remove();
+            window.jQuery(ctx.projectSelectEl).append(option).val(projectId).trigger('change');
+            return;
+        }
+
+        ctx.projectSelectEl.value = projectId;
+    }
+
+    function initReferenceAjaxSelect(select, options = {}) {
+        if (!select || !window.jQuery?.fn?.select2) return;
+
+        AdminPicker.select2Ajax(select, {
+            url: options.url,
+            placeholder: options.placeholder || '선택(없음)',
+            allowClear: true,
+            minimumInputLength: 0,
+            dropdownParent: window.jQuery(ctx.modalEl),
+            width: '100%',
+            dataBuilder(params) {
+                return {
+                    q: params.term || '',
+                    limit: 20,
+                    is_active: 1,
+                };
+            },
+            processResults(data) {
+                const rows = data?.results ?? data?.data ?? [];
+                return {
+                    results: [
+                        { id: '', text: '선택(없음)' },
+                        ...rows.map((row) => ({
+                            id: String(row.id ?? ''),
+                            text: options.labelForRow ? options.labelForRow(row) : String(row.text || row.name || ''),
+                        })).filter((item) => item.id !== ''),
+                    ],
+                };
+            },
+        });
+    }
+
+    function initTeamSelect() {
+        if (!ctx.teamSelectEl || !window.jQuery?.fn?.select2) return;
+
+        AdminPicker.select2Ajax(ctx.teamSelectEl, {
+            url: ctx.API.workTeamList,
+            placeholder: '팀선택',
+            allowClear: true,
+            minimumInputLength: 0,
+            dropdownParent: window.jQuery(ctx.modalEl),
+            width: '100%',
+            dataBuilder(params) {
+                const keyword = String(params.term || '').trim();
+                return keyword === ''
+                    ? {}
+                    : {
+                        filters: JSON.stringify([
+                            { field: 'team_name', value: keyword },
+                        ]),
+                    };
+            },
+            processResults(data) {
+                const rows = Array.isArray(data?.data) ? data.data : [];
+                return {
+                    results: rows.map((row) => ({
+                        id: String(row.id ?? ''),
+                        text: String(row.team_name || row.text || '').trim(),
+                    })).filter((row) => row.id !== '' && row.text !== ''),
+                };
+            },
+        });
+    }
+
+    function initBankAccountSelect() {
+        initReferenceAjaxSelect(ctx.bankAccountSelectEl, {
+            url: ctx.API.bankAccountSearch,
+            placeholder: '계좌선택',
+            labelForRow: (row) => row.account_name || row.bank_account_name || row.name || '',
+        });
+    }
+
+    function initCardSelect() {
+        initReferenceAjaxSelect(ctx.cardSelectEl, {
+            url: ctx.API.cardSearch,
+            placeholder: '카드선택',
+            labelForRow: (row) => row.text || row.card_name || row.card_number || row.card_company_name || '',
+        });
+    }
+
+    function initEmployeeSelect() {
+        initReferenceAjaxSelect(ctx.employeeSelectEl, {
+            url: ctx.API.employeeSearch,
+            placeholder: '직원선택',
+            labelForRow: (row) => row.text || row.employee_name || row.name || '',
+        });
+    }
+
+    function setStaticSelectValue(select, value = '', text = '', emptyLabel = '') {
+        if (!select) return;
+
+        const itemId = String(value || '').trim();
+        const isSelect2Ready = Boolean(window.jQuery?.fn?.select2 && window.jQuery(select).hasClass('select2-hidden-accessible'));
+        const $select = isSelect2Ready ? window.jQuery(select) : null;
+
+        select.innerHTML = '';
+        select.appendChild(new Option(emptyLabel, '', itemId === '', itemId === ''));
+
+        if (itemId !== '') {
+            const label = String(text || itemId).trim() || itemId;
+            const option = new Option(label, itemId, true, true);
+            select.appendChild(option);
+            select.value = itemId;
+            if ($select) {
+                $select.append(option).val(itemId).trigger('change');
+            }
+            return;
+        }
+
+        select.value = '';
+        if ($select) {
+            $select.val('').trigger('change');
+        }
+    }
+
+    function setBankAccountValue(value = '', text = '') {
+        setStaticSelectValue(ctx.bankAccountSelectEl, value, text, '계좌선택');
+    }
+
+    function setCardValue(value = '', text = '') {
+        setStaticSelectValue(ctx.cardSelectEl, value, text, '카드선택');
+    }
+
+    function setTeamValue(value = '', text = '') {
+        setStaticSelectValue(ctx.teamSelectEl, value, text, '팀선택');
+    }
+
+    function setEmployeeValue(value = '', text = '') {
+        setStaticSelectValue(ctx.employeeSelectEl, value, text, '직원선택');
+    }
+
+    Object.assign(ctx, { setCodeSelectValue, initClientSelect, clearClientSelect, setClientSelectValue, openTransactionClientQuickCreate, initProjectSelect, clearProjectSelect, setProjectSelectValue, initReferenceAjaxSelect, initTeamSelect, initBankAccountSelect, initCardSelect, initEmployeeSelect, setStaticSelectValue, setBankAccountValue, setCardValue, setTeamValue, setEmployeeValue });
+    return ctx;
+}

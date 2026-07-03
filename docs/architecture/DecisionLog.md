@@ -8,24 +8,24 @@
   - Scope: `createBundledVoucherFromEvidenceRows`, `tagBundledVoucher`
   - Reused services/helpers: `VoucherCreateService`, `VoucherPolicyService`, `VoucherService`, `EvidenceRuleEngineService`, `EvidenceBankHelperService`, `EvidencePayloadNormalizeService`, `EvidenceStatusHelperService`
 
-- 2026-06-04: `EvidenceUploadParserService` ?釉뚯뫊??1嶺?  - ?뺢퀡??? `parseUploadedRows`, `parseUploadedBankWorkbook`, `parseSheetMappedRows`, `loadUploadedSpreadsheet`
-  - ????helper: `hasBankVoucherLineColumns`, `bankLineSheetHasRowTypeColumn`, `normalizeBankVoucherLineRowType`, `uploadHeaderColumnsByName`, `uploadSheetColumnForFormatColumn`, `payloadKeyFromExcelColumn`, `detectCsvEncoding`
-  - ??戮곕뇶: `storeUploadBatch`, `enrichUploadRows`, `validatePreviewRowsV2`, `assertNoUploadValidationErrors`
-- 2026-06-04: `EvidenceBatchSaveService` ?釉뚯뫊??1嶺?  - ?뺢퀡??? `commitUploadChunkIfNeeded`, `uploadStatusFromValidation`, `assignEvidenceJsonSortNo`, `nextEvidenceJsonSortNo`
-  - ??戮곕뇶: `storeUploadBatch`
-- 2026-06-04: `EvidenceBatchSaveService` ?筌먦끉??2嶺?  - ?뺢퀡??? validation/status 繞벿뮻?? duplicate lookup ??臾먮쫭, payload build, persist parameter assembly
-  - ??戮곕뇶: `storeUploadBatch` 嶺뚣끉裕뉑묾??嶺뚯쉳???? transaction ?롪퍔??? schema ensure, bank side effect
+- 2026-06-04: `EvidenceUploadParserService` split phase 1
+  - Scope: `parseUploadedRows`, `parseUploadedBankWorkbook`, `parseSheetMappedRows`, `loadUploadedSpreadsheet`
+  - Added helpers: `hasBankVoucherLineColumns`, `bankLineSheetHasRowTypeColumn`, `normalizeBankVoucherLineRowType`, `uploadHeaderColumnsByName`, `uploadSheetColumnForFormatColumn`, `payloadKeyFromExcelColumn`, `detectCsvEncoding`
+  - Kept in caller: `storeUploadBatch`, `enrichUploadRows`, `validatePreviewRowsV2`, `assertNoUploadValidationErrors`
+- 2026-06-04: `EvidenceBatchSaveService` split phase 1
+  - Scope: `commitUploadChunkIfNeeded`, `uploadStatusFromValidation`, `assignEvidenceJsonSortNo`, `nextEvidenceJsonSortNo`
+  - Kept in caller: `storeUploadBatch`
+- 2026-06-04: `EvidenceBatchSaveService` split phase 2
+  - Scope: validation/status duplicate lookup, payload build, persist parameter assembly
+  - Kept in caller: `storeUploadBatch` transaction boundary, schema ensure, bank side effect
 
-- 2026-06-04: `VoucherPolicyService` ?브쑬??1筌?  - 甕곕뗄?? `applyEvidenceRefsToVoucherLines`, `missingRequiredEvidenceRefsMessage`, `lineHasRefType`, `evidenceRefIdForType`, `voucherRefPoliciesForAccount`, `policyRefTypeFromRow`, `policyRefTypeFromSubPolicy`, `resolveLedgerAccountId`, `voucherRefTypeLabel`, `normalizeVoucherRefType`, `normalizeAccountInput`
-  - ??뽰뇚: `createVoucherFromBankPayload`, `createBundledVoucherFromEvidenceRows`, `tagBundledVoucher`
+- 2026-06-04: `VoucherPolicyService` split phase 1
+  - Scope: `applyEvidenceRefsToVoucherLines`, `missingRequiredEvidenceRefsMessage`, `lineHasRefType`, `evidenceRefIdForType`, `voucherRefPoliciesForAccount`, `policyRefTypeFromRow`, `policyRefTypeFromSubPolicy`, `resolveLedgerAccountId`, `voucherRefTypeLabel`, `normalizeVoucherRefType`, `normalizeAccountInput`
+  - Used by: `createVoucherFromBankPayload`, `createBundledVoucherFromEvidenceRows`, `tagBundledVoucher`
 
-- 2026-06-04: `VoucherCreateService` 遺꾨━ 1李?  - 踰붿쐞: `createVoucherFromBankPayload`, existing voucher check 4媛? bank voucher line/payment build 5媛? voucher link/status helper 4媛?  - ?쒖쇅: `createBundledVoucherFromEvidenceRows`, `tagBundledVoucher`, learning helper
-- 2026-06-04: `TransactionPayloadBuildService` split phase 1
-  - Scope: `buildTransactionCreatePayload`, `transactionLinePayloadsForUpload`, `oneSetTransactionLine`, `shouldRetryTransactionHeaderOnly`
-  - Helpers kept as callbacks: `amountOrNull`, `normalizeDataType`, `dateValue`, `businessRefIdForStorage`, `normalizeBankTransactionPayload`, `transactionDirectionForStorage`, `businessUnitForUpload`
-- 2026-06-04: `Template/Format` split phase 1
-  - Added: `EvidenceTemplateService`, `EvidenceTemplateDropdownService`, `EvidenceFormatMappingService`
-  - Scope: template download/fill/spec/sample, template dropdown build/apply, format lookup/mapping
+- 2026-06-04: `VoucherCreateService` split phase 1
+  - Scope: `createVoucherFromBankPayload`, existing voucher check helpers, bank voucher line/payment build helpers, voucher link/status helpers
+  - Excluded: `createBundledVoucherFromEvidenceRows`, `tagBundledVoucher`, learning helper
   - Kept in controller: `apiTemplate`, `apiFieldOptions` entrypoints only
 - 2026-06-04: `EvidenceBusinessRefService` split phase 1
   - Scope: `businessRefIdForStorage`, `businessRefNameForStorage`, `businessRefCandidateValues`, `isEmptySelectionLabel`, `normalizeBusinessRefPayload`, `businessRefPayloadKeyMap`

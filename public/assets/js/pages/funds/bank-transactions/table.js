@@ -115,7 +115,7 @@ export function createFundsBankTransactionTable({ api, reorderApi, onSummary, on
         cellSearchFill: {
             valueMap: ({ field, row, cell }) => {
                 if (field === 'direction') {
-                    const direction = String(row.direction || row.transaction_type || '').toUpperCase();
+                    const direction = String(row.direction || row.transaction_direction || '').toUpperCase();
                     if (direction === 'IN') return '입금';
                     if (direction === 'OUT') return '출금';
                 }
@@ -186,7 +186,7 @@ export function createFundsBankTransactionTable({ api, reorderApi, onSummary, on
                 className: 'text-nowrap',
                 visible: false,
                 render: (value, type, row) => {
-                    const direction = String(value || row.transaction_type || '').toUpperCase();
+                    const direction = String(value || row.transaction_direction || '').toUpperCase();
                     if (type === 'sort' || type === 'type') return direction;
                     if (direction === 'IN') return '입금';
                     if (direction === 'OUT') return '출금';

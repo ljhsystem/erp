@@ -132,7 +132,7 @@ class EvidenceLifecycleService
             'BANK_TRANSACTION' => ['ledger_evidence_bank_transaction'],
             'TAX_INVOICE' => ['ledger_evidence_tax_invoice'],
             'TAX_INVOICE_MANUAL' => ['ledger_evidence_tax_invoice_manual'],
-            'CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES' => ['ledger_evidence_cash_receipt'],
+            'CASH_RECEIPT' => ['ledger_evidence_cash_receipt'],
             'CARD_HOMETAX' => ['ledger_evidence_card_hometax'],
             'CARD', 'CARD_STATEMENT', 'CARD_APPROVAL' => ['ledger_evidence_card_statement'],
             'EMPLOYEE_EXPENSE' => ['ledger_evidence_employee_expense'],

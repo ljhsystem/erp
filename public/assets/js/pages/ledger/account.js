@@ -6,6 +6,7 @@ import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { createExcelManagerSettingsCore } from '/public/assets/js/components/excel-manager/index.js';
 import { formatNumber } from '/public/assets/js/common/format.js';
+import { actorDisplay } from '/public/assets/js/common/actor.js';
 import { initCodeSelectControls, getCodeName } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
 import {
     readDataTableSettingsState,
@@ -78,14 +79,11 @@ window.AdminPicker = AdminPicker;
         note: { label: '비고', visible: false },
         memo: { label: '메모', visible: false },
         created_at: { label: '생성일시', visible: false },
-        created_by: { label: '생성자ID', visible: false },
-        created_by_name: { label: '생성자', visible: false },
+        created_by: { label: '생성자', visible: false, type: 'actor' },
         updated_at: { label: '수정일시', visible: false },
-        updated_by: { label: '수정자ID', visible: false },
-        updated_by_name: { label: '수정자', visible: false },
+        updated_by: { label: '수정자', visible: false, type: 'actor' },
         deleted_at: { label: '삭제일시', visible: false },
-        deleted_by: { label: '삭제자ID', visible: false },
-        deleted_by_name: { label: '삭제자', visible: false },
+        deleted_by: { label: '삭제자', visible: false, type: 'actor' },
         has_sub_account: { label: '보조계정등록', visible: false, className: 'text-center' },
         id: { label: 'ID', visible: false }
     };
@@ -127,9 +125,6 @@ window.AdminPicker = AdminPicker;
         'deleted_by',
         'parent_name',
         'has_sub_account',
-        'created_by_name',
-        'updated_by_name',
-        'deleted_by_name',
     ];
     const DATE_OPTIONS = [
         { value: 'created_at', label: '생성일자' },
@@ -175,7 +170,7 @@ window.AdminPicker = AdminPicker;
             <td>${escapeHtml(row.account_name ?? '')}</td>
             <td>${escapeHtml(row.account_group ?? '')}</td>
             <td>${escapeHtml(row.deleted_at ?? '')}</td>
-            <td>${escapeHtml(row.deleted_by_name ?? row.deleted_by ?? '')}</td>
+            <td>${escapeHtml(actorDisplay(row, 'deleted_by'))}</td>
             <td class="text-center">
                 <button type="button" class="btn btn-success btn-sm btn-restore" data-id="${escapeHtml(row.id ?? '')}">복원</button>
                 <button type="button" class="btn btn-danger btn-sm btn-purge" data-id="${escapeHtml(row.id ?? '')}">영구삭제</button>
@@ -507,7 +502,7 @@ window.AdminPicker = AdminPicker;
             tableId: 'ledgerAccount',
             defaultSearchField: 'account_name',
             dateOptions: DATE_OPTIONS,
-            excludeFields: ['id', 'parent_id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'deleted_at', 'deleted_by', 'deleted_by_name', 'has_sub_account']
+            excludeFields: ['id', 'parent_id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'deleted_at', 'deleted_by', 'has_sub_account']
         });
 
         bindRowReorder(accountTable, {
@@ -552,7 +547,7 @@ window.AdminPicker = AdminPicker;
                 return;
             }
 
-            if (field === 'parent_id' || field === 'created_by_name' || field === 'updated_by_name' || field === 'deleted_by_name') {
+            if (field === 'parent_id') {
                 return;
             }
 
@@ -578,9 +573,7 @@ window.AdminPicker = AdminPicker;
                     if (field === 'account_name') return renderAccountTreeCell(row, value);
                     if (field === 'parent_name') return escapeHtml(row?.parent_name ?? value ?? '');
                     if (field === 'is_posting') return renderPostableBadge(row);
-                    if (field === 'created_by') return escapeHtml(row?.created_by_name ?? value ?? '');
-                    if (field === 'updated_by') return escapeHtml(row?.updated_by_name ?? value ?? '');
-                    if (field === 'deleted_by') return escapeHtml(row?.deleted_by_name ?? value ?? '');
+                    if (config.type === 'actor') return escapeHtml(actorDisplay(row, field));
 
                     if (field === 'allow_sub_account') {
                         return Number(value) === 1
@@ -1583,11 +1576,11 @@ window.AdminPicker = AdminPicker;
                 <tr><th>비고</th><td>${escapeHtml(data.note ?? '')}</td></tr>
                 <tr><th>메모</th><td>${escapeHtml(data.memo ?? '')}</td></tr>
                 <tr><th>생성일시</th><td>${escapeHtml(data.created_at ?? '')}</td></tr>
-                <tr><th>생성자</th><td>${escapeHtml(data.created_by_name ?? data.created_by ?? '')}</td></tr>
+                <tr><th>생성자</th><td>${escapeHtml(actorDisplay(data, 'created_by'))}</td></tr>
                 <tr><th>수정일시</th><td>${escapeHtml(data.updated_at ?? '')}</td></tr>
-                <tr><th>수정자</th><td>${escapeHtml(data.updated_by_name ?? data.updated_by ?? '')}</td></tr>
+                <tr><th>수정자</th><td>${escapeHtml(actorDisplay(data, 'updated_by'))}</td></tr>
                 <tr><th>삭제일시</th><td>${escapeHtml(data.deleted_at ?? '')}</td></tr>
-                <tr><th>삭제자</th><td>${escapeHtml(data.deleted_by_name ?? data.deleted_by ?? '')}</td></tr>
+                <tr><th>삭제자</th><td>${escapeHtml(actorDisplay(data, 'deleted_by'))}</td></tr>
             </table>
         `;
     }

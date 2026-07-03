@@ -3,6 +3,7 @@ namespace App\Models\User;
 
 use PDO;
 use Core\Database;
+use Core\Helpers\ActorHelper;
 
 class EmployeeModel
 {
@@ -75,40 +76,11 @@ class EmployeeModel
 
                 r.role_name,
 
-                CASE
-                    WHEN u.created_by IS NULL THEN NULL
-                    WHEN u.created_by LIKE 'SYSTEM:%' THEN u.created_by
-                    WHEN uc.employee_name IS NOT NULL THEN CONCAT('USER:', uc.employee_name)
-                    ELSE u.created_by
-                END AS user_created_by_name,
-
-                CASE
-                    WHEN u.updated_by IS NULL THEN NULL
-                    WHEN u.updated_by LIKE 'SYSTEM:%' THEN u.updated_by
-                    WHEN uu.employee_name IS NOT NULL THEN CONCAT('USER:', uu.employee_name)
-                    ELSE u.updated_by
-                END AS user_updated_by_name,
-
-                CASE
-                    WHEN u.password_updated_by IS NULL THEN NULL
-                    WHEN u.password_updated_by LIKE 'SYSTEM:%' THEN u.password_updated_by
-                    WHEN upw.employee_name IS NOT NULL THEN CONCAT('USER:', upw.employee_name)
-                    ELSE u.password_updated_by
-                END AS password_updated_by_name,
-
-                CASE
-                    WHEN u.approved_by IS NULL THEN NULL
-                    WHEN u.approved_by LIKE 'SYSTEM:%' THEN u.approved_by
-                    WHEN ua.employee_name IS NOT NULL THEN CONCAT('USER:', ua.employee_name)
-                    ELSE u.approved_by
-                END AS approved_by_name,
-
-                CASE
-                    WHEN u.deleted_by IS NULL THEN NULL
-                    WHEN u.deleted_by LIKE 'SYSTEM:%' THEN u.deleted_by
-                    WHEN ud.employee_name IS NOT NULL THEN CONCAT('USER:', ud.employee_name)
-                    ELSE u.deleted_by
-                END AS deleted_by_name
+                u.created_by AS user_created_by_name,
+                u.updated_by AS user_updated_by_name,
+                u.password_updated_by AS password_updated_by_name,
+                u.approved_by AS approved_by_name,
+                u.deleted_by AS deleted_by_name
 
             FROM user_employees p
 
@@ -126,26 +98,6 @@ class EmployeeModel
 
             LEFT JOIN system_clients c
                 ON p.client_id = c.id
-
-            LEFT JOIN user_employees uc
-                ON u.created_by NOT LIKE 'SYSTEM:%'
-                AND uc.user_id = REPLACE(u.created_by, 'USER:', '')
-
-            LEFT JOIN user_employees uu
-                ON u.updated_by NOT LIKE 'SYSTEM:%'
-                AND uu.user_id = REPLACE(u.updated_by, 'USER:', '')
-
-            LEFT JOIN user_employees upw
-                ON u.password_updated_by NOT LIKE 'SYSTEM:%'
-                AND upw.user_id = REPLACE(u.password_updated_by, 'USER:', '')
-
-            LEFT JOIN user_employees ua
-                ON u.approved_by NOT LIKE 'SYSTEM:%'
-                AND ua.user_id = REPLACE(u.approved_by, 'USER:', '')
-
-            LEFT JOIN user_employees ud
-                ON u.deleted_by NOT LIKE 'SYSTEM:%'
-                AND ud.user_id = REPLACE(u.deleted_by, 'USER:', '')
 
             WHERE 1=1
         ";
@@ -351,7 +303,18 @@ class EmployeeModel
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return ActorHelper::enrichActorNames(
+            $rows ?: [],
+            [
+                'user_created_by_name' => 'user_created_by',
+                'user_updated_by_name' => 'user_updated_by',
+                'password_updated_by_name' => 'password_updated_by',
+                'approved_by_name' => 'approved_by',
+                'deleted_by_name' => 'deleted_by',
+            ]
+        );
     }
 
     public function getById(string $id): ?array
@@ -416,40 +379,11 @@ class EmployeeModel
 
                 r.role_name,
 
-                CASE
-                    WHEN u.created_by IS NULL THEN NULL
-                    WHEN u.created_by LIKE 'SYSTEM:%' THEN u.created_by
-                    WHEN uc.employee_name IS NOT NULL THEN CONCAT('USER:', uc.employee_name)
-                    ELSE u.created_by
-                END AS user_created_by_name,
-
-                CASE
-                    WHEN u.updated_by IS NULL THEN NULL
-                    WHEN u.updated_by LIKE 'SYSTEM:%' THEN u.updated_by
-                    WHEN uu.employee_name IS NOT NULL THEN CONCAT('USER:', uu.employee_name)
-                    ELSE u.updated_by
-                END AS user_updated_by_name,
-
-                CASE
-                    WHEN u.password_updated_by IS NULL THEN NULL
-                    WHEN u.password_updated_by LIKE 'SYSTEM:%' THEN u.password_updated_by
-                    WHEN upw.employee_name IS NOT NULL THEN CONCAT('USER:', upw.employee_name)
-                    ELSE u.password_updated_by
-                END AS password_updated_by_name,
-
-                CASE
-                    WHEN u.approved_by IS NULL THEN NULL
-                    WHEN u.approved_by LIKE 'SYSTEM:%' THEN u.approved_by
-                    WHEN ua.employee_name IS NOT NULL THEN CONCAT('USER:', ua.employee_name)
-                    ELSE u.approved_by
-                END AS approved_by_name,
-
-                CASE
-                    WHEN u.deleted_by IS NULL THEN NULL
-                    WHEN u.deleted_by LIKE 'SYSTEM:%' THEN u.deleted_by
-                    WHEN ud.employee_name IS NOT NULL THEN CONCAT('USER:', ud.employee_name)
-                    ELSE u.deleted_by
-                END AS deleted_by_name
+                u.created_by AS user_created_by_name,
+                u.updated_by AS user_updated_by_name,
+                u.password_updated_by AS password_updated_by_name,
+                u.approved_by AS approved_by_name,
+                u.deleted_by AS deleted_by_name
 
             FROM user_employees p
             LEFT JOIN auth_users u
@@ -464,33 +398,27 @@ class EmployeeModel
             LEFT JOIN system_clients c
                 ON p.client_id = c.id
 
-            LEFT JOIN user_employees uc
-                ON u.created_by NOT LIKE 'SYSTEM:%'
-                AND uc.user_id = REPLACE(u.created_by, 'USER:', '')
-
-            LEFT JOIN user_employees uu
-                ON u.updated_by NOT LIKE 'SYSTEM:%'
-                AND uu.user_id = REPLACE(u.updated_by, 'USER:', '')
-
-            LEFT JOIN user_employees upw
-                ON u.password_updated_by NOT LIKE 'SYSTEM:%'
-                AND upw.user_id = REPLACE(u.password_updated_by, 'USER:', '')
-
-            LEFT JOIN user_employees ua
-                ON u.approved_by NOT LIKE 'SYSTEM:%'
-                AND ua.user_id = REPLACE(u.approved_by, 'USER:', '')
-
-            LEFT JOIN user_employees ud
-                ON u.deleted_by NOT LIKE 'SYSTEM:%'
-                AND ud.user_id = REPLACE(u.deleted_by, 'USER:', '')
-
             WHERE p.id = :id
             LIMIT 1
         ");
 
         $stmt->execute(['id' => $id]);
 
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return null;
+        }
+
+        return ActorHelper::enrichActorNamesRow(
+            $row,
+            [
+                'user_created_by_name' => 'user_created_by',
+                'user_updated_by_name' => 'user_updated_by',
+                'password_updated_by_name' => 'password_updated_by',
+                'approved_by_name' => 'approved_by',
+                'deleted_by_name' => 'deleted_by',
+            ]
+        );
     }
 
     public function getByUsername(string $username): ?array

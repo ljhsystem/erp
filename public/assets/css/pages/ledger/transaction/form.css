@@ -1,0 +1,254 @@
+#transactionModal .transaction-business-card > .transaction-business-grid,
+#transactionModal .transaction-overview-card > .transaction-overview-layout,
+#transactionModal .transaction-overview-card > .transaction-modal-grid,
+#transactionModal .transaction-attachment-card > .transaction-card-body,
+#transactionModal .transaction-lines-section > .transaction-grid-wrap,
+#transactionModal .transaction-lines-section > .transaction-lines-footer,
+#transactionModal .transaction-system-card .transaction-card-body,
+#transactionModal .transaction-voucher-card .transaction-card-body {
+    margin: 0;
+}
+
+#transactionModal .transaction-overview-card {
+    display: block;
+}
+
+#transactionModal .transaction-overview-card > .transaction-card-header {
+    margin-bottom: 0;
+}
+
+#transactionModal .transaction-overview-header-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px 16px;
+    flex-wrap: wrap;
+}
+
+#transactionModal .transaction-switch {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    margin: 0;
+    padding-left: 2.6rem;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+#transactionModal .transaction-switch .form-check-input {
+    width: 2.2rem;
+    height: 1.15rem;
+    margin-left: -2.6rem;
+}
+
+#transactionModal .transaction-modal-grid {
+    display: grid;
+    gap: 10px;
+    padding: 0 16px 16px;
+}
+
+#transactionModal .transaction-overview-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(260px, 0.9fr);
+    gap: 12px;
+    align-items: stretch;
+}
+
+#transactionModal .transaction-overview-column {
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid #dbe7f3;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #f9fbff 0%, #f3f7fc 100%);
+}
+
+#transactionModal .transaction-modal-grid-overview-left,
+#transactionModal .transaction-modal-grid-overview-right {
+    grid-template-columns: minmax(128px, 0.8fr) minmax(220px, 1.2fr);
+    align-items: start;
+}
+
+#transactionModal .transaction-business-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+#transactionModal .transaction-overview-description {
+    grid-column: span 1;
+}
+
+#transactionModal .transaction-overview-note-field {
+    grid-column: 1;
+}
+
+#transactionModal .transaction-overview-memo-field {
+    grid-column: 2;
+}
+
+#transactionModal .transaction-overview-files {
+    grid-column: 1 / -1;
+}
+
+#transactionModal .transaction-overview-files {
+    margin: 0;
+    padding: 12px;
+    border: 1px solid #dbe7f3;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #f9fbff 0%, #f3f7fc 100%);
+}
+
+#transactionModal .transaction-field {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+    overflow: visible;
+    padding: 8px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    transition: box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+#transactionModal .transaction-field-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+#transactionModal .transaction-field-label-text {
+    min-width: 0;
+}
+
+#transactionModal .transaction-field-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    line-height: 1.2;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+#transactionModal .transaction-field-badge-code {
+    background: #f5d0fe;
+    color: #86198f;
+}
+
+#transactionModal .transaction-field-badge-basic {
+    background: #b7d7a8;
+    color: #24451f;
+}
+
+#transactionModal .transaction-field-standard {
+    border-color: #d5b7fb;
+    background: linear-gradient(180deg, #f8f0ff 0%, #f1e4ff 100%);
+    box-shadow: inset 0 0 0 1px rgba(168, 85, 247, .14);
+}
+
+#transactionModal .transaction-field-basic {
+    border-color: #b9dea0;
+    background: linear-gradient(180deg, #effae6 0%, #dcf7c9 100%);
+    box-shadow: inset 0 0 0 1px rgba(101, 163, 13, .14);
+}
+
+#transactionModal .transaction-field-date {
+    border-color: #8cd9f8;
+    background: linear-gradient(180deg, #f0fbff 0%, #e0f7ff 100%);
+    box-shadow: inset 0 0 0 1px rgba(14, 165, 233, .14);
+}
+
+#transactionModal .transaction-field-raw {
+    border-color: #d7e0ea;
+    background: linear-gradient(180deg, #f8fbfe 0%, #e8eef5 100%);
+    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, .12);
+}
+
+#transactionModal .transaction-exchange-field {
+    border-color: #99f6e4;
+    background: linear-gradient(180deg, #f0fdfa 0%, #ccfbf1 100%);
+    box-shadow: inset 0 0 0 1px rgba(15, 118, 110, .14);
+}
+
+#transactionModal .transaction-exchange-field .transaction-field-label {
+    color: #0f766e;
+}
+
+#transactionModal .transaction-field-amount {
+    border-color: #b9d6f7;
+    background: linear-gradient(180deg, #f3f8ff 0%, #e5f0ff 100%);
+    box-shadow: inset 0 0 0 1px rgba(59, 130, 246, .12);
+}
+
+#transactionModal .transaction-field-amount-final {
+    border-color: #86efac;
+    background: linear-gradient(180deg, #f2fff5 0%, #dcfce7 100%);
+    box-shadow: inset 0 0 0 1px rgba(34, 197, 94, .16);
+}
+
+#transactionModal .transaction-field-amount-final .transaction-field-label {
+    color: #166534;
+}
+
+#transactionModal .date-input {
+    width: 100%;
+}
+
+#transactionModal .date-input .admin-date {
+    width: 100%;
+}
+
+#transactionModal .transaction-file-panel {
+    display: grid;
+    gap: 8px;
+    padding: 0;
+}
+
+#transactionModal .transaction-overview-card .transaction-overview-column .transaction-field {
+    min-height: 78px;
+    align-content: start;
+}
+
+#transactionModal .transaction-overview-card .transaction-overview-column .transaction-overview-note-field,
+#transactionModal .transaction-overview-card .transaction-overview-column .transaction-overview-memo-field,
+#transactionModal .transaction-overview-files .transaction-field {
+    min-height: 0;
+}
+
+#transactionModal .transaction-overview-card .transaction-overview-column .transaction-field .form-control,
+#transactionModal .transaction-overview-card .transaction-overview-column .transaction-field .form-select,
+#transactionModal .transaction-overview-card .transaction-overview-column .transaction-field textarea {
+    min-height: 43px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.94);
+    border-color: #d5dee8;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+#transactionModal .transaction-file-panel.d-none {
+    display: none;
+}
+
+#transactionModal .transaction-file-list {
+    display: grid;
+    gap: 6px;
+    font-size: 12px;
+}
+
+#transactionModal .transaction-file-upload-row {
+    display: block;
+}
+
+#transactionModal .transaction-file-input-field {
+    max-width: none;
+}
+
+#transactionModal .transaction-file-native-input {
+    display: none;
+}
+

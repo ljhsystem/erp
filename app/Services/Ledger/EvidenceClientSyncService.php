@@ -18,7 +18,7 @@ class EvidenceClientSyncService
     {
         $this->ensureClientHistoryTable();
         $direction = $this->call('transactionDirectionForStorage', (string) ($payload['transaction_direction'] ?? ''), $payload, $dataType);
-        $primaryRole = $direction === 'SALES' ? 'customer' : 'supplier';
+        $primaryRole = $direction === 'INCOME' ? 'customer' : 'supplier';
         $synced = [];
         $primaryClientId = null;
 
@@ -147,7 +147,7 @@ class EvidenceClientSyncService
             ];
         }
 
-        if (in_array($dataType, ['CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES'], true)) {
+        if ($dataType === 'CASH_RECEIPT') {
             return [[
                 'role' => 'merchant',
                 'business_number' => $this->firstRowValue($row, ['merchant_business_number', 'client_business_number', 'business_number']),
@@ -290,7 +290,7 @@ class EvidenceClientSyncService
             'updated_by' => ActorHelper::user(),
         ]);
         if (!$created) {
-            throw new \RuntimeException('????????????????????????????????????????獄쏅챶留덌┼??????????????筌롈살젔?????????????????????????????곕춴?????????????????????????癲??');
+            throw new \RuntimeException('증빙 원본 기준 거래처를 생성하지 못했습니다.');
         }
 
         return $clientId;
@@ -661,35 +661,69 @@ class EvidenceClientSyncService
         $name = html_entity_decode($name, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $name = preg_replace('/[[:space:]\x{00A0}]+/u', '', $name) ?? $name;
 
+        $tokens = [
+            '(주)',
+            '주식회사',
+            '유한회사',
+            '합자회사',
+            '합명회사',
+            '유한책임회사',
+            'co.,ltd',
+            'co,ltd',
+            'co.ltd',
+            'co ltd',
+            'corporation',
+            'corp.',
+            'corp',
+            'inc.',
+            'inc',
+            'ltd.',
+            'ltd',
+        ];
+
+        do {
+            $before = $name;
+
+            foreach ($tokens as $token) {
+                $quoted = preg_quote($token, '/');
+                $name = preg_replace('/^' . $quoted . '/iu', '', $name) ?? $name;
+                $name = preg_replace('/' . $quoted . '$/iu', '', $name) ?? $name;
+            }
+
+            $name = trim($name);
+        } while ($name !== $before);
+
+        return $name;
+
         $legalPatterns = [
-            '/^\(??)/u',
-            '/^\(??)/u',
-            '/^??u',
-            '/^????????????袁⑸즴筌?씛彛???돗?????????????????u',
-            '/^???????????????????u',
-            '/^???????????u',
-            '/^??????????????????????u',
-            '/^\(??)/u',
-            '/^??????????????椰??????????u',
-            '/^co\.?,?ltd\.?/iu',
+            '/^\(주\)/u',
+            '/^\(유\)/u',
+            '/^주식회사/u',
+            '/^유한회사/u',
+            '/^합자회사/u',
+            '/^익명회사/u',
+            '/^유한책임회사/u',
+            '/^\(합\)/u',
+            '/^?щ떒踰뺤씤/u',
+            '/^co\\.?,?ltd\\.?/iu',
             '/^corporation/iu',
-            '/^corp\.?/iu',
-            '/^inc\.?/iu',
-            '/^ltd\.?/iu',
-            '/\(??)$/u',
-            '/\(??)$/u',
-            '/??/u',
-            '/????????????袁⑸즴筌?씛彛???돗?????????????????/u',
-            '/???????????????????/u',
-            '/???????????/u',
-            '/??????????????????????/u',
-            '/\(??)$/u',
-            '/??????????????椰??????????/u',
-            '/co\.?,?ltd\.?$/iu',
+            '/^corp\\.?/iu',
+            '/^inc\\.?/iu',
+            '/^ltd\\.?/iu',
+            '/\(주\)$/u',
+            '/\(유\)$/u',
+            '/주식회사/u',
+            '/유한회사/u',
+            '/합자회사/u',
+            '/익명회사/u',
+            '/유한책임회사/u',
+            '/\(합\)$/u',
+            '/?щ떒踰뺤씤/u',
+            '/co\\.?,?ltd\\.?$/iu',
             '/corporation$/iu',
-            '/corp\.?$/iu',
-            '/inc\.?$/iu',
-            '/ltd\.?$/iu',
+            '/corp\\.?$/iu',
+            '/inc\\.?$/iu',
+            '/ltd\\.?$/iu',
         ];
 
         do {

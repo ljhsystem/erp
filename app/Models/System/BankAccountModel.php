@@ -2,6 +2,7 @@
 namespace App\Models\System;
 
 use PDO;
+use Core\Helpers\ActorHelper;
 use Core\Database;
 
 class BankAccountModel
@@ -19,31 +20,10 @@ class BankAccountModel
         $sql = "
             SELECT
                 a.*,
-                CASE
-                    WHEN a.created_by LIKE 'SYSTEM:%' THEN a.created_by
-                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
-                    ELSE a.created_by
-                END AS created_by_name,
-                CASE
-                    WHEN a.updated_by LIKE 'SYSTEM:%' THEN a.updated_by
-                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
-                    ELSE a.updated_by
-                END AS updated_by_name,
-                CASE
-                    WHEN a.deleted_by LIKE 'SYSTEM:%' THEN a.deleted_by
-                    WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
-                    ELSE a.deleted_by
-                END AS deleted_by_name
+                a.created_by AS created_by_name,
+                a.updated_by AS updated_by_name,
+                a.deleted_by AS deleted_by_name
             FROM system_bank_accounts a
-            LEFT JOIN user_employees p1
-                ON a.created_by NOT LIKE 'SYSTEM:%'
-               AND p1.user_id = REPLACE(a.created_by, 'USER:', '')
-            LEFT JOIN user_employees p2
-                ON a.updated_by NOT LIKE 'SYSTEM:%'
-               AND p2.user_id = REPLACE(a.updated_by, 'USER:', '')
-            LEFT JOIN user_employees p3
-                ON a.deleted_by NOT LIKE 'SYSTEM:%'
-               AND p3.user_id = REPLACE(a.deleted_by, 'USER:', '')
             WHERE a.deleted_at IS NULL
         ";
 
@@ -69,13 +49,13 @@ class BankAccountModel
 
             'created_at'      => ['col'=>'a.created_at','type'=>'date'],
             'created_by'      => ['col'=>'a.created_by','type'=>'like'],
-            'created_by_name' => ['col'=>"COALESCE(CONCAT('USER:', p1.employee_name), a.created_by)",'type'=>'like'],
+            'created_by_name' => ['col'=>'a.created_by','type'=>'like'],
             'updated_at'      => ['col'=>'a.updated_at','type'=>'date'],
             'updated_by'      => ['col'=>'a.updated_by','type'=>'like'],
-            'updated_by_name' => ['col'=>"COALESCE(CONCAT('USER:', p2.employee_name), a.updated_by)",'type'=>'like'],
+            'updated_by_name' => ['col'=>'a.updated_by','type'=>'like'],
             'deleted_at'      => ['col'=>'a.deleted_at','type'=>'date'],
             'deleted_by'      => ['col'=>'a.deleted_by','type'=>'like'],
-            'deleted_by_name' => ['col'=>"COALESCE(CONCAT('USER:', p3.employee_name), a.deleted_by)",'type'=>'like'],
+            'deleted_by_name' => ['col'=>'a.deleted_by','type'=>'like'],
         ];
 
         $globalSearch = [];
@@ -138,9 +118,9 @@ class BankAccountModel
                 'a.created_by',
                 'a.updated_by',
                 'a.deleted_by',
-                "COALESCE(CONCAT('USER:', p1.employee_name), a.created_by)",
-                "COALESCE(CONCAT('USER:', p2.employee_name), a.updated_by)",
-                "COALESCE(CONCAT('USER:', p3.employee_name), a.deleted_by)"
+                'a.created_by',
+                'a.updated_by',
+                'a.deleted_by'
             ];
 
             $sql .= " AND (";
@@ -177,7 +157,13 @@ class BankAccountModel
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return ActorHelper::enrichActorNames($rows, [
+            'created_by_name' => 'created_by_name',
+            'updated_by_name' => 'updated_by_name',
+            'deleted_by_name' => 'deleted_by_name',
+        ]);
     }
 
     public function getById(string $id): ?array
@@ -186,37 +172,11 @@ class BankAccountModel
             SELECT
                 a.*,
 
-                CASE
-                    WHEN a.created_by LIKE 'SYSTEM:%' THEN a.created_by
-                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
-                    ELSE a.created_by
-                END AS created_by_name,
-
-                CASE
-                    WHEN a.updated_by LIKE 'SYSTEM:%' THEN a.updated_by
-                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
-                    ELSE a.updated_by
-                END AS updated_by_name,
-
-                CASE
-                    WHEN a.deleted_by LIKE 'SYSTEM:%' THEN a.deleted_by
-                    WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
-                    ELSE a.deleted_by
-                END AS deleted_by_name
+                a.created_by AS created_by_name,
+                a.updated_by AS updated_by_name,
+                a.deleted_by AS deleted_by_name
 
             FROM system_bank_accounts a
-
-            LEFT JOIN user_employees p1
-                ON a.created_by NOT LIKE 'SYSTEM:%'
-                AND p1.user_id = REPLACE(a.created_by, 'USER:', '')
-
-            LEFT JOIN user_employees p2
-                ON a.updated_by NOT LIKE 'SYSTEM:%'
-                AND p2.user_id = REPLACE(a.updated_by, 'USER:', '')
-
-            LEFT JOIN user_employees p3
-                ON a.deleted_by NOT LIKE 'SYSTEM:%'
-                AND p3.user_id = REPLACE(a.deleted_by, 'USER:', '')
 
             WHERE a.id = :id
             LIMIT 1
@@ -226,7 +186,15 @@ class BankAccountModel
 
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        return $row ?: null;
+        if (!$row) {
+            return null;
+        }
+
+        return ActorHelper::enrichActorNamesRow($row, [
+            'created_by_name' => 'created_by_name',
+            'updated_by_name' => 'updated_by_name',
+            'deleted_by_name' => 'deleted_by_name',
+        ]);
     }
 
     public function searchPicker(string $keyword = '', int $limit = 20): array
@@ -402,37 +370,11 @@ class BankAccountModel
             SELECT
                 a.*,
 
-                CASE
-                    WHEN a.created_by LIKE 'SYSTEM:%' THEN a.created_by
-                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
-                    ELSE a.created_by
-                END AS created_by_name,
-
-                CASE
-                    WHEN a.updated_by LIKE 'SYSTEM:%' THEN a.updated_by
-                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
-                    ELSE a.updated_by
-                END AS updated_by_name,
-
-                CASE
-                    WHEN a.deleted_by LIKE 'SYSTEM:%' THEN a.deleted_by
-                    WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
-                    ELSE a.deleted_by
-                END AS deleted_by_name
+                a.created_by AS created_by_name,
+                a.updated_by AS updated_by_name,
+                a.deleted_by AS deleted_by_name
 
             FROM system_bank_accounts a
-
-            LEFT JOIN user_employees p1
-                ON a.created_by NOT LIKE 'SYSTEM:%'
-                AND p1.user_id = REPLACE(a.created_by, 'USER:', '')
-
-            LEFT JOIN user_employees p2
-                ON a.updated_by NOT LIKE 'SYSTEM:%'
-                AND p2.user_id = REPLACE(a.updated_by, 'USER:', '')
-
-            LEFT JOIN user_employees p3
-                ON a.deleted_by NOT LIKE 'SYSTEM:%'
-                AND p3.user_id = REPLACE(a.deleted_by, 'USER:', '')
 
             WHERE a.deleted_at IS NOT NULL
             ORDER BY a.deleted_at DESC
@@ -440,7 +382,13 @@ class BankAccountModel
 
         $stmt->execute();
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return ActorHelper::enrichActorNames($rows, [
+            'created_by_name' => 'created_by_name',
+            'updated_by_name' => 'updated_by_name',
+            'deleted_by_name' => 'deleted_by_name',
+        ]);
     }
 
     public function restoreById(string $id, string $actor): bool

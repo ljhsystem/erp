@@ -1,3 +1,5 @@
+import { actorDisplay } from '/public/assets/js/common/actor.js';
+
 export function createCardTableModule({
     createDataTable,
     bindTableHighlight,
@@ -216,17 +218,7 @@ export function createCardTableModule({
                         return row?.client_name || data;
                     }
 
-                    if (field === 'created_by') {
-                        return row?.created_by_name || data;
-                    }
-
-                    if (field === 'updated_by') {
-                        return row?.updated_by_name || data;
-                    }
-
-                    if (field === 'deleted_by') {
-                        return row?.deleted_by_name || data;
-                    }
+                    if (config.type === 'actor') return actorDisplay(row, field);
 
                     if (field === 'card_file') {
                         if (!data) return '';
@@ -274,6 +266,7 @@ export function createCardTableModule({
         columns.push({
             data: null,
             settingsKey: '__actions',
+            __dtColumnKind: 'virtual',
             title: '관리',
             className: 'text-center no-colvis',
             headerClassName: 'text-center no-colvis',

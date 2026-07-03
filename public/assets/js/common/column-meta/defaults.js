@@ -30,4 +30,5 @@ export const COLUMN_META_TYPES = Object.freeze([
     'account-number',
     'url',
     'code',
+    'actor',
 ]);

@@ -1,3 +1,5 @@
+import { actorDisplay } from '/public/assets/js/common/actor.js';
+
 export function createClientTableModule({
     createDataTable,
     bindTableHighlight,
@@ -51,11 +53,11 @@ export function createClientTableModule({
         memo: { label: '메모', visible: false },
         is_active: { label: '상태', visible: true },
         created_at: { label: '생성일시', visible: false },
-        created_by: { label: '생성자', visible: false },
+        created_by: { label: '생성자', visible: false, type: 'actor' },
         updated_at: { label: '수정일시', visible: false },
-        updated_by: { label: '수정자', visible: false },
+        updated_by: { label: '수정자', visible: false, type: 'actor' },
         deleted_at: { label: '삭제일시', visible: false },
-        deleted_by: { label: '삭제자', visible: false },
+        deleted_by: { label: '삭제자', visible: false, type: 'actor' },
         rrn_image: { label: '신분증이미지', visible: false },
     };
 
@@ -178,9 +180,7 @@ export function createClientTableModule({
                 render(data, type, row) {
                     if (data == null) return '';
                     if (type !== 'display') return data;
-                    if (field === 'created_by') return row?.created_by_name || data;
-                    if (field === 'updated_by') return row?.updated_by_name || data;
-                    if (field === 'deleted_by') return row?.deleted_by_name || data;
+                    if (config.type === 'actor') return actorDisplay(row, field);
                     if (field === 'bank_file' || field === 'business_certificate' || field === 'rrn_image') return data ? '등록' : '';
                     if (field === 'business_number') return formatBizNumber(data);
                     if (field === 'rrn') return formatCorpNumber(data);
@@ -211,6 +211,7 @@ export function createClientTableModule({
         columns.push({
             data: null,
             settingsKey: '__actions',
+            __dtColumnKind: 'virtual',
             title: '관리',
             width: '90px',
             widthResizable: true,

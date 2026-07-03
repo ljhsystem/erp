@@ -3,9 +3,6 @@
 namespace App\Controllers\Ledger;
 
 use App\Controllers\System\LayoutController;
-use App\Models\Ledger\TransactionFileModel;
-use App\Models\Ledger\TransactionModel;
-use App\Services\File\FileService;
 use App\Services\Ledger\TransactionCrudService;
 use App\Services\Ledger\TransactionVoucherService;
 use Core\DbPdo;
@@ -16,9 +13,6 @@ class TransactionController
     private PDO $pdo;
     private TransactionCrudService $service;
     private TransactionVoucherService $transactionVoucherService;
-    private TransactionModel $transactionModel;
-    private TransactionFileModel $transactionFileModel;
-    private FileService $fileService;
     private LayoutController $layout;
 
     public function __construct(?PDO $pdo = null)
@@ -26,9 +20,6 @@ class TransactionController
         $this->pdo = $pdo ?? DbPdo::conn();
         $this->service = new TransactionCrudService($this->pdo);
         $this->transactionVoucherService = new TransactionVoucherService($this->pdo);
-        $this->transactionModel = new TransactionModel($this->pdo);
-        $this->transactionFileModel = new TransactionFileModel($this->pdo);
-        $this->fileService = new FileService($this->pdo);
         $this->layout = new LayoutController($this->pdo);
     }
 
@@ -164,37 +155,20 @@ class TransactionController
             exit('Missing file id');
         }
 
-        $file = $this->transactionFileModel->getById($id);
-        if (!$file || empty($file['file_path'])) {
+        $download = $this->service->getFileDownloadPayload($id);
+        if (!$download) {
             http_response_code(404);
             exit('File not found');
         }
 
-        $abs = \Core\storage_resolve_abs((string) $file['file_path']);
-        if (!$abs || !is_file($abs)) {
-            http_response_code(404);
-            exit('File not found');
-        }
-
-        $fileName = (string) ($file['file_name'] ?: basename($abs));
-        $mime = mime_content_type($abs) ?: 'application/octet-stream';
-        $disposition = in_array($mime, [
-            'image/jpeg',
-            'image/png',
-            'image/gif',
-            'image/webp',
-            'application/pdf',
-            'text/plain',
-        ], true) ? 'inline' : 'attachment';
-
-        header('Content-Type: ' . $mime);
-        header('Content-Length: ' . filesize($abs));
+        header('Content-Type: ' . $download['mime']);
+        header('Content-Length: ' . $download['size']);
         header(
-            'Content-Disposition: ' . $disposition
-            . '; filename="' . addcslashes($fileName, "\\\"") . '"'
-            . "; filename*=UTF-8''" . rawurlencode($fileName)
+            'Content-Disposition: ' . $download['disposition']
+            . '; filename="' . addcslashes((string) $download['file_name'], "\\\"") . '"'
+            . "; filename*=UTF-8''" . rawurlencode((string) $download['file_name'])
         );
-        readfile($abs);
+        readfile((string) $download['absolute_path']);
         exit;
     }
 
@@ -272,26 +246,9 @@ class TransactionController
     public function apiTrashList(): void
     {
         $this->json(function (): array {
-            $stmt = $this->pdo->query("
-                SELECT
-                    t.*,
-                    COALESCE(sc.client_name, '') AS client_name,
-                    COALESCE(sp.project_name, '') AS project_name
-                FROM ledger_transactions t
-                LEFT JOIN system_clients sc
-                    ON t.client_id = sc.id
-                LEFT JOIN system_projects sp
-                    ON t.project_id = sp.id
-                WHERE t.deleted_at IS NOT NULL
-                ORDER BY t.deleted_at DESC, t.transaction_date DESC
-            ");
-
             return [
                 'success' => true,
-                'data' => array_map(static function (array $row): array {
-                    unset($row['tax_type']);
-                    return $row;
-                }, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []),
+                'data' => $this->service->getTrashList(),
             ];
         });
     }
@@ -304,7 +261,7 @@ class TransactionController
                 throw new \InvalidArgumentException('복원할 거래를 선택해 주세요.');
             }
 
-            $this->restoreTransactions([$id]);
+            $this->service->restoreTransactions([$id]);
 
             return [
                 'success' => true,
@@ -321,7 +278,7 @@ class TransactionController
                 throw new \InvalidArgumentException('복원할 거래를 선택해 주세요.');
             }
 
-            $this->restoreTransactions($ids);
+            $this->service->restoreTransactions($ids);
 
             return [
                 'success' => true,
@@ -333,9 +290,7 @@ class TransactionController
     public function apiRestoreAll(): void
     {
         $this->json(function (): array {
-            $stmt = $this->pdo->query("SELECT id FROM ledger_transactions WHERE deleted_at IS NOT NULL");
-            $ids = array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
-            $this->restoreTransactions($ids);
+            $this->service->restoreAllTransactions();
 
             return [
                 'success' => true,
@@ -352,7 +307,7 @@ class TransactionController
                 throw new \InvalidArgumentException('삭제할 거래를 선택해 주세요.');
             }
 
-            $this->purgeTransactions([$id]);
+            $this->service->purgeTransactions([$id]);
 
             return [
                 'success' => true,
@@ -369,7 +324,7 @@ class TransactionController
                 throw new \InvalidArgumentException('삭제할 거래를 선택해 주세요.');
             }
 
-            $this->purgeTransactions($ids);
+            $this->service->purgeTransactions($ids);
 
             return [
                 'success' => true,
@@ -381,9 +336,7 @@ class TransactionController
     public function apiPurgeAll(): void
     {
         $this->json(function (): array {
-            $stmt = $this->pdo->query("SELECT id FROM ledger_transactions WHERE deleted_at IS NOT NULL");
-            $ids = array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
-            $this->purgeTransactions($ids);
+            $this->service->purgeAllTransactions();
 
             return [
                 'success' => true,
@@ -437,95 +390,6 @@ class TransactionController
         }
 
         return is_array($payload) ? $payload : [];
-    }
-
-    private function restoreTransactions(array $ids): void
-    {
-        if ($ids === []) {
-            return;
-        }
-
-        $actor = ActorHelper::user();
-        $actorId = is_array($actor) ? ($actor['id'] ?? null) : $actor;
-
-        try {
-            $this->pdo->beginTransaction();
-
-            foreach ($ids as $id) {
-                $this->transactionModel->update($id, [
-                    'deleted_at' => null,
-                    'deleted_by' => null,
-                    'updated_at' => date('Y-m-d H:i:s'),
-                    'updated_by' => $actorId,
-                ]);
-            }
-
-            $this->pdo->commit();
-        } catch (\Throwable $e) {
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
-            }
-
-            throw $e;
-        }
-    }
-
-    private function purgeTransactions(array $ids): void
-    {
-        if ($ids === []) {
-            return;
-        }
-
-        $filePaths = [];
-
-        try {
-            $this->pdo->beginTransaction();
-
-            $deleteItems = $this->pdo->prepare("DELETE FROM ledger_transaction_items WHERE transaction_id = :id");
-            $softDeleteLinks = $this->pdo->prepare("
-                UPDATE ledger_transaction_links
-                SET is_active = 0,
-                    deleted_at = NOW(),
-                    deleted_by = :deleted_by,
-                    updated_at = NOW(),
-                    updated_by = :updated_by
-                WHERE transaction_id = :id
-                  AND is_active = 1
-                  AND deleted_at IS NULL
-            ");
-            $actor = ActorHelper::user();
-            $actorId = is_array($actor) ? (string) ($actor['id'] ?? 'SYSTEM') : (string) $actor;
-
-            foreach ($ids as $id) {
-                $transaction = $this->transactionModel->getById($id) ?: [];
-                foreach ($this->transactionFileModel->getByTransactionId($id) as $file) {
-                    if (!empty($file['file_path'])) {
-                        $filePaths[] = (string) $file['file_path'];
-                    }
-                }
-
-                $this->service->resetGeneratedTransactionState($id, $actorId, $transaction);
-                $deleteItems->execute([':id' => $id]);
-                $softDeleteLinks->execute([
-                    ':id' => $id,
-                    ':deleted_by' => $actorId,
-                    ':updated_by' => $actorId,
-                ]);
-                $this->transactionModel->hardDelete($id);
-            }
-
-            $this->pdo->commit();
-
-            foreach (array_unique($filePaths) as $filePath) {
-                $this->fileService->delete($filePath);
-            }
-        } catch (\Throwable $e) {
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
-            }
-
-            throw $e;
-        }
     }
 
     private function withLinkedVouchers(array $transaction): array

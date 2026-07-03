@@ -335,7 +335,7 @@ export function normalizeMappedTransactionAmounts(payload = {}, row = {}) {
     const totalCandidates = ['total_amount', 'amount'];
     if (['CARD_STATEMENT', 'CARD_APPROVAL'].includes(type)) {
         totalCandidates.unshift('actual_billing_amount', 'billing_amount');
-    } else if (['CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES'].includes(type)) {
+    } else if (type === 'CASH_RECEIPT') {
         totalCandidates.unshift('purchase_amount_krw');
     }
     totalCandidates.push('actual_billing_amount', 'billing_amount', 'purchase_amount_krw');

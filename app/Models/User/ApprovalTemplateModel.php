@@ -2,6 +2,7 @@
 
 namespace App\Models\User;
 
+use Core\Helpers\ActorHelper;
 use Core\Database;
 use PDO;
 
@@ -19,29 +20,18 @@ class ApprovalTemplateModel
         $stmt = $this->db->query("
             SELECT
                 t.*,
-                CASE
-                    WHEN t.created_by IS NULL THEN NULL
-                    WHEN t.created_by LIKE 'SYSTEM:%' THEN t.created_by
-                    WHEN c.employee_name IS NOT NULL THEN CONCAT('USER:', c.employee_name)
-                    ELSE t.created_by
-                END AS created_by_name,
-                CASE
-                    WHEN t.updated_by IS NULL THEN NULL
-                    WHEN t.updated_by LIKE 'SYSTEM:%' THEN t.updated_by
-                    WHEN u.employee_name IS NOT NULL THEN CONCAT('USER:', u.employee_name)
-                    ELSE t.updated_by
-                END AS updated_by_name
+                t.created_by AS created_by_name,
+                t.updated_by AS updated_by_name
             FROM user_approval_templates t
-            LEFT JOIN user_employees c
-                ON t.created_by NOT LIKE 'SYSTEM:%'
-                AND c.user_id = REPLACE(t.created_by, 'USER:', '')
-            LEFT JOIN user_employees u
-                ON t.updated_by NOT LIKE 'SYSTEM:%'
-                AND u.user_id = REPLACE(t.updated_by, 'USER:', '')
             ORDER BY t.sort_no ASC, t.created_at DESC
         ");
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        return ActorHelper::enrichActorNames($rows, [
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+        ]);
     }
 
     public function getById(string $id): ?array
@@ -49,31 +39,23 @@ class ApprovalTemplateModel
         $stmt = $this->db->prepare("
             SELECT
                 t.*,
-                CASE
-                    WHEN t.created_by IS NULL THEN NULL
-                    WHEN t.created_by LIKE 'SYSTEM:%' THEN t.created_by
-                    WHEN c.employee_name IS NOT NULL THEN CONCAT('USER:', c.employee_name)
-                    ELSE t.created_by
-                END AS created_by_name,
-                CASE
-                    WHEN t.updated_by IS NULL THEN NULL
-                    WHEN t.updated_by LIKE 'SYSTEM:%' THEN t.updated_by
-                    WHEN u.employee_name IS NOT NULL THEN CONCAT('USER:', u.employee_name)
-                    ELSE t.updated_by
-                END AS updated_by_name
+                t.created_by AS created_by_name,
+                t.updated_by AS updated_by_name
             FROM user_approval_templates t
-            LEFT JOIN user_employees c
-                ON t.created_by NOT LIKE 'SYSTEM:%'
-                AND c.user_id = REPLACE(t.created_by, 'USER:', '')
-            LEFT JOIN user_employees u
-                ON t.updated_by NOT LIKE 'SYSTEM:%'
-                AND u.user_id = REPLACE(t.updated_by, 'USER:', '')
             WHERE t.id = ?
         ");
 
         $stmt->execute([$id]);
 
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return null;
+        }
+
+        return ActorHelper::enrichActorNamesRow($row, [
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+        ]);
     }
 
     public function templateKeyExists(string $key): bool

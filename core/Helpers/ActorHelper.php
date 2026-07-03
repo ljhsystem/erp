@@ -3,7 +3,9 @@
 
 namespace Core\Helpers;
 
+use Core\Database;
 use App\Services\Auth\AuthSessionService;
+use PDO;
 
 class ActorHelper
 {
@@ -68,9 +70,167 @@ class ActorHelper
             ];
         }
 
+        if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $actor) === 1) {
+            return [
+                'type' => 'USER',
+                'id'   => $actor,
+            ];
+        }
+
         return [
             'type' => 'UNKNOWN',
             'raw'  => $actor
         ];
+    }
+
+    public static function displayName(?string $actor): string
+    {
+        $actor = is_string($actor) ? trim($actor) : '';
+        if ($actor === '') {
+            return '';
+        }
+
+        $parsed = self::parse($actor);
+        if ($parsed['type'] === 'USER') {
+            $id = trim((string) ($parsed['id'] ?? ''));
+            if ($id === '') {
+                return $actor;
+            }
+
+            return self::employeeNameByUserId($id) ?: $id;
+        }
+
+        return $actor;
+    }
+
+    public static function enrichActorNames(array $rows, array $fieldMap): array
+    {
+        if ($rows === [] || $fieldMap === []) {
+            return $rows;
+        }
+
+        $actorIds = [];
+        foreach ($rows as $row) {
+            foreach ($fieldMap as $actorField) {
+                $actor = is_string($row[$actorField] ?? null) ? trim((string) $row[$actorField]) : '';
+                $parsed = self::parse($actor);
+                if ($parsed['type'] === 'USER') {
+                    $id = trim((string) ($parsed['id'] ?? ''));
+                    if ($id !== '') {
+                        $actorIds[$id] = $id;
+                    }
+                }
+            }
+        }
+
+        $nameMap = $actorIds === [] ? [] : self::employeeNamesByIds(array_values($actorIds));
+
+        $result = [];
+        foreach ($rows as $row) {
+            $enriched = $row;
+            foreach ($fieldMap as $nameField => $actorField) {
+                $actor = is_string($row[$actorField] ?? null) ? trim((string) $row[$actorField]) : '';
+                $parsed = self::parse($actor);
+                if ($parsed['type'] === 'USER') {
+                    $userId = trim((string) ($parsed['id'] ?? ''));
+                    if (isset($nameMap[$userId]) && $nameMap[$userId] !== '') {
+                        self::applyActorDisplayFields($enriched, (string) $nameField, (string) $actorField, $nameMap[$userId]);
+                        continue;
+                    }
+                }
+
+                self::applyActorDisplayFields($enriched, (string) $nameField, (string) $actorField, self::displayName($actor));
+            }
+
+            $result[] = $enriched;
+        }
+
+        return $result;
+    }
+
+    public static function enrichActorNamesRow(array $row, array $fieldMap): array
+    {
+        if ($fieldMap === []) {
+            return $row;
+        }
+
+        foreach ($fieldMap as $nameField => $actorField) {
+            self::applyActorDisplayFields(
+                $row,
+                (string) $nameField,
+                (string) $actorField,
+                self::displayName(is_string($row[$actorField] ?? null) ? trim((string) $row[$actorField]) : '')
+            );
+        }
+
+        return $row;
+    }
+
+    private static function applyActorDisplayFields(array &$row, string $nameField, string $actorField, string $displayName): void
+    {
+        $displayField = self::displayNameField($actorField, $nameField);
+        if ($displayField !== '') {
+            $row[$displayField] = $displayName;
+        }
+    }
+
+    private static function displayNameField(string $actorField, string $nameField = ''): string
+    {
+        if (str_ends_with($nameField, '_by_name')) {
+            return $nameField;
+        }
+
+        if (str_ends_with($actorField, '_by')) {
+            return "{$actorField}_name";
+        }
+
+        return '';
+    }
+
+    private static function employeeNamesByIds(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        $pdo = Database::getInstance()->getConnection();
+        $placeholders = implode(', ', array_fill(0, count($ids), '?'));
+        $stmt = $pdo->prepare("
+            SELECT user_id, employee_name
+            FROM user_employees
+            WHERE user_id IN ({$placeholders})
+        ");
+        $stmt->execute($ids);
+        $rows = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        $result = [];
+        foreach ($rows as $userId => $name) {
+            $userId = trim((string) $userId);
+            if ($userId !== '') {
+                $result[$userId] = is_string($name) ? trim($name) : '';
+            }
+        }
+
+        return $result;
+    }
+
+    private static function employeeNameByUserId(string $userId): string
+    {
+        static $cache = [];
+        if ($userId === '') {
+            return '';
+        }
+
+        if (array_key_exists($userId, $cache)) {
+            return (string) $cache[$userId];
+        }
+
+        $pdo = Database::getInstance()->getConnection();
+        $stmt = $pdo->prepare('SELECT employee_name FROM user_employees WHERE user_id = :user_id LIMIT 1');
+        $stmt->execute([':user_id' => $userId]);
+        $name = (string) ($stmt->fetchColumn() ?: '');
+        $cache[$userId] = $name;
+
+        return $name;
     }
 }

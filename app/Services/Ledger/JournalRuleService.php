@@ -61,7 +61,34 @@ class JournalRuleService
 
     public function softDelete(string $id): array
     {
-        return ['success' => $this->model->softDelete($id, ActorHelper::user())];
+        $deleted = $this->model->softDelete($id, ActorHelper::user());
+
+        return [
+            'success' => $deleted,
+            'message' => $deleted ? '분개규칙이 휴지통으로 이동되었습니다.' : '삭제할 분개규칙을 찾을 수 없습니다.',
+            'data' => [
+                'deleted_count' => $deleted ? 1 : 0,
+                'skipped_count' => $deleted ? 0 : 1,
+            ],
+        ];
+    }
+
+    public function softDeleteBulk(array $ids): array
+    {
+        $actor = ActorHelper::user();
+        $ids = array_values(array_filter(array_map('strval', $ids)));
+        $deletedCount = $this->model->softDeleteByIds($ids, $actor);
+
+        return [
+            'success' => true,
+            'message' => $deletedCount > 0
+                ? '선택한 분개규칙이 휴지통으로 이동되었습니다.'
+                : '삭제할 분개규칙이 없습니다.',
+            'data' => [
+                'deleted_count' => $deletedCount,
+                'skipped_count' => max(0, count($ids) - $deletedCount),
+            ],
+        ];
     }
 
     public function updateStatus(string $id, int $isActive): array
@@ -97,50 +124,96 @@ class JournalRuleService
 
     public function restore(string $id): array
     {
-        return ['success' => $this->model->restore($id, ActorHelper::user())];
+        $restored = $this->model->restore($id, ActorHelper::user());
+
+        return [
+            'success' => $restored,
+            'message' => $restored ? '분개규칙이 복원되었습니다.' : '복원할 분개규칙을 찾을 수 없습니다.',
+            'data' => [
+                'restored_count' => $restored ? 1 : 0,
+                'skipped_count' => $restored ? 0 : 1,
+            ],
+        ];
     }
 
     public function restoreBulk(array $ids): array
     {
-        foreach ($ids as $id) {
-            $id = trim((string) $id);
-            if ($id !== '') {
-                $this->model->restore($id, ActorHelper::user());
-            }
-        }
-        return ['success' => true];
+        $actor = ActorHelper::user();
+        $ids = array_values(array_filter(array_map('strval', $ids)));
+        $restoredCount = $this->model->restoreByIds($ids, $actor);
+
+        return [
+            'success' => true,
+            'message' => $restoredCount > 0
+                ? '선택한 분개규칙이 복원되었습니다.'
+                : '복원할 분개규칙이 없습니다.',
+            'data' => [
+                'restored_count' => $restoredCount,
+                'skipped_count' => max(0, count($ids) - $restoredCount),
+            ],
+        ];
     }
 
     public function restoreAll(): array
     {
-        foreach ($this->getTrashList() as $row) {
-            $this->model->restore((string) $row['id'], ActorHelper::user());
-        }
-        return ['success' => true];
+        $actor = ActorHelper::user();
+        $restoredCount = $this->model->restoreAllDeleted($actor);
+
+        return [
+            'success' => true,
+            'message' => $restoredCount > 0
+                ? '휴지통의 분개규칙이 모두 복원되었습니다.'
+                : '복원할 분개규칙이 없습니다.',
+            'data' => [
+                'restored_count' => $restoredCount,
+            ],
+        ];
     }
 
     public function hardDelete(string $id): array
     {
-        return ['success' => $this->model->hardDelete($id)];
+        $deleted = $this->model->hardDelete($id);
+
+        return [
+            'success' => $deleted,
+            'message' => $deleted ? '분개규칙이 영구삭제되었습니다.' : '영구삭제할 분개규칙을 찾을 수 없습니다.',
+            'data' => [
+                'deleted_count' => $deleted ? 1 : 0,
+                'skipped_count' => $deleted ? 0 : 1,
+            ],
+        ];
     }
 
     public function hardDeleteBulk(array $ids): array
     {
-        foreach ($ids as $id) {
-            $id = trim((string) $id);
-            if ($id !== '') {
-                $this->model->hardDelete($id);
-            }
-        }
-        return ['success' => true];
+        $ids = array_values(array_filter(array_map('strval', $ids)));
+        $deletedCount = $this->model->hardDeleteByIds($ids);
+
+        return [
+            'success' => true,
+            'message' => $deletedCount > 0
+                ? '선택한 분개규칙이 영구삭제되었습니다.'
+                : '영구삭제할 분개규칙이 없습니다.',
+            'data' => [
+                'deleted_count' => $deletedCount,
+                'skipped_count' => max(0, count($ids) - $deletedCount),
+            ],
+        ];
     }
 
     public function hardDeleteAll(): array
     {
-        foreach ($this->getTrashList() as $row) {
-            $this->model->hardDelete((string) $row['id']);
-        }
-        return ['success' => true];
+        $deletedCount = $this->model->hardDeleteAllDeleted();
+
+        return [
+            'success' => true,
+            'message' => $deletedCount > 0
+                ? '휴지통의 분개규칙이 모두 영구삭제되었습니다.'
+                : '영구삭제할 분개규칙이 없습니다.',
+            'data' => [
+                'deleted_count' => $deletedCount,
+            ],
+        ];
     }
 
     private function normalizePayload(array $payload): array
@@ -148,7 +221,6 @@ class JournalRuleService
         $ruleCode = strtoupper(trim((string) ($payload['rule_code'] ?? '')));
         $ruleName = trim((string) ($payload['rule_name'] ?? ''));
         $businessUnit = strtoupper(trim((string) ($payload['business_unit'] ?? '')));
-        $transactionType = strtoupper(trim((string) ($payload['transaction_type'] ?? '')));
         $direction = strtoupper(trim((string) ($payload['transaction_direction'] ?? '')));
         $clientType = strtoupper(trim((string) ($payload['client_type'] ?? '')));
         $importType = strtoupper(trim((string) ($payload['import_type'] ?? '')));
@@ -156,8 +228,8 @@ class JournalRuleService
         $creditAccountId = trim((string) ($payload['credit_account_id'] ?? ''));
         $vatAccountId = trim((string) ($payload['vat_account_id'] ?? ''));
 
-        if ($ruleCode === '' || $ruleName === '' || $businessUnit === '' || $transactionType === '' || $direction === '' || $clientType === '' || $importType === '' || $debitAccountId === '' || $creditAccountId === '') {
-            throw new \InvalidArgumentException('규칙코드, 규칙명, 사업구분, 거래유형, 거래구분, 거래처구분, 자료유형, 차변계정, 대변계정은 필수입니다.');
+        if ($ruleCode === '' || $ruleName === '' || $businessUnit === '' || $direction === '' || $clientType === '' || $importType === '' || $debitAccountId === '' || $creditAccountId === '') {
+            throw new \InvalidArgumentException('규칙코드, 규칙명, 사업구분, 거래구분, 거래처구분, 자료유형, 차변계정, 대변계정은 필수입니다.');
         }
 
         if (!in_array($direction, ['PURCHASE', 'SALES', 'IN', 'OUT'], true)) {
@@ -168,7 +240,6 @@ class JournalRuleService
             ':rule_code' => $ruleCode,
             ':rule_name' => $ruleName,
             ':business_unit' => $businessUnit,
-            ':transaction_type' => $transactionType,
             ':transaction_direction' => $direction,
             ':client_type' => $clientType,
             ':import_type' => $importType,

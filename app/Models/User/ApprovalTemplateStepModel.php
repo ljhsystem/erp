@@ -1,6 +1,7 @@
 <?php
 namespace App\Models\User;
 
+use Core\Helpers\ActorHelper;
 use PDO;
 use Core\Database;
 
@@ -34,34 +35,22 @@ class ApprovalTemplateStepModel
                 r.role_key,
                 u.employee_name AS specific_employee_name,
                 au.username     AS specific_username,
-                CASE
-                    WHEN s.created_by IS NULL THEN NULL
-                    WHEN s.created_by LIKE 'SYSTEM:%' THEN s.created_by
-                    WHEN cu.employee_name IS NOT NULL THEN CONCAT('USER:', cu.employee_name)
-                    ELSE s.created_by
-                END AS created_by_name,
-                CASE
-                    WHEN s.updated_by IS NULL THEN NULL
-                    WHEN s.updated_by LIKE 'SYSTEM:%' THEN s.updated_by
-                    WHEN uu.employee_name IS NOT NULL THEN CONCAT('USER:', uu.employee_name)
-                    ELSE s.updated_by
-                END AS updated_by_name
+                s.created_by AS created_by_name,
+                s.updated_by AS updated_by_name
             FROM user_approval_template_steps s
             LEFT JOIN auth_roles    r  ON r.id  = s.role_id
             LEFT JOIN auth_users    au ON au.id = s.approver_id
             LEFT JOIN user_employees u  ON u.user_id = au.id
-            LEFT JOIN user_employees cu
-                ON s.created_by NOT LIKE 'SYSTEM:%'
-                AND cu.user_id = REPLACE(s.created_by, 'USER:', '')
-            LEFT JOIN user_employees uu
-                ON s.updated_by NOT LIKE 'SYSTEM:%'
-                AND uu.user_id = REPLACE(s.updated_by, 'USER:', '')
             WHERE s.template_id = ?
             ORDER BY s.sort_no ASC
         ");
         $stmt->execute([$templateId]);
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        return ActorHelper::enrichActorNames($rows, [
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+        ]);
     }
 
     public function create(array $data): bool

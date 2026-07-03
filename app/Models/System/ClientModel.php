@@ -2,6 +2,7 @@
 namespace App\Models\System;
 
 use PDO;
+use Core\Helpers\ActorHelper;
 use Core\Database;
 
 class ClientModel
@@ -21,31 +22,10 @@ class ClientModel
                 da.account_code AS default_account_code,
                 da.account_name AS default_account_name,
                 NULLIF(CONCAT(COALESCE(da.account_code, ''), ' - ', COALESCE(da.account_name, '')), ' - ') AS default_account_text,
-                CASE
-                    WHEN c.created_by LIKE 'SYSTEM:%' THEN c.created_by
-                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
-                    ELSE c.created_by
-                END AS created_by_name,
-                CASE
-                    WHEN c.updated_by LIKE 'SYSTEM:%' THEN c.updated_by
-                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
-                    ELSE c.updated_by
-                END AS updated_by_name,
-                CASE
-                    WHEN c.deleted_by LIKE 'SYSTEM:%' THEN c.deleted_by
-                    WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
-                    ELSE c.deleted_by
-                END AS deleted_by_name
+                c.created_by AS created_by_name,
+                c.updated_by AS updated_by_name,
+                c.deleted_by AS deleted_by_name
             FROM system_clients c
-            LEFT JOIN user_employees p1
-                ON c.created_by NOT LIKE 'SYSTEM:%'
-               AND p1.user_id = REPLACE(c.created_by, 'USER:', '')
-            LEFT JOIN user_employees p2
-                ON c.updated_by NOT LIKE 'SYSTEM:%'
-               AND p2.user_id = REPLACE(c.updated_by, 'USER:', '')
-            LEFT JOIN user_employees p3
-                ON c.deleted_by NOT LIKE 'SYSTEM:%'
-               AND p3.user_id = REPLACE(c.deleted_by, 'USER:', '')
             LEFT JOIN ledger_accounts da
                 ON da.id = c.default_account_id
                AND da.deleted_at IS NULL
@@ -200,7 +180,13 @@ class ClientModel
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return ActorHelper::enrichActorNames($rows, [
+            'created_by_name' => 'created_by_name',
+            'updated_by_name' => 'updated_by_name',
+            'deleted_by_name' => 'deleted_by_name',
+        ]);
     }
 
     public function getById(string $id): ?array
@@ -213,37 +199,11 @@ class ClientModel
             da.account_name AS default_account_name,
             NULLIF(CONCAT(COALESCE(da.account_code, ''), ' - ', COALESCE(da.account_name, '')), ' - ') AS default_account_text,
 
-            CASE
-                WHEN c.created_by LIKE 'SYSTEM:%' THEN c.created_by
-                WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
-                ELSE c.created_by
-            END AS created_by_name,
-
-            CASE
-                WHEN c.updated_by LIKE 'SYSTEM:%' THEN c.updated_by
-                WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
-                ELSE c.updated_by
-            END AS updated_by_name,
-
-            CASE
-                WHEN c.deleted_by LIKE 'SYSTEM:%' THEN c.deleted_by
-                WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
-                ELSE c.deleted_by
-            END AS deleted_by_name
+            c.created_by AS created_by_name,
+            c.updated_by AS updated_by_name,
+            c.deleted_by AS deleted_by_name
 
             FROM system_clients c
-
-            LEFT JOIN user_employees p1
-                ON c.created_by NOT LIKE 'SYSTEM:%'
-            AND p1.user_id = REPLACE(c.created_by, 'USER:', '')
-
-            LEFT JOIN user_employees p2
-                ON c.updated_by NOT LIKE 'SYSTEM:%'
-            AND p2.user_id = REPLACE(c.updated_by, 'USER:', '')
-
-            LEFT JOIN user_employees p3
-                ON c.deleted_by NOT LIKE 'SYSTEM:%'
-            AND p3.user_id = REPLACE(c.deleted_by, 'USER:', '')
 
             LEFT JOIN ledger_accounts da
                 ON da.id = c.default_account_id
@@ -256,9 +216,15 @@ class ClientModel
         $stmt->execute(['id' => $id]);
 
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return null;
+        }
 
-
-        return $row ?: null;
+        return ActorHelper::enrichActorNamesRow($row, [
+            'created_by_name' => 'created_by_name',
+            'updated_by_name' => 'updated_by_name',
+            'deleted_by_name' => 'deleted_by_name',
+        ]);
     }
 
     public function findIdByBusinessNumber(string $businessNumber): ?string
@@ -688,37 +654,11 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
         SELECT
             c.*,
 
-            CASE
-                WHEN c.created_by LIKE 'SYSTEM:%' THEN c.created_by
-                WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
-                ELSE c.created_by
-            END AS created_by_name,
-
-            CASE
-                WHEN c.updated_by LIKE 'SYSTEM:%' THEN c.updated_by
-                WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
-                ELSE c.updated_by
-            END AS updated_by_name,
-
-            CASE
-                WHEN c.deleted_by LIKE 'SYSTEM:%' THEN c.deleted_by
-                WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
-                ELSE c.deleted_by
-            END AS deleted_by_name
+            c.created_by AS created_by_name,
+            c.updated_by AS updated_by_name,
+            c.deleted_by AS deleted_by_name
 
             FROM system_clients c
-
-            LEFT JOIN user_employees p1
-                ON c.created_by NOT LIKE 'SYSTEM:%'
-            AND p1.user_id = REPLACE(c.created_by, 'USER:', '')
-
-            LEFT JOIN user_employees p2
-                ON c.updated_by NOT LIKE 'SYSTEM:%'
-            AND p2.user_id = REPLACE(c.updated_by, 'USER:', '')
-
-            LEFT JOIN user_employees p3
-                ON c.deleted_by NOT LIKE 'SYSTEM:%'
-            AND p3.user_id = REPLACE(c.deleted_by, 'USER:', '')
 
             WHERE c.deleted_at IS NOT NULL
             ORDER BY c.deleted_at DESC
@@ -726,7 +666,13 @@ public function searchPicker(string $keyword = '', int $limit = 20, array $optio
 
         $stmt->execute();
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return ActorHelper::enrichActorNames($rows, [
+            'created_by_name' => 'created_by_name',
+            'updated_by_name' => 'updated_by_name',
+            'deleted_by_name' => 'deleted_by_name',
+        ]);
     }
 
     public function restoreById(string $id, string $actor): bool

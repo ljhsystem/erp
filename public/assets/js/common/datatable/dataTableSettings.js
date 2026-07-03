@@ -200,6 +200,48 @@ function buildMissingPhysicalColumns(columns = [], metaColumns = []) {
         }));
 }
 
+function filterColumnsByPhysicalMeta(columns = [], metaColumns = []) {
+    if (!Array.isArray(columns) || metaColumns.length === 0) {
+        return Array.isArray(columns) ? columns : [];
+    }
+
+    const physicalMetaKeys = new Set(
+        metaColumns
+            .filter((column) => String(column?.column_type || 'physical').trim() === 'physical')
+            .map((column) => String(column?.key || '').trim())
+            .filter(Boolean)
+    );
+
+    return columns.filter((column, index) => {
+        const key = resolveColumnKey(column, index);
+        if (key === '') {
+            return true;
+        }
+
+        const columnKind = String(column?.__dtColumnKind || '').trim().toLowerCase();
+        if (columnKind === 'virtual') {
+            return true;
+        }
+        if (columnKind === 'physical') {
+            return physicalMetaKeys.has(key);
+        }
+
+        const looksLikePhysicalColumn = String(column?.defaultContent ?? '') === ''
+            && (
+                String(column?.data || '').trim() === key
+                || String(column?.name || '').trim() === key
+                || String(column?.settingsKey || '').trim() === key
+                || String(column?.sourceField || '').trim() === key
+            );
+
+        if (!looksLikePhysicalColumn) {
+            return true;
+        }
+
+        return physicalMetaKeys.has(key);
+    });
+}
+
 function resolveColumnKey(column = {}, index = 0) {
     if (typeof column.key === 'string' && column.key.trim() !== '') {
         return column.key.trim();
@@ -803,7 +845,8 @@ function buildPreparedSettingsState(context = {}, options = {}) {
     const baseOriginalColumns = Array.isArray(context.originalColumns)
         ? context.originalColumns
         : [];
-    const baseColumnsWithoutInjectedPhysical = baseOriginalColumns.filter((column) => (
+    const filteredOriginalColumns = filterColumnsByPhysicalMeta(baseOriginalColumns, metaColumns);
+    const baseColumnsWithoutInjectedPhysical = filteredOriginalColumns.filter((column) => (
         !(
             column?.__dtColumnKind === 'physical'
             && column?.defaultContent === ''
@@ -998,9 +1041,10 @@ export function prepareDataTableSettingsColumns(columns = [], config = null) {
     }
 
     const metaColumns = fetchDataTableMetaColumnsSync(config);
+    const filteredColumns = filterColumnsByPhysicalMeta(columns, metaColumns);
     const sourceColumns = metaColumns.length > 0
-        ? [...columns, ...buildMissingPhysicalColumns(columns, metaColumns)]
-        : columns;
+        ? [...filteredColumns, ...buildMissingPhysicalColumns(filteredColumns, metaColumns)]
+        : filteredColumns;
     const normalizedColumns = normalizeColumnDefinitions(sourceColumns, config, metaColumns);
     const state = loadState(config, normalizedColumns);
     const orderedColumns = reorderConfigurableColumns(normalizedColumns, state.columnOrder);

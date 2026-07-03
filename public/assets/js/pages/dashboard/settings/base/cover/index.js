@@ -10,6 +10,7 @@ import {
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.cover.js';
+import { actorDisplay } from '/public/assets/js/common/actor.js';
 import { API, COVER_COLUMN_MAP, DATE_OPTIONS } from './api.js';
 import {
     setCoverModalMode as applyCoverModalMode,
@@ -761,13 +762,7 @@ window.AdminPicker = AdminPicker;
                             '</div>';
                     }
 
-                    if (field === 'created_by' && type === 'display') {
-                        return row?.created_by_name || data;
-                    }
-
-                    if (field === 'updated_by' && type === 'display') {
-                        return row?.updated_by_name || data;
-                    }
+                    if (config.type === 'actor' && type === 'display') return actorDisplay(row, field);
 
                     return data;
                 },

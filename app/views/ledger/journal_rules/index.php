@@ -19,7 +19,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journalRules.js');
         <div class="journal-rules-page">
             <div class="page-header">
                 <h5 class="mb-1 fw-bold">
-                    <i class="bi bi-diagram-3 me-2"></i>분개규칙
+                    <i class="bi bi-diagram-3 me-2"></i>분개규칙 관리
                 </h5>
                 <span id="journalRuleCount" class="text-primary page-count"></span>
             </div>
@@ -28,22 +28,21 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journalRules.js');
                 <?php
                 $searchId = 'journalRule';
                 $dateOptions = '
-                    <option value="created_at">생성일자</option>
-                    <option value="updated_at">수정일자</option>
+                    <option value="created_at">생성일시</option>
+                    <option value="updated_at">수정일시</option>
                 ';
                 $searchFieldOptions = '
                     <option value="rule_code">규칙코드</option>
                     <option value="rule_name">규칙명</option>
                     <option value="business_unit">사업구분</option>
-                    <option value="transaction_type">거래유형</option>
                     <option value="transaction_direction">거래구분</option>
-                    <option value="client_type">거래처구분</option>
+                    <option value="client_type">거래처유형</option>
                     <option value="import_type">자료유형</option>
-                    <option value="debit_account_name">차변계정</option>
-                    <option value="credit_account_name">대변계정</option>
-                    <option value="vat_account_name">부가세계정</option>
+                    <option value="debit_account_name">차변 계정명</option>
+                    <option value="credit_account_name">대변 계정명</option>
+                    <option value="vat_account_name">부가세 계정명</option>
                     <option value="is_active">사용여부</option>
-                    <option value="description">설명/적요</option>
+                    <option value="description">설명/비고</option>
                 ';
                 include PROJECT_ROOT . '/app/views/components/ui-search.php';
                 ?>
@@ -73,30 +72,14 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journalRules.js');
                     <input type="hidden" name="id" id="journalRuleId">
 
                     <section class="journal-rule-section">
-                        <h6 class="section-title">조건</h6>
+                        <h6 class="section-title">기본 정보</h6>
                         <div class="row g-3">
-                            <div class="col-md-3">
-                                <label class="form-label">규칙코드</label>
-                                <input type="text" class="form-control form-control-sm" name="rule_code">
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label">규칙명</label>
-                                <input type="text" class="form-control form-control-sm" name="rule_name">
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label">사업구분</label>
-                                <select class="form-select form-select-sm js-business-unit" name="business_unit" data-code-group="BUSINESS_UNIT"></select>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label">거래유형</label>
-                                <select class="form-select form-select-sm js-transaction-type" name="transaction_type" data-code-group="TRANSACTION_TYPE"></select>
-                            </div>
                             <div class="col-md-3">
                                 <label class="form-label">거래구분</label>
                                 <select class="form-select form-select-sm js-transaction-direction" name="transaction_direction" data-code-group="TRANSACTION_DIRECTION"></select>
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label">거래처구분</label>
+                                <label class="form-label">거래처유형</label>
                                 <select class="form-select form-select-sm js-client-type" name="client_type" data-code-group="CLIENT_TYPE"></select>
                             </div>
                             <div class="col-md-3">
@@ -107,25 +90,25 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journalRules.js');
                     </section>
 
                     <section class="journal-rule-section mt-3">
-                        <h6 class="section-title">분개 결과</h6>
+                        <h6 class="section-title">분개 계정 정보</h6>
                         <div class="row g-3">
                             <div class="col-md-4">
-                                <label class="form-label">차변계정</label>
+                                <label class="form-label">차변 계정</label>
                                 <select class="form-select form-select-sm js-account-select" name="debit_account_id"></select>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label">대변계정</label>
+                                <label class="form-label">대변 계정</label>
                                 <select class="form-select form-select-sm js-account-select" name="credit_account_id"></select>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label">부가세계정</label>
+                                <label class="form-label">부가세 계정</label>
                                 <select class="form-select form-select-sm js-account-select" name="vat_account_id"></select>
                             </div>
                         </div>
                     </section>
 
                     <section class="journal-rule-section mt-3">
-                        <h6 class="section-title">설정</h6>
+                        <h6 class="section-title">추가 정보</h6>
                         <div class="row g-3">
                             <div class="col-md-3 d-flex align-items-end">
                                 <div class="form-check form-switch">
@@ -134,7 +117,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journalRules.js');
                                 </div>
                             </div>
                             <div class="col-md-9">
-                                <label class="form-label">설명/적요</label>
+                                <label class="form-label">설명/비고</label>
                                 <textarea class="form-control form-control-sm" name="description" rows="3"></textarea>
                             </div>
                         </div>
@@ -158,7 +141,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journalRules.js');
 
     $modalId = 'journalRuleExcelModal';
     $formId = 'journal-rule-excel-upload-form';
-    $modalTitle = '분개규칙 엑셀 관리';
+    $modalTitle = 'Journal Rule Excel';
     $fileInputId = 'journalRuleExcelUpload';
     $fileInputName = 'file';
     $spinnerId = 'journalRuleExcelUploadSpinner';
@@ -171,7 +154,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journalRules.js');
     <?php
     $modalId = 'journalRuleTrashModal';
     $type = 'journalRule';
-    $modalTitle = '분개규칙 휴지통';
+    $modalTitle = 'Journal Rule Trash';
     $tableId = 'journal-rule-trash-table';
     $checkAllId = 'journalRuleTrashCheckAll';
     $listUrl = '/api/ledger/journal-rules/trash';
@@ -182,14 +165,13 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journalRules.js');
         <th>규칙코드</th>
         <th>규칙명</th>
         <th>사업구분</th>
-        <th>거래유형</th>
         <th>거래구분</th>
-        <th>거래처구분</th>
+        <th>거래처유형</th>
         <th>자료유형</th>
         <th>삭제일시</th>
-        <th width="150">관리</th>
+        <th width="150">작업</th>
     ';
-    $emptyMessage = '휴지통의 분개규칙을 선택하면 상세 정보가 표시됩니다.';
+    $emptyMessage = '휴지통에 분개규칙 데이터가 없습니다.';
     include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
     ?>
 </main>

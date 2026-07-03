@@ -3,7 +3,6 @@
 namespace App\Services\Ledger;
 
 use Core\Helpers\ActorHelper;
-use Core\Helpers\AuthHelper;
 use Core\Helpers\UuidHelper;
 use PDO;
 
@@ -23,7 +22,7 @@ class EvidenceUploadPersistService
 
     public function storeUploadBatch(array $format, array $file, array $rows, string $cancelToken = ''): array
     {
-        $actor = AuthHelper::userId() ?? ActorHelper::user();
+        $actor = ActorHelper::user();
         $batchId = 'EV-' . date('YmdHis') . '-' . bin2hex(random_bytes(3));
         $fileName = trim((string) ($file['name'] ?? 'upload'));
         $dataType = $this->normalizeDataType((string) ($format['data_type'] ?? 'ETC'));
@@ -72,12 +71,13 @@ class EvidenceUploadPersistService
             foreach ($rows as $row) {
                 $this->evidenceUploadService->assertUploadNotCanceled($cancelToken);
                 if (connection_aborted()) {
-                    throw new \RuntimeException('???????? ???????????????');
+                    throw new \RuntimeException('브라우저 연결이 종료되었습니다.');
                 }
 
                 $rowState = $this->evidenceBatchSaveService->buildUploadRowState($row, $dataType);
                 $parsedPayload = $rowState['parsed_payload'];
                 $processStatus = $rowState['process_status'];
+                $evidenceStatus = (string) ($rowState['evidence_status'] ?? '');
                 $voucherStatus = $rowState['voucher_status'];
                 $sourceKey = $rowState['source_key'];
                 $rawJson = $rowState['raw_json'];
@@ -110,6 +110,7 @@ class EvidenceUploadPersistService
                     $sourceKey,
                     $parsedPayload,
                     $processStatus,
+                    $evidenceStatus,
                     $voucherStatus,
                     $errorMessage,
                     $rawJson,
@@ -181,6 +182,7 @@ class EvidenceUploadPersistService
                     $rawJson,
                     $parsedJson,
                     $processStatus,
+                    $evidenceStatus,
                     $voucherStatus
                 );
                 if ($cachedSeed !== null) {

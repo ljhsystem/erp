@@ -109,10 +109,8 @@ trait ImportControllerUtilityTrait
     {
         return [
             'bank_direction' => '은행 거래방향',
-            'cash_receipt_transaction_type' => '현금영수증 거래유형',
-            'card_transaction_type' => '카드 거래유형',
             'business_unit' => '사업부문',
-            'transaction_type' => '거래유형',
+            'operation_type' => '입출금유형',
             'transaction_date' => '거래일자',
             'raw_transaction_datetime' => '거래일시',
             'currency_code' => '통화',

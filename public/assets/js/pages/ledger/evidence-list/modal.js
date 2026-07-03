@@ -29,6 +29,7 @@ export function createEvidenceModalModule({
     codeValueForField,
     codeDisplayName,
     isDateTimeColumn,
+    resolveEditFieldKey,
     normalizeDateInputValue,
     formatNumber,
     formatBizNumber,
@@ -56,7 +57,7 @@ export function createEvidenceModalModule({
     const COMMON_BUSINESS_MODAL_FIELDS = Object.freeze([
         { key: 'business_unit', label: '\uC0AC\uC5C5\uAD6C\uBD84', group: 'business', data_type: 'varchar' },
         { key: 'transaction_direction', label: '\uAC70\uB798\uAD6C\uBD84', group: 'business', data_type: 'varchar' },
-        { key: 'transaction_type', label: '\uAC70\uB798\uC720\uD615', group: 'business', data_type: 'varchar' },
+        { key: 'operation_type', label: '\uC785\uCD9C\uAE08\uC720\uD615', group: 'business', data_type: 'varchar' },
         { key: 'client_id', label: '\uAC70\uB798\uCC98', group: 'business', data_type: 'varchar' },
         { key: 'project_id', label: '\uD504\uB85C\uC81D\uD2B8', group: 'business', data_type: 'varchar' },
         { key: 'bank_account_id', label: '\uACC4\uC88C', group: 'business', data_type: 'varchar' },
@@ -127,6 +128,29 @@ export function createEvidenceModalModule({
         import_type: '\uC790\uB8CC\uC720\uD615',
         evidence_type: '\uC99D\uBE59\uC720\uD615',
     });
+    const MODAL_REQUIRED_VALIDATION_EXCLUDED_KEYS = new Set([
+        'external_key',
+        'source_key',
+        'source_type',
+        'import_type',
+        'evidence_type',
+    ]);
+    const MODAL_PAYLOAD_SYSTEM_KEYS = Object.freeze([
+        'id',
+        'sort_no',
+        'evidence_sort_no',
+        'external_key',
+        'source_key',
+        'source_type',
+        'import_type',
+        'format_id',
+        'created_at',
+        'created_by',
+        'updated_at',
+        'updated_by',
+        'deleted_at',
+        'deleted_by',
+    ]);
     let workTeamModalBridge = null;
 
     function ensureWorkTeamModalBridge() {
@@ -249,8 +273,23 @@ export function createEvidenceModalModule({
         );
     }
 
+    function resolveValidationFieldKey(column = {}, row = state.editingRow) {
+        return String(
+            resolveEditFieldKey(column, row)
+            || column.system_field_name
+            || column.original_column_key
+            || editFieldKey(column)
+            || column.key
+            || ''
+        ).trim();
+    }
+
+    function isModalRequiredValidationExcluded(column = {}, row = state.editingRow) {
+        return MODAL_REQUIRED_VALIDATION_EXCLUDED_KEYS.has(resolveValidationFieldKey(column, row));
+    }
+
     function resolvePolicyRequirementMode(column = {}) {
-        const key = String(column.system_field_name || column.original_column_key || editFieldKey(column) || column.key || '').trim();
+        const key = resolveValidationFieldKey(column);
         const policyState = currentPolicyState(state.currentType);
         const requirementPolicyMap = policyState.columnRequirementPolicy && typeof policyState.columnRequirementPolicy === 'object'
             ? policyState.columnRequirementPolicy
@@ -260,6 +299,9 @@ export function createEvidenceModalModule({
             { key, system_field_name: key, original_column_key: key },
             policyState
         );
+        if (isModalRequiredValidationExcluded({ ...column, key, system_field_name: key, original_column_key: key })) {
+            return 0;
+        }
         if (!hasExplicitPolicy && Object.prototype.hasOwnProperty.call(CANONICAL_MODAL_SYSTEM_FIELD_LABELS, key)) {
             return 0;
         }
@@ -294,8 +336,8 @@ export function createEvidenceModalModule({
             system_field_group: field.group || options.group || 'business',
             source_table: sourceTable,
             source_column: key,
-            code_group: key === 'transaction_type'
-                ? 'TRANSACTION_TYPE'
+            code_group: key === 'operation_type'
+                ? 'OPERATION_TYPE'
                 : (key === 'transaction_direction' ? 'TRANSACTION_DIRECTION' : ''),
             data_type: String(field.data_type || 'varchar').trim().toLowerCase(),
             is_nullable: Number(field.is_required || 0) === 1 ? 'NO' : 'YES',
@@ -501,7 +543,7 @@ export function createEvidenceModalModule({
         return [...businessColumns, ...rawColumns, ...systemColumns];
     }
 
-    function renderEditField(column = {}, value = '', options = {}) {
+    function renderEditField(column = {}, value = '', options = {}, row = {}) {
         const key = editFieldKey(column);
         const title = String(column.excel_column_name || key);
         const systemField = String(column.system_field_name || '').trim();
@@ -527,7 +569,7 @@ export function createEvidenceModalModule({
                     ${renderFieldBadge(column)}
                     ${systemFieldHtml}
                 </span>
-                ${renderEditInput(column, value, options)}
+                ${renderEditInput(column, value, options, row)}
             </label>
         `;
     }
@@ -611,9 +653,9 @@ export function createEvidenceModalModule({
         `;
     }
 
-    function renderEditInput(column = {}, value = '', options = {}) {
-        const key = editFieldKey(column);
-        const type = editInputType(column, value);
+    function renderEditInput(column = {}, value = '', options = {}, row = {}) {
+        const key = resolveEditFieldKey(column, row);
+        const type = editInputType(column, value, row);
         const safeKey = escapeHtml(key);
         const keepTime = isDateTimeColumn(column);
         const displayValue = type === 'date'
@@ -667,7 +709,7 @@ export function createEvidenceModalModule({
             .map((column) => renderEditField(column, editFieldValue(row, column), {
                 readOnly: specialModalReadOnly(column, options.readOnlyResolver),
                 hideSystemKey: true,
-            }))
+            }, row))
             .join('');
 
         if (group.collapsible) {
@@ -771,7 +813,7 @@ export function createEvidenceModalModule({
         }
 
         state.refs.editFields.innerHTML = editableColumns.map((column) => {
-            const key = editFieldKey(column);
+            const key = resolveEditFieldKey(column, state.editingRow);
             const title = String(column.excel_column_name || key);
             const systemField = String(column.system_field_name || '').trim();
             const value = editFieldValue(row, column);
@@ -792,7 +834,7 @@ export function createEvidenceModalModule({
                         ${renderFieldBadge(column)}
                         <span class="text-muted evidence-edit-field-key" title="${systemFieldText}">${systemFieldText}</span>
                     </span>
-                    ${renderEditInput(column, value)}
+                    ${renderEditInput(column, value, {}, row)}
                 </label>
             `;
         }).join('');
@@ -910,7 +952,7 @@ export function createEvidenceModalModule({
         }
 
         state.refs.bulkFields.innerHTML = columns.map((column) => {
-            const key = editFieldKey(column);
+            const key = resolveEditFieldKey(column, state.editingRow);
             const tone = infoColumnTone(column);
             const title = String(column.excel_column_name || column.system_field_name || key || '항목');
             return `
@@ -1277,6 +1319,16 @@ export function createEvidenceModalModule({
     }
 
     function bindEditFieldBehaviors() {
+        state.refs.editFields?.querySelectorAll('.evidence-edit-input').forEach((input) => {
+            if (input.dataset.validationResetBound === 'true') return;
+            const clear = () => {
+                clearEditFieldValidationState(input);
+            };
+            input.addEventListener('input', clear);
+            input.addEventListener('change', clear);
+            input.dataset.validationResetBound = 'true';
+        });
+
         state.refs.editFields?.querySelectorAll('.evidence-edit-group-toggle[data-group-target]').forEach((button) => {
             if (button.dataset.groupToggleBound === 'true') return;
 
@@ -1342,6 +1394,28 @@ export function createEvidenceModalModule({
         }
     }
 
+    function clearEditFieldValidationState(input) {
+        if (!input) return;
+        input.classList.remove('is-invalid');
+        input.removeAttribute('aria-invalid');
+        input.closest('.evidence-edit-field')?.classList.remove('evidence-edit-field-error');
+    }
+
+    function markEditFieldValidationError(input) {
+        if (!input) return;
+        input.classList.add('is-invalid');
+        input.setAttribute('aria-invalid', 'true');
+        input.closest('.evidence-edit-field')?.classList.add('evidence-edit-field-error');
+    }
+
+    function preserveSystemPayloadFields(payload = {}, row = {}) {
+        MODAL_PAYLOAD_SYSTEM_KEYS.forEach((key) => {
+            if (!Object.prototype.hasOwnProperty.call(row, key)) return;
+            payload[key] = row[key];
+        });
+        return payload;
+    }
+
     function applyBankModalLockState(isEditable) {
         if (!['bank_like', 'business_only'].includes(currentModalPreset())) return;
         state.refs.editFields?.querySelectorAll('.evidence-edit-input[data-bank-readonly="1"]').forEach((input) => {
@@ -1366,11 +1440,13 @@ export function createEvidenceModalModule({
     }
 
     function collectEditPayload() {
-        const next = { ...mapped(state.editingRow) };
+        const next = preserveSystemPayloadFields({}, state.editingRow || {});
+        const editedKeys = new Set();
         state.refs.editFields?.querySelectorAll('.evidence-edit-input').forEach((input) => {
             const key = input.dataset.key || '';
             if (!key) return;
             if (input.dataset.bankReadonly === '1') return;
+            editedKeys.add(key);
             if (input.dataset.valueKind === 'ref') {
                 const idKey = input.dataset.refIdKey || '';
                 const nameKey = input.dataset.refNameKey || key;
@@ -1387,9 +1463,11 @@ export function createEvidenceModalModule({
 
                 next[key] = selectedText;
                 if (nameKey) {
+                    editedKeys.add(nameKey);
                     next[nameKey] = selectedText;
                 }
                 if (idKey) {
+                    editedKeys.add(idKey);
                     next[idKey] = selectedId !== '' && !isTextOnlyInitialValue && !isFreeTextSelection ? selectedId : '';
                 }
                 return;
@@ -1417,6 +1495,10 @@ export function createEvidenceModalModule({
             }
             next[key] = valueText(input.matches('select') ? selectValueForSave(input) : input.value);
         });
+        if (isModalPreset(null, 'business_only')) {
+            normalizeBusinessOnlyRawPayload(next, editedKeys);
+            stripDerivedBusinessOnlyPayload(next);
+        }
         Object.keys(next).forEach((key) => {
             if (key.startsWith('_')) return;
             const value = next[key];
@@ -1430,26 +1512,132 @@ export function createEvidenceModalModule({
         return next;
     }
 
+    function normalizeBusinessOnlyRawPayload(payload = {}, editedKeys = new Set()) {
+        const rawAliasMap = {
+            raw_written_date: ['written_date', 'write_date', '작성일자', '작성일'],
+            raw_issue_date: ['issue_date', '발급일자', '발행일자'],
+            raw_transmit_date: ['transmit_date', '전송일자'],
+            raw_approval_no: ['approval_number', '승인번호'],
+            raw_supplier_business_number: ['supplier_business_number', '공급자사업자등록번호'],
+            raw_supplier_branch_no: ['supplier_branch_number', '공급자종사업장번호'],
+            raw_supplier_company_name: ['supplier_company_name', 'supplier_name', '공급자상호', '공급자명'],
+            raw_supplier_ceo_name: ['supplier_ceo_name', '공급자대표자명'],
+            raw_supplier_address: ['supplier_address', '공급자주소'],
+            raw_supplier_email: ['supplier_email', '공급자이메일'],
+            raw_customer_business_number: ['customer_business_number', '공급받는자사업자등록번호'],
+            raw_customer_branch_no: ['customer_branch_number', '공급받는자종사업장번호'],
+            raw_customer_company_name: ['customer_company_name', 'customer_name', '공급받는자상호', '공급받는자명'],
+            raw_customer_ceo_name: ['customer_ceo_name', '공급받는자대표자명'],
+            raw_customer_address: ['customer_address', '공급받는자주소'],
+            raw_customer_email1: ['customer_email_1', '공급받는자이메일1'],
+            raw_customer_email2: ['customer_email_2', '공급받는자이메일2'],
+            raw_invoice_category: ['tax_invoice_category', '전자세금계산서분류'],
+            raw_invoice_kind: ['tax_invoice_type', '전자세금계산서종류'],
+            raw_issue_type: ['issue_type', '발급유형'],
+            raw_claim_type: ['receipt_claim_type', '영수청구구분'],
+            raw_supply_amount: ['supply_amount', '공급가액'],
+            raw_vat_amount: ['vat_amount', '세액'],
+            raw_total_amount: ['total_amount', '합계금액'],
+            raw_note: ['note', 'description', '비고'],
+            raw_item_date: ['item_date', '품목일자'],
+            raw_item_name: ['item_name', '품목명', '품목'],
+            raw_item_spec: ['item_spec', '품목규격', '규격'],
+            raw_item_quantity: ['item_qty', 'quantity', '품목수량', '수량'],
+            raw_item_unit_price: ['item_price', 'unit_price', '품목단가', '단가'],
+            raw_item_supply_amount: ['item_supply_amount', '품목공급가액'],
+            raw_item_tax_amount: ['item_vat_amount', '품목세액', '품목부가세액'],
+            raw_item_note: ['item_note', '품목비고'],
+        };
+        Object.entries(rawAliasMap).forEach(([rawKey, aliasKeys]) => {
+            if (editedKeys.has(rawKey)) {
+                return;
+            }
+
+            const editedAliasKeys = aliasKeys.filter((aliasKey) => editedKeys.has(aliasKey));
+            if (editedAliasKeys.length > 0) {
+                let explicitBlank = false;
+                for (const aliasKey of editedAliasKeys) {
+                    const aliasValue = valueText(payload[aliasKey]);
+                    if (aliasValue !== '') {
+                        payload[rawKey] = aliasValue;
+                        return;
+                    }
+                    explicitBlank = true;
+                }
+
+                if (explicitBlank) {
+                    payload[rawKey] = '';
+                }
+                return;
+            }
+
+            if (Object.prototype.hasOwnProperty.call(payload, rawKey)) {
+                return;
+            }
+
+            let explicitBlank = false;
+            for (const aliasKey of aliasKeys) {
+                if (!Object.prototype.hasOwnProperty.call(payload, aliasKey)) {
+                    continue;
+                }
+                const aliasValue = valueText(payload[aliasKey]);
+                if (aliasValue !== '') {
+                    payload[rawKey] = aliasValue;
+                    return;
+                }
+                explicitBlank = true;
+            }
+
+            if (explicitBlank) {
+                payload[rawKey] = '';
+            }
+        });
+    }
+
+    function stripDerivedBusinessOnlyPayload(payload = {}) {
+        [
+            'item_date',
+            'item_name',
+            'item_spec',
+            'item_qty',
+            'item_price',
+            'item_supply_amount',
+            'item_vat_amount',
+            'item_note',
+            'quantity',
+            'unit_price',
+        ].forEach((key) => {
+            delete payload[key];
+        });
+    }
+
     function requiredEditColumns() {
         if (isModalPreset(null, 'bank_like')) {
             return bankModalColumns().filter((column) => resolvePolicyRequirementMode(column) === 1
                 && editFieldKey(column) !== 'raw_balance_amount'
+                && !isModalRequiredValidationExcluded(column)
                 && !specialModalReadOnly(column, bankModalIsReadOnly));
         }
         if (isModalPreset(null, 'business_only')) {
             return taxInvoiceModalColumns().filter((column) => resolvePolicyRequirementMode(column) === 1
                 && editFieldKey(column) !== 'raw_balance_amount'
+                && !isModalRequiredValidationExcluded(column)
                 && !specialModalReadOnly(column));
         }
         const columns = Array.isArray(state.activeFormat?.columns) ? state.activeFormat.columns : [];
-        return columns.filter((column) => resolvePolicyRequirementMode(column) === 1 && editFieldKey(column) !== 'raw_balance_amount');
+        return columns.filter((column) => resolvePolicyRequirementMode(column) === 1
+            && editFieldKey(column) !== 'raw_balance_amount'
+            && !isModalRequiredValidationExcluded(column));
     }
 
     function validateRequiredEditFields() {
         const missing = [];
         let firstInput = null;
+        state.refs.editFields?.querySelectorAll('.evidence-edit-input').forEach((input) => {
+            clearEditFieldValidationState(input);
+        });
         requiredEditColumns().forEach((column) => {
-            const key = editFieldKey(column);
+            const key = resolveEditFieldKey(column, state.editingRow);
             if (!key) return;
             const input = editInputByKey(key);
             const value = input
@@ -1457,9 +1645,8 @@ export function createEvidenceModalModule({
                     ? (selectTextForSave(input, { includeCurrentText: true }) || selectValueForSave(input))
                     : (input.matches('select') ? selectValueForSave(input) : String(input.value ?? '').trim()))
                 : '';
-            input?.classList.remove('is-invalid');
             if (value !== '') return;
-            input?.classList.add('is-invalid');
+            markEditFieldValidationError(input);
             firstInput = firstInput || input;
             missing.push(String(resolvePolicyDisplayName(column, column.excel_column_name || column.label || column.system_field_name || key)).replace(/\s*\*$/u, ''));
         });
@@ -1467,7 +1654,14 @@ export function createEvidenceModalModule({
         if (missing.length === 0) return true;
         firstInput?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         firstInput?.focus?.();
-        notify('warning', `?? ???? ??? ???. ${missing.slice(0, 5).join(', ')}${missing.length > 5 ? ` ? ${missing.length - 5}?` : ''}`);
+        const missingSummary = missing.slice(0, 5).join(', ');
+        const missingTail = missing.length > 5 ? ` \uC678 ${missing.length - 5}\uAC74` : '';
+        notify('warning', `\uB2E4\uC74C \uD544\uC218 \uD56D\uBAA9\uC744 \uC785\uB825\uD574 \uC8FC\uC138\uC694. ${missingSummary}${missingTail}`);
+        return false;
+        notify(
+            'warning',
+            `다음 필수 항목을 입력해 주세요. ${missing.slice(0, 5).join(', ')}${missing.length > 5 ? ` 외 ${missing.length - 5}건` : ''}`
+        );
         return false;
     }
 

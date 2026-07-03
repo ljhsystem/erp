@@ -17,8 +17,6 @@ class EvidenceTypePolicyService
         'IMPORT_INVOICE',
         'SHOPPING_ORDER',
         'PAYROLL_WITHHOLDING',
-        'CASH_RECEIPT_PURCHASE',
-        'CASH_RECEIPT_SALES',
         'BUSINESS_DATA',
         'PAYROLL',
         'BUSINESS_INCOME',
@@ -66,14 +64,6 @@ class EvidenceTypePolicyService
         'PAYROLL_WITHHOLDING' => [
             'excel_template' => 'payroll_withholding',
             'date_label' => '귀속일자',
-        ],
-        'CASH_RECEIPT_PURCHASE' => [
-            'excel_template' => 'cash_receipt_purchase',
-            'date_label' => '발행일자',
-        ],
-        'CASH_RECEIPT_SALES' => [
-            'excel_template' => 'cash_receipt_sales',
-            'date_label' => '발행일자',
         ],
         'BUSINESS_DATA' => [
             'excel_template' => 'business_data',
@@ -203,38 +193,6 @@ class EvidenceTypePolicyService
             'deprecated_format_fields' => [],
             'deprecated_format_titles' => [],
         ],
-        'CASH_RECEIPT_PURCHASE' => [
-            'meta_domain' => 'evidence-cash-receipt',
-            'summary_bucket' => 'evidence',
-            'date_candidate_keys' => ['transaction_date', 'purchase_date', 'evidence_date', 'created_at', 'updated_at'],
-            'sort_target_keys' => ['purchase_datetime', 'purchase_at', 'purchase_date'],
-            'transaction_workflow_required' => true,
-            'excel_manager_mode' => 'core',
-            'excel_manager_domain' => 'evidence-cash-receipt',
-            'source_key_aliases' => [],
-            'modal_preset' => 'business_only',
-            'split_key_aliases' => [],
-            'split_value_fallbacks' => [],
-            'split_allowed_amount_keys' => [],
-            'deprecated_format_fields' => [],
-            'deprecated_format_titles' => [],
-        ],
-        'CASH_RECEIPT_SALES' => [
-            'meta_domain' => 'evidence-cash-receipt',
-            'summary_bucket' => 'evidence',
-            'date_candidate_keys' => ['transaction_date', 'purchase_date', 'evidence_date', 'created_at', 'updated_at'],
-            'sort_target_keys' => ['purchase_datetime', 'purchase_at', 'purchase_date'],
-            'transaction_workflow_required' => true,
-            'excel_manager_mode' => 'core',
-            'excel_manager_domain' => 'evidence-cash-receipt',
-            'source_key_aliases' => [],
-            'modal_preset' => 'business_only',
-            'split_key_aliases' => [],
-            'split_value_fallbacks' => [],
-            'split_allowed_amount_keys' => [],
-            'deprecated_format_fields' => [],
-            'deprecated_format_titles' => [],
-        ],
         'CARD_HOMETAX' => [
             'meta_domain' => 'evidence-card-hometax',
             'summary_bucket' => 'evidence',
@@ -314,7 +272,7 @@ class EvidenceTypePolicyService
     public function sourceTypeForDataType(string $dataType): string
     {
         return match ($this->normalizeDataType($dataType)) {
-            'TAX_INVOICE', 'CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES' => 'HOMETAX',
+            'TAX_INVOICE', 'CASH_RECEIPT' => 'HOMETAX',
             'CARD_HOMETAX' => 'HOMETAX',
             'CARD_STATEMENT', 'CARD_APPROVAL' => 'CARD_COMPANY',
             'BANK_TRANSACTION' => 'BANK',
@@ -327,7 +285,7 @@ class EvidenceTypePolicyService
     public function importTypesForSourceType(string $sourceType): array
     {
         return match ($this->normalizeImportSourceType($sourceType)) {
-            'TAX' => ['TAX_INVOICE', 'CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES', 'CARD_HOMETAX'],
+            'TAX' => ['TAX_INVOICE', 'CASH_RECEIPT', 'CARD_HOMETAX'],
             'CARD' => ['CARD_STATEMENT', 'CARD_APPROVAL'],
             'BANK' => ['BANK_TRANSACTION'],
             'SHOPPING', 'TRADE' => [],
@@ -354,8 +312,6 @@ class EvidenceTypePolicyService
             'TAX_INVOICE_MANUAL' => '세금계산서매입매출(수기)',
             'TAX_INVOICE' => '세금계산서',
             'CASH_RECEIPT' => '현금영수증',
-            'CASH_RECEIPT_PURCHASE' => '현금영수증매입',
-            'CASH_RECEIPT_SALES' => '현금영수증매출',
             'CARD_HOMETAX' => '카드홈택스',
             'CARD_STATEMENT' => '카드명세서',
             'CARD_APPROVAL' => '카드승인',
@@ -571,55 +527,38 @@ class EvidenceTypePolicyService
         $dataType = $this->normalizeDataType($dataType);
 
         if ($dataType === 'BANK_TRANSACTION') {
+            $deposit = $this->amountOrNull($row['deposit_amount'] ?? null);
+            $withdraw = $this->amountOrNull($row['withdraw_amount'] ?? $row['withdrawal_amount'] ?? null);
             $bankDirection = strtoupper(trim((string) (
                 $row['bank_direction']
                 ?? $row['deposit_withdrawal_type']
                 ?? $row['transaction_direction']
                 ?? ''
             )));
-            if (in_array($bankDirection, ['IN', 'DEPOSIT', 'RECEIPT', 'DEPOSIT'], true)) {
-                return 'IN';
-            }
-            if (in_array($bankDirection, ['OUT', 'WITHDRAWAL', 'PAYMENT', 'WITHDRAW'], true)) {
-                return 'OUT';
-            }
-        }
-
-        if ($dataType === 'BANK_TRANSACTION') {
-            $deposit = $this->amountOrNull($row['deposit_amount'] ?? null);
-            $withdraw = $this->amountOrNull($row['withdraw_amount'] ?? $row['withdrawal_amount'] ?? null);
-            if ($withdraw !== null && $withdraw > 0) {
-                return 'OUT';
-            }
-            if ($deposit !== null && $deposit > 0) {
-                return 'IN';
-            }
-            if (in_array($direction, ['IN', 'OUT'], true)) {
-                return $direction;
+            if ($bankDirection !== '' || ($withdraw !== null && $withdraw > 0) || ($deposit !== null && $deposit > 0)) {
+                return 'FUND';
             }
         }
 
         if ($direction === '') {
             $direction = match ($dataType) {
-                'CASH_RECEIPT_PURCHASE', 'CARD_STATEMENT', 'CARD_APPROVAL', 'CASH_RECEIPT' => 'PURCHASE',
-                'CASH_RECEIPT_SALES' => 'SALES',
-                'TAX_INVOICE' => 'PURCHASE',
+                'CARD_STATEMENT', 'CARD_APPROVAL', 'CASH_RECEIPT' => 'EXPENSE',
+                'TAX_INVOICE' => 'EXPENSE',
                 default => '',
             };
             if ($direction === '' && $this->isManualTaxInvoiceDataType($dataType)) {
-                $direction = 'PURCHASE';
+                $direction = 'EXPENSE';
             }
         }
 
         return match ($direction) {
-            'SALES', 'SALE', 'SELL', 'OUT' => 'SALES',
-            'PURCHASE', 'BUY', 'IN' => 'PURCHASE',
-            'DEPOSIT' => 'IN',
-            'WITHDRAWAL', 'PAYMENT' => 'OUT',
+            'INCOME', 'SALES', 'SALE', 'SELL', 'OUT_SALE' => 'INCOME',
+            'EXPENSE', 'PURCHASE', 'BUY', 'IN_PURCHASE' => 'EXPENSE',
+            'FUND', 'IN', 'OUT', 'DEPOSIT', 'RECEIPT', 'WITHDRAWAL', 'PAYMENT', 'WITHDRAW' => 'FUND',
             default => $direction !== '' ? $direction : (
                 $dataType === 'BANK_TRANSACTION'
-                    ? 'IN'
-                    : (($dataType === 'TAX_INVOICE' || $this->isManualTaxInvoiceDataType($dataType)) ? 'PURCHASE' : 'GENERAL')
+                    ? 'FUND'
+                    : (($dataType === 'TAX_INVOICE' || $this->isManualTaxInvoiceDataType($dataType)) ? 'EXPENSE' : 'GENERAL')
             ),
         };
     }
@@ -661,7 +600,7 @@ class EvidenceTypePolicyService
         }
 
         return match ($dataType) {
-            'TAX_INVOICE', 'CASH_RECEIPT', 'CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES' => [
+            'TAX_INVOICE', 'CASH_RECEIPT' => [
                 'type' => 'TRANSACTION',
                 'target' => 'TRANSACTION_HEADER',
                 'objects' => ['TRANSACTION_HEADER'],

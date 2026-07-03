@@ -3,6 +3,7 @@ import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { PickerSelect2 } from '/public/assets/js/common/picker/picker.select2.js';
 import { createExcelManagerSettingsCore } from '/public/assets/js/components/excel-manager/index.js';
+import { actorColumn } from '/public/assets/js/common/actor.js';
 import {
     readDataTableSettingsState,
     resolveDataTableColumnDisplayName,
@@ -26,7 +27,6 @@ import '/public/assets/js/components/trash-manager.js';
         status: '/api/ledger/journal-rules/status',
         reorder: '/api/ledger/journal-rules/reorder',
         businessUnits: '/api/settings/system/code/list?code_group=BUSINESS_UNIT&filters=[]',
-        transactionTypes: '/api/settings/system/code/list?code_group=TRANSACTION_TYPE&filters=[]',
         importTypes: '/api/settings/system/code/list?code_group=IMPORT_TYPE&filters=[]',
         transactionDirections: '/api/settings/system/code/list?code_group=TRANSACTION_DIRECTION&filters=[]',
         clientTypes: '/api/settings/system/code/list?code_group=CLIENT_TYPE&filters=[]',
@@ -35,7 +35,6 @@ import '/public/assets/js/components/trash-manager.js';
 
     const CODE_GROUPS = {
         BUSINESS_UNIT: 'businessUnits',
-        TRANSACTION_TYPE: 'transactionTypes',
         IMPORT_TYPE: 'importTypes',
         TRANSACTION_DIRECTION: 'transactionDirections',
         CLIENT_TYPE: 'clientTypes',
@@ -48,7 +47,6 @@ import '/public/assets/js/components/trash-manager.js';
         'rule_code',
         'rule_name',
         'business_unit',
-        'transaction_type',
         'transaction_direction',
         'client_type',
         'import_type',
@@ -68,7 +66,6 @@ import '/public/assets/js/components/trash-manager.js';
         { selector: '#journalRuleModal [name="rule_code"]', key: 'rule_code' },
         { selector: '#journalRuleModal [name="rule_name"]', key: 'rule_name' },
         { selector: '#journalRuleModal [name="business_unit"]', key: 'business_unit' },
-        { selector: '#journalRuleModal [name="transaction_type"]', key: 'transaction_type' },
         { selector: '#journalRuleModal [name="transaction_direction"]', key: 'transaction_direction' },
         { selector: '#journalRuleModal [name="client_type"]', key: 'client_type' },
         { selector: '#journalRuleModal [name="import_type"]', key: 'import_type' },
@@ -83,7 +80,6 @@ import '/public/assets/js/components/trash-manager.js';
     let modal = null;
     let excelModal = null;
     let businessUnits = [];
-    let transactionTypes = [];
     let importTypes = [];
     let transactionDirections = [];
     let clientTypes = [];
@@ -116,17 +112,16 @@ import '/public/assets/js/components/trash-manager.js';
         detailEl.innerHTML = `
             <div class="small">
                 <dl class="row mb-0">
-                    <dt class="col-4">규칙코드</dt><dd class="col-8">${escapeHtml(row.rule_code || '-')}</dd>
-                    <dt class="col-4">규칙명</dt><dd class="col-8">${escapeHtml(row.rule_name || '-')}</dd>
-                    <dt class="col-4">사업구분</dt><dd class="col-8">${escapeHtml(codeLabel(businessUnits, row.business_unit, row.business_unit_name))}</dd>
-                    <dt class="col-4">거래유형</dt><dd class="col-8">${escapeHtml(codeLabel(transactionTypes, row.transaction_type, row.transaction_type_name))}</dd>
-                    <dt class="col-4">거래구분</dt><dd class="col-8">${escapeHtml(codeLabel(transactionDirections, row.transaction_direction, row.transaction_direction_name))}</dd>
-                    <dt class="col-4">거래처구분</dt><dd class="col-8">${escapeHtml(codeLabel(clientTypes, row.client_type, row.client_type_name))}</dd>
-                    <dt class="col-4">자료유형</dt><dd class="col-8">${escapeHtml(codeLabel(importTypes, row.import_type, row.import_type_name))}</dd>
-                    <dt class="col-4">차변계정</dt><dd class="col-8">${escapeHtml(accountText(row, 'debit'))}</dd>
-                    <dt class="col-4">대변계정</dt><dd class="col-8">${escapeHtml(accountText(row, 'credit'))}</dd>
+                    <dt class="col-4">洹쒖튃肄붾뱶</dt><dd class="col-8">${escapeHtml(row.rule_code || '-')}</dd>
+                    <dt class="col-4">洹쒖튃紐?/dt><dd class="col-8">${escapeHtml(row.rule_name || '-')}</dd>
+                    <dt class="col-4">?ъ뾽援щ텇</dt><dd class="col-8">${escapeHtml(codeLabel(businessUnits, row.business_unit, row.business_unit_name))}</dd>
+                    <dt class="col-4">嫄곕옒援щ텇</dt><dd class="col-8">${escapeHtml(codeLabel(transactionDirections, row.transaction_direction, row.transaction_direction_name))}</dd>
+                    <dt class="col-4">嫄곕옒泥섍뎄遺?/dt><dd class="col-8">${escapeHtml(codeLabel(clientTypes, row.client_type, row.client_type_name))}</dd>
+                    <dt class="col-4">?먮즺?좏삎</dt><dd class="col-8">${escapeHtml(codeLabel(importTypes, row.import_type, row.import_type_name))}</dd>
+                    <dt class="col-4">李⑤?怨꾩젙</dt><dd class="col-8">${escapeHtml(accountText(row, 'debit'))}</dd>
+                    <dt class="col-4">?蹂怨꾩젙</dt><dd class="col-8">${escapeHtml(accountText(row, 'credit'))}</dd>
                     <dt class="col-4">부가세계정</dt><dd class="col-8">${escapeHtml(accountText(row, 'vat'))}</dd>
-                    <dt class="col-4">삭제일시</dt><dd class="col-8">${escapeHtml(row.deleted_at || '-')}</dd>
+                    <dt class="col-4">??젣?쇱떆</dt><dd class="col-8">${escapeHtml(row.deleted_at || '-')}</dd>
                 </dl>
             </div>
         `;
@@ -138,14 +133,13 @@ import '/public/assets/js/components/trash-manager.js';
             <td>${escapeHtml(row.rule_code || '')}</td>
             <td>${escapeHtml(row.rule_name || '')}</td>
             <td>${escapeHtml(codeLabel(businessUnits, row.business_unit, row.business_unit_name))}</td>
-            <td>${escapeHtml(codeLabel(transactionTypes, row.transaction_type, row.transaction_type_name))}</td>
             <td>${escapeHtml(codeLabel(transactionDirections, row.transaction_direction, row.transaction_direction_name))}</td>
             <td>${escapeHtml(codeLabel(clientTypes, row.client_type, row.client_type_name))}</td>
             <td>${escapeHtml(codeLabel(importTypes, row.import_type, row.import_type_name))}</td>
             <td>${escapeHtml(row.deleted_at || '')}</td>
             <td class="text-center">
-                <button type="button" class="btn btn-success btn-sm btn-restore" data-id="${escapeHtml(row.id || '')}">복원</button>
-                <button type="button" class="btn btn-danger btn-sm btn-purge" data-id="${escapeHtml(row.id || '')}">영구삭제</button>
+                <button type="button" class="btn btn-success btn-sm btn-restore" data-id="${escapeHtml(row.id || '')}">蹂듭썝</button>
+                <button type="button" class="btn btn-danger btn-sm btn-purge" data-id="${escapeHtml(row.id || '')}">?곴뎄??젣</button>
             </td>
         `;
     };
@@ -315,7 +309,6 @@ import '/public/assets/js/components/trash-manager.js';
             rule_code: String(formData.get('rule_code') || '').trim(),
             rule_name: String(formData.get('rule_name') || '').trim(),
             business_unit: String(formData.get('business_unit') || '').trim(),
-            transaction_type: String(formData.get('transaction_type') || '').trim(),
             transaction_direction: String(formData.get('transaction_direction') || '').trim(),
             client_type: String(formData.get('client_type') || '').trim(),
             import_type: String(formData.get('import_type') || '').trim(),
@@ -368,7 +361,6 @@ import '/public/assets/js/components/trash-manager.js';
     async function loadSelectSources() {
         const [businessJson, typeJson, directionJson, clientJson, importJson, accountJson] = await Promise.all([
             fetchJson(API.businessUnits),
-            fetchJson(API.transactionTypes),
             fetchJson(API.transactionDirections),
             fetchJson(API.clientTypes),
             fetchJson(API.importTypes),
@@ -376,17 +368,16 @@ import '/public/assets/js/components/trash-manager.js';
         ]);
 
         businessUnits = activeCodes(businessJson.data || []);
-        transactionTypes = activeCodes(typeJson.data || []);
         transactionDirections = activeCodes(directionJson.data || []);
         clientTypes = activeCodes(clientJson.data || []);
         importTypes = activeCodes(importJson.data || []);
 
         if (!transactionDirections.length) {
             transactionDirections = [
-                { code: 'PURCHASE', code_name: '매입' },
-                { code: 'SALES', code_name: '매출' },
-                { code: 'IN', code_name: '입금' },
-                { code: 'OUT', code_name: '출금' },
+                { code: 'PURCHASE', code_name: '留ㅼ엯' },
+                { code: 'SALES', code_name: '留ㅼ텧' },
+                { code: 'IN', code_name: '?낃툑' },
+                { code: 'OUT', code_name: '異쒓툑' },
             ];
         }
 
@@ -402,7 +393,6 @@ import '/public/assets/js/components/trash-manager.js';
                 const rows = options[group];
                 if (!Array.isArray(rows)) return;
                 if (stateName === 'businessUnits') businessUnits = rows;
-                if (stateName === 'transactionTypes') transactionTypes = rows;
                 if (stateName === 'importTypes') importTypes = rows;
                 if (stateName === 'transactionDirections') transactionDirections = rows;
                 if (stateName === 'clientTypes') clientTypes = rows;
@@ -434,7 +424,7 @@ import '/public/assets/js/components/trash-manager.js';
         document.querySelectorAll('#journalRuleModal .js-account-select').forEach((select) => {
             PickerSelect2.create(select, {
                 dropdownParent: $('#journalRuleModal'),
-                placeholder: '선택',
+                placeholder: '?좏깮',
                 templateResult: renderAccountOption,
                 templateSelection: renderAccountSelection,
             });
@@ -449,7 +439,7 @@ import '/public/assets/js/components/trash-manager.js';
 
     function renderAccountSelection(data) {
         if (!data || !data.id) {
-            return '선택';
+            return '?좏깮';
         }
         return data.text || data.id;
     }
@@ -458,6 +448,8 @@ import '/public/assets/js/components/trash-manager.js';
         table = createDataTable({
             tableSelector: '#journal-rule-table',
             api: API.list,
+            deleteApi: API.delete,
+            bulkDelete: true,
             columns: columns(),
             defaultOrder: [[1, 'asc']],
             pageLength: 100,
@@ -479,7 +471,6 @@ import '/public/assets/js/components/trash-manager.js';
                     'rule_code',
                     'rule_name',
                     'business_unit',
-                    'transaction_type',
                     'transaction_direction',
                     'client_type',
                     'import_type',
@@ -526,7 +517,6 @@ import '/public/assets/js/components/trash-manager.js';
             },
         });
     }
-
     function columns() {
         return [
             {
@@ -546,7 +536,6 @@ import '/public/assets/js/components/trash-manager.js';
             { data: 'rule_code', title: '규칙코드', className: 'text-nowrap', render: textCell, settingsKey: 'rule_code' },
             { data: 'rule_name', title: '규칙명', render: textCell, settingsKey: 'rule_name' },
             { data: 'business_unit', title: '사업구분', className: 'text-nowrap', render: (_value, _type, row) => badge(codeLabel(businessUnits, row.business_unit, row.business_unit_name)), settingsKey: 'business_unit' },
-            { data: 'transaction_type', title: '거래유형', className: 'text-nowrap', render: (_value, _type, row) => badge(codeLabel(transactionTypes, row.transaction_type, row.transaction_type_name)), settingsKey: 'transaction_type' },
             { data: 'transaction_direction', title: '거래구분', className: 'text-nowrap text-center', render: (_value, _type, row) => badge(codeLabel(transactionDirections, row.transaction_direction, row.transaction_direction_name)), settingsKey: 'transaction_direction' },
             { data: 'client_type', title: '거래처구분', className: 'text-nowrap', render: (_value, _type, row) => badge(codeLabel(clientTypes, row.client_type, row.client_type_name)), settingsKey: 'client_type' },
             { data: 'import_type', title: '자료유형', className: 'text-nowrap', render: (_value, _type, row) => badge(codeLabel(importTypes, row.import_type, row.import_type_name)), settingsKey: 'import_type' },
@@ -556,11 +545,11 @@ import '/public/assets/js/components/trash-manager.js';
             { data: 'description', title: '설명/적요', render: textCell, settingsKey: 'description' },
             { data: 'is_active', title: '상태', className: 'text-center text-nowrap', orderable: false, render: renderStatusToggle, settingsKey: 'is_active' },
             { data: 'created_at', title: '생성일시', visible: false, render: textCell, settingsKey: 'created_at' },
-            { data: 'created_by', title: '생성자', visible: false, render: textCell, settingsKey: 'created_by' },
+            actorColumn('created_by', '생성자', { visible: false, settingsKey: 'created_by' }),
             { data: 'updated_at', title: '수정일시', visible: false, render: textCell, settingsKey: 'updated_at' },
-            { data: 'updated_by', title: '수정자', visible: false, render: textCell, settingsKey: 'updated_by' },
+            actorColumn('updated_by', '수정자', { visible: false, settingsKey: 'updated_by' }),
             { data: 'deleted_at', title: '삭제일시', visible: false, render: textCell, settingsKey: 'deleted_at' },
-            { data: 'deleted_by', title: '삭제자', visible: false, render: textCell, settingsKey: 'deleted_by' },
+            actorColumn('deleted_by', '삭제자', { visible: false, settingsKey: 'deleted_by' }),
             {
                 data: null,
                 title: '관리',
@@ -631,12 +620,12 @@ import '/public/assets/js/components/trash-manager.js';
                 if (!formData.has('is_active')) formData.set('is_active', '0');
 
                 const json = await fetchJson(API.save, { method: 'POST', body: formData });
-                if (!json.success) throw new Error(json.message || '저장에 실패했습니다.');
-                notify('success', json.message || '저장되었습니다.');
+                if (!json.success) throw new Error(json.message || '??μ뿉 ?ㅽ뙣?덉뒿?덈떎.');
+                notify('success', json.message || '??λ릺?덉뒿?덈떎.');
                 modal.hide();
                 table.ajax.reload(null, false);
             } catch (error) {
-                notify('error', error.message || '저장에 실패했습니다.');
+                notify('error', error.message || '??μ뿉 ?ㅽ뙣?덉뒿?덈떎.');
             }
         });
 
@@ -647,7 +636,7 @@ import '/public/assets/js/components/trash-manager.js';
                     modal.hide();
                     return;
                 }
-                if (!confirm('분개규칙을 휴지통으로 이동할까요?')) return;
+                if (!confirm('분개규칙을 삭제하시겠습니까?')) return;
 
                 const body = new URLSearchParams({ id });
                 const json = await fetchJson(API.delete, {
@@ -655,8 +644,12 @@ import '/public/assets/js/components/trash-manager.js';
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body,
                 });
-                if (!json.success) throw new Error(json.message || '삭제에 실패했습니다.');
-                notify('success', '분개규칙을 휴지통으로 이동했습니다.');
+
+                if (!json.success) {
+                    throw new Error(json.message || '삭제에 실패했습니다.');
+                }
+
+                notify('success', '분개규칙이 삭제되었습니다.');
                 modal.hide();
                 table.ajax.reload(null, false);
             } catch (error) {
@@ -670,7 +663,9 @@ import '/public/assets/js/components/trash-manager.js';
         form.reset();
         form.querySelector('[name="id"]').value = '';
         form.querySelector('[name="is_active"]').checked = true;
+
         document.querySelector('#journalRuleModal .modal-title').textContent = '분개규칙 등록';
+
         document.getElementById('journalRuleDeleteBtn').classList.add('d-none');
         setJournalRuleModalLoading(true);
         modal.show();
@@ -685,10 +680,10 @@ import '/public/assets/js/components/trash-manager.js';
             setJournalRuleModalLoading(false);
         }
     }
-
     async function openEdit(id) {
         const title = document.querySelector('#journalRuleModal .modal-title');
         if (title) title.textContent = '분개규칙 수정';
+
         document.getElementById('journalRuleDeleteBtn').classList.add('d-none');
         setJournalRuleModalLoading(true);
         modal.show();
@@ -698,9 +693,14 @@ import '/public/assets/js/components/trash-manager.js';
                 fetchJson(`${API.detail}?id=${encodeURIComponent(id)}`),
                 ensureSelectSourcesReady(),
             ]);
-            if (!json.success) throw new Error(json.message || '분개규칙을 찾을 수 없습니다.');
+
+            if (!json.success) {
+                throw new Error(json.message || '분개규칙을 찾을 수 없습니다.');
+            }
+
             bindForm(json.data || {});
             applyJournalRuleModalPolicyLabels(document.getElementById('journalRuleModal'));
+
             if (title) title.textContent = '분개규칙 수정';
             document.getElementById('journalRuleDeleteBtn').classList.remove('d-none');
         } catch (error) {
@@ -709,7 +709,6 @@ import '/public/assets/js/components/trash-manager.js';
             setJournalRuleModalLoading(false);
         }
     }
-
     function bindForm(row) {
         const form = document.getElementById('journalRuleForm');
         form.reset();
@@ -732,7 +731,7 @@ import '/public/assets/js/components/trash-manager.js';
         const res = await fetch(url, options);
         const json = await res.json().catch(() => ({}));
         if (!res.ok || json.success === false) {
-            throw new Error(json.message || `요청에 실패했습니다. (${res.status})`);
+            throw new Error(json.message || `요청이 실패했습니다. (${res.status})`);
         }
         return json;
     }
@@ -806,7 +805,7 @@ import '/public/assets/js/components/trash-manager.js';
             });
 
             if (!json.success) {
-                throw new Error(json.message || '상태 변경에 실패했습니다.');
+                throw new Error(json.message || '?곹깭 蹂寃쎌뿉 ?ㅽ뙣?덉뒿?덈떎.');
             }
 
             const tr = input.closest('tr');

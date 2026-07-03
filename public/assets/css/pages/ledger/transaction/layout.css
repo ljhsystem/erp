@@ -1,0 +1,78 @@
+.transaction-page .content-area {
+    overflow: visible !important;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.transaction-page .transaction-shell {
+    padding-top: 0;
+}
+
+.transaction-page .page-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.transaction-page .page-count {
+    display: inline-flex;
+    align-items: center;
+    font-size: 1rem;
+    font-weight: 500;
+    line-height: 1;
+}
+
+.transaction-page .transaction-table th,
+.transaction-page .transaction-table td {
+    white-space: nowrap;
+    font-size: var(--font-size);
+}
+
+.transaction-page .transaction-table .transaction-summary-cell {
+    white-space: normal;
+    min-width: 260px;
+}
+
+.transaction-page .transaction-table .transaction-sort-no-cell {
+    min-width: 64px;
+}
+
+.transaction-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 56px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.transaction-status.matched {
+    background: #ecfdf5;
+    color: #047857;
+}
+
+.transaction-status.none {
+    background: #f3f4f6;
+    color: #4b5563;
+}
+
+.transaction-status-draft {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.transaction-status-approved {
+    background: #ecfdf5;
+    color: #047857;
+}
+
+.transaction-status-rejected {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+

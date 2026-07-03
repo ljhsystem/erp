@@ -481,6 +481,7 @@ window.AdminPicker = AdminPicker;
             data: null,
             title: '\uAD00\uB9AC',
             settingsKey: '__actions',
+            __dtColumnKind: 'virtual',
             width: ROLE_COLUMN_WIDTHS.__actions,
             widthResizable: true,
             className: 'text-center no-colvis',

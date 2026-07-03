@@ -507,7 +507,6 @@ import { createAgGridAdapter } from '/public/assets/js/common/grid/ag-grid-adapt
             notify('warning', 'Validation is complete, but there are Error/Warning rows. If status is not READY, Seed upload may be blocked.');
         }
             uploadResultAlert?.classList.add('d-none');
-            console.log('[dataUpload] validated preview:', json.data?.summary);
         } catch (error) {
             notify('error', error.message);
         } finally {

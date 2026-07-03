@@ -131,11 +131,14 @@ import '/public/assets/js/components/trash-manager.js';
     function directionLabel(value) {
         const key = String(value || '').toUpperCase();
         return {
-            PURCHASE: '매입',
-            SALES: '매출',
-            IN: '입금',
-            OUT: '출금',
-            BANK: '입출금',
+            FUND: '자금',
+            IN: '자금',
+            OUT: '자금',
+            INCOME: '수익',
+            EXPENSE: '비용',
+            PURCHASE: '비용',
+            SALES: '수익',
+            BANK: '자금',
             GENERAL: '일반',
         }[key] || value || '-';
     }

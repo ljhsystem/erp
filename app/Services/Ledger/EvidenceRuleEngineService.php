@@ -89,7 +89,7 @@ class EvidenceRuleEngineService
         }
         if (in_array($processing['type'], ['BUSINESS_DATA', 'UNSUPPORTED'], true)) {
             return $this->readinessResult(
-                ['????????野????壤굿???잏솾??????轅붽틓??影?뽧걤?????????筌뤾쑵???????????援???????뽯쨦?? ???????????????댄뱼?????ㅼ뒧??????????癲?嶺??癲?????轅몄뫅?????????袁ｋ쨨?????袁⑸즴????????????????轅붽틓??影?뽧걤???癲ル슢?????'],
+                ['현재 자료유형은 증빙 생성 대상이 아닙니다. 업로드 형식과 자료유형 설정을 확인해 주세요.'],
                 [],
                 ['import_type'],
                 $processing
@@ -99,6 +99,7 @@ class EvidenceRuleEngineService
         $missing = [];
         $errors = [];
         $warnings = [];
+        $context = [];
         $require = function (string $field, mixed $value, string $message) use (&$missing, &$errors): void {
             $text = trim((string) ($value ?? ''));
             if ($text === '' || $this->isEmptySelectionLabel($text)) {
@@ -107,14 +108,11 @@ class EvidenceRuleEngineService
             }
         };
 
-        $require('source_type', $dataType, '?????????援?????꿔꺂??틝????? ?????源낅돹??????');
-        $require('source_key', $row['source_key'] ?? $payload['source_key'] ?? $payload['approval_number'] ?? '', '???????癲ル슢?뤷쳞??棺??源????붺몭?⑸쨨????????욱룏???????낆젵.');
-        $require('evidence_date', $row['evidence_date'] ?? $payload['evidence_date'] ?? $payload['transaction_date'] ?? $payload['issue_date'] ?? '', '?轅붽틓?節됰쑏???몡???嚥싲갭큔?湲룹물???ル봿?? ??꿔꺂??틝????? ?????源낅돹??????');
+        $require('source_type', $dataType, '자료유형이 없습니다. 자료유형을 확인해 주세요.');
+        $require('source_key', $this->policyFieldValue('source_key', $row, $payload, $context, $dataType), '원본 식별값이 없습니다. 승인번호 또는 외부 원본 식별값을 확인해 주세요.');
+        $require('evidence_date', $this->policyFieldValue('evidence_date', $row, $payload, $context, $dataType), '증빙일자가 없습니다.');
 
         if ($processing['type'] === 'VERIFY_ONLY') {
-            $require('approval_number', $payload['approval_number'] ?? $payload['approval_no'] ?? $payload['source_key'] ?? '', '???ㅳ늾????????????????癲ル슢?뤷쳞??棺??源????붺몭?⑸쨨????????욱룏???????낆젵.');
-            $require('card_company', $payload['source_card_company_name'] ?? $payload['card_company'] ?? $payload['card_company_name'] ?? $payload['card_name'] ?? '', '???ㅳ늾?????????????ㅳ늾??????꿔꺂??????쒐춯誘↔데鸚????쎛 ?????욱룏???????낆젵.');
-            $require('merchant', $payload['merchant_company_name'] ?? $payload['merchant_name'] ?? $payload['client_company_name'] ?? $payload['company_name'] ?? '', '???ル봿???轅붽틓???????꿔꺂??????쒐춯誘↔데鸚????쎛 ?????욱룏???????낆젵.');
             if ($this->amountOrNull(
                 $payload['billing_amount']
                 ?? $payload['claim_amount']
@@ -125,79 +123,41 @@ class EvidenceRuleEngineService
                 ?? null
             ) === null) {
                 $missing[] = 'billing_amount';
-                $errors[] = '?????????????沅걔??????????꿔꺂??틝????? ?????源낅돹??????';
+                $errors[] = '금액 후보 정보가 없습니다. 청구금액 또는 금액을 확인해 주세요.';
             }
 
             $result = $this->readinessResult($errors, $warnings, $missing, $processing);
             if ($result['status'] === 'READY') {
                 $result['status'] = 'VERIFY_ONLY';
             }
-            $result = $this->applyPolicyResult($result, $payload);
-            return $result;
+
+            return $this->applyPolicyResult($result, $row, $payload, $context, $dataType);
         }
 
         if ($processing['type'] === 'BANK_FLOW') {
-            $transactionDate = $this->dateValueOrNull($payload['transaction_date'] ?? $payload['transaction_datetime'] ?? $row['evidence_date'] ?? null);
-            $require('transaction_date', $transactionDate, '?????⑸괬??ル?????轅몄뫅??????嚥싲갭큔?湲룹物???ル봿?? ??꿔꺂??틝????? ?????源낅돹??????');
-            $bankAccountValue = $this->businessRefIdForStorage('ACCOUNT', $payload)
-                ?? ($payload['bank_account_name'] ?? $payload['account_name'] ?? $payload['payment_account_name'] ?? $payload['bank_account'] ?? $payload['bank_account_id'] ?? '');
-            $require('bank_account_name', $bankAccountValue, 'ERP ??壤굿???잍를源낅㎣???ⓥ뫚留????ㅿ폑??????節떷???? ?????源낅돹??????');
             if ($this->amountOrNull($payload['deposit_amount'] ?? null) === null && $this->amountOrNull($payload['withdraw_amount'] ?? null) === null) {
                 $missing[] = 'deposit_amount';
                 $missing[] = 'withdraw_amount';
-                $errors[] = '?????깅떔??????????????????????????꿔꺂??틝????? ?????源낅돹??????';
+                $errors[] = '입금 또는 출금 금액이 없습니다.';
             }
-            $require('counterparty_name', $payload['counterparty_name'] ?? $payload['counterparty_account_holder_name'] ?? '', '??????????戮?돵????용츧?? ?????욱룏???????낆젵.');
 
             $bankProcessing = $processing;
             $bankProcessing['target'] = 'VOUCHER_WAITING';
             if ($this->hasVoucherLinesPayload($payload)) {
                 $bankProcessing['objects'] = ['BANK_FLOW', 'VOUCHER_HEADER', 'VOUCHER_LINE'];
-                $bankProcessing['label'] = '??????멸눋???ヂ?罹????袁ㅻ쇀???+ ????熬곻퐢夷????熬곣뫖利???';
+                $bankProcessing['label'] = '입출금 전표 생성 대기';
             } else {
                 $bankProcessing['objects'] = ['BANK_FLOW'];
-                $bankProcessing['label'] = '??????멸눋???ヂ?罹????袁ㅻ쇀???+ ????熬곻퐢夷????熬곣뫖利???';
+                $bankProcessing['label'] = '입출금 흐름 확인';
             }
 
-            return $this->applyPolicyResult($this->readinessResult($errors, $warnings, $missing, $bankProcessing), $payload);
+            return $this->applyPolicyResult($this->readinessResult($errors, $warnings, $missing, $bankProcessing), $row, $payload, $context, $dataType);
         }
-
-        $transactionDate = $this->dateValueOrNull($payload['transaction_date'] ?? $row['evidence_date'] ?? null);
-        $require('transaction_date', $transactionDate, '?轅몄뫅??????嚥싲갭큔?湲룹物???ル봿?? ??꿔꺂??틝????? ?????源낅돹??????');
-
-        $businessUnit = trim((string) ($payload['business_unit'] ?? $payload['business_unit_code'] ?? ''));
-        $require('business_unit', $businessUnit, '?????????덉떳??????꿔꺂??틝????? ?????源낅돹??????');
 
         try {
             $context = $this->resolveUploadTransactionContext($payload, $dataType);
-            if (!empty($context['_direction_error'])) {
-                $missing[] = 'transaction_direction';
-                $errors[] = (string) $context['_direction_error'];
-            }
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             $context = [];
-            $missing[] = 'transaction_direction';
-            $errors[] = '?轅몄뫅????雅?????怨쀫뎔濚???????????????욱룏???????낆젵: ' . $e->getMessage();
-        }
-
-        $direction = $this->transactionDirectionForStorage((string) ($context['transaction_direction'] ?? $payload['transaction_direction'] ?? ''), $payload, $dataType);
-        if (!in_array($direction, ['PURCHASE', 'SALES', 'IN', 'OUT'], true)) {
-            $missing[] = 'transaction_direction';
-            $errors[] = '?轅몄뫅????雅?????怨쀫뎔濚????꿔꺂??틝????? ?????源낅돹??????';
-        }
-
-        $transactionType = trim((string) ($payload['transaction_type'] ?? ''));
-        $require('transaction_type', $transactionType, '?轅몄뫅?????????援?????꿔꺂??틝????? ?????源낅돹??????');
-
-        $total = $this->amountOrNull($payload['total_amount'] ?? null);
-        $supply = $this->amountOrNull($payload['supply_amount'] ?? null);
-        if ($total === null && $supply === null) {
-            $missing[] = 'total_amount';
-            $errors[] = '?轅몄뫅????????沅걔??????????꿔꺂??틝????? ?????源낅돹??????';
-        }
-        if ($supply === null) {
-            $missing[] = 'supply_amount';
-            $errors[] = '?????雅?퍔瑗?節덈뼀??????????꿔꺂??틝????? ?????源낅돹??????';
         }
 
         $clientId = trim((string) ($payload['client_id'] ?? ''));
@@ -211,17 +171,28 @@ class EvidenceRuleEngineService
         }
         if ($clientId === '' && $clientBusinessNumber === '' && $clientName === '') {
             $missing[] = 'client_id';
-            $errors[] = '?轅몄뫅????雅???ID ??????轅몄뫅????雅????????밸븶???援?醫묒춸?????????욱룏???????낆젵.';
+            $errors[] = '거래처 식별 정보가 없습니다. 거래처를 확인해 주세요.';
         }
 
         if (in_array((string) ($processing['target'] ?? ''), ['TRANSACTION_FULL', 'TRANSACTION_AND_VOUCHER'], true)) {
             $itemName = trim((string) ($payload['item_name'] ?? ''));
             if ($itemName === '') {
-                $warnings[] = '?轅몄뫅?????????욱룑??? ?轅몄뫅?????????거?쭛?????????ㅼ뒧??????????????????낆젵.';
+                $warnings[] = '적요가 없습니다. 거래 생성 전 적요를 입력해 주세요.';
             }
         }
 
-        return $this->applyPolicyResult($this->readinessResult($errors, $warnings, $missing, $processing), $payload);
+        return $this->applyPolicyResult($this->readinessResult($errors, $warnings, $missing, $processing), $row, $payload, $context, $dataType);
+    }
+
+    public function businessReadinessForEvidenceRow(array $row, array $payload): array
+    {
+        $dataType = $this->normalizeDataType((string) ($row['import_type'] ?? $row['source_type'] ?? $payload['import_type'] ?? ''));
+        $processing = $this->processingPlanForDataType($dataType);
+        if ($dataType === 'BANK_TRANSACTION') {
+            $payload = $this->normalizeBankTransactionPayload($payload);
+        }
+
+        return $this->applyBusinessPolicyResult($this->readinessResult([], [], [], $processing), $row, $payload);
     }
 
     public function readinessResult(array $errors, array $warnings, array $missing, array $processing): array
@@ -243,7 +214,48 @@ class EvidenceRuleEngineService
         ];
     }
 
-    private function applyPolicyResult(array $result, array $payload): array
+    private function applyPolicyResult(array $result, array $row, array $payload, array $context, string $dataType): array
+    {
+        $displayNameMap = $this->policyMap($payload['_column_display_name'] ?? ($_REQUEST['column_display_name'] ?? null));
+        $requirementPolicyMap = $this->policyMap($payload['_column_requirement_policy'] ?? ($_REQUEST['column_requirement_policy'] ?? ($_REQUEST['column_requirement'] ?? null)));
+        if ($requirementPolicyMap === []) {
+            return $result;
+        }
+
+        $missingFields = is_array($result['missing_fields'] ?? null) ? $result['missing_fields'] : [];
+        $errors = is_array($result['errors'] ?? null) ? $result['errors'] : [];
+        foreach ($requirementPolicyMap as $key => $policy) {
+            if (strtolower(trim((string) $policy)) !== 'required') {
+                continue;
+            }
+
+            $field = trim((string) $key);
+            if ($field === '' || $this->isBusinessStatusExcludedField($field)) {
+                continue;
+            }
+
+            $text = trim((string) $this->policyFieldValue($field, $row, $payload, $context, $dataType));
+            if ($text !== '' && !$this->isEmptySelectionLabel($text)) {
+                continue;
+            }
+
+            $missingFields[] = $field;
+            $label = trim((string) ($displayNameMap[$field] ?? $field));
+            $errors[] = $label . ' 필수값이 없습니다.';
+        }
+
+        $missingFields = array_values(array_unique($missingFields));
+        $errors = array_values(array_unique($errors));
+        $result['missing_fields'] = $missingFields;
+        if ($errors !== []) {
+            $result['errors'] = $errors;
+            $result['status'] = 'NOT_READY';
+        }
+
+        return $result;
+    }
+
+    private function applyBusinessPolicyResult(array $result, array $row, array $payload): array
     {
         $displayNameMap = $this->policyMap($payload['_column_display_name'] ?? ($_REQUEST['column_display_name'] ?? null));
         $requirementPolicyMap = $this->policyMap($payload['_column_requirement_policy'] ?? ($_REQUEST['column_requirement_policy'] ?? ($_REQUEST['column_requirement'] ?? null)));
@@ -263,14 +275,14 @@ class EvidenceRuleEngineService
                 continue;
             }
 
-            $text = trim((string) ($payload[$field] ?? ''));
+            $text = trim((string) $this->businessPolicyFieldValue($field, $row, $payload));
             if ($text !== '' && !$this->isEmptySelectionLabel($text)) {
                 continue;
             }
 
             $missingFields[] = $field;
             $label = trim((string) ($displayNameMap[$field] ?? $field));
-            $errors[] = $label . ' ' . json_decode('"\uD544\uC218\uAC12\uC774 \uC5C6\uC2B5\uB2C8\uB2E4."');
+            $errors[] = $label . ' 필수값이 없습니다.';
         }
 
         $missingFields = array_values(array_unique($missingFields));
@@ -282,6 +294,145 @@ class EvidenceRuleEngineService
         }
 
         return $result;
+    }
+
+    private function policyFieldValue(string $field, array $row, array $payload, array $context, string $dataType): mixed
+    {
+        $field = trim($field);
+        if ($field === '') {
+            return '';
+        }
+
+        $resolved = match ($field) {
+            'source_type', 'import_type' => $dataType,
+            'source_key', 'approval_number', 'approval_no' => $this->resolvedSourceKey($row, $payload),
+            'evidence_date' => $this->resolvedEvidenceDate($row, $payload, $dataType),
+            'transaction_date' => $this->resolvedTransactionDate($row, $payload, $dataType),
+            'transaction_direction' => $this->resolvedTransactionDirection($payload, $context, $dataType),
+            'business_unit' => trim((string) ($payload['business_unit'] ?? $payload['business_unit_code'] ?? '')),
+            'operation_type' => trim((string) ($payload['operation_type'] ?? '')),
+            'bank_account_name', 'bank_account_id', 'bank_account' => $this->resolvedBankAccountValue($payload),
+            'counterparty_name' => $this->resolvedCounterpartyName($payload),
+            'merchant', 'merchant_company_name', 'merchant_name' => $this->resolvedMerchantValue($payload),
+            'card_company', 'card_company_name', 'source_card_company_name' => $this->resolvedCardCompanyValue($payload),
+            'client_id', 'client_name', 'client_company_name' => $this->resolvedClientIdentityValue($payload, $context),
+            default => null,
+        };
+
+        if ($resolved !== null && !(is_string($resolved) && trim($resolved) === '')) {
+            return $resolved;
+        }
+
+        if (array_key_exists($field, $payload)) {
+            return $payload[$field];
+        }
+        if (array_key_exists($field, $row)) {
+            return $row[$field];
+        }
+
+        return '';
+    }
+
+    private function businessPolicyFieldValue(string $field, array $row, array $payload): mixed
+    {
+        $field = trim($field);
+        if ($field === '') {
+            return '';
+        }
+
+        if (array_key_exists($field, $payload)) {
+            return $payload[$field];
+        }
+        if (array_key_exists($field, $row)) {
+            return $row[$field];
+        }
+
+        return '';
+    }
+
+    private function isBusinessStatusExcludedField(string $field): bool
+    {
+        return in_array($field, ['source_type', 'import_type', 'source_key', 'evidence_date'], true);
+    }
+
+    private function resolvedSourceKey(array $row, array $payload): string
+    {
+        return trim((string) ($row['source_key'] ?? $payload['source_key'] ?? $payload['approval_number'] ?? $payload['approval_no'] ?? ''));
+    }
+
+    private function resolvedEvidenceDate(array $row, array $payload, string $dataType): ?string
+    {
+        $candidate = $row['evidence_date'] ?? $payload['evidence_date'] ?? $payload['transaction_date'] ?? $payload['issue_date'] ?? null;
+        if ($dataType === 'BANK_TRANSACTION' && ($candidate === null || trim((string) $candidate) === '')) {
+            $candidate = $payload['raw_transaction_datetime'] ?? $payload['transaction_datetime'] ?? $payload['transaction_at'] ?? null;
+        }
+
+        return $this->dateValueOrNull($candidate);
+    }
+
+    private function resolvedTransactionDate(array $row, array $payload, string $dataType): ?string
+    {
+        $candidate = $payload['transaction_date'] ?? $row['evidence_date'] ?? $payload['evidence_date'] ?? null;
+        if ($dataType === 'BANK_TRANSACTION' && ($candidate === null || trim((string) $candidate) === '')) {
+            $candidate = $payload['raw_transaction_datetime'] ?? $payload['transaction_datetime'] ?? $payload['transaction_at'] ?? null;
+        }
+
+        return $this->dateValueOrNull($candidate);
+    }
+
+    private function resolvedTransactionDirection(array $payload, array $context, string $dataType): string
+    {
+        try {
+            $direction = $this->transactionDirectionForStorage(
+                (string) ($context['transaction_direction'] ?? $payload['transaction_direction'] ?? ''),
+                $payload,
+                $dataType
+            );
+        } catch (\Throwable) {
+            return '';
+        }
+
+        return in_array($direction, ['EXPENSE', 'INCOME', 'FUND'], true) ? $direction : '';
+    }
+
+    private function resolvedBankAccountValue(array $payload): string
+    {
+        $value = $this->businessRefIdForStorage('ACCOUNT', $payload)
+            ?? ($payload['bank_account_name'] ?? $payload['account_name'] ?? $payload['payment_account_name'] ?? $payload['bank_account'] ?? $payload['bank_account_id'] ?? '');
+
+        return trim((string) $value);
+    }
+
+    private function resolvedCounterpartyName(array $payload): string
+    {
+        return trim((string) ($payload['counterparty_name'] ?? $payload['counterparty_account_holder_name'] ?? $payload['raw_counterparty_name'] ?? ''));
+    }
+
+    private function resolvedMerchantValue(array $payload): string
+    {
+        return trim((string) ($payload['merchant_company_name'] ?? $payload['merchant_name'] ?? $payload['client_company_name'] ?? $payload['company_name'] ?? ''));
+    }
+
+    private function resolvedCardCompanyValue(array $payload): string
+    {
+        return trim((string) ($payload['source_card_company_name'] ?? $payload['card_company'] ?? $payload['card_company_name'] ?? $payload['card_name'] ?? ''));
+    }
+
+    private function resolvedClientIdentityValue(array $payload, array $context): string
+    {
+        $clientId = trim((string) ($payload['client_id'] ?? ''));
+        if (!$this->isEmptySelectionLabel($clientId)) {
+            return $clientId;
+        }
+
+        $clientBusinessNumber = $this->normalizeBusinessNumber((string) ($context['client_business_number'] ?? $payload['client_business_number'] ?? $payload['business_number'] ?? ''));
+        if ($clientBusinessNumber !== '') {
+            return $clientBusinessNumber;
+        }
+
+        $clientName = $this->cleanCompanyName((string) ($context['client_company_name'] ?? $payload['client_company_name'] ?? $payload['company_name'] ?? $payload['counterparty_name'] ?? ''));
+
+        return $this->isEmptySelectionLabel($clientName) ? '' : $clientName;
     }
 
     private function policyMap(mixed $raw): array
@@ -316,24 +467,24 @@ class EvidenceRuleEngineService
 
             $parts = [];
             if ($rowNo > 0) {
-                $parts[] = $rowNo . '??';
+                $parts[] = $rowNo . '행';
             }
             if ($clientName !== '') {
-                $parts[] = '?轅몄뫅????雅???' . $clientName;
+                $parts[] = '거래처 ' . $clientName;
             }
             if ($approvalNo !== '') {
-                $parts[] = '??????嶺뚮ㅎ遊뉔?????몃： ' . $approvalNo;
+                $parts[] = '승인번호 ' . $approvalNo;
             }
 
             $context = $parts !== [] ? ' (' . implode(', ', $parts) . ')' : '';
-            return '?轅몄뫅????????袁⑸즴????????? ??????????れ뫒?????????????⑤챷逾???ル봿?? ??ш끽維뽳쭩?좊쐪筌먲퐢?????????????낆젵' . $context . '. ?μ떝?띄몭??袁㏉떄????????????轅몄뫅????雅?????????鶯ㅺ동????????????밸븶????????곕츣?????꿔꺂??틝?????????욱룕????癲ル슢?????';
+            return '거래 생성 중 필수 파라미터가 누락되었습니다' . $context . '. 거래처, 승인번호, 금액 등 필수값을 확인해 주세요.';
         }
 
         if (str_contains($message, 'SQLSTATE[')) {
-            $prefix = $rowNo > 0 ? $rowNo . '?? ' : '';
-            return $prefix . '?轅몄뫅????????袁⑸즴?????????????????곕춴??????욱룏嶺??????????⑤챷逾???ル봿?? ??ш끽維뽳쭩?좊쐪筌먲퐢?????????????낆젵. ??????????밸븶????멸샵嶺?????轅몄뫅????雅??????沅걔????????轅붽틓?????紐?????꿔꺂??틝?????????욱룕????癲ル슢?????';
+            $prefix = $rowNo > 0 ? $rowNo . '행 ' : '';
+            return $prefix . '거래 생성 중 데이터베이스 오류가 발생했습니다. 입력값과 필수 항목을 확인해 주세요.';
         }
 
-        return $message !== '' ? $message : '?轅몄뫅????????袁⑸즴????????怨뚯댅';
+        return $message !== '' ? $message : '검증 중 오류가 발생했습니다.';
     }
 }

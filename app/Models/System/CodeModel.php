@@ -1,6 +1,7 @@
 <?php
 namespace App\Models\System;
 
+use Core\Helpers\ActorHelper;
 use Core\Database;
 use PDO;
 
@@ -18,31 +19,10 @@ class CodeModel
         $sql = "
             SELECT
                 c.*,
-                CASE
-                    WHEN c.created_by LIKE 'SYSTEM:%' THEN c.created_by
-                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
-                    ELSE c.created_by
-                END AS created_by_name,
-                CASE
-                    WHEN c.updated_by LIKE 'SYSTEM:%' THEN c.updated_by
-                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
-                    ELSE c.updated_by
-                END AS updated_by_name,
-                CASE
-                    WHEN c.deleted_by LIKE 'SYSTEM:%' THEN c.deleted_by
-                    WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
-                    ELSE c.deleted_by
-                END AS deleted_by_name
+                c.created_by AS created_by_name,
+                c.updated_by AS updated_by_name,
+                c.deleted_by AS deleted_by_name
             FROM system_codes c
-            LEFT JOIN user_employees p1
-                ON c.created_by NOT LIKE 'SYSTEM:%'
-               AND p1.user_id = REPLACE(c.created_by, 'USER:', '')
-            LEFT JOIN user_employees p2
-                ON c.updated_by NOT LIKE 'SYSTEM:%'
-               AND p2.user_id = REPLACE(c.updated_by, 'USER:', '')
-            LEFT JOIN user_employees p3
-                ON c.deleted_by NOT LIKE 'SYSTEM:%'
-               AND p3.user_id = REPLACE(c.deleted_by, 'USER:', '')
             WHERE c.deleted_at IS NULL
         ";
 
@@ -59,13 +39,13 @@ class CodeModel
             'is_active' => ['col' => 'c.is_active', 'type' => 'exact'],
             'created_at' => ['col' => 'c.created_at', 'type' => 'date'],
             'created_by' => ['col' => 'c.created_by', 'type' => 'like'],
-            'created_by_name' => ['col' => "COALESCE(CONCAT('USER:', p1.employee_name), c.created_by)", 'type' => 'like'],
+            'created_by_name' => ['col' => 'c.created_by', 'type' => 'like'],
             'updated_at' => ['col' => 'c.updated_at', 'type' => 'date'],
             'updated_by' => ['col' => 'c.updated_by', 'type' => 'like'],
-            'updated_by_name' => ['col' => "COALESCE(CONCAT('USER:', p2.employee_name), c.updated_by)", 'type' => 'like'],
+            'updated_by_name' => ['col' => 'c.updated_by', 'type' => 'like'],
             'deleted_at' => ['col' => 'c.deleted_at', 'type' => 'date'],
             'deleted_by' => ['col' => 'c.deleted_by', 'type' => 'like'],
-            'deleted_by_name' => ['col' => "COALESCE(CONCAT('USER:', p3.employee_name), c.deleted_by)", 'type' => 'like'],
+            'deleted_by_name' => ['col' => 'c.deleted_by', 'type' => 'like'],
         ];
 
         $globalSearch = [];
@@ -122,8 +102,9 @@ class CodeModel
                 'c.memo',
                 'c.created_by',
                 'c.updated_by',
-                "COALESCE(CONCAT('USER:', p1.employee_name), c.created_by)",
-                "COALESCE(CONCAT('USER:', p2.employee_name), c.updated_by)"
+                'c.created_by',
+                'c.updated_by',
+                'c.deleted_by'
             ];
             $sql .= " AND (";
 
@@ -145,7 +126,13 @@ class CodeModel
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return ActorHelper::enrichActorNames($rows, [
+            'created_by_name' => 'created_by_name',
+            'updated_by_name' => 'updated_by_name',
+            'deleted_by_name' => 'deleted_by_name',
+        ]);
     }
 
     public function getById(string $id): ?array
@@ -153,37 +140,25 @@ class CodeModel
         $stmt = $this->db->prepare("
             SELECT
                 c.*,
-                CASE
-                    WHEN c.created_by LIKE 'SYSTEM:%' THEN c.created_by
-                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
-                    ELSE c.created_by
-                END AS created_by_name,
-                CASE
-                    WHEN c.updated_by LIKE 'SYSTEM:%' THEN c.updated_by
-                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
-                    ELSE c.updated_by
-                END AS updated_by_name,
-                CASE
-                    WHEN c.deleted_by LIKE 'SYSTEM:%' THEN c.deleted_by
-                    WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
-                    ELSE c.deleted_by
-                END AS deleted_by_name
+                c.created_by AS created_by_name,
+                c.updated_by AS updated_by_name,
+                c.deleted_by AS deleted_by_name
             FROM system_codes c
-            LEFT JOIN user_employees p1
-                ON c.created_by NOT LIKE 'SYSTEM:%'
-               AND p1.user_id = REPLACE(c.created_by, 'USER:', '')
-            LEFT JOIN user_employees p2
-                ON c.updated_by NOT LIKE 'SYSTEM:%'
-               AND p2.user_id = REPLACE(c.updated_by, 'USER:', '')
-            LEFT JOIN user_employees p3
-                ON c.deleted_by NOT LIKE 'SYSTEM:%'
-               AND p3.user_id = REPLACE(c.deleted_by, 'USER:', '')
             WHERE c.id = :id
             LIMIT 1
         ");
         $stmt->execute([':id' => $id]);
 
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return null;
+        }
+
+        return ActorHelper::enrichActorNamesRow($row, [
+            'created_by_name' => 'created_by_name',
+            'updated_by_name' => 'updated_by_name',
+            'deleted_by_name' => 'deleted_by_name',
+        ]);
     }
 
     public function getGroups(): array
@@ -415,37 +390,22 @@ class CodeModel
         $stmt = $this->db->prepare("
             SELECT
                 c.*,
-                CASE
-                    WHEN c.created_by LIKE 'SYSTEM:%' THEN c.created_by
-                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
-                    ELSE c.created_by
-                END AS created_by_name,
-                CASE
-                    WHEN c.updated_by LIKE 'SYSTEM:%' THEN c.updated_by
-                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
-                    ELSE c.updated_by
-                END AS updated_by_name,
-                CASE
-                    WHEN c.deleted_by LIKE 'SYSTEM:%' THEN c.deleted_by
-                    WHEN p3.employee_name IS NOT NULL THEN CONCAT('USER:', p3.employee_name)
-                    ELSE c.deleted_by
-                END AS deleted_by_name
+                c.created_by AS created_by_name,
+                c.updated_by AS updated_by_name,
+                c.deleted_by AS deleted_by_name
             FROM system_codes c
-            LEFT JOIN user_employees p1
-                ON c.created_by NOT LIKE 'SYSTEM:%'
-               AND p1.user_id = REPLACE(c.created_by, 'USER:', '')
-            LEFT JOIN user_employees p2
-                ON c.updated_by NOT LIKE 'SYSTEM:%'
-               AND p2.user_id = REPLACE(c.updated_by, 'USER:', '')
-            LEFT JOIN user_employees p3
-                ON c.deleted_by NOT LIKE 'SYSTEM:%'
-               AND p3.user_id = REPLACE(c.deleted_by, 'USER:', '')
             WHERE c.deleted_at IS NOT NULL
             ORDER BY c.deleted_at DESC
         ");
         $stmt->execute();
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return ActorHelper::enrichActorNames($rows, [
+            'created_by_name' => 'created_by_name',
+            'updated_by_name' => 'updated_by_name',
+            'deleted_by_name' => 'deleted_by_name',
+        ]);
     }
 
     public function restoreById(string $id, string $actor): bool
@@ -521,10 +481,12 @@ class CodeModel
 
         $quotedTable = $this->quoteIdentifier($table);
         $quotedColumn = $this->quoteIdentifier($column);
+        $deletedFilter = $this->columnExists($table, 'deleted_at') ? ' AND deleted_at IS NULL' : '';
         $stmt = $this->db->prepare("
             SELECT COUNT(*)
             FROM {$quotedTable}
             WHERE {$quotedColumn} = :value
+            {$deletedFilter}
         ");
         $stmt->execute([':value' => $value]);
 
@@ -544,6 +506,7 @@ class CodeModel
         $quotedTable = $this->quoteIdentifier($table);
         $quotedColumn = $this->quoteIdentifier($column);
         $jsonPath = '$."' . str_replace('"', '\"', $jsonKey) . '"';
+        $deletedFilter = $this->columnExists($table, 'deleted_at') ? ' AND deleted_at IS NULL' : '';
 
         try {
             $stmt = $this->db->prepare("
@@ -551,6 +514,7 @@ class CodeModel
                 FROM {$quotedTable}
                 WHERE JSON_VALID({$quotedColumn})
                   AND JSON_UNQUOTE(JSON_EXTRACT({$quotedColumn}, :json_path)) = :value
+                  {$deletedFilter}
             ");
             $stmt->execute([
                 ':json_path' => $jsonPath,

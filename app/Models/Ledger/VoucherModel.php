@@ -2,6 +2,7 @@
 
 namespace App\Models\Ledger;
 
+use Core\Helpers\ActorHelper;
 use Core\Database;
 use PDO;
 
@@ -553,30 +554,24 @@ class VoucherModel
     {
         $stmt = $this->db->prepare("
             SELECT
-                v.*,
-                TRIM(BOTH ' / ' FROM CONCAT_WS(' / ', cd.dept_name, cp.position_name, ce.employee_name)) AS created_actor_label,
-                TRIM(BOTH ' / ' FROM CONCAT_WS(' / ', ud.dept_name, up.position_name, ue.employee_name)) AS updated_actor_label
+                v.*
             FROM {$this->table} v
-            LEFT JOIN user_employees ce
-                ON v.created_by NOT LIKE 'SYSTEM:%'
-               AND ce.user_id = REPLACE(v.created_by, 'USER:', '')
-            LEFT JOIN user_departments cd
-                ON ce.department_id = cd.id
-            LEFT JOIN user_positions cp
-                ON ce.position_id = cp.id
-            LEFT JOIN user_employees ue
-                ON v.updated_by NOT LIKE 'SYSTEM:%'
-               AND ue.user_id = REPLACE(v.updated_by, 'USER:', '')
-            LEFT JOIN user_departments ud
-                ON ue.department_id = ud.id
-            LEFT JOIN user_positions up
-                ON ue.position_id = up.id
             WHERE v.id = :id
             LIMIT 1
         ");
         $stmt->execute([':id' => $id]);
 
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return null;
+        }
+
+        $row = ActorHelper::enrichActorNamesRow($row, [
+            'created_by_name' => 'created_by',
+            'updated_by_name' => 'updated_by',
+        ]);
+
+        return $row;
     }
 
     public function searchSummaryTexts(string $keyword, int $limit = 10): array

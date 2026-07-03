@@ -23,7 +23,13 @@ function ensureToolbar(host, adapter, config = {}) {
         if (!target?.closest(config.addButtonSelector)) return;
         const rowIndex = adapter.countRows();
         adapter.addRow(config.addRow());
-        if (config.focusColumnAfterAdd) adapter.focusCell(rowIndex, config.focusColumnAfterAdd);
+        if (config.focusColumnAfterAdd) {
+            if (config.startEditingAfterAdd === true) {
+                adapter.startEditing(rowIndex, config.focusColumnAfterAdd);
+            } else {
+                adapter.focusCell(rowIndex, config.focusColumnAfterAdd);
+            }
+        }
         config.onChanged?.(adapter.getData(), null, adapter);
     };
     container.addEventListener('click', container.__erpGridInputToolbarHandler);
@@ -37,6 +43,9 @@ export function createAgGridInputAdapter(host, config = {}) {
             if (!config.deleteColumnField || event.colDef?.field !== config.deleteColumnField) return;
             const target = event.event?.target instanceof Element ? event.event.target : null;
             if (target && !target.closest(config.deleteButtonSelector || 'button')) return;
+            if (config.onDeleteRow?.(event, currentAdapter) === true) {
+                return;
+            }
             currentAdapter.removeRows([event.rowIndex]);
             config.onChanged?.(currentAdapter.getData(), event, currentAdapter);
         },
@@ -49,7 +58,13 @@ export function createAgGridInputAdapter(host, config = {}) {
             if (!config.addHeaderColumnField || event.column?.getColId?.() !== config.addHeaderColumnField || !config.addRow) return;
             const rowIndex = currentAdapter.countRows();
             currentAdapter.addRow(config.addRow());
-            if (config.focusColumnAfterAdd) currentAdapter.focusCell(rowIndex, config.focusColumnAfterAdd);
+            if (config.focusColumnAfterAdd) {
+                if (config.startEditingAfterAdd === true) {
+                    currentAdapter.startEditing(rowIndex, config.focusColumnAfterAdd);
+                } else {
+                    currentAdapter.focusCell(rowIndex, config.focusColumnAfterAdd);
+                }
+            }
             config.onChanged?.(currentAdapter.getData(), event, currentAdapter);
         },
         onRowDragEnd(event, currentAdapter) {

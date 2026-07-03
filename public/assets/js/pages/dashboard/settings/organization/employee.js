@@ -8,6 +8,7 @@ import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import { openClientQuickCreate } from '/public/assets/js/pages/dashboard/settings/base/client.js';
 import { initCodeSelectControls } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+import { actorDisplay } from '/public/assets/js/common/actor.js';
 import {
     readDataTableSettingsState,
     resolveDataTableColumnDisplayName,
@@ -59,7 +60,7 @@ window.AdminPicker = AdminPicker;
 
         approved:                 { label: '\uC2B9\uC778\uC5EC\uBD80', visible: false },
         approved_at:              { label: '\uC2B9\uC778\uC77C\uC2DC', visible: false },
-        approved_by:              { label: '\uC2B9\uC778\uC790', visible: false },
+        approved_by:              { label: '\uC2B9\uC778\uC790', visible: false, type: 'actor' },
 
         email:                    { label: '\uC774\uBA54\uC77C', visible: true },
         phone:                    { label: '\uC5F0\uB77D\uCC98', visible: true },
@@ -87,7 +88,7 @@ window.AdminPicker = AdminPicker;
         last_login_device:        { label: '\uB85C\uADF8\uC778\uB514\uBC14\uC774\uC2A4', visible: false },
 
         password_updated_at:      { label: '\uBE44\uBC00\uBC88\uD638\uBCC0\uACBD\uC77C', visible: false },
-        password_updated_by:      { label: '\uBE44\uBC00\uBC88\uD638\uBCC0\uACBD\uC790', visible: false },
+        password_updated_by:      { label: '\uBE44\uBC00\uBC88\uD638\uBCC0\uACBD\uC790', visible: false, type: 'actor' },
 
         certificate_name:         { label: '\uC790\uACA9\uC99D\uBA85', visible: false },
         certificate_file:         { label: '\uC790\uACA9\uC99D\uD30C\uC77C', visible: false },
@@ -100,12 +101,12 @@ window.AdminPicker = AdminPicker;
         memo:                     { label: '\uBA54\uBAA8', visible: false },
 
         user_created_at:          { label: '\uC0DD\uC131\uC77C\uC2DC', visible: false },
-        user_created_by:          { label: '\uC0DD\uC131\uC790', visible: false },
+        user_created_by:          { label: '\uC0DD\uC131\uC790', visible: false, type: 'actor' },
         user_updated_at:          { label: '\uC218\uC815\uC77C\uC2DC', visible: false },
-        user_updated_by:          { label: '\uC218\uC815\uC790', visible: false },
+        user_updated_by:          { label: '\uC218\uC815\uC790', visible: false, type: 'actor' },
 
         deleted_at:               { label: '\uBE44\uD65C\uC131\uD654\uC77C\uC2DC', visible: false },
-        deleted_by:               { label: '\uBE44\uD65C\uC131\uD654\uCC98\uB9AC\uC790', visible: false },
+        deleted_by:               { label: '\uBE44\uD65C\uC131\uD654\uCC98\uB9AC\uC790', visible: false, type: 'actor' },
 
         is_active:                { label: '\uC0C1\uD0DC', visible: true, noVis: true }
     };
@@ -698,6 +699,11 @@ window.AdminPicker = AdminPicker;
                 orderable: field !== 'profile_image',
                 searchable: field !== 'profile_image',
                 render: function (data, type, row) {
+                    if (config.type === 'actor') {
+                        const displayValue = actorDisplay(row, field);
+                        return type === 'display' ? escapeHtml(displayValue) : displayValue;
+                    }
+
                     if (data == null) {
                         if (field === 'client_id') {
                             return type === 'display'
@@ -771,26 +777,6 @@ window.AdminPicker = AdminPicker;
 
                     if (field === 'rrn') {
                         return maskRrn(data);
-                    }
-
-                    if (field === 'approved_by') {
-                        return row?.approved_by_name || data;
-                    }
-
-                    if (field === 'password_updated_by') {
-                        return row?.password_updated_by_name || data;
-                    }
-
-                    if (field === 'user_created_by') {
-                        return row?.user_created_by_name || data;
-                    }
-
-                    if (field === 'user_updated_by') {
-                        return row?.user_updated_by_name || data;
-                    }
-
-                    if (field === 'deleted_by') {
-                        return row?.deleted_by_name || data;
                     }
 
                     return data;
@@ -1239,21 +1225,21 @@ window.AdminPicker = AdminPicker;
         $('#bank_box').attr('data-label', row.bank_file ? '\uC6D0\uBCF8 \uBCF4\uAE30' : '\uC5C5\uB85C\uB4DC');
 
         $('#edit_created_at').text(row.user_created_at || '-');
-        $('#edit_created_by').text(row.user_created_by_name || row.user_created_by || '');
+        $('#edit_created_by').text(actorDisplay(row, 'user_created_by'));
         $('#edit_updated_at').text(row.user_updated_at || '-');
-        $('#edit_updated_by').text(row.user_updated_by_name || row.user_updated_by || '');
+        $('#edit_updated_by').text(actorDisplay(row, 'user_updated_by'));
         $('#edit_deleted_at').text(row.deleted_at || '-');
-        $('#edit_deleted_by').text(row.deleted_by_name || row.deleted_by || '');
+        $('#edit_deleted_by').text(actorDisplay(row, 'deleted_by'));
         $('#edit_approved').text(String(row.approved) === '1' ? '\uC2B9\uC778' : '\uBBF8\uC2B9\uC778');
         $('#edit_approved_at').text(row.approved_at || '-');
-        $('#edit_approved_by').text(row.approved_by_name || row.approved_by || '');
+        $('#edit_approved_by').text(actorDisplay(row, 'approved_by'));
         $('#edit_last_login').text(row.last_login || '-');
         $('#edit_login_fail_count').text(row.login_fail_count || '0');
         $('#edit_account_locked_until').text(row.account_locked_until || '-');
         $('#edit_last_login_ip').html('<div style="font-weight:600;">' + escapeHtml(row.last_login_ip || '-') + '</div>');
         $('#edit_last_login_device').text(row.last_login_device || '-');
         $('#edit_password_updated_at').text(row.password_updated_at || '-');
-        $('#edit_password_updated_by').text(row.password_updated_by_name || row.password_updated_by || '');
+        $('#edit_password_updated_by').text(actorDisplay(row, 'password_updated_by'));
 
         $('#edit_is_active').html(
             String(row.is_active) === '1'

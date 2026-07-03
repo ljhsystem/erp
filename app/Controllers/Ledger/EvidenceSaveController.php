@@ -46,8 +46,6 @@ class EvidenceSaveController
         'CARD_STATEMENT',
         'CARD_APPROVAL',
         'BANK_TRANSACTION',
-        'CASH_RECEIPT_PURCHASE',
-        'CASH_RECEIPT_SALES',
     ];
 
     private const BUSINESS_DATA_TYPES = [
@@ -79,10 +77,12 @@ class EvidenceSaveController
         'CARD' => 'CARD_STATEMENT',
         'CARD_PURCHASE' => 'CARD_STATEMENT',
         'CARD_SALE' => 'CARD_STATEMENT',
-        'CASH_RECEIPT_PURCHAS' => 'CASH_RECEIPT_PURCHASE',
-        'CASH_RECEIPT_BUY' => 'CASH_RECEIPT_PURCHASE',
-        'CASH_RECEIPT_SALE' => 'CASH_RECEIPT_SALES',
-        'CASH_RECEIPT_SELL' => 'CASH_RECEIPT_SALES',
+        'CASH_RECEIPT_PURCHASE' => 'CASH_RECEIPT',
+        'CASH_RECEIPT_PURCHAS' => 'CASH_RECEIPT',
+        'CASH_RECEIPT_BUY' => 'CASH_RECEIPT',
+        'CASH_RECEIPT_SALES' => 'CASH_RECEIPT',
+        'CASH_RECEIPT_SALE' => 'CASH_RECEIPT',
+        'CASH_RECEIPT_SELL' => 'CASH_RECEIPT',
         'BANK' => 'BANK_TRANSACTION',
         'SHOPPING' => 'SHOPPING_ORDER',
         'TRADE_IMPORT' => 'IMPORT_INVOICE',
@@ -164,6 +164,7 @@ class EvidenceSaveController
                 'businessProjectRuleMessages' => fn(array $payload): array => $this->evidenceUploadValidationService()->businessProjectRuleMessages($payload),
                 'formatWithColumns' => fn(string $id): ?array => null,
                 'requiredFormatMissingMessages' => fn(array $payload, array $columns): array => $this->evidencePayloadNormalizeService()->requiredFormatMissingMessages($payload, $columns),
+                'evidenceStatusFromRequiredMissingMessages' => fn(array $missingMessages): string => $this->evidenceStatusHelperService()->evidenceStatusFromRequiredMissingMessages($missingMessages),
                 'shouldSyncTaxInvoiceEvidenceClients' => fn(string $dataType): bool => $this->shouldSyncTaxInvoiceEvidenceClients($dataType),
                 'syncTaxInvoiceEvidenceClientsFromSource' => fn(array $payload, string $evidenceId, string $dataType): array => $this->evidenceClientSyncService()->syncTaxInvoiceEvidenceClientsFromSource($payload, $evidenceId, $dataType),
                 'businessRefNameById' => fn(string $refType, string $id): ?string => $this->evidenceReferenceResolverService()->businessRefNameById($refType, $id),
@@ -309,6 +310,10 @@ class EvidenceSaveController
                 'businessRefNameForStorage' => fn(string $refType, array $payload): ?string => $this->evidenceBusinessRefService()->businessRefNameForStorage($refType, $payload),
                 'number' => fn(mixed $value): float => $this->number($value),
                 'evidenceTotalAmountForStorage' => fn(array $payload, string $dataType): float => $this->evidencePayloadHelperService()->evidenceTotalAmountForStorage($payload, $dataType),
+                'evidenceStatusFromRequiredMissingMessages' => fn(array $missingMessages): string => $this->evidenceStatusHelperService()->evidenceStatusFromRequiredMissingMessages($missingMessages),
+                'applyReadinessToEvidenceRow' => function (array &$row): void {
+                    $this->evidenceStatusHelperService()->applyReadinessToEvidenceRow($row);
+                },
             ]);
         }
 
@@ -539,6 +544,7 @@ class EvidenceSaveController
             $this->evidenceStatusHelperService = new EvidenceStatusHelperService($this->pdo, [
                 'amountOrNull' => fn(mixed $value): ?float => $this->amountOrNull($value),
                 'bankVoucherValidationMessage' => fn(array $payload): ?string => $this->evidenceBankHelperService()->bankVoucherValidationMessage($payload),
+                'businessReadinessForEvidenceRow' => fn(array $row, array $payload): array => $this->evidenceRuleEngineService()->businessReadinessForEvidenceRow($row, $payload),
                 'dateValue' => fn(mixed $value): string => $this->dateValue($value),
                 'hasVoucherLinesPayload' => fn(array $payload): bool => $this->evidenceBankHelperService()->hasVoucherLinesPayload($payload),
                 'normalizeDataType' => fn(string $type): string => self::normalizeDataType($type),

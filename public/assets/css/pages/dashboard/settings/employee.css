@@ -1,4 +1,4 @@
-/* ?뱞 /public/assets/css/pages/dashboard/settings/employee.css */
+/* ??: /public/assets/css/pages/dashboard/settings/employee.css */
 
 /* ==============================
    PAGE
@@ -120,7 +120,7 @@
     background:#fff;
 }
 
-/* ?체 ?이?웃 */
+
 .employee-trash-layout{
     display:flex;
     align-items:stretch;
@@ -130,7 +130,7 @@
     overflow:hidden;
 }
 
-/* ?쇱そ 紐⑸줉 */
+
 .employee-trash-left{
     flex:1 1 auto;
     min-width:0;
@@ -141,7 +141,7 @@
     flex-direction:column;
 }
 
-/* ?ㅻⅨ履??곸꽭 */
+
 .employee-trash-right{
     flex:0 0 0;
     width:0;
@@ -159,7 +159,7 @@
     border-left:1px solid #e5e7eb;
 }
 
-/* ?대컮 */
+/* ?? */
 .trash-toolbar{
     display:flex;
     align-items:center;
@@ -177,7 +177,7 @@
     margin-left:auto;
 }
 
-/* ?뚯씠釉??곸뿭 */
+
 .employee-trash-left .table-responsive{
     flex:1 1 auto;
     min-height:0;
@@ -241,7 +241,7 @@
     padding-top:6px;
 }
 
-/* ?뚯씠釉?*/
+
 #employee-trash-table{
     width:100% !important;
     table-layout:auto;
@@ -268,7 +268,7 @@
     background:#eef6ff !important;
 }
 
-/* ?곸꽭 ?⑤꼸 */
+
 #employee-trash-detail{
     display:none;
     height:100%;
@@ -416,36 +416,36 @@
     grid-template-columns: repeat(2, 1fr);
     gap: 14px;
   }
-  
+
   .log-card {
     border: 1px solid #e5e7eb;
     border-radius: 8px;
     padding: 12px;
     background: #fff;
   }
-  
+
   .log-card.danger {
     border-color: #f5c2c2;
     background: #fff5f5;
   }
-  
+
   .log-title {
     font-weight: 700;
     margin-bottom: 8px;
     font-size: 14px;
   }
-  
+
   .log-row {
     display: flex;
     justify-content: space-between;
     padding: 6px 0;
     font-size: 13px;
   }
-  
+
   .log-row.full {
     flex-direction: column;
   }
-  
+
   .device-box {
     font-size: 12px;
     background: #f1f3f5;
@@ -455,7 +455,7 @@
   }
 
 /* =========================
-   議곗쭅/??븷 select ?쒕떇
+   Select ?? ??
 ========================= */
 
 #edit_tab_group .form-select{
@@ -464,12 +464,9 @@
     padding:4px 10px;
 }
 
-/* =========================
-   ?뚯씪 諛뺤뒪 ?듭씪
-========================= */
 
 .employee-file-preview-box{
-    height:180px;              /* ?뵦 ?듭떖 */
+    height:180px;
     width:100%;
     border:1px solid #e5e7eb;
     border-radius:8px;
@@ -481,15 +478,12 @@
     position:relative;
 }
 
-/* ?대?吏 ?듭씪 */
 .employee-file-preview-img{
     width:100%;
     height:100%;
-    object-fit:cover;          /* ?뵦 ?듭떖 */
+    object-fit:cover;
 }
 
-
-/* ?대┃ 媛???대?吏 */
 #edit_profile_preview,
 #edit_id_preview,
 #edit_cert_preview_img,
@@ -511,7 +505,7 @@
 }
 
 /* =========================
-   ?뚯씪 hover ?곹깭 ?쒖떆
+   ?? hover ?? ??
 ========================= */
 
 .employee-file-preview-box{
@@ -555,7 +549,7 @@
    ?먭꺽利?input-group ?전 ?렬 FIX
 ========================= */
 
-.employee-cert-name-group{    
+.employee-cert-name-group{
     margin-top:10px;
     margin-bottom:6px;
 }

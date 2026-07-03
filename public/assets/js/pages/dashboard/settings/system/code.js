@@ -10,6 +10,7 @@ import {
     resolveDataTableColumnDisplayName,
     resolveDataTableColumnRequirementPolicy,
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
+import { actorDisplay } from '/public/assets/js/common/actor.js';
 
 window.AdminPicker = AdminPicker;
 
@@ -422,42 +423,34 @@ window.AdminPicker = AdminPicker;
 
         Object.entries(CODE_COLUMN_MAP).forEach(([field, config]) => {
             if (field === 'is_active') return;
-            const dataField = ({
-                created_by_name: 'created_by',
-                updated_by_name: 'updated_by',
-                deleted_by_name: 'deleted_by',
-            })[field] || field;
             const className = [
                 config.className || '',
                 field === 'sort_no' ? 'dt-sequence-column' : '',
             ].filter(Boolean).join(' ');
 
             columns.push({
-                data: dataField,
+                data: field,
                 title: config.label,
                 visible: config.visible ?? true,
                 className,
                 headerClassName: className,
                 defaultContent: '',
-                settingsKey: dataField,
+                settingsKey: field,
                 render(data, _type, row) {
-                    if (data === null || data === undefined) {
-                        if (field === 'created_by_name' || field === 'updated_by_name' || field === 'deleted_by_name') {
-                            return '';
-                        }
-                        return '';
-                    }
-
                     if (field === 'created_by_name') {
-                        return escapeHtml(row?.created_by_name ?? data);
+                        return escapeHtml(actorDisplay(row, 'created_by'));
                     }
 
                     if (field === 'updated_by_name') {
-                        return escapeHtml(row?.updated_by_name ?? data);
+                        return escapeHtml(actorDisplay(row, 'updated_by'));
                     }
 
                     if (field === 'deleted_by_name') {
-                        return escapeHtml(row?.deleted_by_name ?? data);
+                        return escapeHtml(actorDisplay(row, 'deleted_by'));
+                    }
+
+                    if (data === null || data === undefined) {
+                        return '';
                     }
 
                     if (field === 'is_active') {
@@ -1324,7 +1317,7 @@ window.AdminPicker = AdminPicker;
                 <td>${escapeHtml(row.code_name ?? '')}</td>
                 <td>${Number(row.is_active) === 1 ? '사용' : '미사용'}</td>
                 <td>${row.deleted_at ?? ''}</td>
-                <td>${escapeHtml(row.deleted_by_name ?? row.deleted_by ?? '')}</td>
+                <td>${escapeHtml(actorDisplay(row, 'deleted_by'))}</td>
                 <td>
                     <button class="btn btn-success btn-sm btn-restore" data-id="${row.id}">복원</button>
                     <button class="btn btn-danger btn-sm btn-purge" data-id="${row.id}">영구삭제</button>

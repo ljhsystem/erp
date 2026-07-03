@@ -5,8 +5,8 @@ namespace App\Controllers\Ledger;
 use App\Controllers\System\LayoutController;
 use App\Services\Ledger\JournalRuleExcelService;
 use App\Services\Ledger\JournalRuleService;
-use Core\Helpers\ExcelTemplateFilenameHelper;
 use Core\DbPdo;
+use Core\Helpers\ExcelTemplateFilenameHelper;
 use PDO;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -94,7 +94,14 @@ class JournalRuleController
 
     public function apiDelete(): void
     {
-        $id = trim((string) ($_POST['id'] ?? ''));
+        $payload = $this->requestPayload();
+        $ids = $this->requestIds($payload);
+        if (count($ids) > 1) {
+            $this->json($this->service->softDeleteBulk($ids));
+            return;
+        }
+
+        $id = trim((string) ($payload['id'] ?? $ids[0] ?? ''));
         $this->json(
             $id !== ''
                 ? $this->service->softDelete($id)
@@ -110,13 +117,26 @@ class JournalRuleController
 
     public function apiRestore(): void
     {
-        $id = trim((string) ($_POST['id'] ?? ''));
-        $this->json($id !== '' ? $this->service->restore($id) : ['success' => false, 'message' => '분개규칙 ID가 없습니다.']);
+        $payload = $this->requestPayload();
+        $id = trim((string) ($payload['id'] ?? ''));
+
+        $this->json(
+            $id !== ''
+                ? $this->service->restore($id)
+                : ['success' => false, 'message' => '분개규칙 ID가 없습니다.'],
+            $id !== '' ? 200 : 400
+        );
     }
 
     public function apiRestoreBulk(): void
     {
-        $this->json($this->service->restoreBulk($this->jsonIds()));
+        $ids = $this->requestIds($this->requestPayload());
+        $this->json(
+            $ids !== []
+                ? $this->service->restoreBulk($ids)
+                : ['success' => false, 'message' => '복원할 분개규칙 ID가 없습니다.'],
+            $ids !== [] ? 200 : 400
+        );
     }
 
     public function apiRestoreAll(): void
@@ -126,13 +146,26 @@ class JournalRuleController
 
     public function apiPurge(): void
     {
-        $id = trim((string) ($_POST['id'] ?? ''));
-        $this->json($id !== '' ? $this->service->hardDelete($id) : ['success' => false, 'message' => '분개규칙 ID가 없습니다.']);
+        $payload = $this->requestPayload();
+        $id = trim((string) ($payload['id'] ?? ''));
+
+        $this->json(
+            $id !== ''
+                ? $this->service->hardDelete($id)
+                : ['success' => false, 'message' => '분개규칙 ID가 없습니다.'],
+            $id !== '' ? 200 : 400
+        );
     }
 
     public function apiPurgeBulk(): void
     {
-        $this->json($this->service->hardDeleteBulk($this->jsonIds()));
+        $ids = $this->requestIds($this->requestPayload());
+        $this->json(
+            $ids !== []
+                ? $this->service->hardDeleteBulk($ids)
+                : ['success' => false, 'message' => '영구삭제할 분개규칙 ID가 없습니다.'],
+            $ids !== [] ? 200 : 400
+        );
     }
 
     public function apiPurgeAll(): void
@@ -176,10 +209,20 @@ class JournalRuleController
         return is_array($filters) ? $filters : [];
     }
 
-    private function jsonIds(): array
+    private function requestPayload(): array
     {
         $payload = json_decode(file_get_contents('php://input') ?: '{}', true);
-        return array_values(array_filter(array_map('strval', is_array($payload['ids'] ?? null) ? $payload['ids'] : [])));
+        $payload = is_array($payload) ? $payload : [];
+
+        return array_merge($payload, $_POST);
+    }
+
+    private function requestIds(array $payload): array
+    {
+        return array_values(array_filter(array_map(
+            'strval',
+            is_array($payload['ids'] ?? null) ? $payload['ids'] : []
+        )));
     }
 
     private function downloadSpreadsheet(Spreadsheet $spreadsheet, string $filename): void

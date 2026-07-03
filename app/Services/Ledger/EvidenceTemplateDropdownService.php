@@ -30,7 +30,7 @@ class EvidenceTemplateDropdownService
             'IMPORT_TYPE' => null,
             'BUSINESS_UNIT' => null,
             'TRANSACTION_DIRECTION' => null,
-            'TRANSACTION_TYPE' => null,
+            'OPERATION_TYPE' => null,
         ];
         $codeFields = [
             'source_type' => 'SOURCE_TYPE',
@@ -39,7 +39,7 @@ class EvidenceTemplateDropdownService
             'business_unit' => 'BUSINESS_UNIT',
             'transaction_direction' => 'TRANSACTION_DIRECTION',
             'bank_direction' => 'TRANSACTION_DIRECTION',
-            'transaction_type' => 'TRANSACTION_TYPE',
+            'operation_type' => 'OPERATION_TYPE',
         ];
         $businessRefColumns = [
             'CLIENT' => null,
@@ -150,7 +150,7 @@ class EvidenceTemplateDropdownService
             'IMPORT_TYPE' => $this->codeDropdownOptions('IMPORT_TYPE'),
             'BUSINESS_UNIT' => $this->codeDropdownOptions('BUSINESS_UNIT', ['HQ', 'CONSTRUCTION', 'ECOMMERCE']),
             'TRANSACTION_DIRECTION' => $this->codeDropdownOptions('TRANSACTION_DIRECTION'),
-            'TRANSACTION_TYPE' => $this->codeDropdownOptions('TRANSACTION_TYPE', ['GENERAL', 'PURCHASE', 'SALES']),
+            'OPERATION_TYPE' => $this->codeDropdownOptions('OPERATION_TYPE', ['GENERAL', 'PAYROLL', 'DAILY_WORKER', 'BUSINESS_INCOME', 'FIXED_ASSET', 'LOAN']),
         ];
         $businessRefOptions = [
             'CLIENT' => $this->businessRefDropdownOptions('CLIENT'),
@@ -186,7 +186,7 @@ class EvidenceTemplateDropdownService
             'IMPORT_TYPE' => 'J',
             'BUSINESS_UNIT' => 'K',
             'TRANSACTION_DIRECTION' => 'L',
-            'TRANSACTION_TYPE' => 'M',
+            'OPERATION_TYPE' => 'M',
         ];
         foreach ($businessRefListColumns as $refType => $column) {
             foreach ($businessRefOptions[$refType] as $rowIndex => $option) {
@@ -261,7 +261,9 @@ class EvidenceTemplateDropdownService
             'Business Unit' => 'BUSINESS_UNIT',
             'Transaction Direction' => 'TRANSACTION_DIRECTION',
             'Bank Direction' => 'TRANSACTION_DIRECTION',
-            'Transaction Type' => 'TRANSACTION_TYPE',
+            'Transaction Type' => 'OPERATION_TYPE',
+            'Operation Type' => 'OPERATION_TYPE',
+            '업무유형' => 'OPERATION_TYPE',
             'Client Name' => 'CLIENT',
             'Client' => 'CLIENT',
             'Project Name' => 'PROJECT',
@@ -280,7 +282,7 @@ class EvidenceTemplateDropdownService
             'IMPORT_TYPE' => 'B',
             'BUSINESS_UNIT' => 'C',
             'TRANSACTION_DIRECTION' => 'D',
-            'TRANSACTION_TYPE' => 'E',
+            'OPERATION_TYPE' => 'E',
             'CLIENT' => 'F',
             'PROJECT' => 'G',
             'EMPLOYEE' => 'H',
@@ -293,7 +295,7 @@ class EvidenceTemplateDropdownService
             'IMPORT_TYPE' => $this->codeDropdownOptions('IMPORT_TYPE'),
             'BUSINESS_UNIT' => $this->codeDropdownOptions('BUSINESS_UNIT', ['HQ', 'CONSTRUCTION', 'ECOMMERCE']),
             'TRANSACTION_DIRECTION' => $this->codeDropdownOptions('TRANSACTION_DIRECTION'),
-            'TRANSACTION_TYPE' => $this->codeDropdownOptions('TRANSACTION_TYPE', ['GENERAL', 'PURCHASE', 'SALES']),
+            'OPERATION_TYPE' => $this->codeDropdownOptions('OPERATION_TYPE', ['GENERAL', 'PAYROLL', 'DAILY_WORKER', 'BUSINESS_INCOME', 'FIXED_ASSET', 'LOAN']),
             'CLIENT' => $this->businessRefDropdownOptions('CLIENT'),
             'PROJECT' => $this->businessRefDropdownOptions('PROJECT'),
             'EMPLOYEE' => $this->businessRefDropdownOptions('EMPLOYEE'),
@@ -556,7 +558,7 @@ class EvidenceTemplateDropdownService
             'import_type', 'data_type', 'evidence_type' => 'IMPORT_TYPE',
             'business_unit' => 'BUSINESS_UNIT',
             'transaction_direction', 'bank_direction' => 'TRANSACTION_DIRECTION',
-            'transaction_type' => 'TRANSACTION_TYPE',
+            'operation_type' => 'OPERATION_TYPE',
             'currency', 'currency_code' => 'CURRENCY',
             default => '',
         };
@@ -833,11 +835,11 @@ class EvidenceTemplateDropdownService
 
         if ($lineColumns === []) {
             $lineColumns = [
-                ['excel_column_name' => '???????????????袁⑸즴筌?씛彛???돗??????????????癲ル슢二??곸젞???????????????????????????????????', 'system_field_name' => 'header_row_no', 'is_required' => 1],
-                ['excel_column_name' => '????????????', 'system_field_name' => 'account_id', 'is_required' => 1],
-                ['excel_column_name' => '?????????????????????????곕춴????????????????????釉먮폁??????????', 'system_field_name' => 'debit', 'is_required' => 0],
-                ['excel_column_name' => '???????????????????곕춴?????', 'system_field_name' => 'credit', 'is_required' => 0],
-                ['excel_column_name' => '???????????????????????????', 'system_field_name' => 'line_summary', 'is_required' => 0],
+                ['excel_column_name' => '전표헤더 행번호(헤더 시트 연결값)', 'system_field_name' => 'header_row_no', 'is_required' => 1],
+                ['excel_column_name' => '계정과목', 'system_field_name' => 'account_id', 'is_required' => 1],
+                ['excel_column_name' => '차변금액', 'system_field_name' => 'debit', 'is_required' => 0],
+                ['excel_column_name' => '대변금액', 'system_field_name' => 'credit', 'is_required' => 0],
+                ['excel_column_name' => '라인적요', 'system_field_name' => 'line_summary', 'is_required' => 0],
             ];
         } elseif ($ensureLineRowType && !$this->columnsContainSystemField($lineColumns, 'line_row_type')) {
             $insertAt = 1;
@@ -848,7 +850,7 @@ class EvidenceTemplateDropdownService
                 }
             }
             array_splice($lineColumns, $insertAt, 0, [[
-                'excel_column_name' => '?????',
+                'excel_column_name' => '행구분',
                 'system_field_name' => 'line_row_type',
                 'is_required' => 1,
             ]]);

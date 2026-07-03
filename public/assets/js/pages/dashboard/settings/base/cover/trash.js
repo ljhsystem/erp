@@ -1,3 +1,5 @@
+import { actorDisplay } from '/public/assets/js/common/actor.js';
+
 export function initTrashColumns(deps) {
     const { escapeHtml, escapeHtmlAttr } = deps;
 
@@ -14,7 +16,7 @@ export function initTrashColumns(deps) {
             <td>${escapeHtml(row.year ?? '')}</td>
             <td>${escapeHtml(row.title ?? '')}</td>
             <td>${escapeHtml(row.deleted_at ?? '')}</td>
-            <td>${escapeHtml(row.deleted_by_name ?? '')}</td>
+            <td>${escapeHtml(actorDisplay(row, 'deleted_by'))}</td>
             <td>
                 <button class="btn btn-success btn-sm btn-restore" data-id="${row.id}">복원</button>
                 <button class="btn btn-danger btn-sm btn-purge" data-id="${row.id}">삭제</button>
@@ -53,7 +55,7 @@ export function bindTrashEvents(deps) {
                     <div class="label">Alt</div><div class="value">${escapeHtml(data?.alt ?? '')}</div>
                     <div class="label">설명</div><div class="value">${escapeHtml(data?.description ?? '')}</div>
                     <div class="label">삭제일</div><div class="value">${escapeHtml(data?.deleted_at ?? '')}</div>
-                    <div class="label">삭제자</div><div class="value">${escapeHtml(data?.deleted_by_name || data?.deleted_by || '')}</div>
+                    <div class="label">삭제자</div><div class="value">${escapeHtml(actorDisplay(data, 'deleted_by'))}</div>
                 </div>
             </div>
         `;

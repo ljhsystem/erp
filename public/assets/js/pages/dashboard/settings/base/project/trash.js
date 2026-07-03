@@ -1,3 +1,5 @@
+import { actorDisplay } from '/public/assets/js/common/actor.js';
+
 export function bindTrashEvents({ getTable, columnMap, formatDateDisplay, formatAmount }) {
     document.addEventListener('trash:detail-render', (event) => {
         const { data, modal } = event.detail;
@@ -14,6 +16,7 @@ export function bindTrashEvents({ getTable, columnMap, formatDateDisplay, format
             }
             if (key === 'initial_contract_amount') value = formatAmount(value);
             if (key === 'is_active') value = Number(value) === 1 ? '진행중' : '완료';
+            if (config.type === 'actor') value = actorDisplay(data, key);
             html += `<div><b>${config.label}:</b> ${value}</div>`;
         });
         html += `</div>`;
@@ -26,7 +29,7 @@ export function bindTrashEvents({ getTable, columnMap, formatDateDisplay, format
             <td>${row.sort_no ?? ''}</td>
             <td>${row.project_name ?? ''}</td>
             <td>${row.deleted_at ?? ''}</td>
-            <td>${row.deleted_by_name ?? ''}</td>
+            <td>${actorDisplay(row, 'deleted_by')}</td>
             <td>
                 <button class="btn btn-success btn-sm btn-restore" data-id="${row.id}">복원</button>
                 <button class="btn btn-danger btn-sm btn-purge" data-id="${row.id}">삭제</button>

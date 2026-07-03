@@ -1,3 +1,5 @@
+import { actorDisplay } from '/public/assets/js/common/actor.js';
+
 export function createWorkTeamTrashModule({ api, escapeHtml, reloadTable }) {
     function openTrashModal() {
         const modalEl = document.getElementById('workTeamTrashModal');
@@ -22,7 +24,7 @@ export function createWorkTeamTrashModule({ api, escapeHtml, reloadTable }) {
                 <td>${escapeHtml(row.team_name ?? '')}</td>
                 <td>${escapeHtml(row.team_leader_client_name ?? '')}</td>
                 <td>${row.deleted_at ?? ''}</td>
-                <td>${escapeHtml(row.deleted_by_name ?? row.deleted_by ?? '')}</td>
+                <td>${escapeHtml(actorDisplay(row, 'deleted_by'))}</td>
                 <td>
                     <button class="btn btn-success btn-sm btn-restore" data-id="${row.id}">복원</button>
                     <button class="btn btn-danger btn-sm btn-purge" data-id="${row.id}">영구삭제</button>

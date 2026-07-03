@@ -1,6 +1,7 @@
 <?php
 namespace App\Models\System;
 
+use Core\Helpers\ActorHelper;
 use PDO;
 use Core\Database;
 
@@ -19,28 +20,10 @@ class BrandModel
         $sql = "
             SELECT
                 b.*,
-
-                CASE
-                    WHEN b.created_by LIKE 'SYSTEM:%' THEN b.created_by
-                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
-                    ELSE b.created_by
-                END AS created_by_name,
-
-                CASE
-                    WHEN b.updated_by LIKE 'SYSTEM:%' THEN b.updated_by
-                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
-                    ELSE b.updated_by
-                END AS updated_by_name
+                b.created_by AS created_by_name,
+                b.updated_by AS updated_by_name
 
             FROM system_brand_assets b
-
-            LEFT JOIN user_employees p1
-                ON b.created_by NOT LIKE 'SYSTEM:%'
-            AND p1.user_id = REPLACE(b.created_by, 'USER:', '')
-
-            LEFT JOIN user_employees p2
-                ON b.updated_by NOT LIKE 'SYSTEM:%'
-            AND p2.user_id = REPLACE(b.updated_by, 'USER:', '')
 
             WHERE 1=1
         ";
@@ -62,7 +45,12 @@ class BrandModel
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        return ActorHelper::enrichActorNames($rows, [
+            'created_by_name' => 'created_by_name',
+            'updated_by_name' => 'updated_by_name',
+        ]);
     }
 
     public function getById(string $id): ?array
@@ -70,28 +58,10 @@ class BrandModel
         $stmt = $this->db->prepare("
             SELECT
                 b.*,
-
-                CASE
-                    WHEN b.created_by LIKE 'SYSTEM:%' THEN b.created_by
-                    WHEN p1.employee_name IS NOT NULL THEN CONCAT('USER:', p1.employee_name)
-                    ELSE b.created_by
-                END AS created_by_name,
-
-                CASE
-                    WHEN b.updated_by LIKE 'SYSTEM:%' THEN b.updated_by
-                    WHEN p2.employee_name IS NOT NULL THEN CONCAT('USER:', p2.employee_name)
-                    ELSE b.updated_by
-                END AS updated_by_name
+                b.created_by AS created_by_name,
+                b.updated_by AS updated_by_name
 
             FROM system_brand_assets b
-
-            LEFT JOIN user_employees p1
-                ON b.created_by NOT LIKE 'SYSTEM:%'
-            AND p1.user_id = REPLACE(b.created_by, 'USER:', '')
-
-            LEFT JOIN user_employees p2
-                ON b.updated_by NOT LIKE 'SYSTEM:%'
-            AND p2.user_id = REPLACE(b.updated_by, 'USER:', '')
 
             WHERE b.id = :id
             LIMIT 1
@@ -101,7 +71,16 @@ class BrandModel
             ':id' => $id
         ]);
 
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            return null;
+        }
+
+        return ActorHelper::enrichActorNamesRow($row, [
+            'created_by_name' => 'created_by_name',
+            'updated_by_name' => 'updated_by_name',
+        ]);
     }
 
     public function getActiveByType(string $assetType): ?array

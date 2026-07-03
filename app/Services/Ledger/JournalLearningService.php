@@ -46,14 +46,14 @@ class JournalLearningService
         $stmt = $this->pdo->prepare("
             INSERT INTO ledger_journal_learning_events (
                 id, transaction_id, voucher_id, voucher_line_id, client_id, project_id,
-                business_unit, transaction_type, transaction_direction, import_type, client_type,
+                business_unit, transaction_direction, import_type, client_type,
                 line_no, line_type, recommended_line_type, final_line_type,
                 recommended_account_id, final_account_id, recommended_amount, final_amount,
                 recommend_source, recommend_confidence, journal_rule_id, recommend_reason,
                 is_user_modified, failure_type, source_payload, created_at, created_by
             ) VALUES (
                 :id, :transaction_id, :voucher_id, :voucher_line_id, :client_id, :project_id,
-                :business_unit, :transaction_type, :transaction_direction, :import_type, :client_type,
+                :business_unit, :transaction_direction, :import_type, :client_type,
                 :line_no, :line_type, :recommended_line_type, :final_line_type,
                 :recommended_account_id, :final_account_id, :recommended_amount, :final_amount,
                 :recommend_source, :recommend_confidence, :journal_rule_id, :recommend_reason,
@@ -81,7 +81,6 @@ class JournalLearningService
                 ':client_id' => $context['client_id'],
                 ':project_id' => $line['project_id'] ?? $context['project_id'],
                 ':business_unit' => $context['business_unit'],
-                ':transaction_type' => $context['transaction_type'],
                 ':transaction_direction' => $context['transaction_direction'],
                 ':import_type' => $context['import_type'],
                 ':client_type' => $context['client_type'],
@@ -328,7 +327,6 @@ class JournalLearningService
         $vat = $this->firstVatAccount($lines);
         $hash = substr(sha1(implode('|', [
             $context['business_unit'],
-            $context['transaction_type'],
             $context['transaction_direction'],
             $context['client_type'],
             $context['import_type'],
@@ -379,12 +377,12 @@ class JournalLearningService
         }
 
         $columns = [
-            'id', 'sort_no', 'rule_code', 'rule_name', 'business_unit', 'transaction_type',
+            'id', 'sort_no', 'rule_code', 'rule_name', 'business_unit',
             'transaction_direction', 'client_type', 'import_type', 'debit_account_id',
             'credit_account_id', 'vat_account_id', 'description', 'is_active', 'created_by', 'updated_by',
         ];
         $values = [
-            ':id', ':sort_no', ':rule_code', ':rule_name', ':business_unit', ':transaction_type',
+            ':id', ':sort_no', ':rule_code', ':rule_name', ':business_unit',
             ':transaction_direction', ':client_type', ':import_type', ':debit_account_id',
             ':credit_account_id', ':vat_account_id', ':description', ':is_active', ':created_by', ':updated_by',
         ];
@@ -394,7 +392,6 @@ class JournalLearningService
             ':rule_code' => $ruleCode,
             ':rule_name' => '시스템 학습 분개규칙',
             ':business_unit' => $context['business_unit'],
-            ':transaction_type' => $context['transaction_type'],
             ':transaction_direction' => $context['transaction_direction'],
             ':client_type' => $context['client_type'],
             ':import_type' => $context['import_type'],
@@ -496,7 +493,6 @@ class JournalLearningService
             'client_id' => $clientId,
             'project_id' => trim((string) ($transaction['project_id'] ?? '')),
             'business_unit' => strtoupper(trim((string) ($transaction['business_unit'] ?? 'HQ'))) ?: 'HQ',
-            'transaction_type' => strtoupper(trim((string) ($transaction['transaction_type'] ?? 'GENERAL'))) ?: 'GENERAL',
             'transaction_direction' => strtoupper(trim((string) ($transaction['transaction_direction'] ?? 'GENERAL'))) ?: 'GENERAL',
             'import_type' => strtoupper(trim((string) ($transaction['import_type'] ?? 'ETC'))) ?: 'ETC',
             'client_type' => $this->clientType($clientId),

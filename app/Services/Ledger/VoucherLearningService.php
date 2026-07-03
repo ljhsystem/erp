@@ -25,7 +25,7 @@ class VoucherLearningService
                 'client_id' => $this->evidenceBusinessRefService->businessRefIdForStorage('CLIENT', $evidence) ?? '',
                 'project_id' => $this->evidenceBusinessRefService->businessRefIdForStorage('PROJECT', $evidence) ?? '',
                 'business_unit' => $this->call('businessUnitForUpload', $evidence, 'BANK_TRANSACTION'),
-                'transaction_type' => strtoupper(trim((string) ($evidence['transaction_type'] ?? 'GENERAL'))) ?: 'GENERAL',
+                'operation_type' => strtoupper(trim((string) ($evidence['operation_type'] ?? 'GENERAL'))) ?: 'GENERAL',
                 'transaction_direction' => $direction ?: $this->call('transactionDirectionForStorage', (string) ($evidence['transaction_direction'] ?? ''), $evidence, 'BANK_TRANSACTION'),
                 'import_type' => 'BANK_TRANSACTION',
             ];

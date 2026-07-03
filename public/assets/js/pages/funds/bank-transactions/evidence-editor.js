@@ -29,6 +29,17 @@ const EVIDENCE_API = {
 };
 
 const CURRENT_TYPE = 'BANK_TRANSACTION';
+const BANK_REQUIRED_BUSINESS_COLUMNS = Object.freeze([
+    { key: 'business_unit', label: '사업구분' },
+    { key: 'transaction_direction', label: '거래구분' },
+    { key: 'operation_type', label: '입출금유형' },
+    { key: 'client_id', label: '거래처' },
+    { key: 'project_id', label: '프로젝트' },
+    { key: 'bank_account_id', label: '계좌' },
+    { key: 'card_id', label: '카드' },
+    { key: 'team_id', label: '팀' },
+    { key: 'employee_id', label: '직원' },
+]);
 
 function amount(value) {
     const number = Number(String(value ?? '0').replaceAll(',', ''));
@@ -47,8 +58,8 @@ function evidenceCellValue(value) {
 }
 
 function mapped(row = {}) {
-    if (row.mapped_payload && typeof row.mapped_payload === 'object') return row.mapped_payload;
     if (row.parsed_json && typeof row.parsed_json === 'object') return row.parsed_json;
+    if (row.mapped_payload && typeof row.mapped_payload === 'object') return row.mapped_payload;
     return {};
 }
 
@@ -61,6 +72,27 @@ function firstPayloadValue(payload = {}, keys = []) {
         }
     }
     return undefined;
+}
+
+function rowValueByKeys(row = {}, keys = []) {
+    const payload = mapped(row);
+    for (const key of keys) {
+        const direct = evidenceCellValue(row[key]);
+        if (direct !== undefined && direct !== null) {
+            const directText = String(direct).trim();
+            if (directText !== '' && directText.toLowerCase() !== 'none') {
+                return directText;
+            }
+        }
+        const fromPayload = evidenceCellValue(payload[key]);
+        if (fromPayload !== undefined && fromPayload !== null) {
+            const payloadText = String(fromPayload).trim();
+            if (payloadText !== '' && payloadText.toLowerCase() !== 'none') {
+                return payloadText;
+            }
+        }
+    }
+    return '';
 }
 
 function columnAliasKeys(column = {}) {
@@ -204,6 +236,47 @@ function normalizeEvidenceType(value) {
     return raw;
 }
 
+function ensureBankBusinessColumns(columns = []) {
+    const nextColumns = Array.isArray(columns)
+        ? columns.map((column) => (column && typeof column === 'object' ? { ...column } : {}))
+        : [];
+    const existingKeys = new Set(
+        nextColumns.map((column) => String(column.system_field_name || column.original_column_key || column.key || '').trim()).filter(Boolean)
+    );
+    let displayOrder = nextColumns.reduce((max, column) => {
+        const candidates = [
+            Number(column.display_order || 0),
+            Number(column.column_order || 0),
+            Number(column.excel_column_index || 0),
+        ].filter((value) => Number.isFinite(value) && value > 0);
+        return Math.max(max, candidates[0] || 0);
+    }, 0);
+
+    BANK_REQUIRED_BUSINESS_COLUMNS.forEach(({ key, label }) => {
+        if (existingKeys.has(key)) return;
+        displayOrder += 1;
+        nextColumns.push({
+            original_column_key: key,
+            system_field_name: key,
+            excel_column_name: label,
+            label,
+            system_field_group: 'business',
+            source_column: key,
+            data_type: 'varchar',
+            is_nullable: 'YES',
+            is_required: 0,
+            is_reference_column: 0,
+            display_order: displayOrder,
+            column_order: displayOrder,
+            excel_column_index: 0,
+            is_visible: 1,
+        });
+        existingKeys.add(key);
+    });
+
+    return nextColumns;
+}
+
 async function fetchJson(url) {
     const response = await fetch(url, {
         cache: 'no-store',
@@ -231,6 +304,50 @@ export function createFundsEvidenceEditor({ table, notify }) {
     let editModal = null;
     let editPickerLayers = [];
     let codeOptions = {};
+
+    function upsertSelectOption(select, value, text = '') {
+        if (!select) return;
+        const normalizedValue = String(value).trim();
+        if (normalizedValue === '' || normalizedValue.toLowerCase() === 'none') return;
+        const normalizedText = String(text || value).trim();
+        const existing = Array.from(select.options || []).find((option) => String(option.value).trim() === normalizedValue);
+        if (!existing) {
+            select.appendChild(new Option(normalizedText, normalizedValue, true, true));
+        }
+        select.value = normalizedValue;
+    }
+
+    function ensureHiddenBusinessInput(key, value) {
+        if (!refs.editFields || String(key).trim() === '') return;
+        const normalizedValue = String(value || '').trim();
+        if (normalizedValue === '' || normalizedValue.toLowerCase() === 'none') {
+            return;
+        }
+        let input = refs.editFields.querySelector(`.evidence-edit-input[data-key="${key}"]`);
+        if (input) {
+            if (input.matches('select')) {
+                upsertSelectOption(input, normalizedValue, normalizedValue);
+            } else if (String(input.value || '').trim() === '') {
+                input.value = normalizedValue;
+            }
+            return;
+        }
+
+        input = document.createElement('input');
+        input.type = 'hidden';
+        input.className = 'evidence-edit-input';
+        input.dataset.key = key;
+        input.value = normalizedValue;
+        refs.editFields.appendChild(input);
+    }
+
+    function ensureBankBusinessFieldValues(row = {}) {
+        const transactionDirection = rowValueByKeys(row, ['transaction_direction', 'bank_direction']);
+        const operationType = rowValueByKeys(row, ['operation_type']);
+
+        ensureHiddenBusinessInput('transaction_direction', transactionDirection);
+        ensureHiddenBusinessInput('operation_type', operationType);
+    }
 
     const {
         DISPLAY_CODE_FIELDS,
@@ -336,7 +453,13 @@ export function createFundsEvidenceEditor({ table, notify }) {
         normalizeDateInputValue,
         formatBizNumber,
         formatPhone,
-        evidenceTypeDisplayName: (row = {}) => row.import_type_name || row.source_type_name || '\uC785\uCD9C\uAE08(\uC740\uD589)',
+        evidenceTypeDisplayName: (row = {}) => (
+            row.import_type_name
+            || codeDisplayName('import_type', row.import_type)
+            || row.source_type_name
+            || codeDisplayName('source_type', row.source_type)
+            || '\uC785\uCD9C\uAE08(\uC740\uD589)'
+        ),
         selectedTypeLabel: () => '\uC785\uCD9C\uAE08(\uC740\uD589)',
         normalizedStatus: (row = {}) => {
             if (row.deleted_at) return 'DELETED';
@@ -369,7 +492,7 @@ export function createFundsEvidenceEditor({ table, notify }) {
                 id: row.format_id || '',
                 data_type: CURRENT_TYPE,
                 format_name: row.format_name || '',
-                columns: rowColumns,
+                columns: ensureBankBusinessColumns(rowColumns),
             };
             return activeFormat;
         }
@@ -387,7 +510,13 @@ export function createFundsEvidenceEditor({ table, notify }) {
             throw new Error('\uC99D\uBE59\uC6D0\uBCF8\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.');
         }
         row.import_type = normalizeEvidenceType(row.import_type || row.source_type || CURRENT_TYPE);
-        row.source_type = normalizeEvidenceType(row.source_type || row.import_type || CURRENT_TYPE);
+        row.source_type = row.source_type || 'BANK';
+        if (String(row.source_type_name || '').trim() === '') {
+            row.source_type_name = codeDisplayName('source_type', row.source_type);
+        }
+        if (String(row.import_type_name || '').trim() === '') {
+            row.import_type_name = codeDisplayName('import_type', row.import_type);
+        }
         return row;
     }
 
@@ -434,13 +563,14 @@ export function createFundsEvidenceEditor({ table, notify }) {
         }
 
         openEditModal(row);
+        ensureBankBusinessFieldValues(row);
         if (refs.editTitle) {
             refs.editTitle.textContent = '\uC785\uCD9C\uAE08(\uC740\uD589) \uC6D0\uBCF8\uC790\uB8CC \uC218\uC815';
         }
         if (refs.editSubtitle) {
             refs.editSubtitle.textContent = [
                 `\uC21C\uBC88 ${row.row_no || '-'}`,
-                row.import_type_name || '\uC785\uCD9C\uAE08(\uC740\uD589)',
+                row.import_type_name || codeDisplayName('import_type', row.import_type) || '\uC785\uCD9C\uAE08(\uC740\uD589)',
                 row.process_status || row.status || '-',
             ].join(' / ');
         }

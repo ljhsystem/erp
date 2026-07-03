@@ -186,7 +186,7 @@ export function createEvidenceStatusModule({
 
         const codeFields = new Set([
             'business_unit',
-            'transaction_type',
+            'operation_type',
             'transaction_direction',
             'import_type',
             'source_type',
@@ -196,8 +196,6 @@ export function createEvidenceStatusModule({
             'tax_invoice_type',
             'issue_type',
             'receipt_claim_type',
-            'cash_receipt_transaction_type',
-            'card_transaction_type',
             'deduction_status',
             'issue_method',
             'merchant_type',

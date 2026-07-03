@@ -223,8 +223,48 @@ function closeCodeSelectsInModal(modal) {
     if (!modal?.querySelectorAll || !window.jQuery?.fn?.select2) return;
 
     modal.querySelectorAll('select[data-code-group].select2-hidden-accessible').forEach((select) => {
-        window.jQuery(select).select2('close');
+        try {
+            window.jQuery(select).select2('close');
+        } catch (error) {
+        }
+
+        select.blur?.();
     });
+
+    modal.querySelectorAll('.select2-selection, .select2-search__field').forEach((element) => {
+        element.blur?.();
+    });
+
+    const active = document.activeElement;
+    if (!active || !modal.contains(active)) {
+        return;
+    }
+
+    active.blur?.();
+
+    const body = document.body;
+    if (!body) {
+        return;
+    }
+
+    const previousTabIndex = body.getAttribute('tabindex');
+    if (!body.hasAttribute('tabindex')) {
+        body.setAttribute('tabindex', '-1');
+    }
+
+    try {
+        body.focus({ preventScroll: true });
+    } catch (error) {
+        body.focus?.();
+    }
+
+    window.setTimeout(() => {
+        if (previousTabIndex === null) {
+            body.removeAttribute('tabindex');
+        } else {
+            body.setAttribute('tabindex', previousTabIndex);
+        }
+    }, 0);
 }
 
 function ensureSelectId(select) {
@@ -241,6 +281,7 @@ function bindCodeSelect(select, codeGroup) {
     state.previousValues[select.id] = select.value || '';
 
     select.addEventListener('focus', () => {
+        redirectFocusFromHiddenSelect(select);
         if (select.value !== QUICK_ADD_VALUE) {
             state.previousValues[select.id] = select.value || '';
         }
@@ -265,7 +306,39 @@ function bindCodeSelect(select, codeGroup) {
                 if (selectedId === QUICK_ADD_VALUE) {
                     handleQuickAddSelection(select, codeGroup, true);
                 }
+            })
+            .off('select2:close.codeSelectFocusFix')
+            .on('select2:close.codeSelectFocusFix', () => {
+                window.setTimeout(() => {
+                    redirectFocusFromHiddenSelect(select);
+                }, 0);
             });
+    }
+}
+
+function redirectFocusFromHiddenSelect(select) {
+    if (!select || !window.jQuery?.fn?.select2) return;
+    if (!window.jQuery(select).hasClass('select2-hidden-accessible')) return;
+    if (document.activeElement !== select) return;
+
+    const instance = window.jQuery(select).data('select2');
+    const container = instance?.$container?.get?.(0) || select.nextElementSibling;
+    const selection = container?.querySelector('.select2-selection');
+
+    select.blur?.();
+
+    if (!selection) {
+        return;
+    }
+
+    if (!selection.hasAttribute('tabindex')) {
+        selection.setAttribute('tabindex', '0');
+    }
+
+    try {
+        selection.focus({ preventScroll: true });
+    } catch (error) {
+        selection.focus?.();
     }
 }
 
@@ -302,6 +375,12 @@ function enhanceSelect2(select) {
                     search?.select?.();
                 }, delay);
             });
+        })
+        .off('select2:closing.codeSelectFocusFix')
+        .on('select2:closing.codeSelectFocusFix', () => {
+            window.setTimeout(() => {
+                redirectFocusFromHiddenSelect(select);
+            }, 0);
         });
 }
 

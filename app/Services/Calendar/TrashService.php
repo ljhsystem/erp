@@ -8,6 +8,7 @@ use PDO;
 use Core\LoggerFactory;
 use App\Services\Calendar\CrudService;
 use App\Services\Calendar\SyncService;
+use Core\Helpers\ActorHelper;
 
 class TrashService
 {
@@ -33,10 +34,8 @@ class TrashService
         $stmt = $this->pdo->prepare("
             SELECT 
                 e.*,
-                up.employee_name AS deleted_by_name
+                e.deleted_by AS deleted_by_name
             FROM dashboard_calendar_events e
-            LEFT JOIN user_employees up
-                ON up.user_id = e.deleted_by
             WHERE e.is_active = 0
               AND e.synology_login_id = :synology
             ORDER BY e.deleted_at DESC
@@ -46,7 +45,11 @@ class TrashService
             ':synology' => $synologyLoginId
         ]);
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        return ActorHelper::enrichActorNames($rows, [
+            'deleted_by_name' => 'deleted_by',
+        ]);
     }
 
     public function getDeletedTasks(string $synologyLoginId): array
@@ -54,10 +57,8 @@ class TrashService
         $stmt = $this->pdo->prepare("
             SELECT 
                 t.*,
-                up.employee_name AS deleted_by_name
+                t.deleted_by AS deleted_by_name
             FROM dashboard_calendar_tasks t
-            LEFT JOIN user_employees up
-                ON up.user_id = t.deleted_by
             WHERE t.is_active = 0
               AND t.synology_login_id = :synology
             ORDER BY t.deleted_at DESC
@@ -67,7 +68,11 @@ class TrashService
             ':synology' => $synologyLoginId
         ]);
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        return ActorHelper::enrichActorNames($rows, [
+            'deleted_by_name' => 'deleted_by',
+        ]);
     }
 
     /* =========================================================

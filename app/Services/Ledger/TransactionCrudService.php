@@ -37,11 +37,8 @@ class TransactionCrudService
         $filters = $this->normalizeSearchFilters($filters);
 
         $allowedKeys = [
-            'source_type',
-            'import_type',
             'business_unit',
             'transaction_direction',
-            'transaction_type',
             'status',
             'match_status',
             'project_id',
@@ -102,11 +99,8 @@ class TransactionCrudService
         $searchConditions = [];
         $searchableFields = [
             'sort_no',
-            'source_type',
-            'import_type',
             'business_unit',
             'transaction_direction',
-            'transaction_type',
             'transaction_date',
             'bank_account_id',
             'card_id',
@@ -203,6 +197,159 @@ class TransactionCrudService
         return $transaction;
     }
 
+    public function getFileDownloadPayload(string $fileId): ?array
+    {
+        $file = $this->transactionFileModel->getById($fileId);
+        if (!$file || empty($file['file_path'])) {
+            return null;
+        }
+
+        $absolutePath = \Core\storage_resolve_abs((string) $file['file_path']);
+        if (!$absolutePath || !is_file($absolutePath)) {
+            return null;
+        }
+
+        $fileName = (string) ($file['file_name'] ?: basename($absolutePath));
+        $mime = mime_content_type($absolutePath) ?: 'application/octet-stream';
+        $disposition = in_array($mime, [
+            'image/jpeg',
+            'image/png',
+            'image/gif',
+            'image/webp',
+            'application/pdf',
+            'text/plain',
+        ], true) ? 'inline' : 'attachment';
+
+        return [
+            'absolute_path' => $absolutePath,
+            'file_name' => $fileName,
+            'mime' => $mime,
+            'disposition' => $disposition,
+            'size' => filesize($absolutePath),
+        ];
+    }
+
+    public function getTrashList(): array
+    {
+        $stmt = $this->pdo->query("
+            SELECT
+                t.*,
+                COALESCE(sc.client_name, '') AS client_name,
+                COALESCE(sp.project_name, '') AS project_name
+            FROM ledger_transactions t
+            LEFT JOIN system_clients sc
+                ON t.client_id = sc.id
+            LEFT JOIN system_projects sp
+                ON t.project_id = sp.id
+            WHERE t.deleted_at IS NOT NULL
+            ORDER BY t.deleted_at DESC, t.transaction_date DESC
+        ");
+
+        return array_map(static function (array $row): array {
+            unset($row['tax_type']);
+            return $row;
+        }, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+
+    public function restoreTransactions(array $ids): void
+    {
+        if ($ids === []) {
+            return;
+        }
+
+        $actor = ActorHelper::user();
+        $actorId = is_array($actor) ? ($actor['id'] ?? null) : $actor;
+
+        try {
+            $this->pdo->beginTransaction();
+
+            foreach ($ids as $id) {
+                $this->transactionModel->update($id, [
+                    'deleted_at' => null,
+                    'deleted_by' => null,
+                    'updated_at' => date('Y-m-d H:i:s'),
+                    'updated_by' => $actorId,
+                ]);
+            }
+
+            $this->pdo->commit();
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $e;
+        }
+    }
+
+    public function restoreAllTransactions(): void
+    {
+        $this->restoreTransactions($this->deletedTransactionIds());
+    }
+
+    public function purgeTransactions(array $ids): void
+    {
+        if ($ids === []) {
+            return;
+        }
+
+        $filePaths = [];
+
+        try {
+            $this->pdo->beginTransaction();
+
+            $deleteItems = $this->pdo->prepare("DELETE FROM ledger_transaction_items WHERE transaction_id = :id");
+            $softDeleteLinks = $this->pdo->prepare("
+                UPDATE ledger_transaction_links
+                SET is_active = 0,
+                    deleted_at = NOW(),
+                    deleted_by = :deleted_by,
+                    updated_at = NOW(),
+                    updated_by = :updated_by
+                WHERE transaction_id = :id
+                  AND is_active = 1
+                  AND deleted_at IS NULL
+            ");
+            $actor = ActorHelper::user();
+            $actorId = is_array($actor) ? (string) ($actor['id'] ?? 'SYSTEM') : (string) $actor;
+
+            foreach ($ids as $id) {
+                $transaction = $this->transactionModel->getById($id) ?: [];
+                foreach ($this->transactionFileModel->getByTransactionId($id) as $file) {
+                    if (!empty($file['file_path'])) {
+                        $filePaths[] = (string) $file['file_path'];
+                    }
+                }
+
+                $this->resetGeneratedTransactionState($id, $actorId, $transaction);
+                $deleteItems->execute([':id' => $id]);
+                $softDeleteLinks->execute([
+                    ':id' => $id,
+                    ':deleted_by' => $actorId,
+                    ':updated_by' => $actorId,
+                ]);
+                $this->transactionModel->hardDelete($id);
+            }
+
+            $this->pdo->commit();
+
+            foreach (array_unique($filePaths) as $filePath) {
+                $this->fileService->delete($filePath);
+            }
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $e;
+        }
+    }
+
+    public function purgeAllTransactions(): void
+    {
+        $this->purgeTransactions($this->deletedTransactionIds());
+    }
+
     public function updateLinkStatus(string $transactionId, string $matchStatus, string $actor): bool
     {
         return $this->transactionModel->update($transactionId, [
@@ -222,7 +369,7 @@ class TransactionCrudService
             'updated_at' => date('Y-m-d H:i:s'),
             'updated_by' => $actor,
         ])) {
-            throw new \RuntimeException('거래 연결 상태 갱신에 실패했습니다.');
+            throw new \RuntimeException('Transaction link status update failed.');
         }
     }
 
@@ -239,7 +386,7 @@ class TransactionCrudService
 
             foreach ($changes as $row) {
                 if (empty($row['id']) || !isset($row['newSortNo'])) {
-                    throw new \RuntimeException('정렬 데이터가 올바르지 않습니다.');
+                    throw new \RuntimeException('정렬 저장에 필요한 거래 ID 또는 순번이 없습니다.');
                 }
             }
 
@@ -307,7 +454,7 @@ class TransactionCrudService
 
             return [
                 'success' => true,
-                'message' => '거래가 삭제되었습니다.',
+                'message' => 'Transaction deleted.',
             ];
         } catch (\Throwable $e) {
             if ($this->pdo->inTransaction()) {
@@ -345,7 +492,7 @@ class TransactionCrudService
                 ':actor' => $actor,
             ]);
         } else {
-            $this->restoreEvidenceRowsByTransactionFingerprint($transaction, $actor);
+            return;
         }
 
         if ($this->tableColumnExists('ledger_data_seed_rows', 'transaction_id')) {
@@ -426,81 +573,8 @@ class TransactionCrudService
         $stmt->execute([':transaction_id' => $transactionId]);
         $voucher = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
         if ($voucher) {
-            throw new \RuntimeException('확정/승인된 전표가 연결된 거래는 삭제할 수 없습니다.');
+            throw new \RuntimeException('Cannot delete a transaction linked to a confirmed voucher.');
         }
-    }
-
-    private function restoreEvidenceRowsByTransactionFingerprint(array $transaction, string $actor): void
-    {
-        if (!$this->tableExists('ledger_data_evidences')) {
-            return;
-        }
-
-        $importType = trim((string) ($transaction['import_type'] ?? ''));
-        $transactionDate = $this->dateString($transaction['transaction_date'] ?? null);
-        $totalAmount = $this->numberOrNull($transaction['transaction_final_amount'] ?? null);
-        if ($importType === '' || $transactionDate === '' || $totalAmount === null) {
-            return;
-        }
-
-        $stmt = $this->pdo->prepare("
-            SELECT e.id, e.evidence_date, p.mapped_payload_json
-            FROM ledger_data_evidences e
-            JOIN ledger_evidence_payloads p
-              ON p.evidence_type = e.source_type COLLATE utf8mb4_unicode_ci
-             AND p.evidence_id = e.id COLLATE utf8mb4_unicode_ci
-            WHERE e.source_type = :source_type
-              AND e.deleted_at IS NULL
-              AND e.transaction_status NOT IN ('NONE', 'PROCESSING', 'ERROR', 'DUPLICATED')
-        ");
-        $stmt->execute([':source_type' => $importType]);
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-        $matchedIds = [];
-        foreach ($rows as $row) {
-            $mapped = json_decode((string) ($row['mapped_payload_json'] ?? ''), true);
-            if (!is_array($mapped)) {
-                continue;
-            }
-
-            $mappedDate = $this->dateString($mapped['transaction_date'] ?? $mapped['evidence_date'] ?? $row['evidence_date'] ?? null);
-            $mappedAmount = $this->numberOrNull($mapped['total_amount'] ?? $mapped['amount'] ?? null);
-            if ($mappedAmount === null) {
-                $supply = (float) ($this->numberOrNull($mapped['supply_amount'] ?? null) ?? 0);
-                $vat = (float) ($this->numberOrNull($mapped['vat_amount'] ?? null) ?? 0);
-                $mappedAmount = $supply + $vat;
-            }
-
-            if ($mappedDate !== $transactionDate || $mappedAmount === null || abs($mappedAmount - $totalAmount) > 0.01) {
-                continue;
-            }
-
-            $transactionDescription = trim((string) ($transaction['transaction_description'] ?? ''));
-            $mappedDescription = trim((string) ($mapped['transaction_description'] ?? $mapped['description'] ?? ''));
-            if ($transactionDescription !== '' && $mappedDescription !== '' && $transactionDescription !== $mappedDescription) {
-                continue;
-            }
-
-            $matchedIds[] = (string) ($row['id'] ?? '');
-        }
-
-        $matchedIds = array_values(array_unique(array_filter($matchedIds)));
-        if ($matchedIds === []) {
-            return;
-        }
-
-        [$inSql, $params] = $this->placeholders($matchedIds, 'evidence_id');
-        $params[':actor'] = $actor;
-        $this->pdo->prepare("
-            UPDATE ledger_data_evidences
-            SET evidence_status = 'ACTIVE',
-                transaction_status = 'NONE',
-                error_message = NULL,
-                updated_at = NOW(),
-                updated_by = :actor
-            WHERE id IN ({$inSql})
-              AND deleted_at IS NULL
-        ")->execute($params);
     }
 
     private function deleteLinkedVouchersForTransaction(string $transactionId, string $actor): void
@@ -526,7 +600,7 @@ class TransactionCrudService
             $status = strtolower((string) ($voucher['status'] ?? ''));
             if (in_array($status, ['posted', 'closed', 'confirmed'], true)) {
                 $label = trim((string) ($voucher['voucher_no'] ?? $voucher['id'] ?? ''));
-                throw new \RuntimeException('확정/승인된 전표가 연결된 거래는 삭제할 수 없습니다. 전표번호: ' . $label);
+                throw new \RuntimeException('확정 전표와 연결된 거래는 삭제할 수 없습니다. 전표번호: ' . $label);
             }
             $deletableIds[] = (string) $voucher['id'];
         }
@@ -604,6 +678,12 @@ class TransactionCrudService
         }
 
         return array_values(array_unique(array_filter($ids)));
+    }
+
+    private function deletedTransactionIds(): array
+    {
+        $stmt = $this->pdo->query("SELECT id FROM ledger_transactions WHERE deleted_at IS NOT NULL");
+        return array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
     }
 
     private function placeholders(array $ids, string $prefix): array
@@ -698,7 +778,7 @@ class TransactionCrudService
         if (abs((float) $totals['transaction_final_amount']) <= 0) {
             return [
                 'success' => false,
-                'message' => '거래헤더 금액을 입력해 주세요.',
+                'message' => 'Enter the transaction header amount.',
             ];
         }
         $transactionPayload = $this->buildTransactionPayload($data, $actor, $timestamp, $totals);
@@ -711,7 +791,7 @@ class TransactionCrudService
             if ($transactionId !== '') {
                 $existing = $this->transactionModel->getById($transactionId);
                 if (!$existing) {
-                    throw new \RuntimeException('수정할 거래 정보를 찾을 수 없습니다.');
+                    throw new \RuntimeException('Transaction not found for update.');
                 }
 
                 $isUpdate = true;
@@ -734,7 +814,7 @@ class TransactionCrudService
                 $existingItems = $this->transactionItemModel->getByTransactionId($transactionId);
                 foreach ($existingItems as $row) {
                     if (!$this->transactionItemModel->hardDelete((string) $row['id'])) {
-                        throw new \RuntimeException('기존 거래 항목 정리에 실패했습니다.');
+                        throw new \RuntimeException('Failed to clean existing transaction items.');
                     }
                 }
             } else {
@@ -771,23 +851,16 @@ class TransactionCrudService
 
         $businessUnit = trim((string) ($data['business_unit'] ?? ''));
         if ($businessUnit === '') {
-            throw new \InvalidArgumentException('사업구분을 선택해 주세요.');
-        }
-
-        $transactionType = trim((string) ($data['transaction_type'] ?? ''));
-        if ($transactionType === '') {
-            throw new \InvalidArgumentException('거래유형을 선택해 주세요.');
+            throw new \InvalidArgumentException('사업구분은 필수입니다.');
         }
 
         $transactionId = trim((string) ($data['id'] ?? ''));
 
         $base = [
-            'source_type' => $this->nullable($data['source_type'] ?? null),
-            'import_type' => $this->nullable($data['import_type'] ?? null),
             'transaction_date' => $transactionDate,
             'business_unit' => $businessUnit,
             'transaction_direction' => $this->nullable($data['transaction_direction'] ?? null),
-            'transaction_type' => $transactionType,
+            'operation_type' => $this->nullable($data['operation_type'] ?? null),
             'client_id' => $this->nullable($data['client_id'] ?? null),
             'project_id' => $this->nullable($data['project_id'] ?? null),
             'bank_account_id' => $this->nullable($data['bank_account_id'] ?? null),
@@ -825,7 +898,7 @@ class TransactionCrudService
         $existingItems = $this->transactionItemModel->getByTransactionId($transactionId);
         foreach ($existingItems as $row) {
             if (!$this->transactionItemModel->hardDelete((string) $row['id'])) {
-                throw new \RuntimeException('기존 거래 항목 정리에 실패했습니다.');
+                throw new \RuntimeException('Failed to clean existing transaction items.');
             }
         }
 
@@ -853,7 +926,7 @@ class TransactionCrudService
             ];
 
             if (!$this->transactionItemModel->insert($payload)) {
-                throw new \RuntimeException(($index + 1) . '번째 거래 항목 저장에 실패했습니다.');
+                throw new \RuntimeException(($index + 1) . '번째 거래품목 저장에 실패했습니다.');
             }
         }
     }
@@ -863,7 +936,7 @@ class TransactionCrudService
         $existingRows = $this->transactionSettlementModel->getByTransactionId($transactionId);
         foreach ($existingRows as $row) {
             if (!$this->transactionSettlementModel->hardDelete((string) $row['id'])) {
-                throw new \RuntimeException('거래정산 기존 행 정리에 실패했습니다.');
+                throw new \RuntimeException('Failed to clean existing transaction settlements.');
             }
         }
 
@@ -872,7 +945,7 @@ class TransactionCrudService
                 'id' => UuidHelper::generate(),
                 'sort_no' => $index + 1,
                 'transaction_id' => $transactionId,
-                'transaction_item_id' => $settlement['transaction_item_id'] ?? null,
+                'transaction_item_id' => null,
                 'settlement_type' => $settlement['settlement_type'],
                 'amount_sign' => $settlement['amount_sign'],
                 'amount' => $settlement['amount'],
@@ -887,7 +960,7 @@ class TransactionCrudService
             ];
 
             if (!$this->transactionSettlementModel->insert($payload)) {
-                throw new \RuntimeException(($index + 1) . '踰덉㎏ 嫄곕옒 ?뺣궛 ??μ뿉 ?ㅽ뙣?덉뒿?덈떎.');
+                throw new \RuntimeException(($index + 1) . '번째 정산정보 저장에 실패했습니다.');
             }
         }
     }
@@ -1008,7 +1081,7 @@ class TransactionCrudService
         foreach ($this->normalizeUploadedFiles($files['transaction_files'] ?? null) as $file) {
             $upload = $this->fileService->uploadByPolicyKey($file, 'transaction_evidence');
             if (empty($upload['success'])) {
-                throw new \RuntimeException($upload['message'] ?? '증빙 파일 업로드에 실패했습니다.');
+                throw new \RuntimeException((string) ($upload['message'] ?? '증빙 파일 업로드에 실패했습니다.'));
             }
 
             $originalName = (string) ($file['name'] ?? ($upload['file'] ?? ''));
@@ -1024,7 +1097,7 @@ class TransactionCrudService
                 'created_at' => $timestamp,
                 'created_by' => $actor,
             ])) {
-                throw new \RuntimeException('증빙 파일 정보를 저장하지 못했습니다.');
+                throw new \RuntimeException('Failed to save evidence file metadata.');
             }
         }
     }
@@ -1225,7 +1298,7 @@ class TransactionCrudService
             }
 
             $rows[] = [
-                'transaction_item_id' => $this->nullable($settlement['transaction_item_id'] ?? null),
+                'transaction_item_id' => null,
                 'settlement_type' => $settlementType,
                 'amount_sign' => $amountSign,
                 'amount' => round($amount, 2),

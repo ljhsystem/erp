@@ -5,6 +5,7 @@ import {
     resolveDataTableColumnDisplayName,
     resolveDataTableColumnRequirementPolicy,
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
+import { actorDisplay } from '/public/assets/js/common/actor.js';
 
 const API = {
     TEMPLATE_LIST: '/api/settings/organization/approval/template/list',
@@ -421,7 +422,7 @@ function initTemplateTable() {
                 visible: false,
                 width: '140px',
                 widthResizable: true,
-                render: (value, type, row) => escapeHtml(row?.created_by_name || value || '')
+                render: (_value, _type, row) => escapeHtml(actorDisplay(row, 'created_by'))
             },
             { title: '\uC218\uC815\uC77C\uC2DC', data: 'updated_at', visible: false, render: (value) => escapeHtml(value) },
             {
@@ -431,7 +432,7 @@ function initTemplateTable() {
                 visible: false,
                 width: '140px',
                 widthResizable: true,
-                render: (value, type, row) => escapeHtml(row?.updated_by_name || value || '')
+                render: (_value, _type, row) => escapeHtml(actorDisplay(row, 'updated_by'))
             }
         ],
         dataSrc(json) {
@@ -564,14 +565,14 @@ function initStepTable() {
                 title: '\uC0DD\uC131\uC790',
                 data: 'created_by',
                 visible: false,
-                render: (value, type, row) => escapeHtml(row?.created_by_name || value || '')
+                render: (_value, _type, row) => escapeHtml(actorDisplay(row, 'created_by'))
             },
             { title: '\uC218\uC815\uC77C\uC2DC', data: 'updated_at', visible: false, render: (value) => escapeHtml(value) },
             {
                 title: '\uC218\uC815\uC790',
                 data: 'updated_by',
                 visible: false,
-                render: (value, type, row) => escapeHtml(row?.updated_by_name || value || '')
+                render: (_value, _type, row) => escapeHtml(actorDisplay(row, 'updated_by'))
             }
         ],
         createdRow(row, data) {
