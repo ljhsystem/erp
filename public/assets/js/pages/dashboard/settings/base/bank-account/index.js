@@ -3,7 +3,7 @@ import { createDataTable, bindTableHighlight } from '/public/assets/js/common/ta
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 import * as NumberFormat from '/public/assets/js/common/format.js';
-import { initCodeSelectControls, getCodeName } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
+import { initCodeSelectControls, getCodeName, onCodeOptionsLoaded } from '/public/assets/js/pages/dashboard/settings/system/code-select.js';
 import { API, ACCOUNT_COLUMN_MAP, DATE_OPTIONS } from './api.js';
 import { initExcelDataset, bindExcelEvents } from './excel.js';
 import { bindTrashEvents } from './trash.js';
@@ -57,6 +57,11 @@ async function initAccountPage($) {
     formModule.initBankBookUpload();
     initExcelDataset(API);
     void formModule.preloadAccountModalControls();
+
+    onCodeOptionsLoaded(() => {
+        state.accountTable?.rows().invalidate('data').draw(false);
+    });
+
     tableModule.initDataTable();
     tableModule.bindTableEvents($);
     modalModule.bindModalEvents($, () => state.accountTable);

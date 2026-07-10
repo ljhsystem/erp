@@ -12,24 +12,6 @@ class EvidenceProcessingController
 {
     use ImportControllerUtilityTrait;
 
-    private const LEGACY_DATA_TYPE_MAP = [
-        'DATA' => 'TAX_INVOICE',
-        'TAX' => 'TAX_INVOICE',
-        'CARD' => 'CARD_STATEMENT',
-        'CARD_PURCHASE' => 'CARD_STATEMENT',
-        'CARD_SALE' => 'CARD_STATEMENT',
-        'CASH_RECEIPT_PURCHASE' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_PURCHAS' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_BUY' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SALES' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SALE' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SELL' => 'CASH_RECEIPT',
-        'BANK' => 'BANK_TRANSACTION',
-        'SHOPPING' => 'SHOPPING_ORDER',
-        'TRADE_IMPORT' => 'IMPORT_INVOICE',
-        'IMPORT' => 'IMPORT_INVOICE',
-    ];
-
     private PDO $pdo;
     private ?EvidenceGenerationSplitService $evidenceGenerationSplitService = null;
     private ?EvidencePayloadNormalizeService $evidencePayloadNormalizeService = null;

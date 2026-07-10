@@ -31,33 +31,6 @@ class EvidenceController
         'BUSINESS_INCOME' => '사업소득(신고) 페이지는 개발예정입니다. 데이터 테이블과 검색 기능은 제공하지 않습니다.',
     ];
 
-    private const LEGACY_DATA_TYPE_MAP = [
-        'DATA' => 'TAX_INVOICE',
-        'TAX' => 'TAX_INVOICE',
-        'TAX_INVOICE_HOMETAX' => 'TAX_INVOICE',
-        'CARD' => 'CARD_STATEMENT',
-        'CARD_PURCHASE' => 'CARD_STATEMENT',
-        'CARD_SALE' => 'CARD_STATEMENT',
-        'CARD_SALES' => 'SHOPPING_ORDER',
-        'CARD_SALES_SHOPPING' => 'SHOPPING_ORDER',
-        'CASH_RECEIPT_PURCHASE' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_PURCHAS' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_BUY' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SALES' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SALE' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SELL' => 'CASH_RECEIPT',
-        'CASH_SALES' => 'BUSINESS_DATA',
-        'BANK' => 'BANK_TRANSACTION',
-        'SHOPPING' => 'SHOPPING_ORDER',
-        'TRADE_IMPORT' => 'IMPORT_INVOICE',
-        'IMPORT' => 'IMPORT_INVOICE',
-        'DAILY_WORKER' => 'PAYROLL_WITHHOLDING',
-        'DAILY_WORK_REPORT' => 'PAYROLL_WITHHOLDING',
-        'PAYROLL_REPORT' => 'PAYROLL',
-        'BUSINESS_INCOME_REPORT' => 'BUSINESS_INCOME',
-        'EMPLOYEE_EXPENSE_PERSONAL' => 'EMPLOYEE_EXPENSE',
-    ];
-
     private const TYPE_PAGE_PATHS = [
         'BANK_TRANSACTION' => '/ledger/data/bank-transactions',
         'TAX_INVOICE' => '/ledger/data/tax-invoices',
@@ -103,7 +76,7 @@ class EvidenceController
 
     public function webList(): void
     {
-        $requestedType = self::normalizeDataType((string) ($_GET['import_type'] ?? ''));
+        $requestedType = strtoupper(trim((string) ($_GET['import_type'] ?? '')));
         if ($requestedType === '') {
             $this->redirect($this->defaultTypePagePath());
             return;
@@ -169,7 +142,7 @@ class EvidenceController
     private function renderListPage(?string $pageTitle = null, string $initialEvidenceType = ''): void
     {
         $policies = $this->decoratePagePolicies($this->evidenceTypePolicyService()->statusViewImportTypePolicies());
-        $normalizedInitialType = self::normalizeDataType($initialEvidenceType);
+        $normalizedInitialType = strtoupper(trim($initialEvidenceType));
         $typePageMap = $this->activeTypePageMap($policies);
         $currentPolicy = $this->policyForType($policies, $normalizedInitialType);
         $pageReady = (bool) ($currentPolicy['page_ready'] ?? true);
@@ -194,7 +167,7 @@ class EvidenceController
 
         $map = [];
         foreach ($policies as $policy) {
-            $type = self::normalizeDataType((string) ($policy['code'] ?? ''));
+            $type = strtoupper(trim((string) ($policy['code'] ?? '')));
             if ($type === '' || !isset(self::TYPE_PAGE_PATHS[$type])) {
                 continue;
             }
@@ -223,8 +196,21 @@ class EvidenceController
 
     private function pagePathForType(string $type): string
     {
+        $requestedType = strtoupper(trim($type));
         $normalizedType = self::normalizeDataType($type);
         $map = $this->activeTypePageMap();
+
+        if (isset(self::TYPE_PAGE_PATHS[$requestedType])) {
+            return self::TYPE_PAGE_PATHS[$requestedType];
+        }
+
+        if (isset(self::TYPE_PAGE_PATHS[$normalizedType])) {
+            return self::TYPE_PAGE_PATHS[$normalizedType];
+        }
+
+        if (isset($map[$requestedType])) {
+            return $map[$requestedType];
+        }
 
         if (isset($map[$normalizedType])) {
             return $map[$normalizedType];
@@ -244,7 +230,7 @@ class EvidenceController
     private function decoratePagePolicies(array $policies): array
     {
         return array_map(function (array $policy): array {
-            $type = self::normalizeDataType((string) ($policy['code'] ?? ''));
+            $type = strtoupper(trim((string) ($policy['code'] ?? '')));
             $pageReady = $this->isReadyPageType($type);
 
             if ($type === 'CARD_HOMETAX') {
@@ -267,29 +253,31 @@ class EvidenceController
 
     private function policyForType(array $policies, string $type): array
     {
+        $requestedType = strtoupper(trim($type));
         $normalizedType = self::normalizeDataType($type);
         foreach ($policies as $policy) {
-            if (self::normalizeDataType((string) ($policy['code'] ?? '')) === $normalizedType) {
+            $policyCode = strtoupper(trim((string) ($policy['code'] ?? '')));
+            if ($policyCode === $requestedType || $policyCode === $normalizedType) {
                 return $policy;
             }
         }
 
         return [
-            'code' => $normalizedType,
-            'page_ready' => $this->isReadyPageType($normalizedType),
-            'page_notice' => $this->pageNoticeForType($normalizedType),
+            'code' => $requestedType !== '' ? $requestedType : $normalizedType,
+            'page_ready' => $this->isReadyPageType($requestedType !== '' ? $requestedType : $normalizedType),
+            'page_notice' => $this->pageNoticeForType($requestedType !== '' ? $requestedType : $normalizedType),
             'page_status_label' => $this->isReadyPageType($normalizedType) ? '사용중' : '개발예정',
         ];
     }
 
     private function isReadyPageType(string $type): bool
     {
-        return in_array(self::normalizeDataType($type), self::READY_PAGE_TYPES, true);
+        return in_array(strtoupper(trim($type)), self::READY_PAGE_TYPES, true);
     }
 
     private function pageNoticeForType(string $type): string
     {
-        $normalizedType = self::normalizeDataType($type);
+        $normalizedType = strtoupper(trim($type));
         return self::PLANNED_PAGE_NOTICES[$normalizedType]
             ?? '이 자료유형 페이지는 개발예정입니다. 데이터 테이블과 검색 기능은 제공하지 않습니다.';
     }
@@ -340,7 +328,6 @@ class EvidenceController
         if ($this->evidenceTypePolicyService === null) {
             $this->evidenceTypePolicyService = new EvidenceTypePolicyService(
                 fn(string $type): string => self::normalizeDataType($type),
-                self::LEGACY_DATA_TYPE_MAP,
                 $this->pdo
             );
         }
@@ -350,8 +337,6 @@ class EvidenceController
 
     private static function normalizeDataType(string $type): string
     {
-        $type = strtoupper(trim($type));
-
-        return self::LEGACY_DATA_TYPE_MAP[$type] ?? $type;
+        return EvidenceTypePolicyService::normalizeLegacyDataType($type);
     }
 }

@@ -5,22 +5,35 @@
 *.user
 *.cache
 
+# Composer
+vendor/
+
+# Environment
+.env
+
 # Logs
-storage/logs/*
+storage/logs/
 *.log
 
 # Sessions
-storage/sessions/*
+storage/sessions/
 
 # Backups
 storage/*backups/
 
+# Recovery
+storage/recovery/
+
+# Browser Profiles (Codex)
+storage/chrome-codex-headless/
+storage/edge-codex-profile-client/
+storage/edge-codex-profile-cover-verify/
+
+# Temporary
+tmp/
+storage/tmp/
+*.tmp
+
 # OS
 Thumbs.db
 .DS_Store
-
-# Composer
-vendor/
-
-# Env
-.env

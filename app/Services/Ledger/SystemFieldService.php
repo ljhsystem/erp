@@ -60,11 +60,10 @@ class SystemFieldService
 
     private const FORMAT_DEPRECATED_FIELDS = [
         'voucher_date',
-        'summary_text',
-        'note',
+        'summary',
         'voucher_memo',
         'header_row_no',
-        'line_no',
+        'sort_no',
         'account_id',
         'debit',
         'credit',
@@ -151,11 +150,11 @@ class SystemFieldService
         'memo' => '메모',
         'voucher_date' => '전표일자',
         'voucher_no' => '전표번호',
-        'summary_text' => '전표적요',
+        'summary' => '전표적요',
         'note' => '비고',
         'voucher_memo' => '전표메모',
         'header_row_no' => '헤더순번',
-        'line_no' => '분개라인번호',
+        'sort_no' => '분개라인순번',
         'line_row_type' => '행타입',
         'account_id' => '계정',
         'debit' => '차변금액',
@@ -186,9 +185,9 @@ class SystemFieldService
         'CASH_RECEIPT_PURCHASE' => 'CASH_RECEIPT',
         'CASH_RECEIPT_PURCHAS' => 'CASH_RECEIPT',
         'CASH_RECEIPT_BUY' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SALES' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SALE' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SELL' => 'CASH_RECEIPT',
+        'CASH_RECEIPT_SALES' => 'CASH_RECEIPT_SALES',
+        'CASH_RECEIPT_SALE' => 'CASH_RECEIPT_SALES',
+        'CASH_RECEIPT_SELL' => 'CASH_RECEIPT_SALES',
         'BANK' => 'BANK_TRANSACTION',
         'SHOPPING' => 'SHOPPING_ORDER',
         'TRADE_IMPORT' => 'IMPORT_INVOICE',
@@ -304,6 +303,12 @@ class SystemFieldService
             'CASH_RECEIPT' => 'ledger_evidence_cash_receipt',
             'CARD_HOMETAX' => 'ledger_evidence_card_hometax',
             'CARD', 'CARD_STATEMENT', 'CARD_APPROVAL' => 'ledger_evidence_card_statement',
+            'EMPLOYEE_EXPENSE' => 'ledger_evidence_employee_expense',
+            'PAYROLL', 'PAYROLL_WITHHOLDING' => 'ledger_evidence_payroll',
+            'BUSINESS_INCOME' => 'ledger_evidence_business_income',
+            'BUSINESS_DATA' => 'ledger_evidence_cash_sales',
+            'CONSTRUCTION' => 'ledger_evidence_daily_worker',
+            'SHOPPING_ORDER', 'IMPORT_INVOICE' => 'ledger_evidence_business_data',
             default => 'ledger_evidence_tax_invoice',
         };
     }
@@ -315,10 +320,41 @@ class SystemFieldService
             return $this->fieldOptionsCache[$dataType];
         }
 
+        return $this->fieldOptionsCache[$dataType] = $this->applyFormatRequirementPolicy(
+            $dataType,
+            $this->physicalColumnFieldOptions($dataType)
+        );
+    }
+
+    public function sourceColumnOptions(string $dataType): array
+    {
+        $dataType = $this->normalizeDataType($dataType);
+        if (isset($this->sourceColumnOptionsCache[$dataType])) {
+            return $this->sourceColumnOptionsCache[$dataType];
+        }
+
+        $columns = [];
+        foreach ($this->fieldOptions($dataType) as $fieldOption) {
+            $columnName = trim((string) ($fieldOption['value'] ?? ''));
+            if ($columnName === '') {
+                continue;
+            }
+
+            $fieldOption['column'] = (string) ($fieldOption['column'] ?? $columnName);
+            $fieldOption['is_required'] = $this->formatFieldRequiredMode($dataType, $columnName, $fieldOption);
+            $columns[] = $fieldOption;
+        }
+
+        return $this->sourceColumnOptionsCache[$dataType] = $columns;
+    }
+
+    private function physicalColumnFieldOptions(string $dataType): array
+    {
+        $dataType = $this->normalizeDataType($dataType);
+
         $tableName = $this->targetTableForDataType($dataType);
         $usesCurrency = $this->dataTypeUsesCurrency($dataType);
         $isManualTaxInvoice = $this->isManualTaxInvoiceDataType($dataType);
-        $isTaxInvoiceLike = $dataType === 'TAX_INVOICE' || $isManualTaxInvoice;
         $isCashReceipt = $dataType === 'CASH_RECEIPT';
         $isCardHometax = $dataType === 'CARD_HOMETAX';
         $isCardCompany = in_array($dataType, ['CARD_STATEMENT', 'CARD_APPROVAL'], true);
@@ -371,7 +407,7 @@ class SystemFieldService
                 && !($isCardCompany && in_array((string) $row['COLUMN_NAME'], $cardCompanyHiddenFields, true))
         ));
 
-        $physicalFields = array_map(static function (array $row) use ($tableName, $dataType): array {
+        return array_map(static function (array $row) use ($tableName, $dataType): array {
             $columnName = (string) $row['COLUMN_NAME'];
             $comment = trim((string) ($row['COLUMN_COMMENT'] ?? ''));
             $label = self::FIELD_LABELS[$columnName] ?? ($comment !== '' ? $comment : $columnName);
@@ -381,72 +417,12 @@ class SystemFieldService
                 'label' => $label,
                 'group' => self::physicalFieldGroupLabel($dataType, $tableName, $columnName),
                 'table' => $tableName,
+                'column' => $columnName,
                 'data_type' => (string) ($row['DATA_TYPE'] ?? ''),
                 'is_nullable' => (string) ($row['IS_NULLABLE'] ?? ''),
                 'ordinal_position' => (int) ($row['ORDINAL_POSITION'] ?? 0),
             ];
         }, $rows);
-
-        if ($dataType === 'BANK_TRANSACTION') {
-            return $this->fieldOptionsCache[$dataType] = $this->applyFormatRequirementPolicy($dataType, $physicalFields);
-        }
-
-        $fields = $this->mergeFieldOptions(
-            $dataType,
-            $this->referenceFieldOptions($dataType),
-            $physicalFields,
-            $this->mappedPayloadFieldOptions($dataType)
-        );
-
-        return $this->fieldOptionsCache[$dataType] = $this->applyFormatRequirementPolicy($dataType, $fields);
-    }
-
-    public function sourceColumnOptions(string $dataType): array
-    {
-        $dataType = $this->normalizeDataType($dataType);
-        if (isset($this->sourceColumnOptionsCache[$dataType])) {
-            return $this->sourceColumnOptionsCache[$dataType];
-        }
-
-        $tableName = $this->targetTableForDataType($dataType);
-        $stmt = $this->pdo->prepare("
-            SELECT COLUMN_NAME, COLUMN_COMMENT, DATA_TYPE, IS_NULLABLE, ORDINAL_POSITION
-            FROM information_schema.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = :table_name
-            ORDER BY ORDINAL_POSITION ASC
-        ");
-
-        $stmt->execute([':table_name' => $tableName]);
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-        $columns = [];
-        foreach ($rows as $row) {
-            $columnName = (string) ($row['COLUMN_NAME'] ?? '');
-            if ($columnName === '') {
-                continue;
-            }
-            if ($this->isHiddenFormatColumn(['value' => $columnName], $dataType)) {
-                continue;
-            }
-            $comment = trim((string) ($row['COLUMN_COMMENT'] ?? ''));
-            $label = $comment !== ''
-                ? $comment
-                : (self::FIELD_LABELS[$columnName] ?? $columnName);
-            $fieldOption = [
-                'value' => $columnName,
-                'label' => $label,
-                'table' => $tableName,
-                'column' => $columnName,
-                'data_type' => (string) ($row['DATA_TYPE'] ?? ''),
-                'is_nullable' => (string) ($row['IS_NULLABLE'] ?? 'YES'),
-                'ordinal_position' => (int) ($row['ORDINAL_POSITION'] ?? 0),
-            ];
-            $fieldOption['is_required'] = $this->formatFieldRequiredMode($dataType, $columnName, $fieldOption);
-            $columns[] = $fieldOption;
-        }
-
-        return $this->sourceColumnOptionsCache[$dataType] = $columns;
     }
 
     public function formatFieldRequiredMode(string $dataType, string $field, ?array $fieldOption = null): int
@@ -739,6 +715,12 @@ class SystemFieldService
             'ledger_evidence_cash_receipt',
             'ledger_evidence_card_hometax',
             'ledger_evidence_card_statement',
+            'ledger_evidence_employee_expense',
+            'ledger_evidence_payroll',
+            'ledger_evidence_business_income',
+            'ledger_evidence_cash_sales',
+            'ledger_evidence_daily_worker',
+            'ledger_evidence_business_data',
         ], true)) {
             return self::originalFieldGroupLabel($dataType);
         }

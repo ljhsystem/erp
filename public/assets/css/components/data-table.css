@@ -29,6 +29,17 @@
   overflow-y: visible;
 }
 
+.dt-content-stack {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dt-content-stack > .search-form-container + .table-box {
+  margin-top: 14px;
+}
+
 .dt-page-shell {
   background: var(--color-surface, #fff);
   border: 1px solid var(--color-border, #e6eaf0);
@@ -249,11 +260,20 @@ table.dataTable thead th.dt-column-resizable.sorting_desc {
   position: absolute;
   top: 0;
   right: -4px;
-  width: 10px;
+  width: 8px;
   height: 100%;
   cursor: col-resize;
   z-index: 5;
   touch-action: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .12s ease;
+}
+
+table.dataTable thead th.dt-column-resize-hover .dt-column-resizer,
+table.dataTable thead th.dt-column-resize-active .dt-column-resizer {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .dt-column-resizable.sorting::before,
@@ -794,6 +814,32 @@ table.table-cross-highlight tbody tr.table-active.row-highlight > td.col-highlig
   font-size: 12px !important;
   line-height: 1.2;
   border-radius: 5px;
+}
+
+.dataTables_wrapper table.dataTable tbody td .btn-outline-primary.btn-sm,
+.dataTables_wrapper table.dataTable td.dt-action-column .dt-manage-edit-btn {
+  min-width: 52px;
+  font-weight: 600;
+  color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 42%, white);
+  background: color-mix(in srgb, var(--color-primary) 7%, white);
+}
+
+.dataTables_wrapper table.dataTable tbody td .btn-outline-primary.btn-sm:hover,
+.dataTables_wrapper table.dataTable tbody td .btn-outline-primary.btn-sm:focus,
+.dataTables_wrapper table.dataTable td.dt-action-column .dt-manage-edit-btn:hover,
+.dataTables_wrapper table.dataTable td.dt-action-column .dt-manage-edit-btn:focus {
+  color: #fff;
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  box-shadow: 0 0 0 .18rem var(--color-primary-soft);
+}
+
+.dataTables_wrapper table.dataTable tbody td .btn-outline-primary.btn-sm:active,
+.dataTables_wrapper table.dataTable td.dt-action-column .dt-manage-edit-btn:active {
+  color: #fff;
+  border-color: var(--color-primary-hover);
+  background: var(--color-primary-hover);
 }
 
 .dataTables_wrapper table.dataTable th.reorder-handle i,

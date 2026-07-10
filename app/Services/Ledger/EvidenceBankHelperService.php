@@ -111,7 +111,6 @@ class EvidenceBankHelperService
             if ($missingRefMessage !== null) {
                 return $missingRefMessage;
             }
-            $this->call('bankVoucherPaymentsForSave', $payload);
             return null;
         } catch (\Throwable $e) {
             return $e->getMessage();

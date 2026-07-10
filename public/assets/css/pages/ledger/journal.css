@@ -363,7 +363,7 @@
     border-color: #d1d5db;
 }
 
-.journal-page .journal-status-confirmed {
+.journal-page .journal-status-review-requested {
     color: #0b5ed7;
     background: #e7f1ff;
     border-color: #9ec5fe;
@@ -1046,12 +1046,12 @@
 }
 
 .voucher-timeline-draft.done .voucher-timeline-node,
-.voucher-timeline-confirmed.done .voucher-timeline-node,
+.voucher-timeline-review-requested.done .voucher-timeline-node,
 .voucher-timeline-reviewed.done .voucher-timeline-node,
 .voucher-timeline-posted.done .voucher-timeline-node,
 .voucher-timeline-closed.done .voucher-timeline-node,
 .voucher-timeline-draft.current .voucher-timeline-node,
-.voucher-timeline-confirmed.current .voucher-timeline-node,
+.voucher-timeline-review-requested.current .voucher-timeline-node,
 .voucher-timeline-reviewed.current .voucher-timeline-node,
 .voucher-timeline-posted.current .voucher-timeline-node,
 .voucher-timeline-closed.current .voucher-timeline-node {
@@ -1059,12 +1059,12 @@
 }
 
 .voucher-timeline-draft.done .voucher-timeline-label,
-.voucher-timeline-confirmed.done .voucher-timeline-label,
+.voucher-timeline-review-requested.done .voucher-timeline-label,
 .voucher-timeline-reviewed.done .voucher-timeline-label,
 .voucher-timeline-posted.done .voucher-timeline-label,
 .voucher-timeline-closed.done .voucher-timeline-label,
 .voucher-timeline-draft.current .voucher-timeline-label,
-.voucher-timeline-confirmed.current .voucher-timeline-label,
+.voucher-timeline-review-requested.current .voucher-timeline-label,
 .voucher-timeline-reviewed.current .voucher-timeline-label,
 .voucher-timeline-posted.current .voucher-timeline-label,
 .voucher-timeline-closed.done .voucher-timeline-label,
@@ -1129,8 +1129,8 @@
     color: #422006;
 }
 
-.voucher-flow-step-confirmed.done,
-.voucher-flow-step-confirmed.current {
+.voucher-flow-step-review-requested.done,
+.voucher-flow-step-review-requested.current {
     background: #3b82f6;
 }
 
@@ -1306,10 +1306,6 @@
 
 #journalModal .modal-footer .btn {
     min-width: 96px;
-}
-
-#journalModal .journal-transaction-panel {
-    flex: 0 0 auto;
 }
 
 #journalModal .journal-payment-panel {
@@ -1774,7 +1770,7 @@
     pointer-events: none;
 }
 
-#journalModal .journal-transaction-link {
+#journalModal .journal-evidence-link {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -1789,7 +1785,7 @@
     flex: 1 1 100%;
 }
 
-#journalModal .journal-transaction-link .btn {
+#journalModal .journal-evidence-link .btn {
     flex: 0 0 auto;
 }
 
@@ -1881,7 +1877,7 @@ body.modal-open .select2-container--open {
         flex: 1 1 100%;
     }
 
-    #journalModal .journal-transaction-link {
+    #journalModal .journal-evidence-link {
         flex-wrap: wrap;
     }
 
@@ -1963,7 +1959,7 @@ body.modal-open .select2-container--open {
         flex-direction: column;
     }
 
-    #journalModal .journal-transaction-link {
+    #journalModal .journal-evidence-link {
         align-items: stretch;
         flex-direction: column;
     }

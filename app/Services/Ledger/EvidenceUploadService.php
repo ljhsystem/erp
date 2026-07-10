@@ -204,7 +204,7 @@ class EvidenceUploadService
             $summary['rows']++;
             $summary['items'] += count($messages);
             $rowNo = (int) ($row['_row_no'] ?? 0);
-            $prefix = $rowNo > 0 ? "{$rowNo}??" : '';
+            $prefix = $rowNo > 0 ? "{$rowNo}행: " : '';
             foreach ($messages as $message) {
                 $summary['messages'][] = $prefix . $message;
             }
@@ -632,7 +632,6 @@ class EvidenceUploadService
             $parsedJson = ($this->jsonEncoder)($parsed);
             $existingParsed = json_decode((string) ($existing['mapped_payload_json'] ?? ''), true);
             $existingParsed = is_array($existingParsed) ? $existingParsed : [];
-            unset($existingParsed['_status_sort_no'], $existingParsed['_create_sort_no']);
             $isUnchanged = (string) ($existing['raw_json'] ?? '') === $rawJson && ($this->jsonEncoder)($existingParsed) === $parsedJson;
             $row['_seed_action'] = $isUnchanged
                 ? 'UNCHANGED'
@@ -645,6 +644,10 @@ class EvidenceUploadService
 
     public function preloadExistingSeedRowsForUploadRows(array $rows, string $dataType): void
     {
+        if (!$this->hasEvidenceSourceTable()) {
+            return;
+        }
+
         $sourceKeys = [];
         $dataType = ($this->dataTypeNormalizer)($dataType);
         foreach ($rows as $row) {
@@ -669,6 +672,10 @@ class EvidenceUploadService
 
     public function findExistingSeedRow(string $sourceType, string $sourceKey): ?array
     {
+        if (!$this->hasEvidenceSourceTable()) {
+            return null;
+        }
+
         $cacheKey = ($this->dataTypeNormalizer)($sourceType) . '|' . $sourceKey;
         if (array_key_exists($cacheKey, $this->existingSeedRowCache)) {
             return $this->existingSeedRowCache[$cacheKey];
@@ -676,29 +683,26 @@ class EvidenceUploadService
 
         $stmt = $this->pdo->prepare("
             SELECT
-                p.evidence_id AS id,
+                p.id AS id,
                 p.raw_json,
                 p.mapped_payload_json,
                 CASE WHEN p.deleted_at IS NULL THEN 'ACTIVE' ELSE 'DELETED' END AS evidence_status,
-                COALESCE(pr.processing_status, 'READY') AS transaction_status,
+                " . $this->evidenceProcessingStatusSelect('pr') . " AS transaction_status,
                 CASE WHEN vx.target_id IS NULL THEN 'WAITING' ELSE 'LINKED' END AS voucher_status,
                 tx.target_id AS transaction_id
-            FROM ledger_evidence_payloads p
-            LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
-               AND pr.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
-               AND pr.deleted_at IS NULL
+            FROM ledger_data_evidences p
+            " . $this->evidenceProcessingJoin('p', 'pr') . "
             LEFT JOIN ledger_evidence_links tx
-                ON tx.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
-               AND tx.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
+                ON tx.evidence_type COLLATE utf8mb4_unicode_ci = p.source_type COLLATE utf8mb4_unicode_ci
+               AND tx.evidence_id COLLATE utf8mb4_unicode_ci = p.id COLLATE utf8mb4_unicode_ci
                AND tx.target_type = 'TRANSACTION'
                AND tx.deleted_at IS NULL
             LEFT JOIN ledger_evidence_links vx
-                ON vx.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
-               AND vx.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
+                ON vx.evidence_type COLLATE utf8mb4_unicode_ci = p.source_type COLLATE utf8mb4_unicode_ci
+               AND vx.evidence_id COLLATE utf8mb4_unicode_ci = p.id COLLATE utf8mb4_unicode_ci
                AND vx.target_type = 'VOUCHER'
                AND vx.deleted_at IS NULL
-            WHERE p.evidence_type = :source_type
+            WHERE p.source_type = :source_type
               AND source_key = :source_key
             ORDER BY p.created_at DESC
             LIMIT 1
@@ -716,6 +720,10 @@ class EvidenceUploadService
 
     public function findExistingSeedRowByFingerprint(string $sourceType, array $payload): ?array
     {
+        if (!$this->hasEvidenceSourceTable()) {
+            return null;
+        }
+
         $sourceType = ($this->dataTypeNormalizer)($sourceType);
         $fingerprint = $this->sourceFingerprintKey($payload, $sourceType);
         if (!isset($this->existingSeedFingerprintCache[$sourceType])) {
@@ -805,6 +813,10 @@ class EvidenceUploadService
 
     public function updateUploadRowStatus(string $rowId, string $status, ?string $message, ?string $transactionId = null): void
     {
+        if (!$this->hasEvidenceSourceTable()) {
+            return;
+        }
+
         $isCorrectionError = $status === 'ERROR' && $this->isGenerationCorrectionMessage($message);
         $processStatus = match ($status) {
             'CREATED', 'PROCESSED' => 'PROCESSED',
@@ -818,44 +830,46 @@ class EvidenceUploadService
         }
 
         $this->pdo->prepare("
-            UPDATE ledger_evidence_payloads
+            UPDATE ledger_data_evidences
             SET updated_at = NOW(),
                 updated_by = :updated_by
-            WHERE evidence_id = :id
+            WHERE id = :id
         ")->execute([
             ':id' => $rowId,
             ':updated_by' => ActorHelper::user(),
         ]);
 
-        $stmt = $this->pdo->prepare("
-            INSERT INTO ledger_evidence_processing
-                (id, evidence_type, evidence_id, processing_status, review_status, last_error_message, created_at, updated_at)
-            SELECT
-                :processing_id,
-                p.evidence_type,
-                p.evidence_id,
-                :processing_status,
-                :review_status,
-                :error_message,
-                NOW(),
-                NOW()
-            FROM ledger_evidence_payloads p
-            WHERE p.evidence_id = :id
-            ON DUPLICATE KEY UPDATE
-                processing_status = VALUES(processing_status),
-                review_status = VALUES(review_status),
-                last_error_message = VALUES(last_error_message),
-                deleted_at = NULL,
-                updated_at = NOW()
-        ");
-        $params = [
-            ':id' => $rowId,
-            ':processing_id' => UuidHelper::generate(),
-            ':processing_status' => $processStatus,
-            ':review_status' => 'NORMAL',
-            ':error_message' => $isCorrectionError ? null : $message,
-        ];
-        $stmt->execute($params);
+        if ($this->hasEvidenceProcessingTable()) {
+            $stmt = $this->pdo->prepare("
+                INSERT INTO ledger_evidence_processing
+                    (id, evidence_type, evidence_id, processing_status, review_status, last_error_message, created_at, updated_at)
+                SELECT
+                    :processing_id,
+                    p.source_type,
+                    p.id,
+                    :processing_status,
+                    :review_status,
+                    :error_message,
+                    NOW(),
+                    NOW()
+                FROM ledger_data_evidences p
+                WHERE p.id = :id
+                ON DUPLICATE KEY UPDATE
+                    processing_status = VALUES(processing_status),
+                    review_status = VALUES(review_status),
+                    last_error_message = VALUES(last_error_message),
+                    deleted_at = NULL,
+                    updated_at = NOW()
+            ");
+            $params = [
+                ':id' => $rowId,
+                ':processing_id' => UuidHelper::generate(),
+                ':processing_status' => $processStatus,
+                ':review_status' => 'NORMAL',
+                ':error_message' => $isCorrectionError ? null : $message,
+            ];
+            $stmt->execute($params);
+        }
     }
 
     public function isUploadProtectedExistingSeed(array $row): bool
@@ -905,6 +919,48 @@ class EvidenceUploadService
         return str_contains($text, '자동으로 새 전표를 만들지 않았습니다.')
             || (str_contains($text, '이미 생성된 전표가 있어') && str_contains($text, '수정할 수 없습니다.'));
     }
+    private function hasEvidenceProcessingTable(): bool
+    {
+        return (bool) $this->call('tableExists', 'ledger_evidence_processing');
+    }
+
+    private function hasEvidenceSourceTable(): bool
+    {
+        return (bool) $this->call('tableExists', 'ledger_data_evidences');
+    }
+
+    private function evidenceProcessingJoin(string $payloadAlias = 'p', string $processingAlias = 'pr'): string
+    {
+        if (!$this->hasEvidenceProcessingTable()) {
+            return '';
+        }
+
+        return "
+            LEFT JOIN ledger_evidence_processing {$processingAlias}
+                ON {$processingAlias}.evidence_type COLLATE utf8mb4_unicode_ci = {$payloadAlias}.source_type COLLATE utf8mb4_unicode_ci
+               AND {$processingAlias}.evidence_id COLLATE utf8mb4_unicode_ci = {$payloadAlias}.id COLLATE utf8mb4_unicode_ci
+               AND {$processingAlias}.deleted_at IS NULL
+        ";
+    }
+
+    private function evidenceProcessingStatusSelect(string $processingAlias = 'pr', string $default = 'READY'): string
+    {
+        if (!$this->hasEvidenceProcessingTable()) {
+            return "'" . addslashes($default) . "'";
+        }
+
+        return "COALESCE({$processingAlias}.processing_status, '" . addslashes($default) . "')";
+    }
+
+    private function evidenceProcessingErrorMessageSelect(string $processingAlias = 'pr'): string
+    {
+        if (!$this->hasEvidenceProcessingTable()) {
+            return 'NULL';
+        }
+
+        return "{$processingAlias}.last_error_message";
+    }
+
     private function call(string $name, mixed ...$args): mixed
     {
         if (!isset($this->callbacks[$name])) {
@@ -932,8 +988,6 @@ class EvidenceUploadService
             '_validation' => true,
             '_seed_key' => true,
             '_seed_action' => true,
-            '_status_sort_no' => true,
-            '_create_sort_no' => true,
             '_voucher_lines' => true,
         ];
 
@@ -1024,30 +1078,27 @@ class EvidenceUploadService
 
             $stmt = $this->pdo->prepare("
                 SELECT
-                    p.evidence_id AS id,
+                    p.id AS id,
                     p.source_key,
                     p.raw_json,
                     p.mapped_payload_json,
                     CASE WHEN p.deleted_at IS NULL THEN 'ACTIVE' ELSE 'DELETED' END AS evidence_status,
-                    COALESCE(pr.processing_status, 'READY') AS transaction_status,
+                    " . $this->evidenceProcessingStatusSelect('pr') . " AS transaction_status,
                     CASE WHEN vx.target_id IS NULL THEN 'WAITING' ELSE 'LINKED' END AS voucher_status,
                     " . ($this->evidenceTransactionIdSelectBuilder)('') . "
-                FROM ledger_evidence_payloads p
-                LEFT JOIN ledger_evidence_processing pr
-                    ON pr.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
-                   AND pr.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
-                   AND pr.deleted_at IS NULL
+                FROM ledger_data_evidences p
+                " . $this->evidenceProcessingJoin('p', 'pr') . "
                 LEFT JOIN ledger_evidence_links tx
-                    ON tx.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
-                   AND tx.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
+                    ON tx.evidence_type COLLATE utf8mb4_unicode_ci = p.source_type COLLATE utf8mb4_unicode_ci
+                   AND tx.evidence_id COLLATE utf8mb4_unicode_ci = p.id COLLATE utf8mb4_unicode_ci
                    AND tx.target_type = 'TRANSACTION'
                    AND tx.deleted_at IS NULL
                 LEFT JOIN ledger_evidence_links vx
-                    ON vx.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
-                   AND vx.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
+                    ON vx.evidence_type COLLATE utf8mb4_unicode_ci = p.source_type COLLATE utf8mb4_unicode_ci
+                   AND vx.evidence_id COLLATE utf8mb4_unicode_ci = p.id COLLATE utf8mb4_unicode_ci
                    AND vx.target_type = 'VOUCHER'
                    AND vx.deleted_at IS NULL
-                WHERE p.evidence_type = :source_type
+                WHERE p.source_type = :source_type
                   AND p.source_key IN (" . implode(', ', $placeholders) . ")
                 ORDER BY p.source_key ASC, p.created_at DESC
             ");
@@ -1076,31 +1127,28 @@ class EvidenceUploadService
     {
         $stmt = $this->pdo->prepare("
             SELECT
-                p.evidence_id AS id,
+                p.id AS id,
                 p.source_key,
                 p.raw_json,
                 p.mapped_payload_json,
                 CASE WHEN p.deleted_at IS NULL THEN 'ACTIVE' ELSE 'DELETED' END AS evidence_status,
-                COALESCE(pr.processing_status, 'READY') AS transaction_status,
+                " . $this->evidenceProcessingStatusSelect('pr') . " AS transaction_status,
                 CASE WHEN vx.target_id IS NULL THEN 'WAITING' ELSE 'LINKED' END AS voucher_status,
                 tx.target_id AS transaction_id
-            FROM ledger_evidence_payloads p
-            LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
-               AND pr.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
-               AND pr.deleted_at IS NULL
+            FROM ledger_data_evidences p
+            " . $this->evidenceProcessingJoin('p', 'pr') . "
             LEFT JOIN ledger_evidence_links tx
-                ON tx.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
-               AND tx.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
+                ON tx.evidence_type COLLATE utf8mb4_unicode_ci = p.source_type COLLATE utf8mb4_unicode_ci
+               AND tx.evidence_id COLLATE utf8mb4_unicode_ci = p.id COLLATE utf8mb4_unicode_ci
                AND tx.target_type = 'TRANSACTION'
                AND tx.deleted_at IS NULL
             LEFT JOIN ledger_evidence_links vx
-                ON vx.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
-               AND vx.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
+                ON vx.evidence_type COLLATE utf8mb4_unicode_ci = p.source_type COLLATE utf8mb4_unicode_ci
+               AND vx.evidence_id COLLATE utf8mb4_unicode_ci = p.id COLLATE utf8mb4_unicode_ci
                AND vx.target_type = 'VOUCHER'
                AND vx.deleted_at IS NULL
             WHERE p.deleted_at IS NULL
-              AND p.evidence_type = :source_type
+              AND p.source_type = :source_type
         ");
         $stmt->execute([':source_type' => ($this->dataTypeNormalizer)($sourceType)]);
 
@@ -1163,30 +1211,33 @@ class EvidenceUploadService
 
     public function batches(): array
     {
+        if (!$this->hasEvidenceSourceTable()) {
+            return [];
+        }
+
+        $statusReady = $this->evidenceProcessingStatusSelect('pr');
+        $statusRaw = $this->evidenceProcessingStatusSelect('pr', '');
         $stmt = $this->pdo->query("
             SELECT
                 DATE(e.latest_imported_at) AS imported_date,
-                e.evidence_type AS data_type,
-                e.evidence_type AS source_type,
+                e.source_type AS data_type,
+                e.source_type AS source_type,
                 e.format_id,
                 '' AS format_name,
                 COUNT(*) AS total_rows,
-                SUM(CASE WHEN COALESCE(pr.processing_status, 'READY') = 'READY' THEN 1 ELSE 0 END) AS ready_count,
-                SUM(CASE WHEN COALESCE(pr.processing_status, 'READY') = 'READY' THEN 1 ELSE 0 END) AS valid_count,
+                SUM(CASE WHEN {$statusReady} = 'READY' THEN 1 ELSE 0 END) AS ready_count,
+                SUM(CASE WHEN {$statusReady} = 'READY' THEN 1 ELSE 0 END) AS valid_count,
                 0 AS warning_count,
-                SUM(CASE WHEN COALESCE(pr.processing_status, '') = 'ERROR' THEN 1 ELSE 0 END) AS error_count,
-                SUM(CASE WHEN COALESCE(pr.processing_status, '') = 'DUPLICATED' THEN 1 ELSE 0 END) AS duplicate_count,
-                SUM(CASE WHEN COALESCE(pr.processing_status, '') = 'PROCESSED' THEN 1 ELSE 0 END) AS created_count,
-                SUM(CASE WHEN COALESCE(pr.processing_status, '') = 'PROCESSED' THEN 1 ELSE 0 END) AS processed_count,
+                SUM(CASE WHEN {$statusRaw} = 'ERROR' THEN 1 ELSE 0 END) AS error_count,
+                SUM(CASE WHEN {$statusRaw} = 'DUPLICATED' THEN 1 ELSE 0 END) AS duplicate_count,
+                SUM(CASE WHEN {$statusRaw} = 'PROCESSED' THEN 1 ELSE 0 END) AS created_count,
+                SUM(CASE WHEN {$statusRaw} = 'PROCESSED' THEN 1 ELSE 0 END) AS processed_count,
                 MAX(e.latest_imported_at) AS created_at,
                 MAX(e.updated_at) AS updated_at
-            FROM ledger_evidence_payloads e
-            LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type = e.evidence_type
-               AND pr.evidence_id = e.evidence_id
-               AND pr.deleted_at IS NULL
+            FROM ledger_data_evidences e
+            " . $this->evidenceProcessingJoin('e', 'pr') . "
             WHERE e.deleted_at IS NULL
-            GROUP BY DATE(e.latest_imported_at), e.evidence_type, e.format_id
+            GROUP BY DATE(e.latest_imported_at), e.source_type, e.format_id
             ORDER BY MAX(e.latest_imported_at) DESC
             LIMIT 100
         ");
@@ -1196,32 +1247,33 @@ class EvidenceUploadService
 
     public function batchRows(string $batchId): array
     {
+        if (!$this->hasEvidenceSourceTable()) {
+            return [];
+        }
+
         $stmt = $this->pdo->prepare("
             SELECT
-                p.evidence_id AS id,
+                p.id AS id,
                 NULL AS batch_id,
-                p.evidence_type AS source_type,
+                p.source_type AS source_type,
                 0 AS row_no,
                 p.raw_json AS raw_payload,
                 p.mapped_payload_json AS mapped_payload,
                 CASE
-                    WHEN COALESCE(pr.processing_status, 'READY') IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN pr.processing_status
+                    WHEN " . $this->evidenceProcessingStatusSelect('pr') . " IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN " . $this->evidenceProcessingStatusSelect('pr') . "
                     WHEN tx.target_id IS NOT NULL THEN 'PROCESSED'
-                    ELSE COALESCE(pr.processing_status, 'READY')
+                    ELSE " . $this->evidenceProcessingStatusSelect('pr') . "
                 END AS status,
-                pr.last_error_message AS error_message,
+                " . $this->evidenceProcessingErrorMessageSelect('pr') . " AS error_message,
                 tx.target_id AS transaction_id,
                 p.latest_imported_at AS processed_at,
                 p.created_at,
                 p.updated_at
-            FROM ledger_evidence_payloads p
-            LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
-               AND pr.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
-               AND pr.deleted_at IS NULL
+            FROM ledger_data_evidences p
+            " . $this->evidenceProcessingJoin('p', 'pr') . "
             LEFT JOIN ledger_evidence_links tx
-                ON tx.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
-               AND tx.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
+                ON tx.evidence_type COLLATE utf8mb4_unicode_ci = p.source_type COLLATE utf8mb4_unicode_ci
+               AND tx.evidence_id COLLATE utf8mb4_unicode_ci = p.id COLLATE utf8mb4_unicode_ci
                AND tx.target_type = 'TRANSACTION'
                AND tx.deleted_at IS NULL
             WHERE p.deleted_at IS NULL

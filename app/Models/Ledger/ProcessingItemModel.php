@@ -62,6 +62,26 @@ class ProcessingItemModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    public function getBySourceId(string $sourceId): array
+    {
+        if (!$this->existsTable()) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT *
+            FROM {$this->table}
+            WHERE source_id = :source_id
+              AND deleted_at IS NULL
+            ORDER BY sort_no ASC, created_at ASC
+        ");
+        $stmt->execute([
+            ':source_id' => $sourceId,
+        ]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     public function getByIds(array $ids): array
     {
         if (!$this->existsTable()) {

@@ -1,4 +1,10 @@
-import { actorDisplay } from '/public/assets/js/common/actor.js';
+import { actorNameField } from '/public/assets/js/common/actor.js';
+import { formatDateInputValue as formatDateOnlyValue } from '/public/assets/js/common/format.js';
+import {
+    readDataTableSettingsState,
+    resolveDataTableColumnDisplayName,
+    resolveDataTableColumnRequirementPolicy,
+} from '/public/assets/js/common/datatable/dataTableSettings.js';
 
 export function registerEditors(ctx) {
     const {
@@ -80,6 +86,169 @@ export function registerEditors(ctx) {
     const UNIT_EMPTY_LABEL = '선택(없음)';
     const UNIT_QUICK_ADD_LABEL = '+기준추가';
 
+    const TRANSACTION_META_DOMAIN = 'transaction-header';
+    const TRANSACTION_TABLE_SETTINGS_KEY = 'datatable.settings.ledger.transaction.transaction-table.v1';
+    const TRANSACTION_TABLE_PAGE_KEY = 'ledger.transaction';
+    const TRANSACTION_HEADER_LABEL_FIELDS = Object.freeze([
+        { field: 'business_unit', selector: '#business_unit', textSelector: '.transaction-field-label-text' },
+        { field: 'transaction_direction', selector: '#transaction_direction', textSelector: '.transaction-field-label-text' },
+        { field: 'operation_type', selector: '#operation_type', textSelector: '.transaction-field-label-text' },
+        { field: 'currency', selector: '#currency', textSelector: '.transaction-field-label-text' },
+        { field: 'client_id', selector: '#client_id', textSelector: '.transaction-field-label-text' },
+        { field: 'project_id', selector: '#project_id', textSelector: '.transaction-field-label-text' },
+        { field: 'bank_account_id', selector: '#bank_account_id', textSelector: '.transaction-field-label-text' },
+        { field: 'card_id', selector: '#card_id', textSelector: '.transaction-field-label-text' },
+        { field: 'team_id', selector: '#team_id', textSelector: '.transaction-field-label-text' },
+        { field: 'employee_id', selector: '#employee_id', textSelector: '.transaction-field-label-text' },
+        { field: 'transaction_date', selector: '#transaction_date' },
+        { field: 'description', selector: '#transaction_description' },
+        { field: 'exchange_rate', selector: '#exchange_rate' },
+        { field: 'foreign_amount', selector: '#transaction_foreign_amount', settingsKey: 'transaction_foreign_amount' },
+        { field: 'note', selector: '#transaction_note' },
+        { field: 'memo', selector: '#transaction_memo' },
+        { field: 'supply_amount', selector: '#transaction_supply_amount', labelSelector: '.transaction-total-label', settingsKey: 'transaction_supply_amount' },
+        { field: 'settlement_amount', selector: '#transaction_settlement_amount', labelSelector: '.transaction-total-label', settingsKey: 'transaction_settlement_amount' },
+        { field: 'final_amount', selector: '#transaction_final_amount', labelSelector: '.transaction-total-label', settingsKey: 'transaction_final_amount' },
+    ]);
+
+    function readTransactionTableSettingsState() {
+        return readDataTableSettingsState(TRANSACTION_TABLE_SETTINGS_KEY, {
+            userSettingPageKey: TRANSACTION_TABLE_PAGE_KEY,
+            metaDomain: TRANSACTION_META_DOMAIN,
+        });
+    }
+
+    function normalizeTransactionMetaField(meta = {}) {
+        return String(meta?.column || meta?.key || '').trim();
+    }
+
+    function normalizeTransactionMetaColumn(meta = {}, fieldConfig = {}) {
+        const field = String(fieldConfig.field || normalizeTransactionMetaField(meta)).trim();
+        const settingsKey = String(fieldConfig.settingsKey || field).trim() || field;
+        const sourceField = String(fieldConfig.sourceField || meta?.source_title || field).trim() || field;
+        const defaultLabel = String(meta?.label || fieldConfig.fallback || field).trim() || field;
+
+        return {
+            ...meta,
+            key: field,
+            column: field,
+            settingsKey,
+            __dtSettingsKey: settingsKey,
+            sourceField,
+            system_field_name: sourceField,
+            original_column_key: sourceField,
+            data: String(fieldConfig.dataKey || settingsKey).trim() || settingsKey,
+            __dtDefaultDisplayName: defaultLabel,
+        };
+    }
+
+    function transactionFieldLabel(meta = {}, state = null, fieldConfig = {}) {
+        const column = normalizeTransactionMetaColumn(meta, fieldConfig);
+        return resolveDataTableColumnDisplayName(
+            column,
+            state,
+            column.__dtDefaultDisplayName || column.key
+        );
+    }
+
+    function transactionFieldRequirementPolicy(meta = {}, state = null, fieldConfig = {}) {
+        const column = normalizeTransactionMetaColumn(meta, fieldConfig);
+        const policy = resolveDataTableColumnRequirementPolicy(column, state);
+        if (policy === 'required' || policy === 'optional') {
+            return policy;
+        }
+        return meta?.required === true ? 'required' : 'none';
+    }
+
+    function transactionFieldLabelHtml(label = '', policy = 'none') {
+        const text = escapeHtml(label || '');
+        if (policy === 'required') {
+            return `${text}<span class="column-policy-star is-required" aria-hidden="true">*</span>`;
+        }
+        if (policy === 'optional') {
+            return `${text}<span class="column-policy-star is-optional" aria-hidden="true">*</span>`;
+        }
+        return text;
+    }
+
+    function ensureTransactionLabelFallback(targetEl) {
+        if (!targetEl) {
+            return '';
+        }
+
+        const cached = String(targetEl.dataset.transactionLabelBase || '').trim();
+        if (cached !== '') {
+            return cached;
+        }
+
+        const fallback = String(targetEl.textContent || '').replace(/\*/g, '').trim();
+        targetEl.dataset.transactionLabelBase = fallback;
+        return fallback;
+    }
+
+    function applyTransactionHeaderLabels(metaRows = []) {
+        const state = readTransactionTableSettingsState();
+        const metaMap = new Map(
+            (Array.isArray(metaRows) ? metaRows : [])
+                .map((meta) => [normalizeTransactionMetaField(meta), meta])
+                .filter(([field]) => field !== '')
+        );
+
+        TRANSACTION_HEADER_LABEL_FIELDS.forEach((fieldConfig) => {
+            const inputEl = form?.querySelector(fieldConfig.selector) || document.querySelector(fieldConfig.selector);
+            if (!inputEl) {
+                return;
+            }
+
+            const fieldWrap = inputEl.closest('.transaction-field, .transaction-total-card');
+            if (!fieldWrap) {
+                return;
+            }
+
+            const labelEl = fieldWrap.querySelector(fieldConfig.labelSelector || '.transaction-field-label');
+            if (!labelEl) {
+                return;
+            }
+
+            const textEl = fieldConfig.textSelector
+                ? labelEl.querySelector(fieldConfig.textSelector)
+                : null;
+            const targetEl = textEl || labelEl;
+            const fallback = ensureTransactionLabelFallback(targetEl);
+            const meta = metaMap.get(fieldConfig.field) || {
+                column: fieldConfig.field,
+                key: fieldConfig.field,
+                label: fallback || fieldConfig.field,
+                source_title: fieldConfig.field,
+            };
+
+            targetEl.innerHTML = transactionFieldLabelHtml(
+                transactionFieldLabel(meta, state, { ...fieldConfig, fallback }),
+                transactionFieldRequirementPolicy(meta, state, fieldConfig)
+            );
+        });
+    }
+
+    function bindTransactionHeaderMetaSync() {
+        if (ctx.transactionHeaderMetaSyncBound) {
+            return;
+        }
+
+        ctx.transactionHeaderMetaSyncBound = true;
+        document.addEventListener('datatable-settings:updated', async (event) => {
+            const storageKey = String(event?.detail?.storageKey || '').trim();
+            if (storageKey && storageKey !== TRANSACTION_TABLE_SETTINGS_KEY) {
+                return;
+            }
+
+            const metaRows = await fetchTransactionHeaderMeta();
+            applyTransactionHeaderLabels(metaRows);
+            if (ctx.systemInfoFieldsEl) {
+                void setSystemInfoFields(ctx.transactionDetailMetaData || {});
+            }
+        });
+    }
+
     const DEFAULT_SETTLEMENT_TYPE_OPTIONS = [
         { code: 'VAT', label: 'VAT' },
         { code: 'WITHHOLDING_INCOME', label: 'WITHHOLDING_INCOME' },
@@ -92,6 +261,70 @@ export function registerEditors(ctx) {
     const DEFAULT_AMOUNT_SIGN_OPTIONS = [
         { code: 'PLUS', label: 'PLUS' },
         { code: 'MINUS', label: 'MINUS' },
+    ];
+    const SYSTEM_INFO_EXCLUDED_FIELDS = new Set([
+        'business_unit',
+        'transaction_direction',
+        'operation_type',
+        'currency',
+        'client_id',
+        'project_id',
+        'bank_account_id',
+        'card_id',
+        'team_id',
+        'employee_id',
+        'transaction_date',
+        'transaction_description',
+        'description',
+        'transaction_exchange_rate',
+        'exchange_rate',
+        'transaction_foreign_amount',
+        'foreign_amount',
+        'transaction_supply_amount',
+        'supply_amount',
+        'base_amount',
+        'transaction_settlement_amount',
+        'settlement_amount',
+        'adjustment_amount',
+        'transaction_final_amount',
+        'final_amount',
+        'total_amount',
+        'transaction_note',
+        'note',
+        'transaction_memo',
+        'memo',
+    ]);
+    const SYSTEM_INFO_LABEL_OVERRIDES = {
+        sort_no: '순번',
+        status: '상태',
+        match_status: '매칭상태',
+        voucher_link_status: '전표연계상태',
+        source_type: '자료출처',
+        import_type: '자료유형',
+        evidence_id: '증빙',
+        transaction_no: '거래번호',
+        created_at: '생성일시',
+        created_by: '생성자',
+        updated_at: '수정일시',
+        updated_by: '수정자',
+        deleted_at: '삭제일시',
+        deleted_by: '삭제자',
+    };
+    const SYSTEM_INFO_FALLBACK_ORDER = [
+        'sort_no',
+        'status',
+        'match_status',
+        'voucher_link_status',
+        'source_type',
+        'import_type',
+        'evidence_id',
+        'transaction_no',
+        'created_at',
+        'created_by',
+        'updated_at',
+        'updated_by',
+        'deleted_at',
+        'deleted_by',
     ];
     const LINE_COLUMNS = [
         {
@@ -977,16 +1210,16 @@ export function registerEditors(ctx) {
 
     function normalizeTransactionStatus(value) {
         const status = String(value || 'draft').toLowerCase();
-        return ['draft', 'approved', 'rejected', 'deleted'].includes(status) ? status : 'draft';
+        return ['draft', 'completed', 'closed', 'cancelled'].includes(status) ? status : 'draft';
     }
 
     function renderTransactionStatus(value) {
         const status = normalizeTransactionStatus(value);
         const labels = {
-            draft: '입력',
-            approved: '승인완료',
-            rejected: '반려',
-            deleted: '삭제',
+            draft: '임시저장',
+            completed: '완료',
+            closed: '마감',
+            cancelled: '취소',
         };
         return `<span class="transaction-status transaction-status-${status}">${labels[status]}</span>`;
     }
@@ -1012,10 +1245,10 @@ export function registerEditors(ctx) {
 
         const status = normalizeTransactionStatus(value);
         const labels = {
-            draft: '입력',
-            approved: '승인',
-            rejected: '반려',
-            deleted: '삭제',
+            draft: '임시저장',
+            completed: '완료',
+            closed: '마감',
+            cancelled: '취소',
         };
 
         ctx.transactionStatusBadgeEl.className = `transaction-modal-state transaction-status-${status}`;
@@ -1029,10 +1262,10 @@ export function registerEditors(ctx) {
 
     function statusDisplayLabel(value) {
         const labels = {
-            draft: '입력',
-            approved: '승인',
-            rejected: '반려',
-            deleted: '삭제',
+            draft: '임시저장',
+            completed: '완료',
+            closed: '마감',
+            cancelled: '취소',
         };
 
         return labels[normalizeTransactionStatus(value)] || labels.draft;
@@ -1049,24 +1282,262 @@ export function registerEditors(ctx) {
         return labels[String(value || 'none').trim().toLowerCase()] || '미연결';
     }
 
-    function setSystemInfoFields(data = {}) {
-        const createdAtEl = document.getElementById('transaction_created_at_display');
-        const createdByEl = document.getElementById('transaction_created_by_name');
-        const updatedAtEl = document.getElementById('transaction_updated_at_display');
-        const updatedByEl = document.getElementById('transaction_updated_by_name');
-        const deletedAtEl = document.getElementById('transaction_deleted_at_display');
-        const deletedByEl = document.getElementById('transaction_deleted_by_name');
-        const statusEl = document.getElementById('transaction_status_display');
-        const matchStatusEl = document.getElementById('transaction_match_status_display');
+    async function fetchTransactionHeaderMeta() {
+        if (Array.isArray(ctx.transactionHeaderMeta) && ctx.transactionHeaderMeta.length > 0) {
+            return ctx.transactionHeaderMeta;
+        }
+        if (ctx.transactionHeaderMetaPromise) {
+            return ctx.transactionHeaderMetaPromise;
+        }
 
-        if (createdAtEl) createdAtEl.value = data.created_at || '';
-        if (createdByEl) createdByEl.value = actorDisplay(data, 'created_by');
-        if (updatedAtEl) updatedAtEl.value = data.updated_at || '';
-        if (updatedByEl) updatedByEl.value = actorDisplay(data, 'updated_by');
-        if (deletedAtEl) deletedAtEl.value = data.deleted_at || '';
-        if (deletedByEl) deletedByEl.value = actorDisplay(data, 'deleted_by');
-        if (statusEl) statusEl.value = statusDisplayLabel(data.status || 'draft');
-        if (matchStatusEl) matchStatusEl.value = matchStatusDisplayLabel(data.match_status || 'none');
+        ctx.transactionHeaderMetaPromise = ctx.fetchJson(`${ctx.API.systemTableColumns}?domain=transaction-header`)
+            .then((json) => {
+                ctx.transactionHeaderMeta = Array.isArray(json?.data) ? json.data : [];
+                return ctx.transactionHeaderMeta;
+            })
+            .catch(() => {
+                ctx.transactionHeaderMeta = [];
+                return [];
+            })
+            .finally(() => {
+                ctx.transactionHeaderMetaPromise = null;
+            });
+
+        return ctx.transactionHeaderMetaPromise;
+    }
+
+    function isBlankSystemValue(value) {
+        const text = String(value ?? '').trim();
+        return (
+            text === ''
+            || text === '0000-00-00'
+            || text === '0000-00-00 00:00:00'
+            || text === 'null'
+            || text === 'undefined'
+        );
+    }
+
+    function actorSystemDisplay(row, field) {
+        const raw = String(row?.[field] ?? '').trim();
+        const resolved = String(row?.[actorNameField(field)] ?? '').trim();
+        if (raw === '') {
+            return '-';
+        }
+        return resolved || '(알 수 없음)';
+    }
+
+    function formatSystemDateTime(value) {
+        if (isBlankSystemValue(value)) {
+            return '-';
+        }
+
+        const raw = String(value).trim();
+        const date = formatDateOnlyValue(raw);
+        const timeMatch = raw.match(/(\d{2}):(\d{2})(?::(\d{2}))?/);
+        if (!date) {
+            return raw;
+        }
+        if (!timeMatch) {
+            return date;
+        }
+
+        const hour = timeMatch[1];
+        const minute = timeMatch[2];
+        const second = timeMatch[3] || '00';
+        return `${date} ${hour}:${minute}:${second}`;
+    }
+
+    function formatSystemNumber(value) {
+        if (isBlankSystemValue(value)) {
+            return '-';
+        }
+
+        return formatNumber(value);
+    }
+
+    function voucherLinkStatusDisplayLabel(value, row = {}) {
+        const linkedCount = Array.isArray(row.linked_vouchers) ? row.linked_vouchers.length : 0;
+        if (linkedCount > 0) {
+            return '연결완료';
+        }
+
+        const key = String(value || '').trim().toLowerCase();
+        if (key === '') {
+            return '-';
+        }
+
+        return ({
+            none: '미연결',
+            linked: '연결완료',
+            matched: '연결완료',
+            partial: '부분연결',
+            pending: '대기',
+        })[key] || value;
+    }
+
+    function systemInfoFieldLabel(field, meta = {}) {
+        const state = readTransactionTableSettingsState();
+        return SYSTEM_INFO_LABEL_OVERRIDES[field]
+            || transactionFieldLabel(meta, state, { field })
+            || String(meta.label || meta.source_title || field).trim()
+            || field;
+    }
+
+    function systemInfoFieldRequirementPolicy(field, meta = {}) {
+        const state = readTransactionTableSettingsState();
+        return transactionFieldRequirementPolicy(meta, state, { field });
+    }
+
+    function systemInfoDisplayValue(field, data = {}) {
+        switch (field) {
+        case 'status':
+            return statusDisplayLabel(data.status || 'draft');
+        case 'match_status':
+            return matchStatusDisplayLabel(data.match_status || 'none');
+        case 'voucher_link_status':
+            return voucherLinkStatusDisplayLabel(data.voucher_link_status, data);
+        case 'source_type':
+            return String(data.source_type_name || '').trim() || (String(data.source_type || '').trim() !== '' ? '(알 수 없음)' : '-');
+        case 'import_type':
+            return String(data.import_type_name || '').trim() || (String(data.import_type || '').trim() !== '' ? '(알 수 없음)' : '-');
+        case 'evidence_id':
+            return String(data.evidence_display_name || data.evidence_source_key || '').trim()
+                || (String(data.evidence_id || '').trim() !== '' ? '(알 수 없음)' : '-');
+        case 'created_by':
+        case 'updated_by':
+        case 'deleted_by':
+            return actorSystemDisplay(data, field);
+        default:
+            break;
+        }
+
+        if (/_at$/.test(field) || /_date$/.test(field)) {
+            return formatSystemDateTime(data[field]);
+        }
+
+        if (/(^sort_no$|amount$|_amount$|_price$|quantity$|_count$|_rate$)/.test(field)) {
+            return formatSystemNumber(data[field]);
+        }
+
+        if (/_id$/.test(field)) {
+            const nameField = field.replace(/_id$/, '_name');
+            const display = String(data[nameField] || '').trim();
+            if (display !== '') {
+                return display;
+            }
+            return String(data[field] || '').trim() !== '' ? '(알 수 없음)' : '-';
+        }
+
+        return isBlankSystemValue(data[field]) ? '-' : String(data[field]).trim();
+    }
+
+    function shouldRenderSystemInfoField(field, data = {}) {
+        if (field === '' || SYSTEM_INFO_EXCLUDED_FIELDS.has(field)) {
+            return false;
+        }
+
+        if (
+            /(_name|_uuid|_code)$/.test(field)
+            || field.includes('.')
+            || ['items', 'settlements', 'files', 'linked_vouchers'].includes(field)
+        ) {
+            return false;
+        }
+
+        const value = data[field];
+        const hasDisplaySource = Object.prototype.hasOwnProperty.call(data, field)
+            || Object.prototype.hasOwnProperty.call(data, actorNameField(field))
+            || Object.prototype.hasOwnProperty.call(data, `${field}_name`);
+
+        if (!hasDisplaySource) {
+            return false;
+        }
+
+        if (Array.isArray(value) || (value && typeof value === 'object')) {
+            return false;
+        }
+
+        return true;
+    }
+
+    function buildSystemInfoFields(metaRows = [], data = {}) {
+        const rows = Array.isArray(metaRows) ? metaRows : [];
+        const metaByField = new Map();
+        const orderedFields = [];
+
+        rows.forEach((meta) => {
+            const field = String(meta?.column || meta?.key || '').trim();
+            if (field === '' || metaByField.has(field)) {
+                return;
+            }
+            metaByField.set(field, meta);
+            orderedFields.push(field);
+        });
+
+        if (orderedFields.length === 0) {
+            orderedFields.push(...Object.keys(data || {}));
+        } else {
+            SYSTEM_INFO_FALLBACK_ORDER.forEach((field) => {
+                if (!orderedFields.includes(field) && Object.prototype.hasOwnProperty.call(data, field)) {
+                    orderedFields.push(field);
+                }
+            });
+
+            Object.keys(data || {}).forEach((field) => {
+                if (!orderedFields.includes(field)) {
+                    orderedFields.push(field);
+                }
+            });
+        }
+
+        const seen = new Set();
+        return orderedFields
+            .filter((field) => {
+                const normalizedField = String(field || '').trim();
+                if (seen.has(normalizedField)) {
+                    return false;
+                }
+                seen.add(normalizedField);
+                return shouldRenderSystemInfoField(normalizedField, data);
+            })
+            .map((field) => ({
+                ...(metaByField.get(field) || {}),
+                column: field,
+                key: field,
+            }));
+    }
+
+    function renderSystemInfoField(field, label, value, policy = 'none') {
+        return `
+            <label class="transaction-field transaction-field-readonly">
+                <span class="transaction-field-label">${transactionFieldLabelHtml(label, policy)}</span>
+                <input type="text" class="form-control form-control-sm" value="${escapeHtml(value)}" readonly>
+            </label>
+        `;
+    }
+
+    async function setSystemInfoFields(data = {}) {
+        const container = ctx.systemInfoFieldsEl || document.getElementById('transactionSystemInfoFields');
+        if (!container) {
+            return;
+        }
+
+        const metaRows = await fetchTransactionHeaderMeta();
+        ctx.transactionDetailMetaData = data && typeof data === 'object' ? { ...data } : {};
+        applyTransactionHeaderLabels(metaRows);
+        const fields = buildSystemInfoFields(metaRows, data);
+
+        container.innerHTML = fields
+            .map((meta) => {
+                const field = String(meta.column || '').trim();
+                return renderSystemInfoField(
+                    field,
+                    systemInfoFieldLabel(field, meta),
+                    systemInfoDisplayValue(field, data),
+                    systemInfoFieldRequirementPolicy(field, meta)
+                );
+            })
+            .join('');
     }
 
     function setTransactionModalEditable(editable) {
@@ -1121,6 +1592,8 @@ export function registerEditors(ctx) {
 
         return ctx.agGridLoadPromise;
     }
+
+    bindTransactionHeaderMetaSync();
 
     Object.assign(ctx, { getLineColumns, getSettlementColumns, escapeHtml, notify, today, formatDate, decorateGridDatePicker, isLineDateCell, isManualDateKey, getVisibleGridDatePicker, closeGridDatePicker, unbindLineDateInputFormatter, bindLineDateInputFormatter, unbindLineDateEscHandler, bindLineDateEscHandler, getUnitDropdownSource, unitDropdownSource, normalizeUnitCellValue, isAllowedUnitCellValue, notifyInvalidUnitValue, updateSettlementTypeOptionsFromCodeState, updateAmountSignOptionsFromCodeState, findSettlementTypeOption, settlementTypeLabelFromCode, settlementTypeCodeFromCell, findAmountSignOption, amountSignLabelFromCode, amountSignCodeFromCell, updateUnitOptionsFromCodeState, updateTaxTypeOptionsFromCodeState, findTaxTypeOption, taxTypeDropdownSource, normalizeTaxTypeCellValue, taxTypeCodeFromCellValue, normalizeTaxTypeCode, taxTypeLabelFromCode, defaultLineTaxTypeCode, defaultLineTaxTypeLabel, applyForeignTaxTypeToLines, openUnitQuickAdd, applyPendingUnitSelection, numberValue, formatAmount, setHeaderAmountValues, syncHeaderFinalAmount, normalizeHeaderAmountFormData, lineRowNoRenderer, dragHandleHeaderComponent, dragHandleCellRenderer, lineActionRenderer, formatBytes, updateFileDropzone, renderMatchStatus, normalizeTransactionStatus, renderTransactionStatus, renderLineStatus, updateTransactionStatusBadge, statusDisplayLabel, matchStatusDisplayLabel, setSystemInfoFields, setTransactionModalEditable, renderCodeName, ensureAgGridLibrary, initUnitCodeOptions, fetchJson, HOT_DATE_PICKER_CONFIG, LINE_ITEM_DATE_COL, LINE_UNIT_COL, TAX_TYPE_DEFAULT_LABEL, UNIT_EMPTY_LABEL, UNIT_QUICK_ADD_LABEL, DEFAULT_SETTLEMENT_TYPE_OPTIONS, DEFAULT_AMOUNT_SIGN_OPTIONS, LINE_COLUMNS, SETTLEMENT_COLUMNS });
     return ctx;

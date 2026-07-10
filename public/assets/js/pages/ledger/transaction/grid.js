@@ -306,7 +306,9 @@ export function registerGrid(ctx) {
     function initLineGrid() {
         if (ctx.lineGrid) return;
 
-        const lineWidthSettings = ctx.loadAgGridColumnWidthSettings(ctx.LINE_GRID_SETTINGS_KEY);
+        const lineWidthSettings = ctx.loadAgGridColumnWidthSettings(ctx.LINE_GRID_SETTINGS_KEY, {
+            userSettingPageKey: 'ledger.transaction-item-grid',
+        });
         const lineColumnDefs = ctx.applyAgGridColumnWidthSettings(getLineColumns(), lineWidthSettings);
 
         ctx.lineGrid = createAgGridInputAdapter(ctx.gridEl, {
@@ -460,7 +462,9 @@ export function registerGrid(ctx) {
     function initSettlementGrid() {
         if (ctx.settlementGrid) return;
 
-        const settlementWidthSettings = ctx.loadAgGridColumnWidthSettings(ctx.SETTLEMENT_GRID_SETTINGS_KEY);
+        const settlementWidthSettings = ctx.loadAgGridColumnWidthSettings(ctx.SETTLEMENT_GRID_SETTINGS_KEY, {
+            userSettingPageKey: 'ledger.transaction-settlement-grid',
+        });
         const settlementColumnDefs = ctx.applyAgGridColumnWidthSettings(getSettlementColumns(), settlementWidthSettings);
 
         ctx.settlementGrid = createAgGridInputAdapter(ctx.settlementGridEl, {

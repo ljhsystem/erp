@@ -9,7 +9,6 @@ const API = {
 };
 
 const QUICK_ADD_VALUE = '__CODE_QUICK_ADD__';
-const NONE_OPTION_VALUE = '__CODE_NONE__';
 const NEW_CODE_GROUP_VALUE = '__new_code_group__';
 
 const state = {
@@ -26,6 +25,25 @@ const state = {
     modalCleanupBound: false,
     searchFocusBound: false,
 };
+
+function normalizeSortNo(value) {
+    const parsed = Number(String(value ?? '').replace(/,/g, '').trim());
+    return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
+}
+
+function sortCodeRowsBySortNo(rows = []) {
+    return [...(Array.isArray(rows) ? rows : [])]
+        .map((row, index) => ({ row, index }))
+        .sort((left, right) => {
+            const leftSortNo = normalizeSortNo(left.row?.sort_no);
+            const rightSortNo = normalizeSortNo(right.row?.sort_no);
+            if (leftSortNo !== rightSortNo) {
+                return leftSortNo - rightSortNo;
+            }
+            return left.index - right.index;
+        })
+        .map((entry) => entry.row);
+}
 
 export function getCodeName(field, code) {
     const value = String(code ?? '').trim();
@@ -88,19 +106,15 @@ export async function refreshCodeSelect(selectOrId, codeGroup, selectedValue = '
 
     const rows = await fetchCodeOptions(group);
     const currentValue = String(selectedValue ?? select.value ?? '').trim();
+    const existingEmptyOption = select.querySelector('option[value=""]');
 
     select.innerHTML = '';
     if (select.dataset.emptyOption !== 'false') {
         const emptyOption = document.createElement('option');
         emptyOption.value = '';
-        emptyOption.textContent = select.dataset.emptyLabel || '선택';
+        emptyOption.textContent = '선택(없음)';
         select.appendChild(emptyOption);
     }
-
-    const noneOption = document.createElement('option');
-    noneOption.value = NONE_OPTION_VALUE;
-    noneOption.textContent = select.dataset.noneOptionLabel || '선택(없음)';
-    select.appendChild(noneOption);
 
     rows.forEach((row) => {
         const option = document.createElement('option');
@@ -288,7 +302,6 @@ function bindCodeSelect(select, codeGroup) {
     });
 
     select.addEventListener('change', () => {
-        if (handleNoneSelection(select)) return;
         if (handleQuickAddSelection(select, codeGroup)) return;
         state.previousValues[select.id] = select.value || '';
     });
@@ -298,11 +311,6 @@ function bindCodeSelect(select, codeGroup) {
             .off('select2:select.codeSelect')
             .on('select2:select.codeSelect', (event) => {
                 const selectedId = String(event.params?.data?.id ?? '');
-                if (selectedId === NONE_OPTION_VALUE) {
-                    handleNoneSelection(select, true);
-                    return;
-                }
-
                 if (selectedId === QUICK_ADD_VALUE) {
                     handleQuickAddSelection(select, codeGroup, true);
                 }
@@ -351,7 +359,6 @@ function enhanceSelect2(select) {
     const options = {
         width: '100%',
         dropdownAutoWidth: false,
-        placeholder: select.querySelector('option[value=""]')?.textContent || undefined,
         language: 'ko',
         minimumResultsForSearch: select.dataset.codeSearchable === 'true' ? 0 : Infinity,
         dropdownCssClass: 'code-select-dropdown',
@@ -382,16 +389,6 @@ function enhanceSelect2(select) {
                 redirectFocusFromHiddenSelect(select);
             }, 0);
         });
-}
-
-function handleNoneSelection(select, force = false) {
-    if (!select || (!force && select.value !== NONE_OPTION_VALUE)) {
-        return false;
-    }
-
-    restoreSelectValue(select, '');
-    state.previousValues[select.id] = '';
-    return true;
 }
 
 function handleQuickAddSelection(select, codeGroup, force = false) {
@@ -433,7 +430,7 @@ async function fetchCodeOptions(codeGroup) {
     state.optionPromises[group] = (async () => {
         const response = await fetch(`${API.LIST}?code_group=${encodeURIComponent(group)}`, { cache: 'no-store' });
         const json = await response.json();
-        const rows = Array.isArray(json) ? json : (json.data || []);
+        const rows = sortCodeRowsBySortNo(Array.isArray(json) ? json : (json.data || []));
 
         state.options[group] = rows
             .map((row) => ({
@@ -441,6 +438,7 @@ async function fetchCodeOptions(codeGroup) {
                 code: String(row.code ?? '').trim(),
                 code_name: String(row.code_name ?? row.code ?? '').trim(),
                 group_name: String(row.group_name ?? '').trim(),
+                sort_no: normalizeSortNo(row.sort_no),
                 is_active: Number(row.is_active ?? 1),
             }))
             .filter((row) => row.code && row.is_active === 1);
@@ -702,7 +700,7 @@ async function renderOriginalGroupOptions(selectedGroup = '') {
     const groups = await fetchCodeGroups();
     const merged = Array.from(new Set([...groups, normalizeCodeGroup(selectedGroup)].filter(Boolean))).sort();
 
-    select.innerHTML = '<option value="">선택</option>';
+    select.innerHTML = '<option value="">선택(없음)</option>';
     merged.forEach((group) => {
         const option = document.createElement('option');
         option.value = group;

@@ -48,13 +48,18 @@
   - Out of scope: backup generation, Standby sync execution, mysql CLI execution
 
 - `DatabaseActiveSwitchService`
-  - Responsibility: Active DB 판별, `db_replication.php` active_target 전환, 대상 DB 접속정보 정규화, 전환 대상 DB 연결 검증, 마지막 전환 상태 저장, 전환 로그 기록
+  - Responsibility: Active DB switch guard validation, `db_replication.php` active_target update, target DB connection validation, latest switch status persistence, and switch log persistence
   - Controllers: `DatabaseActiveController`
-  - Out of scope: DB 연결 자체 재기동, 자동 전환, 자동 장애 복구
+  - Out of scope: DB connection recovery, automatic failover, automatic promotion
 
 - `DatabaseActiveSwitchService` update
   - Updated responsibility: Active DB switch guard validation for running sync/restore status, `db_replication.php` active_target switch, target DB connection validation, latest switch status persistence, switch log persistence
   - Updated out of scope: DB connection recovery, automatic failover, automatic promotion
+
+- `DataTableColumnMetaService`
+  - Responsibility: shared DataTable physical-column meta lookup, composite table meta merge, canonical domain-alias to physical-table resolution, and DB table comment exposure for table-settings subtitle rendering
+  - Controllers: `SystemController`
+  - Out of scope: page-specific column rendering, DataTable state persistence, direct modal UI rendering
 
 - `ChartAccountExcelService`
   - Responsibility: ledger chart-account excel template generation, full-list export, upload parsing, row validation, save-result summary assembly
@@ -158,9 +163,17 @@
   - Controllers: `ImportController`
   - Out of scope: reference resolution, transaction context resolution, payload normalization
 - `EvidenceTypePolicyService`
-  - Responsibility: evidence data type policy, transaction direction policy, processing plan resolution, manual tax invoice type detection, upload business unit policy
-  - Controllers: `ImportController`
-  - Out of scope: upload save, voucher create, DB schema change
+  - Responsibility: evidence import/source type normalization, legacy type alias policy, upload/business data type allow policy, transaction direction policy, manual tax invoice type detection, upload business unit policy
+  - Controllers: `EvidenceController`, `EvidenceImportController`, `EvidenceLifecycleController`, `EvidenceListController`, `EvidenceStatusController`, `EvidenceTransactionController`, `EvidenceUploadController`
+  - Out of scope: page ready/planned rollout policy, field/meta domain policy, excel manager domain policy, field alias/display policy, modal preset policy, processing plan policy, upload save, voucher create, DB schema change
+- `SystemFieldService`
+  - Responsibility: body-table physical column discovery, data-type to target-table resolution, source field option generation, field ordering/default visibility/default required policy generation, field-group metadata assembly for table setting, excel upload/download, and modal rendering preparation
+  - Controllers: `EvidenceImportController`, `EvidenceUploadController`
+  - Out of scope: import/source type normalization, runtime page-ready policy, processing plan, badge/color/icon UI policy, DB schema change
+- `EvidenceProcessingPolicyService`
+  - Responsibility: evidence read-time processing-table existence policy, `ledger_evidence_processing` join SQL, runtime processing status/review status select fragments, and status-filter availability policy for body-table reads
+  - Controllers: none directly; used by `EvidenceGenerationService`
+  - Out of scope: import/source type normalization, field/meta generation, page rollout policy, upload/save/delete orchestration, and DB schema change
 - `EvidenceUploadService`
   - Expanded responsibility: upload runtime/cancel/trace, preview session store/load/clear, file column validation/header-only read, fingerprint source key/build, duplicate lookup/annotation, required-missing summary/confirmation, upload source key policy, upload row status update helper, preview confirm orchestration, upload file path orchestration, trace payload build, validation response build, preview confirm response build, chunk upload progress/result build
   - Controllers: `ImportController`
@@ -178,7 +191,7 @@
   - Controllers: `ImportController`
   - Out of scope: voucher create orchestration, bundled voucher create, learning, link/update side effects
 - `VoucherCreateService`
-  - Responsibility: bank voucher create orchestration, existing voucher check, voucher line/payment build, voucher link/status update
+  - Responsibility: bank voucher create orchestration, existing voucher check, voucher line build, voucher link/status update
   - Controllers: `ImportController`
   - Out of scope: bundled voucher create, voucher policy lookup, learning helper, DB schema change
 - `TransactionPayloadBuildService`
@@ -210,9 +223,9 @@
   - Controllers: `ImportController`
   - Out of scope: business reference helper, bank helper, DB schema change
 - `EvidenceBankHelperService`
-  - Responsibility: bank payload normalize, bank evidence sync, bank transaction upsert, bank voucher validation helper
+  - Responsibility: bank payload normalize, bank evidence sync, bank transaction upsert, bank voucher line validation helper
   - Controllers: `ImportController`
-  - Out of scope: evidence status helper, payload helper, DB schema change
+  - Out of scope: evidence status helper, separate payment-domain orchestration, DB schema change
 - `EvidenceStatusHelperService`
   - Responsibility: evidence status helper, business-status apply helper, readiness apply helper, active output detection, transaction/voucher existence helper, evidence status SQL helper
   - Controllers: `ImportController`
@@ -250,9 +263,9 @@
   - Controllers: `ImportController`
   - Out of scope: payload helper, link helper, DB schema change
 - `BundledVoucherService`
-  - Responsibility: bundled voucher create, bundled voucher tagging, bundled evidence voucher orchestration
+  - Responsibility: bundled voucher create, bundled voucher tagging, bundled evidence voucher orchestration with voucher lines only
   - Controllers: `ImportController`
-  - Out of scope: upload save, bank helper, DB schema change
+  - Out of scope: upload save, separate payment-domain save, DB schema change
 - `VoucherLearningService`
   - Responsibility: voucher learning save, voucher learning line build, reference payload normalize, amount bucket classification
   - Controllers: `ImportController`
@@ -267,14 +280,17 @@ This section preserves the older evidence-service split reference in readable fo
 | EvidenceStatusService | Owns evidence status updates, readiness-related state changes, and status lookup helpers. | `ImportController`, `EvidenceStatusController` | Payload save orchestration, transaction creation, voucher creation, and DB schema change |
 | EvidenceTrashService | Owns evidence trash, restore, and purge orchestration for evidence lifecycle cleanup. | `ImportController`, `EvidenceGenerationController` | Upload parse/save, payload normalization, transaction creation, and DB schema change |
 | EvidenceUploadService | Owns upload flow orchestration, parsed row handling, and upload batch save coordination. | `ImportController`, `EvidenceUploadController` | Generation split/merge, transaction creation, voucher creation, and DB schema change |
-| EvidenceGenerationService | Owns evidence generation orchestration, processing item handling, and generation-stage save flow coordination. | `ImportController`, `EvidenceGenerationController` | Upload parsing and direct transaction save orchestration |
+| EvidenceGenerationService | Owns runtime read orchestration, body-row assembly, and processing-item expansion for evidence list/detail generation. | `EvidenceListController`, `EvidenceLifecycleController`, `EvidenceTransactionCreateService` | Type policy, field meta, page policy, processing SQL policy, upload/save/delete orchestration, and DB schema change |
+| EvidenceBodyReadService | Owns body-table read orchestration for runtime evidence list/detail generation and delegates concrete SQL access to domain-specific read models so the service keeps flow-only responsibility. | `EvidenceGenerationService` | Direct SQL ownership, type normalization policy, page policy, field meta policy, upload/save/delete flows, UI policy, and DB schema change |
 | EvidencePayloadNormalizeService | Owns payload value normalization, field-level cleanup, and format-column-based payload normalization helpers. | `ImportController`, `EvidenceGenerationSaveService`, `EvidenceGenerationService`, `EvidenceUploadService` | Readiness, reference resolution, transaction helpers, and voucher orchestration |
 | EvidenceRuleEngineService | Owns business-required readiness evaluation, system readiness validation, readiness result assembly, and transaction-create error formatting. | `ImportController`, `EvidenceGenerationService`, `EvidenceTransactionCreateService` | Reference resolution, transaction context resolution, and payload normalization |
-| EvidenceTypePolicyService | Owns import/source type resolution, type-based SQL target lookup, and legacy evidence type policy helpers. | `ImportController`, `EvidenceGenerationService`, `EvidenceStatusService`, `EvidenceTrashService` | Readiness, payload save, transaction creation, and DB schema change |
+| EvidenceTypePolicyService | Owns import/source type normalization, legacy alias resolution, upload/business allow lists, source/import query helper policy, transaction direction policy, and manual tax invoice type detection. | `EvidenceController`, `EvidenceImportController`, `EvidenceLifecycleController`, `EvidenceListController`, `EvidenceStatusController`, `EvidenceTransactionController`, `EvidenceUploadController`, `EvidenceGenerationService`, `EvidenceStatusService`, `EvidenceTrashService` | Page-ready/planned policy, field/meta domain policy, excel-manager domain policy, field alias/display policy, modal preset policy, processing plan, payload save, transaction execution, voucher creation, and DB schema change |
+| SystemFieldService | Owns body-table physical-column metadata lookup, data-type target-table resolution, source-column option generation, field-group ordering/default visibility/default required policy assembly, and the field-meta baseline that table settings, excel upload/download, and detail modal can converge on. Runtime default field-meta generation must start from `targetTableForDataType() -> information_schema.COLUMNS`; transitional `mapped_payload_json` helpers remain classified as legacy and are not the default path. | `EvidenceImportController`, `EvidenceUploadController`, `EvidenceDownloadService`, `EvidenceListController`, `EvidenceLifecycleController`, `EvidenceSaveController`, `EvidenceSplitController`, `EvidenceTransactionController` | Import/source type normalization, page-ready/planned policy, badge/color/icon UI policy, processing plan, and DB schema change |
+| EvidenceProcessingPolicyService | Owns read-time `ledger_evidence_processing` existence policy, body-table join SQL, processing status/review status select fragments, and status-filter availability rules. | `EvidenceGenerationService` | Import/source type normalization, field/meta policy, upload/save/delete flows, UI policy, and DB schema change |
 | EvidenceGenerationSplitService | Owns generation split child creation, processing item split handling, and related split orchestration. | `ImportController`, `EvidenceGenerationController` | Upload save, bulk save orchestration, transaction creation, and DB schema change |
 | EvidenceGenerationSaveService | Owns generation save entrypoints, normalized payload save orchestration, and evidence write coordination. | `ImportController`, `EvidenceGenerationController` | Upload-only helpers, transaction creation, voucher creation, and DB schema change |
 | EvidenceTransactionCreateService | Owns evidence-based transaction creation orchestration and transaction-create helper coordination. | `ImportController`, `EvidenceTransactionController` | Upload helpers, generation helpers, readiness policy changes, and route/controller concerns |
-| EvidenceDualWriteService | Owns legacy-row synchronization and dual-write mirroring between evidence payload/state stores. | `EvidenceController`, `ImportController`, `EvidenceGenerationSaveService` | Payload/status/link policy changes and controller request handling |
+| EvidenceDualWriteService | Owns legacy-row synchronization and dual-write mirroring between evidence payload/state stores, with body-table writes filtered by actual DB columns from `information_schema.COLUMNS`. | `EvidenceController`, `ImportController`, `EvidenceGenerationSaveService` | Payload/status/link policy changes and controller request handling |
 | ProcessingItemSplitService | Owns processing item split execution and aggregate recalculation coordination. | `EvidenceGenerationSplitService`, `ImportController` | Payload save, transaction creation, voucher creation, and DB schema change |
 | ProcessingItemAggregateService | Owns split/merge aggregate recalculation and processing item summary recomputation. | `ProcessingItemSplitService`, `TransactionCrudService` | Controller request handling and upload parsing |
 | ProcessingItemTreeService | Owns processing item tree composition, parent-child traversal, and hierarchy lookup helpers. | `EvidenceGenerationService`, `ImportController` | Direct DB migration work and payload save orchestration |
@@ -291,4 +307,13 @@ This section preserves the older evidence-service split reference in readable fo
 | Service | Responsibility | Used By | Notes |
 | --- | --- | --- | --- |
 | TransactionVoucherService | Owns voucher recommendation, draft voucher creation, voucher link and unlink, and transaction-voucher relation hydration for the transaction domain. | TransactionController | Keeps voucher orchestration out of the transaction controller so transaction entry can stay focused on common transaction management. |
-| TransactionCrudService | Owns transaction list/detail/save, pretax item save, settlement save, transaction file download payload resolution, trash list, restore, purge, and header total recomputation using the SSOT amounts `transaction_foreign_amount`, `transaction_supply_amount`, `transaction_settlement_amount`, and `transaction_final_amount`. | TransactionController, EvidenceTransactionController, VoucherController | Keeps transaction modal save/read/trash orchestration in one service while leaving voucher approval and posting flows outside the transaction domain; legacy header amounts remain detail/list fallback only and are excluded from new save and recalculation flows. |
+| VoucherService | Owns voucher save, `DRAFT -> REVIEW_REQUESTED -> REVIEWED -> POSTED -> CLOSED` workflow validation, voucher line normalization with contiguous voucher-local `line_no`, voucher-line ref persistence orchestration, header-summary recomputation for the voucher read model, reversal voucher creation with original-row locking and duplicate prevention, and restore/delete summary sync using `ledger_vouchers`, `ledger_voucher_lines`, and `ledger_voucher_line_refs`. | VoucherController, VoucherCreateService callbacks | Keeps voucher write orchestration and line validation out of the controller while making `line_no` the only user-visible voucher-line order SSOT and `line.refs[]` the runtime source for voucher multi-ref save and approval flows. Reversal creation clones the complete reversed lines and refs in one transaction, recalculates header summaries, and serializes duplicate checks by locking the original voucher row. |
+| VoucherStatus | Defines the canonical voucher workflow values, transitions, normalization, editable/locked groups, picker values, and the review-list status set `REVIEW_REQUESTED`, `REVIEWED`, `POSTED`, `CLOSED`. | VoucherController, VoucherService, VoucherModel | Keeps status filtering and workflow decisions on the shared status SSOT; review-list queries must not duplicate status literals in controllers, models, or page JS. |
+| VoucherLineRefService | Owns voucher-line ref replace, detail hydration, and validation-shape reconstruction for voucher `line.refs[]` using `ledger_voucher_line_refs`. | VoucherController, VoucherService | Keeps voucher controller/service code focused on voucher orchestration while centralizing voucher multi-ref read/write mapping in one voucher-only service. |
+| VoucherNumberService | Owns editable voucher number validation, duplicate-number guard, and direct voucher number change persistence for `ledger_vouchers`. | VoucherController | Keeps manual voucher number change logic out of the controller while excluding deleted voucher-number-history persistence from runtime flows. |
+| TransactionCrudService | Owns transaction list/detail/save, evidence-link validation against the active evidence metadata policy (`DATA`/`BOTH` only), synchronization of the selected evidence to both the transaction header and `ledger_evidence_links`, pretax item save, settlement save, transaction file download payload resolution, trash list, restore, purge, and header total recomputation using the SSOT amounts `transaction_foreign_amount`, `transaction_supply_amount`, `transaction_settlement_amount`, and `transaction_final_amount`. | TransactionController, EvidenceTransactionController, VoucherController | Keeps transaction modal save/read/trash orchestration in one service while leaving voucher approval and posting flows outside the transaction domain; evidence eligibility is never inferred from `import_type`, and legacy header amounts remain excluded from new save and recalculation flows. |
+| TransactionExcelService | Owns transaction-header excel template generation, full-list export with display-name values, header upload row parsing, code/master name resolution, header-only transaction save orchestration through `TransactionCrudService`, plus modal transaction-item and transaction-settlement Excel template/export/upload row parsing for AG Grid current-row workflows. | TransactionController | Keeps transaction Excel Manager template/download/upload behavior aligned with the shared DB-backed Excel settings flow without moving spreadsheet parsing into the controller; modal AG Grid Excel flows reuse the same service while staying independent from header Excel settings. |
+| VoucherExcelService | Owns voucher-header Excel template generation, voucher-list export, DB physical-column ordering reuse through `DataTableColumnMetaService`, and draft-voucher header upload update flow for the shared Excel Manager. | VoucherController | Brings voucher input onto the same shared Excel Manager architecture as transaction input without pushing spreadsheet parsing and upload-row validation into `VoucherController`. |
+| EvidenceMetadataService | Owns evidence-policy header validation and CRUD, shared soft-delete trash/restore/purge flows, row ordering, transactional semantic-column persistence, schema-based recommendations, source-column validation, duplicate prevention, and Actor enrichment. | EvidenceMetadataController | Soft-delete and restore update only `ledger_evidence_metadata`; permanent deletion relies on the verified Header→Detail FK CASCADE. The shared trash modal and DataTable toolbar remain the UI entry points. |
+| UserSettingService | Owns per-user page setting detail/save/delete orchestration for `system_user_settings`, including page-key and setting-type validation, current-user scoping, `exists` response metadata, and DB-backed persistence for `TABLE`, `VIEW`, `EXCEL_UPLOAD`, and `EXCEL_DOWNLOAD`. The service stays storage-type agnostic while the shared client bridge decides when a single UI state should be split across separate `TABLE` and `VIEW` rows. | UserSettingController | Keeps browser-storage replacement logic out of page JS while leaving screen-specific setting-key selection to common client modules. |
+| SubChartAccountExcelService | Owns ledger sub-account excel template generation, full-list export, upload parsing, account-code resolution, and create/update save orchestration through `CustomSubAccountService` for the account-subject sub-table domain. | SubChartAccountController | Keeps sub-account excel I/O out of the controller while leaving modal table editing and base sub-account CRUD flows in page JS and `CustomSubAccountService`. |

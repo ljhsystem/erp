@@ -10,6 +10,7 @@ import {
     resolveDataTableColumnDisplayName,
     resolveDataTableColumnRequirementPolicy
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
+import { writeSystemUserSettingsStorage } from '/public/assets/js/common/user-settings/systemUserSettingsStorage.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 
@@ -101,18 +102,33 @@ window.AdminPicker = AdminPicker;
     }
 
     function sanitizeRoleTableSettingsState() {
-        const raw = window.localStorage?.getItem(ROLE_TABLE_SETTINGS_STORAGE_KEY);
-        if (!raw) return;
-
         try {
-            const parsed = JSON.parse(raw);
+            const parsed = readDataTableSettingsState(ROLE_TABLE_SETTINGS_STORAGE_KEY, {
+                userSettingPageKey: 'role',
+            });
             if (!parsed || typeof parsed !== 'object') return;
 
             let changed = false;
             const nextState = { ...parsed };
             const deprecated = new Set(['__legacy_role_status']);
 
-            ['visibleColumns', 'columnOrder', 'requiredColumns'].forEach((key) => {
+            [
+                'columnWidths',
+                'pageLength',
+                'sortSettings',
+                'currentPage',
+                'searchFormExpanded',
+                'searchFormState',
+                'requiredColumns',
+                'columnWidth',
+            ].forEach((key) => {
+                if (Object.prototype.hasOwnProperty.call(nextState, key)) {
+                    delete nextState[key];
+                    changed = true;
+                }
+            });
+
+            ['visibleColumns', 'columnOrder'].forEach((key) => {
                 if (!Array.isArray(nextState[key])) return;
                 const filtered = nextState[key].filter((item) => !deprecated.has(String(item || '').trim()));
                 if (filtered.length !== nextState[key].length) {
@@ -121,7 +137,7 @@ window.AdminPicker = AdminPicker;
                 }
             });
 
-            ['columnDisplayName', 'columnRequirementPolicy', 'columnWidth'].forEach((key) => {
+            ['columnDisplayName', 'columnRequirementPolicy'].forEach((key) => {
                 if (!nextState[key] || typeof nextState[key] !== 'object') return;
                 const filtered = Object.fromEntries(
                     Object.entries(nextState[key]).filter(([itemKey]) => !deprecated.has(String(itemKey || '').trim()))
@@ -133,7 +149,10 @@ window.AdminPicker = AdminPicker;
             });
 
             if (changed) {
-                window.localStorage?.setItem(ROLE_TABLE_SETTINGS_STORAGE_KEY, JSON.stringify(nextState));
+                writeSystemUserSettingsStorage(ROLE_TABLE_SETTINGS_STORAGE_KEY, nextState, {
+                    userSettingPageKey: 'role',
+                    settingType: 'TABLE',
+                });
             }
         } catch (error) {
             console.warn('[role] table settings sanitize failed:', error);
@@ -170,7 +189,9 @@ window.AdminPicker = AdminPicker;
     }
 
     function currentRolePolicyState() {
-        return readDataTableSettingsState(ROLE_TABLE_SETTINGS_STORAGE_KEY) || {};
+        return readDataTableSettingsState(ROLE_TABLE_SETTINGS_STORAGE_KEY, {
+            userSettingPageKey: 'role',
+        }) || {};
     }
 
     function roleFieldLabel(key, _fallback = '') {
@@ -386,6 +407,7 @@ window.AdminPicker = AdminPicker;
             columns,
             tableSettings: {
                 pageKey: 'dashboard.settings.organization.role',
+                userSettingPageKey: 'role',
                 tableKey: 'role-table',
                 storageKey: 'datatable.settings.dashboard.settings.organization.role.role-table.v1',
                 metaDomain: 'role',

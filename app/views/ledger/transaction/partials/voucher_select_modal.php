@@ -20,8 +20,9 @@
                         <span>상태</span>
                         <select class="form-select form-select-sm" name="status" id="voucherSelectStatus">
                             <option value="">전체</option>
-                            <option value="draft">작성중</option>
-                            <option value="confirmed">확정</option>
+                            <option value="DRAFT">작성중</option>
+                            <option value="REVIEW_REQUESTED">검토요청</option>
+                            <option value="REVIEWED">검토완료</option>
                         </select>
                     </label>
 
@@ -31,7 +32,7 @@
                     </label>
 
                     <label class="voucher-select-field">
-                        <span>금액</span>
+                        <span>차변합계</span>
                         <div class="voucher-select-amount-range">
                             <input type="number" class="form-control form-control-sm" name="min_amount" id="voucherSelectMinAmount" placeholder="최소">
                             <input type="number" class="form-control form-control-sm" name="max_amount" id="voucherSelectMaxAmount" placeholder="최대">
@@ -58,7 +59,8 @@
                                     <th>전표일자</th>
                                     <th>거래처</th>
                                     <th>적요</th>
-                                    <th class="text-end">금액</th>
+                                    <th class="text-end">차변합계</th>
+                                    <th class="text-end">대변합계</th>
                                     <th>상태</th>
                                 </tr>
                             </thead>

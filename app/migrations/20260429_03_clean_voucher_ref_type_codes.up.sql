@@ -2,7 +2,7 @@ UPDATE system_codes
 SET deleted_at = NOW(),
     deleted_by = 'SYSTEM:migration',
     is_active = 0
-WHERE code_group = 'REF_TYPE'
+WHERE code_group = 'ref_target'
   AND deleted_at IS NULL
   AND (
     code IN ('CLIENT', 'PROJECT', 'EMPLOYEE', 'ACCOUNT', 'CARD')

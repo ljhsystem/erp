@@ -4,7 +4,6 @@ namespace App\Services\Ledger;
 
 use App\Models\Ledger\TransactionLinkModel;
 use App\Models\Ledger\VoucherLineModel;
-use App\Models\Ledger\VoucherLineRefModel;
 use App\Models\Ledger\VoucherModel;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\SequenceHelper;
@@ -17,7 +16,6 @@ class TransactionVoucherService
     private TransactionLinkModel $transactionLinkModel;
     private VoucherModel $voucherModel;
     private VoucherLineModel $voucherLineModel;
-    private VoucherLineRefModel $voucherLineRefModel;
     private JournalLearningService $journalLearningService;
 
     public function __construct(private readonly PDO $pdo)
@@ -26,7 +24,6 @@ class TransactionVoucherService
         $this->transactionLinkModel = new TransactionLinkModel($pdo);
         $this->voucherModel = new VoucherModel($pdo);
         $this->voucherLineModel = new VoucherLineModel($pdo);
-        $this->voucherLineRefModel = new VoucherLineRefModel($pdo);
         $this->journalLearningService = new JournalLearningService($pdo);
     }
 
@@ -50,11 +47,11 @@ class TransactionVoucherService
     {
         $transaction = $this->transactionCrudService->getById($transactionId);
         if (!$transaction || !empty($transaction['deleted_at'])) {
-            throw new \InvalidArgumentException('거래를 찾을 수 없습니다.');
+            throw new \InvalidArgumentException('椰꾧퀡?믥몴?筌≪뼚??????곷뮸??덈뼄.');
         }
 
         if ($this->fetchLinkedVouchers($transactionId) !== []) {
-            throw new \RuntimeException('이미 연결된 전표가 있습니다.');
+            throw new \RuntimeException('??? ?怨뚭퍙???袁るご揶쎛 ??됰뮸??덈뼄.');
         }
 
         return [
@@ -68,11 +65,11 @@ class TransactionVoucherService
     {
         $transaction = $this->transactionCrudService->getById($transactionId);
         if (!$transaction || !empty($transaction['deleted_at'])) {
-            throw new \InvalidArgumentException('거래를 찾을 수 없습니다.');
+            throw new \InvalidArgumentException('椰꾧퀡?믥몴?筌≪뼚??????곷뮸??덈뼄.');
         }
 
         if ($this->fetchLinkedVouchers($transactionId) !== []) {
-            throw new \RuntimeException('이미 연결된 전표가 있습니다.');
+            throw new \RuntimeException('??? ?怨뚭퍙???袁るご揶쎛 ??됰뮸??덈뼄.');
         }
 
         $lines = $this->normalizeWizardLines($payload['lines'] ?? []);
@@ -97,17 +94,14 @@ class TransactionVoucherService
             'sort_no' => SequenceHelper::next('ledger_vouchers', 'sort_no'),
             'voucher_no' => $voucherNo,
             'voucher_date' => $voucherDate,
-            'source_type' => 'TRANSACTION',
-            'source_id' => $transactionId,
-            'status' => 'draft',
-            'summary_text' => trim((string) ($header['transaction_description'] ?? $transaction['transaction_description'] ?? '')) ?: ($firstItemName ?: null),
-            'note' => $transaction['transaction_note'] ?? null,
+            'status' => VoucherStatus::DRAFT,
+            'summary' => trim((string) ($header['transaction_description'] ?? $transaction['transaction_description'] ?? '')) ?: ($firstItemName ?: null),
             'created_at' => $timestamp,
             'created_by' => $actor,
             'updated_at' => $timestamp,
             'updated_by' => $actor,
         ])) {
-            throw new \RuntimeException('전표 생성에 실패했습니다.');
+            throw new \RuntimeException('?袁るご ??밴쉐????쎈솭??됰뮸??덈뼄.');
         }
 
         if (!$this->transactionLinkModel->insertOrRestore(
@@ -117,48 +111,34 @@ class TransactionVoucherService
             'AUTO',
             $actor
         )) {
-            throw new \RuntimeException('전표 연결 저장에 실패했습니다.');
+            throw new \RuntimeException('?袁るご ?怨뚭퍙 ???關肉???쎈솭??됰뮸??덈뼄.');
         }
 
-        $lineNo = 1;
         $learningLines = [];
-        foreach ($lines as $line) {
+        foreach ($lines as $index => $line) {
             $lineId = UuidHelper::generate();
             if (!$this->voucherLineModel->insert([
                 'id' => $lineId,
                 'sort_no' => SequenceHelper::next('ledger_voucher_lines', 'sort_no'),
+                'line_no' => $index + 1,
                 'voucher_id' => $voucherId,
-                'line_no' => $lineNo++,
                 'account_id' => (string) $line['account_id'],
+                'ref_target' => !empty($line['client_id']) ? 'CLIENT' : (!empty($line['project_id']) ? 'PROJECT' : null),
+                'ref_id' => !empty($line['client_id']) ? $line['client_id'] : (!empty($line['project_id']) ? $line['project_id'] : null),
                 'debit' => $line['line_type'] === 'DEBIT' ? number_format((float) $line['amount'], 2, '.', '') : '0.00',
                 'credit' => $line['line_type'] === 'CREDIT' ? number_format((float) $line['amount'], 2, '.', '') : '0.00',
                 'line_summary' => $line['line_summary'] ?? ($transaction['transaction_description'] ?? null),
-                'recommend_source' => $line['source'] ?? null,
-                'recommend_confidence' => $line['confidence'] ?? null,
                 'journal_rule_id' => $line['journal_rule_id'] ?? null,
-                'recommend_reason' => $line['reason'] ?? null,
                 'is_user_modified' => !empty($line['is_user_modified']) ? 1 : 0,
                 'created_at' => $timestamp,
                 'created_by' => $actor,
                 'updated_at' => $timestamp,
                 'updated_by' => $actor,
             ])) {
-                throw new \RuntimeException('전표 라인 저장에 실패했습니다.');
-            }
-
-            $refs = [];
-            if (!empty($line['client_id'])) {
-                $refs[] = ['ref_type' => 'CLIENT', 'ref_id' => $line['client_id'], 'is_primary' => 1];
-            }
-            if (!empty($line['project_id'])) {
-                $refs[] = ['ref_type' => 'PROJECT', 'ref_id' => $line['project_id'], 'is_primary' => 0];
-            }
-            if ($refs !== []) {
-                $this->voucherLineRefModel->bulkInsert($lineId, $refs, $actor, $timestamp);
+                throw new \RuntimeException('?袁るご ??깆뵥 ???關肉???쎈솭??됰뮸??덈뼄.');
             }
 
             $line['voucher_line_id'] = $lineId;
-            $line['line_no'] = $lineNo - 1;
             $learningLines[] = $line;
         }
 
@@ -169,7 +149,7 @@ class TransactionVoucherService
 
         return [
             'success' => true,
-            'message' => '전표 초안이 저장되었습니다.',
+            'message' => '?袁るご ?λ뜆釉?????貫由??됰뮸??덈뼄.',
             'voucher_id' => $voucherId,
             'voucher_no' => $voucherNo,
             'data' => $this->appendLinkedVouchers($this->transactionCrudService->getById($transactionId) ?? []),
@@ -181,17 +161,17 @@ class TransactionVoucherService
         $transactionId = trim($transactionId);
         $voucherId = trim($voucherId);
         if ($transactionId === '' || $voucherId === '') {
-            throw new \InvalidArgumentException('거래와 전표를 선택해 주세요.');
+            throw new \InvalidArgumentException('椰꾧퀡??? ?袁るご???醫뤾문??雅뚯눘苑??');
         }
 
         $transaction = $this->transactionCrudService->getById($transactionId);
         if (!$transaction || !empty($transaction['deleted_at'])) {
-            throw new \InvalidArgumentException('거래를 찾을 수 없습니다.');
+            throw new \InvalidArgumentException('椰꾧퀡?믥몴?筌≪뼚??????곷뮸??덈뼄.');
         }
 
         $voucher = $this->voucherModel->getById($voucherId);
         if (!$voucher || !empty($voucher['deleted_at'])) {
-            throw new \InvalidArgumentException('전표를 찾을 수 없습니다.');
+            throw new \InvalidArgumentException('?袁るご??筌≪뼚??????곷뮸??덈뼄.');
         }
 
         $this->assertVoucherLinkEditable($voucher);
@@ -205,7 +185,7 @@ class TransactionVoucherService
             'MANUAL',
             $actor
         )) {
-            throw new \RuntimeException('전표 연결 저장에 실패했습니다.');
+            throw new \RuntimeException('?袁るご ?怨뚭퍙 ???關肉???쎈솭??됰뮸??덈뼄.');
         }
 
         $this->transactionCrudService->recalculateMatchStatus($transactionId, $actor);
@@ -213,7 +193,7 @@ class TransactionVoucherService
 
         return [
             'success' => true,
-            'message' => '전표가 연결되었습니다.',
+            'message' => '?袁るご揶쎛 ?怨뚭퍙??뤿???щ빍??',
             'data' => $this->appendLinkedVouchers($this->transactionCrudService->getById($transactionId) ?? []),
         ];
     }
@@ -223,7 +203,7 @@ class TransactionVoucherService
         $transactionId = trim($transactionId);
         $voucherId = trim($voucherId);
         if ($transactionId === '') {
-            throw new \InvalidArgumentException('거래를 선택해 주세요.');
+            throw new \InvalidArgumentException('椰꾧퀡?믥몴??醫뤾문??雅뚯눘苑??');
         }
 
         $links = $this->transactionLinkModel->getByTransactionId($transactionId);
@@ -253,7 +233,7 @@ class TransactionVoucherService
 
         return [
             'success' => true,
-            'message' => '전표 연결이 해제되었습니다.',
+            'message' => '?袁るご ?怨뚭퍙????곸젫??뤿???щ빍??',
             'data' => $this->appendLinkedVouchers($this->transactionCrudService->getById($transactionId) ?? []),
         ];
     }
@@ -265,6 +245,10 @@ class TransactionVoucherService
 
     private function fetchLinkedVouchers(string $transactionId): array
     {
+        if (!$this->tableExists('ledger_transaction_links') || !$this->tableExists('ledger_vouchers')) {
+            return [];
+        }
+
         $stmt = $this->pdo->prepare("
             SELECT
                 l.id AS link_id,
@@ -274,7 +258,7 @@ class TransactionVoucherService
                 v.voucher_no,
                 v.voucher_date,
                 v.status,
-                v.summary_text
+                v.summary
             FROM ledger_transaction_links l
             INNER JOIN ledger_vouchers v
                 ON v.id = l.voucher_id
@@ -286,7 +270,10 @@ class TransactionVoucherService
         ");
         $stmt->execute([':transaction_id' => $transactionId]);
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        return array_map(static function (array $row): array {
+            $row['summary_text'] = $row['summary'] ?? ($row['summary_text'] ?? null);
+            return $row;
+        }, $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
     }
 
     private function voucherWizardTransaction(array $transaction): array
@@ -310,7 +297,7 @@ class TransactionVoucherService
     private function normalizeWizardLines(mixed $lines): array
     {
         if (!is_array($lines)) {
-            throw new \InvalidArgumentException('전표 라인 형식이 올바르지 않습니다.');
+            throw new \InvalidArgumentException("\u{C804}\u{D45C} \u{B77C}\u{C778} \u{D615}\u{C2DD}\u{C774} \u{C62C}\u{BC14}\u{B974}\u{C9C0} \u{C54A}\u{C2B5}\u{B2C8}\u{B2E4}.");
         }
 
         $normalized = [];
@@ -354,7 +341,7 @@ class TransactionVoucherService
         }
 
         if ($normalized === []) {
-            throw new \InvalidArgumentException('저장할 전표 라인이 없습니다.');
+            throw new \InvalidArgumentException('???館釉??袁るご ??깆뵥????곷뮸??덈뼄.');
         }
 
         return $normalized;
@@ -373,14 +360,14 @@ class TransactionVoucherService
         }
 
         if ($debit <= 0 || $credit <= 0 || round($debit, 2) !== round($credit, 2)) {
-            throw new \InvalidArgumentException('차변과 대변이 일치해야 전표를 저장할 수 있습니다.');
+            throw new \InvalidArgumentException('筌△뫀?????癰궰????깊뒄??곷튊 ?袁るご?????館釉?????됰뮸??덈뼄.');
         }
     }
 
     private function assertVoucherLinkEditable(array $voucher): void
     {
-        if (($voucher['status'] ?? '') === 'posted') {
-            throw new \RuntimeException('posted 상태의 전표는 연결을 변경할 수 없습니다.');
+        if (!VoucherStatus::isEditable($voucher['status'] ?? null)) {
+            throw new \RuntimeException('posted ?怨밴묶???袁るご???怨뚭퍙??癰궰野껋?釉?????곷뮸??덈뼄.');
         }
     }
 

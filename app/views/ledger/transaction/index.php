@@ -106,6 +106,13 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/transaction.js');
 <?php include PROJECT_ROOT . '/app/views/ledger/partials/voucher_recommendation_modal.php'; ?>
 <?php include PROJECT_ROOT . '/app/views/dashboard/settings/system/partials/code_modal.php'; ?>
 <?php include PROJECT_ROOT . '/app/views/dashboard/settings/base-info/partials/client_modal.php'; ?>
+<?php
+$modalId = 'transactionExcelModal';
+$formId = 'transaction-excel-upload-form';
+$modalTitle = '거래입력 엑셀관리';
+$modalSubtitle = '업로드 양식설정과 다운로드 설정을 공용 엑셀관리에서 함께 사용합니다.';
+include PROJECT_ROOT . '/app/views/components/ui-modal-excel.php';
+?>
 
 <?php
 $modalId = 'transactionTrashModal';

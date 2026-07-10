@@ -908,6 +908,10 @@ html {
     min-width:930px;
 }
 
+.dt-test-account-width-off #account-table{
+    width:auto !important;
+}
+
 
 .balance-box-inner{
     font-weight:600;

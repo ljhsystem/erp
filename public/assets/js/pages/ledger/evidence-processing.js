@@ -160,9 +160,9 @@ import '/public/assets/js/components/trash-manager.js';
         agGridLoadPromise = new Promise((resolve, reject) => {
             const existing = document.querySelector(`script[src="${AG_GRID_SCRIPT_URL}"]`);
             if (existing) {
-                existing.addEventListener('load', () => resolve(Boolean(window.agGrid?.createGrid)), { once: true });
-                existing.addEventListener('error', () => reject(new Error('AG Grid load failed')), { once: true });
-                return;
+existing.addEventListener('load', () => resolve(Boolean(window.agGrid?.createGrid)), { once: true });
+existing.addEventListener('error', () => reject(new Error('AG Grid load failed')), { once: true });
+return;
             }
 
             const script = document.createElement('script');
@@ -184,7 +184,7 @@ import '/public/assets/js/components/trash-manager.js';
             cache: 'no-store',
             ...options,
             headers: {
-                ...(options.headers || {}),
+...(options.headers || {}),
             },
         });
         const json = await response.json().catch(() => ({}));
@@ -217,10 +217,10 @@ import '/public/assets/js/components/trash-manager.js';
         }
         if (typeof value === 'string' && value.trim() !== '') {
             try {
-                const parsed = JSON.parse(value);
-                return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+const parsed = JSON.parse(value);
+return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
             } catch (error) {
-                return {};
+return {};
             }
         }
         return {};
@@ -235,7 +235,7 @@ import '/public/assets/js/components/trash-manager.js';
             if (!key) continue;
             const value = payload[key];
             if (value !== undefined && value !== null && String(value) !== '') {
-                return sourceRawValue(value);
+return sourceRawValue(value);
             }
         }
 
@@ -243,7 +243,7 @@ import '/public/assets/js/components/trash-manager.js';
         for (const [key, value] of Object.entries(payload)) {
             if (!aliasKeys.has(sourceAliasKey(key))) continue;
             if (value !== undefined && value !== null && String(sourceRawValue(value)) !== '') {
-                return sourceRawValue(value);
+return sourceRawValue(value);
             }
         }
         return undefined;
@@ -462,7 +462,6 @@ import '/public/assets/js/components/trash-manager.js';
         if (text === '') return true;
         return [
             '선택',
-            '선택(없음)',
             '직접 선택',
             '거래처 선택',
             '프로젝트 선택',
@@ -635,9 +634,9 @@ import '/public/assets/js/components/trash-manager.js';
     function normalizeCodeRows(rows = []) {
         return rows
             .map((row) => ({
-                code: String(row.code ?? row.value ?? '').trim(),
-                code_name: String(row.code_name ?? row.label ?? row.code ?? row.value ?? '').trim(),
-                is_active: Number(row.is_active ?? 1),
+code: String(row.code ?? row.value ?? '').trim(),
+code_name: String(row.code_name ?? row.label ?? row.code ?? row.value ?? '').trim(),
+is_active: Number(row.is_active ?? 1),
             }))
             .filter((row) => row.code !== '' && row.is_active === 1);
     }
@@ -811,8 +810,8 @@ import '/public/assets/js/components/trash-manager.js';
             if (!normalizedMessage) return;
             if (normalizedField && hasConfiguredColumns && !configuredCorrection.has(normalizedField)) return;
             if (['counterparty_name', 'counterparty_account_number', 'counterparty_bank'].includes(normalizedField)
-                && String(readinessValue(row, normalizedField) ?? '').trim() !== '') {
-                return;
+&& String(readinessValue(row, normalizedField) ?? '').trim() !== '') {
+return;
             }
             if (normalizedField && seenFields.has(normalizedField)) return;
             if (seenMessages.has(normalizedMessage)) return;
@@ -859,8 +858,8 @@ import '/public/assets/js/components/trash-manager.js';
         if (field === 'bank_account_name') {
             const source = bankAccountSourceText(row);
             return source
-                ? `원본 결제계좌 "${source}"를 ERP 은행계좌에서 찾지 못했습니다. 아래 ERP 계좌 필드에서 실제 은행계좌를 선택해 주세요.`
-                : '원본 결제계좌를 ERP 은행계좌에서 찾지 못했습니다. 아래 ERP 계좌 필드에서 실제 은행계좌를 선택해 주세요.';
+? `원본 결제계좌 "${source}"를 ERP 은행계좌에서 찾지 못했습니다. 아래 ERP 계좌 필드에서 실제 은행계좌를 선택해 주세요.`
+: '원본 결제계좌를 ERP 은행계좌에서 찾지 못했습니다. 아래 ERP 계좌 필드에서 실제 은행계좌를 선택해 주세요.';
         }
         return text;
     }
@@ -969,7 +968,7 @@ import '/public/assets/js/components/trash-manager.js';
         const derived = [...serverMissing];
         required.forEach((field) => {
             if (String(readinessValue(row, field) ?? '').trim() === '') {
-                derived.push(field);
+derived.push(field);
             }
         });
         return Array.from(new Set(derived));
@@ -1150,10 +1149,10 @@ import '/public/assets/js/components/trash-manager.js';
         if (!journalItem) return voucherCreateStatusBadge(row);
         return `
             <button type="button"
-                    class="readiness-summary-status-link readiness-correction-link readiness-correction-link-journal"
-                    data-correction-field="${escapeHtml(journalItem.field || '')}"
-                    title="${escapeHtml(journalItem.message || '')}">
-                ${voucherCreateStatusBadge(row)}
+    class="readiness-summary-status-link readiness-correction-link readiness-correction-link-journal"
+    data-correction-field="${escapeHtml(journalItem.field || '')}"
+    title="${escapeHtml(journalItem.message || '')}">
+${voucherCreateStatusBadge(row)}
             </button>
         `;
     }
@@ -1174,13 +1173,13 @@ import '/public/assets/js/components/trash-manager.js';
         if (voucherCreateState(row) === 'NOT_READY') {
             const voucherStatus = String(row?.voucher_status || '').trim().toUpperCase();
             if (readinessStatus(row) !== 'READY') {
-                reasons.push(...readinessMessages(row));
+reasons.push(...readinessMessages(row));
             } else if (['', 'WAITING', 'NONE'].includes(voucherStatus)) {
-                reasons.push('분개라인 미확정');
+reasons.push('분개라인 미확정');
             } else if (['ERROR', 'FAILED'].includes(voucherStatus)) {
-                reasons.push(row?.error_message || '전표 생성 오류');
+reasons.push(row?.error_message || '전표 생성 오류');
             } else {
-                reasons.push(row?.voucher_status || '전표 생성 상태');
+reasons.push(row?.voucher_status || '전표 생성 상태');
             }
         }
 
@@ -1202,9 +1201,9 @@ import '/public/assets/js/components/trash-manager.js';
 
         return candidates
             .flatMap((value) => {
-                if (Array.isArray(value)) return value;
-                if (typeof value === 'string') return value.split(/[,\n]/);
-                return [];
+if (Array.isArray(value)) return value;
+if (typeof value === 'string') return value.split(/[,\n]/);
+return [];
             })
             .map((value) => String(value || '').trim())
             .filter(Boolean);
@@ -1240,32 +1239,32 @@ import '/public/assets/js/components/trash-manager.js';
             const systemField = String(column.system_field_name || '').trim();
             const excelName = String(column.excel_column_name || column.column_name || '').trim();
             const existingIndex = entries.findIndex((entry) => {
-                return String(entry.systemField || '').trim() === systemField
-                    || String(entry.label || '').trim() === excelName;
+return String(entry.systemField || '').trim() === systemField
+    || String(entry.label || '').trim() === excelName;
             });
             if (existingIndex >= 0) {
-                const existing = entries[existingIndex] || {};
-                const requirementMode = Number(column.is_required || column.requirement_mode || existing.requirementMode || 0);
-                entries[existingIndex] = {
-                    ...existing,
-                    label: excelName || existing.label,
-                    order: Number(column.column_order ?? column.excel_column_index ?? existing.order ?? 0),
-                    columnIndex: Number(column.excel_column_index ?? existing.columnIndex ?? column.column_order ?? 0),
-                    systemField: systemField || existing.systemField,
-                    systemFieldGroup: String(column.system_field_group || existing.systemFieldGroup || '').trim(),
-                    requirementMode,
-                    required: requirementMode === 1 || Boolean(existing.required),
-                    isReference: Number(column.is_reference_column || existing.isReference || 0) === 1,
-                    column,
-                };
-                return;
+const existing = entries[existingIndex] || {};
+const requirementMode = Number(column.is_required || column.requirement_mode || existing.requirementMode || 0);
+entries[existingIndex] = {
+    ...existing,
+    label: excelName || existing.label,
+    order: Number(column.column_order ?? column.excel_column_index ?? existing.order ?? 0),
+    columnIndex: Number(column.excel_column_index ?? existing.columnIndex ?? column.column_order ?? 0),
+    systemField: systemField || existing.systemField,
+    systemFieldGroup: String(column.system_field_group || existing.systemFieldGroup || '').trim(),
+    requirementMode,
+    required: requirementMode === 1 || Boolean(existing.required),
+    isReference: Number(column.is_reference_column || existing.isReference || 0) === 1,
+    column,
+};
+return;
             }
             entries.push(sourceEntry(excelName || systemField, {
-                column_name: excelName,
-                system_field_name: systemField,
-                is_required: Number(column.is_required || 0),
-                requirement_mode: Number(column.requirement_mode || column.is_required || 0),
-                value: '',
+column_name: excelName,
+system_field_name: systemField,
+is_required: Number(column.is_required || 0),
+requirement_mode: Number(column.requirement_mode || column.is_required || 0),
+value: '',
             }, column, row));
         });
 
@@ -1291,12 +1290,12 @@ import '/public/assets/js/components/trash-manager.js';
             const configuredCorrection = configuredCorrectionFieldSet(row);
             const hasConfiguredColumns = formatColumnsForRow(row).length > 0;
             return explicit
-                .map((message) => {
-                    const field = canonicalReadinessField(readinessFieldFromMessage(message) || fallbackSystemFieldForLabel(message));
-                    return { field, message };
-                })
-                .filter((item) => !isOptionalEvidenceCorrectionField(item.field || item.message))
-                .filter((item) => !hasConfiguredColumns || item.field === '' || configuredCorrection.has(canonicalReadinessField(item.field)));
+.map((message) => {
+    const field = canonicalReadinessField(readinessFieldFromMessage(message) || fallbackSystemFieldForLabel(message));
+    return { field, message };
+})
+.filter((item) => !isOptionalEvidenceCorrectionField(item.field || item.message))
+.filter((item) => !hasConfiguredColumns || item.field === '' || configuredCorrection.has(canonicalReadinessField(item.field)));
         }
 
         const entries = evidenceRequiredEntries(row);
@@ -1307,11 +1306,11 @@ import '/public/assets/js/components/trash-manager.js';
             .filter((entry) => !isOptionalEvidenceCorrectionField(entry.systemField || entry.key || ''))
             .filter((entry) => isBlankEvidenceValue(evidenceRequiredEntryResolvedValue(row, entry)))
             .map((entry) => {
-                const field = canonicalReadinessField(entry.systemField || entry.key || '');
-                return {
-                    field,
-                    message: entry.label || readinessFieldLabel(field),
-                };
+const field = canonicalReadinessField(entry.systemField || entry.key || '');
+return {
+    field,
+    message: entry.label || readinessFieldLabel(field),
+};
             });
     }
 
@@ -1338,7 +1337,7 @@ import '/public/assets/js/components/trash-manager.js';
 
     function journalCorrectionIssueItems(row = {}) {
         if (voucherCreateState(row) !== 'JOURNAL_INCOMPLETE') return [];
-        return [{ field: 'line_no', message: '분개미정' }];
+        return [{ field: 'sort_no', message: '분개미정' }];
     }
 
     function evidenceStatusBadge(row = {}) {
@@ -1349,10 +1348,10 @@ import '/public/assets/js/components/trash-manager.js';
         const statusTitle = statusIssues.join(', ');
         return `
             <span class="seed-evidence-correction-status" title="${escapeHtml(statusTitle)}">
-                <span class="badge text-bg-warning seed-evidence-correction-badge">
-                    <span>보정필요</span>
-                    <span class="seed-evidence-correction-count">${statusIssues.length.toLocaleString('ko-KR')}</span>
-                </span>
+<span class="badge text-bg-warning seed-evidence-correction-badge">
+    <span>보정필요</span>
+    <span class="seed-evidence-correction-count">${statusIssues.length.toLocaleString('ko-KR')}</span>
+</span>
             </span>
         `;
     }
@@ -1363,11 +1362,11 @@ import '/public/assets/js/components/trash-manager.js';
     function correctionIssueLinksHtml(row = {}) {
         return correctionIssueItems(row).map((item) => `
             <li>
-                <button type="button"
-                        class="readiness-correction-link"
-                        data-correction-field="${escapeHtml(item.field || '')}">
-                    ${escapeHtml(item.message)}
-                </button>
+<button type="button"
+        class="readiness-correction-link"
+        data-correction-field="${escapeHtml(item.field || '')}">
+    ${escapeHtml(item.message)}
+</button>
             </li>
         `).join('');
     }
@@ -1463,13 +1462,13 @@ import '/public/assets/js/components/trash-manager.js';
             const response = await fetch(rowsApiUrl({ type_counts: '1' }), { cache: 'no-store' });
             const json = await response.json().catch(() => ({}));
             if (!response.ok || json.success === false) {
-                throw new Error(json.message || '자료유형별 건수를 불러오지 못했습니다.');
+throw new Error(json.message || '자료유형별 건수를 불러오지 못했습니다.');
             }
             const nextCounts = {};
             (json.data || []).forEach((row) => {
-                const type = String(row.import_type || row.source_type || row.data_type || '').trim().toUpperCase();
-                if (!type) return;
-                nextCounts[type] = Number(row.row_count || row.count || 0);
+const type = String(row.import_type || row.source_type || row.data_type || '').trim().toUpperCase();
+if (!type) return;
+nextCounts[type] = Number(row.row_count || row.count || 0);
             });
             seedRowsTypeCounts = nextCounts;
             renderTypeSummary(evidenceTable?.rows().data().toArray() || []);
@@ -1491,16 +1490,16 @@ import '/public/assets/js/components/trash-manager.js';
             const normalizedType = String(type || '').trim().toUpperCase();
             if (!normalizedType || Number(count || 0) < 1) return;
             typeMap.set(normalizedType, {
-                type: normalizedType,
-                label: rowTypeLabel({}, normalizedType),
-                count: Number(count || 0),
+type: normalizedType,
+label: rowTypeLabel({}, normalizedType),
+count: Number(count || 0),
             });
         });
         rows.forEach((row) => {
             const type = rowTypeKey(row) || 'UNKNOWN';
             const current = typeMap.get(type) || { type, label: rowTypeLabel(row, type), count: 0 };
             if (!typeMap.has(type)) {
-                current.count += 1;
+current.count += 1;
             }
             current.label = rowTypeLabel(row, type);
             typeMap.set(type, current);
@@ -1516,8 +1515,8 @@ import '/public/assets/js/components/trash-manager.js';
         const chips = [
             `<button type="button" class="btn btn-sm btn-outline-secondary ${allActive}" data-seed-type-filter="">전체 ${totalCount.toLocaleString('ko-KR')}건</button>`,
             ...items.map((item) => {
-                const active = selectedTypeFilter === item.type ? 'active' : '';
-                return `<button type="button" class="btn btn-sm btn-outline-secondary ${active}" data-seed-type-filter="${escapeHtml(item.type)}">${escapeHtml(item.label)} ${item.count.toLocaleString('ko-KR')}건</button>`;
+const active = selectedTypeFilter === item.type ? 'active' : '';
+return `<button type="button" class="btn btn-sm btn-outline-secondary ${active}" data-seed-type-filter="${escapeHtml(item.type)}">${escapeHtml(item.label)} ${item.count.toLocaleString('ko-KR')}건</button>`;
             }),
         ];
 
@@ -1533,10 +1532,10 @@ import '/public/assets/js/components/trash-manager.js';
         window.jQuery.fn.dataTable.ext.search.push((settings, _data, _dataIndex, rowData) => {
             const tableNode = evidenceTable?.table?.().node?.();
             if (settings.nTable !== tableNode) {
-                return true;
+return true;
             }
             if (selectedTypeFilter && rowTypeKey(rowData) !== selectedTypeFilter) {
-                return false;
+return false;
             }
             return rowMatchesStatusFilter(rowData);
         });
@@ -1576,16 +1575,16 @@ import '/public/assets/js/components/trash-manager.js';
             const current = this.data();
             if (String(current?.id || '') !== String(rowId)) return;
             const next = {
-                ...current,
-                ...patch,
-                mapped_payload: {
-                    ...(current.mapped_payload || {}),
-                    ...(patch.mapped_payload || {}),
-                },
-                raw_payload: {
-                    ...(current.raw_payload || {}),
-                    ...(patch.raw_payload || {}),
-                },
+...current,
+...patch,
+mapped_payload: {
+    ...(current.mapped_payload || {}),
+    ...(patch.mapped_payload || {}),
+},
+raw_payload: {
+    ...(current.raw_payload || {}),
+    ...(patch.raw_payload || {}),
+},
             };
             this.data(next);
             updated = true;
@@ -1623,42 +1622,42 @@ import '/public/assets/js/components/trash-manager.js';
         modal.tabIndex = -1;
         modal.innerHTML = `
             <div class="modal-dialog modal-xl modal-dialog-scrollable">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <div>
-                            <h5 class="modal-title">거래/전표 생성 Workspace</h5>
-                            <div class="small text-muted" id="seedRowReadinessSubtitle"></div>
-                        </div>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="readiness-modal-summary mb-3" id="seedRowReadinessSummary"></div>
-                        <div id="seedRowReadinessAlerts" class="mb-3"></div>
-                        <div class="readiness-workbench" id="seedRowReadinessWorkbench">
-                            <div class="readiness-main-pane">
-                                <ul class="nav nav-tabs readiness-stage-tabs" id="seedRowReadinessTabs" role="tablist"></ul>
-                                <form id="seedRowReadinessForm" class="readiness-stage-content"></form>
-                            </div>
-                            <aside class="readiness-source-pane" id="seedRowSourcePane">
-                                <div class="readiness-source-head">
-                                    <div>
-                                        <strong>증빙 원본</strong>
-                                        <div class="small text-muted" id="seedRowSourceSubtitle">업로드 원본 데이터</div>
-                                    </div>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="seedRowSourceToggleBtn">접기</button>
-                                </div>
-                                <div class="readiness-source-fields" id="seedRowSourceFields"></div>
-                            </aside>
-                        </div>
-                        <button type="button" class="btn btn-outline-secondary btn-sm mt-2 d-none" id="seedRowSourceShowBtn">원본 데이터 다시 열기</button>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-success btn-sm d-none" id="seedRowReadinessCreateTransactionBtn" data-readiness-create="transaction">거래생성</button>
-                        <button type="button" class="btn btn-success btn-sm d-none" id="seedRowReadinessCreateVoucherBtn" data-readiness-create="voucher">전표생성</button>
-                        <button type="button" class="btn btn-primary btn-sm" id="seedRowReadinessSaveBtn">저장</button>
-                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
-                    </div>
-                </div>
+<div class="modal-content">
+    <div class="modal-header">
+        <div>
+            <h5 class="modal-title">거래/전표 생성 Workspace</h5>
+            <div class="small text-muted" id="seedRowReadinessSubtitle"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+    </div>
+    <div class="modal-body">
+        <div class="readiness-modal-summary mb-3" id="seedRowReadinessSummary"></div>
+        <div id="seedRowReadinessAlerts" class="mb-3"></div>
+        <div class="readiness-workbench" id="seedRowReadinessWorkbench">
+            <div class="readiness-main-pane">
+<ul class="nav nav-tabs readiness-stage-tabs" id="seedRowReadinessTabs" role="tablist"></ul>
+<form id="seedRowReadinessForm" class="readiness-stage-content"></form>
+            </div>
+            <aside class="readiness-source-pane" id="seedRowSourcePane">
+<div class="readiness-source-head">
+    <div>
+        <strong>증빙 원본</strong>
+        <div class="small text-muted" id="seedRowSourceSubtitle">업로드 원본 데이터</div>
+    </div>
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="seedRowSourceToggleBtn">접기</button>
+</div>
+<div class="readiness-source-fields" id="seedRowSourceFields"></div>
+            </aside>
+        </div>
+        <button type="button" class="btn btn-outline-secondary btn-sm mt-2 d-none" id="seedRowSourceShowBtn">원본 데이터 다시 열기</button>
+    </div>
+    <div class="modal-footer">
+        <button type="button" class="btn btn-success btn-sm d-none" id="seedRowReadinessCreateTransactionBtn" data-readiness-create="transaction">거래생성</button>
+        <button type="button" class="btn btn-success btn-sm d-none" id="seedRowReadinessCreateVoucherBtn" data-readiness-create="voucher">전표생성</button>
+        <button type="button" class="btn btn-primary btn-sm" id="seedRowReadinessSaveBtn">저장</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
+    </div>
+</div>
             </div>
         `;
         document.body.appendChild(modal);
@@ -1671,13 +1670,13 @@ import '/public/assets/js/components/trash-manager.js';
 
     const BANK_VOUCHER_LINE_FIELDS = new Set([
         'header_row_no',
-        'line_no',
+        'sort_no',
         'line_row_type',
         'account_id',
         'debit',
         'credit',
         'line_summary',
-        'line_ref_type',
+        'line_ref_target',
         'line_ref_id',
     ]);
 
@@ -1766,11 +1765,11 @@ import '/public/assets/js/components/trash-manager.js';
             withdraw_amount: '출금액',
             balance_amount: '잔액',
             header_row_no: '헤더번호',
-            line_no: '라인번호',
+            sort_no: '라인번호',
             line_row_type: '행유형',
             debit: '차변',
             credit: '대변',
-            line_ref_type: '보조계정유형',
+            line_ref_target: '보조계정유형',
             line_ref_id: '보조계정',
         }[key] || key;
     }
@@ -1859,10 +1858,10 @@ import '/public/assets/js/components/trash-manager.js';
         ];
         const reconciliationFields = type === 'BANK_TRANSACTION'
             ? [
-                'bank_account_name',
-                'counterparty_name',
-                'counterparty_account_number',
-                'counterparty_bank',
+'bank_account_name',
+'counterparty_name',
+'counterparty_account_number',
+'counterparty_bank',
             ]
             : ['source_key', 'evidence_date', 'total_amount', 'description'];
 
@@ -1887,44 +1886,44 @@ import '/public/assets/js/components/trash-manager.js';
         const includeMissing = (fields) => Array.from(new Set([...missing.filter((key) => fields.includes(key)), ...fields]));
         if (isBankTransaction) {
             return [{
-                id: 'bank-workspace',
-                label: '생성 작업',
-                description: '은행 거래 증빙을 전표 입력에 필요한 형태로 보정하고, 계정과목 정책에 따라 보조계정을 선택합니다.',
-                enabled: true,
-                fields: [],
-                requiredFields: Array.from(new Set([...voucherRequired, 'bank_account_name'])),
-                workspace: 'bank-voucher',
+id: 'bank-workspace',
+label: '생성 작업',
+description: '은행 거래 증빙을 전표 입력에 필요한 형태로 보정하고, 계정과목 정책에 따라 보조계정을 선택합니다.',
+enabled: true,
+fields: [],
+requiredFields: Array.from(new Set([...voucherRequired, 'bank_account_name'])),
+workspace: 'bank-voucher',
             }];
         }
 
         const stages = [
             {
-                id: 'transaction',
-                label: '거래',
-                description: '거래 생성에 필요한 거래처, 금액, 입출금유형 정보를 확인합니다.',
-                enabled: true,
-                fields: includeMissing(transactionHeader),
-                requiredFields: transactionHeaderRequired,
-                workspace: 'transaction-entry',
+id: 'transaction',
+label: '거래',
+description: '거래 생성에 필요한 거래처, 금액, 입출금유형 정보를 확인합니다.',
+enabled: true,
+fields: includeMissing(transactionHeader),
+requiredFields: transactionHeaderRequired,
+workspace: 'transaction-entry',
             },
             {
-                id: 'voucher',
-                label: '전표',
-                description: '전표 입력에 필요한 전표 헤더와 분개라인 정보를 확인합니다.',
-                enabled: true,
-                fields: includeMissing(isBankTransaction ? voucherHeader : (needsVoucherLines ? [...voucherHeader, ...voucherLines] : voucherHeader)),
-                requiredFields: voucherRequired,
-                workspace: 'voucher-entry',
-                extraHtml: isBankTransaction ? bankVoucherLineTableHtml(mapped(row)) : '',
-                note: '전표일자와 적요를 확인합니다. 차변/대변, 계정과목, 보조계정은 분개라인에서 직접 조정할 수 있습니다.',
+id: 'voucher',
+label: '전표',
+description: '전표 입력에 필요한 전표 헤더와 분개라인 정보를 확인합니다.',
+enabled: true,
+fields: includeMissing(isBankTransaction ? voucherHeader : (needsVoucherLines ? [...voucherHeader, ...voucherLines] : voucherHeader)),
+requiredFields: voucherRequired,
+workspace: 'voucher-entry',
+extraHtml: isBankTransaction ? bankVoucherLineTableHtml(mapped(row)) : '',
+note: '전표일자와 적요를 확인합니다. 차변/대변, 계정과목, 보조계정은 분개라인에서 직접 조정할 수 있습니다.',
             },
             {
-                id: 'reconciliation',
-                label: '정합성',
-                description: '정산과 원천 데이터 검증에 필요한 값을 확인합니다.',
-                enabled: false,
-                fields: includeMissing(reconciliationFields),
-                requiredFields: reconciliationRequired,
+id: 'reconciliation',
+label: '정합성',
+description: '정산과 원천 데이터 검증에 필요한 값을 확인합니다.',
+enabled: false,
+fields: includeMissing(reconciliationFields),
+requiredFields: reconciliationRequired,
             },
         ];
 
@@ -1945,8 +1944,8 @@ import '/public/assets/js/components/trash-manager.js';
     function configuredRequiredFieldKeys(row = {}, format = null) {
         return formatColumnsForRow(row, format)
             .map((column) => ({
-                key: String(column?.system_field_name || column?.system_field || '').trim(),
-                required: Number(column?.is_required || column?.requirement_mode || 0) === 1,
+key: String(column?.system_field_name || column?.system_field || '').trim(),
+required: Number(column?.is_required || column?.requirement_mode || 0) === 1,
             }))
             .filter((item) => item.key !== '' && item.required)
             .map((item) => canonicalReadinessField(item.key));
@@ -1955,8 +1954,8 @@ import '/public/assets/js/components/trash-manager.js';
     function configuredCorrectionFieldSet(row = {}, format = null) {
         return new Set(formatColumnsForRow(row, format)
             .map((column) => ({
-                key: String(column?.system_field_name || column?.system_field || '').trim(),
-                mode: Number(column?.is_required || column?.requirement_mode || 0),
+key: String(column?.system_field_name || column?.system_field || '').trim(),
+mode: Number(column?.is_required || column?.requirement_mode || 0),
             }))
             .filter((item) => item.key !== '' && item.mode === 1)
             .map((item) => canonicalReadinessField(item.key)));
@@ -2061,98 +2060,98 @@ import '/public/assets/js/components/trash-manager.js';
         if (config.kind === 'code') {
             const emptyLabel = requirementMode === 1 ? `${displayLabel}필수` : (config.emptyLabel || `${displayLabel}선택`);
             control = `
-                    <select class="form-select form-select-sm" data-readiness-key="${escapeHtml(key)}" data-code-group="${escapeHtml(config.codeGroup)}" data-empty-label="${escapeHtml(emptyLabel)}" ${config.searchable ? 'data-code-searchable="true"' : ''}>
-                    <option value="${escapeHtml(value)}" selected>${escapeHtml(value || '')}</option>
-                </select>
+    <select class="form-select form-select-sm" data-readiness-key="${escapeHtml(key)}" data-code-group="${escapeHtml(config.codeGroup)}" data-empty-label="${escapeHtml(emptyLabel)}" ${config.searchable ? 'data-code-searchable="true"' : ''}>
+    <option value="${escapeHtml(value)}" selected>${escapeHtml(value || '')}</option>
+</select>
             `;
         } else if (config.kind === 'client') {
             const clientId = String(payload.client_id || '').trim();
             const externalName = String(payload.client_company_name || payload.merchant_company_name || payload.client_name || row.client_name || '').trim();
             if (clientId === '' && externalName !== '') {
-                control = `
-                    <div class="readiness-client-auto">
-                        <div class="readiness-client-auto-main">
-                            <span class="badge text-bg-info">자동 거래처 후보</span>
-                            <strong>${escapeHtml(externalName)}</strong>
-                        </div>
-                        <div class="small text-muted">거래처가 확정되지 않았습니다. 후보명을 확인하고 실제 거래처를 선택하세요.</div>
-                        <select class="form-select form-select-sm mt-2" data-readiness-key="${escapeHtml(key)}" data-readiness-picker="client" data-placeholder="${escapeHtml(pickerPlaceholder || '거래처 선택')}">
-                            <option value="">직접 선택</option>
-                        </select>
-                    </div>
-                `;
+control = `
+    <div class="readiness-client-auto">
+        <div class="readiness-client-auto-main">
+            <span class="badge text-bg-info">자동 거래처 후보</span>
+            <strong>${escapeHtml(externalName)}</strong>
+        </div>
+        <div class="small text-muted">거래처가 확정되지 않았습니다. 후보명을 확인하고 실제 거래처를 선택하세요.</div>
+        <select class="form-select form-select-sm mt-2" data-readiness-key="${escapeHtml(key)}" data-readiness-picker="client" data-placeholder="${escapeHtml(pickerPlaceholder || '거래처 선택')}">
+            <option value="">직접 선택</option>
+        </select>
+    </div>
+`;
             } else {
-                const optionText = clientId !== '' ? (row.client_name || payload.client_name || payload.client_company_name || clientId) : '';
-                control = `
-                    <select class="form-select form-select-sm" data-readiness-key="${escapeHtml(key)}" data-readiness-picker="client" data-placeholder="${escapeHtml(pickerPlaceholder)}">
-                        <option value="${escapeHtml(clientId)}" selected>${escapeHtml(optionText || '')}</option>
-                    </select>
-                `;
+const optionText = clientId !== '' ? (row.client_name || payload.client_name || payload.client_company_name || clientId) : '';
+control = `
+    <select class="form-select form-select-sm" data-readiness-key="${escapeHtml(key)}" data-readiness-picker="client" data-placeholder="${escapeHtml(pickerPlaceholder)}">
+        <option value="${escapeHtml(clientId)}" selected>${escapeHtml(optionText || '')}</option>
+    </select>
+`;
             }
         } else if (config.kind === 'project') {
             const optionText = payload.project_name || row.project_name || value;
             control = `
-                <select class="form-select form-select-sm" data-readiness-key="${escapeHtml(key)}" data-readiness-picker="${escapeHtml(config.kind)}" data-placeholder="${escapeHtml(pickerPlaceholder)}">
-                    <option value="${escapeHtml(value)}" selected>${escapeHtml(optionText || '')}</option>
-                </select>
+<select class="form-select form-select-sm" data-readiness-key="${escapeHtml(key)}" data-readiness-picker="${escapeHtml(config.kind)}" data-placeholder="${escapeHtml(pickerPlaceholder)}">
+    <option value="${escapeHtml(value)}" selected>${escapeHtml(optionText || '')}</option>
+</select>
             `;
         } else if (['employee', 'bankAccount', 'card'].includes(config.kind)) {
             const nameKey = {
-                employee: 'employee_name',
-                bankAccount: 'bank_account_name',
-                card: 'card_name',
+employee: 'employee_name',
+bankAccount: 'bank_account_name',
+card: 'card_name',
             }[config.kind];
             const optionText = payload[nameKey] || row[nameKey] || value;
             control = `
-                <select class="form-select form-select-sm" data-readiness-key="${escapeHtml(key)}" data-readiness-picker="${escapeHtml(config.kind)}" data-placeholder="${escapeHtml(pickerPlaceholder)}">
-                    <option value="${escapeHtml(value)}" selected>${escapeHtml(optionText || '')}</option>
-                </select>
+<select class="form-select form-select-sm" data-readiness-key="${escapeHtml(key)}" data-readiness-picker="${escapeHtml(config.kind)}" data-placeholder="${escapeHtml(pickerPlaceholder)}">
+    <option value="${escapeHtml(value)}" selected>${escapeHtml(optionText || '')}</option>
+</select>
             `;
         } else if (config.kind === 'textarea') {
             control = `<textarea ${commonAttrs} rows="2" placeholder="${escapeHtml(config.placeholder || '')}">${escapeHtml(value)}</textarea>`;
         } else if (kind === 'date' || kind === 'datetime') {
             control = `
-                <div class="readiness-date-control">
-                    <input type="text" ${commonAttrs} value="${escapeHtml(valueForInput(kind, value))}" placeholder="${kind === 'datetime' ? 'yyyy-mm-dd hh:mm' : 'yyyy-mm-dd'}" autocomplete="off" inputmode="numeric">
-                    <button type="button" class="btn btn-outline-secondary btn-sm readiness-date-picker-btn" data-date-picker-target="${escapeHtml(key)}" title="날짜 선택">
-                        <i class="bi bi-calendar3"></i>
-                    </button>
-                </div>
+<div class="readiness-date-control">
+    <input type="text" ${commonAttrs} value="${escapeHtml(valueForInput(kind, value))}" placeholder="${kind === 'datetime' ? 'yyyy-mm-dd hh:mm' : 'yyyy-mm-dd'}" autocomplete="off" inputmode="numeric">
+    <button type="button" class="btn btn-outline-secondary btn-sm readiness-date-picker-btn" data-date-picker-target="${escapeHtml(key)}" title="날짜 선택">
+        <i class="bi bi-calendar3"></i>
+    </button>
+</div>
             `;
         } else if (kind === 'time') {
             control = `
-                <div class="readiness-date-control">
-                    <input type="text" ${commonAttrs} value="${escapeHtml(valueForInput(kind, value))}" placeholder="hh:mm" autocomplete="off" inputmode="numeric">
-                    <button type="button" class="btn btn-outline-secondary btn-sm readiness-time-picker-btn" data-time-picker-target="${escapeHtml(key)}" title="시간 선택">
-                        <i class="bi bi-clock"></i>
-                    </button>
-                </div>
+<div class="readiness-date-control">
+    <input type="text" ${commonAttrs} value="${escapeHtml(valueForInput(kind, value))}" placeholder="hh:mm" autocomplete="off" inputmode="numeric">
+    <button type="button" class="btn btn-outline-secondary btn-sm readiness-time-picker-btn" data-time-picker-target="${escapeHtml(key)}" title="시간 선택">
+        <i class="bi bi-clock"></i>
+    </button>
+</div>
             `;
         } else if (key === 'voucher_summary_text') {
             control = `
-                <div class="summary-autocomplete-wrap readiness-summary-autocomplete-wrap">
-                    <input type="text"
-                           ${commonAttrs}
-                           value="${escapeHtml(valueForInput(kind, value))}"
-                           placeholder="${escapeHtml(config.placeholder || '')}"
-                           autocomplete="off"
-                           data-readiness-summary-autocomplete="1">
-                    <div class="summary-autocomplete-list d-none" role="listbox"></div>
-                </div>
+<div class="summary-autocomplete-wrap readiness-summary-autocomplete-wrap">
+    <input type="text"
+           ${commonAttrs}
+           value="${escapeHtml(valueForInput(kind, value))}"
+           placeholder="${escapeHtml(config.placeholder || '')}"
+           autocomplete="off"
+           data-readiness-summary-autocomplete="1">
+    <div class="summary-autocomplete-list d-none" role="listbox"></div>
+</div>
             `;
         } else {
             control = `<input type="text" ${commonAttrs} value="${escapeHtml(valueForInput(kind, value))}" placeholder="${escapeHtml(config.placeholder || '')}" ${inputMode ? `inputmode="${escapeHtml(inputMode)}"` : ''}>`;
         }
         return `
             <label class="readiness-field${fieldToneClass}${correctionClass}" data-readiness-system-field="${escapeHtml(key)}"${correctionTitle}>
-                <span class="form-label small mb-1">${escapeHtml(displayLabel)}${requirementStar}</span>
-                ${control}
-                ${correctionIssue ? `<div class="readiness-field-correction-message">${escapeHtml(correctionIssue.message)}</div>` : ''}
+<span class="form-label small mb-1">${escapeHtml(displayLabel)}${requirementStar}</span>
+${control}
+${correctionIssue ? `<div class="readiness-field-correction-message">${escapeHtml(correctionIssue.message)}</div>` : ''}
             </label>
         `;
     }
 
-    const BANK_VOUCHER_REF_TYPES = [
+    const BANK_VOUCHER_ref_targetS = [
         ['CLIENT', '거래처'],
         ['ACCOUNT', '계좌'],
         ['PROJECT', '프로젝트'],
@@ -2173,11 +2172,11 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function voucherRefFromLine(line = {}) {
-        const type = String(line.line_ref_type ?? '').trim();
+        const type = String(line.line_ref_target ?? '').trim();
         const id = String(line.line_ref_id ?? '').trim();
         const label = String(line.line_ref_label ?? line.ref_label ?? '').trim();
         if (type === '' && id === '') return null;
-        return { line_ref_type: type, line_ref_id: id, line_ref_label: label };
+        return { line_ref_target: type, line_ref_id: id, line_ref_label: label };
     }
 
     function jsonArrayValue(value) {
@@ -2194,37 +2193,37 @@ import '/public/assets/js/components/trash-manager.js';
     function businessRefCandidates(payload = {}) {
         const candidates = [
             {
-                type: 'CLIENT',
-                id: payload.client_id || '',
-                label: payload.client_name || '',
+type: 'CLIENT',
+id: payload.client_id || '',
+label: payload.client_name || '',
             },
             {
-                type: 'PROJECT',
-                id: payload.project_id || '',
-                label: payload.project_name || payload.project_code || '',
+type: 'PROJECT',
+id: payload.project_id || '',
+label: payload.project_name || payload.project_code || '',
             },
             {
-                type: 'EMPLOYEE',
-                id: payload.employee_id || '',
-                label: payload.employee_name || payload.user_name || '',
+type: 'EMPLOYEE',
+id: payload.employee_id || '',
+label: payload.employee_name || payload.user_name || '',
             },
             {
-                type: 'ACCOUNT',
-                id: payload.bank_account_id || '',
-                label: payload.bank_account_name || payload.account_name || payload.account_number || payload.payment_account_number || '',
+type: 'ACCOUNT',
+id: payload.bank_account_id || '',
+label: payload.bank_account_name || payload.account_name || payload.account_number || payload.payment_account_number || '',
             },
             {
-                type: 'CARD',
-                id: payload.card_id || '',
-                label: payload.card_name || payload.card_number || payload.card_company_name || '',
+type: 'CARD',
+id: payload.card_id || '',
+label: payload.card_name || payload.card_number || payload.card_company_name || '',
             },
         ];
         return candidates
             .map((ref) => ({
-                line_ref_type: ref.type,
-                line_ref_id: String(ref.id || ref.label || '').trim(),
-                line_ref_label: String(ref.label || ref.id || '').trim(),
-                auto: true,
+line_ref_target: ref.type,
+line_ref_id: String(ref.id || ref.label || '').trim(),
+line_ref_label: String(ref.label || ref.id || '').trim(),
+auto: true,
             }))
             .filter((ref) => ref.line_ref_id !== '' || ref.line_ref_label !== '');
     }
@@ -2232,9 +2231,9 @@ import '/public/assets/js/components/trash-manager.js';
     function recommendationRefsForRole(payload = {}, role = 'business') {
         const refs = businessRefCandidates(payload);
         if (role === 'payment') {
-            return refs.filter((ref) => ref.line_ref_type === 'ACCOUNT' || ref.line_ref_type === 'CARD');
+            return refs.filter((ref) => ref.line_ref_target === 'ACCOUNT' || ref.line_ref_target === 'CARD');
         }
-        return refs.filter((ref) => ['CLIENT', 'PROJECT', 'EMPLOYEE'].includes(ref.line_ref_type));
+        return refs.filter((ref) => ['CLIENT', 'PROJECT', 'EMPLOYEE'].includes(ref.line_ref_target));
     }
 
     function voucherRefTypeAliases(type) {
@@ -2263,56 +2262,56 @@ import '/public/assets/js/components/trash-manager.js';
         rawLines.forEach((line) => {
             if (!line || typeof line !== 'object' || Array.isArray(line)) return;
             const rowType = normalizeVoucherLineRowType(line.line_row_type);
-            const sourceLineNo = normalizeVoucherSourceLineNo(line.line_no, fallbackNo++);
+            const sourceLineNo = normalizeVoucherSourceLineNo(line.sort_no, fallbackNo++);
             if (rowType === 'AUX') {
-                const ref = voucherRefFromLine(line);
-                if (ref) {
-                    const key = String(sourceLineNo);
-                    const refs = pendingRefs.get(key) || [];
-                    refs.push(ref);
-                    pendingRefs.set(key, refs);
-                }
-                return;
+const ref = voucherRefFromLine(line);
+if (ref) {
+    const key = String(sourceLineNo);
+    const refs = pendingRefs.get(key) || [];
+    refs.push(ref);
+    pendingRefs.set(key, refs);
+}
+return;
             }
 
             const group = {
-                sourceLineNo,
-                headerRowNo: String(line.header_row_no ?? '').trim(),
-                account_id: String(line.account_id ?? '').trim(),
-                account_text: String(line.account_text ?? line.account_label ?? line.account_name ?? '').trim(),
-                debit: line.debit ?? '',
-                credit: line.credit ?? '',
-                line_summary: String(line.line_summary ?? '').trim(),
-                refs: [],
-                auto_refs: jsonArrayValue(line.auto_refs),
-                recommended_refs: jsonArrayValue(line.recommended_refs),
-                recommend_source: String(line.recommend_source ?? line.source ?? '').trim(),
-                recommend_confidence: String(line.recommend_confidence ?? line.confidence ?? '').trim(),
-                recommend_reason: String(line.recommend_reason ?? line.reason ?? '').trim(),
-                recommended_account_id: String(line.recommended_account_id ?? line.account_id ?? '').trim(),
+sourceLineNo,
+headerRowNo: String(line.header_row_no ?? '').trim(),
+account_id: String(line.account_id ?? '').trim(),
+account_text: String(line.account_text ?? line.account_label ?? line.account_name ?? '').trim(),
+debit: line.debit ?? '',
+credit: line.credit ?? '',
+line_summary: String(line.line_summary ?? '').trim(),
+refs: [],
+auto_refs: jsonArrayValue(line.auto_refs),
+recommended_refs: jsonArrayValue(line.recommended_refs),
+recommend_source: String(line.recommend_source ?? line.source ?? '').trim(),
+recommend_confidence: String(line.recommend_confidence ?? line.confidence ?? '').trim(),
+recommend_reason: String(line.recommend_reason ?? line.reason ?? '').trim(),
+recommended_account_id: String(line.recommended_account_id ?? line.account_id ?? '').trim(),
             };
             const inlineRef = voucherRefFromLine(line);
             if (inlineRef) group.refs.push(inlineRef);
             groups.push(group);
             if (!groupBySourceNo.has(String(sourceLineNo))) {
-                groupBySourceNo.set(String(sourceLineNo), group);
+groupBySourceNo.set(String(sourceLineNo), group);
             }
         });
 
         pendingRefs.forEach((refs, sourceLineNo) => {
             const group = groupBySourceNo.get(String(sourceLineNo));
             if (group) {
-                group.refs.push(...refs);
+group.refs.push(...refs);
             } else {
-                groups.push({
-                    sourceLineNo: normalizeVoucherSourceLineNo(sourceLineNo, groups.length + 1),
-                    headerRowNo: '',
-                    account_id: '',
-                    debit: '',
-                    credit: '',
-                    line_summary: '',
-                    refs,
-                });
+groups.push({
+    sourceLineNo: normalizeVoucherSourceLineNo(sourceLineNo, groups.length + 1),
+    headerRowNo: '',
+    account_id: '',
+    debit: '',
+    credit: '',
+    line_summary: '',
+    refs,
+});
             }
         });
 
@@ -2326,38 +2325,38 @@ import '/public/assets/js/components/trash-manager.js';
     function refPickerConfig(type) {
         return {
             CLIENT: {
-                url: API.clientList,
-                placeholder: '거래처 선택',
-                requiredPlaceholder: '거래처필수',
-                label: (row) => row.client_name || row.business_name || row.name || row.company_name || row.id || '',
+url: API.clientList,
+placeholder: '거래처 선택',
+requiredPlaceholder: '거래처필수',
+label: (row) => row.client_name || row.business_name || row.name || row.company_name || row.id || '',
             },
             PROJECT: {
-                url: API.projectList,
-                placeholder: '프로젝트 선택',
-                requiredPlaceholder: '프로젝트필수',
-                label: (row) => row.project_name || row.name || row.project_code || row.id || '',
+url: API.projectList,
+placeholder: '프로젝트 선택',
+requiredPlaceholder: '프로젝트필수',
+label: (row) => row.project_name || row.name || row.project_code || row.id || '',
             },
             EMPLOYEE: {
-                url: API.employeeList,
-                placeholder: '직원 선택',
-                label: (row) => row.employee_name || row.name || row.user_name || row.id || '',
+url: API.employeeList,
+placeholder: '직원 선택',
+label: (row) => row.employee_name || row.name || row.user_name || row.id || '',
             },
             ACCOUNT: {
-                url: API.bankAccountList,
-                placeholder: '계좌 선택',
-                requiredPlaceholder: '계좌필수',
-                label: (row) => row.account_name || row.bank_name || row.account_no || row.account_number || row.id || '',
+url: API.bankAccountList,
+placeholder: '계좌 선택',
+requiredPlaceholder: '계좌필수',
+label: (row) => row.account_name || row.bank_name || row.account_no || row.account_number || row.id || '',
             },
             BANK_ACCOUNT: {
-                url: API.bankAccountList,
-                placeholder: '계좌 선택',
-                requiredPlaceholder: '계좌필수',
-                label: (row) => row.account_name || row.bank_name || row.account_no || row.account_number || row.id || '',
+url: API.bankAccountList,
+placeholder: '계좌 선택',
+requiredPlaceholder: '계좌필수',
+label: (row) => row.account_name || row.bank_name || row.account_no || row.account_number || row.id || '',
             },
             CARD: {
-                url: API.cardList,
-                placeholder: '카드 선택',
-                label: (row) => row.card_name || row.card_no || row.card_number || row.client_name || row.id || '',
+url: API.cardList,
+placeholder: '카드 선택',
+label: (row) => row.card_name || row.card_no || row.card_number || row.client_name || row.id || '',
             },
         }[String(type || '').toUpperCase()] || null;
     }
@@ -2371,11 +2370,11 @@ import '/public/assets/js/components/trash-manager.js';
         try {
             const json = await fetchJson(config.url);
             voucherRefOptionCache[type] = [
-                { id: '', text: config.placeholder },
-                ...normalizeRows(json).map((row) => ({
-                    id: String(row.id ?? row.value ?? '').trim(),
-                    text: String(config.label(row)).trim(),
-                })).filter((item) => item.id !== ''),
+{ id: '', text: config.placeholder },
+...normalizeRows(json).map((row) => ({
+    id: String(row.id ?? row.value ?? '').trim(),
+    text: String(config.label(row)).trim(),
+})).filter((item) => item.id !== ''),
             ];
         } catch (error) {
             console.error('[data-create] ref picker load failed', type, error);
@@ -2405,11 +2404,11 @@ import '/public/assets/js/components/trash-manager.js';
         if (resolvedValue !== '' && !options.some((item) => String(item.id) === resolvedValue)) {
             const normalizedValue = normalizeCodeKey(resolvedValue);
             const matched = options.find((item) => (
-                normalizeCodeKey(item.text) === normalizedValue
-                || normalizeCodeKey(item.text).includes(normalizedValue)
+normalizeCodeKey(item.text) === normalizedValue
+|| normalizeCodeKey(item.text).includes(normalizedValue)
             ));
             if (matched?.id) {
-                resolvedValue = String(matched.id);
+resolvedValue = String(matched.id);
             }
         }
         if (AdminPicker.reloadSelect2) {
@@ -2437,17 +2436,17 @@ import '/public/assets/js/components/trash-manager.js';
         try {
             const json = await fetchJson(`${API.subAccountList}?account_id=${encodeURIComponent(accountId)}`);
             voucherAccountPolicyCache[accountId] = normalizeRows(json)
-                .map((row) => {
-                    const rawRefType = String(row.ref_type || '').toUpperCase();
-                    const subCode = String(row.sub_code || row.code || '').toUpperCase();
-                    const refType = rawRefType === 'REF_TARGET' ? subCode : (rawRefType || subCode);
+.map((row) => {
+    const rawRefType = String(row.ref_target || '').toUpperCase();
+    const subCode = String(row.sub_code || row.code || '').toUpperCase();
+    const refType = rawRefType === 'REF_TARGET' ? subCode : (rawRefType || subCode);
 
-                    return {
-                        ref_type: refType,
-                        is_required: Number(row.is_required || 0),
-                    };
-                })
-                .filter((policy) => policy.ref_type !== '');
+    return {
+        ref_target: refType,
+        is_required: Number(row.is_required || 0),
+    };
+})
+.filter((policy) => policy.ref_target !== '');
         } catch (error) {
             console.error('[data-create] account policy load failed', error);
             voucherAccountPolicyCache[accountId] = [];
@@ -2471,14 +2470,14 @@ import '/public/assets/js/components/trash-manager.js';
 
         const selected = new Map();
         refs.forEach((ref) => {
-            const type = String(ref.line_ref_type || ref.ref_type || '').trim().toUpperCase();
+            const type = String(ref.line_ref_target || ref.ref_target || '').trim().toUpperCase();
             const id = String(ref.line_ref_id || ref.ref_id || '').trim();
             if (type && id) {
-                voucherRefTypeAliases(type).forEach((alias) => {
-                    if (alias && !selected.has(alias)) {
-                        selected.set(alias, id);
-                    }
-                });
+voucherRefTypeAliases(type).forEach((alias) => {
+    if (alias && !selected.has(alias)) {
+        selected.set(alias, id);
+    }
+});
             }
         });
 
@@ -2510,19 +2509,19 @@ import '/public/assets/js/components/trash-manager.js';
         row.dataset.hasSubAccounts = '1';
         container.className = 'journal-line-subaccounts journal-line-subaccount-grid';
         container.innerHTML = policies.map((policy, index) => {
-            const label = voucherRefTypeLabel(policy.ref_type);
+            const label = voucherRefTypeLabel(policy.ref_target);
             const required = !!policy.is_required;
             const placeholder = required ? `${label}필수` : `${label}선택`;
             return `
             <label class="journal-line-subaccount-field">
-                <span>${escapeHtml(label)}${required ? '<b class="journal-line-subaccount-required">*</b>' : ''}</span>
-                <select class="form-select form-select-sm line-ref-picker"
-                        data-ref-type="${escapeHtml(policy.ref_type)}"
-                        data-required="${required ? '1' : '0'}"
-                        data-placeholder="${escapeHtml(placeholder)}"
-                        data-policy-index="${index}">
-                    <option value="">${escapeHtml(placeholder)}</option>
-                </select>
+<span>${escapeHtml(label)}${required ? '<b class="journal-line-subaccount-required">*</b>' : ''}</span>
+<select class="form-select form-select-sm line-ref-picker"
+        data-ref-type="${escapeHtml(policy.ref_target)}"
+        data-required="${required ? '1' : '0'}"
+        data-placeholder="${escapeHtml(placeholder)}"
+        data-policy-index="${index}">
+    <option value="">${escapeHtml(placeholder)}</option>
+</select>
             </label>
         `;
         }).join('');
@@ -2531,8 +2530,8 @@ import '/public/assets/js/components/trash-manager.js';
         for (const selectEl of container.querySelectorAll('.line-ref-picker')) {
             const refType = selectEl.dataset.refType || '';
             const selectedValue = voucherRefTypeAliases(refType)
-                .map((alias) => selectedMap.get(alias))
-                .find((value) => String(value || '').trim() !== '') || '';
+.map((alias) => selectedMap.get(alias))
+.find((value) => String(value || '').trim() !== '') || '';
             await initVoucherRefPicker(selectEl, refType, selectedValue);
         }
     }
@@ -2569,7 +2568,7 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function voucherRefDisplayText(ref = {}) {
-        const type = String(ref.line_ref_type || ref.ref_type || '').trim().toUpperCase();
+        const type = String(ref.line_ref_target || ref.ref_target || '').trim().toUpperCase();
         const id = String(ref.line_ref_id || ref.ref_id || '').trim();
         return String(ref.line_ref_label || ref.ref_label || '').trim()
             || (voucherRefOptionCache[type] || []).find((item) => String(item.id) === id)?.text
@@ -2581,9 +2580,9 @@ import '/public/assets/js/components/trash-manager.js';
     function voucherLineRefChipsHtml(refs = []) {
         const cleanRefs = refs
             .map((ref) => ({
-                type: String(ref.line_ref_type || ref.ref_type || '').trim(),
-                id: String(ref.line_ref_label || ref.line_ref_id || ref.ref_label || ref.ref_id || '').trim(),
-                auto: !!ref.auto,
+type: String(ref.line_ref_target || ref.ref_target || '').trim(),
+id: String(ref.line_ref_label || ref.line_ref_id || ref.ref_label || ref.ref_id || '').trim(),
+auto: !!ref.auto,
             }))
             .filter((ref) => ref.type !== '' || ref.id !== '');
         if (cleanRefs.length === 0) {
@@ -2669,41 +2668,41 @@ import '/public/assets/js/components/trash-manager.js';
         };
         const candidates = direction === 'IN' ? [
             {
-                title: '매출 수금',
-                meta: '보통예금 / 매출계정',
-                reasons: recommendationReasons(payload, '입금 거래'),
-                lines: [
-                    recommendedLine({ ...bankAccount, debit: amount, credit: '', line_summary: baseSummary }, payload, 'payment', commonMeta),
-                    recommendedLine({ account_id: '412100', account_text: '412100 매출', debit: '', credit: amount, line_summary: baseSummary }, payload, 'business', commonMeta),
-                ],
+title: '매출 수금',
+meta: '보통예금 / 매출계정',
+reasons: recommendationReasons(payload, '입금 거래'),
+lines: [
+    recommendedLine({ ...bankAccount, debit: amount, credit: '', line_summary: baseSummary }, payload, 'payment', commonMeta),
+    recommendedLine({ account_id: '412100', account_text: '412100 매출', debit: '', credit: amount, line_summary: baseSummary }, payload, 'business', commonMeta),
+],
             },
         ] : [
             {
-                title: '부가세 대급금',
-                meta: '부가세대급금 / 보통예금',
-                reasons: recommendationReasons(payload, '거래내용/출금액 기준'),
-                lines: [
-                    recommendedLine({ account_id: '215900', account_text: '215900 부가세대급금', debit: amount, credit: '', line_summary: baseSummary }, payload, 'business', commonMeta),
-                    recommendedLine({ ...bankAccount, debit: '', credit: amount, line_summary: baseSummary }, payload, 'payment', commonMeta),
-                ],
+title: '부가세 대급금',
+meta: '부가세대급금 / 보통예금',
+reasons: recommendationReasons(payload, '거래내용/출금액 기준'),
+lines: [
+    recommendedLine({ account_id: '215900', account_text: '215900 부가세대급금', debit: amount, credit: '', line_summary: baseSummary }, payload, 'business', commonMeta),
+    recommendedLine({ ...bankAccount, debit: '', credit: amount, line_summary: baseSummary }, payload, 'payment', commonMeta),
+],
             },
             {
-                title: '지급 수수료',
-                meta: '지급수수료 / 보통예금',
-                reasons: recommendationReasons(payload, '거래내용 반영'),
-                lines: [
-                    recommendedLine({ account_id: '831300', account_text: '831300 지급수수료', debit: amount, credit: '', line_summary: baseSummary }, payload, 'business', commonMeta),
-                    recommendedLine({ ...bankAccount, debit: '', credit: amount, line_summary: baseSummary }, payload, 'payment', commonMeta),
-                ],
+title: '지급 수수료',
+meta: '지급수수료 / 보통예금',
+reasons: recommendationReasons(payload, '거래내용 반영'),
+lines: [
+    recommendedLine({ account_id: '831300', account_text: '831300 지급수수료', debit: amount, credit: '', line_summary: baseSummary }, payload, 'business', commonMeta),
+    recommendedLine({ ...bankAccount, debit: '', credit: amount, line_summary: baseSummary }, payload, 'payment', commonMeta),
+],
             },
             {
-                title: '복리후생비',
-                meta: '복리후생비 / 보통예금',
-                reasons: recommendationReasons(payload, '프로젝트/거래처 정보 포함'),
-                lines: [
-                    recommendedLine({ account_id: '511100', account_text: '511100 복리후생비', debit: amount, credit: '', line_summary: baseSummary }, payload, 'business', commonMeta),
-                    recommendedLine({ ...bankAccount, debit: '', credit: amount, line_summary: baseSummary }, payload, 'payment', commonMeta),
-                ],
+title: '복리후생비',
+meta: '복리후생비 / 보통예금',
+reasons: recommendationReasons(payload, '프로젝트/거래처 정보 포함'),
+lines: [
+    recommendedLine({ account_id: '511100', account_text: '511100 복리후생비', debit: amount, credit: '', line_summary: baseSummary }, payload, 'business', commonMeta),
+    recommendedLine({ ...bankAccount, debit: '', credit: amount, line_summary: baseSummary }, payload, 'payment', commonMeta),
+],
             },
         ];
         return candidates;
@@ -2713,36 +2712,36 @@ import '/public/assets/js/components/trash-manager.js';
         const recommendations = buildVoucherLineRecommendations(payload);
         if (recommendations.length === 0) {
             return `
-                <div class="voucher-line-recommendations empty">
-                    <div>
-                        <strong>추천 분개</strong>
-                        <p>원본 거래내용, 금액, 거래처, 프로젝트/계좌 정보를 기준으로 추천할 분개가 없습니다.</p>
-                    </div>
-                </div>
+<div class="voucher-line-recommendations empty">
+    <div>
+        <strong>추천 분개</strong>
+        <p>원본 거래내용, 금액, 거래처, 프로젝트/계좌 정보를 기준으로 추천할 분개가 없습니다.</p>
+    </div>
+</div>
             `;
         }
         return `
             <div class="voucher-line-recommendations">
-                <div class="voucher-line-recommendations-head">
-                    <strong>추천 분개</strong>
-                    <span>원본 거래내용과 금액, 거래처/프로젝트/계좌 정보를 기준으로 후보를 제안합니다.</span>
-                </div>
-                <div class="voucher-line-recommendation-list">
-                    ${recommendations.map((item, index) => `
-                        <div class="voucher-line-recommendation-item">
-                            <div>
-                                <strong>${escapeHtml(item.title)}</strong>
-                                <span>${escapeHtml(item.meta)}</span>
-                                <div class="voucher-line-recommendation-reasons">
-                                    ${(item.reasons || []).map((reason) => `<em>${escapeHtml(reason)}</em>`).join('')}
-                                </div>
-                            </div>
-                            <button type="button" class="btn btn-outline-primary btn-sm voucher-line-recommend-apply-btn" data-recommendation="${escapeHtml(encodeURIComponent(JSON.stringify(item.lines)))}">
-                                선택
-                            </button>
-                        </div>
-                    `).join('')}
-                </div>
+<div class="voucher-line-recommendations-head">
+    <strong>추천 분개</strong>
+    <span>원본 거래내용과 금액, 거래처/프로젝트/계좌 정보를 기준으로 후보를 제안합니다.</span>
+</div>
+<div class="voucher-line-recommendation-list">
+    ${recommendations.map((item, index) => `
+        <div class="voucher-line-recommendation-item">
+            <div>
+<strong>${escapeHtml(item.title)}</strong>
+<span>${escapeHtml(item.meta)}</span>
+<div class="voucher-line-recommendation-reasons">
+    ${(item.reasons || []).map((reason) => `<em>${escapeHtml(reason)}</em>`).join('')}
+</div>
+            </div>
+            <button type="button" class="btn btn-outline-primary btn-sm voucher-line-recommend-apply-btn" data-recommendation="${escapeHtml(encodeURIComponent(JSON.stringify(item.lines)))}">
+선택
+            </button>
+        </div>
+    `).join('')}
+</div>
             </div>
         `;
     }
@@ -2783,29 +2782,27 @@ import '/public/assets/js/components/trash-manager.js';
             payload[key] = value;
 
             const selectedText = input.tagName === 'SELECT'
-                ? String(input.options[input.selectedIndex]?.text || '').trim()
-                : '';
+? String(input.options[input.selectedIndex]?.text || '').trim()
+: '';
             const nameKey = {
-                client_id: 'client_name',
-                project_id: 'project_name',
-                employee_id: 'employee_name',
-                bank_account_id: 'bank_account_name',
-                card_id: 'card_name',
+client_id: 'client_name',
+project_id: 'project_name',
+employee_id: 'employee_name',
+bank_account_id: 'bank_account_name',
+card_id: 'card_name',
             }[key];
             if (nameKey && selectedText !== '' && !selectedText.includes('선택')) {
-                payload[nameKey] = selectedText;
+payload[nameKey] = selectedText;
             }
 
             if (key === 'bank_account_name' && input.dataset.readinessPicker === 'bankAccount') {
-                const selectedMeta = readinessPickerMeta.get(input) || {};
-                payload.bank_account_id = value;
-                payload.bank_account_name = selectedMeta.account_name || selectedText || value;
-                if (selectedMeta.account_number) payload.account_number = selectedMeta.account_number;
-                if (selectedMeta.account_number) payload.payment_account_number = selectedMeta.account_number;
+const selectedMeta = readinessPickerMeta.get(input) || {};
+payload.bank_account_id = value;
+payload.bank_account_name = selectedMeta.account_name || selectedText || value;
+if (selectedMeta.account_number) payload.account_number = selectedMeta.account_number;
+if (selectedMeta.account_number) payload.payment_account_number = selectedMeta.account_number;
             }
         });
-
-        serializeBankPaymentsFromModal(modal, payload);
         return payload;
     }
 
@@ -2820,9 +2817,9 @@ import '/public/assets/js/components/trash-manager.js';
         return lines.map((line) => {
             const refs = recommendationRefsForRole(payload, recommendationRoleForLine(line));
             return {
-                ...line,
-                auto_refs: refs,
-                recommended_refs: refs,
+...line,
+auto_refs: refs,
+recommended_refs: refs,
             };
         });
     }
@@ -2830,18 +2827,18 @@ import '/public/assets/js/components/trash-manager.js';
     function journalLikeRefRowsHtml(refs = [], autoRefs = []) {
         const cleanRefs = refs
             .map((ref) => ({
-                type: String(ref.line_ref_type || ref.ref_type || '').trim().toUpperCase(),
-                id: String(ref.line_ref_id || ref.ref_id || '').trim(),
-                label: String(ref.line_ref_label || ref.ref_label || '').trim(),
-                auto: false,
+type: String(ref.line_ref_target || ref.ref_target || '').trim().toUpperCase(),
+id: String(ref.line_ref_id || ref.ref_id || '').trim(),
+label: String(ref.line_ref_label || ref.ref_label || '').trim(),
+auto: false,
             }))
             .filter((ref) => ref.type !== '' || ref.id !== '');
         const cleanAutoRefs = autoRefs
             .map((ref) => ({
-                type: String(ref.line_ref_type || ref.ref_type || '').trim().toUpperCase(),
-                id: String(ref.line_ref_id || ref.ref_id || '').trim(),
-                label: String(ref.line_ref_label || ref.ref_label || '').trim(),
-                auto: true,
+type: String(ref.line_ref_target || ref.ref_target || '').trim().toUpperCase(),
+id: String(ref.line_ref_id || ref.ref_id || '').trim(),
+label: String(ref.line_ref_label || ref.ref_label || '').trim(),
+auto: true,
             }))
             .filter((ref) => ref.type !== '' || ref.id !== '' || ref.label !== '');
         const displayRefs = cleanRefs.length > 0 ? cleanRefs : cleanAutoRefs;
@@ -2850,7 +2847,7 @@ import '/public/assets/js/components/trash-manager.js';
             : '<span class="voucher-ref-chip auto">자동 refs</span>';
         return `
             <div class="journal-line-subaccounts voucher-line-ref-compact">
-                ${chips ? `<div class="voucher-line-ref-summary">${chips}</div>` : ''}
+${chips ? `<div class="voucher-line-ref-summary">${chips}</div>` : ''}
             </div>
         `;
     }
@@ -2858,7 +2855,7 @@ import '/public/assets/js/components/trash-manager.js';
     function voucherLineEmptyRowHtml() {
         return `
             <tr class="voucher-line-empty voucher-line-empty-row">
-                <td colspan="7" class="text-center text-muted py-3">분개라인이 없습니다. 추천 분개를 적용하거나 라인을 추가하세요.</td>
+<td colspan="7" class="text-center text-muted py-3">분개라인이 없습니다. 추천 분개를 적용하거나 라인을 추가하세요.</td>
             </tr>
         `;
     }
@@ -2871,55 +2868,55 @@ import '/public/assets/js/components/trash-manager.js';
         const recommendReason = group.recommend_reason || '';
         return `
             <tr data-voucher-line-row
-                data-source-line-no="${escapeHtml(sourceLineNo)}"
-                data-header-row-no="${escapeHtml(group.headerRowNo || '')}"
-                data-recommend-source="${escapeHtml(group.recommend_source || '')}"
-                data-recommend-confidence="${escapeHtml(group.recommend_confidence || '')}"
-                data-recommend-reason="${escapeHtml(recommendReason)}"
-                data-recommended-account-id="${escapeHtml(group.recommended_account_id || group.account_id || '')}"
-                data-line-refs="${escapeHtml(encodeURIComponent(JSON.stringify(refs)))}"
-                data-recommended-refs="${escapeHtml(encodeURIComponent(JSON.stringify(recommendedRefs)))}">
-                <td class="text-center line-no">
-                    <span class="voucher-line-order-cell">
-                        <button type="button" class="voucher-line-drag-handle" title="순서 변경" aria-label="순서 변경">
-                            <i class="bi bi-grip-vertical"></i>
-                        </button>
-                        <span class="voucher-line-display-no">${displayIndex + 1}</span>
-                    </span>
-                </td>
-                <td>
-                    <select class="form-select form-select-sm line-account-code-picker voucher-line-account" data-selected-value="${escapeHtml(group.account_id ?? '')}" data-selected-label="${escapeHtml(group.account_text || group.account_label || group.account_name || group.account_id || '')}">
-                        <option value="${escapeHtml(group.account_id ?? '')}" selected>${escapeHtml(group.account_text || group.account_label || group.account_name || group.account_id || '계정과목 선택')}</option>
-                    </select>
-                </td>
-                <td class="line-ref-cell">
-                    ${journalLikeRefRowsHtml(refs, recommendedRefs)}
-                </td>
-                <td>
-                    <input type="text"
-                           inputmode="numeric"
-                           class="form-control form-control-sm line-debit input-amount number-input voucher-line-amount voucher-line-debit"
-                           data-value-kind="amount"
-                           value="${escapeHtml(voucherAmountInputValue(group.debit ?? ''))}"
-                           placeholder="0">
-                </td>
-                <td>
-                    <input type="text"
-                           inputmode="numeric"
-                           class="form-control form-control-sm line-credit input-amount number-input voucher-line-amount voucher-line-credit"
-                           data-value-kind="amount"
-                           value="${escapeHtml(voucherAmountInputValue(group.credit ?? ''))}"
-                           placeholder="0">
-                </td>
-                <td>
-                    <input type="text"
-                           class="form-control form-control-sm line-summary voucher-line-summary"
-                           value="${escapeHtml(group.line_summary ?? '')}"
-                           placeholder="라인 적요">
-                </td>
-                <td class="text-center">
-                    <button type="button" class="btn btn-link btn-sm btn-remove-line voucher-line-delete-btn">-삭제</button>
-                </td>
+data-source-line-no="${escapeHtml(sourceLineNo)}"
+data-header-row-no="${escapeHtml(group.headerRowNo || '')}"
+data-recommend-source="${escapeHtml(group.recommend_source || '')}"
+data-recommend-confidence="${escapeHtml(group.recommend_confidence || '')}"
+data-recommend-reason="${escapeHtml(recommendReason)}"
+data-recommended-account-id="${escapeHtml(group.recommended_account_id || group.account_id || '')}"
+data-line-refs="${escapeHtml(encodeURIComponent(JSON.stringify(refs)))}"
+data-recommended-refs="${escapeHtml(encodeURIComponent(JSON.stringify(recommendedRefs)))}">
+<td class="text-center line-no">
+    <span class="voucher-line-order-cell">
+        <button type="button" class="voucher-line-drag-handle" title="순서 변경" aria-label="순서 변경">
+            <i class="bi bi-grip-vertical"></i>
+        </button>
+        <span class="voucher-line-display-no">${displayIndex + 1}</span>
+    </span>
+</td>
+<td>
+    <select class="form-select form-select-sm line-account-code-picker voucher-line-account" data-selected-value="${escapeHtml(group.account_id ?? '')}" data-selected-label="${escapeHtml(group.account_text || group.account_label || group.account_name || group.account_id || '')}">
+        <option value="${escapeHtml(group.account_id ?? '')}" selected>${escapeHtml(group.account_text || group.account_label || group.account_name || group.account_id || '계정과목 선택')}</option>
+    </select>
+</td>
+<td class="line-ref-cell">
+    ${journalLikeRefRowsHtml(refs, recommendedRefs)}
+</td>
+<td>
+    <input type="text"
+           inputmode="numeric"
+           class="form-control form-control-sm line-debit input-amount number-input voucher-line-amount voucher-line-debit"
+           data-value-kind="amount"
+           value="${escapeHtml(voucherAmountInputValue(group.debit ?? ''))}"
+           placeholder="0">
+</td>
+<td>
+    <input type="text"
+           inputmode="numeric"
+           class="form-control form-control-sm line-credit input-amount number-input voucher-line-amount voucher-line-credit"
+           data-value-kind="amount"
+           value="${escapeHtml(voucherAmountInputValue(group.credit ?? ''))}"
+           placeholder="0">
+</td>
+<td>
+    <input type="text"
+           class="form-control form-control-sm line-summary voucher-line-summary"
+           value="${escapeHtml(group.line_summary ?? '')}"
+           placeholder="라인 적요">
+</td>
+<td class="text-center">
+    <button type="button" class="btn btn-link btn-sm btn-remove-line voucher-line-delete-btn">-삭제</button>
+</td>
             </tr>
         `;
     }
@@ -2929,27 +2926,27 @@ import '/public/assets/js/components/trash-manager.js';
         const hasJournal = hasJournalVoucherLineGroups(groups);
         return `
             <div class="journal-lines-wrap readiness-voucher-lines" data-voucher-lines-table data-recommendation-payload="${escapeHtml(encodeURIComponent(JSON.stringify(payload)))}">
-                <div class="table-responsive journal-lines-table-wrap">
-                    <table class="table table-bordered align-middle mb-0 readiness-voucher-line-table has-subaccounts" id="seed-voucher-line-table">
-                        <thead class="table-light">
-                            <tr>
-                                <th width="64">순번</th>
-                                <th width="280">계정과목</th>
-                                <th width="260" class="line-ref-cell">보조계정</th>
-                                <th width="150">차변</th>
-                                <th width="150">대변</th>
-                                <th>라인 적요</th>
-                                <th width="64" class="journal-table-action-head">
-                                    <button type="button" class="btn btn-link btn-sm voucher-line-add-btn">+추가</button>
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${hasJournal ? groups.map((group, index) => voucherLineRowHtml(group, index)).join('') : voucherLineEmptyRowHtml()}
-                        </tbody>
-                    </table>
-                </div>
-                ${hasJournal ? '' : voucherLineRecommendationsHtml(payload)}
+<div class="table-responsive journal-lines-table-wrap">
+    <table class="table table-bordered align-middle mb-0 readiness-voucher-line-table has-subaccounts" id="seed-voucher-line-table">
+        <thead class="table-light">
+            <tr>
+<th width="64">순번</th>
+<th width="280">계정과목</th>
+<th width="260" class="line-ref-cell">보조계정</th>
+<th width="150">차변</th>
+<th width="150">대변</th>
+<th>라인 적요</th>
+<th width="64" class="journal-table-action-head">
+    <button type="button" class="btn btn-link btn-sm voucher-line-add-btn">+추가</button>
+</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${hasJournal ? groups.map((group, index) => voucherLineRowHtml(group, index)).join('') : voucherLineEmptyRowHtml()}
+        </tbody>
+    </table>
+</div>
+${hasJournal ? '' : voucherLineRecommendationsHtml(payload)}
             </div>
         `;
     }
@@ -2962,24 +2959,24 @@ import '/public/assets/js/components/trash-manager.js';
             voucherAccountById.clear();
             voucherAccountByCode.clear();
             voucherAccountOptions = [
-                { id: '', text: '계정과목 선택' },
-                ...rows.filter((row) => (
-                    Number(row.is_active ?? 1) === 1
-                    && String(row.is_postable ?? (Number(row.is_posting ?? 1) === 1 ? 'Y' : 'N')).toUpperCase() === 'Y'
-                )).map((row) => {
-                    const id = String(row.id ?? row.account_id ?? row.value ?? '').trim();
-                    const code = String(row.account_code ?? '').trim();
-                    const name = String(row.account_name ?? row.name ?? '').trim();
-                    const path = String(row.full_path ?? '').trim();
-                    const item = {
-                        id,
-                        text: path ? `[${path}]` : [code, name].filter(Boolean).join(' - '),
-                        account_code: code,
-                    };
-                    if (id) voucherAccountById.set(id, item);
-                    if (code) voucherAccountByCode.set(code, item);
-                    return item;
-                }).filter((item) => item.id !== ''),
+{ id: '', text: '계정과목 선택' },
+...rows.filter((row) => (
+    Number(row.is_active ?? 1) === 1
+    && String(row.is_postable ?? (Number(row.is_posting ?? 1) === 1 ? 'Y' : 'N')).toUpperCase() === 'Y'
+)).map((row) => {
+    const id = String(row.id ?? row.account_id ?? row.value ?? '').trim();
+    const code = String(row.account_code ?? '').trim();
+    const name = String(row.account_name ?? row.name ?? '').trim();
+    const path = String(row.full_path ?? '').trim();
+    const item = {
+        id,
+        text: path ? `[${path}]` : [code, name].filter(Boolean).join(' - '),
+        account_code: code,
+    };
+    if (id) voucherAccountById.set(id, item);
+    if (code) voucherAccountByCode.set(code, item);
+    return item;
+}).filter((item) => item.id !== ''),
             ];
         } catch (error) {
             voucherAccountOptions = [{ id: '', text: '계정과목 선택' }];
@@ -2995,28 +2992,28 @@ import '/public/assets/js/components/trash-manager.js';
         for (const select of scope.querySelectorAll('.line-account-code-picker')) {
             const row = select.closest('tr[data-voucher-line-row]');
             if (select.dataset.seedLinePickerBound !== 'true') {
-                AdminPicker.select2(select, {
-                    placeholder: '계정과목 선택',
-                    dropdownParent: window.jQuery(select.closest('.modal') || document.body),
-                    width: '100%',
-                });
-                const selectedValue = await resolveVoucherAccountId(select.dataset.selectedValue || select.value || '');
-                const selectedLabel = select.dataset.selectedLabel || selectedValue;
-                const selectOptions = selectedValue && !options.some((item) => String(item.id) === String(selectedValue))
-                    ? [{ id: selectedValue, text: selectedLabel || selectedValue }, ...options]
-                    : options;
-                if (AdminPicker.reloadSelect2) {
-                    AdminPicker.reloadSelect2(select, selectOptions, 'id', 'text', selectedValue);
-                } else {
-                    select.innerHTML = selectOptions.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.text)}</option>`).join('');
-                    select.value = selectedValue;
-                }
-                window.jQuery(select)
-                    .off('change.seedLineAccount select2:select.seedLineAccount')
-                    .on('change.seedLineAccount select2:select.seedLineAccount', () => {
-                        void renderVoucherLineSubAccountControls(row).catch((error) => notify('error', error.message));
-                    });
-                select.dataset.seedLinePickerBound = 'true';
+AdminPicker.select2(select, {
+    placeholder: '계정과목 선택',
+    dropdownParent: window.jQuery(select.closest('.modal') || document.body),
+    width: '100%',
+});
+const selectedValue = await resolveVoucherAccountId(select.dataset.selectedValue || select.value || '');
+const selectedLabel = select.dataset.selectedLabel || selectedValue;
+const selectOptions = selectedValue && !options.some((item) => String(item.id) === String(selectedValue))
+    ? [{ id: selectedValue, text: selectedLabel || selectedValue }, ...options]
+    : options;
+if (AdminPicker.reloadSelect2) {
+    AdminPicker.reloadSelect2(select, selectOptions, 'id', 'text', selectedValue);
+} else {
+    select.innerHTML = selectOptions.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.text)}</option>`).join('');
+    select.value = selectedValue;
+}
+window.jQuery(select)
+    .off('change.seedLineAccount select2:select.seedLineAccount')
+    .on('change.seedLineAccount select2:select.seedLineAccount', () => {
+        void renderVoucherLineSubAccountControls(row).catch((error) => notify('error', error.message));
+    });
+select.dataset.seedLinePickerBound = 'true';
             }
             await renderVoucherLineSubAccountControls(row);
         }
@@ -3028,25 +3025,25 @@ import '/public/assets/js/components/trash-manager.js';
             const tbody = container.querySelector('tbody');
             if (!tbody || tbody.dataset.voucherLineSortableBound === 'true') return;
             window.jQuery(tbody).sortable({
-                handle: '.voucher-line-drag-handle',
-                items: '> tr[data-voucher-line-row]',
-                axis: 'y',
-                tolerance: 'pointer',
-                helper(_, tr) {
-                    const $originals = tr.children();
-                    const $helper = tr.clone().addClass('voucher-line-sort-helper');
-                    $helper.children().each(function (index) {
-                        window.jQuery(this).width($originals.eq(index).outerWidth());
-                    });
-                    return $helper;
-                },
-                start(_, ui) {
-                    ui.placeholder.height(ui.item.outerHeight());
-                    ui.placeholder.addClass('voucher-line-sort-placeholder');
-                },
-                stop() {
-                    renumberVoucherLineRows(container);
-                },
+handle: '.voucher-line-drag-handle',
+items: '> tr[data-voucher-line-row]',
+axis: 'y',
+tolerance: 'pointer',
+helper(_, tr) {
+    const $originals = tr.children();
+    const $helper = tr.clone().addClass('voucher-line-sort-helper');
+    $helper.children().each(function (index) {
+        window.jQuery(this).width($originals.eq(index).outerWidth());
+    });
+    return $helper;
+},
+start(_, ui) {
+    ui.placeholder.height(ui.item.outerHeight());
+    ui.placeholder.addClass('voucher-line-sort-placeholder');
+},
+stop() {
+    renumberVoucherLineRows(container);
+},
             });
             tbody.dataset.voucherLineSortableBound = 'true';
         });
@@ -3055,143 +3052,14 @@ import '/public/assets/js/components/trash-manager.js';
     function workspaceSectionHtml(title, subtitle, bodyHtml, extraClass = '') {
         return `
             <section class="workspace-section ${escapeHtml(extraClass)}">
-                <div class="workspace-section-head">
-                    <div>
-                        <h6>${escapeHtml(title)}</h6>
-                        ${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ''}
-                    </div>
-                </div>
-                ${bodyHtml}
+<div class="workspace-section-head">
+    <div>
+        <h6>${escapeHtml(title)}</h6>
+        ${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ''}
+    </div>
+</div>
+${bodyHtml}
             </section>
-        `;
-    }
-
-    function bankPaymentSummary(payload = {}) {
-        const deposit = numericValue(payload.deposit_amount);
-        const withdraw = numericValue(payload.withdraw_amount);
-        if (withdraw && Math.abs(withdraw) > 0) return `출금 ${formatNumber(Math.abs(withdraw))}`;
-        if (deposit && Math.abs(deposit) > 0) return `입금 ${formatNumber(Math.abs(deposit))}`;
-        return '입금/출금 금액 없음';
-    }
-
-    function normalizePaymentDirection(value, fallback = 'OUT') {
-        const text = String(value || '').trim().toUpperCase();
-        if (['IN', 'DEPOSIT', 'RECEIVE', 'RECEIPT', '입금'].includes(text)) return 'IN';
-        if (['OUT', 'WITHDRAW', 'WITHDRAWAL', 'PAY', 'PAYMENT', '출금'].includes(text)) return 'OUT';
-        if (/입금|DEPOSIT|RECEIVE|RECEIPT/i.test(text)) return 'IN';
-        if (/출금|WITHDRAW|PAY/i.test(text)) return 'OUT';
-        return fallback === 'IN' ? 'IN' : 'OUT';
-    }
-
-    function paymentDirectionFromPayload(payload = {}) {
-        const withdraw = Math.abs(numericValue(payload.withdraw_amount) || 0);
-        const deposit = Math.abs(numericValue(payload.deposit_amount) || 0);
-        const amountFallback = withdraw > 0 ? 'OUT' : (deposit > 0 ? 'IN' : 'OUT');
-        const directionValue = isBankTransactionPayload(payload)
-            ? (payload.transaction_direction || payload.operation_type)
-            : (payload.transaction_direction || payload.operation_type);
-        return normalizePaymentDirection(directionValue, amountFallback);
-    }
-
-    function bankVoucherPaymentRows(payload = {}) {
-        const direction = paymentDirectionFromPayload(payload);
-        if (Array.isArray(payload._voucher_payments) && payload._voucher_payments.length > 0) {
-            return payload._voucher_payments.map((payment) => ({
-                ...payment,
-                payment_direction: direction,
-            }));
-        }
-        const withdraw = Math.abs(numericValue(payload.withdraw_amount) || 0);
-        const deposit = Math.abs(numericValue(payload.deposit_amount) || 0);
-        return [{
-            payment_direction: direction,
-            payment_type: 'ACCOUNT',
-            payment_id: payload.bank_account_id || payload.bank_account_name || '',
-            payment_label: payload.bank_account_name || payload.account_name || payload.payment_account_name || payload.bank_account_id || '',
-            amount: direction === 'OUT' ? (withdraw || deposit) : (deposit || withdraw),
-        }];
-    }
-
-    function bankVoucherPaymentRowHtml(payment = {}, index = 0, issues = {}) {
-        const direction = String(payment.payment_direction || payment.direction || 'OUT').toUpperCase() === 'IN' ? 'IN' : 'OUT';
-        const type = String(payment.payment_type || 'ACCOUNT').toUpperCase() === 'CARD' ? 'CARD' : 'ACCOUNT';
-        const paymentId = payment.payment_id || payment.bank_account_id || payment.card_id || '';
-        const paymentLabel = payment.payment_label || payment.bank_account_name || payment.card_name || payment.account_name || paymentId;
-        const amount = numericValue(payment.amount) || 0;
-        const accountIssue = index === 0 ? issues.accountIssue : null;
-        const amountIssue = index === 0 ? issues.amountIssue : null;
-
-        return `
-            <tr data-bank-payment-row>
-                <td class="text-center bank-payment-no">${index + 1}</td>
-                <td>
-                    <select class="form-select form-select-sm bank-payment-type" data-bank-payment-type>
-                        <option value="ACCOUNT" ${type === 'ACCOUNT' ? 'selected' : ''}>계좌</option>
-                        <option value="CARD" ${type === 'CARD' ? 'selected' : ''}>카드</option>
-                    </select>
-                </td>
-                <td>
-                    <select class="form-select form-select-sm bank-payment-direction" data-bank-payment-direction>
-                        <option value="IN" ${direction === 'IN' ? 'selected' : ''}>입금</option>
-                        <option value="OUT" ${direction === 'OUT' ? 'selected' : ''}>출금</option>
-                    </select>
-                </td>
-                <td class="${accountIssue ? 'readiness-field-correction' : ''}">
-                    <select class="form-select form-select-sm bank-payment-id"
-                            data-bank-payment-id
-                            data-readiness-picker="${type === 'CARD' ? 'card' : 'bankAccount'}"
-                            data-placeholder="${type === 'CARD' ? '카드 선택' : '계좌 선택'}">
-                        <option value="${escapeHtml(paymentId)}" selected>${escapeHtml(paymentLabel || '')}</option>
-                    </select>
-                    ${accountIssue ? `<div class="readiness-field-correction-message">${escapeHtml(accountIssue.message)}</div>` : ''}
-                </td>
-                <td class="${amountIssue ? 'readiness-field-correction' : ''}">
-                    <input type="text"
-                           class="form-control form-control-sm number-input bank-payment-amount"
-                           data-bank-payment-amount="1"
-                           data-value-kind="amount"
-                           inputmode="decimal"
-                           value="${escapeHtml(formatNumber(amount || 0))}">
-                    ${amountIssue ? `<div class="readiness-field-correction-message">${escapeHtml(amountIssue.message)}</div>` : ''}
-                </td>
-                <td class="text-center">
-                    <button type="button" class="btn btn-link btn-sm bank-payment-delete-btn">-삭제</button>
-                </td>
-            </tr>
-        `;
-    }
-
-    function bankVoucherPaymentTableHtml(row, payload = {}) {
-        const accountIssue = correctionIssueItems(row).find((item) => item.field === 'bank_account_name')
-            || readinessIssueItems(row).find((item) => item.field === 'bank_account_name')
-            || evidenceRequiredIssueItems(row).find((item) => item.field === 'bank_account_name');
-        const amountIssue = correctionIssueItems(row).find((item) => ['deposit_amount', 'withdraw_amount'].includes(item.field))
-            || readinessIssueItems(row).find((item) => ['deposit_amount', 'withdraw_amount'].includes(item.field))
-            || evidenceRequiredIssueItems(row).find((item) => ['deposit_amount', 'withdraw_amount'].includes(item.field));
-        const rows = bankVoucherPaymentRows(payload);
-
-        return `
-            <div class="journal-lines-wrap readiness-voucher-payments bank-voucher-payment-wrap">
-                <div class="table-responsive journal-lines-table-wrap">
-                <table class="table table-bordered align-middle mb-0 readiness-payment-table bank-voucher-payment-table" data-bank-payment-table>
-                    <thead class="table-light">
-                        <tr>
-                            <th width="64">순번</th>
-                            <th width="160">결제유형</th>
-                            <th width="100">입/출금</th>
-                            <th>결제수단</th>
-                            <th width="160">금액</th>
-                            <th width="64" class="journal-table-action-head">
-                                <button type="button" class="btn btn-link btn-sm bank-payment-add-btn">+추가</button>
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${rows.map((payment, index) => bankVoucherPaymentRowHtml(payment, index, { accountIssue, amountIssue })).join('')}
-                    </tbody>
-                </table>
-                </div>
-            </div>
         `;
     }
     function bankCounterpartyInfoHtml(row, payload = {}, format = null) {
@@ -3224,7 +3092,7 @@ import '/public/assets/js/components/trash-manager.js';
         for (const key of keys) {
             const value = payload[key];
             if (value !== undefined && value !== null && String(value).trim() !== '') {
-                return String(value).trim();
+return String(value).trim();
             }
         }
         return '';
@@ -3333,17 +3201,17 @@ import '/public/assets/js/components/trash-manager.js';
         const lineSummary = lines.map((line) => `${line.line_type || '-'} ${formatNumber(line.amount || 0)}`).join(' / ');
         return `
             <div class="transaction-line-recommendations">
-                <div class="transaction-line-recommendations-head">
-                    <strong>추천거래</strong>
-                    <span>증빙원본의 금액 항목을 분석해 거래내역을 제안합니다.</span>
-                </div>
-                <div class="transaction-line-recommendation-item">
-                    <div>
-                        <div class="transaction-line-recommendation-title">${escapeHtml(title)}</div>
-                        <div class="transaction-line-recommendation-meta">${escapeHtml(lines[0]?.item_date || '-')} / ${escapeHtml(formatNumber(amount))} / ${escapeHtml(lineSummary)}</div>
-                    </div>
-                    <button type="button" class="btn btn-outline-primary btn-sm transaction-line-recommend-apply-btn" data-recommendation="${encoded}">적용</button>
-                </div>
+<div class="transaction-line-recommendations-head">
+    <strong>추천거래</strong>
+    <span>증빙원본의 금액 항목을 분석해 거래내역을 제안합니다.</span>
+</div>
+<div class="transaction-line-recommendation-item">
+    <div>
+        <div class="transaction-line-recommendation-title">${escapeHtml(title)}</div>
+        <div class="transaction-line-recommendation-meta">${escapeHtml(lines[0]?.item_date || '-')} / ${escapeHtml(formatNumber(amount))} / ${escapeHtml(lineSummary)}</div>
+    </div>
+    <button type="button" class="btn btn-outline-primary btn-sm transaction-line-recommend-apply-btn" data-recommendation="${encoded}">적용</button>
+</div>
             </div>
         `;
     }
@@ -3351,18 +3219,18 @@ import '/public/assets/js/components/trash-manager.js';
     function transactionLineWorkspaceHtml(row, payload = {}, format = null) {
         return `
             <div class="readiness-transaction-lines">
-                <div class="transaction-grid-wrap">
-                    <div class="transaction-line-grid readiness-transaction-line-grid" data-readiness-transaction-line-grid></div>
-                </div>
-                <div class="transaction-lines-footer">
-                    <div class="transaction-summary-grid">
-                        <div class="transaction-summary-row total">
-                            <span>합계금액</span>
-                            <input type="text" class="form-control form-control-sm" data-readiness-transaction-line-total readonly>
-                        </div>
-                    </div>
-                </div>
-                ${transactionLineRecommendationsHtml(payload)}
+<div class="transaction-grid-wrap">
+    <div class="transaction-line-grid readiness-transaction-line-grid" data-readiness-transaction-line-grid></div>
+</div>
+<div class="transaction-lines-footer">
+    <div class="transaction-summary-grid">
+        <div class="transaction-summary-row total">
+            <span>합계금액</span>
+            <input type="text" class="form-control form-control-sm" data-readiness-transaction-line-total readonly>
+        </div>
+    </div>
+</div>
+${transactionLineRecommendationsHtml(payload)}
             </div>
         `;
     }
@@ -3378,51 +3246,51 @@ import '/public/assets/js/components/trash-manager.js';
 
         return `
             <div class="workspace-flow transaction-entry-workspace">
-                ${workspaceSectionHtml(
-                    '거래개요',
-                    '',
-                    `
-                        <div class="transaction-toggle-row readiness-transaction-toggle-row">
-                            <div class="form-check form-switch transaction-switch">
-                                <input class="form-check-input" type="checkbox" role="switch" data-readiness-file-toggle value="1" ${hasFiles ? 'checked' : ''}>
-                                <label class="form-check-label">파일참조</label>
-                            </div>
-                        </div>
-                        <div class="readiness-field-grid workspace-field-grid transaction-main-field-grid">
-                            ${mainFields.map((key) => readinessFieldHtml(row, payload, key, format)).join('')}
-                        </div>
-                        <div class="readiness-field-grid workspace-field-grid transaction-amount-field-grid">
-                            ${amountFields.map((key) => readinessFieldHtml(row, payload, key, format)).join('')}
-                        </div>
-                        <div class="readiness-field-grid workspace-field-grid transaction-note-field-grid">
-                            ${noteFields.map((key) => readinessFieldHtml(row, payload, key, format)).join('')}
-                        </div>
-                        <div class="transaction-file-panel readiness-transaction-file-panel d-none" data-readiness-file-panel>
-                            <div class="transaction-file-upload-row">
-                                <div class="transaction-field transaction-file-input-field mb-0">
-                                    <span class="transaction-field-label">파일</span>
-                                    <input type="file"
-                                           class="transaction-file-native-input"
-                                           data-readiness-transaction-files
-                                           accept=".pdf,.jpg,.jpeg,.png,.zip"
-                                           multiple>
-                                    <span class="transaction-file-dropzone" data-readiness-file-dropzone>
-                                        <i class="bi bi-cloud-arrow-up"></i>
-                                        <span class="transaction-file-dropzone-text">파일을 드래그해서 첨부하세요</span>
-                                    </span>
-                                </div>
-                            </div>
-                            <div class="transaction-file-list" data-readiness-file-list></div>
-                        </div>
-                    `,
-                    'workspace-section-transaction-overview'
-                )}
-                ${workspaceSectionHtml(
-                    '거래내역',
-                    '거래입력 모달의 거래내역 영역과 같은 용도의 상세 입력입니다.',
-                    transactionLineWorkspaceHtml(row, payload, format),
-                    'workspace-section-transaction-lines'
-                )}
+${workspaceSectionHtml(
+    '거래개요',
+    '',
+    `
+        <div class="transaction-toggle-row readiness-transaction-toggle-row">
+            <div class="form-check form-switch transaction-switch">
+<input class="form-check-input" type="checkbox" role="switch" data-readiness-file-toggle value="1" ${hasFiles ? 'checked' : ''}>
+<label class="form-check-label">파일참조</label>
+            </div>
+        </div>
+        <div class="readiness-field-grid workspace-field-grid transaction-main-field-grid">
+            ${mainFields.map((key) => readinessFieldHtml(row, payload, key, format)).join('')}
+        </div>
+        <div class="readiness-field-grid workspace-field-grid transaction-amount-field-grid">
+            ${amountFields.map((key) => readinessFieldHtml(row, payload, key, format)).join('')}
+        </div>
+        <div class="readiness-field-grid workspace-field-grid transaction-note-field-grid">
+            ${noteFields.map((key) => readinessFieldHtml(row, payload, key, format)).join('')}
+        </div>
+        <div class="transaction-file-panel readiness-transaction-file-panel d-none" data-readiness-file-panel>
+            <div class="transaction-file-upload-row">
+<div class="transaction-field transaction-file-input-field mb-0">
+    <span class="transaction-field-label">파일</span>
+    <input type="file"
+           class="transaction-file-native-input"
+           data-readiness-transaction-files
+           accept=".pdf,.jpg,.jpeg,.png,.zip"
+           multiple>
+    <span class="transaction-file-dropzone" data-readiness-file-dropzone>
+        <i class="bi bi-cloud-arrow-up"></i>
+        <span class="transaction-file-dropzone-text">파일을 드래그해서 첨부하세요</span>
+    </span>
+</div>
+            </div>
+            <div class="transaction-file-list" data-readiness-file-list></div>
+        </div>
+    `,
+    'workspace-section-transaction-overview'
+)}
+${workspaceSectionHtml(
+    '거래내역',
+    '거래입력 모달의 거래내역 영역과 같은 용도의 상세 입력입니다.',
+    transactionLineWorkspaceHtml(row, payload, format),
+    'workspace-section-transaction-lines'
+)}
             </div>
         `;
     }
@@ -3431,25 +3299,19 @@ import '/public/assets/js/components/trash-manager.js';
         const headerFields = ['voucher_date', 'voucher_summary_text', 'note', 'memo'];
         return `
             <div class="workspace-flow bank-voucher-workspace">
-                ${workspaceSectionHtml(
-                    '전표 헤더',
-                    '전표 생성에 필요한 기본 정보를 확인합니다.',
-                    `<div class="readiness-field-grid workspace-field-grid">${headerFields.map((key) => readinessFieldHtml(row, payload, key, format)).join('')}</div>`,
-                    'workspace-section-header'
-                )}
-                ${workspaceSectionHtml(
-                    '분개라인',
-                    '각 라인별 계정과목을 선택하면 계정과목 정책에 따른 보조계정을 선택할 수 있습니다.',
-                    bankVoucherLineTableHtml(payload),
-                    'workspace-section-lines'
-                )}
-                ${workspaceSectionHtml(
-                    '결제정보',
-                    bankPaymentSummary(payload),
-                    bankVoucherPaymentTableHtml(row, payload),
-                    'workspace-section-payment'
-                )}
-                ${bankCounterpartyInfoHtml(row, payload, format)}
+${workspaceSectionHtml(
+    '전표 헤더',
+    '전표 생성에 필요한 기본 정보를 확인합니다.',
+    `<div class="readiness-field-grid workspace-field-grid">${headerFields.map((key) => readinessFieldHtml(row, payload, key, format)).join('')}</div>`,
+    'workspace-section-header'
+)}
+${workspaceSectionHtml(
+    '분개라인',
+    '각 라인별 계정과목을 선택하면 계정과목 정책에 따른 보조계정을 선택할 수 있습니다.',
+    bankVoucherLineTableHtml(payload),
+    'workspace-section-lines'
+)}
+${bankCounterpartyInfoHtml(row, payload, format)}
             </div>
         `;
     }
@@ -3500,14 +3362,14 @@ import '/public/assets/js/components/trash-manager.js';
         };
         const columns = [
             {
-                field: '__row_no',
-                headerName: '순번',
-                editable: false,
-                width: 52,
-                minWidth: 52,
-                rowDrag: true,
-                valueGetter: transactionLineRowNoRenderer,
-                cellClass: 'transaction-line-row-no-cell transaction-line-row-drag-cell text-center',
+field: '__row_no',
+headerName: '순번',
+editable: false,
+width: 52,
+minWidth: 52,
+rowDrag: true,
+valueGetter: transactionLineRowNoRenderer,
+cellClass: 'transaction-line-row-no-cell transaction-line-row-drag-cell text-center',
             },
             { field: 'line_type', headerName: '\uB77C\uC778\uC720\uD615', width: 66, minWidth: 66, ...selectEditor(codeDropdownSource('TRANSACTION_LINE_TYPE', ['ITEM', 'VAT', 'SERVICE'])) },
             { field: 'item_date', headerName: '발생일', width: 76, minWidth: 76, ...dateStringEditor() },
@@ -3522,14 +3384,14 @@ import '/public/assets/js/components/trash-manager.js';
             { field: 'amount', headerName: '금액', width: 74, minWidth: 72, ...numericColumn },
             { field: 'item_note', headerName: '적요', width: 70, minWidth: 64 },
             {
-                field: '__actions',
-                headerName: '+추가',
-                editable: false,
-                width: 44,
-                minWidth: 44,
-                maxWidth: 44,
-                cellClass: 'transaction-line-action-cell text-center',
-                cellRenderer: transactionLineActionRenderer,
+field: '__actions',
+headerName: '+추가',
+editable: false,
+width: 44,
+minWidth: 44,
+maxWidth: 44,
+cellClass: 'transaction-line-action-cell text-center',
+cellRenderer: transactionLineActionRenderer,
             },
         ];
         return columns;
@@ -3609,7 +3471,7 @@ import '/public/assets/js/components/trash-manager.js';
     function transactionLineRows(payload = {}) {
         if (Array.isArray(payload._transaction_lines) && payload._transaction_lines.length > 0) {
             return sanitizeTransactionLineRows(payload._transaction_lines)
-                .map((line) => normalizeTransactionLine(line, payload));
+.map((line) => normalizeTransactionLine(line, payload));
         }
         const hasManualLine = ['line_type', 'item_date', 'item_name', 'item_spec', 'unit_name', 'item_qty', 'currency', 'exchange_rate', 'foreign_unit_price', 'foreign_amount', 'amount', 'item_note']
             .some((key) => String(payload[key] ?? '').trim() !== '');
@@ -3689,8 +3551,8 @@ import '/public/assets/js/components/trash-manager.js';
         });
         if (stageId === 'transaction') {
             window.requestAnimationFrame(() => {
-                readinessTransactionLineGrid?.render();
-                syncReadinessTransactionLineTotal(modal);
+readinessTransactionLineGrid?.render();
+syncReadinessTransactionLineTotal(modal);
             });
         }
     }
@@ -3756,7 +3618,7 @@ import '/public/assets/js/components/trash-manager.js';
     function focusReadinessCorrectionField(modal, field) {
         const key = String(field || '').trim();
         if (!modal) return;
-        if (key === 'line_no') {
+        if (key === 'sort_no') {
             focusVoucherLineCorrection(modal);
             return;
         }
@@ -3769,7 +3631,7 @@ import '/public/assets/js/components/trash-manager.js';
             bank_account_name: ['bank_account_name', 'bank_account_id'],
             deposit_amount: ['deposit_amount', 'withdraw_amount'],
             withdraw_amount: ['withdraw_amount', 'deposit_amount'],
-            line_no: ['account_id', 'debit_amount', 'credit_amount', 'line_summary'],
+            sort_no: ['account_id', 'debit_amount', 'credit_amount', 'line_summary'],
             account_id: ['account_id'],
             debit_amount: ['debit_amount'],
             credit_amount: ['credit_amount'],
@@ -3778,8 +3640,8 @@ import '/public/assets/js/components/trash-manager.js';
 
         for (const alias of aliases) {
             const target = modal.querySelector(`[data-source-system-field="${CSS.escape(alias)}"]`)?.closest('.readiness-source-field')
-                || modal.querySelector(`[data-readiness-system-field="${CSS.escape(alias)}"]`)
-                || modal.querySelector(`[data-readiness-key="${CSS.escape(alias)}"]`)?.closest('.readiness-field');
+|| modal.querySelector(`[data-readiness-system-field="${CSS.escape(alias)}"]`)
+|| modal.querySelector(`[data-readiness-key="${CSS.escape(alias)}"]`)?.closest('.readiness-field');
             if (focusReadinessTarget(modal, target)) return;
         }
 
@@ -3822,8 +3684,8 @@ import '/public/assets/js/components/trash-manager.js';
         panel.querySelectorAll('.readiness-correction-link').forEach((link) => {
             const field = link.dataset.correctionField || '';
             if (['counterparty_name', 'counterparty_account_number', 'counterparty_bank'].includes(field)
-                && String(modalReadinessFieldValue(modal, field) ?? '').trim() !== '') {
-                link.closest('li')?.remove();
+&& String(modalReadinessFieldValue(modal, field) ?? '').trim() !== '') {
+link.closest('li')?.remove();
             }
         });
         const count = panel.querySelectorAll('.readiness-correction-link').length;
@@ -3851,31 +3713,31 @@ import '/public/assets/js/components/trash-manager.js';
         if (readinessTransactionLineGrid) {
             const currentHost = readinessTransactionLineGrid.rootElement;
             if (currentHost !== host) {
-                readinessTransactionLineGrid.destroy();
-                readinessTransactionLineGrid = null;
+readinessTransactionLineGrid.destroy();
+readinessTransactionLineGrid = null;
             }
         }
         if (!readinessTransactionLineGrid) {
             readinessTransactionLineGrid = createAgGridInputAdapter(host, {
-                rowData: rows,
-                columnDefs: transactionLineColumns(modal, rows),
-                className: 'transaction-line-ag-grid ag-theme-quartz',
-                deleteColumnField: '__actions',
-                deleteButtonSelector: 'button',
-                gridOptions: {
-                    suppressNoRowsOverlay: true,
-                    headerHeight: 28,
-                    rowHeight: 28,
-                },
-                onChanged(_data, event) {
-                    if (['item_qty', 'foreign_unit_price', 'exchange_rate'].includes(event?.colDef?.field)) {
-                        recalculateTransactionLineAt(Number(event.rowIndex));
-                    }
-                    if (event?.colDef?.field === '__actions') {
-                        syncReadinessTransactionPanels(modal);
-                    }
-                    syncReadinessTransactionLineTotal(modal);
-                },
+rowData: rows,
+columnDefs: transactionLineColumns(modal, rows),
+className: 'transaction-line-ag-grid ag-theme-quartz',
+deleteColumnField: '__actions',
+deleteButtonSelector: 'button',
+gridOptions: {
+    suppressNoRowsOverlay: true,
+    headerHeight: 28,
+    rowHeight: 28,
+},
+onChanged(_data, event) {
+    if (['item_qty', 'foreign_unit_price', 'exchange_rate'].includes(event?.colDef?.field)) {
+        recalculateTransactionLineAt(Number(event.rowIndex));
+    }
+    if (event?.colDef?.field === '__actions') {
+        syncReadinessTransactionPanels(modal);
+    }
+    syncReadinessTransactionLineTotal(modal);
+},
             });
         } else {
             readinessTransactionLineGrid.loadData(rows);
@@ -3953,10 +3815,10 @@ import '/public/assets/js/components/trash-manager.js';
         const files = selectedReadinessFiles(modal);
         list.innerHTML = files.length > 0
             ? files.map((file) => `
-                <div class="transaction-file-item">
-                    <span>${escapeHtml(file.name)}</span>
-                    <small>${escapeHtml(formatNumber(file.size))} bytes</small>
-                </div>
+<div class="transaction-file-item">
+    <span>${escapeHtml(file.name)}</span>
+    <small>${escapeHtml(formatNumber(file.size))} bytes</small>
+</div>
             `).join('')
             : '<div class="transaction-file-empty">첨부된 파일이 없습니다.</div>';
         const text = modal?.querySelector('.transaction-file-dropzone-text');
@@ -3983,7 +3845,7 @@ import '/public/assets/js/components/trash-manager.js';
         if (!tbody) return;
         tbody.querySelectorAll('.voucher-line-empty-row').forEach((row, index) => {
             if (rows.length > 0 || index > 0) {
-                row.remove();
+row.remove();
             }
         });
         if (rows.length === 0 && !tbody.querySelector('.voucher-line-empty-row')) {
@@ -4012,23 +3874,23 @@ import '/public/assets/js/components/trash-manager.js';
             const summary = row.querySelector('.voucher-line-summary')?.value?.trim() || '';
             const refPickers = Array.from(row.querySelectorAll('.line-ref-picker'));
             const missingRequired = refPickers.find((selectEl) => (
-                selectEl.dataset.required === '1'
-                && !String(selectEl.value || '').trim()
+selectEl.dataset.required === '1'
+&& !String(selectEl.value || '').trim()
             ));
             if (missingRequired) {
-                notify('warning', `${index + 1}번 라인의 필수 보조계정을 선택해주세요.`);
-                missingRequired.focus();
-                lines.length = 0;
-                next._voucher_lines = null;
-                next._voucher_line_error = 'required_ref_missing';
-                return;
+notify('warning', `${index + 1}번 라인의 필수 보조계정을 선택해주세요.`);
+missingRequired.focus();
+lines.length = 0;
+next._voucher_lines = null;
+next._voucher_line_error = 'required_ref_missing';
+return;
             }
             const refs = refPickers.map((selectEl) => ({
-                line_ref_type: selectEl.dataset.refType || '',
-                line_ref_id: selectEl.value?.trim() || '',
-                is_required: selectEl.dataset.required === '1' ? 1 : 0,
-                is_primary: selectEl.dataset.policyIndex === '0' ? 1 : 0,
-            })).filter((ref) => ref.line_ref_type !== '' && ref.line_ref_id !== '');
+line_ref_target: selectEl.dataset.refType || '',
+line_ref_id: selectEl.value?.trim() || '',
+is_required: selectEl.dataset.required === '1' ? 1 : 0,
+is_primary: selectEl.dataset.policyIndex === '0' ? 1 : 0,
+            })).filter((ref) => ref.line_ref_target !== '' && ref.line_ref_id !== '');
             const recommendedRefs = jsonArrayValue(decodeURIComponent(row.dataset.recommendedRefs || ''));
             const recommendedAccountId = String(row.dataset.recommendedAccountId || '').trim();
             const recommendationChanged = (recommendedAccountId !== '' && account !== '' && recommendedAccountId !== account) || refs.length > 0;
@@ -4036,34 +3898,34 @@ import '/public/assets/js/components/trash-manager.js';
             if (!hasJournalValue) return;
 
             lines.push({
-                header_row_no: headerRowNo,
-                line_no: String(sourceLineNo),
-                line_row_type: '분개',
-                account_id: account,
-                debit,
-                credit,
-                line_summary: summary,
-                line_ref_type: '',
-                line_ref_id: '',
-                recommend_source: row.dataset.recommendSource || '',
-                recommend_confidence: row.dataset.recommendConfidence || '',
-                recommend_reason: row.dataset.recommendReason || '',
-                recommended_account_id: recommendedAccountId,
-                recommended_refs: recommendedRefs,
-                is_user_modified: recommendationChanged ? 1 : 0,
+header_row_no: headerRowNo,
+sort_no: String(sourceLineNo),
+line_row_type: '분개',
+account_id: account,
+debit,
+credit,
+line_summary: summary,
+line_ref_target: '',
+line_ref_id: '',
+recommend_source: row.dataset.recommendSource || '',
+recommend_confidence: row.dataset.recommendConfidence || '',
+recommend_reason: row.dataset.recommendReason || '',
+recommended_account_id: recommendedAccountId,
+recommended_refs: recommendedRefs,
+is_user_modified: recommendationChanged ? 1 : 0,
             });
             refs.forEach((ref) => {
-                lines.push({
-                    header_row_no: headerRowNo,
-                    line_no: String(sourceLineNo),
-                    line_row_type: '보조',
-                    account_id: '',
-                    debit: '',
-                    credit: '',
-                    line_summary: '',
-                    line_ref_type: ref.line_ref_type,
-                    line_ref_id: ref.line_ref_id,
-                });
+lines.push({
+    header_row_no: headerRowNo,
+    sort_no: String(sourceLineNo),
+    line_row_type: '보조',
+    account_id: '',
+    debit: '',
+    credit: '',
+    line_summary: '',
+    line_ref_target: ref.line_ref_target,
+    line_ref_id: ref.line_ref_id,
+});
             });
         });
 
@@ -4074,86 +3936,6 @@ import '/public/assets/js/components/trash-manager.js';
         next._voucher_lines = lines;
         return true;
     }
-
-    function renumberBankPaymentRows(table) {
-        table?.querySelectorAll('tr[data-bank-payment-row]').forEach((row, index) => {
-            const numberCell = row.querySelector('.bank-payment-no');
-            if (numberCell) numberCell.textContent = String(index + 1);
-        });
-    }
-
-    function emptyBankPaymentRow(direction = 'OUT') {
-        return {
-            payment_direction: normalizePaymentDirection(direction),
-            payment_type: 'ACCOUNT',
-            payment_id: '',
-            payment_label: '',
-            amount: 0,
-        };
-    }
-
-    function syncBankPaymentDirectionFields(modal, directionValue) {
-        const direction = normalizePaymentDirection(directionValue);
-        modal?.querySelectorAll('tr[data-bank-payment-row]').forEach((row) => {
-            const directionSelect = row.querySelector('[data-bank-payment-direction]');
-            const amountInput = row.querySelector('[data-bank-payment-amount]');
-            if (directionSelect) {
-                directionSelect.value = direction;
-            }
-            if (amountInput) {
-                amountInput.dataset.readinessKey = direction === 'IN' ? 'deposit_amount' : 'withdraw_amount';
-            }
-        });
-    }
-
-    function serializeBankPaymentsFromModal(modal, next) {
-        const table = modal?.querySelector('[data-bank-payment-table]');
-        if (!table) return;
-
-        const criteriaDirection = modal?.querySelector('[data-readiness-key="transaction_direction"]')?.value
-            || next.transaction_direction
-            || next.operation_type
-            || '';
-        if (criteriaDirection !== '') {
-            syncBankPaymentDirectionFields(modal, criteriaDirection);
-        }
-
-        const payments = [];
-        table.querySelectorAll('tr[data-bank-payment-row]').forEach((row) => {
-            const type = String(row.querySelector('[data-bank-payment-type]')?.value || 'ACCOUNT').trim().toUpperCase();
-            const direction = String(row.querySelector('[data-bank-payment-direction]')?.value || 'OUT').trim().toUpperCase();
-            const paymentSelect = row.querySelector('[data-bank-payment-id]');
-            const paymentId = String(paymentSelect?.value || '').trim();
-            const paymentLabel = String(paymentSelect?.options[paymentSelect.selectedIndex]?.text || '').trim();
-            const amount = valueForSave(row.querySelector('[data-bank-payment-amount]'));
-            if (type === '' && paymentId === '' && Number(amount || 0) <= 0) return;
-            payments.push({
-                payment_direction: direction === 'IN' ? 'IN' : 'OUT',
-                payment_type: type === 'CARD' ? 'CARD' : 'ACCOUNT',
-                payment_id: paymentId,
-                payment_label: paymentLabel,
-                amount,
-            });
-        });
-
-        next._voucher_payments = payments;
-        next.deposit_amount = '';
-        next.withdraw_amount = '';
-        const firstAccount = payments.find((payment) => payment.payment_type === 'ACCOUNT' && payment.payment_id !== '');
-        if (firstAccount) {
-            next.bank_account_id = firstAccount.payment_id;
-            next.bank_account_name = firstAccount.payment_label || firstAccount.payment_id;
-        }
-        payments.forEach((payment) => {
-            const amount = numericValue(payment.amount) || 0;
-            if (payment.payment_direction === 'IN') {
-                next.deposit_amount = String((numericValue(next.deposit_amount) || 0) + amount);
-            } else {
-                next.withdraw_amount = String((numericValue(next.withdraw_amount) || 0) + amount);
-            }
-        });
-    }
-
     function closeReadinessDatePickers(modal) {
         document.querySelectorAll('.readiness-date-picker-host').forEach((host) => {
             host.__pickerInstance?.close?.();
@@ -4164,8 +3946,8 @@ import '/public/assets/js/components/trash-manager.js';
         if (!input || input.dataset.dateInputBound === 'true') return;
         const normalize = () => {
             input.value = input.dataset.valueKind === 'datetime'
-                ? normalizeDateTimeInputValue(input.value)
-                : formatDateInputValue(input.value);
+? normalizeDateTimeInputValue(input.value)
+: formatDateInputValue(input.value);
         };
         input.addEventListener('focus', () => closeReadinessDatePickers(modal));
         input.addEventListener('change', normalize);
@@ -4191,17 +3973,17 @@ import '/public/assets/js/components/trash-manager.js';
             const picker = AdminPicker.create({ type: keepTime ? 'datetime' : 'date', container: host });
             const closePicker = picker.close?.bind(picker);
             picker.close = () => {
-                closePicker?.();
-                window.setTimeout(() => host.remove(), 0);
+closePicker?.();
+window.setTimeout(() => host.remove(), 0);
             };
             applyDateTimeToPicker(picker, input.value, keepTime);
             picker.subscribe((state, finalDate) => {
-                if (!(finalDate instanceof Date) || Number.isNaN(finalDate.getTime())) return;
-                input.value = keepTime && state?.timeEnabled
-                    ? formatPickerDateTime(finalDate)
-                    : formatPickerDate(finalDate);
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                if (!keepTime) picker.close?.();
+if (!(finalDate instanceof Date) || Number.isNaN(finalDate.getTime())) return;
+input.value = keepTime && state?.timeEnabled
+    ? formatPickerDateTime(finalDate)
+    : formatPickerDate(finalDate);
+input.dispatchEvent(new Event('input', { bubbles: true }));
+if (!keepTime) picker.close?.();
             });
 
             picker.open({ anchor: button });
@@ -4235,19 +4017,19 @@ import '/public/assets/js/components/trash-manager.js';
             const picker = AdminPicker.create({ type: 'time-list', container: host, options: { step: 10, rows: 8 } });
             const closePicker = picker.close?.bind(picker);
             picker.close = () => {
-                closePicker?.();
-                window.setTimeout(() => host.remove(), 0);
+closePicker?.();
+window.setTimeout(() => host.remove(), 0);
             };
             const currentTime = normalizeTimeInputValue(input.value);
             if (currentTime) {
-                const [hour, minute] = currentTime.split(':').map((item) => Number(item));
-                picker.setTime?.({ hour, minute, meridiem: hour >= 12 ? 'PM' : 'AM' });
+const [hour, minute] = currentTime.split(':').map((item) => Number(item));
+picker.setTime?.({ hour, minute, meridiem: hour >= 12 ? 'PM' : 'AM' });
             }
             picker.subscribe((state) => {
-                if (typeof state?.hour !== 'number' || typeof state?.minute !== 'number') return;
-                input.value = `${pad2(state.hour)}:${pad2(state.minute)}`;
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                picker.close?.();
+if (typeof state?.hour !== 'number' || typeof state?.minute !== 'number') return;
+input.value = `${pad2(state.hour)}:${pad2(state.minute)}`;
+input.dispatchEvent(new Event('input', { bubbles: true }));
+picker.close?.();
             });
             picker.open({ anchor: button });
         });
@@ -4310,11 +4092,11 @@ import '/public/assets/js/components/trash-manager.js';
 
         list.innerHTML = readinessSummaryAutocompleteItems.map((item, index) => `
             <button type="button"
-                    class="summary-autocomplete-item"
-                    role="option"
-                    data-index="${index}"
-                    title="${escapeHtml(item.summary_text || '')}">
-                ${escapeHtml(item.summary_text || '')}
+    class="summary-autocomplete-item"
+    role="option"
+    data-index="${index}"
+    title="${escapeHtml(item.summary_text || '')}">
+${escapeHtml(item.summary_text || '')}
             </button>
         `).join('');
         list.classList.remove('d-none');
@@ -4334,7 +4116,7 @@ import '/public/assets/js/components/trash-manager.js';
 
         try {
             const json = await fetchJson(`${API.evidenceSummarySearch}?q=${encodeURIComponent(normalizedKeyword)}`, {
-                signal: readinessSummaryAutocompleteAbort.signal,
+signal: readinessSummaryAutocompleteAbort.signal,
             });
 
             if (normalizeReadinessSummaryKeyword(input.value) !== normalizedKeyword) return;
@@ -4372,22 +4154,22 @@ import '/public/assets/js/components/trash-manager.js';
         input.addEventListener('keydown', (event) => {
             if (!list || list.classList.contains('d-none')) return;
             if (event.key === 'ArrowDown') {
-                event.preventDefault();
-                setReadinessSummaryAutocompleteActive(readinessSummaryAutocompleteActiveIndex + 1);
-                return;
+event.preventDefault();
+setReadinessSummaryAutocompleteActive(readinessSummaryAutocompleteActiveIndex + 1);
+return;
             }
             if (event.key === 'ArrowUp') {
-                event.preventDefault();
-                setReadinessSummaryAutocompleteActive(readinessSummaryAutocompleteActiveIndex - 1);
-                return;
+event.preventDefault();
+setReadinessSummaryAutocompleteActive(readinessSummaryAutocompleteActiveIndex - 1);
+return;
             }
             if (event.key === 'Enter' && readinessSummaryAutocompleteActiveIndex >= 0) {
-                event.preventDefault();
-                applyReadinessSummaryAutocompleteItem(readinessSummaryAutocompleteActiveIndex);
-                return;
+event.preventDefault();
+applyReadinessSummaryAutocompleteItem(readinessSummaryAutocompleteActiveIndex);
+return;
             }
             if (event.key === 'Escape') {
-                closeReadinessSummaryAutocomplete();
+closeReadinessSummaryAutocomplete();
             }
         });
 
@@ -4401,8 +4183,8 @@ import '/public/assets/js/components/trash-manager.js';
 
         if (!readinessSummaryAutocompleteDocumentBound) {
             document.addEventListener('mousedown', (event) => {
-                if (event.target.closest('#seedRowReadinessModal .summary-autocomplete-wrap')) return;
-                closeReadinessSummaryAutocomplete();
+if (event.target.closest('#seedRowReadinessModal .summary-autocomplete-wrap')) return;
+closeReadinessSummaryAutocomplete();
             });
             readinessSummaryAutocompleteDocumentBound = true;
         }
@@ -4454,52 +4236,53 @@ import '/public/assets/js/components/trash-manager.js';
 
         modal.querySelectorAll('[data-readiness-picker="client"]').forEach((select) => {
             AdminPicker.select2Ajax(select, {
-                url: API.clientSearch,
-                placeholder: select.dataset.placeholder || '거래처 선택',
-                minimumInputLength: 0,
-                dropdownParent: window.jQuery(modal),
-                width: '100%',
-                dataBuilder(params) {
-                    return { q: params.term || '', limit: 20, is_active: 1 };
-                },
-                processResults(data) {
-                    const rows = data?.results ?? data?.data ?? [];
-                    return {
-                        results: rows.map((row) => ({
-                            id: String(row.id ?? ''),
-                            text: row.text || row.client_name || row.company_name || '',
-                        })).filter((item) => item.id !== ''),
-                    };
-                },
+url: API.clientSearch,
+placeholder: select.dataset.placeholder || '거래처 선택',
+minimumInputLength: 0,
+dropdownParent: window.jQuery(modal),
+width: '100%',
+dataBuilder(params) {
+    return { q: params.term || '', limit: 20, is_active: 1 };
+},
+processResults(data) {
+    const rows = data?.results ?? data?.data ?? [];
+    return {
+        results: rows.map((row) => ({
+            id: String(row.id ?? ''),
+            text: row.text || row.client_name || row.company_name || '',
+        })).filter((item) => item.id !== ''),
+    };
+},
             });
         });
 
         modal.querySelectorAll('[data-readiness-picker="project"]').forEach((select) => {
             if (!select.querySelector('option[value=""]')) {
-                select.insertBefore(new Option('선택(없음)', '', true, false), select.firstChild);
+const emptyOption = document.createElement('option');
+emptyOption.value = '';
+emptyOption.textContent = '선택(없음)';
+select.insertBefore(emptyOption, select.firstChild);
             }
             AdminPicker.select2Ajax(select, {
-                url: API.projectSearch,
-                placeholder: select.dataset.placeholder || '선택(없음)',
-                allowClear: true,
-                minimumInputLength: 0,
-                dropdownParent: window.jQuery(modal),
-                width: '100%',
-                dataBuilder(params) {
-                    return { q: params.term || '', limit: 20 };
-                },
-                processResults(data) {
-                    const rows = data?.results ?? data?.data ?? [];
-                    return {
-                        results: [
-                            { id: '', text: '선택(없음)' },
-                            ...rows.map((row) => ({
-                                id: String(row.id ?? ''),
-                                text: row.text || row.project_name || row.construction_name || '',
-                            })).filter((item) => item.id !== ''),
-                        ],
-                    };
-                },
+url: API.projectSearch,
+allowClear: true,
+minimumInputLength: 0,
+dropdownParent: window.jQuery(modal),
+width: '100%',
+dataBuilder(params) {
+    return { q: params.term || '', limit: 20 };
+},
+processResults(data) {
+    const rows = data?.results ?? data?.data ?? [];
+    return {
+        results: [
+            ...rows.map((row) => ({
+id: String(row.id ?? ''),
+text: row.text || row.project_name || row.construction_name || '',
+            })).filter((item) => item.id !== ''),
+        ],
+    };
+},
             });
         });
 
@@ -4509,44 +4292,45 @@ import '/public/assets/js/components/trash-manager.js';
             ['card', API.cardSearch, (row) => row.text || row.card_name || row.card_number || row.card_company_name || ''],
         ].forEach(([picker, url, labelForRow]) => {
             modal.querySelectorAll(`[data-readiness-picker="${picker}"]`).forEach((select) => {
-                if (!select.querySelector('option[value=""]')) {
-                    select.insertBefore(new Option('선택(없음)', '', true, false), select.firstChild);
-                }
-                AdminPicker.select2Ajax(select, {
-                    url,
-                    placeholder: select.dataset.placeholder || '선택(없음)',
-                    allowClear: true,
-                    minimumInputLength: 0,
-                    dropdownParent: window.jQuery(modal),
-                    width: '100%',
-                    dataBuilder(params) {
-                        return { q: params.term || '', limit: 20, is_active: 1 };
-                    },
-                    processResults(data) {
-                        const rows = data?.results ?? data?.data ?? [];
-                        return {
-                            results: [
-                                { id: '', text: '선택(없음)' },
-                                ...rows.map((row) => ({
-                                    id: String(row.id ?? ''),
-                                    text: labelForRow(row),
-                                    account_number: row.account_number || '',
-                                    account_name: row.account_name || '',
-                                    bank_name: row.bank_name || '',
-                                    account_holder: row.account_holder || '',
-                                })).filter((item) => item.id !== ''),
-                            ],
-                        };
-                    },
-                });
-                if (picker === 'bankAccount') {
-                    window.jQuery(select).on('select2:select', (event) => {
-                        readinessPickerMeta.set(select, event.params?.data || {});
-                    });
-                    window.jQuery(select).on('select2:clear', () => {
-                        readinessPickerMeta.delete(select);
-                    });
-                }
+if (!select.querySelector('option[value=""]')) {
+    const emptyOption = document.createElement('option');
+    emptyOption.value = '';
+    emptyOption.textContent = '선택(없음)';
+    select.insertBefore(emptyOption, select.firstChild);
+}
+AdminPicker.select2Ajax(select, {
+    url,
+    allowClear: true,
+    minimumInputLength: 0,
+    dropdownParent: window.jQuery(modal),
+    width: '100%',
+    dataBuilder(params) {
+        return { q: params.term || '', limit: 20, is_active: 1 };
+    },
+    processResults(data) {
+        const rows = data?.results ?? data?.data ?? [];
+        return {
+            results: [
+...rows.map((row) => ({
+    id: String(row.id ?? ''),
+    text: labelForRow(row),
+    account_number: row.account_number || '',
+    account_name: row.account_name || '',
+    bank_name: row.bank_name || '',
+    account_holder: row.account_holder || '',
+})).filter((item) => item.id !== ''),
+            ],
+        };
+    },
+});
+if (picker === 'bankAccount') {
+    window.jQuery(select).on('select2:select', (event) => {
+        readinessPickerMeta.set(select, event.params?.data || {});
+    });
+    window.jQuery(select).on('select2:clear', () => {
+        readinessPickerMeta.delete(select);
+    });
+}
             });
         });
 
@@ -4587,7 +4371,7 @@ import '/public/assets/js/components/trash-manager.js';
             const response = await fetch(`${API.format}?id=${encodeURIComponent(formatId)}`, { cache: 'no-store' });
             const json = await response.json().catch(() => ({}));
             if (!response.ok || json.success === false) {
-                throw new Error(json.message || '형식 정보를 불러오지 못했습니다.');
+throw new Error(json.message || '형식 정보를 불러오지 못했습니다.');
             }
             const format = json.data || null;
             formatCache.set(cacheKey, format);
@@ -4693,8 +4477,8 @@ import '/public/assets/js/components/trash-manager.js';
         for (const object of objects) {
             if (!object || typeof object !== 'object' || Array.isArray(object)) continue;
             for (const key of SOURCE_SYSTEM_FIELD_KEYS) {
-                const value = String(object[key] || '').trim();
-                if (value) return value;
+const value = String(object[key] || '').trim();
+if (value) return value;
             }
         }
         return '';
@@ -4729,9 +4513,9 @@ import '/public/assets/js/components/trash-manager.js';
         const labelValue = payload[label];
         if (label && labelValue !== undefined && String(labelValue ?? '') === String(rawValue ?? '')) {
             const found = Object.entries(payload).find(([payloadKey, payloadValue]) => (
-                /^[a-z][a-z0-9_]*$/i.test(payloadKey)
-                && !payloadKey.startsWith('_')
-                && String(payloadValue ?? '') === String(rawValue ?? '')
+/^[a-z][a-z0-9_]*$/i.test(payloadKey)
+&& !payloadKey.startsWith('_')
+&& String(payloadValue ?? '') === String(rawValue ?? '')
             ));
             if (found) return found[0];
         }
@@ -4744,18 +4528,18 @@ import '/public/assets/js/components/trash-manager.js';
             const rawObject = value && typeof value === 'object' && !Array.isArray(value) ? value : null;
             const requirementMode = Number(column.is_required || column.requirement_mode || rawObject?.is_required || rawObject?.requirement_mode || 0);
             return {
-                key: String(key),
-                label: String(column.excel_column_name || rawObject?.column_name || key).trim(),
-                value: sourceRawValue(value),
-                order: Number(column.column_order ?? column.excel_column_index ?? rawObject?.column_index ?? key),
-                columnIndex: Number(column.excel_column_index ?? rawObject?.column_index ?? column.column_order ?? key),
-                systemField: inferSystemField(key, value, column, row),
-                systemFieldGroup: String(column.system_field_group || '').trim(),
-                requirementMode,
-                required: requirementMode === 1,
-                isReference: Number(column.is_reference_column || rawObject?.is_reference_column || 0) === 1,
-                column,
-                meta: rawObject,
+key: String(key),
+label: String(column.excel_column_name || rawObject?.column_name || key).trim(),
+value: sourceRawValue(value),
+order: Number(column.column_order ?? column.excel_column_index ?? rawObject?.column_index ?? key),
+columnIndex: Number(column.excel_column_index ?? rawObject?.column_index ?? column.column_order ?? key),
+systemField: inferSystemField(key, value, column, row),
+systemFieldGroup: String(column.system_field_group || '').trim(),
+requirementMode,
+required: requirementMode === 1,
+isReference: Number(column.is_reference_column || rawObject?.is_reference_column || 0) === 1,
+column,
+meta: rawObject,
             };
         }
         if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -4763,21 +4547,21 @@ import '/public/assets/js/components/trash-manager.js';
             const systemField = inferSystemField(key, value, null, row);
             const requirementMode = Number(value.is_required || value.requirement_mode || value.required || 0);
             const required = requirementMode === 1
-                || String(value.is_required || value.required || '').toUpperCase() === 'Y'
-                || String(value.required || '').toLowerCase() === 'true';
+|| String(value.is_required || value.required || '').toUpperCase() === 'Y'
+|| String(value.required || '').toLowerCase() === 'true';
             return {
-                key: String(key),
-                label: label || String(key),
-                value: sourceRawValue(value),
-                order: Number(value.column_index ?? key),
-                columnIndex: Number(value.column_index ?? key),
-                systemField,
-                systemFieldGroup: String(value.system_field_group || '').trim(),
-                requirementMode,
-                required,
-                isReference: Number(value.is_reference_column || 0) === 1,
-                column: null,
-                meta: value,
+key: String(key),
+label: label || String(key),
+value: sourceRawValue(value),
+order: Number(value.column_index ?? key),
+columnIndex: Number(value.column_index ?? key),
+systemField,
+systemFieldGroup: String(value.system_field_group || '').trim(),
+requirementMode,
+required,
+isReference: Number(value.is_reference_column || 0) === 1,
+column: null,
+meta: value,
             };
         }
         return {
@@ -4822,8 +4606,8 @@ import '/public/assets/js/components/trash-manager.js';
         const aliasKeys = new Set(keys.map((key) => sourceAliasKey(key)).filter(Boolean));
         for (const key of keys) {
             if (Object.prototype.hasOwnProperty.call(raw, key)) {
-                const value = sourceRawValue(raw[key]);
-                if (String(value ?? '').trim() !== '') return value;
+const value = sourceRawValue(raw[key]);
+if (String(value ?? '').trim() !== '') return value;
             }
         }
 
@@ -4837,12 +4621,12 @@ import '/public/assets/js/components/trash-manager.js';
             const rawSystemFieldKey = sourceAliasKey(rawSystemField);
             const rawIndex = String(rawObject?.column_index ?? key).trim();
             if ((excelName && rawColumnName === excelName)
-                || (rawColumnName && aliasKeys.has(rawColumnName))
-                || (systemField && rawSystemField === systemField)
-                || (rawSystemFieldKey && aliasKeys.has(rawSystemFieldKey))
-                || (index && rawIndex === index)) {
-                const rawValue = sourceRawValue(value);
-                if (String(rawValue ?? '').trim() !== '') return rawValue;
+|| (rawColumnName && aliasKeys.has(rawColumnName))
+|| (systemField && rawSystemField === systemField)
+|| (rawSystemFieldKey && aliasKeys.has(rawSystemFieldKey))
+|| (index && rawIndex === index)) {
+const rawValue = sourceRawValue(value);
+if (String(rawValue ?? '').trim() !== '') return rawValue;
             }
         }
         return '';
@@ -4853,8 +4637,8 @@ import '/public/assets/js/components/trash-manager.js';
         const aliasKeys = new Set(keys.map((key) => sourceAliasKey(key)).filter(Boolean));
         for (const key of keys) {
             if (Object.prototype.hasOwnProperty.call(raw, key)) {
-                const value = sourceRawValue(raw[key]);
-                if (String(value ?? '').trim() !== '') return value;
+const value = sourceRawValue(raw[key]);
+if (String(value ?? '').trim() !== '') return value;
             }
         }
 
@@ -4863,9 +4647,9 @@ import '/public/assets/js/components/trash-manager.js';
             const rawColumnName = normalizeSourceColumnName(rawObject?.column_name ?? key);
             const rawSystemFieldKey = sourceAliasKey(rawObject?.system_field_name || '');
             if ((rawColumnName && aliasKeys.has(rawColumnName))
-                || (rawSystemFieldKey && aliasKeys.has(rawSystemFieldKey))) {
-                const rawValue = sourceRawValue(value);
-                if (String(rawValue ?? '').trim() !== '') return rawValue;
+|| (rawSystemFieldKey && aliasKeys.has(rawSystemFieldKey))) {
+const rawValue = sourceRawValue(value);
+if (String(rawValue ?? '').trim() !== '') return rawValue;
             }
         }
 
@@ -4897,8 +4681,8 @@ import '/public/assets/js/components/trash-manager.js';
         }
         const found = Object.entries(raw).find(([, value]) => {
             if (value && typeof value === 'object' && !Array.isArray(value)) {
-                return String(value.column_name || '').trim() === excelName
-                    || String(value.system_field_name || '').trim() === systemField;
+return String(value.column_name || '').trim() === excelName
+    || String(value.system_field_name || '').trim() === systemField;
             }
             return false;
         });
@@ -4921,21 +4705,21 @@ import '/public/assets/js/components/trash-manager.js';
             .filter((column) => !BANK_VOUCHER_LINE_FIELDS.has(String(column.system_field_name || '').trim()))
             .sort(compareFormatColumns)
             .map((column) => {
-                const [key, value] = rawValueForColumn(raw, column);
-                const entry = sourceEntry(key, value, column, row);
-                entry.key = String(column.system_field_name || column.excel_column_name || entry.key || '').trim();
-                entry.value = sourceEvidenceFieldValue(row, column);
-                const refConfig = sourceRefPickerForEntry(entry);
-                if (refConfig) {
-                    const payload = mapped(row);
-                    entry.refId = String(payload[refConfig.idKey] || row?.[refConfig.idKey] || '').trim();
-                    entry.refText = String(
-                        refConfig.picker === 'client'
-                            ? (row?.client_name || payload.client_name || entry.value || '')
-                            : (payload[refConfig.nameKey] || row?.[refConfig.nameKey] || entry.value || '')
-                    ).trim();
-                }
-                return entry;
+const [key, value] = rawValueForColumn(raw, column);
+const entry = sourceEntry(key, value, column, row);
+entry.key = String(column.system_field_name || column.excel_column_name || entry.key || '').trim();
+entry.value = sourceEvidenceFieldValue(row, column);
+const refConfig = sourceRefPickerForEntry(entry);
+if (refConfig) {
+    const payload = mapped(row);
+    entry.refId = String(payload[refConfig.idKey] || row?.[refConfig.idKey] || '').trim();
+    entry.refText = String(
+        refConfig.picker === 'client'
+            ? (row?.client_name || payload.client_name || entry.value || '')
+            : (payload[refConfig.nameKey] || row?.[refConfig.nameKey] || entry.value || '')
+    ).trim();
+}
+return entry;
             });
         return entries;
     }
@@ -4989,12 +4773,12 @@ import '/public/assets/js/components/trash-manager.js';
             if (!rawValue || select.value) return;
 
             if (!Array.from(select.options).some((option) => option.value === rawValue)) {
-                select.appendChild(new Option(rawValue, rawValue, true, true));
+select.appendChild(new Option(rawValue, rawValue, true, true));
             }
             select.value = rawValue;
 
             if (window.jQuery?.fn?.select2 && window.jQuery(select).hasClass('select2-hidden-accessible')) {
-                window.jQuery(select).val(rawValue).trigger('change.select2');
+window.jQuery(select).val(rawValue).trigger('change.select2');
             }
         });
     }
@@ -5033,63 +4817,63 @@ import '/public/assets/js/components/trash-manager.js';
         const sourceAttrs = `class="form-control form-control-sm readiness-source-input ${type === 'amount' ? 'number-input' : ''}" data-source-key="${safeKey}" data-source-column-name="${safeLabel}" data-source-column-index="${escapeHtml(safeColumnIndex)}" data-source-system-field="${safeSystemField}" data-source-required="${requirementMode}" data-value-kind="${escapeHtml(type)}"${lockAttrs}`;
         if (editable && refConfig) {
             control = `
-                <select class="form-select form-select-sm readiness-source-input readiness-source-ref"
-                        data-source-key="${safeKey}"
-                        data-source-column-name="${safeLabel}"
-                        data-source-column-index="${escapeHtml(safeColumnIndex)}"
-                        data-source-system-field="${safeSystemField}"
-                        data-source-required="${requirementMode}"
-                        data-value-kind="ref"
-                        data-ref-picker="${escapeHtml(refConfig.picker)}"
-                        data-ref-id-key="${escapeHtml(refConfig.idKey || '')}"
-                        data-ref-name-key="${escapeHtml(refConfig.nameKey || entry.systemField || entry.key || '')}"
-                        data-ref-allow-text="${refConfig.allowText ? '1' : '0'}"
-                        data-ref-current-text="${safeValue}"
-                        data-ref-current-text-only="${entry.refId ? '0' : '1'}">
-                    ${sourceRefOptionHtml(entry, refConfig)}
-                </select>
+<select class="form-select form-select-sm readiness-source-input readiness-source-ref"
+        data-source-key="${safeKey}"
+        data-source-column-name="${safeLabel}"
+        data-source-column-index="${escapeHtml(safeColumnIndex)}"
+        data-source-system-field="${safeSystemField}"
+        data-source-required="${requirementMode}"
+        data-value-kind="ref"
+        data-ref-picker="${escapeHtml(refConfig.picker)}"
+        data-ref-id-key="${escapeHtml(refConfig.idKey || '')}"
+        data-ref-name-key="${escapeHtml(refConfig.nameKey || entry.systemField || entry.key || '')}"
+        data-ref-allow-text="${refConfig.allowText ? '1' : '0'}"
+        data-ref-current-text="${safeValue}"
+        data-ref-current-text-only="${entry.refId ? '0' : '1'}">
+    ${sourceRefOptionHtml(entry, refConfig)}
+</select>
             `;
         } else if (editable && config.kind === 'code' && config.codeGroup) {
             control = `
-                <select class="form-select form-select-sm readiness-source-input"
-                        data-source-key="${safeKey}"
-                        data-source-column-name="${safeLabel}"
-                        data-source-column-index="${escapeHtml(safeColumnIndex)}"
-                        data-source-system-field="${safeSystemField}"
-                        data-source-required="${requirementMode}"
-                        data-source-raw-value="${safeValue}"
-                        data-code-group="${escapeHtml(config.codeGroup)}"
-                        data-empty-label="${escapeHtml(config.emptyLabel || '선택')}">
-                    <option value="${safeValue}" selected>${safeValue || escapeHtml(config.emptyLabel || '선택')}</option>
-                </select>
+<select class="form-select form-select-sm readiness-source-input"
+        data-source-key="${safeKey}"
+        data-source-column-name="${safeLabel}"
+        data-source-column-index="${escapeHtml(safeColumnIndex)}"
+        data-source-system-field="${safeSystemField}"
+        data-source-required="${requirementMode}"
+        data-source-raw-value="${safeValue}"
+        data-code-group="${escapeHtml(config.codeGroup)}"
+        data-empty-label="${escapeHtml(config.emptyLabel || '선택')}">
+    <option value="${safeValue}" selected>${safeValue || escapeHtml(config.emptyLabel || '선택')}</option>
+</select>
             `;
         } else if (type === 'textarea') {
             control = `<textarea ${sourceAttrs} rows="2">${safeValue}</textarea>`;
         } else if (type === 'date' || type === 'datetime') {
             control = `
-                <div class="readiness-date-control">
-                    <input type="text" ${sourceAttrs} value="${safeValue}" placeholder="${type === 'datetime' ? 'yyyy-mm-dd hh:mm' : 'yyyy-mm-dd'}" autocomplete="off" inputmode="numeric">
-                    ${editable ? `<button type="button" class="btn btn-outline-secondary btn-sm readiness-date-picker-btn" data-date-picker-target="${safeKey}" title="${type === 'datetime' ? '일시 선택' : '날짜 선택'}"><i class="bi bi-calendar-event"></i></button>` : ''}
-                </div>
+<div class="readiness-date-control">
+    <input type="text" ${sourceAttrs} value="${safeValue}" placeholder="${type === 'datetime' ? 'yyyy-mm-dd hh:mm' : 'yyyy-mm-dd'}" autocomplete="off" inputmode="numeric">
+    ${editable ? `<button type="button" class="btn btn-outline-secondary btn-sm readiness-date-picker-btn" data-date-picker-target="${safeKey}" title="${type === 'datetime' ? '일시 선택' : '날짜 선택'}"><i class="bi bi-calendar-event"></i></button>` : ''}
+</div>
             `;
         } else if (type === 'time') {
             control = `
-                <div class="readiness-date-control">
-                    <input type="text" ${sourceAttrs} value="${safeValue}" placeholder="hh:mm" autocomplete="off" inputmode="numeric">
-                    ${editable ? `<button type="button" class="btn btn-outline-secondary btn-sm readiness-time-picker-btn" data-time-picker-target="${safeKey}" title="시간 선택"><i class="bi bi-clock"></i></button>` : ''}
-                </div>
+<div class="readiness-date-control">
+    <input type="text" ${sourceAttrs} value="${safeValue}" placeholder="hh:mm" autocomplete="off" inputmode="numeric">
+    ${editable ? `<button type="button" class="btn btn-outline-secondary btn-sm readiness-time-picker-btn" data-time-picker-target="${safeKey}" title="시간 선택"><i class="bi bi-clock"></i></button>` : ''}
+</div>
             `;
         } else {
             control = `<input type="text" ${sourceAttrs} value="${safeValue}" ${inputMode ? `inputmode="${escapeHtml(inputMode)}"` : ''}>`;
         }
         return `
             <label class="readiness-source-field evidence-edit-field${infoToneClass}">
-                <span class="form-label small mb-1 readiness-source-label" title="${escapeHtml(labelTitle)}">
-                    <span>${safeLabel}${requirementStar}</span>
-                    ${requiredBadge}
-                    ${fieldName}
-                </span>
-                ${control}
+<span class="form-label small mb-1 readiness-source-label" title="${escapeHtml(labelTitle)}">
+    <span>${safeLabel}${requirementStar}</span>
+    ${requiredBadge}
+    ${fieldName}
+</span>
+${control}
             </label>
         `;
     }
@@ -5107,10 +4891,10 @@ import '/public/assets/js/components/trash-manager.js';
         const sourceFieldsHtml = entries.length > 0
             ? `<div class="readiness-source-block-title">원본 항목</div>` + entries
             .sort((a, b) => {
-                const aOrder = Number.isFinite(a.order) ? a.order : Number.MAX_SAFE_INTEGER;
-                const bOrder = Number.isFinite(b.order) ? b.order : Number.MAX_SAFE_INTEGER;
-                if (aOrder !== bOrder) return aOrder - bOrder;
-                return a.label.localeCompare(b.label, 'ko-KR');
+const aOrder = Number.isFinite(a.order) ? a.order : Number.MAX_SAFE_INTEGER;
+const bOrder = Number.isFinite(b.order) ? b.order : Number.MAX_SAFE_INTEGER;
+if (aOrder !== bOrder) return aOrder - bOrder;
+return a.label.localeCompare(b.label, 'ko-KR');
             })
             .map((entry) => sourceFieldHtml(entry, editable))
             .join('')
@@ -5170,63 +4954,63 @@ import '/public/assets/js/components/trash-manager.js';
         configureReadinessCreateButtons(modal, row);
         if (subtitle) {
             subtitle.textContent = row.__isNew
-                ? '새 증빙원본을 선택한 양식 기준으로 작성합니다.'
-                : `${row.source_type_name || importSourceLabel(row.source_type)} / ${row.import_type_name || importTypeLabel(row.import_type || row.seed_source_type)} / ${generationLabel(row)} / ${voucherCreateStatusText(row)}`;
+? '새 증빙원본을 선택한 양식 기준으로 작성합니다.'
+: `${row.source_type_name || importSourceLabel(row.source_type)} / ${row.import_type_name || importTypeLabel(row.import_type || row.seed_source_type)} / ${generationLabel(row)} / ${voucherCreateStatusText(row)}`;
         }
         if (sourceSubtitle) {
             sourceSubtitle.textContent = `업로드 원본 데이터 / ${row.import_type_name || importTypeLabel(row.import_type || row.seed_source_type)}`;
         }
         if (summary) {
             summary.innerHTML = `
-                <div class="readiness-summary-item">
-                    <span>자료출처</span>
-                    <strong>${escapeHtml(row.source_type_name || importSourceLabel(row.source_type))}</strong>
-                </div>
-                <div class="readiness-summary-item">
-                    <span>자료유형</span>
-                    <strong>${escapeHtml(row.import_type_name || importTypeLabel(row.import_type || row.seed_source_type))}</strong>
-                </div>
-                <div class="readiness-summary-item">
-                    <span>생성방식</span>
-                    <strong>${escapeHtml(generationLabel(row))}</strong>
-                </div>
-                <div class="readiness-summary-item">
-                    <span>거래생성상태</span>
-                    <strong>${transactionCreateStatusBadge(row)}</strong>
-                </div>
-                <div class="readiness-summary-item">
-                    <span>전표발행상태</span>
-                    <strong>${voucherCreateStatusControlHtml(row)}</strong>
-                </div>
+<div class="readiness-summary-item">
+    <span>자료출처</span>
+    <strong>${escapeHtml(row.source_type_name || importSourceLabel(row.source_type))}</strong>
+</div>
+<div class="readiness-summary-item">
+    <span>자료유형</span>
+    <strong>${escapeHtml(row.import_type_name || importTypeLabel(row.import_type || row.seed_source_type))}</strong>
+</div>
+<div class="readiness-summary-item">
+    <span>생성방식</span>
+    <strong>${escapeHtml(generationLabel(row))}</strong>
+</div>
+<div class="readiness-summary-item">
+    <span>거래생성상태</span>
+    <strong>${transactionCreateStatusBadge(row)}</strong>
+</div>
+<div class="readiness-summary-item">
+    <span>전표발행상태</span>
+    <strong>${voucherCreateStatusControlHtml(row)}</strong>
+</div>
             `;
         }
         if (alerts) {
             alerts.innerHTML = row.__isNew
-                ? '<div class="alert alert-info py-2 mb-0">양식을 선택한 뒤 원본 항목을 입력하고 저장하세요.</div>'
-                : (hasCorrectionAlert
-                ? `
-                    <details class="readiness-correction-panel">
-                        <summary>
-                            <span class="badge text-bg-warning">보정 필요</span>
-                            <strong data-correction-count>${correctionItems.length}개 항목</strong>
-                        </summary>
-                        <div class="readiness-correction-body">
-                            <ol class="readiness-correction-list">${correctionIssueLinksHtml(validationRow)}</ol>
-                        </div>
-                    </details>
-                `
-                : '<div class="alert alert-success py-2 mb-0">생성 준비가 완료되었습니다.</div>');
+? '<div class="alert alert-info py-2 mb-0">양식을 선택한 뒤 원본 항목을 입력하고 저장하세요.</div>'
+: (hasCorrectionAlert
+? `
+    <details class="readiness-correction-panel">
+        <summary>
+            <span class="badge text-bg-warning">보정 필요</span>
+            <strong data-correction-count>${correctionItems.length}개 항목</strong>
+        </summary>
+        <div class="readiness-correction-body">
+            <ol class="readiness-correction-list">${correctionIssueLinksHtml(validationRow)}</ol>
+        </div>
+    </details>
+`
+: '<div class="alert alert-success py-2 mb-0">생성 준비가 완료되었습니다.</div>');
         }
         if (!form) return modal;
         closeReadinessSummaryAutocomplete();
 
         if (tabs) {
             tabs.innerHTML = stages.length > 1 ? stages.map((stage, index) => `
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link ${index === 0 ? 'active' : ''}" type="button" data-readiness-stage="${escapeHtml(stage.id)}">
-                        ${escapeHtml(stage.label)}${readinessStageBadge(row, stage)}
-                    </button>
-                </li>
+<li class="nav-item" role="presentation">
+    <button class="nav-link ${index === 0 ? 'active' : ''}" type="button" data-readiness-stage="${escapeHtml(stage.id)}">
+        ${escapeHtml(stage.label)}${readinessStageBadge(row, stage)}
+    </button>
+</li>
             `).join('') : '';
         }
 
@@ -5239,19 +5023,19 @@ import '/public/assets/js/components/trash-manager.js';
 
         form.innerHTML = stages.map((stage, index) => `
             <section class="readiness-stage ${index === 0 ? 'active' : ''}" data-readiness-stage-panel="${escapeHtml(stage.id)}">
-                <div class="readiness-stage-head">
-                    <div>
-                        <h6>${escapeHtml(stage.label)}</h6>
-                        <p>${escapeHtml(stage.description)}</p>
-                    </div>
-                    ${readinessStageBadge(row, stage)}
-                </div>
-                ${stage.readonlyNote ? `<div class="alert alert-info py-2">${escapeHtml(stage.readonlyNote)}</div>` : ''}
-                ${stage.note && !stage.workspace ? `<div class="alert alert-info py-2">${escapeHtml(stage.note)}</div>` : ''}
-                ${stageWorkspaceHtml(stage)}
-                ${stage.workspace ? '' : (stage.fields.length > 0
-                    ? `<div class="readiness-field-grid">${stage.fields.map((key) => readinessFieldHtml(row, payload, key, format)).join('')}</div>`
-                    : (!stage.readonlyNote ? '<div class="text-muted small">이 단계에서 보정할 항목이 없습니다.</div>' : ''))}
+<div class="readiness-stage-head">
+    <div>
+        <h6>${escapeHtml(stage.label)}</h6>
+        <p>${escapeHtml(stage.description)}</p>
+    </div>
+    ${readinessStageBadge(row, stage)}
+</div>
+${stage.readonlyNote ? `<div class="alert alert-info py-2">${escapeHtml(stage.readonlyNote)}</div>` : ''}
+${stage.note && !stage.workspace ? `<div class="alert alert-info py-2">${escapeHtml(stage.note)}</div>` : ''}
+${stageWorkspaceHtml(stage)}
+${stage.workspace ? '' : (stage.fields.length > 0
+    ? `<div class="readiness-field-grid">${stage.fields.map((key) => readinessFieldHtml(row, payload, key, format)).join('')}</div>`
+    : (!stage.readonlyNote ? '<div class="text-muted small">이 단계에서 보정할 항목이 없습니다.</div>' : ''))}
             </section>
         `).join('');
         renderSourceFields(row, format);
@@ -5275,28 +5059,28 @@ import '/public/assets/js/components/trash-manager.js';
             const value = valueForSave(input);
             next[key] = value;
             const nameKey = {
-                client_id: 'client_name',
-                project_id: 'project_name',
-                employee_id: 'employee_name',
-                bank_account_id: 'bank_account_name',
-                card_id: 'card_name',
+client_id: 'client_name',
+project_id: 'project_name',
+employee_id: 'employee_name',
+bank_account_id: 'bank_account_name',
+card_id: 'card_name',
             }[key];
             const selectedText = selectedTextForSave(input);
             if (nameKey && selectedText !== '') {
-                next[nameKey] = selectedText;
+next[nameKey] = selectedText;
             }
             if (nameKey && String(value || '').trim() === '') {
-                next[nameKey] = '';
+next[nameKey] = '';
             }
             if (key === 'bank_account_name' && input.dataset.readinessPicker === 'bankAccount' && selectedText !== '') {
-                const selectedMeta = readinessPickerMeta.get(input) || {};
-                next.bank_account_id = value;
-                next.bank_account_name = selectedMeta.account_name || selectedText;
-                if (selectedMeta.account_number) next.account_number = selectedMeta.account_number;
-                if (selectedMeta.account_number) next.payment_account_number = selectedMeta.account_number;
-                if (selectedMeta.bank_name) next.bank_name = selectedMeta.bank_name;
-                if (selectedMeta.bank_name) next.payment_bank_name = selectedMeta.bank_name;
-                if (selectedMeta.account_holder) next.account_holder = selectedMeta.account_holder;
+const selectedMeta = readinessPickerMeta.get(input) || {};
+next.bank_account_id = value;
+next.bank_account_name = selectedMeta.account_name || selectedText;
+if (selectedMeta.account_number) next.account_number = selectedMeta.account_number;
+if (selectedMeta.account_number) next.payment_account_number = selectedMeta.account_number;
+if (selectedMeta.bank_name) next.bank_name = selectedMeta.bank_name;
+if (selectedMeta.bank_name) next.payment_bank_name = selectedMeta.bank_name;
+if (selectedMeta.account_holder) next.account_holder = selectedMeta.account_holder;
             }
         });
         if (!serializeVoucherLinesFromModal(modal, next)) {
@@ -5315,52 +5099,51 @@ import '/public/assets/js/components/trash-manager.js';
             return null;
         }
         serializeTransactionFilesFromModal(modal, next);
-        serializeBankPaymentsFromModal(modal, next);
         modal.querySelectorAll('[data-source-key]').forEach((input) => {
             const key = input.dataset.sourceKey;
             let value = valueForSave(input);
             if (!key) return;
             const mappedKey = String(input.dataset.sourceSystemField || '').trim()
-                || (/^[a-z][a-z0-9_]*$/i.test(key) && !String(key).startsWith('_') ? key : '');
+|| (/^[a-z][a-z0-9_]*$/i.test(key) && !String(key).startsWith('_') ? key : '');
             if (input.dataset.valueKind === 'ref') {
-                const idKey = input.dataset.refIdKey || '';
-                const nameKey = input.dataset.refNameKey || mappedKey || key;
-                const allowsText = input.dataset.refAllowText === '1';
-                const selectedId = String(input.value || '').trim();
-                const selectedOption = input.selectedOptions?.[0] || null;
-                let selectedText = String(
-                    input.dataset.refSelectedText
-                    || selectedOption?.textContent
-                    || input.dataset.refCurrentText
-                    || ''
-                ).trim();
-                const isTextOnlyInitialValue = input.dataset.refCurrentTextOnly === '1'
-                    && selectedId !== ''
-                    && selectedId === String(input.dataset.refCurrentText || '').trim();
-                const isFreeTextSelection = allowsText && selectedId !== '' && selectedText !== '' && selectedId === selectedText;
-                if (selectedId === '' || isEmptySelectionLabel(selectedText)) selectedText = '';
-                value = selectedText;
-                if (nameKey) next[nameKey] = selectedText;
-                if (mappedKey) next[mappedKey] = selectedText;
-                if (idKey) next[idKey] = selectedId !== '' && !isTextOnlyInitialValue && !isFreeTextSelection ? selectedId : '';
+const idKey = input.dataset.refIdKey || '';
+const nameKey = input.dataset.refNameKey || mappedKey || key;
+const allowsText = input.dataset.refAllowText === '1';
+const selectedId = String(input.value || '').trim();
+const selectedOption = input.selectedOptions?.[0] || null;
+let selectedText = String(
+    input.dataset.refSelectedText
+    || selectedOption?.textContent
+    || input.dataset.refCurrentText
+    || ''
+).trim();
+const isTextOnlyInitialValue = input.dataset.refCurrentTextOnly === '1'
+    && selectedId !== ''
+    && selectedId === String(input.dataset.refCurrentText || '').trim();
+const isFreeTextSelection = allowsText && selectedId !== '' && selectedText !== '' && selectedId === selectedText;
+if (selectedId === '' || isEmptySelectionLabel(selectedText)) selectedText = '';
+value = selectedText;
+if (nameKey) next[nameKey] = selectedText;
+if (mappedKey) next[mappedKey] = selectedText;
+if (idKey) next[idKey] = selectedId !== '' && !isTextOnlyInitialValue && !isFreeTextSelection ? selectedId : '';
             }
             if (mappedKey) {
-                next[mappedKey] = value;
+next[mappedKey] = value;
             }
             if (rawNext[key] && typeof rawNext[key] === 'object' && !Array.isArray(rawNext[key])) {
-                rawNext[key] = { ...rawNext[key], value };
-                return;
+rawNext[key] = { ...rawNext[key], value };
+return;
             }
             if (input.dataset.sourceColumnName || input.dataset.sourceSystemField || input.dataset.sourceColumnIndex) {
-                rawNext[key] = {
-                    column_index: input.dataset.sourceColumnIndex ? Number(input.dataset.sourceColumnIndex) : null,
-                    column_name: input.dataset.sourceColumnName || key,
-                    system_field_name: input.dataset.sourceSystemField || '',
-                    is_required: Number(input.dataset.sourceRequired || 0),
-                    requirement_mode: Number(input.dataset.sourceRequired || 0),
-                    value,
-                };
-                return;
+rawNext[key] = {
+    column_index: input.dataset.sourceColumnIndex ? Number(input.dataset.sourceColumnIndex) : null,
+    column_name: input.dataset.sourceColumnName || key,
+    system_field_name: input.dataset.sourceSystemField || '',
+    is_required: Number(input.dataset.sourceRequired || 0),
+    requirement_mode: Number(input.dataset.sourceRequired || 0),
+    value,
+};
+return;
             }
             rawNext[key] = value;
         });
@@ -5376,22 +5159,22 @@ import '/public/assets/js/components/trash-manager.js';
         }
         try {
             const json = await fetchJson(API.saveSeedRow, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: rowId, parsed_json: next, raw_json: rawNext }),
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ id: rowId, parsed_json: next, raw_json: rawNext }),
             });
             notify('success', '수정사항을 저장했습니다.');
             if (hide) bootstrap.Modal.getOrCreateInstance(modal).hide();
             if (json?.data && updateSeedRowInTable(rowId, json.data)) {
-                modal.dataset.rowPayload = JSON.stringify(json.data.mapped_payload || next);
+modal.dataset.rowPayload = JSON.stringify(json.data.mapped_payload || next);
             } else if (reload) {
-                reloadRows();
+reloadRows();
             }
             return json;
         } finally {
             if (button) {
-                button.disabled = false;
-                button.textContent = originalText;
+button.disabled = false;
+button.textContent = originalText;
             }
         }
     }
@@ -5422,12 +5205,12 @@ import '/public/assets/js/components/trash-manager.js';
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                transaction_id: transactionId,
-                header: {
-                    transaction_date: modal?.querySelector('[data-readiness-key="voucher_date"]')?.value || mapped(row).voucher_date || mapped(row).transaction_date || '',
-                    description: modal?.querySelector('[data-readiness-key="voucher_summary_text"]')?.value || mapped(row).voucher_summary_text || mapped(row).description || '',
-                },
-                lines: modalVoucherLinesForTransaction(modal),
+transaction_id: transactionId,
+header: {
+    transaction_date: modal?.querySelector('[data-readiness-key="voucher_date"]')?.value || mapped(row).voucher_date || mapped(row).transaction_date || '',
+    description: modal?.querySelector('[data-readiness-key="voucher_summary_text"]')?.value || mapped(row).voucher_summary_text || mapped(row).description || '',
+},
+lines: modalVoucherLinesForTransaction(modal),
             }),
         });
     }
@@ -5445,28 +5228,28 @@ import '/public/assets/js/components/trash-manager.js';
         try {
             const editable = !transactionCreated(row) && voucherCreateState(row) !== 'CREATED';
             if (editable) {
-                const saved = await saveReadinessModal(null, { hide: false, reload: false, notifySuccess: false });
-                if (saved === null) return;
+const saved = await saveReadinessModal(null, { hide: false, reload: false, notifySuccess: false });
+if (saved === null) return;
             }
 
             let json = null;
             if (mode === 'voucher' && !isBankTransactionRow(row)) {
-                json = await createTransactionVoucherFromModal(modal, row, button);
+json = await createTransactionVoucherFromModal(modal, row, button);
             } else {
-                json = await requestCreateTransactions([row.id]);
-                if (json.requires_confirmation && json.confirmation_code === 'EXISTING_VOUCHER') {
-                    const confirmed = window.confirm(json.message || '이미 같은 유형의 전표가 생성되어 있습니다. 기존 전표를 연결할까요?');
-                    if (!confirmed) return;
-                    json = await requestCreateTransactions([row.id], { confirm_existing_voucher: true });
-                }
+json = await requestCreateTransactions([row.id]);
+if (json.requires_confirmation && json.confirmation_code === 'EXISTING_VOUCHER') {
+    const confirmed = window.confirm(json.message || '이미 같은 유형의 전표가 생성되어 있습니다. 기존 전표를 연결할까요?');
+    if (!confirmed) return;
+    json = await requestCreateTransactions([row.id], { confirm_existing_voucher: true });
+}
             }
             if (json) notify('success', json.message || '생성 요청을 완료했습니다.');
             bootstrap.Modal.getOrCreateInstance(modal).hide();
             reloadRows();
         } finally {
             if (button) {
-                button.disabled = false;
-                button.textContent = originalText;
+button.disabled = false;
+button.textContent = originalText;
             }
         }
     }
@@ -5476,36 +5259,36 @@ import '/public/assets/js/components/trash-manager.js';
         try {
             const initialFormat = cachedFormatForRow(row);
             const initialRow = Array.isArray(initialFormat?.columns)
-                ? { ...row, format_columns: initialFormat.columns }
-                : row;
+? { ...row, format_columns: initialFormat.columns }
+: row;
             const modal = renderReadinessModal(initialRow, initialFormat);
             bootstrap.Modal.getOrCreateInstance(modal, { focus: false }).show();
             const initialInit = initReadinessModalControls(modal).catch((error) => notify('error', error.message));
 
             const [freshRowResult, formatResult] = await Promise.allSettled([
-                fetchSeedRowById(row.id),
-                loadFormatForRow(row),
+fetchSeedRowById(row.id),
+loadFormatForRow(row),
             ]);
             const freshRow = freshRowResult.status === 'fulfilled' && freshRowResult.value
-                ? freshRowResult.value
-                : row;
+? freshRowResult.value
+: row;
             const format = formatResult.status === 'fulfilled'
-                ? formatResult.value
-                : initialFormat;
+? formatResult.value
+: initialFormat;
             const hydratedRow = Array.isArray(format?.columns)
-                ? { ...freshRow, format_columns: format.columns }
-                : freshRow;
+? { ...freshRow, format_columns: format.columns }
+: freshRow;
             const tableRow = (evidenceTable?.rows().data().toArray() || [])
-                .find((item) => String(item.id) === String(hydratedRow.id));
+.find((item) => String(item.id) === String(hydratedRow.id));
             if (tableRow) {
-                Object.assign(tableRow, hydratedRow);
-                evidenceTable.rows().invalidate('data').draw(false);
-                updateSummary(evidenceTable.rows().data().toArray());
+Object.assign(tableRow, hydratedRow);
+evidenceTable.rows().invalidate('data').draw(false);
+updateSummary(evidenceTable.rows().data().toArray());
             }
 
             await initialInit;
             if (String(modal.dataset.rowId || '') !== String(row.id || '') || !modal.classList.contains('show')) {
-                return;
+return;
             }
             renderReadinessModal(hydratedRow, format);
             await initReadinessModalControls(modal);
@@ -5517,26 +5300,26 @@ import '/public/assets/js/components/trash-manager.js';
     function buildLegacyColumns() {
         return [
             {
-                data: null,
-                title: '<i class="bi bi-arrows-move"></i>',
-                orderable: false,
-                searchable: false,
-                className: 'reorder-handle no-sort no-colvis text-center',
-                headerClassName: 'no-colvis text-center',
-                defaultContent: '<i class="bi bi-list"></i>',
+data: null,
+title: '<i class="bi bi-arrows-move"></i>',
+orderable: false,
+searchable: false,
+className: 'reorder-handle no-sort no-colvis text-center',
+headerClassName: 'no-colvis text-center',
+defaultContent: '<i class="bi bi-list"></i>',
             },
             {
-                key: 'sort_no',
-                data: 'sort_no',
-                title: '순번',
-                className: 'text-center text-nowrap',
-                render(value, type, _row, meta) {
-                    const display = value || (meta.row + meta.settings._iDisplayStart + 1);
-                    if (type === 'sort' || type === 'type') {
-                        return numericSequenceValue(display);
-                    }
-                    return escapeHtml(display);
-                },
+key: 'sort_no',
+data: 'sort_no',
+title: '순번',
+className: 'text-center text-nowrap',
+render(value, type, _row, meta) {
+    const display = value || (meta.row + meta.settings._iDisplayStart + 1);
+    if (type === 'sort' || type === 'type') {
+        return numericSequenceValue(display);
+    }
+    return escapeHtml(display);
+},
             },
             { data: 'process_status', title: '상태', visible: false, className: 'text-nowrap', render: (_value, _type, row) => statusBadge(normalizedStatus(row)) },
             { data: 'source_type', title: '자료출처', className: 'text-nowrap seed-compact-cell seed-source-cell', render: (value, _type, row) => labelBadge(row.source_type_name || importSourceLabel(value)) },
@@ -5550,12 +5333,12 @@ import '/public/assets/js/components/trash-manager.js';
             { data: 'mapped_payload.transaction_direction', title: '거래구분', className: 'text-nowrap', render: (value) => escapeHtml(directionLabel(value || '')) },
             { data: null, title: '금액', className: 'text-nowrap', render: (_value, _type, row) => escapeHtml(primaryValue(row)) },
             {
-                data: 'client_name',
-                title: '거래처',
-                render(value, _type, row) {
-                    value = value || rowClientName(row);
-                    return `<span title="${escapeHtml(value)}">${escapeHtml(value || '-')}</span>`;
-                },
+data: 'client_name',
+title: '거래처',
+render(value, _type, row) {
+    value = value || rowClientName(row);
+    return `<span title="${escapeHtml(value)}">${escapeHtml(value || '-')}</span>`;
+},
             },
             { data: 'mapped_payload.transaction_date', title: '거래일자', className: 'text-nowrap', render: (value) => escapeHtml(formatDate(value)) },
             { data: 'mapped_payload.supply_amount', title: '공급가액', visible: false, className: 'text-end text-nowrap', render: (value) => formatNumber(value) },
@@ -5571,26 +5354,26 @@ import '/public/assets/js/components/trash-manager.js';
     function buildColumns() {
         return [
             {
-                data: null,
-                title: '<i class="bi bi-arrows-move"></i>',
-                orderable: false,
-                searchable: false,
-                className: 'reorder-handle no-sort no-colvis text-center',
-                headerClassName: 'no-colvis text-center',
-                defaultContent: '<i class="bi bi-list"></i>',
+data: null,
+title: '<i class="bi bi-arrows-move"></i>',
+orderable: false,
+searchable: false,
+className: 'reorder-handle no-sort no-colvis text-center',
+headerClassName: 'no-colvis text-center',
+defaultContent: '<i class="bi bi-list"></i>',
             },
             {
-                key: 'sort_no',
-                data: 'sort_no',
-                title: '순번',
-                className: 'text-center text-nowrap',
-                render(value, type, _row, meta) {
-                    const display = value || (meta.row + meta.settings._iDisplayStart + 1);
-                    if (type === 'sort' || type === 'type') {
-                        return numericSequenceValue(display);
-                    }
-                    return escapeHtml(display);
-                },
+key: 'sort_no',
+data: 'sort_no',
+title: '순번',
+className: 'text-center text-nowrap',
+render(value, type, _row, meta) {
+    const display = value || (meta.row + meta.settings._iDisplayStart + 1);
+    if (type === 'sort' || type === 'type') {
+        return numericSequenceValue(display);
+    }
+    return escapeHtml(display);
+},
             },
             { key: 'standard_date', data: null, title: '표준일자', className: 'text-nowrap seed-compact-cell', render: (_value, _type, row) => escapeHtml(formatDate(standardDate(row))) },
             { data: 'source_type', title: '자료출처', className: 'text-nowrap seed-compact-cell seed-source-cell', render: (value, _type, row) => labelBadge(row.source_type_name || importSourceLabel(value)) },
@@ -5604,13 +5387,13 @@ import '/public/assets/js/components/trash-manager.js';
             { key: 'transaction_create_status', data: null, title: '거래생성상태', className: 'text-nowrap seed-compact-cell', render: (_value, _type, row) => transactionCreateStatusBadge(row) },
             { data: 'voucher_status', title: '전표발행상태', className: 'text-nowrap seed-compact-cell', render: (_value, _type, row) => voucherCreateStatusBadge(row) },
             {
-                data: null,
-                title: '관리',
-                orderable: false,
-                searchable: false,
-                className: 'text-center text-nowrap no-colvis seed-manage-cell',
-                headerClassName: 'no-colvis text-center seed-manage-cell',
-                render: (_value, _type, row) => manageButton(row),
+data: null,
+title: '관리',
+orderable: false,
+searchable: false,
+className: 'text-center text-nowrap no-colvis seed-manage-cell',
+headerClassName: 'no-colvis text-center seed-manage-cell',
+render: (_value, _type, row) => manageButton(row),
             },
             { data: 'processed_at', title: '처리시간', visible: false, className: 'text-nowrap', render: (value) => escapeHtml(value || '-') },
         ];
@@ -5686,15 +5469,15 @@ import '/public/assets/js/components/trash-manager.js';
             const tr = button.closest('tr');
             const row = tr ? evidenceTable.row(tr).data() : null;
             const fallbackRow = row || (evidenceTable.rows().data().toArray() || [])
-                .find((item) => String(item.id) === String(button.dataset.id || ''));
+.find((item) => String(item.id) === String(button.dataset.id || ''));
             if (fallbackRow) openReadinessModal(fallbackRow);
         });
 
         document.addEventListener('trash:changed', (event) => {
             if (event.detail?.type === 'seedRows') {
-                reloadRows();
-                void refreshSeedRowsTypeCounts();
-                void updateTrashButtonState();
+reloadRows();
+void refreshSeedRowsTypeCounts();
+void updateTrashButtonState();
             }
         });
 
@@ -5722,42 +5505,42 @@ import '/public/assets/js/components/trash-manager.js';
             const row = event.detail.data || {};
             if (!detailEl) return;
             detailEl.innerHTML = `
-                <div class="small">
-                    <dl class="row mb-0">
-                        <dt class="col-4">자료출처</dt><dd class="col-8">${escapeHtml(row.source_type_name || importSourceLabel(row.source_type))}</dd>
-                        <dt class="col-4">자료유형</dt><dd class="col-8">${escapeHtml(row.import_type_name || importTypeLabel(row.import_type || row.seed_source_type))}</dd>
-                        <dt class="col-4">상태</dt><dd class="col-8">${statusBadge(normalizedStatus(row))}</dd>
-                        <dt class="col-4">거래처</dt><dd class="col-8">${escapeHtml(rowClientName(row) || '-')}</dd>
-                        <dt class="col-4">합계금액</dt><dd class="col-8">${escapeHtml(formatNumber(mapped(row).total_amount))}</dd>
-                        <dt class="col-4">적요</dt><dd class="col-8">${escapeHtml(mapped(row).description || '-')}</dd>
-                        <dt class="col-4">파일명</dt><dd class="col-8">${escapeHtml(row.file_name || '-')}</dd>
-                        <dt class="col-4">삭제시간</dt><dd class="col-8">${escapeHtml(row.deleted_at || '-')}</dd>
-                    </dl>
-                </div>
+<div class="small">
+    <dl class="row mb-0">
+        <dt class="col-4">자료출처</dt><dd class="col-8">${escapeHtml(row.source_type_name || importSourceLabel(row.source_type))}</dd>
+        <dt class="col-4">자료유형</dt><dd class="col-8">${escapeHtml(row.import_type_name || importTypeLabel(row.import_type || row.seed_source_type))}</dd>
+        <dt class="col-4">상태</dt><dd class="col-8">${statusBadge(normalizedStatus(row))}</dd>
+        <dt class="col-4">거래처</dt><dd class="col-8">${escapeHtml(rowClientName(row) || '-')}</dd>
+        <dt class="col-4">합계금액</dt><dd class="col-8">${escapeHtml(formatNumber(mapped(row).total_amount))}</dd>
+        <dt class="col-4">적요</dt><dd class="col-8">${escapeHtml(mapped(row).description || '-')}</dd>
+        <dt class="col-4">파일명</dt><dd class="col-8">${escapeHtml(row.file_name || '-')}</dd>
+        <dt class="col-4">삭제시간</dt><dd class="col-8">${escapeHtml(row.deleted_at || '-')}</dd>
+    </dl>
+</div>
             `;
         });
 
         document.addEventListener('click', (event) => {
             const correctionPanel = event.target.closest('#seedRowReadinessModal .readiness-correction-panel');
             if (correctionPanel && !event.target.closest('summary, a, button, input, select, textarea, .select2-container')) {
-                correctionPanel.open = !correctionPanel.open;
-                return;
+correctionPanel.open = !correctionPanel.open;
+return;
             }
 
             if (event.target.closest('#seedRowReadinessModal .readiness-correction-panel summary')) {
-                return;
+return;
             }
 
             const correctionLink = event.target.closest('#seedRowReadinessModal .readiness-correction-link');
             if (correctionLink) {
-                focusReadinessCorrectionField(correctionLink.closest('#seedRowReadinessModal'), correctionLink.dataset.correctionField || '');
-                return;
+focusReadinessCorrectionField(correctionLink.closest('#seedRowReadinessModal'), correctionLink.dataset.correctionField || '');
+return;
             }
 
             const createButton = event.target.closest('#seedRowReadinessModal [data-readiness-create]');
             if (createButton) {
-                void createFromReadinessModal(createButton, createButton.dataset.readinessCreate || '').catch((error) => notify('error', error.message));
-                return;
+void createFromReadinessModal(createButton, createButton.dataset.readinessCreate || '').catch((error) => notify('error', error.message));
+return;
             }
 
             const button = event.target.closest('#seedRowReadinessSaveBtn');
@@ -5768,86 +5551,34 @@ import '/public/assets/js/components/trash-manager.js';
         document.addEventListener('change', (event) => {
             const fileToggle = event.target.closest('#seedRowReadinessModal [data-readiness-file-toggle]');
             if (fileToggle) {
-                const modal = fileToggle.closest('#seedRowReadinessModal');
-                syncReadinessTransactionPanels(modal);
-                renderReadinessFileList(modal);
-                return;
+const modal = fileToggle.closest('#seedRowReadinessModal');
+syncReadinessTransactionPanels(modal);
+renderReadinessFileList(modal);
+return;
             }
 
             const fileInput = event.target.closest('#seedRowReadinessModal [data-readiness-transaction-files]');
             if (fileInput) {
-                renderReadinessFileList(fileInput.closest('#seedRowReadinessModal'));
-                return;
+renderReadinessFileList(fileInput.closest('#seedRowReadinessModal'));
+return;
             }
 
             const readinessInput = event.target.closest('#seedRowReadinessModal [data-readiness-key]');
             if (readinessInput) {
-                const modal = readinessInput.closest('#seedRowReadinessModal');
-                if (readinessInput.dataset.readinessKey === 'transaction_direction') {
-                    syncBankPaymentDirectionFields(modal, readinessInput.value);
-                }
-                pruneResolvedCorrectionLinks(modal);
+const modal = readinessInput.closest('#seedRowReadinessModal');
+pruneResolvedCorrectionLinks(modal);
             }
 
-            const directionSelect = event.target.closest('#seedRowReadinessModal [data-bank-payment-direction]');
-            if (!directionSelect) return;
 
-            const row = directionSelect.closest('tr');
-            const amountInput = row?.querySelector('[data-bank-payment-amount]');
-            if (!amountInput) return;
-
-            const nextDirection = String(directionSelect.value || '').toUpperCase() === 'IN' ? 'IN' : 'OUT';
-            amountInput.dataset.readinessKey = nextDirection === 'IN' ? 'deposit_amount' : 'withdraw_amount';
         });
 
-        document.addEventListener('click', (event) => {
-            const addButton = event.target.closest('#seedRowReadinessModal .bank-payment-add-btn');
-            if (!addButton) return;
-            const table = addButton.closest('[data-bank-payment-table]');
-            const tbody = table?.querySelector('tbody');
-            if (!table || !tbody) return;
-            const modal = document.getElementById('seedRowReadinessModal');
-            const direction = modal?.querySelector('[data-readiness-key="transaction_direction"]')?.value || 'OUT';
-            tbody.insertAdjacentHTML('beforeend', bankVoucherPaymentRowHtml(emptyBankPaymentRow(direction), tbody.querySelectorAll('tr[data-bank-payment-row]').length));
-            renumberBankPaymentRows(table);
-            void initReadinessModalControls(modal).catch((error) => notify('error', error.message));
-        });
-
-        document.addEventListener('click', (event) => {
-            const deleteButton = event.target.closest('#seedRowReadinessModal .bank-payment-delete-btn');
-            if (!deleteButton) return;
-            const table = deleteButton.closest('[data-bank-payment-table]');
-            const tbody = table?.querySelector('tbody');
-            deleteButton.closest('tr[data-bank-payment-row]')?.remove();
-            if (table && tbody && !tbody.querySelector('tr[data-bank-payment-row]')) {
-                tbody.insertAdjacentHTML('beforeend', bankVoucherPaymentRowHtml(emptyBankPaymentRow(), 0));
-            }
-            renumberBankPaymentRows(table);
-            const modal = document.getElementById('seedRowReadinessModal');
-            void initReadinessModalControls(modal).catch((error) => notify('error', error.message));
-        });
 
         document.addEventListener('change', (event) => {
             const amountInput = event.target.closest('#seedRowReadinessModal [data-readiness-key="supply_amount"], #seedRowReadinessModal [data-readiness-key="total_amount"]');
             if (amountInput) {
-                syncReadinessAdjustmentAmount(amountInput.closest('#seedRowReadinessModal'));
+syncReadinessAdjustmentAmount(amountInput.closest('#seedRowReadinessModal'));
             }
 
-            const typeSelect = event.target.closest('#seedRowReadinessModal [data-bank-payment-type]');
-            if (!typeSelect) return;
-            const row = typeSelect.closest('tr[data-bank-payment-row]');
-            const paymentSelect = row?.querySelector('[data-bank-payment-id]');
-            if (!paymentSelect) return;
-            const type = String(typeSelect.value || '').toUpperCase() === 'CARD' ? 'CARD' : 'ACCOUNT';
-            if (window.jQuery?.fn?.select2 && window.jQuery(paymentSelect).hasClass('select2-hidden-accessible')) {
-                window.jQuery(paymentSelect).select2('destroy');
-            }
-            paymentSelect.dataset.readinessPicker = type === 'CARD' ? 'card' : 'bankAccount';
-            paymentSelect.dataset.placeholder = type === 'CARD' ? '카드 선택' : '계좌 선택';
-            paymentSelect.innerHTML = '<option value="" selected></option>';
-            const modal = document.getElementById('seedRowReadinessModal');
-            void initReadinessModalControls(modal).catch((error) => notify('error', error.message));
-        });
 
         document.addEventListener('input', (event) => {
             const amountInput = event.target.closest('#seedRowReadinessModal [data-readiness-key="supply_amount"], #seedRowReadinessModal [data-readiness-key="total_amount"]');
@@ -5864,18 +5595,18 @@ import '/public/assets/js/components/trash-manager.js';
         document.addEventListener('click', (event) => {
             const addHeader = event.target.closest('#seedRowReadinessModal .transaction-line-ag-grid .ag-header-cell[col-id="__actions"]');
             if (addHeader) {
-                addReadinessTransactionLine(addHeader.closest('#seedRowReadinessModal'));
-                return;
+addReadinessTransactionLine(addHeader.closest('#seedRowReadinessModal'));
+return;
             }
 
             const applyButton = event.target.closest('#seedRowReadinessModal .transaction-line-recommend-apply-btn');
             if (!applyButton || !readinessTransactionLineGrid) return;
             let lines = [];
             try {
-                lines = JSON.parse(decodeURIComponent(applyButton.dataset.recommendation || '[]'));
+lines = JSON.parse(decodeURIComponent(applyButton.dataset.recommendation || '[]'));
             } catch (error) {
-                notify('error', '추천거래 정보를 읽을 수 없습니다.');
-                return;
+notify('error', '추천거래 정보를 읽을 수 없습니다.');
+return;
             }
             readinessTransactionLineGrid.loadData(lines.map((line) => normalizeTransactionLine(line, {})));
             syncReadinessTransactionPanels(applyButton.closest('#seedRowReadinessModal'));
@@ -5904,8 +5635,8 @@ import '/public/assets/js/components/trash-manager.js';
             const modal = dropzone.closest('#seedRowReadinessModal');
             const input = modal?.querySelector('[data-readiness-transaction-files]');
             if (input && event.dataTransfer?.files?.length) {
-                input.files = event.dataTransfer.files;
-                renderReadinessFileList(modal);
+input.files = event.dataTransfer.files;
+renderReadinessFileList(modal);
             }
         });
 
@@ -5930,10 +5661,10 @@ import '/public/assets/js/components/trash-manager.js';
             const table = deleteButton.closest('[data-voucher-lines-table]');
             deleteButton.closest('tr[data-voucher-line-row]')?.remove();
             if (table) {
-                renumberVoucherLineRows(table);
-                if (!table.querySelector('tr[data-voucher-line-row]') && !table.querySelector('.voucher-line-recommendations')) {
-                    table.insertAdjacentHTML('beforeend', voucherLineRecommendationsHtml(recommendationPayloadFromTable(table)));
-                }
+renumberVoucherLineRows(table);
+if (!table.querySelector('tr[data-voucher-line-row]') && !table.querySelector('.voucher-line-recommendations')) {
+    table.insertAdjacentHTML('beforeend', voucherLineRecommendationsHtml(recommendationPayloadFromTable(table)));
+}
             }
         });
 
@@ -5943,17 +5674,17 @@ import '/public/assets/js/components/trash-manager.js';
             const table = applyButton.closest('[data-voucher-lines-table]');
             let lines = [];
             try {
-                lines = JSON.parse(decodeURIComponent(applyButton.dataset.recommendation || '[]'));
+lines = JSON.parse(decodeURIComponent(applyButton.dataset.recommendation || '[]'));
             } catch (error) {
-                notify('error', '추천 분개 정보를 읽을 수 없습니다.');
-                return;
+notify('error', '추천 분개 정보를 읽을 수 없습니다.');
+return;
             }
             const payload = payloadWithCurrentReadinessValues(
-                table?.closest('#seedRowReadinessModal'),
-                recommendationPayloadFromTable(table)
+table?.closest('#seedRowReadinessModal'),
+recommendationPayloadFromTable(table)
             );
             if (table) {
-                table.dataset.recommendationPayload = encodeURIComponent(JSON.stringify(payload));
+table.dataset.recommendationPayload = encodeURIComponent(JSON.stringify(payload));
             }
             applyVoucherLineRecommendation(table, hydrateRecommendationLinesWithCurrentRefs(lines, payload));
         });
@@ -5964,26 +5695,26 @@ import '/public/assets/js/components/trash-manager.js';
             const modal = button.closest('#seedRowReadinessModal');
             const stageId = button.dataset.readinessStage || '';
             modal?.querySelectorAll('[data-readiness-stage]').forEach((item) => {
-                item.classList.toggle('active', item === button);
+item.classList.toggle('active', item === button);
             });
             modal?.querySelectorAll('[data-readiness-stage-panel]').forEach((panel) => {
-                panel.classList.toggle('active', panel.dataset.readinessStagePanel === stageId);
+panel.classList.toggle('active', panel.dataset.readinessStagePanel === stageId);
             });
             if (stageId === 'transaction') {
-                window.requestAnimationFrame(() => {
-                    readinessTransactionLineGrid?.render();
-                    syncReadinessTransactionLineTotal(modal);
-                });
+window.requestAnimationFrame(() => {
+    readinessTransactionLineGrid?.render();
+    syncReadinessTransactionLineTotal(modal);
+});
             }
         });
 
         document.addEventListener('click', (event) => {
             if (event.target.closest('#seedRowSourceToggleBtn')) {
-                setSourcePaneVisible(false);
-                return;
+setSourcePaneVisible(false);
+return;
             }
             if (event.target.closest('#seedRowSourceShowBtn')) {
-                setSourcePaneVisible(true);
+setSourcePaneVisible(true);
             }
         });
 
@@ -6009,12 +5740,12 @@ import '/public/assets/js/components/trash-manager.js';
         try {
             let json = await requestCreateTransactions(ids);
             if (json.requires_confirmation && json.confirmation_code === 'EXISTING_VOUCHER') {
-                const confirmed = window.confirm(json.message || '이미 같은 유형의 전표가 생성되어 있습니다. 기존 전표를 연결할까요?');
-                if (!confirmed) {
-                    notify('warning', '기존 전표 연결을 취소했습니다.');
-                    return;
-                }
-                json = await requestCreateTransactions(ids, { confirm_existing_voucher: true });
+const confirmed = window.confirm(json.message || '이미 같은 유형의 전표가 생성되어 있습니다. 기존 전표를 연결할까요?');
+if (!confirmed) {
+    notify('warning', '기존 전표 연결을 취소했습니다.');
+    return;
+}
+json = await requestCreateTransactions(ids, { confirm_existing_voucher: true });
             }
             notify('success', json.message || '선택한 자료의 거래/전표 생성을 요청했습니다.');
         } finally {
@@ -6062,57 +5793,57 @@ import '/public/assets/js/components/trash-manager.js';
             bulkDelete: true,
             columns,
             tableSettings: {
-                enabled: true,
-                pageKey: 'ledger.data.create',
-                tableKey: 'evidence-create',
-                storageKey: 'ledger.data.create.evidence-create.v1',
-                tableLabel: 'Evidence Create',
-                metaDomain: evidenceMetaDomain(selectedTypeFilter),
-                columns,
-                requiredColumns: [],
-                defaultVisibleColumns: [],
+enabled: true,
+pageKey: 'ledger.data.create',
+tableKey: 'evidence-create',
+storageKey: 'ledger.data.create.evidence-create.v1',
+tableLabel: 'Evidence Create',
+metaDomain: evidenceMetaDomain(selectedTypeFilter),
+columns,
+requiredColumns: [],
+defaultVisibleColumns: [],
             },
             isRowSelectable: isSelectableForBulk,
             ajaxData(request) {
-                const next = { ...request };
-                if (selectedTypeFilter) next.import_type = selectedTypeFilter;
-                const statusFilter = serverStatusFilterValue();
-                if (statusFilter) next.process_status = statusFilter;
-                return next;
+const next = { ...request };
+if (selectedTypeFilter) next.import_type = selectedTypeFilter;
+const statusFilter = serverStatusFilterValue();
+if (statusFilter) next.process_status = statusFilter;
+return next;
             },
             dataSrc(json) {
-                const rows = Array.isArray(json.data) ? json.data : [];
-                updateSummary(rows);
-                if (Number.isFinite(Number(json.recordsTotal))) {
-                    const el = document.querySelector('[data-seed-summary="total"]');
-                    if (el) {
-                        const label = el.dataset.seedSummaryLabel || '';
-                        const countText = `${Number(json.recordsTotal || 0).toLocaleString('ko-KR')}\uac74`;
-                        el.textContent = label ? `${label} ${countText}` : countText;
-                    }
-                }
-                return rows;
+const rows = Array.isArray(json.data) ? json.data : [];
+updateSummary(rows);
+if (Number.isFinite(Number(json.recordsTotal))) {
+    const el = document.querySelector('[data-seed-summary="total"]');
+    if (el) {
+        const label = el.dataset.seedSummaryLabel || '';
+        const countText = `${Number(json.recordsTotal || 0).toLocaleString('ko-KR')}\uac74`;
+        el.textContent = label ? `${label} ${countText}` : countText;
+    }
+}
+return rows;
             },
             buttons: [
-                {
-                    text: '거래/전표생성',
-                    className: 'btn btn-success btn-sm btn-create-selected-evidences',
-                    action: (_event, _dt, node) => {
-                        void createSelectedTransactions(node?.get(0)).catch((error) => notify('error', error.message));
-                    },
-                },
-                {
-                    text: '묶음전표발행',
-                    className: 'btn btn-outline-success btn-sm btn-create-bundled-voucher',
-                    action: (_event, _dt, node) => {
-                        void createSelectedBundledVoucher(node?.get(0)).catch((error) => notify('error', error.message));
-                    },
-                },
-                {
-                    text: '휴지통',
-                    className: 'btn btn-outline-danger btn-sm seed-rows-trash-btn',
-                    action: openTrashModal,
-                },
+{
+    text: '거래/전표생성',
+    className: 'btn btn-success btn-sm btn-create-selected-evidences',
+    action: (_event, _dt, node) => {
+        void createSelectedTransactions(node?.get(0)).catch((error) => notify('error', error.message));
+    },
+},
+{
+    text: '묶음전표발행',
+    className: 'btn btn-outline-success btn-sm btn-create-bundled-voucher',
+    action: (_event, _dt, node) => {
+        void createSelectedBundledVoucher(node?.get(0)).catch((error) => notify('error', error.message));
+    },
+},
+{
+    text: '휴지통',
+    className: 'btn btn-outline-danger btn-sm seed-rows-trash-btn',
+    action: openTrashModal,
+},
             ],
         });
 
@@ -6127,10 +5858,10 @@ import '/public/assets/js/components/trash-manager.js';
             tableId: 'seedRows',
             defaultSearchField: 'client_name',
             dateOptions: [
-                { value: 'mapped_payload.transaction_date', label: '거래일자' },
-                { value: 'created_at', label: '생성시간' },
-                { value: 'processed_at', label: '처리시간' },
-                { value: 'updated_at', label: '수정시간' },
+{ value: 'mapped_payload.transaction_date', label: '거래일자' },
+{ value: 'created_at', label: '생성시간' },
+{ value: 'processed_at', label: '처리시간' },
+{ value: 'updated_at', label: '수정시간' },
             ],
             excludeFields: [''],
         });
@@ -6141,12 +5872,12 @@ import '/public/assets/js/components/trash-manager.js';
             includeAppliedRows: true,
             extraData: () => ({ scope: 'create', sequence_scope: 'create' }),
             onSuccess(json) {
-                notify('success', json?.message || '생성센터 순서가 변경되었습니다.');
-                evidenceTable?.ajax.reload(null, false);
+notify('success', json?.message || '생성센터 순서가 변경되었습니다.');
+evidenceTable?.ajax.reload(null, false);
             },
             onError(json) {
-                notify('error', json?.message || '생성센터 순서 변경에 실패했습니다.');
-                evidenceTable?.ajax.reload(null, false);
+notify('error', json?.message || '생성센터 순서 변경에 실패했습니다.');
+evidenceTable?.ajax.reload(null, false);
             },
         });
 
@@ -6168,8 +5899,8 @@ import '/public/assets/js/components/trash-manager.js';
             <td>${escapeHtml(formatDate(mapped(row).transaction_date))}</td>
             <td>${escapeHtml(row.deleted_at || '-')}</td>
             <td>
-                <button type="button" class="btn btn-success btn-sm btn-restore" data-id="${escapeHtml(row.id)}">복원</button>
-                <button type="button" class="btn btn-danger btn-sm btn-purge" data-id="${escapeHtml(row.id)}">삭제</button>
+<button type="button" class="btn btn-success btn-sm btn-restore" data-id="${escapeHtml(row.id)}">복원</button>
+<button type="button" class="btn btn-danger btn-sm btn-purge" data-id="${escapeHtml(row.id)}">삭제</button>
             </td>
         `;
     };

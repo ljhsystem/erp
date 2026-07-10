@@ -198,6 +198,7 @@ export function createProjectTableModule({
             selectionColumn: { widthResizable: true },
             tableSettings: {
                 pageKey: 'dashboard.settings.base-info.project',
+                userSettingPageKey: 'project',
                 tableKey: 'project-table',
                 storageKey: 'datatable.settings.dashboard.settings.base-info.project.project-table.v1',
                 metaDomain: 'project',

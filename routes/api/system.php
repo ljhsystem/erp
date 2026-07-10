@@ -102,6 +102,22 @@ $router->post('/api/auth/password/change', 'PasswordController@apiChangePassword
     'allow_statuses' => ['NORMAL', 'PASSWORD_EXPIRED'],
 ]);
 
+$router->post('/api/auth/password/change-later', 'PasswordController@apiChangeLater', [
+    'key' => 'api.auth.password.change_later',
+    'page' => '비밀번호변경',
+    'page_description' => '비밀번호변경 관리',
+    'permission_name' => '변경연기',
+    'permission_description' => '비밀번호 변경을 나중에 처리',
+    'name' => '비밀번호변경 변경연기',
+    'description' => '인증 > 계정보안 > 비밀번호변경 > 변경연기',
+    'category' => '인증 > 계정보안',
+    'auth' => false,
+    'skip_permission' => true,
+    'permissions' => ['save'],
+    'log' => false,
+    'allow_statuses' => ['PASSWORD_EXPIRED'],
+]);
+
 $router->post('/api/integration/biz-status', 'ExternalIntegrationController@apiBizStatus', [
     'key' => 'api.integration.biz_status',
     'page' => 'API관리',

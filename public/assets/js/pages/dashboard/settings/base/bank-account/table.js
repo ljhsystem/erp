@@ -149,6 +149,7 @@ export function createBankAccountTableModule({
             },
             tableSettings: {
                 pageKey: 'dashboard.settings.base-info.bank-account',
+                userSettingPageKey: 'bank-account',
                 tableKey: 'account-table',
                 storageKey: 'datatable.settings.dashboard.settings.base-info.bank-account.account-table.v1',
                 metaDomain: 'bank-account',

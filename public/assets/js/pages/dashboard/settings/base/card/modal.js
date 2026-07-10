@@ -29,7 +29,9 @@ export function createCardModalModule({
     ]);
 
     function currentCardPolicyState() {
-        return readDataTableSettingsState(CARD_TABLE_SETTINGS_STORAGE_KEY) || {};
+        return readDataTableSettingsState(CARD_TABLE_SETTINGS_STORAGE_KEY, {
+            userSettingPageKey: 'card',
+        }) || {};
     }
 
     function cardFieldLabel(key, _fallback = '') {

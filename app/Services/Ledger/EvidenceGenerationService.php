@@ -3,7 +3,9 @@
 namespace App\Services\Ledger;
 
 use App\Models\Ledger\ProcessingItemModel;
+use App\Models\Ledger\VoucherModel;
 use App\Services\Ledger\ProcessingItemTreeService;
+use Closure;
 use Core\Helpers\ActorHelper;
 use PDO;
 
@@ -21,33 +23,32 @@ class EvidenceGenerationService
         'CONSTRUCTION',
     ];
 
-    private array $columnExistsCache = [];
-
     private array $query = [];
+
+    private ?EvidenceBodyReadService $evidenceBodyReadService = null;
+    private ?VoucherModel $voucherModel = null;
 
     public function __construct(
         private PDO $pdo,
-        private $ensureEvidenceBusinessInfoColumns,
-        private $ensureEvidenceSortColumns,
-        private $isAllowedDataType,
-        private $normalizeDataType,
-        private $normalizeImportSourceType,
-        private $importTypesForSourceType,
-        private $sourceTypeSql,
-        private $sourceTypeForDataType,
-        private $sourceTypeLabel,
-        private $importTypeLabel,
-        private $tableExists,
-        private $placeholdersForIds,
-        private $columns,
-        private $normalizeBankTransactionPayload,
-        private $normalizeEvidenceMappedPayloadForResponse,
-        private $mergeEvidenceBusinessInfoIntoPayload,
-        private $isUuid,
-        private $businessRefNameById,
-        private $applyReadinessToEvidenceRow,
-        private $evidencePayloadSortNo,
-        private $formatTransactionCreateError
+        private Closure $ensureEvidenceBusinessInfoColumns,
+        private Closure $ensureEvidenceSortColumns,
+        private Closure $isAllowedDataType,
+        private Closure $normalizeDataType,
+        private Closure $normalizeImportSourceType,
+        private Closure $importTypesForSourceType,
+        private Closure $sourceTypeForDataType,
+        private Closure $sourceTypeLabel,
+        private Closure $importTypeLabel,
+        private Closure $tableExists,
+        private Closure $columns,
+        private Closure $normalizeBankTransactionPayload,
+        private Closure $normalizeEvidenceMappedPayloadForResponse,
+        private Closure $mergeEvidenceBusinessInfoIntoPayload,
+        private Closure $isUuid,
+        private Closure $businessRefNameById,
+        private Closure $applyReadinessToEvidenceRow,
+        private Closure $evidencePayloadSortNo,
+        private Closure $formatTransactionCreateError
     ) {
     }
 
@@ -81,11 +82,6 @@ class EvidenceGenerationService
         return ($this->importTypesForSourceType)($sourceType);
     }
 
-    private function sourceTypeSql(string $column): string
-    {
-        return ($this->sourceTypeSql)($column);
-    }
-
     private function sourceTypeForDataType(string $dataType): string
     {
         return ($this->sourceTypeForDataType)($dataType);
@@ -106,67 +102,20 @@ class EvidenceGenerationService
         return ($this->tableExists)($table);
     }
 
-    private function columnExists(string $tableName, string $columnName): bool
+    private function evidenceBodyReadService(): EvidenceBodyReadService
     {
-        $cacheKey = $tableName . '.' . $columnName;
-        if (array_key_exists($cacheKey, $this->columnExistsCache)) {
-            return $this->columnExistsCache[$cacheKey];
+        if ($this->evidenceBodyReadService === null) {
+            $this->evidenceBodyReadService = new EvidenceBodyReadService(
+                $this->pdo,
+                new EvidenceProcessingPolicyService(
+                    $this->pdo,
+                    $this->tableExists
+                ),
+                $this->normalizeDataType
+            );
         }
 
-        try {
-            $stmt = $this->pdo->prepare("
-                SELECT 1
-                FROM information_schema.COLUMNS
-                WHERE TABLE_SCHEMA = DATABASE()
-                  AND TABLE_NAME = :table_name
-                  AND COLUMN_NAME = :column_name
-                LIMIT 1
-            ");
-            $stmt->execute([
-                ':table_name' => $tableName,
-                ':column_name' => $columnName,
-            ]);
-            $exists = (bool) $stmt->fetchColumn();
-        } catch (\Throwable) {
-            $exists = false;
-        }
-
-        $this->columnExistsCache[$cacheKey] = $exists;
-        return $exists;
-    }
-
-    private function firstExistingColumnExpr(string $tableName, string $alias, array $candidates, string $fallback = 'NULL'): string
-    {
-        $normalizedAlias = trim($alias);
-        foreach ($candidates as $columnName) {
-            $normalizedColumn = trim((string) $columnName);
-            if ($normalizedColumn !== '' && $this->columnExists($tableName, $normalizedColumn)) {
-                return "{$normalizedAlias}.{$normalizedColumn}";
-            }
-        }
-
-        return $fallback;
-    }
-
-    private function coalesceExistingColumnExpr(string $tableName, string $alias, array $candidates, string $fallback = 'NULL'): string
-    {
-        $normalizedAlias = trim($alias);
-        $expressions = [];
-        foreach ($candidates as $columnName) {
-            $normalizedColumn = trim((string) $columnName);
-            if ($normalizedColumn !== '' && $this->columnExists($tableName, $normalizedColumn)) {
-                $expressions[] = "NULLIF(TRIM({$normalizedAlias}.{$normalizedColumn}), '')";
-            }
-        }
-
-        return $expressions === []
-            ? $fallback
-            : 'COALESCE(' . implode(', ', $expressions) . ', ' . $fallback . ')';
-    }
-
-    private function placeholdersForIds(array $ids, string $prefix): array
-    {
-        return ($this->placeholdersForIds)($ids, $prefix);
+        return $this->evidenceBodyReadService;
     }
 
     private function columns(string $formatId): array
@@ -257,24 +206,29 @@ class EvidenceGenerationService
         $sequenceScope = $this->evidenceSequenceScopeFromRequest('', $importType);
         $this->ensureEvidenceSortColumns();
         if ((string) ($query['type_counts'] ?? '') === '1') {
-            $payloadCounts = $this->payloadEvidenceTypeCounts();
-            $bodyCounts = $this->bodyEvidenceTypeCounts();
-            $knownTypes = array_values(array_unique(array_merge(array_keys($payloadCounts), array_keys($bodyCounts))));
+            $bodyCounts = $this->evidenceBodyReadService()->bodyEvidenceTypeCounts();
+            $knownTypes = array_values(array_unique(array_keys($bodyCounts)));
             sort($knownTypes);
 
-            $data = [];
+            $countsByType = [];
             foreach ($knownTypes as $type) {
                 $normalizedType = $this->normalizeDataType((string) $type);
                 if ($normalizedType === '') {
                     continue;
                 }
 
+                if (!isset($countsByType[$normalizedType])) {
+                    $countsByType[$normalizedType] = 0;
+                }
+
+                $countsByType[$normalizedType] += (int) ($bodyCounts[$type] ?? 0);
+            }
+
+            $data = [];
+            foreach ($countsByType as $type => $count) {
                 $data[] = [
-                    'import_type' => $normalizedType,
-                    'row_count' => max(
-                        (int) ($payloadCounts[$normalizedType] ?? 0),
-                        (int) ($bodyCounts[$normalizedType] ?? 0)
-                    ),
+                    'import_type' => $type,
+                    'row_count' => $count,
                 ];
             }
 
@@ -282,40 +236,14 @@ class EvidenceGenerationService
         }
         $filters = $this->seedRowFiltersFromRequest();
 
-        $where = [];
-        $params = [];
         $requestedId = trim((string) ($query['id'] ?? ''));
-        if ($requestedId !== '') {
-            $where[] = 'r.evidence_id = :requested_id';
-            $params[':requested_id'] = $requestedId;
-        }
-        if ($status === 'READY') {
-            $where[] = "COALESCE(pr.processing_status, 'READY') = 'READY'";
-        } elseif ($status === 'PROCESSED') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'PROCESSED'";
-        } elseif ($status === 'ERROR') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'ERROR'";
-        } elseif ($status === 'DUPLICATED') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'DUPLICATED'";
-        }
         if ($importType !== '') {
-            $where[] = 'r.evidence_type COLLATE utf8mb4_general_ci = :import_type COLLATE utf8mb4_general_ci';
-            $params[':import_type'] = $importType;
         } elseif ($sourceType !== '') {
             $types = $this->importTypesForSourceType($sourceType);
             if ($types === []) {
                 return ['payload' => ['success' => true, 'data' => []]];
             }
-            $keys = [];
-            foreach ($types as $index => $type) {
-                $key = ':source_type_' . $index;
-                $keys[] = $key;
-                $params[$key] = $type;
-            }
-            $collatedKeys = array_map(static fn(string $key): string => $key . ' COLLATE utf8mb4_general_ci', $keys);
-            $where[] = 'r.evidence_type COLLATE utf8mb4_general_ci IN (' . implode(', ', $collatedKeys) . ')';
         }
-        $where[] = $status === 'DELETED' ? 'r.deleted_at IS NOT NULL' : 'r.deleted_at IS NULL';
         $isServerPaged = isset($query['draw']) || isset($query['start']) || isset($query['length']);
         $pageStart = max(0, (int) ($query['start'] ?? 0));
         $pageLength = (int) ($query['length'] ?? 0);
@@ -324,143 +252,33 @@ class EvidenceGenerationService
         }
         $pageLength = min($pageLength, 500);
         $recordsFiltered = null;
-        $bodyTableTypes = [
-            'BANK_TRANSACTION',
-            'TAX_INVOICE',
-            'TAX_INVOICE_MANUAL',
-            'CASH_RECEIPT',
-            'CARD_HOMETAX',
-            'CARD_STATEMENT',
-        ];
-        $useBodyFallbackPaging = in_array($importType, $bodyTableTypes, true);
-        $useBodyTable = in_array($importType, $bodyTableTypes, true);
-        if ($isServerPaged && $filters === []) {
-            if ($useBodyFallbackPaging) {
-                $recordsFiltered = match ($importType) {
-                    'BANK_TRANSACTION' => $this->countBankRowsFromBodyTable($status, $requestedId),
-                    'CASH_RECEIPT' => $this->countCashRowsFromBodyTable($importType, $status, $requestedId),
-                    'CARD_HOMETAX' => $this->countCardHometaxRowsFromBodyTable($status, $requestedId),
-                    'CARD_STATEMENT' => $this->countCardStatementRowsFromBodyTable($status, $requestedId),
-                    default => $this->countTaxRowsFromBodyTable($importType, $status, $requestedId),
-                };
-            } else {
-                $countStmt = $this->pdo->prepare("
-                    SELECT COUNT(*)
-                    FROM ledger_evidence_payloads r
-                    LEFT JOIN ledger_evidence_processing pr
-                        ON pr.evidence_type COLLATE utf8mb4_general_ci = r.evidence_type COLLATE utf8mb4_general_ci
-                       AND pr.evidence_id COLLATE utf8mb4_general_ci = r.evidence_id COLLATE utf8mb4_general_ci
-                    WHERE " . implode(' AND ', $where) . "
-                ");
-                $countStmt->execute($params);
-                $recordsFiltered = (int) $countStmt->fetchColumn();
-
-                $pageIds = $this->evidencePageIdsForServerPaging($where, $params, $importType, $pageStart, $pageLength, $sequenceScope);
-                if ($pageIds === []) {
-                    return ['payload' => [
-                        'success' => true,
-                        'draw' => (int) ($query['draw'] ?? 0),
-                        'recordsTotal' => $recordsFiltered,
-                        'recordsFiltered' => $recordsFiltered,
-                        'data' => [],
-                    ]];
-                }
-                $idPlaceholders = [];
-                foreach ($pageIds as $index => $id) {
-                    $key = ':page_id_' . $index;
-                    $idPlaceholders[] = $key;
-                    $params[$key] = $id;
-                }
-                $where[] = 'r.evidence_id IN (' . implode(', ', $idPlaceholders) . ')';
-            }
-        }
-
-        if ($useBodyTable) {
-            $rows = match ($importType) {
-                'BANK_TRANSACTION' => $this->bankRowsFromBodyTable($status, $requestedId),
-                'CASH_RECEIPT' => $this->cashRowsFromBodyTable($importType, $status, $requestedId),
-                'CARD_HOMETAX' => $this->cardHometaxRowsFromBodyTable($status, $requestedId),
-                'CARD_STATEMENT' => $this->cardStatementRowsFromBodyTable($status, $requestedId),
-                default => $this->taxRowsFromBodyTable($importType, $status, $requestedId),
-            };
+        $bodyTableTypes = $this->evidenceBodyReadService()->readyBodyImportTypes();
+        $bodyQueryTypes = [];
+        if ($importType !== '') {
+            $bodyQueryTypes = in_array($importType, $bodyTableTypes, true) ? [$importType] : [];
+        } elseif ($sourceType !== '') {
+            $bodyQueryTypes = array_values(array_intersect($this->importTypesForSourceType($sourceType), $bodyTableTypes));
         } else {
-            $sql = "
-                SELECT
-                    r.evidence_id AS id,
-                    NULL AS seed_batch_id,
-                    " . $this->sourceTypeSql('r.evidence_type') . " AS source_type,
-                    r.evidence_type AS import_type,
-                    '' AS source_type_name,
-                    '' AS import_type_name,
-                    " . $this->evidenceBodySortNoSql('r.evidence_type', 'r.evidence_id', 'sort_no') . " AS sort_no,
-                    " . $this->evidenceBodySortNoSql('r.evidence_type', 'r.evidence_id', 'evidence_sort_no') . " AS evidence_sort_no,
-                    CAST(JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$._create_sort_no')) AS UNSIGNED) AS create_sort_no,
-                    CAST(JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$._status_sort_no')) AS UNSIGNED) AS status_sort_no,
-                    0 AS row_no,
-                    r.format_id,
-                    r.raw_json,
-                    r.mapped_payload_json AS parsed_json,
-                    r.source_key,
-                    NULL AS evidence_date,
-                    JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.client_id')) AS client_id,
-                    JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.project_id')) AS project_id,
-                    JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.employee_id')) AS employee_id,
-                    JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.bank_account_id')) AS bank_account_id,
-                    JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.card_id')) AS card_id,
-                    JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.team_id')) AS team_id,
-                    JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.client_name')) AS client_name,
-                    JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.project_name')) AS project_name,
-                    JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.employee_name')) AS employee_name,
-                    JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.bank_account_name')) AS bank_account_name,
-                    JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.card_name')) AS card_name,
-                    JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.team_name')) AS team_name,
-                    " . $this->evidenceBodyColumnSql('r.evidence_type', 'r.evidence_id', 'evidence_status') . " AS evidence_status,
-                    COALESCE(pr.processing_status, 'READY') AS transaction_status,
-                    CASE WHEN vx.target_id IS NULL THEN 'WAITING' ELSE 'LINKED' END AS voucher_status,
-                    COALESCE(pr.review_status, 'NORMAL') AS review_status,
-                    CASE
-                        WHEN COALESCE(pr.processing_status, 'READY') IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN pr.processing_status
-                        WHEN tx.target_id IS NOT NULL THEN 'PROCESSED'
-                        ELSE COALESCE(pr.processing_status, 'READY')
-                    END AS process_status,
-                    CASE
-                        WHEN COALESCE(pr.processing_status, 'READY') IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN pr.processing_status
-                        WHEN tx.target_id IS NOT NULL THEN 'PROCESSED'
-                        ELSE COALESCE(pr.processing_status, 'READY')
-                    END AS status,
-                    pr.last_error_message AS error_message,
-                    tx.target_id AS transaction_id,
-                    r.latest_imported_at AS processed_at,
-                    r.created_at,
-                    r.updated_at,
-                    r.deleted_at,
-                    NULL AS file_name,
-                    '' AS format_name
-                FROM ledger_evidence_payloads r
-                LEFT JOIN ledger_evidence_processing pr
-                    ON pr.evidence_type COLLATE utf8mb4_general_ci = r.evidence_type COLLATE utf8mb4_general_ci
-                   AND pr.evidence_id COLLATE utf8mb4_general_ci = r.evidence_id COLLATE utf8mb4_general_ci
-                   AND pr.deleted_at IS NULL
-                LEFT JOIN ledger_evidence_links tx
-                    ON tx.evidence_type COLLATE utf8mb4_general_ci = r.evidence_type COLLATE utf8mb4_general_ci
-                   AND tx.evidence_id COLLATE utf8mb4_general_ci = r.evidence_id COLLATE utf8mb4_general_ci
-                   AND tx.target_type = 'TRANSACTION'
-                   AND tx.deleted_at IS NULL
-                LEFT JOIN ledger_evidence_links vx
-                    ON vx.evidence_type COLLATE utf8mb4_general_ci = r.evidence_type COLLATE utf8mb4_general_ci
-                   AND vx.evidence_id COLLATE utf8mb4_general_ci = r.evidence_id COLLATE utf8mb4_general_ci
-                   AND vx.target_type = 'VOUCHER'
-                   AND vx.deleted_at IS NULL
-            ";
-            $sql .= ' WHERE ' . implode(' AND ', $where);
-            $sql .= ' ' . $this->evidenceRowsOrderSql($importType, $sequenceScope);
-
-            $stmt = $this->pdo->prepare($sql);
-            $stmt->execute($params);
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $bodyQueryTypes = $bodyTableTypes;
         }
-        $this->logTrashListQueryDiagnostics($status, $importType, implode(' AND ', $where), $params, $rows);
-        $this->syncVoucherStatusFromActiveLinks($rows);
+        if ($bodyQueryTypes === []) {
+            return ['payload' => $isServerPaged
+                ? [
+                    'success' => true,
+                    'draw' => (int) ($query['draw'] ?? 0),
+                    'recordsTotal' => 0,
+                    'recordsFiltered' => 0,
+                    'data' => [],
+                ]
+                : ['success' => true, 'data' => []]];
+        }
+        if ($isServerPaged && $filters === []) {
+            $recordsFiltered = $this->evidenceBodyReadService()->countRowsForTypes($bodyQueryTypes, $status, $requestedId);
+        }
+
+        $rows = $this->evidenceBodyReadService()->rowsForTypes($bodyQueryTypes, $status, $requestedId);
+        $this->logTrashListQueryDiagnostics($status, $importType, '', [], $rows);
+        $this->applyActiveVoucherStatus($rows);
         foreach ($rows as &$row) {
             $row['raw_payload'] = json_decode((string) ($row['raw_json'] ?? ''), true) ?: [];
             $row['mapped_payload'] = json_decode((string) ($row['parsed_json'] ?? ''), true) ?: [];
@@ -529,10 +347,7 @@ class EvidenceGenerationService
         if ($filters !== []) {
             $rows = array_values(array_filter($rows, fn(array $row): bool => $this->seedRowMatchesFilters($row, $filters)));
         }
-        if ($useBodyTable) {
-            $recordsFiltered = count($rows);
-        }
-        $responseSortKey = $this->evidenceSortKeyForScope($sequenceScope, $importType);
+        $recordsFiltered = count($rows);
         foreach ($rows as $index => &$row) {
             $row['applied_sort_no'] = max(0, (int) ($row['sort_no'] ?? 0));
             $row['row_no'] = $index + 1;
@@ -548,9 +363,7 @@ class EvidenceGenerationService
         $rows = $this->expandEvidenceRowsWithProcessingItems($rows, $sequenceScope);
 
         if ($isServerPaged) {
-            if ($useBodyTable) {
-                $rows = array_slice($rows, $pageStart, $pageLength);
-            }
+            $rows = array_slice($rows, $pageStart, $pageLength);
             $total = $recordsFiltered ?? count($rows);
             return ['payload' => [
                 'success' => true,
@@ -599,7 +412,7 @@ class EvidenceGenerationService
                 continue;
             }
 
-            $items = $itemModel->getBySource('ledger_evidence_payloads', $evidenceId);
+            $items = $itemModel->getBySourceId($evidenceId);
             $hasSplitStructure = false;
             foreach ($items as $item) {
                 if (trim((string) ($item['parent_item_id'] ?? '')) !== '' || strtoupper((string) ($item['item_status'] ?? '')) === 'SPLIT') {
@@ -692,29 +505,7 @@ class EvidenceGenerationService
         return $expanded;
     }
 
-    private function evidencePageIdsForServerPaging(array $where, array $params, string $importType, int $pageStart, int $pageLength, string $sequenceScope = ''): array
-    {
-        $pageStart = max(0, $pageStart);
-        $pageLength = max(1, min($pageLength, 500));
-        $stmt = $this->pdo->prepare("
-            SELECT r.evidence_id AS id
-            FROM ledger_evidence_payloads r
-            LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type COLLATE utf8mb4_general_ci = r.evidence_type COLLATE utf8mb4_general_ci
-               AND pr.evidence_id COLLATE utf8mb4_general_ci = r.evidence_id COLLATE utf8mb4_general_ci
-            WHERE " . implode(' AND ', $where) . "
-            " . $this->evidenceRowsOrderSql($importType, $sequenceScope) . "
-            LIMIT {$pageLength} OFFSET {$pageStart}
-        ");
-        $stmt->execute($params);
-
-        return array_values(array_filter(array_map(
-            static fn(array $row): string => trim((string) ($row['id'] ?? '')),
-            $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []
-        )));
-    }
-
-    private function syncVoucherStatusFromActiveLinks(array &$rows): void
+    private function applyActiveVoucherStatus(array &$rows): void
     {
         if ($rows === [] || !$this->tableExists('ledger_evidence_links') || !$this->tableExists('ledger_vouchers')) {
             return;
@@ -728,22 +519,7 @@ class EvidenceGenerationService
             return;
         }
 
-        [$inSql, $params] = $this->placeholdersForIds($evidenceIds, 'active_voucher_evidence');
-        $stmt = $this->pdo->prepare("
-            SELECT DISTINCT l.evidence_id
-            FROM ledger_evidence_links l
-            INNER JOIN ledger_vouchers v
-                ON v.id = l.target_id
-               AND v.deleted_at IS NULL
-            WHERE l.deleted_at IS NULL
-              AND l.target_type = 'VOUCHER'
-              AND l.evidence_id IN ({$inSql})
-        ");
-        $stmt->execute($params);
-        $createdEvidenceIds = array_flip(array_filter(array_map(
-            static fn(array $row): string => trim((string) ($row['evidence_id'] ?? '')),
-            $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []
-        )));
+        $createdEvidenceIds = array_flip($this->voucherModel()->findActiveEvidenceIds($evidenceIds));
 
         if ($createdEvidenceIds === []) {
             return;
@@ -756,30 +532,6 @@ class EvidenceGenerationService
             }
         }
         unset($row);
-    }
-
-    private function evidenceRowsOrderSql(string $importType, string $sequenceScope = ''): string
-    {
-        $normalizedType = $this->normalizeDataType($importType);
-        $sortExpr = $this->evidenceBodySortNoSql('r.evidence_type', 'r.evidence_id', 'sort_no');
-        $fallback = "
-            COALESCE(
-                JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.evidence_date')),
-                JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.transaction_date')),
-                DATE(r.latest_imported_at),
-                DATE(r.created_at)
-            ) DESC,
-            r.latest_imported_at DESC,
-            r.created_at DESC,
-            r.evidence_id ASC
-        ";
-
-        return "
-            ORDER BY
-                CASE WHEN {$sortExpr} IS NULL OR {$sortExpr} < 1 THEN 1 ELSE 0 END ASC,
-                {$sortExpr} ASC,
-                {$fallback}
-        ";
     }
 
     private function bankTransactionSortValue(array $row): string
@@ -1038,55 +790,6 @@ class EvidenceGenerationService
         );
     }
 
-    private function evidenceBodyColumnSql(string $typeColumn, string $idColumn, string $columnName): string
-    {
-        $escapedTypeColumn = trim($typeColumn);
-        $escapedIdColumn = trim($idColumn);
-        $escapedColumnName = trim($columnName);
-        $idCompareSql = "body.id COLLATE utf8mb4_general_ci = {$escapedIdColumn} COLLATE utf8mb4_general_ci";
-
-        return "
-            CASE
-                WHEN {$escapedTypeColumn} = 'BANK_TRANSACTION' THEN (
-                    SELECT body.{$escapedColumnName}
-                    FROM ledger_evidence_bank_transaction body
-                    WHERE {$idCompareSql}
-                    LIMIT 1
-                )
-                WHEN {$escapedTypeColumn} = 'TAX_INVOICE' THEN (
-                    SELECT body.{$escapedColumnName}
-                    FROM ledger_evidence_tax_invoice body
-                    WHERE {$idCompareSql}
-                    LIMIT 1
-                )
-                WHEN {$escapedTypeColumn} = 'CASH_RECEIPT' THEN (
-                    SELECT body.{$escapedColumnName}
-                    FROM ledger_evidence_cash_receipt body
-                    WHERE {$idCompareSql}
-                    LIMIT 1
-                )
-                WHEN {$escapedTypeColumn} = 'CARD_HOMETAX' THEN (
-                    SELECT body.{$escapedColumnName}
-                    FROM ledger_evidence_card_hometax body
-                    WHERE {$idCompareSql}
-                    LIMIT 1
-                )
-                WHEN {$escapedTypeColumn} IN ('CARD', 'CARD_STATEMENT', 'CARD_APPROVAL') THEN (
-                    SELECT body.{$escapedColumnName}
-                    FROM ledger_evidence_card_statement body
-                    WHERE {$idCompareSql}
-                    LIMIT 1
-                )
-                ELSE NULL
-            END
-        ";
-    }
-
-    private function evidenceBodySortNoSql(string $typeColumn, string $idColumn, string $sortColumn): string
-    {
-        return $this->evidenceBodyColumnSql($typeColumn, $idColumn, $sortColumn);
-    }
-
     private function evidenceSequenceScopeFromRequest(string $default = '', string $importType = ''): string
     {
         $scope = strtolower(trim((string) ($this->query['sequence_scope'] ?? $this->query['sort_scope'] ?? $default)));
@@ -1101,19 +804,18 @@ class EvidenceGenerationService
     {
         $scope = strtolower(trim($sequenceScope));
         if ($scope === 'create') {
-            return '_create_sort_no';
+            return 'evidence_sort_no';
         }
         if ($scope === 'status') {
-            return '_status_sort_no';
+            return 'sort_no';
         }
 
-        return $this->normalizeDataType($importType) === '' ? '_create_sort_no' : '_status_sort_no';
+        return $this->normalizeDataType($importType) === '' ? 'evidence_sort_no' : 'sort_no';
     }
 
     private function evidenceSortColumnForScope(string $sequenceScope, string $importType = ''): string
     {
-        $key = $this->evidenceSortKeyForScope($sequenceScope, $importType);
-        return $key === '_create_sort_no' ? 'create_sort_no' : 'status_sort_no';
+        return $this->evidenceSortKeyForScope($sequenceScope, $importType);
     }
 
     private function evidenceTypeSortValue(array $row, string $dataType): string
@@ -1202,870 +904,26 @@ class EvidenceGenerationService
         return true;
     }
 
-    private function bankRowsFromBodyTable(string $status, string $requestedId): array
-    {
-        $where = [$status === 'DELETED' ? 'body.deleted_at IS NOT NULL' : 'body.deleted_at IS NULL'];
-        $params = [];
-
-        if ($requestedId !== '') {
-            $where[] = 'body.id COLLATE utf8mb4_general_ci = :requested_id COLLATE utf8mb4_general_ci';
-            $params[':requested_id'] = $requestedId;
-        }
-
-        if ($status === 'READY') {
-            $where[] = "COALESCE(pr.processing_status, 'READY') = 'READY'";
-        } elseif ($status === 'PROCESSED') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'PROCESSED'";
-        } elseif ($status === 'ERROR') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'ERROR'";
-        } elseif ($status === 'DUPLICATED') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'DUPLICATED'";
-        }
-
-        $sql = "
-            SELECT
-                body.*,
-                body.id AS id,
-                'BANK' AS source_type,
-                'BANK_TRANSACTION' AS import_type,
-                st.code_name AS source_type_name,
-                it.code_name AS import_type_name,
-                body.sort_no AS sort_no,
-                body.evidence_sort_no AS evidence_sort_no,
-                NULL AS create_sort_no,
-                NULL AS status_sort_no,
-                0 AS row_no,
-                COALESCE(p.format_id, '') AS format_id,
-                COALESCE(p.raw_json, '') AS raw_json,
-                COALESCE(p.mapped_payload_json, '') AS parsed_json,
-                body.external_key AS source_key,
-                body.raw_transaction_datetime AS evidence_date,
-                body.evidence_status AS evidence_status,
-                COALESCE(pr.processing_status, 'READY') AS transaction_status,
-                CASE WHEN vx.target_id IS NULL THEN 'WAITING' ELSE 'LINKED' END AS voucher_status,
-                COALESCE(pr.review_status, 'NORMAL') AS review_status,
-                CASE
-                    WHEN COALESCE(pr.processing_status, 'READY') IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN pr.processing_status
-                    WHEN tx.target_id IS NOT NULL THEN 'PROCESSED'
-                    ELSE COALESCE(pr.processing_status, 'READY')
-                END AS process_status,
-                CASE
-                    WHEN COALESCE(pr.processing_status, 'READY') IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN pr.processing_status
-                    WHEN tx.target_id IS NOT NULL THEN 'PROCESSED'
-                    ELSE COALESCE(pr.processing_status, 'READY')
-                END AS status,
-                pr.last_error_message AS error_message,
-                tx.target_id AS transaction_id,
-                body.updated_at AS processed_at,
-                body.created_by AS created_by_name,
-                body.updated_by AS updated_by_name,
-                body.deleted_by AS deleted_by_name,
-                body.created_at,
-                body.updated_at,
-                body.deleted_at,
-                '' AS file_name,
-                '' AS format_name
-             FROM ledger_evidence_bank_transaction body
-             LEFT JOIN ledger_evidence_payloads p
-                 ON p.evidence_type COLLATE utf8mb4_general_ci = 'BANK_TRANSACTION' COLLATE utf8mb4_general_ci
-                AND p.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
-                AND p.deleted_at IS NULL
-             LEFT JOIN ledger_evidence_processing pr
-                 ON pr.evidence_type COLLATE utf8mb4_general_ci = 'BANK_TRANSACTION' COLLATE utf8mb4_general_ci
-                AND pr.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
-                AND pr.deleted_at IS NULL
-             LEFT JOIN ledger_evidence_links tx
-                 ON tx.evidence_type COLLATE utf8mb4_general_ci = 'BANK_TRANSACTION' COLLATE utf8mb4_general_ci
-                AND tx.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
-                AND tx.target_type = 'TRANSACTION'
-                AND tx.deleted_at IS NULL
-             LEFT JOIN ledger_evidence_links vx
-                 ON vx.evidence_type COLLATE utf8mb4_general_ci = 'BANK_TRANSACTION' COLLATE utf8mb4_general_ci
-                AND vx.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
-                AND vx.target_type = 'VOUCHER'
-                AND vx.deleted_at IS NULL
-            LEFT JOIN system_codes st
-                ON st.deleted_at IS NULL
-               AND st.is_active = 1
-               AND st.code_group IN ('IMPORT_SOURCE', 'SOURCE_TYPE')
-               AND st.code = 'BANK'
-            LEFT JOIN system_codes it
-                ON it.deleted_at IS NULL
-               AND it.is_active = 1
-               AND it.code_group = 'IMPORT_TYPE'
-               AND it.code = 'BANK_TRANSACTION'
-            WHERE " . implode(' AND ', $where) . "
-            ORDER BY body.sort_no ASC, body.updated_at DESC, body.created_at DESC
-        ";
-
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($params);
-
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        return ActorHelper::enrichActorNames($rows, [
-            'created_by_name' => 'created_by',
-            'updated_by_name' => 'updated_by',
-            'deleted_by_name' => 'deleted_by',
-        ]);
-    }
-
-    private function countBankRowsFromBodyTable(string $status, string $requestedId): int
-    {
-        $where = [$status === 'DELETED' ? 'body.deleted_at IS NOT NULL' : 'body.deleted_at IS NULL'];
-        $params = [];
-
-        if ($requestedId !== '') {
-            $where[] = 'body.id COLLATE utf8mb4_general_ci = :requested_id COLLATE utf8mb4_general_ci';
-            $params[':requested_id'] = $requestedId;
-        }
-
-        if ($status === 'READY') {
-            $where[] = "COALESCE(pr.processing_status, 'READY') = 'READY'";
-        } elseif ($status === 'PROCESSED') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'PROCESSED'";
-        } elseif ($status === 'ERROR') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'ERROR'";
-        } elseif ($status === 'DUPLICATED') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'DUPLICATED'";
-        }
-
-        $stmt = $this->pdo->prepare("
-            SELECT COUNT(*)
-            FROM ledger_evidence_bank_transaction body
-            LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type COLLATE utf8mb4_general_ci = 'BANK_TRANSACTION' COLLATE utf8mb4_general_ci
-               AND pr.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
-               AND pr.deleted_at IS NULL
-            WHERE " . implode(' AND ', $where) . "
-        ");
-        $stmt->execute($params);
-
-        return (int) $stmt->fetchColumn();
-    }
-
-    private function taxRowsFromBodyTable(string $importType, string $status, string $requestedId): array
-    {
-        $normalizedType = $this->normalizeDataType($importType);
-        $isManualTaxInvoice = $normalizedType === 'TAX_INVOICE_MANUAL';
-        $taxTable = $isManualTaxInvoice ? 'ledger_evidence_tax_invoice_manual' : 'ledger_evidence_tax_invoice';
-        $taxEvidenceType = $isManualTaxInvoice ? 'TAX_INVOICE_MANUAL' : 'TAX_INVOICE';
-        $taxSourceTypeFallback = $isManualTaxInvoice ? "'MANUAL'" : "'HOMETAX'";
-        $taxEvidenceDateExpr = $this->firstExistingColumnExpr(
-            $taxTable,
-            'body',
-            ['transaction_date', 'issue_date', 'transmit_date'],
-            'NULL'
-        );
-        $taxSourceKeyExpr = $this->firstExistingColumnExpr(
-            $taxTable,
-            'body',
-            ['external_key', 'source_key', 'approval_number'],
-            "''"
-        );
-        $taxClientIdExpr = $this->firstExistingColumnExpr(
-            $taxTable,
-            'body',
-            ['client_id'],
-            "''"
-        );
-        $taxProjectIdExpr = $this->firstExistingColumnExpr(
-            $taxTable,
-            'body',
-            ['project_id'],
-            "''"
-        );
-        $taxClientNameExpr = $this->firstExistingColumnExpr(
-            $taxTable,
-            'body',
-            ['raw_client_name', 'customer_company_name', 'supplier_company_name', 'description'],
-            "''"
-        );
-        $taxSourceTypeExpr = $this->columnExists($taxTable, 'source_type')
-            ? "CASE WHEN body.source_type LIKE '%MANUAL%' THEN 'MANUAL' ELSE 'HOMETAX' END"
-            : $taxSourceTypeFallback;
-        $where = [$status === 'DELETED' ? 'body.deleted_at IS NOT NULL' : 'body.deleted_at IS NULL'];
-        $params = [];
-
-        if ($requestedId !== '') {
-            $where[] = 'body.id COLLATE utf8mb4_general_ci = :requested_id COLLATE utf8mb4_general_ci';
-            $params[':requested_id'] = $requestedId;
-        }
-
-        if ($status === 'READY') {
-            $where[] = "COALESCE(pr.processing_status, 'READY') = 'READY'";
-        } elseif ($status === 'PROCESSED') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'PROCESSED'";
-        } elseif ($status === 'ERROR') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'ERROR'";
-        } elseif ($status === 'DUPLICATED') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'DUPLICATED'";
-        }
-
-        $sql = "
-            SELECT
-                body.*,
-                body.id AS id,
-                {$taxSourceTypeExpr} AS source_type,
-                '{$taxEvidenceType}' AS import_type,
-                '' AS source_type_name,
-                '' AS import_type_name,
-                body.sort_no AS sort_no,
-                body.evidence_sort_no AS evidence_sort_no,
-                NULL AS create_sort_no,
-                NULL AS status_sort_no,
-                0 AS row_no,
-                COALESCE(p.format_id, '') AS format_id,
-                COALESCE(p.raw_json, '') AS raw_json,
-                COALESCE(p.mapped_payload_json, '') AS parsed_json,
-                {$taxSourceKeyExpr} AS source_key,
-                {$taxEvidenceDateExpr} AS evidence_date,
-                {$taxClientIdExpr} AS client_id,
-                {$taxProjectIdExpr} AS project_id,
-                '' AS employee_id,
-                '' AS bank_account_id,
-                '' AS card_id,
-                '' AS team_id,
-                COALESCE({$taxClientNameExpr}, '') AS client_name,
-                '' AS project_name,
-                '' AS employee_name,
-                '' AS bank_account_name,
-                '' AS card_name,
-                '' AS team_name,
-                body.evidence_status AS evidence_status,
-                COALESCE(pr.processing_status, 'READY') AS transaction_status,
-                CASE WHEN vx.target_id IS NULL THEN 'WAITING' ELSE 'LINKED' END AS voucher_status,
-                COALESCE(pr.review_status, 'NORMAL') AS review_status,
-                CASE
-                    WHEN COALESCE(pr.processing_status, 'READY') IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN pr.processing_status
-                    WHEN tx.target_id IS NOT NULL THEN 'PROCESSED'
-                    ELSE COALESCE(pr.processing_status, 'READY')
-                END AS process_status,
-                CASE
-                    WHEN COALESCE(pr.processing_status, 'READY') IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN pr.processing_status
-                    WHEN tx.target_id IS NOT NULL THEN 'PROCESSED'
-                    ELSE COALESCE(pr.processing_status, 'READY')
-                END AS status,
-                pr.last_error_message AS error_message,
-                tx.target_id AS transaction_id,
-                body.updated_at AS processed_at,
-                body.created_by AS created_by_name,
-                body.updated_by AS updated_by_name,
-                body.deleted_by AS deleted_by_name,
-                body.created_at,
-                body.updated_at,
-                body.deleted_at,
-                '' AS file_name,
-                '' AS format_name
-            FROM {$taxTable} body
-            LEFT JOIN ledger_evidence_payloads p
-                ON p.evidence_type COLLATE utf8mb4_general_ci = '{$taxEvidenceType}' COLLATE utf8mb4_general_ci
-               AND p.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
-               AND p.deleted_at IS NULL
-            LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type COLLATE utf8mb4_general_ci = '{$taxEvidenceType}' COLLATE utf8mb4_general_ci
-               AND pr.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
-               AND pr.deleted_at IS NULL
-            LEFT JOIN ledger_evidence_links tx
-                ON tx.evidence_type COLLATE utf8mb4_general_ci = '{$taxEvidenceType}' COLLATE utf8mb4_general_ci
-               AND tx.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
-               AND tx.target_type = 'TRANSACTION'
-               AND tx.deleted_at IS NULL
-            LEFT JOIN ledger_evidence_links vx
-                ON vx.evidence_type COLLATE utf8mb4_general_ci = '{$taxEvidenceType}' COLLATE utf8mb4_general_ci
-               AND vx.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
-               AND vx.target_type = 'VOUCHER'
-               AND vx.deleted_at IS NULL
-            WHERE " . implode(' AND ', $where) . "
-            ORDER BY body.sort_no ASC, body.updated_at DESC, body.created_at DESC
-        ";
-
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($params);
-
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        return ActorHelper::enrichActorNames($rows, [
-            'created_by_name' => 'created_by',
-            'updated_by_name' => 'updated_by',
-            'deleted_by_name' => 'deleted_by',
-        ]);
-    }
-
-    private function countTaxRowsFromBodyTable(string $importType, string $status, string $requestedId): int
-    {
-        $normalizedType = $this->normalizeDataType($importType);
-        $isManualTaxInvoice = $normalizedType === 'TAX_INVOICE_MANUAL';
-        $taxTable = $isManualTaxInvoice ? 'ledger_evidence_tax_invoice_manual' : 'ledger_evidence_tax_invoice';
-        $taxEvidenceType = $isManualTaxInvoice ? 'TAX_INVOICE_MANUAL' : 'TAX_INVOICE';
-        $where = [$status === 'DELETED' ? 'body.deleted_at IS NOT NULL' : 'body.deleted_at IS NULL'];
-        $params = [];
-
-        if ($requestedId !== '') {
-            $where[] = 'body.id COLLATE utf8mb4_general_ci = :requested_id COLLATE utf8mb4_general_ci';
-            $params[':requested_id'] = $requestedId;
-        }
-
-        if ($status === 'READY') {
-            $where[] = "COALESCE(pr.processing_status, 'READY') = 'READY'";
-        } elseif ($status === 'PROCESSED') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'PROCESSED'";
-        } elseif ($status === 'ERROR') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'ERROR'";
-        } elseif ($status === 'DUPLICATED') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'DUPLICATED'";
-        }
-
-        $stmt = $this->pdo->prepare("
-            SELECT COUNT(*)
-            FROM {$taxTable} body
-            LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type COLLATE utf8mb4_general_ci = '{$taxEvidenceType}' COLLATE utf8mb4_general_ci
-               AND pr.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
-               AND pr.deleted_at IS NULL
-            WHERE " . implode(' AND ', $where) . "
-        ");
-        $stmt->execute($params);
-
-        return (int) $stmt->fetchColumn();
-    }
-
-    private function cardHometaxRowsFromBodyTable(string $status, string $requestedId): array
-    {
-        return $this->cardRowsFromBodyTable(
-            'ledger_evidence_card_hometax',
-            'CARD_HOMETAX',
-            "UPPER(COALESCE(body.source_type, '')) IN ('', 'CARD_HOMETAX', 'CARD_PURCHASE_HOMETAX')",
-            "'HOMETAX'",
-            null,
-            ['external_key', 'source_key', 'approval_number', 'approval_no', 'raw_approval_no', 'raw_approval_number'],
-            ['approval_date', 'billing_date', 'evidence_date', 'purchase_datetime', 'approved_at', 'created_at'],
-            ['purchase_datetime', 'approval_datetime', 'approved_at', 'approval_date', 'approved_date', 'transaction_datetime', 'evidence_date', 'created_at'],
-            ['raw_client_name', 'client_name', 'merchant_company_name'],
-            ['merchant_company_name', 'raw_client_name', 'client_name'],
-            $status,
-            $requestedId
-        );
-    }
-
-    private function countCardHometaxRowsFromBodyTable(string $status, string $requestedId): int
-    {
-        return $this->countCardRowsFromBodyTable('ledger_evidence_card_hometax', 'CARD_HOMETAX', $status, $requestedId);
-    }
-
-    private function cardStatementRowsFromBodyTable(string $status, string $requestedId): array
-    {
-        $sourceWhere = "UPPER(COALESCE(NULLIF(TRIM(body.source_type), ''), 'CARD_STATEMENT')) IN ('CARD_STATEMENT', 'CARD', 'CARD_PURCHASE', 'CARD_COMPANY', 'CREDIT_CARD')";
-
-        return $this->cardRowsFromBodyTable(
-            'ledger_evidence_card_statement',
-            'CARD_STATEMENT',
-            $sourceWhere,
-            "'CARD_COMPANY'",
-            $sourceWhere,
-            ['external_key', 'source_key', 'raw_approval_number', 'raw_approval_no', 'approval_number', 'approval_no', 'raw_purchase_number', 'purchase_number'],
-            ['evidence_date', 'raw_approval_date', 'approval_date', 'raw_billing_date', 'billing_date', 'created_at'],
-            ['raw_approval_date', 'approval_date', 'evidence_date', 'raw_billing_date', 'billing_date', 'created_at'],
-            ['raw_client_name', 'client_name', 'raw_merchant_company_name', 'merchant_company_name'],
-            ['raw_merchant_company_name', 'merchant_company_name', 'raw_client_name', 'client_name'],
-            $status,
-            $requestedId
-        );
-    }
-
-    private function countCardStatementRowsFromBodyTable(string $status, string $requestedId): int
-    {
-        $sourceWhere = "UPPER(COALESCE(NULLIF(TRIM(body.source_type), ''), 'CARD_STATEMENT')) IN ('CARD_STATEMENT', 'CARD', 'CARD_PURCHASE', 'CARD_COMPANY', 'CREDIT_CARD')";
-
-        return $this->countCardRowsFromBodyTable('ledger_evidence_card_statement', 'CARD_STATEMENT', $status, $requestedId, $sourceWhere);
-    }
-
-    private function cardRowsFromBodyTable(
-        string $cardTable,
-        string $evidenceType,
-        string $sourceTypeOutputCondition,
-        string $sourceTypeOutput,
-        ?string $sourceWhere,
-        array $sourceKeyCandidates,
-        array $evidenceDateCandidates,
-        array $purchaseDateTimeCandidates,
-        array $clientNameCandidates,
-        array $merchantNameCandidates,
-        string $status,
-        string $requestedId
-    ): array {
-        $where = [$status === 'DELETED' ? 'body.deleted_at IS NOT NULL' : 'body.deleted_at IS NULL'];
-        $params = [];
-
-        if ($sourceWhere !== null && $this->columnExists($cardTable, 'source_type')) {
-            $where[] = $sourceWhere;
-        }
-
-        if ($requestedId !== '') {
-            $where[] = 'body.id COLLATE utf8mb4_general_ci = :requested_id COLLATE utf8mb4_general_ci';
-            $params[':requested_id'] = $requestedId;
-        }
-
-        if ($status === 'READY') {
-            $where[] = "COALESCE(pr.processing_status, 'READY') = 'READY'";
-        } elseif ($status === 'PROCESSED') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'PROCESSED'";
-        } elseif ($status === 'ERROR') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'ERROR'";
-        } elseif ($status === 'DUPLICATED') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'DUPLICATED'";
-        }
-
-        $cardSourceTypeExpr = $this->columnExists($cardTable, 'source_type')
-            ? "CASE
-                WHEN {$sourceTypeOutputCondition} THEN {$sourceTypeOutput}
-                ELSE body.source_type
-            END"
-            : $sourceTypeOutput;
-        $cardSortNoExpr = $this->firstExistingColumnExpr($cardTable, 'body', ['sort_no'], '0');
-        $cardEvidenceSortNoExpr = $this->firstExistingColumnExpr($cardTable, 'body', ['evidence_sort_no', 'sort_no'], '0');
-        $cardSourceKeyExpr = $this->coalesceExistingColumnExpr($cardTable, 'body', $sourceKeyCandidates, "''");
-        $cardEvidenceDateExpr = $this->firstExistingColumnExpr($cardTable, 'body', $evidenceDateCandidates, 'NULL');
-        $cardPurchaseDateTimeExpr = $this->firstExistingColumnExpr($cardTable, 'body', $purchaseDateTimeCandidates, 'NULL');
-        $cardClientIdExpr = $this->firstExistingColumnExpr($cardTable, 'body', ['client_id'], "''");
-        $cardProjectIdExpr = $this->firstExistingColumnExpr($cardTable, 'body', ['project_id'], "''");
-        $cardEmployeeIdExpr = $this->firstExistingColumnExpr($cardTable, 'body', ['employee_id'], "''");
-        $cardBankAccountIdExpr = $this->firstExistingColumnExpr($cardTable, 'body', ['bank_account_id'], "''");
-        $cardCardIdExpr = $this->firstExistingColumnExpr($cardTable, 'body', ['card_id'], "''");
-        $cardTeamIdExpr = $this->firstExistingColumnExpr($cardTable, 'body', ['team_id'], "''");
-        $cardClientNameExpr = $this->firstExistingColumnExpr($cardTable, 'body', $clientNameCandidates, "''");
-        $cardMerchantNameExpr = $this->firstExistingColumnExpr($cardTable, 'body', $merchantNameCandidates, "''");
-        $cardCreatedAtExpr = $this->firstExistingColumnExpr($cardTable, 'body', ['created_at', 'updated_at'], 'NULL');
-        $cardUpdatedAtExpr = $this->firstExistingColumnExpr($cardTable, 'body', ['updated_at', 'created_at'], 'NULL');
-        $cardDeletedAtExpr = $this->firstExistingColumnExpr($cardTable, 'body', ['deleted_at'], 'NULL');
-
-        $sql = "
-            SELECT
-                body.*,
-                body.id AS id,
-                {$cardSourceTypeExpr} AS source_type,
-                '{$evidenceType}' AS import_type,
-                '' AS source_type_name,
-                '' AS import_type_name,
-                {$cardSortNoExpr} AS sort_no,
-                {$cardEvidenceSortNoExpr} AS evidence_sort_no,
-                NULL AS create_sort_no,
-                NULL AS status_sort_no,
-                0 AS row_no,
-                COALESCE(p.format_id, '') AS format_id,
-                COALESCE(p.raw_json, '') AS raw_json,
-                COALESCE(p.mapped_payload_json, '') AS parsed_json,
-                {$cardSourceKeyExpr} AS external_key,
-                {$cardSourceKeyExpr} AS source_key,
-                {$cardEvidenceDateExpr} AS evidence_date,
-                {$cardEvidenceDateExpr} AS transaction_date,
-                {$cardPurchaseDateTimeExpr} AS purchase_datetime,
-                {$cardClientIdExpr} AS client_id,
-                {$cardProjectIdExpr} AS project_id,
-                {$cardEmployeeIdExpr} AS employee_id,
-                {$cardBankAccountIdExpr} AS bank_account_id,
-                {$cardCardIdExpr} AS card_id,
-                {$cardTeamIdExpr} AS team_id,
-                COALESCE({$cardClientNameExpr}, {$cardMerchantNameExpr}, '') AS client_name,
-                '' AS project_name,
-                '' AS employee_name,
-                '' AS bank_account_name,
-                '' AS card_name,
-                '' AS team_name,
-                body.evidence_status AS evidence_status,
-                COALESCE(pr.processing_status, 'READY') AS transaction_status,
-                CASE WHEN vx.target_id IS NULL THEN 'WAITING' ELSE 'LINKED' END AS voucher_status,
-                COALESCE(pr.review_status, 'NORMAL') AS review_status,
-                CASE
-                    WHEN COALESCE(pr.processing_status, 'READY') IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN pr.processing_status
-                    WHEN tx.target_id IS NOT NULL THEN 'PROCESSED'
-                    ELSE COALESCE(pr.processing_status, 'READY')
-                END AS process_status,
-                CASE
-                    WHEN COALESCE(pr.processing_status, 'READY') IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN pr.processing_status
-                    WHEN tx.target_id IS NOT NULL THEN 'PROCESSED'
-                    ELSE COALESCE(pr.processing_status, 'READY')
-                END AS status,
-                pr.last_error_message AS error_message,
-                tx.target_id AS transaction_id,
-                {$cardUpdatedAtExpr} AS processed_at,
-                body.created_by AS created_by_name,
-                body.updated_by AS updated_by_name,
-                body.deleted_by AS deleted_by_name,
-                {$cardCreatedAtExpr} AS created_at,
-                {$cardUpdatedAtExpr} AS updated_at,
-                {$cardDeletedAtExpr} AS deleted_at,
-                '' AS file_name,
-                '' AS format_name
-            FROM {$cardTable} body
-            LEFT JOIN ledger_evidence_payloads p
-                ON p.evidence_type COLLATE utf8mb4_general_ci = '{$evidenceType}' COLLATE utf8mb4_general_ci
-               AND p.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
-               AND p.deleted_at IS NULL
-            LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type COLLATE utf8mb4_general_ci = '{$evidenceType}' COLLATE utf8mb4_general_ci
-               AND pr.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
-               AND pr.deleted_at IS NULL
-            LEFT JOIN ledger_evidence_links tx
-                ON tx.evidence_type COLLATE utf8mb4_general_ci = '{$evidenceType}' COLLATE utf8mb4_general_ci
-               AND tx.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
-               AND tx.target_type = 'TRANSACTION'
-               AND tx.deleted_at IS NULL
-            LEFT JOIN ledger_evidence_links vx
-                ON vx.evidence_type COLLATE utf8mb4_general_ci = '{$evidenceType}' COLLATE utf8mb4_general_ci
-               AND vx.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
-               AND vx.target_type = 'VOUCHER'
-               AND vx.deleted_at IS NULL
-            WHERE " . implode(' AND ', $where) . "
-            ORDER BY sort_no ASC, updated_at DESC, created_at DESC
-        ";
-
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($params);
-
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        return ActorHelper::enrichActorNames($rows, [
-            'created_by_name' => 'created_by',
-            'updated_by_name' => 'updated_by',
-            'deleted_by_name' => 'deleted_by',
-        ]);
-    }
-
-    private function countCardRowsFromBodyTable(
-        string $cardTable,
-        string $evidenceType,
-        string $status,
-        string $requestedId,
-        ?string $sourceWhere = null
-    ): int {
-        $where = [$status === 'DELETED' ? 'body.deleted_at IS NOT NULL' : 'body.deleted_at IS NULL'];
-        $params = [];
-
-        if ($sourceWhere !== null && $this->columnExists($cardTable, 'source_type')) {
-            $where[] = $sourceWhere;
-        }
-
-        if ($requestedId !== '') {
-            $where[] = 'body.id COLLATE utf8mb4_general_ci = :requested_id COLLATE utf8mb4_general_ci';
-            $params[':requested_id'] = $requestedId;
-        }
-
-        if ($status === 'READY') {
-            $where[] = "COALESCE(pr.processing_status, 'READY') = 'READY'";
-        } elseif ($status === 'PROCESSED') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'PROCESSED'";
-        } elseif ($status === 'ERROR') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'ERROR'";
-        } elseif ($status === 'DUPLICATED') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'DUPLICATED'";
-        }
-
-        $stmt = $this->pdo->prepare("
-            SELECT COUNT(*)
-            FROM {$cardTable} body
-            LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type COLLATE utf8mb4_general_ci = '{$evidenceType}' COLLATE utf8mb4_general_ci
-               AND pr.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
-               AND pr.deleted_at IS NULL
-            WHERE " . implode(' AND ', $where) . "
-        ");
-        $stmt->execute($params);
-
-        return (int) $stmt->fetchColumn();
-    }
-
-    private function cashRowsFromBodyTable(string $importType, string $status, string $requestedId): array
-    {
-        $cashEvidenceType = 'CASH_RECEIPT';
-        $cashEvidenceTypes = $this->cashEvidenceTypesForBodyQuery($cashEvidenceType);
-        $cashEvidenceTypeList = $this->sqlStringList($cashEvidenceTypes);
-        $cashTable = 'ledger_evidence_cash_receipt';
-        $cashSortNoExpr = $this->firstExistingColumnExpr($cashTable, 'body', ['sort_no'], '0');
-        $cashEvidenceSortNoExpr = $this->firstExistingColumnExpr($cashTable, 'body', ['evidence_sort_no', 'sort_no'], '0');
-        $cashSourceKeyExpr = $this->firstExistingColumnExpr($cashTable, 'body', ['external_key', 'source_key', 'approval_number'], "''");
-        $cashEvidenceDateExpr = $this->firstExistingColumnExpr($cashTable, 'body', ['evidence_date', 'transaction_date', 'purchase_date', 'write_date', 'created_at'], 'NULL');
-        $cashPurchaseDateTimeExpr = $this->firstExistingColumnExpr($cashTable, 'body', ['write_date', 'purchase_datetime', 'purchase_at', 'transaction_datetime', 'evidence_date', 'created_at'], 'NULL');
-        $cashClientIdExpr = $this->firstExistingColumnExpr($cashTable, 'body', ['client_id'], "''");
-        $cashProjectIdExpr = $this->firstExistingColumnExpr($cashTable, 'body', ['project_id'], "''");
-        $cashClientNameExpr = $this->firstExistingColumnExpr($cashTable, 'body', ['raw_client_name', 'client_name', 'merchant_company_name'], "''");
-        $cashMerchantNameExpr = $this->firstExistingColumnExpr($cashTable, 'body', ['merchant_company_name', 'raw_client_name', 'client_name'], "''");
-        $cashUpdatedAtExpr = $this->firstExistingColumnExpr($cashTable, 'body', ['updated_at', 'created_at'], 'NULL');
-        $cashCreatedAtExpr = $this->firstExistingColumnExpr($cashTable, 'body', ['created_at', 'updated_at'], 'NULL');
-        $cashDeletedAtExpr = $this->firstExistingColumnExpr($cashTable, 'body', ['deleted_at'], 'NULL');
-        $where = [$status === 'DELETED' ? 'body.deleted_at IS NOT NULL' : 'body.deleted_at IS NULL'];
-        $params = [];
-
-        if ($requestedId !== '') {
-            $where[] = 'body.id COLLATE utf8mb4_general_ci = :requested_id COLLATE utf8mb4_general_ci';
-            $params[':requested_id'] = $requestedId;
-        }
-
-        if ($this->columnExists('ledger_evidence_cash_receipt', 'transaction_direction')) {
-            $where[] = $this->cashBodySourceWhereSql($cashEvidenceType);
-        }
-
-        if ($status === 'READY') {
-            $where[] = "COALESCE(pr.processing_status, 'READY') = 'READY'";
-        } elseif ($status === 'PROCESSED') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'PROCESSED'";
-        } elseif ($status === 'ERROR') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'ERROR'";
-        } elseif ($status === 'DUPLICATED') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'DUPLICATED'";
-        }
-
-        $sql = "
-            SELECT
-                body.*,
-                body.id AS id,
-                'HOMETAX' AS source_type,
-                'CASH_RECEIPT' AS import_type,
-                '' AS source_type_name,
-                '' AS import_type_name,
-                {$cashSortNoExpr} AS sort_no,
-                {$cashEvidenceSortNoExpr} AS evidence_sort_no,
-                NULL AS create_sort_no,
-                NULL AS status_sort_no,
-                0 AS row_no,
-                COALESCE(p.format_id, '') AS format_id,
-                COALESCE(p.raw_json, '') AS raw_json,
-                COALESCE(p.mapped_payload_json, '') AS parsed_json,
-                {$cashSourceKeyExpr} AS source_key,
-                {$cashEvidenceDateExpr} AS evidence_date,
-                {$cashEvidenceDateExpr} AS transaction_date,
-                {$cashPurchaseDateTimeExpr} AS purchase_datetime,
-                {$cashClientIdExpr} AS client_id,
-                {$cashProjectIdExpr} AS project_id,
-                '' AS employee_id,
-                '' AS bank_account_id,
-                '' AS card_id,
-                '' AS team_id,
-                COALESCE({$cashClientNameExpr}, {$cashMerchantNameExpr}, '') AS client_name,
-                '' AS project_name,
-                '' AS employee_name,
-                '' AS bank_account_name,
-                '' AS card_name,
-                '' AS team_name,
-                body.evidence_status AS evidence_status,
-                COALESCE(pr.processing_status, 'READY') AS transaction_status,
-                CASE WHEN vx.target_id IS NULL THEN 'WAITING' ELSE 'LINKED' END AS voucher_status,
-                COALESCE(pr.review_status, 'NORMAL') AS review_status,
-                CASE
-                    WHEN COALESCE(pr.processing_status, 'READY') IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN pr.processing_status
-                    WHEN tx.target_id IS NOT NULL THEN 'PROCESSED'
-                    ELSE COALESCE(pr.processing_status, 'READY')
-                END AS process_status,
-                CASE
-                    WHEN COALESCE(pr.processing_status, 'READY') IN ('ERROR', 'DUPLICATED', 'PROCESSING', 'PROCESSED') THEN pr.processing_status
-                    WHEN tx.target_id IS NOT NULL THEN 'PROCESSED'
-                    ELSE COALESCE(pr.processing_status, 'READY')
-                END AS status,
-                pr.last_error_message AS error_message,
-                tx.target_id AS transaction_id,
-                {$cashUpdatedAtExpr} AS processed_at,
-                body.created_by AS created_by_name,
-                body.updated_by AS updated_by_name,
-                body.deleted_by AS deleted_by_name,
-                {$cashCreatedAtExpr} AS created_at,
-                {$cashUpdatedAtExpr} AS updated_at,
-                {$cashDeletedAtExpr} AS deleted_at,
-                '' AS file_name,
-                '' AS format_name
-            FROM {$cashTable} body
-            LEFT JOIN ledger_evidence_payloads p
-                ON p.evidence_type COLLATE utf8mb4_general_ci IN ({$cashEvidenceTypeList})
-               AND p.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
-               AND p.deleted_at IS NULL
-            LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type COLLATE utf8mb4_general_ci IN ({$cashEvidenceTypeList})
-               AND pr.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
-               AND pr.deleted_at IS NULL
-            LEFT JOIN ledger_evidence_links tx
-                ON tx.evidence_type COLLATE utf8mb4_general_ci IN ({$cashEvidenceTypeList})
-               AND tx.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
-               AND tx.target_type = 'TRANSACTION'
-               AND tx.deleted_at IS NULL
-            LEFT JOIN ledger_evidence_links vx
-                ON vx.evidence_type COLLATE utf8mb4_general_ci IN ({$cashEvidenceTypeList})
-               AND vx.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
-               AND vx.target_type = 'VOUCHER'
-               AND vx.deleted_at IS NULL
-            WHERE " . implode(' AND ', $where) . "
-            ORDER BY sort_no ASC, updated_at DESC, created_at DESC
-        ";
-
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($params);
-
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        return ActorHelper::enrichActorNames($rows, [
-            'created_by_name' => 'created_by',
-            'updated_by_name' => 'updated_by',
-            'deleted_by_name' => 'deleted_by',
-        ]);
-    }
-
-    private function countCashRowsFromBodyTable(string $importType, string $status, string $requestedId): int
-    {
-        $cashEvidenceType = 'CASH_RECEIPT';
-        $cashEvidenceTypes = $this->cashEvidenceTypesForBodyQuery($cashEvidenceType);
-        $cashEvidenceTypeList = $this->sqlStringList($cashEvidenceTypes);
-        $where = [$status === 'DELETED' ? 'body.deleted_at IS NOT NULL' : 'body.deleted_at IS NULL'];
-        $params = [];
-
-        if ($requestedId !== '') {
-            $where[] = 'body.id COLLATE utf8mb4_general_ci = :requested_id COLLATE utf8mb4_general_ci';
-            $params[':requested_id'] = $requestedId;
-        }
-
-        if ($this->columnExists('ledger_evidence_cash_receipt', 'transaction_direction')) {
-            $where[] = $this->cashBodySourceWhereSql($cashEvidenceType);
-        }
-
-        if ($status === 'READY') {
-            $where[] = "COALESCE(pr.processing_status, 'READY') = 'READY'";
-        } elseif ($status === 'PROCESSED') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'PROCESSED'";
-        } elseif ($status === 'ERROR') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'ERROR'";
-        } elseif ($status === 'DUPLICATED') {
-            $where[] = "COALESCE(pr.processing_status, '') = 'DUPLICATED'";
-        }
-
-        $stmt = $this->pdo->prepare("
-            SELECT COUNT(DISTINCT body.id)
-            FROM ledger_evidence_cash_receipt body
-            LEFT JOIN ledger_evidence_payloads p
-                ON p.evidence_type COLLATE utf8mb4_general_ci IN ({$cashEvidenceTypeList})
-               AND p.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
-               AND p.deleted_at IS NULL
-            LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type COLLATE utf8mb4_general_ci IN ({$cashEvidenceTypeList})
-               AND pr.evidence_id COLLATE utf8mb4_general_ci = body.id COLLATE utf8mb4_general_ci
-               AND pr.deleted_at IS NULL
-            WHERE " . implode(' AND ', $where) . "
-        ");
-        $stmt->execute($params);
-
-        return (int) $stmt->fetchColumn();
-    }
-
-    private function cashEvidenceTypesForBodyQuery(string $importType): array
-    {
-        return ['CASH_RECEIPT'];
-    }
-
-    private function cashBodySourceWhereSql(string $importType): string
-    {
-        return "UPPER(COALESCE(body.transaction_direction, '')) COLLATE utf8mb4_general_ci <> 'INCOME'";
-    }
-
-    private function sqlStringList(array $values): string
-    {
-        $quoted = [];
-        foreach ($values as $value) {
-            $value = trim((string) $value);
-            if ($value === '') {
-                continue;
-            }
-            $quoted[] = $this->pdo->quote($value);
-        }
-
-        return $quoted !== [] ? implode(', ', $quoted) : "''";
-    }
-
-    private function payloadEvidenceTypeCounts(): array
-    {
-        $counts = [];
-
-        if (!$this->tableExists('ledger_evidence_payloads')) {
-            return $counts;
-        }
-
-        $stmt = $this->pdo->query("
-            SELECT evidence_type, COUNT(*) AS row_count
-            FROM ledger_evidence_payloads
-            WHERE deleted_at IS NULL
-            GROUP BY evidence_type
-        ");
-
-        foreach (($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []) as $row) {
-            $type = $this->normalizeDataType((string) ($row['evidence_type'] ?? ''));
-            if ($type === '') {
-                continue;
-            }
-            if (in_array($type, ['CASH_RECEIPT_PURCHASE', 'CASH_RECEIPT_SALES'], true)) {
-                $type = 'CASH_RECEIPT';
-            }
-
-            $counts[$type] = (int) ($counts[$type] ?? 0) + (int) ($row['row_count'] ?? 0);
-        }
-
-        return $counts;
-    }
-
-    private function bodyEvidenceTypeCounts(): array
-    {
-        $counts = [];
-
-        if ($this->tableExists('ledger_evidence_bank_transaction')) {
-            $counts['BANK_TRANSACTION'] = $this->simpleTableCount('ledger_evidence_bank_transaction');
-        }
-
-        if ($this->tableExists('ledger_evidence_tax_invoice')) {
-            $counts['TAX_INVOICE'] = $this->simpleTableCount('ledger_evidence_tax_invoice');
-        }
-
-        if ($this->tableExists('ledger_evidence_tax_invoice_manual')) {
-            $counts['TAX_INVOICE_MANUAL'] = $this->simpleTableCount('ledger_evidence_tax_invoice_manual');
-        }
-
-        if ($this->tableExists('ledger_evidence_cash_receipt')) {
-            $counts['CASH_RECEIPT'] = $this->conditionalTableCount(
-                'ledger_evidence_cash_receipt',
-                "UPPER(COALESCE(import_type, '')) COLLATE utf8mb4_general_ci <> 'CASH_RECEIPT_SALES'
-                 AND UPPER(COALESCE(transaction_direction, '')) COLLATE utf8mb4_general_ci <> 'INCOME'"
-            );
-        }
-
-        if ($this->tableExists('ledger_evidence_card_hometax')) {
-            $count = $this->columnExists('ledger_evidence_card_hometax', 'source_type')
-                ? $this->conditionalTableCount('ledger_evidence_card_hometax', "UPPER(COALESCE(source_type, 'CARD_HOMETAX')) = 'CARD_HOMETAX'")
-                : $this->simpleTableCount('ledger_evidence_card_hometax');
-            $counts['CARD_HOMETAX'] = $count;
-        }
-
-        if ($this->tableExists('ledger_evidence_card_statement')) {
-            if ($this->columnExists('ledger_evidence_card_statement', 'source_type')) {
-                $counts['CARD_STATEMENT'] = $this->conditionalTableCount(
-                    'ledger_evidence_card_statement',
-                    "UPPER(COALESCE(source_type, 'CARD_STATEMENT')) IN ('CARD_STATEMENT', 'CARD', 'CARD_PURCHASE', 'CARD_COMPANY', 'CREDIT_CARD')"
-                );
-                $counts['CARD_APPROVAL'] = $this->conditionalTableCount(
-                    'ledger_evidence_card_statement',
-                    "UPPER(COALESCE(source_type, '')) = 'CARD_APPROVAL'"
-                );
-            } else {
-                $counts['CARD_STATEMENT'] = $this->simpleTableCount('ledger_evidence_card_statement');
-            }
-        }
-
-        return $counts;
-    }
-
-    private function simpleTableCount(string $tableName): int
-    {
-        $stmt = $this->pdo->query("SELECT COUNT(*) FROM `{$tableName}` WHERE deleted_at IS NULL");
-        return (int) $stmt->fetchColumn();
-    }
-
-    private function conditionalTableCount(string $tableName, string $conditionSql): int
-    {
-        $stmt = $this->pdo->query("SELECT COUNT(*) FROM `{$tableName}` WHERE deleted_at IS NULL AND {$conditionSql}");
-        return (int) $stmt->fetchColumn();
-    }
-
     private function logTrashListQueryDiagnostics(string $status, string $importType, string $whereSql, array $params, array $rows): void
     {
         if (strtoupper($status) !== 'DELETED') {
+            return;
+        }
+
+        if (!$this->tableExists('ledger_evidence_payloads')) {
+            error_log('[EvidenceGenerationService] trash_list_query=' . json_encode([
+                'request_import_type' => $importType,
+                'resolved_evidence_types' => $importType !== '' ? [$importType] : [],
+                'list_table' => null,
+                'where_sql' => $whereSql,
+                'binding_params' => $params,
+                'row_count' => count($rows),
+                'id_sample' => array_slice(array_values(array_filter(array_map(
+                    static fn(array $row): string => (string) ($row['id'] ?? ''),
+                    $rows
+                ))), 0, 5),
+                'sample_row' => null,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
             return;
         }
 
@@ -2083,31 +941,19 @@ class EvidenceGenerationService
         ];
         error_log('[EvidenceGenerationService] trash_list_query=' . json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
-        $sampleStmt = $this->pdo->prepare("
-            SELECT
-                r.*,
-                r.evidence_type AS debug_import_type,
-                r.evidence_type AS debug_evidence_type,
-                JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.data_type')) AS debug_data_type,
-                JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.import_type')) AS debug_payload_import_type,
-                JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.source_type')) AS debug_source_type,
-                COALESCE(pr.processing_status, 'READY') AS debug_status,
-                CASE WHEN r.deleted_at IS NULL THEN 0 ELSE 1 END AS debug_is_deleted
-            FROM ledger_evidence_payloads r
-            LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type COLLATE utf8mb4_general_ci = r.evidence_type COLLATE utf8mb4_general_ci
-               AND pr.evidence_id COLLATE utf8mb4_general_ci = r.evidence_id COLLATE utf8mb4_general_ci
-               AND pr.deleted_at IS NULL
-            WHERE {$whereSql}
-            ORDER BY r.deleted_at DESC, r.updated_at DESC, r.created_at DESC
-            LIMIT 1
-        ");
-        $sampleStmt->execute($params);
-        $sampleRow = $sampleStmt->fetch(\PDO::FETCH_ASSOC) ?: null;
         error_log('[EvidenceGenerationService] trash_list_sample_row=' . json_encode([
             'list_table' => 'ledger_evidence_payloads',
-            'sample_row' => $sampleRow,
+            'sample_row' => null,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    private function voucherModel(): VoucherModel
+    {
+        if ($this->voucherModel === null) {
+            $this->voucherModel = new VoucherModel($this->pdo);
+        }
+
+        return $this->voucherModel;
     }
 
     private function seedRowFilterValue(array $row, string $field): string
@@ -2165,4 +1011,5 @@ class EvidenceGenerationService
             $row[$key] = $value;
         }
     }
+
 }

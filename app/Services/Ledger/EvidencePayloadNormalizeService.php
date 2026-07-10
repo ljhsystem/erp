@@ -51,6 +51,9 @@ class EvidencePayloadNormalizeService
         if (!isset($mapped['write_date']) && isset($mapped['evidence_date'])) {
             $mapped['write_date'] = $mapped['evidence_date'];
         }
+        if (!isset($mapped['purchase_datetime']) && isset($mapped['raw_purchase_datetime'])) {
+            $mapped['purchase_datetime'] = $mapped['raw_purchase_datetime'];
+        }
         if (!isset($mapped['approval_number']) && isset($mapped['source_key'])) {
             $mapped['approval_number'] = $mapped['source_key'];
         }
@@ -67,6 +70,7 @@ class EvidencePayloadNormalizeService
         $aliases = [
             'evidence_date' => ['raw_written_date', 'written_date', 'write_date', 'raw_issue_date', 'issue_date'],
             'transaction_date' => ['raw_issue_date', 'issue_date', 'raw_written_date', 'written_date'],
+            'purchase_datetime' => ['raw_purchase_datetime'],
             'approval_number' => ['raw_approval_no'],
             'issue_date' => ['raw_issue_date'],
             'transmit_date' => ['raw_transmit_date'],
@@ -155,6 +159,7 @@ class EvidencePayloadNormalizeService
             'counterparty_account_number' => ['counterparty_account_number', 'counterparty_account_no', 'account_number'],
             'counterparty_bank_name' => ['counterparty_bank_name', 'counterparty_bank', 'bank_name'],
             'counterparty_bank' => ['counterparty_bank', 'counterparty_bank_name', 'bank_name'],
+            'purchase_datetime' => ['purchase_datetime', 'raw_purchase_datetime', 'write_date'],
             'client_company_name' => ['client_company_name', 'counterparty_name', '가맹점', '가맹점명', '사용처'],
         ];
 
@@ -417,10 +422,19 @@ class EvidencePayloadNormalizeService
         ];
 
         foreach ($rawPriorityMap as $rawKey => $targetKeys) {
-            if (array_key_exists($rawKey, $mapped)) {
-                $rawValue = $this->payloadScalarForStorage($mapped[$rawKey] ?? null);
+            $normalizedValue = null;
+            foreach ($targetKeys as $targetKey) {
+                $candidate = $this->payloadScalarForStorage($mapped[$targetKey] ?? null);
+                if ($candidate !== null && trim((string) $candidate) !== '') {
+                    $normalizedValue = $candidate;
+                    break;
+                }
+            }
+
+            if ($normalizedValue !== null) {
+                $mapped[$rawKey] = $normalizedValue;
                 foreach ($targetKeys as $targetKey) {
-                    $mapped[$targetKey] = $rawValue ?? '';
+                    $mapped[$targetKey] = $normalizedValue;
                 }
                 continue;
             }
@@ -558,7 +572,7 @@ class EvidencePayloadNormalizeService
 
     private function isMappedDateTimeKey(string $key): bool
     {
-        return in_array($key, ['transaction_datetime', 'approved_at', 'approval_datetime'], true);
+        return in_array($key, ['transaction_datetime', 'approved_at', 'approval_datetime', 'purchase_datetime', 'raw_purchase_datetime', 'write_date'], true);
     }
 
     private function mappedDateTimeValueOrNull(mixed $value): ?string

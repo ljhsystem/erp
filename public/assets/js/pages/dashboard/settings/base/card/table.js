@@ -29,6 +29,7 @@ export function createCardTableModule({
             },
             tableSettings: {
                 pageKey: 'dashboard.settings.base-info.card',
+                userSettingPageKey: 'card',
                 tableKey: 'card-table',
                 storageKey: 'datatable.settings.dashboard.settings.base-info.card.card-table.v1',
                 metaDomain: 'card',

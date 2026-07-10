@@ -323,13 +323,13 @@ class JournalRecommendationService
         if ($transactionId === '') {
             return [];
         }
+        if (!$this->tableExists('ledger_data_evidences')) {
+            return [];
+        }
 
         $stmt = $this->pdo->prepare("
-            SELECT e.source_type, p.mapped_payload_json AS parsed_json
+            SELECT e.source_type, e.mapped_payload_json AS parsed_json
             FROM ledger_data_evidences e
-            JOIN ledger_evidence_payloads p
-              ON p.evidence_type = e.source_type COLLATE utf8mb4_unicode_ci
-             AND p.evidence_id = e.id COLLATE utf8mb4_unicode_ci
             WHERE e.transaction_id = :transaction_id
               AND e.deleted_at IS NULL
             ORDER BY e.latest_imported_at DESC, e.created_at DESC
@@ -405,10 +405,10 @@ class JournalRecommendationService
             return null;
         }
 
-        if ($this->tableExists('ledger_client_account_patterns')) {
+        if ($this->tableExists('ledger_journal_client_account_patterns')) {
             $stmt = $this->pdo->prepare("
                 SELECT a.*, p.usage_count AS pattern_usage_count
-                FROM ledger_client_account_patterns p
+                FROM ledger_journal_client_account_patterns p
                 INNER JOIN ledger_accounts a
                     ON a.id = p.account_id
                    AND a.deleted_at IS NULL
@@ -461,7 +461,7 @@ class JournalRecommendationService
 
     private function recentPatternPair(array $transaction, array $context): array
     {
-        if (!$this->tableExists('ledger_recent_journal_patterns')) {
+        if (!$this->tableExists('ledger_journal_recent_patterns')) {
             return [];
         }
 
@@ -477,7 +477,7 @@ class JournalRecommendationService
                 ca.account_code AS credit_code,
                 ca.account_name AS credit_name,
                 ca.account_group AS credit_group
-            FROM ledger_recent_journal_patterns p
+            FROM ledger_journal_recent_patterns p
             INNER JOIN ledger_accounts da
                 ON BINARY da.id = BINARY p.debit_account_id
                AND da.deleted_at IS NULL

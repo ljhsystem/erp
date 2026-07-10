@@ -141,8 +141,7 @@
                                             id="modal_contract_method"
                                             class="form-select form-select-sm"
                                             data-code-group="CONTRACT_METHOD"
-                                            data-empty-label="계약방식선택"
-                                            data-none-option-label="선택(없음)">
+                                            data-empty-label="계약방식선택">
                                         <option value="">계약방식선택</option>
                                     </select>
                                 </div>

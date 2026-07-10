@@ -12,11 +12,12 @@ export function manageButtonRenderer(row = {}, options = {}) {
         ? options.escapeHtml
         : defaultEscapeHtml;
     const id = escape(row?.id ?? '');
+
     return `
         <button type="button"
-                class="btn btn-outline-primary btn-sm seed-row-edit-btn"
+                class="btn btn-outline-primary btn-sm dt-manage-edit-btn seed-row-edit-btn"
                 data-id="${id}">
-            \\uC218\\uC815
+            \uC218\uC815
         </button>
     `;
 }

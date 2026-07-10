@@ -9,6 +9,7 @@ import {
     resolveDataTableColumnDisplayName,
     resolveDataTableColumnRequirementPolicy,
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
+import { writeSystemUserSettingsStorage } from '/public/assets/js/common/user-settings/systemUserSettingsStorage.js';
 import {
     initCodeSelectControls,
     onCodeOptionsLoaded,
@@ -27,6 +28,7 @@ import '/public/assets/js/components/trash-manager.js';
         status: '/api/ledger/journal-rules/status',
         reorder: '/api/ledger/journal-rules/reorder',
         businessUnits: '/api/settings/system/code/list?code_group=BUSINESS_UNIT&filters=[]',
+        operationTypes: '/api/settings/system/code/list?code_group=OPERATION_TYPE&filters=[]',
         importTypes: '/api/settings/system/code/list?code_group=IMPORT_TYPE&filters=[]',
         transactionDirections: '/api/settings/system/code/list?code_group=TRANSACTION_DIRECTION&filters=[]',
         clientTypes: '/api/settings/system/code/list?code_group=CLIENT_TYPE&filters=[]',
@@ -35,24 +37,31 @@ import '/public/assets/js/components/trash-manager.js';
 
     const CODE_GROUPS = {
         BUSINESS_UNIT: 'businessUnits',
+        OPERATION_TYPE: 'operationTypes',
         IMPORT_TYPE: 'importTypes',
         TRANSACTION_DIRECTION: 'transactionDirections',
         CLIENT_TYPE: 'clientTypes',
     };
 
     const JOURNAL_RULE_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.ledger.journal-rules.journal-rule-table.v1';
+    const JOURNAL_RULE_USER_SETTING_PAGE_KEY = 'ledger-journal-rule';
+    const JOURNAL_RULE_META_DOMAIN = 'ledger-journal-rule';
     const JOURNAL_RULE_COLUMN_ORDER = [
         'id',
         'sort_no',
         'rule_code',
         'rule_name',
+        'import_type',
         'business_unit',
         'transaction_direction',
+        'operation_type',
         'client_type',
-        'import_type',
         'debit_account_id',
         'credit_account_id',
         'vat_account_id',
+        'usage_count',
+        'last_used_at',
+        'confidence_score',
         'description',
         'is_active',
         'created_at',
@@ -66,6 +75,7 @@ import '/public/assets/js/components/trash-manager.js';
         { selector: '#journalRuleModal [name="rule_code"]', key: 'rule_code' },
         { selector: '#journalRuleModal [name="rule_name"]', key: 'rule_name' },
         { selector: '#journalRuleModal [name="business_unit"]', key: 'business_unit' },
+        { selector: '#journalRuleModal [name="operation_type"]', key: 'operation_type' },
         { selector: '#journalRuleModal [name="transaction_direction"]', key: 'transaction_direction' },
         { selector: '#journalRuleModal [name="client_type"]', key: 'client_type' },
         { selector: '#journalRuleModal [name="import_type"]', key: 'import_type' },
@@ -80,6 +90,7 @@ import '/public/assets/js/components/trash-manager.js';
     let modal = null;
     let excelModal = null;
     let businessUnits = [];
+    let operationTypes = [];
     let importTypes = [];
     let transactionDirections = [];
     let clientTypes = [];
@@ -171,11 +182,48 @@ import '/public/assets/js/components/trash-manager.js';
         form.dataset.uploadUrl = '/api/ledger/journal-rules/excel-upload';
 
         createExcelManagerSettingsCore({
-            domain: 'ledger-journal-rule',
+            domain: JOURNAL_RULE_USER_SETTING_PAGE_KEY,
+            userSettingPageKey: JOURNAL_RULE_USER_SETTING_PAGE_KEY,
             formSelector: '#journal-rule-excel-upload-form',
-            tableSettingsStorageKey: JOURNAL_RULE_TABLE_SETTINGS_STORAGE_KEY,
-            tableSettingsMetaDomain: 'ledger-journal-rule',
+            metaDomain: JOURNAL_RULE_META_DOMAIN,
         });
+    }
+
+    function sanitizeJournalRuleTableSettingsState() {
+        try {
+            const parsed = readDataTableSettingsState(JOURNAL_RULE_TABLE_SETTINGS_STORAGE_KEY, {
+                userSettingPageKey: JOURNAL_RULE_USER_SETTING_PAGE_KEY,
+            });
+            if (!parsed || typeof parsed !== 'object') return;
+
+            let changed = false;
+            const nextState = { ...parsed };
+
+            [
+                'columnWidths',
+                'pageLength',
+                'sortSettings',
+                'currentPage',
+                'searchFormExpanded',
+                'searchFormState',
+                'requiredColumns',
+                'columnWidth',
+            ].forEach((key) => {
+                if (Object.prototype.hasOwnProperty.call(nextState, key)) {
+                    delete nextState[key];
+                    changed = true;
+                }
+            });
+
+            if (changed) {
+                writeSystemUserSettingsStorage(JOURNAL_RULE_TABLE_SETTINGS_STORAGE_KEY, nextState, {
+                    userSettingPageKey: JOURNAL_RULE_USER_SETTING_PAGE_KEY,
+                    settingType: 'TABLE',
+                });
+            }
+        } catch (error) {
+            console.warn('[ledger-journal-rule] table settings sanitize failed:', error);
+        }
     }
 
     async function prepareSelectSources(modalEl) {
@@ -227,7 +275,9 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function currentJournalRulePolicyState() {
-        return readDataTableSettingsState(JOURNAL_RULE_TABLE_SETTINGS_STORAGE_KEY) || {};
+        return readDataTableSettingsState(JOURNAL_RULE_TABLE_SETTINGS_STORAGE_KEY, {
+            userSettingPageKey: JOURNAL_RULE_USER_SETTING_PAGE_KEY,
+        }) || {};
     }
 
     function journalRuleFieldLabel(key, fallback = '') {
@@ -290,6 +340,7 @@ import '/public/assets/js/components/trash-manager.js';
     function bindJournalRulePolicySync() {
         if (journalRulePolicyBound) return;
         journalRulePolicyBound = true;
+        sanitizeJournalRuleTableSettingsState();
 
         document.addEventListener('datatable-settings:updated', (event) => {
             const storageKey = String(event?.detail?.storageKey || '').trim();
@@ -297,6 +348,7 @@ import '/public/assets/js/components/trash-manager.js';
                 return;
             }
 
+            sanitizeJournalRuleTableSettingsState();
             applyJournalRuleModalPolicyLabels(document);
         });
     }
@@ -309,6 +361,7 @@ import '/public/assets/js/components/trash-manager.js';
             rule_code: String(formData.get('rule_code') || '').trim(),
             rule_name: String(formData.get('rule_name') || '').trim(),
             business_unit: String(formData.get('business_unit') || '').trim(),
+            operation_type: String(formData.get('operation_type') || '').trim(),
             transaction_direction: String(formData.get('transaction_direction') || '').trim(),
             client_type: String(formData.get('client_type') || '').trim(),
             import_type: String(formData.get('import_type') || '').trim(),
@@ -359,8 +412,16 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     async function loadSelectSources() {
-        const [businessJson, typeJson, directionJson, clientJson, importJson, accountJson] = await Promise.all([
+        const [
+            businessJson,
+            operationJson,
+            directionJson,
+            clientJson,
+            importJson,
+            accountJson,
+        ] = await Promise.all([
             fetchJson(API.businessUnits),
+            fetchJson(API.operationTypes),
             fetchJson(API.transactionDirections),
             fetchJson(API.clientTypes),
             fetchJson(API.importTypes),
@@ -368,6 +429,7 @@ import '/public/assets/js/components/trash-manager.js';
         ]);
 
         businessUnits = activeCodes(businessJson.data || []);
+        operationTypes = activeCodes(operationJson.data || []);
         transactionDirections = activeCodes(directionJson.data || []);
         clientTypes = activeCodes(clientJson.data || []);
         importTypes = activeCodes(importJson.data || []);
@@ -393,6 +455,7 @@ import '/public/assets/js/components/trash-manager.js';
                 const rows = options[group];
                 if (!Array.isArray(rows)) return;
                 if (stateName === 'businessUnits') businessUnits = rows;
+                if (stateName === 'operationTypes') operationTypes = rows;
                 if (stateName === 'importTypes') importTypes = rows;
                 if (stateName === 'transactionDirections') transactionDirections = rows;
                 if (stateName === 'clientTypes') clientTypes = rows;
@@ -445,6 +508,7 @@ import '/public/assets/js/components/trash-manager.js';
     }
 
     function initTable() {
+        sanitizeJournalRuleTableSettingsState();
         table = createDataTable({
             tableSelector: '#journal-rule-table',
             api: API.list,
@@ -462,7 +526,8 @@ import '/public/assets/js/components/trash-manager.js';
                 pageKey: 'ledger.journal-rules',
                 tableKey: 'journal-rule-table',
                 storageKey: JOURNAL_RULE_TABLE_SETTINGS_STORAGE_KEY,
-                metaDomain: 'ledger-journal-rule',
+                userSettingPageKey: JOURNAL_RULE_USER_SETTING_PAGE_KEY,
+                metaDomain: JOURNAL_RULE_META_DOMAIN,
                 tableLabel: '분개규칙',
                 title: '분개규칙 테이블 설정',
                 defaultVisibleColumns: [
@@ -470,10 +535,10 @@ import '/public/assets/js/components/trash-manager.js';
                     'sort_no',
                     'rule_code',
                     'rule_name',
+                    'import_type',
                     'business_unit',
                     'transaction_direction',
                     'client_type',
-                    'import_type',
                     'debit_account_id',
                     'credit_account_id',
                     'vat_account_id',
@@ -537,11 +602,15 @@ import '/public/assets/js/components/trash-manager.js';
             { data: 'rule_name', title: '규칙명', render: textCell, settingsKey: 'rule_name' },
             { data: 'business_unit', title: '사업구분', className: 'text-nowrap', render: (_value, _type, row) => badge(codeLabel(businessUnits, row.business_unit, row.business_unit_name)), settingsKey: 'business_unit' },
             { data: 'transaction_direction', title: '거래구분', className: 'text-nowrap text-center', render: (_value, _type, row) => badge(codeLabel(transactionDirections, row.transaction_direction, row.transaction_direction_name)), settingsKey: 'transaction_direction' },
+            { data: 'operation_type', title: '업무유형', className: 'text-nowrap', render: (_value, _type, row) => badge(codeLabel(operationTypes, row.operation_type, row.operation_type_name)), settingsKey: 'operation_type', visible: false },
             { data: 'client_type', title: '거래처구분', className: 'text-nowrap', render: (_value, _type, row) => badge(codeLabel(clientTypes, row.client_type, row.client_type_name)), settingsKey: 'client_type' },
             { data: 'import_type', title: '자료유형', className: 'text-nowrap', render: (_value, _type, row) => badge(codeLabel(importTypes, row.import_type, row.import_type_name)), settingsKey: 'import_type' },
             { data: 'debit_account_id', title: '차변계정', render: (_value, _type, row) => escapeHtml(accountText(row, 'debit')), settingsKey: 'debit_account_id' },
             { data: 'credit_account_id', title: '대변계정', render: (_value, _type, row) => escapeHtml(accountText(row, 'credit')), settingsKey: 'credit_account_id' },
             { data: 'vat_account_id', title: '부가세계정', render: (_value, _type, row) => escapeHtml(accountText(row, 'vat')), settingsKey: 'vat_account_id' },
+            { data: 'usage_count', title: '사용횟수', className: 'text-end text-nowrap', render: textCell, settingsKey: 'usage_count', visible: false },
+            { data: 'last_used_at', title: '최근사용일시', className: 'text-nowrap', render: textCell, settingsKey: 'last_used_at', visible: false },
+            { data: 'confidence_score', title: '신뢰도', className: 'text-end text-nowrap', render: textCell, settingsKey: 'confidence_score', visible: false },
             { data: 'description', title: '설명/적요', render: textCell, settingsKey: 'description' },
             { data: 'is_active', title: '상태', className: 'text-center text-nowrap', orderable: false, render: renderStatusToggle, settingsKey: 'is_active' },
             { data: 'created_at', title: '생성일시', visible: false, render: textCell, settingsKey: 'created_at' },
@@ -673,6 +742,8 @@ import '/public/assets/js/components/trash-manager.js';
         try {
             await ensureSelectSourcesReady();
             $('#journalRuleModal select').val('').trigger('change');
+            $('#journalRuleModal [name="business_unit"]').val('CONSTRUCTION').trigger('change');
+            $('#journalRuleModal [name="operation_type"]').val('GENERAL').trigger('change');
             applyJournalRuleModalPolicyLabels(document.getElementById('journalRuleModal'));
         } catch (error) {
             notify('error', error.message || '분개규칙 입력 준비 중 오류가 발생했습니다.');
@@ -717,6 +788,12 @@ import '/public/assets/js/components/trash-manager.js';
             if (!field || field.type === 'checkbox') return;
             field.value = value ?? '';
         });
+        if (!form.elements.business_unit.value) {
+            form.elements.business_unit.value = 'CONSTRUCTION';
+        }
+        if (!form.elements.operation_type.value) {
+            form.elements.operation_type.value = 'GENERAL';
+        }
         form.elements.is_active.checked = Number(row.is_active ?? 1) === 1;
         $('#journalRuleModal select').each(function () {
             $(this).trigger('change');

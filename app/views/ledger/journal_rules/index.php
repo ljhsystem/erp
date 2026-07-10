@@ -35,6 +35,7 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journalRules.js');
                     <option value="rule_code">규칙코드</option>
                     <option value="rule_name">규칙명</option>
                     <option value="business_unit">사업구분</option>
+                    <option value="operation_type">업무유형</option>
                     <option value="transaction_direction">거래구분</option>
                     <option value="client_type">거래처유형</option>
                     <option value="import_type">자료유형</option>
@@ -75,16 +76,35 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journalRules.js');
                         <h6 class="section-title">기본 정보</h6>
                         <div class="row g-3">
                             <div class="col-md-3">
-                                <label class="form-label">거래구분</label>
-                                <select class="form-select form-select-sm js-transaction-direction" name="transaction_direction" data-code-group="TRANSACTION_DIRECTION"></select>
+                                <label class="form-label" for="journalRuleCode">규칙코드</label>
+                                <input type="text" class="form-control form-control-sm" id="journalRuleCode" name="rule_code" maxlength="50">
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label">거래처유형</label>
-                                <select class="form-select form-select-sm js-client-type" name="client_type" data-code-group="CLIENT_TYPE"></select>
+                                <label class="form-label" for="journalRuleName">규칙명</label>
+                                <input type="text" class="form-control form-control-sm" id="journalRuleName" name="rule_name" maxlength="100">
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label">자료유형</label>
-                                <select class="form-select form-select-sm js-import-type" name="import_type" data-code-group="IMPORT_TYPE"></select>
+                                <label class="form-label" for="journalRuleBusinessUnit">사업구분</label>
+                                <select class="form-select form-select-sm js-business-unit" id="journalRuleBusinessUnit" name="business_unit" data-code-group="BUSINESS_UNIT"></select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label" for="journalRuleOperationType">업무유형</label>
+                                <select class="form-select form-select-sm js-operation-type" id="journalRuleOperationType" name="operation_type" data-code-group="OPERATION_TYPE"></select>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mt-0">
+                            <div class="col-md-4">
+                                <label class="form-label" for="journalRuleTransactionDirection">거래구분</label>
+                                <select class="form-select form-select-sm js-transaction-direction" id="journalRuleTransactionDirection" name="transaction_direction" data-code-group="TRANSACTION_DIRECTION"></select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="journalRuleClientType">거래처유형</label>
+                                <select class="form-select form-select-sm js-client-type" id="journalRuleClientType" name="client_type" data-code-group="CLIENT_TYPE"></select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="journalRuleImportType">자료유형</label>
+                                <select class="form-select form-select-sm js-import-type" id="journalRuleImportType" name="import_type" data-code-group="IMPORT_TYPE"></select>
                             </div>
                         </div>
                     </section>
@@ -117,8 +137,8 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journalRules.js');
                                 </div>
                             </div>
                             <div class="col-md-9">
-                                <label class="form-label">설명/비고</label>
-                                <textarea class="form-control form-control-sm" name="description" rows="3"></textarea>
+                                <label class="form-label" for="journalRuleDescription">설명/비고</label>
+                                <textarea class="form-control form-control-sm" id="journalRuleDescription" name="description" rows="3"></textarea>
                             </div>
                         </div>
                     </section>

@@ -19,7 +19,7 @@ class ChartAccountExcelService
         ['key' => 'is_active', 'label' => '사용여부', 'required' => false, 'template_default' => true, 'download_default' => true],
         ['key' => 'note', 'label' => '비고', 'required' => false, 'template_default' => true, 'download_default' => true],
         ['key' => 'memo', 'label' => '메모', 'required' => false, 'template_default' => true, 'download_default' => true],
-        ['key' => 'sub_account_names', 'label' => '보조계정명', 'required' => false, 'template_default' => true, 'download_default' => true],
+        ['key' => 'sub_account_names', 'label' => '보조계정 대상', 'required' => false, 'template_default' => true, 'download_default' => true],
     ];
 
     private const SAMPLE_ROWS = [

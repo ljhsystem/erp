@@ -16,8 +16,7 @@ class EvidenceTemplateDropdownService
         private PDO $pdo,
         private array $bankVoucherLineFields,
         private array $callbacks = []
-    ) {
-    }
+    ) {}
 
     public function applyBankTemplateDropdowns(Spreadsheet $spreadsheet, array $sheetSpecs): void
     {
@@ -463,7 +462,7 @@ class EvidenceTemplateDropdownService
 
     public function templateDropdownListKey(array $fieldOption): string
     {
-        $refType = trim((string) ($fieldOption['ref_type'] ?? ''));
+        $refType = trim((string) ($fieldOption['ref_target'] ?? ''));
         if ($refType !== '') {
             return 'ref:' . strtoupper($refType);
         }
@@ -506,7 +505,7 @@ class EvidenceTemplateDropdownService
 
     public function templateDropdownOptionsForField(array $fieldOption): array
     {
-        $refType = trim((string) ($fieldOption['ref_type'] ?? ''));
+        $refType = trim((string) ($fieldOption['ref_target'] ?? ''));
         if ($refType !== '') {
             return $this->businessRefDropdownOptions($refType);
         }
@@ -550,7 +549,7 @@ class EvidenceTemplateDropdownService
         if ($businessRefType !== '') {
             return [
                 'value' => $normalizedField,
-                'ref_type' => $businessRefType,
+                'ref_target' => $businessRefType,
             ];
         }
 
@@ -603,8 +602,8 @@ class EvidenceTemplateDropdownService
         try {
             $stmt = $this->pdo->query(
                 "SELECT DISTINCT {$columnSql} AS dropdown_value FROM {$tableSql}"
-                . ($where !== [] ? ' WHERE ' . implode(' AND ', $where) : '')
-                . " ORDER BY {$columnSql} ASC"
+                    . ($where !== [] ? ' WHERE ' . implode(' AND ', $where) : '')
+                    . " ORDER BY {$columnSql} ASC"
             );
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
         } catch (\Throwable) {
@@ -790,9 +789,9 @@ class EvidenceTemplateDropdownService
         try {
             $stmt = $this->pdo->query(
                 'SELECT ' . implode(', ', $selects)
-                . ' FROM ' . $table . ' '
-                . $where
-                . ($orderBy !== [] ? ' ORDER BY ' . implode(', ', $orderBy) : '')
+                    . ' FROM ' . $table . ' '
+                    . $where
+                    . ($orderBy !== [] ? ' ORDER BY ' . implode(', ', $orderBy) : '')
             );
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
         } catch (\Throwable) {

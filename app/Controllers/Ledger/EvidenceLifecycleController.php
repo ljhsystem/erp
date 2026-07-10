@@ -39,57 +39,16 @@ class EvidenceLifecycleController
     use ImportControllerBusinessInfoTrait;
     use ImportControllerUploadTrait;
 
-    private const EVIDENCE_UPLOAD_TYPES = [
-        'TAX_INVOICE',
-        'CASH_RECEIPT',
-        'CARD',
-        'CARD_HOMETAX',
-        'CARD_STATEMENT',
-        'CARD_APPROVAL',
-        'BANK_TRANSACTION',
-    ];
-
-    private const BUSINESS_DATA_TYPES = [
-        'BUSINESS_DATA',
-        'SHOPPING_ORDER',
-        'PAYROLL',
-        'PAYROLL_WITHHOLDING',
-        'BUSINESS_INCOME',
-        'EMPLOYEE_EXPENSE',
-        'IMPORT_INVOICE',
-        'CONSTRUCTION',
-    ];
-
-    private const DATA_TYPES = self::EVIDENCE_UPLOAD_TYPES;
-
     private const BANK_VOUCHER_LINE_FIELDS = [
         'header_row_no',
-        'line_no',
+        'sort_no',
         'line_row_type',
         'account_id',
         'debit',
         'credit',
         'line_summary',
-        'line_ref_type',
+        'line_ref_target',
         'line_ref_id',
-    ];
-
-    private const LEGACY_DATA_TYPE_MAP = [
-        'DATA' => 'TAX_INVOICE',
-        'TAX' => 'TAX_INVOICE',
-        'CARD' => 'CARD_STATEMENT',
-        'CARD_PURCHASE' => 'CARD_STATEMENT',
-        'CARD_SALE' => 'CARD_STATEMENT',
-        'CASH_RECEIPT_PURCHASE' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_PURCHAS' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_BUY' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SALES' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SALE' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SELL' => 'CASH_RECEIPT',
-        'BANK' => 'BANK_TRANSACTION',
-        'SHOPPING' => 'SHOPPING_ORDER',
-        'TRADE_IMPORT' => 'IMPORT_INVOICE',
-        'IMPORT' => 'IMPORT_INVOICE',
     ];
 
     private PDO $pdo;
@@ -209,15 +168,7 @@ class EvidenceLifecycleController
     {
         $payload = $this->requestPayload();
         $importType = self::normalizeDataType((string) ($payload['import_type'] ?? $payload['data_type'] ?? $_GET['import_type'] ?? $_GET['data_type'] ?? ''));
-        error_log('[EvidenceLifecycleController] purge-all payload=' . json_encode([
-            'import_type' => $payload['import_type'] ?? null,
-            'data_type' => $payload['data_type'] ?? null,
-            'get_import_type' => $_GET['import_type'] ?? null,
-            'get_data_type' => $_GET['data_type'] ?? null,
-            'normalized_import_type' => $importType,
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         $result = $this->evidenceTrashService()->purgeAll($importType);
-        error_log('[EvidenceLifecycleController] purge-all result=' . json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
         $this->json($result, (int) ($result['status'] ?? 200));
     }
@@ -272,12 +223,10 @@ class EvidenceLifecycleController
                 fn(string $type): string => self::normalizeDataType($type),
                 fn(string $sourceType): string => $this->evidenceTypePolicyService()->normalizeImportSourceType($sourceType),
                 fn(string $sourceType): array => $this->evidenceTypePolicyService()->importTypesForSourceType($sourceType),
-                fn(string $column): string => $this->evidenceTypePolicyService()->sourceTypeSql($column),
                 fn(string $dataType): string => $this->evidenceTypePolicyService()->sourceTypeForDataType($dataType),
                 fn(string $sourceType): string => $this->evidenceTypePolicyService()->sourceTypeLabel($sourceType),
                 fn(string $importType): string => $this->evidenceTypePolicyService()->importTypeLabel($importType),
                 fn(string $table): bool => $this->tableExists($table),
-                fn(array $ids, string $prefix): array => $this->placeholdersForIds($ids, $prefix),
                 fn(string $formatId): array => [],
                 fn(array $payload): array => $this->evidenceBankHelperService()->normalizeBankTransactionPayload($payload),
                 fn(array $payload): array => $this->evidencePayloadNormalizeService()->normalizeEvidenceMappedPayloadForResponse($payload),
@@ -351,7 +300,6 @@ class EvidenceLifecycleController
         if ($this->evidenceTypePolicyService === null) {
             $this->evidenceTypePolicyService = new EvidenceTypePolicyService(
                 fn(string $type): string => self::normalizeDataType($type),
-                self::LEGACY_DATA_TYPE_MAP,
                 $this->pdo,
                 [
                     'amountOrNull' => fn(mixed $value): ?float => $this->amountOrNull($value),
@@ -457,7 +405,6 @@ class EvidenceLifecycleController
                 'amountOrNull' => fn(mixed $value): ?float => $this->amountOrNull($value),
                 'bankBalanceStatus' => fn(mixed $value): string => $this->evidenceStatusHelperService()->bankBalanceStatus($value),
                 'bankVoucherLinesForSave' => fn(array $lines): array => $this->voucherCreateService()->bankVoucherLinesForSave($lines),
-                'bankVoucherPaymentsForSave' => fn(array $payload): array => $this->voucherCreateService()->bankVoucherPaymentsForSave($payload),
                 'businessRefIdForStorage' => fn(string $refType, array $payload): ?string => $this->evidenceBusinessRefService()->businessRefIdForStorage($refType, $payload),
                 'businessRefNameById' => fn(string $refType, string $id): ?string => $this->evidenceReferenceResolverService()->businessRefNameById($refType, $id),
                 'cleanCompanyName' => fn(string $value): string => $this->cleanCompanyName($value),

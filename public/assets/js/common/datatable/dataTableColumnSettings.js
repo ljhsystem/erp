@@ -269,6 +269,21 @@ function syncEditableValuesFromDom(modal, entries = []) {
     }));
 }
 
+function syncStateEntriesFromDom(modal, entries = []) {
+    const list = modal?.querySelector?.('[data-dt-settings-list]');
+    if (!list) {
+        return entries;
+    }
+
+    return syncEditableValuesFromDom(
+        modal,
+        syncVisibleValuesFromDom(
+            modal,
+            syncEntriesFromDom(list, entries)
+        )
+    );
+}
+
 function clearDropIndicators(list) {
     if (!list) {
         return;
@@ -441,6 +456,8 @@ export function openDataTableColumnSettings(options = {}) {
     };
 
     bind(modal, 'change', (event) => {
+        state.entries = syncStateEntriesFromDom(modal, state.entries);
+
         const toggleAll = event.target.closest('[data-dt-settings-toggle-all]');
         if (toggleAll) {
             state.entries = state.entries.map((entry) => ({ ...entry, visible: toggleAll.checked }));
@@ -468,6 +485,7 @@ export function openDataTableColumnSettings(options = {}) {
             return;
         }
 
+        state.entries = syncStateEntriesFromDom(modal, state.entries);
         const key = input.dataset.key || '';
         state.entries = state.entries.map((entry) => (
             entry.key === key
@@ -482,6 +500,7 @@ export function openDataTableColumnSettings(options = {}) {
             return;
         }
 
+        state.entries = syncStateEntriesFromDom(modal, state.entries);
         const key = select.dataset.key || '';
         const nextPolicy = normalizeRequirementPolicy(select.value);
         select.classList.remove('is-none', 'is-optional', 'is-required');
@@ -502,14 +521,7 @@ export function openDataTableColumnSettings(options = {}) {
     });
 
     bind(saveButton, 'click', () => {
-        const list = modal.querySelector('[data-dt-settings-list]');
-        state.entries = syncEditableValuesFromDom(
-            modal,
-            syncVisibleValuesFromDom(
-                modal,
-                syncEntriesFromDom(list, state.entries)
-            )
-        );
+        state.entries = syncStateEntriesFromDom(modal, state.entries);
         const blankDisplayEntry = state.entries.find((entry) => String(entry.displayName || '').trim() === '');
         if (blankDisplayEntry) {
             notify('warning', '사용컬럼명은 비워둘 수 없습니다.');

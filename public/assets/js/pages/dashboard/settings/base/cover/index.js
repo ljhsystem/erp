@@ -4,9 +4,7 @@ import {
     bindTableHighlight
 } from '/public/assets/js/common/table/data-table.js';
 import {
-    readDataTableSettingsState,
-    resolveDataTableColumnDisplayName,
-    resolveDataTableColumnRequirementPolicy
+    fetchDataTableMetaColumnsSync
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.cover.js';
@@ -50,7 +48,6 @@ window.AdminPicker = AdminPicker;
     let globalBound = false;
     let yearMonthOpenTimer = null;
     let DOM = null;
-    const COVER_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.base-info.cover.cover-table.v1';
     const COVER_TABLE_SETTINGS_META_DOMAIN = 'cover';
     const COVER_MODAL_FIELD_POLICIES = Object.freeze([
         { selector: 'label[for="modal_year"]', key: 'year', fallback: 'Year' },
@@ -181,38 +178,42 @@ window.AdminPicker = AdminPicker;
         window.alert(message);
     }
 
-    function currentCoverPolicyState() {
-        return readDataTableSettingsState(COVER_TABLE_SETTINGS_STORAGE_KEY) || {};
+    function currentCoverMetaPolicy() {
+        const metaColumns = fetchDataTableMetaColumnsSync({
+            metaDomain: COVER_TABLE_SETTINGS_META_DOMAIN,
+        });
+
+        return metaColumns.reduce((accumulator, column) => {
+            const key = String(column?.key || '').trim();
+            if (!key) {
+                return accumulator;
+            }
+
+            accumulator[key] = {
+                label: String(column?.label || key).trim() || key,
+                required: column?.required === true,
+            };
+            return accumulator;
+        }, {});
     }
 
-    function resolveCoverPolicyDisplayName(key, _fallback = '') {
+    function resolveCoverMetaColumn(key, fallback = '') {
         const normalizedKey = String(key || '').trim();
-        return resolveDataTableColumnDisplayName(
-            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
-            currentCoverPolicyState(),
-            normalizedKey
-        );
+        const meta = currentCoverMetaPolicy();
+        return meta[normalizedKey] || {
+            label: String(fallback || normalizedKey).trim() || normalizedKey,
+            required: false,
+        };
     }
 
-    function resolveCoverPolicyRequirement(key) {
-        const normalizedKey = String(key || '').trim();
-        return resolveDataTableColumnRequirementPolicy(
-            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
-            currentCoverPolicyState()
-        );
+    function coverFieldLabel(key, fallback = '') {
+        return resolveCoverMetaColumn(key, fallback).label;
     }
 
-    function coverFieldLabel(key, _fallback = '') {
-        return resolveCoverPolicyDisplayName(key, String(key || '').trim());
-    }
-
-    function coverFieldStarMarkup(key) {
-        const policy = resolveCoverPolicyRequirement(key);
-        if (policy === 'required') {
+    function coverFieldStarMarkup(key, fallback = '') {
+        const columnMeta = resolveCoverMetaColumn(key, fallback);
+        if (columnMeta.required) {
             return '<span class="column-policy-star is-required" aria-hidden="true">*</span>';
-        }
-        if (policy === 'optional') {
-            return '<span class="column-policy-star is-optional" aria-hidden="true">*</span>';
         }
         return '';
     }
@@ -225,7 +226,7 @@ window.AdminPicker = AdminPicker;
             }
 
             const displayName = coverFieldLabel(field.key, field.fallback);
-            const starMarkup = coverFieldStarMarkup(field.key);
+            const starMarkup = coverFieldStarMarkup(field.key, field.fallback);
             labelEl.innerHTML = `${displayName}${starMarkup ? ` ${starMarkup}` : ''}`;
         });
     }
@@ -262,7 +263,7 @@ window.AdminPicker = AdminPicker;
             if (!key || !selector) {
                 continue;
             }
-            if (resolveCoverPolicyRequirement(key) !== 'required') {
+            if (!resolveCoverMetaColumn(key, field?.fallback || key).required) {
                 continue;
             }
             if (!isCoverFieldVisible(selector)) {
@@ -392,16 +393,6 @@ window.AdminPicker = AdminPicker;
             }
         });
 
-        document.addEventListener('datatable-settings:updated', (event) => {
-            const detail = event?.detail || {};
-            const storageKey = String(detail.storageKey || '').trim();
-            const metaDomain = String(detail.metaDomain || '').trim();
-            if (storageKey !== COVER_TABLE_SETTINGS_STORAGE_KEY && metaDomain !== COVER_TABLE_SETTINGS_META_DOMAIN) {
-                return;
-            }
-
-            applyCoverModalPolicyLabels();
-        });
     }
 
 

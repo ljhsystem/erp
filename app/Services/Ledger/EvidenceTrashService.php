@@ -77,29 +77,40 @@ class EvidenceTrashService
             }
 
             [$inSql, $params] = ($this->placeholderBuilder)($deletableIds, 'seed_id');
-            $params[':deleted_by'] = $actor;
-            $params[':updated_by'] = $actor;
-            $stmt = $this->pdo->prepare("
-                UPDATE ledger_evidence_payloads p
-                LEFT JOIN ledger_evidence_processing pr
-                    ON pr.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
-                   AND pr.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
-                   AND pr.deleted_at IS NULL
-                SET p.deleted_at = NOW(),
-                    p.deleted_by = :deleted_by,
-                    p.updated_at = NOW(),
-                    p.updated_by = :updated_by
-                WHERE p.evidence_id IN ({$inSql})
-                  AND COALESCE(pr.processing_status, 'READY') IN ('NONE', 'READY', 'REVIEW_REQUIRED', 'ERROR', 'DUPLICATED')
-                  AND p.deleted_at IS NULL
-            ");
-            $stmt->execute($params);
+            $deletedCount = 0;
+            if ($this->tableExists('ledger_data_evidences')) {
+                $params[':deleted_by'] = $actor;
+                $params[':updated_by'] = $actor;
+                $stmt = $this->pdo->prepare("
+                    UPDATE ledger_data_evidences p
+                    LEFT JOIN ledger_evidence_processing pr
+                        ON pr.evidence_type COLLATE utf8mb4_unicode_ci = p.source_type COLLATE utf8mb4_unicode_ci
+                       AND pr.evidence_id COLLATE utf8mb4_unicode_ci = p.id COLLATE utf8mb4_unicode_ci
+                       AND pr.deleted_at IS NULL
+                    SET p.deleted_at = NOW(),
+                        p.deleted_by = :deleted_by,
+                        p.updated_at = NOW(),
+                        p.updated_by = :updated_by
+                    WHERE p.id IN ({$inSql})
+                      AND COALESCE(pr.processing_status, 'READY') IN ('NONE', 'READY', 'REVIEW_REQUIRED', 'ERROR', 'DUPLICATED')
+                      AND p.deleted_at IS NULL
+                ");
+                $stmt->execute($params);
+                $deletedCount = max($stmt->rowCount(), count($deletableIds));
+            }
 
-            $deletedCount = max($stmt->rowCount(), count($deletableIds));
             ($this->softDeleteProcessing)($deletableIds, $actor);
             ($this->softDeleteLinks)($deletableIds);
             ($this->softDeleteBody)($deletableIds, $actor, $evidenceType);
             ($this->syncBankSoftDelete)($deletableIds, $actor);
+            if (!$this->tableExists('ledger_data_evidences')) {
+                $deletedCount = count($this->bodyRowIdsByDeleteStatus(
+                    $deletableIds,
+                    (string) ($evidenceType ?? ''),
+                    'deleted',
+                    'verify_deleted_body_seed_id'
+                ));
+            }
             if ($deletedCount === 0) {
                     $blocked = $this->seedRowDeleteBlockSummary($blockedIds, (string) ($evidenceType ?? ''));
                 if ($alreadyDeletedCount > 0) {
@@ -153,27 +164,56 @@ class EvidenceTrashService
         }
 
         $actor = $this->auditActor($actor);
+        $restorableIds = $this->deletedSeedRowSelection($ids, (string) ($evidenceType ?? ''))['ids'];
+        if ($restorableIds === []) {
+            return [
+                'success' => true,
+                'message' => $this->msg('67O16rWs7ZWgIOymneu5meybkOuzuOydhCDsl4bsirXri4jri6Qu'),
+                'data' => ['restored_count' => 0, 'skipped_count' => count($ids)],
+            ];
+        }
 
-        [$inSql, $params] = ($this->placeholderBuilder)($ids, 'seed_id');
-        $params[':actor'] = $actor;
-        $stmt = $this->pdo->prepare("
-            UPDATE ledger_evidence_payloads
-            SET deleted_at = NULL,
-                deleted_by = NULL,
-                updated_at = NOW(),
-                updated_by = :actor
-            WHERE evidence_id IN ({$inSql})
-        ");
-        $stmt->execute($params);
-        $restoredCount = $stmt->rowCount();
-        ($this->restoreProcessing)($ids, $actor);
-        ($this->restoreBody)($ids, $actor, $evidenceType);
-        ($this->syncBankRestore)($ids, $actor);
+        try {
+            $this->pdo->beginTransaction();
+            if ($this->tableExists('ledger_data_evidences')) {
+                [$inSql, $params] = ($this->placeholderBuilder)($restorableIds, 'restore_seed_id');
+                $params[':actor'] = $actor;
+                $stmt = $this->pdo->prepare("
+                    UPDATE ledger_data_evidences
+                    SET deleted_at = NULL,
+                        deleted_by = NULL,
+                        updated_at = NOW(),
+                        updated_by = :actor
+                    WHERE id IN ({$inSql})
+                      AND deleted_at IS NOT NULL
+                ");
+                $stmt->execute($params);
+            }
+
+            ($this->restoreProcessing)($restorableIds, $actor);
+            ($this->restoreBody)($restorableIds, $actor, $evidenceType);
+            ($this->syncBankRestore)($restorableIds, $actor);
+
+            $restoredCount = count($this->bodyRowIdsByDeleteStatus(
+                $restorableIds,
+                (string) ($evidenceType ?? ''),
+                'active',
+                'verify_restore_body_seed_id'
+            ));
+
+            $this->pdo->commit();
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            error_log('[EvidenceTrashService] restore failed: ' . $e->getMessage());
+            return ['success' => false, 'message' => $this->msg('67O16rWsIOykkSDsmKTrpZjqsIAg67Cc7IOd7ZaI7Iq164uI64ukLg=='), 'status' => 500];
+        }
 
         return [
             'success' => true,
             'message' => $this->msg('7Kad67mZ7JuQ67O4IA==') . $restoredCount . $this->msg('6rG07J2EIOuzteq1rO2WiOyKteuLiOuLpC4='),
-            'data' => ['restored_count' => $restoredCount, 'skipped_count' => max(0, count($ids) - $restoredCount)],
+            'data' => ['restored_count' => $restoredCount, 'skipped_count' => max(0, count($ids) - count($restorableIds))],
         ];
     }
 
@@ -185,21 +225,38 @@ class EvidenceTrashService
             return ['success' => true, 'message' => $this->msg('7Zy07KeA7Ya1IOymneu5meybkOuzuCAw6rG07J2EIOuzteq1rO2WiOyKteuLiOuLpC4='), 'data' => ['restored_count' => 0]];
         }
 
-        [$inSql, $params] = ($this->placeholderBuilder)($ids, 'restore_all_seed_id');
-        $stmt = $this->pdo->prepare("
-            UPDATE ledger_evidence_payloads
-            SET deleted_at = NULL,
-                deleted_by = NULL,
-                updated_at = NOW(),
-                updated_by = :actor
-            WHERE evidence_id IN ({$inSql})
-              AND deleted_at IS NOT NULL
-        ");
-        $stmt->execute([':actor' => $actor] + $params);
-        $restoredCount = $stmt->rowCount();
-        ($this->restoreProcessing)($ids, $actor);
-        ($this->restoreBody)($ids, $actor, $importType);
-        ($this->syncBankRestore)($ids, $actor);
+        try {
+            $this->pdo->beginTransaction();
+            if ($this->tableExists('ledger_data_evidences')) {
+                [$inSql, $params] = ($this->placeholderBuilder)($ids, 'restore_all_seed_id');
+                $stmt = $this->pdo->prepare("
+                    UPDATE ledger_data_evidences
+                    SET deleted_at = NULL,
+                        deleted_by = NULL,
+                        updated_at = NOW(),
+                        updated_by = :actor
+                    WHERE id IN ({$inSql})
+                      AND deleted_at IS NOT NULL
+                ");
+                $stmt->execute([':actor' => $actor] + $params);
+            }
+            ($this->restoreProcessing)($ids, $actor);
+            ($this->restoreBody)($ids, $actor, $importType);
+            ($this->syncBankRestore)($ids, $actor);
+            $restoredCount = count($this->bodyRowIdsByDeleteStatus(
+                $ids,
+                $importType,
+                'active',
+                'verify_restore_all_body_seed_id'
+            ));
+            $this->pdo->commit();
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            error_log('[EvidenceTrashService] restoreAll failed: ' . $e->getMessage());
+            return ['success' => false, 'message' => $this->msg('67O16rWsIOykkSDsmKTrpZjqsIAg67Cc7IOd7ZaI7Iq164uI64ukLg=='), 'status' => 500];
+        }
 
         return ['success' => true, 'message' => $this->msg('7Zy07KeA7Ya1IOymneu5meybkOuzuCA=') . $restoredCount . $this->msg('6rG07J2EIOuzteq1rO2WiOyKteuLiOuLpC4='), 'data' => ['restored_count' => $restoredCount]];
     }
@@ -228,48 +285,40 @@ class EvidenceTrashService
     {
         $selection = $this->deletedSeedRowSelection([], $importType);
         $purgeableIds = $selection['ids'];
-        $this->logPurgeAllDiagnostics($importType, $selection);
         if ($purgeableIds === []) {
-            $this->logPurgeAllCountComparison($selection);
             return ['success' => true, 'message' => $this->msg('7JiB6rWs7IKt7KCc7ZWgIO2ctOyngO2GtSDspp3ruZnsm5Drs7jsnbQg7JeG7Iq164uI64ukLg=='), 'data' => ['deleted_count' => 0]];
         }
 
         $deletedCount = ($this->purgeRows)($purgeableIds, $importType);
-        error_log('[EvidenceTrashService] purge_all_delete_result=' . json_encode([
-            'delete_table' => 'ledger_evidence_payloads',
-            'delete_target_count' => count($purgeableIds),
-            'delete_target_id_sample' => array_slice($purgeableIds, 0, 5),
-            'delete_affected_rows' => $deletedCount,
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         return ['success' => true, 'message' => $this->msg('7Zy07KeA7Ya1IOymneu5meybkOuzuCA=') . $deletedCount . $this->msg('6rG07J2EIOyYgeq1rOyCreygnO2WiOyKteuLiOuLpC4='), 'data' => ['deleted_count' => $deletedCount]];
     }
 
     private function releaseSeedRowsWithoutActiveOutputs(array $ids): void
     {
         $ids = $this->normalizeIdList($ids);
-        if ($ids === []) {
+        if ($ids === [] || !$this->tableExists('ledger_data_evidences')) {
             return;
         }
 
         [$inSql, $params] = ($this->placeholderBuilder)($ids, 'release_seed_id');
         $stmt = $this->pdo->prepare("
             SELECT
-                p.evidence_id AS id,
-                p.evidence_type AS source_type,
+                p.id AS id,
+                p.source_type AS source_type,
                 p.mapped_payload_json,
                 pr.processing_status AS transaction_status,
                 tx.target_id AS transaction_id
-            FROM ledger_evidence_payloads p
+            FROM ledger_data_evidences p
             LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
-               AND pr.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
+                ON pr.evidence_type COLLATE utf8mb4_unicode_ci = p.source_type COLLATE utf8mb4_unicode_ci
+               AND pr.evidence_id COLLATE utf8mb4_unicode_ci = p.id COLLATE utf8mb4_unicode_ci
                AND pr.deleted_at IS NULL
             LEFT JOIN ledger_evidence_links tx
-                ON tx.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
-               AND tx.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
+                ON tx.evidence_type COLLATE utf8mb4_unicode_ci = p.source_type COLLATE utf8mb4_unicode_ci
+               AND tx.evidence_id COLLATE utf8mb4_unicode_ci = p.id COLLATE utf8mb4_unicode_ci
                AND tx.target_type = 'TRANSACTION'
                AND tx.deleted_at IS NULL
-            WHERE p.evidence_id IN ({$inSql})
+            WHERE p.id IN ({$inSql})
               AND p.deleted_at IS NULL
               AND COALESCE(pr.processing_status, 'READY') NOT IN ('NONE', 'READY', 'REVIEW_REQUIRED', 'ERROR', 'DUPLICATED')
         ");
@@ -307,15 +356,24 @@ class EvidenceTrashService
             return [];
         }
 
+        if (!$this->tableExists('ledger_data_evidences')) {
+            return $this->bodyRowIdsByDeleteStatus(
+                $ids,
+                $evidenceType,
+                'active',
+                'deletable_body_seed_id'
+            );
+        }
+
         [$inSql, $params] = ($this->placeholderBuilder)($ids, 'deletable_seed_id');
         $stmt = $this->pdo->prepare("
-            SELECT p.evidence_id
-            FROM ledger_evidence_payloads p
+            SELECT p.id
+            FROM ledger_data_evidences p
             LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
-               AND pr.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
+                ON pr.evidence_type COLLATE utf8mb4_unicode_ci = p.source_type COLLATE utf8mb4_unicode_ci
+               AND pr.evidence_id COLLATE utf8mb4_unicode_ci = p.id COLLATE utf8mb4_unicode_ci
                AND pr.deleted_at IS NULL
-            WHERE p.evidence_id IN ({$inSql})
+            WHERE p.id IN ({$inSql})
               AND COALESCE(pr.processing_status, 'READY') IN ('NONE', 'READY', 'REVIEW_REQUIRED', 'ERROR', 'DUPLICATED')
               AND p.deleted_at IS NULL
         ");
@@ -344,11 +402,20 @@ class EvidenceTrashService
             return [];
         }
 
+        if (!$this->tableExists('ledger_data_evidences')) {
+            return $this->bodyRowIdsByDeleteStatus(
+                $ids,
+                $evidenceType,
+                'deleted',
+                'already_deleted_body_seed_id'
+            );
+        }
+
         [$inSql, $params] = ($this->placeholderBuilder)($ids, 'already_deleted_seed_id');
         $stmt = $this->pdo->prepare("
-            SELECT p.evidence_id AS id
-            FROM ledger_evidence_payloads p
-            WHERE p.evidence_id IN ({$inSql})
+            SELECT p.id AS id
+            FROM ledger_data_evidences p
+            WHERE p.id IN ({$inSql})
               AND p.deleted_at IS NOT NULL
         ");
         $stmt->execute($params);
@@ -376,28 +443,76 @@ class EvidenceTrashService
             return '';
         }
 
+        if (!$this->tableExists('ledger_data_evidences')) {
+            $rows = $this->bodyRowsForDeleteBlockSummary(
+                $ids,
+                $evidenceType,
+                'delete_block_body_id'
+            );
+            if ($rows === []) {
+                return $this->msg('7IKt7KCcIOuMgOyDgSDrjbDsnbTthLDrpbwg7LC+7J2EIOyImCDsl4bsirXri4jri6Qu');
+            }
+
+            $counts = ['deleted' => 0, 'generated' => 0, 'status' => 0];
+            $samples = [];
+            foreach ($rows as $row) {
+                $reason = '';
+                if (!empty($row['deleted_at'])) {
+                    $counts['deleted']++;
+                    $reason = $this->msg('7J2066+4IOyCreygnOuQqA==');
+                } elseif (($this->hasActiveOutput)($row)) {
+                    $counts['generated']++;
+                    $reason = $this->msg('7Jew6rKw65CcIOqxsOuemCDrmJDripQg7KCE7ZGc6rCAIOyhtOyerO2VqA==');
+                } elseif (!in_array((string) ($row['transaction_status'] ?? ''), ['NONE', 'ERROR', 'DUPLICATED'], true)) {
+                    $counts['status']++;
+                    $reason = $this->msg('7LKY66as7IOB7YOcIA==') . (string) ($row['transaction_status'] ?? '-');
+                }
+
+                if ($reason !== '' && count($samples) < 3) {
+                    $samples[] = $this->seedRowDeleteBlockLabel($row) . ' - ' . $reason;
+                }
+            }
+
+            $parts = [];
+            if ($counts['generated'] > 0) {
+                $parts[] = $this->msg('7Jew6rKw65CcIOqxsOuemCDrmJDripQg7KCE7ZGc6rCAIOyeiOuKlCDtla3rqqkg') . $counts['generated'] . $this->msg('6rG0');
+            }
+            if ($counts['deleted'] > 0) {
+                $parts[] = $this->msg('7J2066+4IOyCreygnOuQnCDtla3rqqkg') . $counts['deleted'] . $this->msg('6rG0');
+            }
+            if ($counts['status'] > 0) {
+                $parts[] = $this->msg('7LKY66asIOyDge2DnOuhnCDsgq3soJztlaAg7IiYIOyXhuuKlCDtla3rqqkg') . $counts['status'] . $this->msg('6rG0');
+            }
+
+            if ($parts === []) {
+                return $this->msg('7IKt7KCc7ZWgIOyImCDsl4bripQg7ZWt66qp7J20IOyeiOyKteuLiOuLpC4=');
+            }
+
+            return implode(', ', $parts) . ($samples !== [] ? ' (' . implode(' / ', $samples) . ')' : '') . '.';
+        }
+
         [$inSql, $params] = ($this->placeholderBuilder)($ids, 'delete_block_id');
         $stmt = $this->pdo->prepare("
             SELECT
-                p.evidence_id AS id,
-                p.evidence_type AS source_type,
+                p.id AS id,
+                p.source_type AS source_type,
                 p.source_key,
                 NULL AS evidence_date,
                 COALESCE(pr.processing_status, 'READY') AS transaction_status,
                 p.deleted_at,
                 p.mapped_payload_json,
                 tx.target_id AS transaction_id
-            FROM ledger_evidence_payloads p
+            FROM ledger_data_evidences p
             LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
-               AND pr.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
+                ON pr.evidence_type COLLATE utf8mb4_unicode_ci = p.source_type COLLATE utf8mb4_unicode_ci
+               AND pr.evidence_id COLLATE utf8mb4_unicode_ci = p.id COLLATE utf8mb4_unicode_ci
                AND pr.deleted_at IS NULL
             LEFT JOIN ledger_evidence_links tx
-                ON tx.evidence_type COLLATE utf8mb4_unicode_ci = p.evidence_type COLLATE utf8mb4_unicode_ci
-               AND tx.evidence_id COLLATE utf8mb4_unicode_ci = p.evidence_id COLLATE utf8mb4_unicode_ci
+                ON tx.evidence_type COLLATE utf8mb4_unicode_ci = p.source_type COLLATE utf8mb4_unicode_ci
+               AND tx.evidence_id COLLATE utf8mb4_unicode_ci = p.id COLLATE utf8mb4_unicode_ci
                AND tx.target_type = 'TRANSACTION'
                AND tx.deleted_at IS NULL
-            WHERE p.evidence_id IN ({$inSql})
+            WHERE p.id IN ({$inSql})
         ");
         $stmt->execute($params);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -459,7 +574,7 @@ class EvidenceTrashService
     {
         $mapped = json_decode((string) ($row['mapped_payload_json'] ?? ''), true);
         $mapped = is_array($mapped) ? $mapped : [];
-        $rowNo = $mapped['_status_sort_no'] ?? $mapped['_create_sort_no'] ?? '';
+        $rowNo = $row['sort_no'] ?? $row['evidence_sort_no'] ?? '';
         $sourceKey = trim((string) ($row['source_key'] ?? ''));
         $date = trim((string) ($row['evidence_date'] ?? $mapped['transaction_date'] ?? $mapped['evidence_date'] ?? ''));
         $label = trim(implode(' ', array_filter([$rowNo !== '' ? '#' . $rowNo : '', $date, $sourceKey])));
@@ -482,16 +597,20 @@ class EvidenceTrashService
         $ids = $this->normalizeIdList($ids);
         $importType = ($this->dataTypeNormalizer)($importType);
         $resolvedEvidenceTypes = $importType !== '' ? [$importType] : [];
+        if (!$this->tableExists('ledger_data_evidences')) {
+            return $this->deletedSeedRowSelectionFromBodyTables($ids, $importType, $resolvedEvidenceTypes);
+        }
+
         $where = [];
         $params = [];
 
         if ($ids !== []) {
             [$inSql, $params] = ($this->placeholderBuilder)($ids, 'deleted_seed_id');
-            $where[] = "r.evidence_id IN ({$inSql})";
+            $where[] = "r.id IN ({$inSql})";
         }
 
         if ($importType !== '') {
-            $where[] = 'r.evidence_type COLLATE utf8mb4_unicode_ci = :import_type COLLATE utf8mb4_unicode_ci';
+            $where[] = 'r.source_type COLLATE utf8mb4_unicode_ci = :import_type COLLATE utf8mb4_unicode_ci';
             $params[':import_type'] = $importType;
         }
 
@@ -499,11 +618,11 @@ class EvidenceTrashService
         $whereSql = implode(' AND ', $where);
 
         $idsSql = "
-            SELECT r.evidence_id
-            FROM ledger_evidence_payloads r
+            SELECT r.id
+            FROM ledger_data_evidences r
             LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type COLLATE utf8mb4_unicode_ci = r.evidence_type COLLATE utf8mb4_unicode_ci
-               AND pr.evidence_id COLLATE utf8mb4_unicode_ci = r.evidence_id COLLATE utf8mb4_unicode_ci
+                ON pr.evidence_type COLLATE utf8mb4_unicode_ci = r.source_type COLLATE utf8mb4_unicode_ci
+               AND pr.evidence_id COLLATE utf8mb4_unicode_ci = r.id COLLATE utf8mb4_unicode_ci
             WHERE {$whereSql}
         ";
         $stmt = $this->pdo->prepare($idsSql);
@@ -548,12 +667,16 @@ class EvidenceTrashService
 
     private function deletedSeedRowListCount(array $selection): int
     {
+        if (!$this->tableExists('ledger_data_evidences')) {
+            return count($selection['ids'] ?? []);
+        }
+
         $stmt = $this->pdo->prepare("
             SELECT COUNT(*)
-            FROM ledger_evidence_payloads r
+            FROM ledger_data_evidences r
             LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type COLLATE utf8mb4_unicode_ci = r.evidence_type COLLATE utf8mb4_unicode_ci
-               AND pr.evidence_id COLLATE utf8mb4_unicode_ci = r.evidence_id COLLATE utf8mb4_unicode_ci
+                ON pr.evidence_type COLLATE utf8mb4_unicode_ci = r.source_type COLLATE utf8mb4_unicode_ci
+               AND pr.evidence_id COLLATE utf8mb4_unicode_ci = r.id COLLATE utf8mb4_unicode_ci
             WHERE {$selection['where_sql']}
         ");
         $stmt->execute($selection['binding_params']);
@@ -598,6 +721,42 @@ class EvidenceTrashService
         return $this->deletedBodyTablesForImportType($importType);
     }
 
+    private function deletedSeedRowSelectionFromBodyTables(array $ids, string $importType, array $resolvedEvidenceTypes): array
+    {
+        $selectedIds = [];
+        $tables = $this->deletedBodyTablesForImportType($importType);
+
+        foreach ($tables as $index => $table) {
+            if (!$this->tableExists($table)) {
+                continue;
+            }
+
+            $bodyWhere = ['body.deleted_at IS NOT NULL'];
+            $bodyParams = [];
+            if ($ids !== []) {
+                [$bodyInSql, $bodyParams] = ($this->placeholderBuilder)($ids, 'deleted_body_only_' . $index . '_id');
+                $bodyWhere[] = "body.id IN ({$bodyInSql})";
+            }
+
+            $bodyStmt = $this->pdo->prepare("
+                SELECT body.id
+                FROM {$table} body
+                WHERE " . implode(' AND ', $bodyWhere)
+            );
+            $bodyStmt->execute($bodyParams);
+            $bodyIds = array_values(array_filter(array_map('strval', $bodyStmt->fetchAll(PDO::FETCH_COLUMN) ?: [])));
+            $selectedIds = array_values(array_unique(array_merge($selectedIds, $bodyIds)));
+        }
+
+        return [
+            'request_import_type' => $importType,
+            'resolved_evidence_types' => $resolvedEvidenceTypes,
+            'where_sql' => 'body.deleted_at IS NOT NULL',
+            'binding_params' => [],
+            'ids' => $selectedIds,
+        ];
+    }
+
     private function bodyRowIdsByDeleteStatus(array $ids, string $evidenceType, string $status, string $prefix): array
     {
         $ids = $this->normalizeIdList($ids);
@@ -616,15 +775,22 @@ class EvidenceTrashService
             }
             [$inSql, $params] = ($this->placeholderBuilder)($ids, $prefix . '_' . $index);
             $deletedClause = $status === 'deleted' ? 'IS NOT NULL' : 'IS NULL';
+            $processingJoin = '';
+            $processingStatusExpr = "'READY'";
+            if ($this->tableExists('ledger_evidence_processing')) {
+                $processingJoin = "
+                LEFT JOIN ledger_evidence_processing pr
+                    ON pr.evidence_id = body.id
+                   AND pr.deleted_at IS NULL";
+                $processingStatusExpr = "COALESCE(pr.processing_status, 'READY')";
+            }
             $stmt = $this->pdo->prepare("
                 SELECT body.id
                 FROM {$table} body
-                LEFT JOIN ledger_evidence_processing pr
-                    ON pr.evidence_id = body.id
-                   AND pr.deleted_at IS NULL
+                {$processingJoin}
                 WHERE body.id IN ({$inSql})
                   AND body.deleted_at {$deletedClause}
-                  AND COALESCE(pr.processing_status, 'READY') IN ('NONE', 'READY', 'REVIEW_REQUIRED', 'ERROR', 'DUPLICATED')
+                  AND {$processingStatusExpr} IN ('NONE', 'READY', 'REVIEW_REQUIRED', 'ERROR', 'DUPLICATED')
             ");
             $stmt->execute($params);
             $selectedIds = array_merge($selectedIds, array_values(array_filter(array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []))));
@@ -657,6 +823,15 @@ class EvidenceTrashService
             $evidenceDateExpr = $this->tableColumnExists($table, 'raw_transaction_datetime')
                 ? 'body.raw_transaction_datetime'
                 : ($this->tableColumnExists($table, 'transaction_date') ? 'body.transaction_date' : ($this->tableColumnExists($table, 'evidence_date') ? 'body.evidence_date' : 'NULL'));
+            $processingJoin = '';
+            $processingStatusExpr = "'READY'";
+            if ($this->tableExists('ledger_evidence_processing')) {
+                $processingJoin = "
+                LEFT JOIN ledger_evidence_processing pr
+                    ON pr.evidence_id = body.id
+                   AND pr.deleted_at IS NULL";
+                $processingStatusExpr = "COALESCE(pr.processing_status, 'READY')";
+            }
 
             $stmt = $this->pdo->prepare("
                 SELECT
@@ -664,14 +839,12 @@ class EvidenceTrashService
                     :source_type AS source_type,
                     {$sourceKeyExpr} AS source_key,
                     {$evidenceDateExpr} AS evidence_date,
-                    COALESCE(pr.processing_status, 'READY') AS transaction_status,
+                    {$processingStatusExpr} AS transaction_status,
                     body.deleted_at,
                     NULL AS mapped_payload_json,
                     tx.target_id AS transaction_id
                 FROM {$table} body
-                LEFT JOIN ledger_evidence_processing pr
-                    ON pr.evidence_id = body.id
-                   AND pr.deleted_at IS NULL
+                {$processingJoin}
                 LEFT JOIN ledger_evidence_links tx
                     ON tx.evidence_id = body.id
                    AND tx.target_type = 'TRANSACTION'
@@ -704,58 +877,6 @@ class EvidenceTrashService
         } catch (\Throwable $e) {
             return false;
         }
-    }
-
-    private function logPurgeAllDiagnostics(string $importType, array $selection): void
-    {
-        error_log('[EvidenceTrashService] purge_all_query=' . json_encode([
-            'request_import_type' => $importType,
-            'resolved_evidence_types' => $selection['resolved_evidence_types'],
-            'list_table' => 'ledger_evidence_payloads',
-            'delete_table' => 'ledger_evidence_payloads',
-            'where_sql' => $selection['where_sql'],
-            'binding_params' => $selection['binding_params'],
-            'delete_target_count' => count($selection['ids']),
-            'delete_target_id_sample' => array_slice($selection['ids'], 0, 5),
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-
-        $sampleStmt = $this->pdo->prepare("
-            SELECT
-                r.*,
-                r.evidence_type AS debug_import_type,
-                r.evidence_type AS debug_evidence_type,
-                JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.data_type')) AS debug_data_type,
-                JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.import_type')) AS debug_payload_import_type,
-                JSON_UNQUOTE(JSON_EXTRACT(r.mapped_payload_json, '$.source_type')) AS debug_source_type,
-                COALESCE(pr.processing_status, 'READY') AS debug_status,
-                CASE WHEN r.deleted_at IS NULL THEN 0 ELSE 1 END AS debug_is_deleted
-            FROM ledger_evidence_payloads r
-            LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type COLLATE utf8mb4_unicode_ci = r.evidence_type COLLATE utf8mb4_unicode_ci
-               AND pr.evidence_id COLLATE utf8mb4_unicode_ci = r.evidence_id COLLATE utf8mb4_unicode_ci
-               AND pr.deleted_at IS NULL
-            WHERE {$selection['where_sql']}
-            ORDER BY r.deleted_at DESC, r.updated_at DESC, r.created_at DESC
-            LIMIT 1
-        ");
-        $sampleStmt->execute($selection['binding_params']);
-        $sampleRow = $sampleStmt->fetch(PDO::FETCH_ASSOC) ?: null;
-        error_log('[EvidenceTrashService] purge_all_sample_row=' . json_encode([
-            'delete_table' => 'ledger_evidence_payloads',
-            'sample_row' => $sampleRow,
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-    }
-
-    private function logPurgeAllCountComparison(array $selection): void
-    {
-        error_log('[EvidenceTrashService] purge_all_count_compare=' . json_encode([
-            'list_row_count' => $this->deletedSeedRowListCount($selection),
-            'purge_target_count' => count($selection['ids']),
-            'list_table' => 'ledger_evidence_payloads',
-            'delete_table' => 'ledger_evidence_payloads',
-            'where_sql' => $selection['where_sql'],
-            'binding_params' => $selection['binding_params'],
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 
     private function auditActor(string $actor): string

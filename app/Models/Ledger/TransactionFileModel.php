@@ -18,6 +18,10 @@ class TransactionFileModel
 
     public function getByTransactionId(string $transactionId): array
     {
+        if (!$this->tableExists()) {
+            return [];
+        }
+
         $stmt = $this->db->prepare("
             SELECT *
             FROM {$this->table}
@@ -31,6 +35,10 @@ class TransactionFileModel
 
     public function getById(string $id): ?array
     {
+        if (!$this->tableExists()) {
+            return null;
+        }
+
         $stmt = $this->db->prepare("
             SELECT *
             FROM {$this->table}
@@ -108,6 +116,26 @@ class TransactionFileModel
         }
 
         return $payload;
+    }
+
+    private function tableExists(): bool
+    {
+        static $exists = null;
+        if ($exists !== null) {
+            return $exists;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT 1
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = :table_name
+            LIMIT 1
+        ");
+        $stmt->execute([':table_name' => $this->table]);
+        $exists = (bool) $stmt->fetchColumn();
+
+        return $exists;
     }
 
     private function bindParams(array $data): array

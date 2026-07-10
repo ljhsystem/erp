@@ -125,8 +125,6 @@ class EvidenceBusinessRefService
         }
 
         $labels = [
-            '__none__',
-            '__CODE_NONE__',
             '_none_',
             '__none',
             'none__',

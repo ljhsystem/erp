@@ -20,24 +20,6 @@ class EvidenceStatusController
     use ImportControllerBusinessInfoTrait;
     use ImportControllerUtilityTrait;
 
-    private const LEGACY_DATA_TYPE_MAP = [
-        'DATA' => 'TAX_INVOICE',
-        'TAX' => 'TAX_INVOICE',
-        'CARD' => 'CARD_STATEMENT',
-        'CARD_PURCHASE' => 'CARD_STATEMENT',
-        'CARD_SALE' => 'CARD_STATEMENT',
-        'CASH_RECEIPT_PURCHASE' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_PURCHAS' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_BUY' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SALES' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SALE' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SELL' => 'CASH_RECEIPT',
-        'BANK' => 'BANK_TRANSACTION',
-        'SHOPPING' => 'SHOPPING_ORDER',
-        'TRADE_IMPORT' => 'IMPORT_INVOICE',
-        'IMPORT' => 'IMPORT_INVOICE',
-    ];
-
     private PDO $pdo;
     private ?EvidenceStatusService $evidenceStatusService = null;
     private ?EvidencePayloadHelperService $evidencePayloadHelperService = null;
@@ -121,7 +103,6 @@ class EvidenceStatusController
         if ($this->evidenceTypePolicyService === null) {
             $this->evidenceTypePolicyService = new EvidenceTypePolicyService(
                 fn(string $type): string => self::normalizeDataType($type),
-                self::LEGACY_DATA_TYPE_MAP,
                 $this->pdo,
                 [
                     'amountOrNull' => fn(mixed $value): ?float => $this->amountOrNull($value),

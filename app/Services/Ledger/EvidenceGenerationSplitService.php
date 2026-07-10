@@ -349,9 +349,9 @@ class EvidenceGenerationSplitService
             if ($sourceId !== '' && $sourceType !== '') {
                 $stmt = $this->pdo->prepare("
                     SELECT mapped_payload_json
-                    FROM ledger_evidence_payloads
-                    WHERE evidence_type = :evidence_type
-                      AND evidence_id = :evidence_id
+                    FROM ledger_data_evidences
+                    WHERE source_type = :evidence_type
+                      AND id = :evidence_id
                       AND deleted_at IS NULL
                     LIMIT 1
                 ");
@@ -361,7 +361,7 @@ class EvidenceGenerationSplitService
                 ]);
                 $mapped = json_decode((string) ($stmt->fetchColumn() ?: ''), true);
                 if (is_array($mapped)) {
-                    foreach (['_status_sort_no', '_create_sort_no', '_row_no', '_upload_row_no'] as $key) {
+                    foreach (['sort_no', 'evidence_sort_no', '_row_no', '_upload_row_no'] as $key) {
                         $value = trim((string) ($mapped[$key] ?? ''));
                         if ($value !== '' && $value !== '0') {
                             return $value;

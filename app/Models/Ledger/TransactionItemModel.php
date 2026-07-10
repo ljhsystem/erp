@@ -21,8 +21,12 @@ class TransactionItemModel
         $sql = "
             SELECT *
             FROM {$this->table}
-            WHERE deleted_at IS NULL
+            WHERE 1 = 1
         ";
+
+        if ($this->usesSoftDelete()) {
+            $sql .= " AND deleted_at IS NULL";
+        }
 
         $params = [];
 
@@ -59,11 +63,15 @@ class TransactionItemModel
 
     public function getByTransactionId(string $transactionId): array
     {
+        $where = 'transaction_id = :transaction_id';
+        if ($this->usesSoftDelete()) {
+            $where .= ' AND deleted_at IS NULL';
+        }
+
         $stmt = $this->db->prepare("
             SELECT *
             FROM {$this->table}
-            WHERE transaction_id = :transaction_id
-              AND deleted_at IS NULL
+            WHERE {$where}
             ORDER BY sort_no ASC, created_at ASC
         ");
         $stmt->execute([':transaction_id' => $transactionId]);
@@ -77,7 +85,7 @@ class TransactionItemModel
             'id',
             'sort_no',
             'transaction_id',
-            'processing_item_id',
+            'transaction_line_type',
             'item_date',
             'item_name',
             'item_specification',
@@ -123,7 +131,7 @@ class TransactionItemModel
         $allowed = [
             'transaction_id',
             'sort_no',
-            'processing_item_id',
+            'transaction_line_type',
             'item_date',
             'item_name',
             'item_specification',
@@ -168,6 +176,10 @@ class TransactionItemModel
 
     public function softDelete(string $id): bool
     {
+        if (!$this->usesSoftDelete()) {
+            return $this->hardDelete($id);
+        }
+
         $stmt = $this->db->prepare("
             UPDATE {$this->table}
             SET deleted_at = NOW()
@@ -180,6 +192,10 @@ class TransactionItemModel
 
     public function restore(string $id): bool
     {
+        if (!$this->usesSoftDelete()) {
+            return false;
+        }
+
         $stmt = $this->db->prepare("
             UPDATE {$this->table}
             SET deleted_at = NULL,
@@ -235,6 +251,11 @@ class TransactionItemModel
 
         $cache[$columnName] = (bool) $stmt->fetchColumn();
         return $cache[$columnName];
+    }
+
+    private function usesSoftDelete(): bool
+    {
+        return $this->tableColumnExists('deleted_at');
     }
 
     private function bindParams(array $data): array

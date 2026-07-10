@@ -107,7 +107,7 @@ class JournalLearningService
 
     private function recordRecentPattern(array $context, array $lines, string $timestamp): void
     {
-        if (!$this->tableExists('ledger_recent_journal_patterns')) {
+        if (!$this->tableExists('ledger_journal_recent_patterns')) {
             return;
         }
 
@@ -130,7 +130,7 @@ class JournalLearningService
         ]));
 
         $stmt = $this->pdo->prepare("
-            INSERT INTO ledger_recent_journal_patterns (
+            INSERT INTO ledger_journal_recent_patterns (
                 id, pattern_hash, client_id, transaction_direction, debit_account_id,
                 credit_account_id, vat_account_id, project_id, usage_count, last_used_at,
                 created_at, updated_at
@@ -162,12 +162,12 @@ class JournalLearningService
 
     private function recordClientAccountPatterns(array $context, array $lines, string $timestamp): void
     {
-        if (!$this->tableExists('ledger_client_account_patterns') || $context['client_id'] === '') {
+        if (!$this->tableExists('ledger_journal_client_account_patterns') || $context['client_id'] === '') {
             return;
         }
 
         $stmt = $this->pdo->prepare("
-            INSERT INTO ledger_client_account_patterns (
+            INSERT INTO ledger_journal_client_account_patterns (
                 id, client_id, transaction_direction, line_type, account_id,
                 usage_count, recent_score, last_used_at, created_at, updated_at
             ) VALUES (
@@ -378,12 +378,12 @@ class JournalLearningService
 
         $columns = [
             'id', 'sort_no', 'rule_code', 'rule_name', 'business_unit',
-            'transaction_direction', 'client_type', 'import_type', 'debit_account_id',
+            'operation_type', 'transaction_direction', 'client_type', 'import_type', 'debit_account_id',
             'credit_account_id', 'vat_account_id', 'description', 'is_active', 'created_by', 'updated_by',
         ];
         $values = [
             ':id', ':sort_no', ':rule_code', ':rule_name', ':business_unit',
-            ':transaction_direction', ':client_type', ':import_type', ':debit_account_id',
+            ':operation_type', ':transaction_direction', ':client_type', ':import_type', ':debit_account_id',
             ':credit_account_id', ':vat_account_id', ':description', ':is_active', ':created_by', ':updated_by',
         ];
         $params = [
@@ -392,6 +392,7 @@ class JournalLearningService
             ':rule_code' => $ruleCode,
             ':rule_name' => '시스템 학습 분개규칙',
             ':business_unit' => $context['business_unit'],
+            ':operation_type' => strtoupper(trim((string) ($context['operation_type'] ?? 'GENERAL'))) ?: 'GENERAL',
             ':transaction_direction' => $context['transaction_direction'],
             ':client_type' => $context['client_type'],
             ':import_type' => $context['import_type'],
@@ -435,7 +436,7 @@ class JournalLearningService
 
         $totalStmt = $this->pdo->prepare("
             SELECT COALESCE(SUM(usage_count), 0)
-            FROM ledger_client_account_patterns
+            FROM ledger_journal_client_account_patterns
             WHERE client_id = :client_id
         ");
         $totalStmt->execute([':client_id' => $clientId]);
@@ -446,7 +447,7 @@ class JournalLearningService
 
         $stmt = $this->pdo->prepare("
             SELECT account_id, usage_count
-            FROM ledger_client_account_patterns
+            FROM ledger_journal_client_account_patterns
             WHERE client_id = :client_id
             ORDER BY usage_count DESC, last_used_at DESC
             LIMIT 1

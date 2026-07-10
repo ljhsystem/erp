@@ -115,16 +115,12 @@ trait ImportControllerUploadTrait
 
     private function uploadDataTypes(): array
     {
-        $constantName = static::class . '::DATA_TYPES';
-
-        return defined($constantName) ? (array) constant($constantName) : [];
+        return $this->evidenceTypePolicyService()->evidenceUploadTypes();
     }
 
     private function uploadBusinessDataTypes(): array
     {
-        $constantName = static::class . '::BUSINESS_DATA_TYPES';
-
-        return defined($constantName) ? (array) constant($constantName) : [];
+        return $this->evidenceTypePolicyService()->businessDataTypes();
     }
 
     private function isAllowedDataType(string $type): bool

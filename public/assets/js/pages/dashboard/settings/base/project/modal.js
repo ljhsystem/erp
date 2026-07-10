@@ -55,7 +55,9 @@ export function createProjectModalModule({
     ]);
 
     function currentProjectPolicyState() {
-        return readDataTableSettingsState(PROJECT_TABLE_SETTINGS_STORAGE_KEY) || {};
+        return readDataTableSettingsState(PROJECT_TABLE_SETTINGS_STORAGE_KEY, {
+            userSettingPageKey: 'project',
+        }) || {};
     }
 
     function projectFieldLabel(key, _fallback = '') {
@@ -236,20 +238,15 @@ export function createProjectModalModule({
             processResults(json) {
                 const rows = json?.results ?? json?.data ?? [];
                 return {
-                    results: [
-                        { id: '__none__', text: '선택(없음)', isNone: true },
-                        ...rows.map((row) => ({
+                    results: rows.map((row) => ({
                             id: String(row.id ?? ''),
                             text: row.text ?? row.employee_name ?? row.username ?? row.id,
                             raw: row,
                         })).filter((item) => item.id !== ''),
-                    ],
                 };
             },
         });
-        $el.off('select2:select.projectEmployee').on('select2:select.projectEmployee', function (event) {
-            if (event.params?.data?.id === '__none__') window.jQuery(this).val(null).trigger('change');
-        });
+        $el.off('select2:select.projectEmployee');
         employeeSelect2Inited = true;
     }
 
@@ -270,20 +267,15 @@ export function createProjectModalModule({
             processResults(json) {
                 const rows = json?.results ?? json?.data ?? [];
                 return {
-                    results: [
-                        { id: '__none__', text: '선택(없음)', isNone: true },
-                        ...rows.map((row) => ({
+                    results: rows.map((row) => ({
                             id: String(row.id ?? ''),
                             text: row.text ?? row.employee_name ?? row.username ?? row.id,
                             raw: row,
                         })).filter((item) => item.id !== ''),
-                    ],
                 };
             },
         });
-        $el.off('select2:select.projectSiteAgent').on('select2:select.projectSiteAgent', function (event) {
-            if (event.params?.data?.id === '__none__') window.jQuery(this).val(null).trigger('change');
-        });
+        $el.off('select2:select.projectSiteAgent');
         siteAgentSelect2Inited = true;
     }
 

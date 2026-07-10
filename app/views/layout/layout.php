@@ -2,6 +2,7 @@
 
 use Core\Helpers\AssetHelper;
 use Core\Helpers\ConfigHelper;
+use Core\Router;
 
 $layoutOptions = $layoutOptions ?? [];
 $layoutOptions = array_merge([
@@ -18,6 +19,7 @@ $sessionTimeout = $sessionTimeout ?? null;
 $sessionAlert = $sessionAlert ?? null;
 $sessionSound = $sessionSound ?? 'default.mp3';
 $userId = $userId ?? '';
+$pageDescription = Router::currentPageDescription();
 
 $uiSettings = [
     'ui_skin' => ConfigHelper::system('ui_skin', 'default'),
@@ -46,7 +48,8 @@ $ui = $uiSettings;
     <?php include __DIR__ . '/header.php'; ?>
 <?php endif; ?>
 
-<body data-userid="<?= htmlspecialchars((string)$userId, ENT_QUOTES, 'UTF-8') ?>"
+<body data-userid="<?= htmlspecialchars((string) $userId, ENT_QUOTES, 'UTF-8') ?>"
+data-page-description="<?= htmlspecialchars((string) $pageDescription, ENT_QUOTES, 'UTF-8') ?>"
 data-density="<?= htmlspecialchars($ui['ui_density'], ENT_QUOTES, 'UTF-8') ?>"
 class="
   <?= ($ui['sidebar_default'] === 'collapsed') ? 'is-sidebar-collapsed' : '' ?>

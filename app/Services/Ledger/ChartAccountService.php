@@ -512,7 +512,7 @@ class ChartAccountService
         $this->pdo->beginTransaction();
 
         try {
-            $stmt = $this->pdo->prepare("DELETE FROM ledger_sub_accounts WHERE account_id = :account_id");
+            $stmt = $this->pdo->prepare("DELETE FROM ledger_accounts_sub WHERE account_id = :account_id");
             $stmt->execute([':account_id' => $id]);
 
             $ok = $this->model->hardDelete($id, $actor);
@@ -616,7 +616,7 @@ class ChartAccountService
                 ['key' => 'is_active', 'label' => '사용여부', 'required' => false],
                 ['key' => 'note', 'label' => '비고', 'required' => false],
                 ['key' => 'memo', 'label' => '메모', 'required' => false],
-                ['key' => 'sub_name', 'label' => '보조계정명', 'required' => false],
+                ['key' => 'sub_name', 'label' => '보조계정 대상', 'required' => false],
             ]);
             $spreadsheet = IOFactory::load($filePath);
             $sheet = $spreadsheet->getActiveSheet();
@@ -669,7 +669,7 @@ class ChartAccountService
                 '비고' => 'note',
                 '메모' => 'memo',
                 'memo' => 'memo',
-                '보조계정명' => 'sub_name',
+                '보조계정 대상' => 'sub_name',
                 '보조계정' => 'sub_name',
             ]);
             foreach ($uploadColumns as $column) {
@@ -1028,7 +1028,7 @@ class ChartAccountService
     {
         $this->pdo->exec("
             DELETE sa
-            FROM ledger_sub_accounts sa
+            FROM ledger_accounts_sub sa
             INNER JOIN ledger_accounts a ON a.id = sa.account_id
             WHERE a.deleted_at IS NOT NULL
         ");
@@ -1222,7 +1222,7 @@ class ChartAccountService
         if (count($selectedRows) === 0) {
             return [
                 'success' => false,
-                'message' => '보조계정 사용 시 보조계정명을 1개 이상 선택해주세요.',
+                'message' => '보조계정 사용 시 보조계정 대상을 1개 이상 선택해주세요.',
             ];
         }
 

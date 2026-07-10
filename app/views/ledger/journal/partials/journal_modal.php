@@ -4,20 +4,26 @@
      aria-labelledby="journalModalLabel"
      aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable journal-voucher-dialog">
-        <div class="modal-content">
+        <div class="modal-content journal-modal-card">
             <form id="journal-edit-form" class="journal-modal-form" autocomplete="off">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="journalModalLabel">전표 등록</h5>
+                <div class="modal-header journal-modal-header">
+                    <div>
+                        <h5 class="modal-title" id="journalModalLabel">전표 등록</h5>
+                        <p class="journal-modal-subtitle mb-0">전표 처리상태, 분개라인, 거래·증빙 연결정보를 한 화면에서 관리합니다.</p>
+                    </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
                 </div>
 
                 <div class="modal-body journal-modal-body">
                     <input type="hidden" name="id" id="journal_id">
-                    <input type="hidden" name="status" id="voucher_status" value="draft">
+                    <input type="hidden" name="status" id="voucher_status" value="DRAFT">
 
-                    <section class="form-section journal-section journal-status-panel" aria-label="전표처리현황">
-                        <div class="section-header journal-section-head">
-                            <span class="section-title journal-section-title">전표처리현황</span>
+                    <section class="form-section journal-section journal-status-panel" aria-label="전표 처리상태">
+                        <div class="section-header journal-section-head journal-card-header">
+                            <div class="journal-card-heading">
+                                <span class="section-title journal-section-title journal-card-title">전표 처리상태</span>
+                                <p class="journal-card-description">저장부터 승인과 마감까지 현재 전표의 진행 상태를 확인합니다.</p>
+                            </div>
                         </div>
 
                         <div class="section-body">
@@ -27,258 +33,193 @@
                         </div>
                     </section>
 
-                    <section class="form-section journal-section journal-reject-panel d-none" id="journalRejectPanel" aria-label="반려 사유">
-                        <div class="section-header journal-section-head">
-                            <span class="section-title journal-section-title">반려됨</span>
+                    <section class="form-section journal-section journal-voucher-header" aria-label="전표 개요">
+                        <div class="section-header journal-section-head journal-card-header">
+                            <div class="journal-card-heading">
+                                <span class="section-title journal-section-title journal-card-title">전표 개요</span>
+                                <p class="journal-card-description">전표번호, 전표일자, 전표요약을 현재 테이블설정 기준으로 관리합니다.</p>
+                            </div>
                         </div>
 
                         <div class="section-body">
-                            <div class="journal-reject-reason" id="journalRejectReason"></div>
-                        </div>
-                    </section>
-
-                    <section class="form-section journal-section journal-voucher-header" aria-label="전표개요">
-                        <div class="section-header journal-section-head">
-                            <span class="section-title journal-section-title">전표개요</span>
-                        </div>
-
-                        <div class="section-body">
-                        <div class="journal-header-grid">
-                            <div class="journal-form-field journal-voucher-no-field">
-                                <label class="form-label" for="voucher_no_display">전표코드</label>
-                                <input type="text"
-                                       class="form-control form-control-sm"
-                                       id="voucher_no_display"
-                                       value="자동발번"
-                                       readonly>
-                            </div>
-
-                            <div class="journal-form-field">
-                                <label class="form-label" for="voucher_date">전표일자</label>
-                                <div class="date-input">
-                                    <input type="text"
-                                           class="form-control form-control-sm admin-date"
-                                           name="voucher_date"
-                                           id="voucher_date"
-                                           placeholder="날짜 선택"
-                                           autocomplete="off"
-                                           inputmode="numeric"
-                                           maxlength="10"
-                                           required>
-                                    <i class="fa fa-calendar-days date-icon" aria-hidden="true"></i>
-                                </div>
-                            </div>
-
-                            <input type="hidden" name="transaction_id" id="voucher_transaction_id">
-
-                            <div class="journal-form-field journal-summary-text-field">
-                                <label class="form-label" for="voucher_summary_text">전표 적요</label>
-                                <div class="summary-autocomplete-wrap">
+                            <div class="journal-header-grid">
+                                <div class="journal-form-field journal-voucher-no-field">
+                                    <label class="form-label"
+                                           for="voucher_no_display"
+                                           data-voucher-label-for="voucher_no"></label>
                                     <input type="text"
                                            class="form-control form-control-sm"
-                                           name="summary_text"
-                                           id="voucher_summary_text"
-                                           placeholder="전표 적요를 입력하세요"
-                                           autocomplete="off">
-                                    <div id="voucher_summary_suggestions"
-                                         class="summary-autocomplete-list d-none"
-                                         role="listbox"></div>
+                                           id="voucher_no_display"
+                                           value="자동발번"
+                                           readonly>
+                                </div>
+
+                                <div class="journal-form-field">
+                                    <label class="form-label"
+                                           for="voucher_date"
+                                           data-voucher-label-for="voucher_date"></label>
+                                    <div class="date-input">
+                                        <input type="text"
+                                               class="form-control form-control-sm admin-date"
+                                               name="voucher_date"
+                                               id="voucher_date"
+                                               placeholder="날짜를 선택해 주세요"
+                                               autocomplete="off"
+                                               inputmode="numeric"
+                                               maxlength="10"
+                                               required>
+                                        <i class="fa fa-calendar-days date-icon" aria-hidden="true"></i>
+                                    </div>
+                                </div>
+
+                                <div class="journal-form-field journal-summary-text-field">
+                                    <label class="form-label"
+                                           for="voucher_summary_text"
+                                           data-voucher-label-for="summary"></label>
+                                    <div class="summary-autocomplete-wrap">
+                                        <input type="text"
+                                               class="form-control form-control-sm"
+                                               name="summary_text"
+                                               id="voucher_summary_text"
+                                               placeholder="전표 적요를 입력해 주세요"
+                                               autocomplete="off">
+                                        <div id="voucher_summary_suggestions"
+                                             class="summary-autocomplete-list d-none"
+                                             role="listbox"></div>
+                                    </div>
                                 </div>
                             </div>
-
                         </div>
-
-                        <div class="journal-note-grid" aria-label="비고와 메모">
-                            <div class="journal-form-field">
-                                <label class="form-label" for="voucher_note">비고</label>
-                                <textarea class="form-control form-control-sm"
-                                          name="note"
-                                          id="voucher_note"
-                                          rows="2"
-                                          maxlength="255"
-                                          placeholder="비고를 입력하세요"></textarea>
-                            </div>
-
-                            <div class="journal-form-field">
-                                <label class="form-label" for="voucher_memo">메모</label>
-                                <textarea class="form-control form-control-sm"
-                                          name="memo"
-                                          id="voucher_memo"
-                                          rows="2"
-                                          placeholder="메모를 입력하세요"></textarea>
-                            </div>
-                        </div>
-                                            </div>
                     </section>
 
                     <section class="form-section journal-section journal-lines-panel" aria-label="분개라인">
-                        <div class="section-header journal-lines-toolbar">
-                            <span class="section-title journal-section-title">분개라인</span>
+                        <div class="section-header journal-lines-toolbar journal-card-header">
+                            <div class="journal-card-heading">
+                                <span class="section-title journal-section-title journal-card-title">분개라인</span>
+                                <p class="journal-card-description">HTML Grid에서 차변, 대변, 계정과목, 보조계정을 한 번에 입력하고 합계를 검증합니다.</p>
+                            </div>
+                            <div class="journal-card-header-actions">
+                                <button type="button"
+                                        class="btn btn-link btn-sm voucher-line-add-btn"
+                                        id="btnAddVoucherLine">+추가</button>
+                            </div>
                         </div>
 
                         <div class="section-body">
-                        <div class="journal-lines-wrap">
-                            <div class="table-responsive journal-lines-table-wrap">
-                                <table class="table table-bordered align-middle mb-0" id="voucher-line-table">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th width="64">순번</th>
-                                            <th width="280">계정과목</th>
-                                            <th width="260" class="line-ref-cell">보조계정</th>
-                                            <th width="150">차변</th>
-                                            <th width="150">대변</th>
-                                            <th>라인 적요</th>
-                                            <th width="64" class="journal-table-action-head">
-                                                <button type="button"
-                                                        class="btn btn-link btn-sm voucher-line-add-btn"
-                                                        id="btnAddVoucherLine">+추가</button>
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="voucher-line-body">
-                                        <tr class="voucher-line-empty">
-                                            <td colspan="7" class="text-center text-muted py-4">
-                                                분개라인을 추가해 주세요.
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                            <div class="journal-lines-wrap">
+                                <div id="voucher-line-grid-host" class="voucher-line-grid-host"></div>
+                                <div class="table-responsive journal-lines-table-wrap">
+                                    <table class="table table-bordered align-middle mb-0" id="voucher-line-table">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th width="64">순번</th>
+                                                <th width="280">계정과목</th>
+                                                <th width="260" class="line-ref-cell">보조계정</th>
+                                                <th width="150">차변</th>
+                                                <th width="150">대변</th>
+                                                <th>라인 적요</th>
+                                                <th width="64" class="journal-table-action-head"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="voucher-line-body">
+                                            <tr class="voucher-line-empty">
+                                                <td colspan="7" class="text-center text-muted py-4">
+                                                    분개라인을 추가해 주세요.
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="journal-summary" aria-label="합계">
+                                <div class="journal-form-field journal-summary-item">
+                                    <label class="form-label" for="voucher_debit_total">차변 합계</label>
+                                    <input type="text"
+                                           class="form-control form-control-sm"
+                                           id="voucher_debit_total"
+                                           value="0"
+                                           readonly>
+                                </div>
+
+                                <div class="journal-form-field journal-summary-item">
+                                    <label class="form-label" for="voucher_credit_total">대변 합계</label>
+                                    <input type="text"
+                                           class="form-control form-control-sm"
+                                           id="voucher_credit_total"
+                                           value="0"
+                                           readonly>
+                                </div>
+
+                                <div class="journal-form-field journal-summary-item journal-summary-item--status">
+                                    <label class="form-label" for="voucher_balance_status">검증 상태</label>
+                                    <div id="voucher_balance_status"
+                                         class="voucher-validation-badge voucher-validation-error"
+                                         aria-live="polite">차변/대변 합계를 확인해 주세요.</div>
+                                </div>
                             </div>
                         </div>
-
-                        <div class="journal-summary" aria-label="합계">
-                            <div class="journal-form-field journal-summary-item">
-                                <label class="form-label" for="voucher_debit_total">차변 합계</label>
-                                <input type="text"
-                                       class="form-control form-control-sm"
-                                       id="voucher_debit_total"
-                                       value="0"
-                                       readonly>
-                            </div>
-
-                            <div class="journal-form-field journal-summary-item">
-                                <label class="form-label" for="voucher_credit_total">대변 합계</label>
-                                <input type="text"
-                                       class="form-control form-control-sm"
-                                       id="voucher_credit_total"
-                                       value="0"
-                                       readonly>
-                            </div>
-
-                            <div class="journal-form-field journal-summary-item journal-summary-item--status">
-                                <label class="form-label" for="voucher_balance_status">검증 상태</label>
-                                <div id="voucher_balance_status"
-                                     class="voucher-validation-badge voucher-validation-error"
-                                     aria-live="polite">차변/대변 합계를 확인해 주세요.</div>
-                            </div>
-                        </div>
-                                            </div>
                     </section>
 
-                    <section class="form-section journal-section journal-payment-panel" aria-label="결제">
-                        <div class="section-header journal-lines-toolbar">
-                            <span class="section-title journal-section-title">결제정보</span>
-                        </div>
+                    <section class="form-section journal-section journal-system-info-panel" aria-label="시스템 처리 정보">
+                        <button type="button"
+                                class="journal-card-toggle collapsed"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#voucherSystemInfoCollapse"
+                                aria-expanded="false"
+                                aria-controls="voucherSystemInfoCollapse">
+                            <span class="journal-card-heading">
+                                <span class="section-title journal-section-title journal-card-title">시스템 처리 정보</span>
+                                <span class="journal-card-description">상태, 생성자, 수정자, 생성일시, 수정일시를 현재 메타 순서대로 확인합니다.</span>
+                            </span>
+                            <i class="bi bi-chevron-down journal-card-icon" aria-hidden="true"></i>
+                        </button>
 
-                        <div class="section-body">
-                        <div class="journal-payments-wrap table-responsive">
-                            <table class="table table-bordered align-middle mb-0" id="voucher-payment-table">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th width="64">순번</th>
-                                        <th width="160">결제유형</th>
-                                        <th width="100" class="payment-direction-cell">입/출금</th>
-                                        <th>결제수단</th>
-                                        <th width="160">금액</th>
-                                        <th width="64" class="journal-table-action-head">
+                        <div id="voucherSystemInfoCollapse" class="collapse">
+                            <div class="section-body journal-card-body">
+                                <div id="voucher_system_info_fields" class="journal-header-grid journal-system-grid"></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="form-section journal-section journal-link-info-panel" aria-label="증빙연결정보">
+                        <button type="button"
+                                class="journal-card-toggle collapsed"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#voucherLinkInfoCollapse"
+                                aria-expanded="false"
+                                aria-controls="voucherLinkInfoCollapse">
+                            <span class="journal-card-heading">
+                                <span class="section-title journal-section-title journal-card-title">증빙연결정보</span>
+                                <span class="journal-card-description">전표에 연결된 증빙을 확인하고 선택, 변경, 해제합니다.</span>
+                            </span>
+                            <i class="bi bi-chevron-down journal-card-icon" aria-hidden="true"></i>
+                        </button>
+
+                        <div id="voucherLinkInfoCollapse" class="collapse">
+                            <div class="section-body journal-card-body journal-link-card-body">
+                                <div class="journal-link-sections">
+                                    <section class="journal-link-section journal-evidence-panel" aria-label="증빙 연결">
+                                        <div class="journal-link-section-head">
+                                            <span class="journal-link-section-title">증빙연결</span>
+                                        </div>
+
+                                        <div class="journal-evidence-link">
+                                            <input type="hidden"
+                                                   name="linked_evidence_id"
+                                                   id="linked_evidence_id">
                                             <button type="button"
-                                                    class="btn btn-link btn-sm bank-payment-add-btn"
-                                                    id="btnAddVoucherPayment">+추가</button>
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody id="voucher-payment-body">
-                                    <tr class="voucher-payment-empty">
-                                        <td colspan="6" class="text-center text-muted py-3">
-                                            결제수단이 필요한 경우 추가해주세요.
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                                            </div>
-                    </section>
-
-                    <section class="form-section journal-section journal-transaction-panel" aria-label="거래연결">
-                        <div class="section-header journal-section-head">
-                            <span class="section-title journal-section-title">거래연결</span>
-                        </div>
-
-                        <div class="section-body">
-                        <div class="journal-transaction-link">
-                            <div class="journal-link-meta-grid d-none">
-                                <div class="journal-form-field">
-                                    <label class="form-label" for="voucher_source_type">자료출처</label>
-                                    <select class="form-select form-select-sm"
-                                            data-removed-name="source_type"
-                                            id="voucher_source_type"
-                                            data-code-group="SOURCE_TYPE"
-                                            data-empty-option="false"
-                                            disabled
-                                            required>
-                                        <option value="MANUAL" selected>수기입력</option>
-                                        <option value="TAX">홈택스</option>
-                                        <option value="CARD">카드사</option>
-                                    </select>
+                                                    class="btn btn-outline-primary btn-sm"
+                                                    id="btnSelectEvidence">증빙 선택</button>
+                                            <button type="button"
+                                                    class="btn btn-outline-secondary btn-sm"
+                                                    id="btnClearEvidenceLink">연결 해제</button>
+                                            <div class="journal-transaction-summary"
+                                                 id="linked_evidence_summary">연결된 증빙이 없습니다.</div>
+                                            <div class="journal-source-origin d-none" id="linked_evidence_origin"></div>
+                                        </div>
+                                    </section>
                                 </div>
-                                <div class="journal-form-field">
-                                    <label class="form-label" for="voucher_import_type">자료유형</label>
-                                    <select class="form-select form-select-sm"
-                                            data-removed-name="import_type"
-                                            id="voucher_import_type"
-                                            data-code-group="IMPORT_TYPE"
-                                            data-empty-label="선택">
-                                        <option value="">선택</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <input type="hidden"
-                                   name="linked_transaction_id"
-                                   id="linked_transaction_id">
-                            <button type="button"
-                                    class="btn btn-outline-primary btn-sm"
-                                    id="btnSelectTransaction">거래 선택</button>
-                            <button type="button"
-                                    class="btn btn-outline-secondary btn-sm"
-                                    id="btnClearTransactionLink">연결 해제</button>
-                            <div class="journal-transaction-summary"
-                                 id="linked_transaction_summary">연결된 거래가 없습니다.</div>
-                            <div class="journal-source-origin d-none" id="voucher_source_transaction_info"></div>
-                            <div class="journal-transaction-notice d-none"
-                                 id="journalTransactionNotice"></div>
-                        </div>
-                                            </div>
-                    </section>
-
-                    <section class="form-section journal-section journal-evidence-panel" aria-label="증빙연결">
-                        <div class="section-header journal-section-head">
-                            <span class="section-title journal-section-title">증빙연결</span>
-                        </div>
-
-                        <div class="section-body">
-                            <div class="journal-transaction-link">
-                                <input type="hidden"
-                                       name="linked_evidence_id"
-                                       id="linked_evidence_id">
-                                <button type="button"
-                                        class="btn btn-outline-primary btn-sm"
-                                        id="btnSelectEvidence">증빙 선택</button>
-                                <button type="button"
-                                        class="btn btn-outline-secondary btn-sm"
-                                        id="btnClearEvidenceLink">연결 해제</button>
-                                <div class="journal-transaction-summary"
-                                     id="linked_evidence_summary">연결된 증빙이 없습니다.</div>
-                                <div class="journal-source-origin d-none" id="linked_evidence_origin"></div>
                             </div>
                         </div>
                     </section>
@@ -340,56 +281,8 @@
                         </thead>
                         <tbody id="journal_evidence_search_body">
                             <tr>
-                                    <td colspan="6" class="text-center text-muted py-4">
+                                <td colspan="6" class="text-center text-muted py-4">
                                     증빙을 검색해 주세요.
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade"
-     id="journalTransactionSearchModal"
-     tabindex="-1"
-     aria-labelledby="journalTransactionSearchModalLabel"
-     aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="journalTransactionSearchModalLabel">거래 선택</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
-            </div>
-            <div class="modal-body">
-                <div class="journal-transaction-search">
-                    <input type="search"
-                           class="form-control form-control-sm"
-                           id="journal_transaction_search_keyword"
-                           placeholder="거래일자, 거래처, 금액, 거래 적요로 검색">
-                    <button type="button"
-                            class="btn btn-outline-secondary btn-sm"
-                            id="btnSearchTransaction">검색</button>
-                </div>
-
-                <div class="table-responsive journal-search-table-wrap">
-                    <table class="table table-bordered align-middle mb-0 journal-transaction-search-table">
-                        <thead class="table-light">
-                            <tr>
-                                <th width="130">거래일시</th>
-                                <th width="90">구분</th>
-                                <th width="160">거래처</th>
-                                <th width="130">금액</th>
-                                <th>거래내용</th>
-                                <th width="90">선택</th>
-                            </tr>
-                        </thead>
-                        <tbody id="journal_transaction_search_body">
-                            <tr>
-                                    <td colspan="6" class="text-center text-muted py-4">
-                                    거래를 검색해 주세요.
                                 </td>
                             </tr>
                         </tbody>

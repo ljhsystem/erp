@@ -3,7 +3,6 @@ export function createEvidenceSplitModule({
     API,
     notify,
     updateSummary,
-    refreshDataTableLayout,
     escapeHtml,
     mapped,
     valueText,
@@ -762,8 +761,6 @@ export function createEvidenceSplitModule({
         bootstrap.Modal.getInstance(modal)?.hide();
         state.table?.ajax.reload(() => {
             updateSummary(state.lastRows);
-            refreshDataTableLayout(state.table);
-            window.setTimeout(() => refreshDataTableLayout(state.table), 150);
         }, false);
     }
 

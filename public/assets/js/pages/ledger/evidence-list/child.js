@@ -3,7 +3,6 @@ export function createEvidenceChildModule({
     API,
     notify,
     updateSummary,
-    refreshDataTableLayout,
     escapeHtml,
     mapped,
     splitModalColumns,
@@ -18,6 +17,73 @@ export function createEvidenceChildModule({
     openProcessingSplitModal,
     openEvidenceEditModalLatest,
 }) {
+    function ensureProcessingHoverState() {
+        if (!state.processingChildHoverState) {
+            state.processingChildHoverState = {
+                highlightedRow: null,
+                columnIndex: -1,
+                styleEl: null,
+            };
+        }
+        return state.processingChildHoverState;
+    }
+
+    function ensureProcessingHoverStyle(wrapper) {
+        const hoverState = ensureProcessingHoverState();
+        if (hoverState.styleEl?.isConnected) {
+            return hoverState.styleEl;
+        }
+        const host = wrapper || document.head;
+        const styleEl = document.createElement('style');
+        styleEl.setAttribute('data-processing-hover-style', '1');
+        host.appendChild(styleEl);
+        hoverState.styleEl = styleEl;
+        return styleEl;
+    }
+
+    function clearProcessingHoverState() {
+        const hoverState = ensureProcessingHoverState();
+        hoverState.highlightedRow?.classList.remove('row-highlight');
+        hoverState.highlightedRow = null;
+        hoverState.columnIndex = -1;
+        if (hoverState.styleEl) {
+            hoverState.styleEl.textContent = '';
+        }
+    }
+
+    function applyProcessingHoverState(wrapper, rowNode, columnIndex) {
+        const hoverState = ensureProcessingHoverState();
+        if (hoverState.highlightedRow === rowNode && hoverState.columnIndex === columnIndex) {
+            return;
+        }
+
+        hoverState.highlightedRow?.classList.remove('row-highlight');
+        rowNode?.classList.add('row-highlight');
+        hoverState.highlightedRow = rowNode || null;
+
+        if (hoverState.columnIndex !== columnIndex) {
+            const styleEl = ensureProcessingHoverStyle(wrapper);
+            if (columnIndex >= 0) {
+                const nth = columnIndex + 1;
+                styleEl.textContent = `
+                    #evidenceStatusTable_wrapper table.table-cross-highlight tbody tr.processing-parent-row > td:nth-child(${nth}),
+                    #evidenceStatusTable_wrapper table.table-cross-highlight tbody tr.processing-child-row > td:nth-child(${nth}),
+                    #evidenceStatusTable_wrapper .dataTables_scrollHead th:nth-child(${nth}) {
+                        background-color: var(--dt-cross-col-bg) !important;
+                    }
+
+                    #evidenceStatusTable_wrapper table.table-cross-highlight tbody tr.processing-parent-row.row-highlight > td:nth-child(${nth}),
+                    #evidenceStatusTable_wrapper table.table-cross-highlight tbody tr.processing-child-row.row-highlight > td:nth-child(${nth}) {
+                        background-color: var(--dt-cross-cell-bg) !important;
+                    }
+                `;
+            } else {
+                styleEl.textContent = '';
+            }
+            hoverState.columnIndex = columnIndex;
+        }
+    }
+
     function processingChildrenForParent(row = {}) {
         const parentId = String(row.processing_item_id || '').trim();
         if (!parentId) return [];
@@ -131,8 +197,6 @@ export function createEvidenceChildModule({
         bootstrap.Modal.getInstance(modal)?.hide();
         state.table?.ajax.reload(() => {
             updateSummary(state.lastRows);
-            refreshDataTableLayout(state.table);
-            window.setTimeout(() => refreshDataTableLayout(state.table), 150);
         }, false);
     }
 
@@ -172,16 +236,17 @@ export function createEvidenceChildModule({
         evidenceTableEl?.addEventListener('mouseover', (event) => {
             const cell = event.target.closest('td, th');
             const rowNode = cell?.closest('tr.processing-child-display-row');
-            if (!cell || !rowNode || !evidenceTableEl.contains(rowNode)) return;
+            if (!cell || !rowNode || !evidenceTableEl.contains(rowNode)) {
+                clearProcessingHoverState();
+                return;
+            }
             const wrapper = evidenceTableEl.closest('.dataTables_wrapper');
             const columnIndex = Array.from(rowNode.children).indexOf(cell);
-            wrapper?.querySelectorAll('tbody tr').forEach((tr) => tr.classList.remove('row-highlight'));
-            rowNode.classList.add('row-highlight');
-            wrapper?.querySelectorAll('td, th').forEach((node) => node.classList.remove('col-highlight'));
-            if (columnIndex >= 0) {
-                wrapper?.querySelectorAll('tbody tr').forEach((tr) => tr.children[columnIndex]?.classList.add('col-highlight'));
-                wrapper?.querySelector(`.dataTables_scrollHead th:nth-child(${columnIndex + 1})`)?.classList.add('col-highlight');
-            }
+            applyProcessingHoverState(wrapper, rowNode, columnIndex);
+        });
+
+        evidenceTableEl?.addEventListener('mouseleave', () => {
+            clearProcessingHoverState();
         });
 
         evidenceTableEl?.addEventListener('click', (event) => {

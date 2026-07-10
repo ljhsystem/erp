@@ -92,6 +92,23 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/account.js');
     ?>
 
     <?php
+    $templateUrl = '/api/ledger/sub-account/template';
+    $downloadUrl = '/api/ledger/sub-account/excel';
+    $uploadUrl = '/api/ledger/sub-account/excel-upload';
+
+    $modalId = 'subAccountExcelModal';
+    $formId = 'sub-account-excel-upload-form';
+    $modalTitle = '보조계정 엑셀 관리';
+    $fileInputId = 'subAccountExcelUpload';
+    $fileInputName = 'file';
+    $spinnerId = 'subAccountExcelUploadSpinner';
+    $btnTemplateId = 'btnDownloadSubAccountTemplate';
+    $btnDownloadAll = 'btnDownloadAllSubAccounts';
+    $uploadBtnId = 'btnUploadSubAccountExcel';
+    include PROJECT_ROOT . '/app/views/components/ui-modal-excel.php';
+    ?>
+
+    <?php
     $modalId = 'accountTrashModal';
     $type = 'account';
     $modalTitle = '계정과목 휴지통';

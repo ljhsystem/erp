@@ -86,7 +86,7 @@
 
 .excel-settings-grid.is-template .excel-settings-grid-header,
 .excel-settings-grid.is-template .excel-settings-grid-row {
-  grid-template-columns: 68px 56px 68px minmax(0, 1fr);
+  grid-template-columns: 68px 56px 68px minmax(0, 1fr) 140px;
 }
 
 .excel-settings-grid.is-download .excel-settings-grid-header,
@@ -210,17 +210,32 @@
   color: #0f172a;
 }
 
-.excel-settings-grid.is-download .excel-settings-grid-cell-label {
+.excel-settings-grid.is-download .excel-settings-grid-cell-label,
+.excel-settings-grid.is-template .excel-settings-grid-cell-label {
   display: flex;
   align-items: center;
   width: auto;
 }
 
-.excel-settings-grid.is-download .excel-settings-column-label {
+.excel-settings-grid.is-download .excel-settings-column-label,
+.excel-settings-grid.is-template .excel-settings-column-label {
   white-space: nowrap;
   overflow: visible;
   text-overflow: clip;
   flex: 1 1 auto;
+  width: 100%;
+}
+
+.excel-upload-settings-grid,
+.excel-upload-settings-grid .excel-settings-grid-body {
+  min-width: 620px;
+}
+
+.excel-upload-settings-grid .dt-column-settings-policy-cell {
+  min-width: 0;
+}
+
+.excel-upload-settings-grid .dt-column-settings-policy-cell .form-select {
   width: 100%;
 }
 
@@ -438,7 +453,7 @@
   }
 
   .excel-settings-grid.is-template .excel-settings-grid-header {
-    grid-template-columns: 56px 44px 56px minmax(0, 1fr) 104px;
+    grid-template-columns: 56px 44px 56px minmax(160px, 1fr) 120px;
   }
 
   .excel-settings-grid.is-download .excel-settings-grid-header {
@@ -451,12 +466,10 @@
   }
 
   .excel-settings-grid.is-template .excel-settings-grid-row {
-    grid-template-columns: 56px 44px 56px minmax(0, 1fr);
-    grid-template-areas:
-      "usage handle order label"
-      "usage requirement requirement requirement";
-    row-gap: 8px;
-    padding: 10px 0;
+    grid-template-columns: 56px 44px 56px minmax(160px, 1fr) 120px;
+    grid-template-areas: none;
+    row-gap: 0;
+    padding: 0;
   }
 
   .excel-settings-grid.is-download .excel-settings-grid-row {
@@ -488,11 +501,6 @@
     padding-right: 12px;
   }
 
-  .excel-settings-grid-cell-requirement {
-    grid-area: requirement;
-    padding-left: 12px;
-    padding-right: 12px;
-  }
 }
 
 .excel-settings-grid.dt-column-settings-grid.is-download .excel-settings-grid-header,

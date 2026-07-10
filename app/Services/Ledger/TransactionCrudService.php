@@ -7,6 +7,8 @@ use App\Models\Ledger\TransactionFileModel;
 use App\Models\Ledger\TransactionLinkModel;
 use App\Models\Ledger\TransactionModel;
 use App\Models\Ledger\TransactionSettlementModel;
+use App\Models\Ledger\EvidenceDataModel;
+use App\Models\Ledger\EvidenceLinkModel;
 use App\Services\File\FileService;
 use Core\Helpers\ActorHelper;
 use Core\Helpers\SequenceHelper;
@@ -21,6 +23,8 @@ class TransactionCrudService
     private TransactionFileModel $transactionFileModel;
     private TransactionLinkModel $transactionLinkModel;
     private FileService $fileService;
+    private EvidenceDataModel $evidenceDataModel;
+    private EvidenceLinkModel $evidenceLinkModel;
 
     public function __construct(private readonly PDO $pdo)
     {
@@ -30,6 +34,8 @@ class TransactionCrudService
         $this->transactionFileModel = new TransactionFileModel($pdo);
         $this->transactionLinkModel = new TransactionLinkModel($pdo);
         $this->fileService = new FileService($pdo);
+        $this->evidenceDataModel = new EvidenceDataModel($pdo);
+        $this->evidenceLinkModel = new EvidenceLinkModel($pdo);
     }
 
     public function getList(array $filters): array
@@ -100,12 +106,20 @@ class TransactionCrudService
         $searchableFields = [
             'sort_no',
             'business_unit',
+            'business_unit_name',
             'transaction_direction',
+            'transaction_direction_name',
+            'operation_type',
+            'operation_type_name',
             'transaction_date',
             'bank_account_id',
+            'bank_account_name',
             'card_id',
+            'card_name',
             'team_id',
+            'team_name',
             'employee_id',
+            'employee_name',
             'project_id',
             'project_name',
             'client_id',
@@ -120,6 +134,7 @@ class TransactionCrudService
             'transaction_foreign_amount',
             'transaction_description',
             'currency',
+            'currency_name',
             'transaction_exchange_rate',
             'status',
             'match_status',
@@ -231,16 +246,72 @@ class TransactionCrudService
 
     public function getTrashList(): array
     {
+        $hasOperationType = $this->tableColumnExists('ledger_transactions', 'operation_type');
+        $operationTypeSelect = $hasOperationType
+            ? "COALESCE(ot.code_name, '') AS operation_type_name,
+                COALESCE(NULLIF(ot.code_name, ''), '') AS operation_type,"
+            : "'' AS operation_type_name,
+                '' AS operation_type,";
+        $operationTypeJoin = $hasOperationType
+            ? "
+            LEFT JOIN system_codes ot
+                ON ot.deleted_at IS NULL
+               AND ot.is_active = 1
+               AND ot.code_group = 'OPERATION_TYPE'
+               AND ot.code = t.operation_type"
+            : '';
+
         $stmt = $this->pdo->query("
             SELECT
                 t.*,
+                COALESCE(bu.code_name, '') AS business_unit_name,
+                COALESCE(td.code_name, '') AS transaction_direction_name,
+                {$operationTypeSelect}
+                COALESCE(cur.code_name, '') AS currency_name,
+                COALESCE(NULLIF(bu.code_name, ''), '') AS business_unit,
+                COALESCE(NULLIF(td.code_name, ''), '') AS transaction_direction,
+                COALESCE(NULLIF(cur.code_name, ''), '') AS currency,
                 COALESCE(sc.client_name, '') AS client_name,
-                COALESCE(sp.project_name, '') AS project_name
+                COALESCE(sp.project_name, '') AS project_name,
+                COALESCE(sba.account_name, '') AS bank_account_name,
+                COALESCE(scd.card_name, '') AS card_name,
+                COALESCE(swt.team_name, '') AS team_name,
+                COALESCE(ue.employee_name, '') AS employee_name,
+                COALESCE(NULLIF(sc.client_name, ''), '') AS client_id,
+                COALESCE(NULLIF(sp.project_name, ''), '') AS project_id,
+                COALESCE(NULLIF(sba.account_name, ''), '') AS bank_account_id,
+                COALESCE(NULLIF(scd.card_name, ''), '') AS card_id,
+                COALESCE(NULLIF(swt.team_name, ''), '') AS team_id,
+                COALESCE(NULLIF(ue.employee_name, ''), '') AS employee_id
             FROM ledger_transactions t
+            LEFT JOIN system_codes bu
+                ON bu.deleted_at IS NULL
+               AND bu.is_active = 1
+               AND bu.code_group = 'BUSINESS_UNIT'
+               AND bu.code = t.business_unit
+            LEFT JOIN system_codes td
+                ON td.deleted_at IS NULL
+               AND td.is_active = 1
+               AND td.code_group = 'TRANSACTION_DIRECTION'
+               AND td.code = t.transaction_direction
+            {$operationTypeJoin}
+            LEFT JOIN system_codes cur
+                ON cur.deleted_at IS NULL
+               AND cur.is_active = 1
+               AND cur.code_group = 'CURRENCY'
+               AND cur.code = t.currency
             LEFT JOIN system_clients sc
                 ON t.client_id = sc.id
             LEFT JOIN system_projects sp
                 ON t.project_id = sp.id
+            LEFT JOIN system_bank_accounts sba
+                ON t.bank_account_id = sba.id
+            LEFT JOIN system_cards scd
+                ON t.card_id = scd.id
+            LEFT JOIN system_work_teams swt
+                ON t.team_id = swt.id
+            LEFT JOIN user_employees ue
+                ON t.employee_id = ue.id
             WHERE t.deleted_at IS NOT NULL
             ORDER BY t.deleted_at DESC, t.transaction_date DESC
         ");
@@ -513,47 +584,12 @@ class TransactionCrudService
             ]);
         }
 
-        $this->restoreProcessingItemsForDeletedTransaction($transactionId, $actor);
+        return;
     }
 
     private function restoreProcessingItemsForDeletedTransaction(string $transactionId, string $actor): void
     {
-        if (!$this->tableExists('ledger_processing_items')) {
-            return;
-        }
-
-        $ids = [];
-        if ($this->tableExists('ledger_transaction_items')
-            && $this->tableColumnExists('ledger_transaction_items', 'processing_item_id')
-        ) {
-            $stmt = $this->pdo->prepare("
-                SELECT processing_item_id
-                FROM ledger_transaction_items
-                WHERE transaction_id = :transaction_id
-                  AND processing_item_id IS NOT NULL
-            ");
-            $stmt->execute([':transaction_id' => $transactionId]);
-            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
-                $ids[] = (string) ($row['processing_item_id'] ?? '');
-            }
-        }
-
-        $ids = array_values(array_unique(array_filter($ids)));
-        if ($ids === []) {
-            return;
-        }
-
-        [$inSql, $params] = $this->placeholders($ids, 'processing_item_id');
-        $params[':actor'] = $actor;
-        $this->pdo->prepare("
-            UPDATE ledger_processing_items
-            SET transaction_status = 'NONE',
-                updated_at = NOW(),
-                updated_by = :actor
-            WHERE id IN ({$inSql})
-              AND deleted_at IS NULL
-              AND transaction_status NOT IN ('NONE', 'PROCESSING')
-        ")->execute($params);
+        return;
     }
 
     private function assertTransactionDeleteAllowed(string $transactionId): void
@@ -567,13 +603,13 @@ class TransactionCrudService
             WHERE l.transaction_id = :transaction_id
               AND l.is_active = 1
               AND l.deleted_at IS NULL
-              AND v.status IN ('posted', 'closed', 'confirmed')
+              AND v.status IN ('REVIEW_REQUESTED', 'REVIEWED', 'POSTED', 'CLOSED', 'DELETED')
             LIMIT 1
         ");
         $stmt->execute([':transaction_id' => $transactionId]);
         $voucher = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
         if ($voucher) {
-            throw new \RuntimeException('Cannot delete a transaction linked to a confirmed voucher.');
+            throw new \RuntimeException('Cannot delete a transaction linked to a locked voucher workflow.');
         }
     }
 
@@ -597,8 +633,7 @@ class TransactionCrudService
 
         $deletableIds = [];
         foreach ($vouchers as $voucher) {
-            $status = strtolower((string) ($voucher['status'] ?? ''));
-            if (in_array($status, ['posted', 'closed', 'confirmed'], true)) {
+            if (VoucherStatus::isLocked($voucher['status'] ?? null)) {
                 $label = trim((string) ($voucher['voucher_no'] ?? $voucher['id'] ?? ''));
                 throw new \RuntimeException('확정 전표와 연결된 거래는 삭제할 수 없습니다. 전표번호: ' . $label);
             }
@@ -610,23 +645,6 @@ class TransactionCrudService
         }
 
         [$deleteInSql, $deleteParams] = $this->placeholders($deletableIds, 'delete_voucher_id');
-
-        if ($this->tableExists('ledger_voucher_line_refs') && $this->tableExists('ledger_voucher_lines')) {
-            $this->pdo->prepare("
-                DELETE r
-                FROM ledger_voucher_line_refs r
-                INNER JOIN ledger_voucher_lines l
-                    ON l.id = r.voucher_line_id
-                WHERE l.voucher_id IN ({$deleteInSql})
-            ")->execute($deleteParams);
-        }
-
-        if ($this->tableExists('ledger_voucher_payments')) {
-            $this->pdo->prepare("
-                DELETE FROM ledger_voucher_payments
-                WHERE voucher_id IN ({$deleteInSql})
-            ")->execute($deleteParams);
-        }
 
         if ($this->tableExists('ledger_voucher_lines')) {
             $this->pdo->prepare("
@@ -640,7 +658,7 @@ class TransactionCrudService
         $updateParams[':updated_by'] = $actor;
         $this->pdo->prepare("
             UPDATE ledger_vouchers
-            SET status = 'deleted',
+            SET status = 'DELETED',
                 deleted_at = NOW(),
                 deleted_by = :deleted_by,
                 updated_at = NOW(),
@@ -771,6 +789,13 @@ class TransactionCrudService
         $transactionId = trim((string) ($data['id'] ?? ''));
         $items = $this->normalizeItems($data['items'] ?? [], $data);
         $settlements = $this->normalizeSettlements($data['settlements'] ?? [], $data);
+        $evidenceId = trim((string) ($data['evidence_id'] ?? ''));
+        if ($evidenceId !== '' && !$this->evidenceDataModel->isLinkableByPolicy($evidenceId, ['DATA', 'BOTH'])) {
+            return [
+                'success' => false,
+                'message' => '증빙정책에서 거래 연결이 허용되지 않은 증빙입니다.',
+            ];
+        }
 
         $itemTotals = $this->calculateItemTotals($items);
         $settlementTotals = $this->calculateSettlementTotals($settlements);
@@ -787,7 +812,6 @@ class TransactionCrudService
             $this->pdo->beginTransaction();
 
             $isUpdate = false;
-
             if ($transactionId !== '') {
                 $existing = $this->transactionModel->getById($transactionId);
                 if (!$existing) {
@@ -822,6 +846,7 @@ class TransactionCrudService
                 $this->recreateSettlements($transactionId, $settlements, $actor, $timestamp);
             }
             $this->syncFiles($transactionId, $data, $files, $actor, $timestamp);
+            $this->evidenceLinkModel->syncTransactionLink($transactionId, $evidenceId);
 
             $this->pdo->commit();
 
@@ -880,6 +905,7 @@ class TransactionCrudService
             'match_status' => $this->resolveMatchStatusForSave($transactionId),
             'transaction_note' => $this->nullable($data['transaction_note'] ?? $data['note'] ?? null),
             'transaction_memo' => $this->nullable($data['transaction_memo'] ?? $data['memo'] ?? null),
+            'evidence_id' => $this->nullable($data['evidence_id'] ?? null),
             'updated_at' => $timestamp,
             'updated_by' => $actor,
         ];
@@ -907,7 +933,7 @@ class TransactionCrudService
                 'id' => UuidHelper::generate(),
                 'sort_no' => $index + 1,
                 'transaction_id' => $transactionId,
-                'processing_item_id' => $item['processing_item_id'] ?? null,
+                'transaction_line_type' => $item['transaction_line_type'] ?? 'GOODS',
                 'item_date' => $item['item_date'],
                 'item_name' => $item['item_name'],
                 'item_specification' => $item['item_specification'],
@@ -1242,6 +1268,7 @@ class TransactionCrudService
             }
 
             $rows[] = [
+                'transaction_line_type' => $this->normalizeTransactionLineType($item['transaction_line_type'] ?? null),
                 'item_date' => $itemDate,
                 'item_name' => $itemName,
                 'item_specification' => $this->nullable($item['item_specification'] ?? $item['specification'] ?? null),
@@ -1253,7 +1280,6 @@ class TransactionCrudService
                 'item_supply_amount' => $supplyAmount,
                 'item_tax_type' => $itemTaxType,
                 'item_description' => $this->nullable($item['item_description'] ?? $item['description'] ?? null),
-                'processing_item_id' => $this->nullable($item['processing_item_id'] ?? null),
             ];
         }
 
@@ -1313,10 +1339,48 @@ class TransactionCrudService
         return $rows;
     }
 
+    private function processingItemIdsForTransaction(string $transactionId): array
+    {
+        return [];
+    }
+
+    private function extractProcessingItemIds(array $items): array
+    {
+        return [];
+    }
+
+    private function normalizeProcessingItemIds(array $ids): array
+    {
+        return array_values(array_unique(array_filter(array_map(
+            static fn (mixed $id): string => trim((string) $id),
+            $ids
+        ))));
+    }
+
+    private function syncProcessingItemStatusesForTransaction(array $previousIds, array $currentIds, string $actor): void
+    {
+        return;
+    }
+
+    private function syncProcessingItemEvidenceHeaders(array $processingItemIds, string $actor): void
+    {
+        return;
+    }
+
     private function normalizeSettlementType(mixed $value): string
     {
         $type = strtoupper(trim((string) ($value ?? '')));
         return preg_match('/^[A-Z0-9_]+$/', $type) ? $type : '';
+    }
+
+    private function normalizeTransactionLineType(mixed $value): string
+    {
+        $type = strtoupper(trim((string) ($value ?? '')));
+        if ($type === '' || $type === 'ITEM') {
+            return 'GOODS';
+        }
+
+        return preg_match('/^[A-Z0-9_]+$/', $type) ? $type : 'GOODS';
     }
 
     private function normalizeAmountSign(mixed $value): string

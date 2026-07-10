@@ -50,6 +50,9 @@
 | `api.settings.rolepermission.reorder` | `/api/settings/organization/role-permission/reorder` | Saves the flattened permission display order into `auth_permissions.sort_no` |
 | `api.account.sub_accounts.list` | `/api/account/sub-accounts` | Shared `SubChartAccountController@apiList` endpoint used by journal, evidence, and data-create screens for account-dependent sub-account lookup |
 | `api.ledger.sub_account.list` | `/api/ledger/sub-account/list` | Shared `SubChartAccountController@apiList` endpoint used by the ledger account screen for sub-account management lookup |
+| `api.ledger.sub_account.template` | `/api/ledger/sub-account/template` | Canonical ledger sub-account excel template endpoint handled by `SubChartAccountController@apiTemplate` |
+| `api.ledger.sub_account.excel` | `/api/ledger/sub-account/excel` | Canonical ledger sub-account excel download endpoint handled by `SubChartAccountController@apiExcel` |
+| `api.ledger.sub_account.excel_upload` | `/api/ledger/sub-account/excel-upload` | Canonical ledger sub-account excel upload endpoint handled by `SubChartAccountController@apiExcelUpload` |
 | `web.ledger.settings.accounts` | `/ledger/settings/accounts` | Canonical ledger account basic-info page route handled by `ChartAccountController@index` |
 | `web.ledger.data.index` | `/ledger/data` | Entry route for evidence source pages; redirects to the first active `IMPORT_TYPE` page in code-order |
 | `web.ledger.data.list` | `/ledger/data/list` | Legacy evidence-source entry route; normalizes `import_type` queries into dedicated type-page URLs |
@@ -98,6 +101,50 @@
 | `api.settings.system.database.restore-info` | `/api/settings/system/database/restore-info` | Returns the latest Active DB restore result, file, timestamp, and last error for the restore card |
 | `api.settings.system.database.activity-log` | `/api/settings/system/database/activity-log` | Returns the combined backup, sync, and restore log view for the database backup screen |
 | `api.settings.system.data_table_columns` | `/api/settings/system/data-table-columns` | Returns canonical DB physical-column metadata for shared DataTable table-settings screens so column order, required flags, and visibility defaults come from DB SSOT instead of page JS columns |
+| `api.settings.system.user-settings.detail` | `/api/settings/system/user-settings/detail` | Returns the current user's persisted page setting payload from `system_user_settings` by `page_key` and `setting_type`, including an `exists` flag so common UI can distinguish missing settings from empty JSON |
+| `api.settings.system.user-settings.save` | `/api/settings/system/user-settings/save` | Saves the current user's page setting payload into `system_user_settings` so DB-backed UI preferences can replace browser storage for `TABLE`, `VIEW`, `EXCEL_UPLOAD`, and `EXCEL_DOWNLOAD` |
+| `api.settings.system.user-settings.delete` | `/api/settings/system/user-settings/delete` | Deletes the current user's persisted page setting row so the next page load regenerates defaults from the current DB schema and common view defaults |
+| `api.auth.password.change_later` | `/api/auth/password/change-later` | Completes the password-expired guidance flow without changing the password by restoring a normal authenticated session and redirecting to the dashboard |
+| `api.ledger.transaction.template` | `/api/ledger/transaction/template` | Shared Excel Manager template download route for transaction input; uses transaction physical-column settings plus display-name policy while returning an upload worksheet with human-readable code/master values |
+| `api.ledger.transaction.excel` | `/api/ledger/transaction/excel` | Shared Excel Manager download route for transaction input; exports the transaction list using display-name values for code/master columns while honoring DB-backed download column settings |
+| `api.ledger.transaction.excel_upload` | `/api/ledger/transaction/excel-upload` | Shared Excel Manager upload route for transaction input; parses upload rows, resolves code/master names to SSOT values, and saves header-only transactions through `TransactionCrudService` |
+| `api.ledger.transaction.evidence_search` | `/api/ledger/transaction/evidence-search` | Lists only evidence rows whose active `ledger_evidence_metadata` policy is `DATA` or `BOTH`, for the transaction evidence-link picker. |
+| `api.ledger.voucher.evidence_search` | `/api/ledger/voucher/evidence-search` | Lists evidence rows whose active policy is `DATA`, `FUND`, or `BOTH`, for the voucher evidence-link picker. |
+| `api.ledger.voucher.template` | `/api/ledger/voucher/template` | Shared Excel Manager template download route for voucher input; returns voucher-header DB columns in physical order so upload and download settings follow the voucher header SSOT |
+| `api.ledger.voucher.excel` | `/api/ledger/voucher/excel` | Shared Excel Manager download route for voucher input; exports the voucher list while honoring DB-backed voucher-header download settings |
+| `api.ledger.voucher.excel_upload` | `/api/ledger/voucher/excel-upload` | Shared Excel Manager upload route for voucher input; parses voucher-header upload rows and updates existing draft vouchers without changing line structures |
+| `api.ledger.voucher.request_review` | `/api/ledger/voucher/request-review` | Moves a voucher from `DRAFT` to `REVIEW_REQUESTED` as the explicit review-request workflow step |
+| `api.ledger.voucher.cancel_review_request` | `/api/ledger/voucher/cancel-review-request` | Returns a voucher from `REVIEW_REQUESTED` to `DRAFT` when the review request is cancelled |
+| `api.ledger.voucher.complete_review` | `/api/ledger/voucher/complete-review` | Moves a voucher from `REVIEW_REQUESTED` to `REVIEWED` after the review is completed |
+| `api.ledger.voucher.cancel_complete_review` | `/api/ledger/voucher/cancel-complete-review` | Returns a voucher from `REVIEWED` to `REVIEW_REQUESTED` when review completion is cancelled |
+| `api.ledger.voucher.post` | `/api/ledger/voucher/post` | Moves a voucher from `REVIEWED` to `POSTED` so the approved voucher is reflected in the ledger |
+| `api.ledger.transaction.item.template` | `/api/ledger/transaction/item/template` | Modal AG Grid transaction-item Excel Manager template route; returns the current item-grid business columns using the independent `transaction-item` Excel settings domain |
+| `api.ledger.transaction.item.excel` | `/api/ledger/transaction/item/excel` | Modal AG Grid transaction-item Excel Manager download route; exports the current unsaved or saved item-grid rows posted from the transaction modal while honoring `transaction-item` download settings |
+| `api.ledger.transaction.item.excel_upload` | `/api/ledger/transaction/item/excel-upload` | Modal AG Grid transaction-item Excel Manager upload route; parses an uploaded item worksheet into item-grid rows without saving the transaction header |
+| `api.ledger.transaction.settlement.template` | `/api/ledger/transaction/settlement/template` | Modal AG Grid transaction-settlement Excel Manager template route; returns the current settlement-grid business columns using the independent `transaction-settlement` Excel settings domain |
+| `api.ledger.transaction.settlement.excel` | `/api/ledger/transaction/settlement/excel` | Modal AG Grid transaction-settlement Excel Manager download route; exports the current unsaved or saved settlement-grid rows posted from the transaction modal while honoring `transaction-settlement` download settings |
+| `api.ledger.transaction.settlement.excel_upload` | `/api/ledger/transaction/settlement/excel-upload` | Modal AG Grid transaction-settlement Excel Manager upload route; parses an uploaded settlement worksheet into settlement-grid rows without saving the transaction header |
+
+## Evidence Metadata Administration
+
+| Key | URL | Purpose |
+| --- | --- | --- |
+| `web.ledger.evidence_metadata` | `/ledger/data/evidence-metadata` | Evidence metadata header and semantic-column mapping administration page. |
+| `api.ledger.evidence_metadata.list` | `/api/ledger/evidence-metadata/list` | Lists evidence metadata header policies. |
+| `api.ledger.evidence_metadata.detail` | `/api/ledger/evidence-metadata/detail` | Returns one header policy with child semantic mappings. |
+| `api.ledger.evidence_metadata.save` | `/api/ledger/evidence-metadata/save` | Transactionally creates or updates the header and child mappings. |
+| `api.ledger.evidence_metadata.delete` | `/api/ledger/evidence-metadata/delete` | Moves active evidence policies to the shared soft-delete trash by setting header `deleted_at` and `deleted_by`; detail rows remain unchanged. |
+| `api.ledger.evidence_metadata.trash` | `/api/ledger/evidence-metadata/trash` | Lists soft-deleted evidence-policy headers for the shared trash modal. |
+| `api.ledger.evidence_metadata.restore` | `/api/ledger/evidence-metadata/restore` | Restores one evidence-policy header without changing detail mappings. |
+| `api.ledger.evidence_metadata.restore_bulk` | `/api/ledger/evidence-metadata/restore-bulk` | Restores selected evidence-policy headers. |
+| `api.ledger.evidence_metadata.restore_all` | `/api/ledger/evidence-metadata/restore-all` | Restores all evidence-policy headers in trash. |
+| `api.ledger.evidence_metadata.purge` | `/api/ledger/evidence-metadata/purge` | Permanently deletes one trashed header; DB FK CASCADE deletes its detail mappings. |
+| `api.ledger.evidence_metadata.purge_bulk` | `/api/ledger/evidence-metadata/purge-bulk` | Permanently deletes selected trashed headers. |
+| `api.ledger.evidence_metadata.purge_all` | `/api/ledger/evidence-metadata/purge-all` | Permanently deletes every trashed evidence-policy header. |
+| `api.ledger.evidence_metadata.reorder` | `/api/ledger/evidence-metadata/reorder` | Saves active evidence-policy row order. |
+| `api.ledger.evidence_metadata.source_columns` | `/api/ledger/evidence-metadata/source-columns` | Lists actual columns for the selected evidence source table. |
+| `api.ledger.evidence_metadata.recommend` | `/api/ledger/evidence-metadata/recommend` | Recommends header policy and semantic mappings from the selected import type and actual DB schema without per-import-type branching. |
+| `api.ledger.evidence_metadata.options` | `/api/ledger/evidence-metadata/options` | Returns active import types whose convention-based source tables actually exist in the current DB. |
 
 ## SSOT Alias Notes
 

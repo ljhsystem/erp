@@ -22,15 +22,15 @@ class BankTransactionReportModel
         }
 
         [$where, $params] = $this->whereSql($filters, false);
-        $payloadTableExists = $this->tableExists('ledger_evidence_payloads');
+        $payloadTableExists = $this->tableExists('ledger_data_evidences');
         $processingTableExists = $this->tableExists('ledger_evidence_processing');
-        $evidenceMappedPayloadSelect = $payloadTableExists && $this->columnExists('ledger_evidence_payloads', 'mapped_payload_json')
+        $evidenceMappedPayloadSelect = $payloadTableExists && $this->columnExists('ledger_data_evidences', 'mapped_payload_json')
             ? 'p.mapped_payload_json'
             : 'NULL';
         $evidencePayloadJoin = $payloadTableExists ? "
-            LEFT JOIN ledger_evidence_payloads p
-                ON p.evidence_type = 'BANK_TRANSACTION'
-               AND p.evidence_id = eb.id COLLATE utf8mb4_unicode_ci" : '';
+            LEFT JOIN ledger_data_evidences p
+                ON p.source_type = 'BANK_TRANSACTION'
+               AND p.id = eb.id COLLATE utf8mb4_unicode_ci" : '';
         $evidenceProcessingJoin = $processingTableExists ? "
             LEFT JOIN ledger_evidence_processing ep
                 ON ep.evidence_type = 'BANK_TRANSACTION'
@@ -149,11 +149,11 @@ class BankTransactionReportModel
         }
 
         [$where, $params] = $this->whereSql($filters, false);
-        $payloadTableExists = $this->tableExists('ledger_evidence_payloads');
+        $payloadTableExists = $this->tableExists('ledger_data_evidences');
         $evidencePayloadJoin = $payloadTableExists ? "
-            LEFT JOIN ledger_evidence_payloads p
-                ON p.evidence_type = 'BANK_TRANSACTION'
-               AND p.evidence_id = eb.id COLLATE utf8mb4_unicode_ci" : '';
+            LEFT JOIN ledger_data_evidences p
+                ON p.source_type = 'BANK_TRANSACTION'
+               AND p.id = eb.id COLLATE utf8mb4_unicode_ci" : '';
         $sql = "
             SELECT
                 COALESCE(SUM(COALESCE(" . $this->selectColumn('eb', 'deposit_amount', '0') . ", 0)), 0) AS deposit_total,
@@ -219,15 +219,15 @@ class BankTransactionReportModel
             $stmt->execute($params);
 
             $evidenceId = (string) ($row['evidence_id'] ?? '');
-            if ($evidenceId !== '' && $this->tableExists('ledger_evidence_payloads')) {
+            if ($evidenceId !== '' && $this->tableExists('ledger_data_evidences')) {
                 $this->pdo->prepare("
-                    UPDATE ledger_evidence_payloads
+                    UPDATE ledger_data_evidences
                     SET deleted_at = NOW(),
                         deleted_by = :actor,
                         updated_at = NOW(),
                         updated_by = :actor
-                    WHERE evidence_type = 'BANK_TRANSACTION'
-                      AND evidence_id = :id
+                    WHERE source_type = 'BANK_TRANSACTION'
+                      AND id = :id
                       AND deleted_at IS NULL
                 ")->execute([':id' => $evidenceId, ':actor' => $actor]);
             }
@@ -258,15 +258,15 @@ class BankTransactionReportModel
             ")->execute($params);
 
             $evidenceId = (string) ($row['evidence_id'] ?? '');
-            if ($evidenceId !== '' && $this->tableExists('ledger_evidence_payloads')) {
+            if ($evidenceId !== '' && $this->tableExists('ledger_data_evidences')) {
                 $this->pdo->prepare("
-                    UPDATE ledger_evidence_payloads
+                    UPDATE ledger_data_evidences
                     SET deleted_at = NULL,
                         deleted_by = NULL,
                         updated_at = NOW(),
                         updated_by = :actor
-                    WHERE evidence_type = 'BANK_TRANSACTION'
-                      AND evidence_id = :id
+                    WHERE source_type = 'BANK_TRANSACTION'
+                      AND id = :id
                 ")->execute([':id' => $evidenceId, ':actor' => $actor]);
             }
 
@@ -715,10 +715,10 @@ class BankTransactionReportModel
         $bankClientName = $this->columnExists(self::BANK_TABLE, 'raw_client_name')
             ? "NULLIF(eb.raw_client_name, '')"
             : 'NULL';
-        $payloadClientName = $this->tableExists('ledger_evidence_payloads') && $this->columnExists('ledger_evidence_payloads', 'mapped_payload_json')
+        $payloadClientName = $this->tableExists('ledger_data_evidences') && $this->columnExists('ledger_data_evidences', 'mapped_payload_json')
             ? "NULLIF(JSON_UNQUOTE(JSON_EXTRACT(p.mapped_payload_json, '$.client_name')), '')"
             : 'NULL';
-        $payloadClientCompanyName = $this->tableExists('ledger_evidence_payloads') && $this->columnExists('ledger_evidence_payloads', 'mapped_payload_json')
+        $payloadClientCompanyName = $this->tableExists('ledger_data_evidences') && $this->columnExists('ledger_data_evidences', 'mapped_payload_json')
             ? "NULLIF(JSON_UNQUOTE(JSON_EXTRACT(p.mapped_payload_json, '$.client_company_name')), '')"
             : 'NULL';
 

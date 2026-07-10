@@ -151,7 +151,7 @@ export function createReadinessPickerControls() {
     function applyReadinessSummaryAutocompleteItem(index) {
         const item = summaryItems[index];
         if (!item || !summaryInput) return;
-        summaryInput.value = item.summary_text || '';
+        summaryInput.value = item.summary || '';
         summaryInput.dispatchEvent(new Event('input', { bubbles: true }));
         closeReadinessSummaryAutocomplete();
     }
@@ -166,7 +166,7 @@ export function createReadinessPickerControls() {
         }
 
         summaryInput = input;
-        summaryItems = items.filter((item) => String(item.summary_text || '').trim() !== '');
+        summaryItems = items.filter((item) => String(item.summary || '').trim() !== '');
         summaryActiveIndex = -1;
 
         if (summaryItems.length === 0) {
@@ -179,8 +179,8 @@ export function createReadinessPickerControls() {
                     class="summary-autocomplete-item"
                     role="option"
                     data-index="${index}"
-                    title="${String(item.summary_text || '').replaceAll('"', '&quot;')}">
-                ${String(item.summary_text || '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')}
+                    title="${String(item.summary || '').replaceAll('"', '&quot;')}">
+                ${String(item.summary || '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')}
             </button>
         `).join('');
         list.classList.remove('d-none');

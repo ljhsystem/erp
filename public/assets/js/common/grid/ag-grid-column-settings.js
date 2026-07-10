@@ -1,25 +1,38 @@
-export function loadAgGridColumnWidthSettings(storageKey) {
-    if (!storageKey || !window.localStorage) {
+import {
+    ensureSystemUserSettingsStorage,
+    readSystemUserSettingsStorage,
+    writeSystemUserSettingsStorage,
+} from '../user-settings/systemUserSettingsStorage.js';
+
+function buildStorageOptions(storageKey, options = {}) {
+    return {
+        settingType: 'VIEW',
+        pageKey: String(options?.pageKey || '').trim(),
+        userSettingPageKey: String(options?.userSettingPageKey || '').trim(),
+        metaDomain: String(options?.metaDomain || '').trim(),
+        domain: String(options?.domain || '').trim(),
+        description: String(options?.description || '').trim(),
+    };
+}
+
+export function loadAgGridColumnWidthSettings(storageKey, options = {}) {
+    if (!storageKey) {
         return null;
     }
 
     try {
-        const raw = window.localStorage.getItem(storageKey);
-        if (!raw) {
+        const payload = readSystemUserSettingsStorage(storageKey, buildStorageOptions(storageKey, options))
+            || ensureSystemUserSettingsStorage(storageKey, { columnWidths: {} }, buildStorageOptions(storageKey, options));
+        if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
             return null;
         }
 
-        const parsed = JSON.parse(raw);
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        if (!payload.columnWidths || typeof payload.columnWidths !== 'object' || Array.isArray(payload.columnWidths)) {
             return null;
         }
 
-        if (!parsed.columnWidths || typeof parsed.columnWidths !== 'object' || Array.isArray(parsed.columnWidths)) {
-            return null;
-        }
-
-        return parsed;
-    } catch (error) {
+        return payload;
+    } catch {
         return null;
     }
 }
@@ -55,7 +68,7 @@ export function resolveAgGridColumnKey(column) {
 
 export function saveAgGridColumnWidthSettings(storageKey, api, options = {}) {
     const minWidth = Number(options.minWidth || 0);
-    if (!storageKey || !window.localStorage || !api) {
+    if (!storageKey || !api) {
         return;
     }
 
@@ -71,13 +84,12 @@ export function saveAgGridColumnWidthSettings(storageKey, api, options = {}) {
             columnWidths[key] = width;
         });
 
-        window.localStorage.setItem(storageKey, JSON.stringify({
+        writeSystemUserSettingsStorage(storageKey, {
             version: 1,
             updatedAt: new Date().toISOString(),
             columnWidths,
-        }));
-    } catch (error) {
-    }
+        }, buildStorageOptions(storageKey, options));
+    } catch {}
 }
 
 export function applyAgGridColumnWidthSettings(columnDefs, settings, options = {}) {

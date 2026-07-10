@@ -49,6 +49,10 @@ class JournalRuleModel
                     [$codeKey, $nameKey] = $this->addLikePair($params, $value);
                     $where[] = "(r.business_unit LIKE {$codeKey} OR bu.code_name LIKE {$nameKey})";
                     break;
+                case 'operation_type':
+                    [$codeKey, $nameKey] = $this->addLikePair($params, $value);
+                    $where[] = "(r.operation_type LIKE {$codeKey} OR ot.code_name LIKE {$nameKey})";
+                    break;
                 case 'import_type':
                     [$codeKey, $nameKey] = $this->addLikePair($params, $value);
                     $where[] = "(r.import_type LIKE {$codeKey} OR it.code_name LIKE {$nameKey})";
@@ -105,6 +109,7 @@ class JournalRuleModel
             WHERE r.deleted_at IS NULL
               AND r.is_active = 1
               AND r.business_unit = :business_unit
+              AND r.operation_type = :operation_type
               AND r.transaction_direction = :transaction_direction
               AND r.client_type = :client_type
               AND r.import_type = :import_type
@@ -115,6 +120,7 @@ class JournalRuleModel
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
             ':business_unit' => strtoupper(trim((string) ($criteria['business_unit'] ?? ''))),
+            ':operation_type' => strtoupper(trim((string) ($criteria['operation_type'] ?? 'GENERAL'))) ?: 'GENERAL',
             ':transaction_direction' => strtoupper(trim((string) ($criteria['transaction_direction'] ?? ''))),
             ':client_type' => strtoupper(trim((string) ($criteria['client_type'] ?? ''))),
             ':import_type' => strtoupper(trim((string) ($criteria['import_type'] ?? ''))),
@@ -141,11 +147,11 @@ class JournalRuleModel
         $stmt = $this->db->prepare("
             INSERT INTO ledger_journal_rules (
                 id, sort_no, rule_code, rule_name, business_unit,
-                transaction_direction, client_type, import_type, debit_account_id,
+                operation_type, transaction_direction, client_type, import_type, debit_account_id,
                 credit_account_id, vat_account_id, description, is_active, created_by, updated_by
             ) VALUES (
                 :id, :sort_no, :rule_code, :rule_name, :business_unit,
-                :transaction_direction, :client_type, :import_type, :debit_account_id,
+                :operation_type, :transaction_direction, :client_type, :import_type, :debit_account_id,
                 :credit_account_id, :vat_account_id, :description, :is_active, :created_by, :updated_by
             )
         ");
@@ -160,6 +166,7 @@ class JournalRuleModel
             SET rule_code = :rule_code,
                 rule_name = :rule_name,
                 business_unit = :business_unit,
+                operation_type = :operation_type,
                 transaction_direction = :transaction_direction,
                 client_type = :client_type,
                 import_type = :import_type,
@@ -358,6 +365,7 @@ class JournalRuleModel
             SELECT
                 r.*,
                 bu.code_name AS business_unit_name,
+                ot.code_name AS operation_type_name,
                 td.code_name AS transaction_direction_name,
                 clt.code_name AS client_type_name,
                 it.code_name AS import_type_name,
@@ -369,6 +377,7 @@ class JournalRuleModel
                 va.account_name AS vat_account_name
             FROM ledger_journal_rules r
             LEFT JOIN system_codes bu ON bu.deleted_at IS NULL AND bu.is_active = 1 AND bu.code_group = 'BUSINESS_UNIT' AND bu.code = r.business_unit
+            LEFT JOIN system_codes ot ON ot.deleted_at IS NULL AND ot.is_active = 1 AND ot.code_group = 'OPERATION_TYPE' AND ot.code = r.operation_type
             LEFT JOIN system_codes td ON td.deleted_at IS NULL AND td.is_active = 1 AND td.code_group = 'TRANSACTION_DIRECTION' AND td.code = r.transaction_direction
             LEFT JOIN system_codes clt ON clt.deleted_at IS NULL AND clt.is_active = 1 AND clt.code_group = 'CLIENT_TYPE' AND clt.code = r.client_type
             LEFT JOIN system_codes it ON it.deleted_at IS NULL AND it.is_active = 1 AND it.code_group = 'IMPORT_TYPE' AND it.code = r.import_type

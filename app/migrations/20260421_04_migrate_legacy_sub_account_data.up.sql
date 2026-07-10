@@ -37,9 +37,9 @@ WHERE a.`allow_sub_account` = 1
       AND p.`deleted_at` IS NULL
   );
 
-UPDATE `ledger_sub_accounts`
+UPDATE `ledger_accounts_sub`
 SET `sub_type` = 'custom',
-    `ref_type` = NULL,
+    `ref_target` = NULL,
     `ref_id` = NULL,
     `custom_group_code` = COALESCE(`custom_group_code`, NULL),
     `is_active` = 1,

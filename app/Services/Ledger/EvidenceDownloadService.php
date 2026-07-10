@@ -20,9 +20,9 @@ class EvidenceDownloadService
         'CASH_RECEIPT_PURCHASE' => 'CASH_RECEIPT',
         'CASH_RECEIPT_PURCHAS' => 'CASH_RECEIPT',
         'CASH_RECEIPT_BUY' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SALES' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SALE' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SELL' => 'CASH_RECEIPT',
+        'CASH_RECEIPT_SALES' => 'CASH_RECEIPT_SALES',
+        'CASH_RECEIPT_SALE' => 'CASH_RECEIPT_SALES',
+        'CASH_RECEIPT_SELL' => 'CASH_RECEIPT_SALES',
         'BANK' => 'BANK_TRANSACTION',
         'SHOPPING' => 'SHOPPING_ORDER',
         'TRADE_IMPORT' => 'IMPORT_INVOICE',
@@ -63,6 +63,10 @@ class EvidenceDownloadService
 
     public function searchSummary(string $query, int $limit = 10): array
     {
+        if (!$this->tableExists('ledger_data_evidences')) {
+            return [];
+        }
+
         return $this->searchEvidenceVoucherSummaryTexts($query, $limit);
     }
 
@@ -76,7 +80,7 @@ class EvidenceDownloadService
         $limit = max(1, min($limit, 20));
         $stmt = $this->pdo->prepare("
             SELECT mapped_payload_json, updated_at, created_at
-            FROM ledger_evidence_payloads
+            FROM ledger_data_evidences
             WHERE deleted_at IS NULL
               AND mapped_payload_json LIKE :keyword
             ORDER BY updated_at DESC, created_at DESC
@@ -138,11 +142,15 @@ class EvidenceDownloadService
 
     private function fetchDownloadRows(string $importType, string $formatId = '', bool $withFormatId = false): array
     {
+        if (!$this->tableExists('ledger_data_evidences')) {
+            return [];
+        }
+
         $sql = "
             SELECT mapped_payload_json, raw_json
-            FROM ledger_evidence_payloads
+            FROM ledger_data_evidences
             WHERE deleted_at IS NULL
-              AND evidence_type = :source_type
+              AND source_type = :source_type
         ";
         $params = [
             ':source_type' => $importType,
@@ -312,5 +320,25 @@ class EvidenceDownloadService
         $type = strtoupper(trim($type));
 
         return self::LEGACY_DATA_TYPE_MAP[$type] ?? $type;
+    }
+
+    private function tableExists(string $table): bool
+    {
+        static $cache = [];
+        if (array_key_exists($table, $cache)) {
+            return $cache[$table];
+        }
+
+        $stmt = $this->pdo->prepare("
+            SELECT 1
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = :table_name
+            LIMIT 1
+        ");
+        $stmt->execute([':table_name' => $table]);
+        $cache[$table] = (bool) $stmt->fetchColumn();
+
+        return $cache[$table];
     }
 }

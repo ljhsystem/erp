@@ -26,13 +26,7 @@ class EvidenceLifecycleService
             $this->deleteEvidenceBodyByEvidenceIds($ids, $evidenceType);
             $this->deleteEvidenceProcessingByEvidenceIds($ids);
 
-            $stmt = $this->pdo->prepare("
-                DELETE FROM ledger_evidence_payloads
-                WHERE evidence_id IN ({$inSql})
-                  AND deleted_at IS NOT NULL
-            ");
-            $stmt->execute($params);
-            $deletedCount = max($stmt->rowCount(), count($ids));
+            $deletedCount = count($ids);
 
             $this->pdo->commit();
             return $deletedCount;

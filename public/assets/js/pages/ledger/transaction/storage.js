@@ -8,6 +8,18 @@ import {
 } from '/public/assets/js/common/grid/ag-grid-column-settings.js';
 
 export function registerStorage(ctx) {
+    function gridUserSettingPageKey(storageKey = '') {
+        if (storageKey === ctx.LINE_GRID_SETTINGS_KEY) {
+            return 'ledger.transaction-item-grid';
+        }
+
+        if (storageKey === ctx.SETTLEMENT_GRID_SETTINGS_KEY) {
+            return 'ledger.transaction-settlement-grid';
+        }
+
+        return '';
+    }
+
     function refreshLineGridDimensions() {
         window.requestAnimationFrame(() => {
             ctx.lineGrid?.refreshDimensions?.();
@@ -46,6 +58,8 @@ export function registerStorage(ctx) {
         resolveAgGridColumnKey,
         saveAgGridColumnWidthSettings(storageKey, api) {
             return saveAgGridColumnWidthSettings(storageKey, api, {
+                userSettingPageKey: gridUserSettingPageKey(storageKey),
+                description: ctx.TRANSACTION_PAGE_DESCRIPTION,
                 minWidth: ctx.AG_GRID_MIN_SAVED_WIDTH,
             });
         },
@@ -57,6 +71,8 @@ export function registerStorage(ctx) {
         scheduleSaveAgGridColumnWidthSettings(storageKey, api) {
             return scheduleSaveAgGridColumnWidthSettings(storageKey, api, ctx.agGridWidthSaveTimers, {
                 debounceMs: ctx.AG_GRID_WIDTH_SAVE_DEBOUNCE_MS,
+                userSettingPageKey: gridUserSettingPageKey(storageKey),
+                description: ctx.TRANSACTION_PAGE_DESCRIPTION,
                 minWidth: ctx.AG_GRID_MIN_SAVED_WIDTH,
             });
         },

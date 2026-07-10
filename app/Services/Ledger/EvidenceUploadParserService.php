@@ -110,13 +110,13 @@ class EvidenceUploadParserService
     {
         $lineFields = array_flip([
             'header_row_no',
-            'line_no',
+            'sort_no',
             'line_row_type',
             'account_id',
             'debit',
             'credit',
             'line_summary',
-            'line_ref_type',
+            'line_ref_target',
             'line_ref_id',
         ]);
         foreach ($columns as $column) {

@@ -18,6 +18,10 @@ class EvidenceTransactionCreateService
 
     public function createTransactions(array $payload): array
     {
+        if (!$this->tableExists('ledger_data_evidences')) {
+            return ['payload' => ['success' => false, 'message' => '증빙 payload 기능을 사용할 수 없습니다.'], 'status' => 400];
+        }
+
         return $this->capture(fn() => $this->doCreateTransactions($payload));
     }
 
@@ -44,6 +48,39 @@ class EvidenceTransactionCreateService
         }
 
         return ($this->callbacks[$name])(...$arguments);
+    }
+
+    private function hasEvidenceProcessingTable(): bool
+    {
+        return $this->tableExists('ledger_evidence_processing');
+    }
+
+    private function tableExists(string $table): bool
+    {
+        return (bool) $this->__call('tableExists', [$table]);
+    }
+
+    private function evidenceProcessingJoin(string $payloadAlias = 'p', string $processingAlias = 'pr'): string
+    {
+        if (!$this->hasEvidenceProcessingTable()) {
+            return '';
+        }
+
+        return "
+                LEFT JOIN ledger_evidence_processing {$processingAlias}
+                    ON {$processingAlias}.evidence_type = {$payloadAlias}.source_type
+                   AND {$processingAlias}.evidence_id = {$payloadAlias}.id
+                   AND {$processingAlias}.deleted_at IS NULL
+        ";
+    }
+
+    private function evidenceProcessingStatusExpr(string $processingAlias = 'pr', string $default = 'READY'): string
+    {
+        if (!$this->hasEvidenceProcessingTable()) {
+            return "'" . addslashes($default) . "'";
+        }
+
+        return "COALESCE({$processingAlias}.processing_status, '" . addslashes($default) . "')";
     }
 
     private function doCreateTransactions(array $payload): void
@@ -314,7 +351,7 @@ class EvidenceTransactionCreateService
         $params = [];
         $claimableStatuses = ["'READY'", "'ERROR'", "'DUPLICATED'"];
         $where = [
-            'COALESCE(pr.processing_status, \'READY\') IN (' . implode(', ', $claimableStatuses) . ')',
+            $this->evidenceProcessingStatusExpr('pr') . ' IN (' . implode(', ', $claimableStatuses) . ')',
             'p.deleted_at IS NULL',
         ];
         $eligibleImportTypes = $this->transactionProcessingDataTypes();
@@ -324,7 +361,7 @@ class EvidenceTransactionCreateService
             $typePlaceholders[] = $key;
             $params[$key] = $type;
         }
-        $where[] = 'p.evidence_type IN (' . implode(', ', $typePlaceholders) . ')';
+        $where[] = 'p.source_type IN (' . implode(', ', $typePlaceholders) . ')';
         $where[] = 'tx.target_id IS NULL';
         if ($batchId !== '') {
             $where[] = 'DATE(p.latest_imported_at) = :batch_id';
@@ -337,23 +374,20 @@ class EvidenceTransactionCreateService
                 $placeholders[] = $key;
                 $params[$key] = $rowId;
             }
-            $where[] = 'p.evidence_id IN (' . implode(', ', $placeholders) . ')';
+            $where[] = 'p.id IN (' . implode(', ', $placeholders) . ')';
         }
 
         $this->pdo->beginTransaction();
         try {
             $select = $this->pdo->prepare("
-                SELECT p.evidence_id AS id, p.evidence_type AS source_type, p.source_key,
+                SELECT p.id AS id, p.source_type AS source_type, p.source_key,
                        JSON_UNQUOTE(JSON_EXTRACT(p.mapped_payload_json, '$.evidence_date')) AS evidence_date,
                        p.mapped_payload_json
-                FROM ledger_evidence_payloads p
-                LEFT JOIN ledger_evidence_processing pr
-                    ON pr.evidence_type = p.evidence_type
-                   AND pr.evidence_id = p.evidence_id
-                   AND pr.deleted_at IS NULL
+                FROM ledger_data_evidences p
+                " . $this->evidenceProcessingJoin('p', 'pr') . "
                 LEFT JOIN ledger_evidence_links tx
-                    ON tx.evidence_type = p.evidence_type
-                   AND tx.evidence_id = p.evidence_id
+                    ON tx.evidence_type = p.source_type
+                   AND tx.evidence_id = p.id
                    AND tx.target_type = 'TRANSACTION'
                    AND tx.deleted_at IS NULL
                 WHERE " . implode(' AND ', $where) . "
@@ -389,22 +423,24 @@ class EvidenceTransactionCreateService
                 $idPlaceholders[] = $key;
                 $idParams[$key] = $id;
             }
-            $update = $this->pdo->prepare("
-                UPDATE ledger_evidence_processing pr
-                LEFT JOIN ledger_evidence_links tx
-                    ON tx.evidence_type = pr.evidence_type
-                   AND tx.evidence_id = pr.evidence_id
-                   AND tx.target_type = 'TRANSACTION'
-                   AND tx.deleted_at IS NULL
-                SET pr.processing_status = 'PROCESSING',
-                    pr.last_error_message = NULL,
-                    pr.updated_at = NOW()
-                WHERE pr.evidence_id IN (" . implode(', ', $idPlaceholders) . ")
-                  AND pr.processing_status IN (" . implode(', ', $claimableStatuses) . ")
-                  AND pr.deleted_at IS NULL
-                  AND tx.target_id IS NULL
-            ");
-            $update->execute($idParams);
+            if ($this->hasEvidenceProcessingTable()) {
+                $update = $this->pdo->prepare("
+                    UPDATE ledger_evidence_processing pr
+                    LEFT JOIN ledger_evidence_links tx
+                        ON tx.evidence_type = pr.evidence_type
+                       AND tx.evidence_id = pr.evidence_id
+                       AND tx.target_type = 'TRANSACTION'
+                       AND tx.deleted_at IS NULL
+                    SET pr.processing_status = 'PROCESSING',
+                        pr.last_error_message = NULL,
+                        pr.updated_at = NOW()
+                    WHERE pr.evidence_id IN (" . implode(', ', $idPlaceholders) . ")
+                      AND pr.processing_status IN (" . implode(', ', $claimableStatuses) . ")
+                      AND pr.deleted_at IS NULL
+                      AND tx.target_id IS NULL
+                ");
+                $update->execute($idParams);
+            }
             $this->pdo->commit();
             return $this->seedRowsForTransactionCreate('', $ids, 'PROCESSING');
         } catch (\Throwable $e) {
@@ -421,15 +457,15 @@ class EvidenceTransactionCreateService
         $params = [];
         $where = ['p.deleted_at IS NULL', 'tx.target_id IS NULL'];
         $where[] = $status === 'PROCESSING'
-            ? "COALESCE(pr.processing_status, 'READY') = 'PROCESSING'"
-            : "COALESCE(pr.processing_status, 'READY') = 'READY'";
+            ? $this->evidenceProcessingStatusExpr('pr') . " = 'PROCESSING'"
+            : $this->evidenceProcessingStatusExpr('pr') . " = 'READY'";
         $typePlaceholders = [];
         foreach ($this->transactionProcessingDataTypes() as $index => $type) {
             $key = ':import_type_' . $index;
             $typePlaceholders[] = $key;
             $params[$key] = $type;
         }
-        $where[] = 'p.evidence_type IN (' . implode(', ', $typePlaceholders) . ')';
+        $where[] = 'p.source_type IN (' . implode(', ', $typePlaceholders) . ')';
         if ($batchId !== '') {
             $where[] = 'DATE(p.latest_imported_at) = :batch_id';
             $params[':batch_id'] = $batchId;
@@ -441,30 +477,27 @@ class EvidenceTransactionCreateService
                 $placeholders[] = $key;
                 $params[$key] = $rowId;
             }
-            $where[] = 'p.evidence_id IN (' . implode(', ', $placeholders) . ')';
+            $where[] = 'p.id IN (' . implode(', ', $placeholders) . ')';
         }
 
         $stmt = $this->pdo->prepare("
-            SELECT p.evidence_id AS id, NULL AS batch_id, p.evidence_type AS source_type, p.source_key,
+            SELECT p.id AS id, NULL AS batch_id, p.source_type AS source_type, p.source_key,
                    JSON_UNQUOTE(JSON_EXTRACT(p.mapped_payload_json, '$.evidence_date')) AS evidence_date,
                    0 AS row_no, p.raw_json AS raw_payload, p.mapped_payload_json AS mapped_payload,
-                   COALESCE(pr.processing_status, 'READY') AS status,
-                   pr.last_error_message AS error_message,
+                   " . $this->evidenceProcessingStatusExpr('pr') . " AS status,
+                   " . ($this->hasEvidenceProcessingTable() ? 'pr.last_error_message' : 'NULL') . " AS error_message,
                    CASE WHEN vx.target_id IS NULL THEN 'WAITING' ELSE 'LINKED' END AS voucher_status,
                    tx.target_id AS transaction_id
-            FROM ledger_evidence_payloads p
-            LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type = p.evidence_type
-               AND pr.evidence_id = p.evidence_id
-               AND pr.deleted_at IS NULL
+            FROM ledger_data_evidences p
+            " . $this->evidenceProcessingJoin('p', 'pr') . "
             LEFT JOIN ledger_evidence_links tx
-                ON tx.evidence_type = p.evidence_type
-               AND tx.evidence_id = p.evidence_id
+                ON tx.evidence_type = p.source_type
+               AND tx.evidence_id = p.id
                AND tx.target_type = 'TRANSACTION'
                AND tx.deleted_at IS NULL
             LEFT JOIN ledger_evidence_links vx
-                ON vx.evidence_type = p.evidence_type
-               AND vx.evidence_id = p.evidence_id
+                ON vx.evidence_type = p.source_type
+               AND vx.evidence_id = p.id
                AND vx.target_type = 'VOUCHER'
                AND vx.deleted_at IS NULL
             WHERE " . implode(' AND ', $where) . "
@@ -558,20 +591,17 @@ class EvidenceTransactionCreateService
         if ($approvalNo !== '') {
             $stmt = $this->pdo->prepare("
                 SELECT 1
-                FROM ledger_evidence_payloads p
-                LEFT JOIN ledger_evidence_processing pr
-                    ON pr.evidence_type = p.evidence_type
-                   AND pr.evidence_id = p.evidence_id
-                   AND pr.deleted_at IS NULL
+                FROM ledger_data_evidences p
+                " . $this->evidenceProcessingJoin('p', 'pr') . "
                 LEFT JOIN ledger_evidence_links tx
-                    ON tx.evidence_type = p.evidence_type
-                   AND tx.evidence_id = p.evidence_id
+                    ON tx.evidence_type = p.source_type
+                   AND tx.evidence_id = p.id
                    AND tx.target_type = 'TRANSACTION'
                    AND tx.deleted_at IS NULL
-                WHERE p.evidence_id <> :row_id
+                WHERE p.id <> :row_id
                   AND p.deleted_at IS NULL
                   AND (
-                    COALESCE(pr.processing_status, 'READY') IN ('CREATED', 'PROCESSED', 'DONE', 'COMPLETED', 'POSTED')
+                    " . $this->evidenceProcessingStatusExpr('pr') . " IN ('CREATED', 'PROCESSED', 'DONE', 'COMPLETED', 'POSTED')
                     OR (tx.target_id IS NOT NULL AND tx.target_id <> '')
                   )
                   AND p.mapped_payload_json LIKE :approval_no
@@ -640,10 +670,11 @@ class EvidenceTransactionCreateService
                     'voucher_id' => $existing['id'] ?? null,
                     'voucher_no' => $existing['voucher_no'] ?? null,
                     'voucher_date' => $existing['voucher_date'] ?? null,
-                    'source_type' => $existing['source_type'] ?? null,
-                    'import_type' => $existing['import_type'] ?? null,
-                    'voucher_transaction_id' => $existing['transaction_id'] ?? null,
-                    'summary_text' => $existing['summary_text'] ?? null,
+                    'source_type' => null,
+                    'import_type' => null,
+                    'voucher_transaction_id' => null,
+                    'summary' => $existing['summary'] ?? null,
+                    'summary_text' => $existing['summary'] ?? null,
                 ];
             }
         }
@@ -651,14 +682,11 @@ class EvidenceTransactionCreateService
             return array_values($rowsByEvidenceId);
         }
         [$inSql, $params] = $this->placeholdersForIds($evidenceIds, 'existing_voucher_evidence');
-        $sourceTypeSelect = $this->tableColumnExists('ledger_vouchers', 'source_type') ? 'v.source_type,' : 'NULL AS source_type,';
-        $importSelect = $this->tableColumnExists('ledger_vouchers', 'import_type') ? 'v.import_type,' : 'NULL AS import_type,';
-        $voucherTransactionSelect = $this->tableColumnExists('ledger_vouchers', 'transaction_id') ? 'v.transaction_id AS voucher_transaction_id,' : 'NULL AS voucher_transaction_id,';
         $where = ["v.deleted_at IS NULL", "l.deleted_at IS NULL", "l.target_type = 'VOUCHER'", "l.evidence_id IN ({$inSql})"];
         $stmt = $this->pdo->prepare("
             SELECT l.evidence_id AS evidence_id, l.evidence_type AS evidence_source_type,
                    NULL AS evidence_transaction_id, v.id AS voucher_id, v.voucher_no, v.voucher_date,
-                   {$sourceTypeSelect} {$importSelect} {$voucherTransactionSelect} v.summary_text
+                   NULL AS source_type, NULL AS import_type, NULL AS voucher_transaction_id, v.summary
             FROM ledger_evidence_links l
             INNER JOIN ledger_vouchers v ON v.id = l.target_id
             WHERE " . implode(' AND ', $where) . "
@@ -666,6 +694,7 @@ class EvidenceTransactionCreateService
         ");
         $stmt->execute($params);
         foreach (($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []) as $row) {
+            $row['summary_text'] = $row['summary'] ?? ($row['summary_text'] ?? null);
             $rowsByEvidenceId[(string) ($row['evidence_id'] ?? '')] = $row;
         }
         return array_values($rowsByEvidenceId);

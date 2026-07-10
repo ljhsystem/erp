@@ -3,19 +3,19 @@ import { BankAccountColumnRegistry } from './domains/bank-account.js';
 import { CardColumnRegistry } from './domains/card.js';
 import { ClientColumnRegistry } from './domains/client.js';
 import { CodeColumnRegistry } from './domains/code.js';
+import { AccountSubjectSubColumnRegistry } from './domains/account-subject-sub.js';
 import { LedgerAccountColumnRegistry } from './domains/ledger-account.js';
 import { LedgerJournalRuleColumnRegistry } from './domains/ledger-journal-rule.js';
-import { ProjectColumnRegistry } from './domains/project.js';
 import { WorkTeamColumnRegistry } from './domains/work-team.js';
 
 const DOMAIN_REGISTRIES = Object.freeze({
+    'account-subject-main': LedgerAccountColumnRegistry,
+    'account-subject-sub': AccountSubjectSubColumnRegistry,
     'bank-account': BankAccountColumnRegistry,
     card: CardColumnRegistry,
     client: ClientColumnRegistry,
     code: CodeColumnRegistry,
-    'ledger-account': LedgerAccountColumnRegistry,
     'ledger-journal-rule': LedgerJournalRuleColumnRegistry,
-    project: ProjectColumnRegistry,
     'work-team': WorkTeamColumnRegistry,
 });
 

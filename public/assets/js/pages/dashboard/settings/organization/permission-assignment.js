@@ -1,6 +1,7 @@
 import { createDataTable, bindTableHighlight } from '/public/assets/js/common/table/data-table.js';
 import { bindSortableRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { readDataTableSettingsState } from '/public/assets/js/common/datatable/dataTableSettings.js';
+import { writeSystemUserSettingsStorage } from '/public/assets/js/common/user-settings/systemUserSettingsStorage.js';
 
 const API_ROLE_LIST = '/api/settings/organization/role/list';
 const API_ROLE_PERMISSIONS = '/api/settings/organization/role-permission/list';
@@ -11,7 +12,10 @@ const API_PERMISSION_DELETE = '/api/settings/organization/permission/delete';
 
 const PAGE_TABLE_SELECTOR = '#permission-assignment-table';
 const ROLE_TABLE_SELECTOR = '#role-list-table';
+const ROLE_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.organization.permission-assignment.role-list-table.v2';
 const PERMISSION_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.settings.organization.role_permissions.permission-matrix.flat.v2';
+const ROLE_TABLE_USER_SETTING_PAGE_KEY = 'permission-assignment-role';
+const PERMISSION_TABLE_USER_SETTING_PAGE_KEY = 'permission-assignment-permission';
 
 let roleTable = null;
 let permissionTable = null;
@@ -23,32 +27,54 @@ let originalPermissionStates = new Map();
 let lastClientReorderPlan = null;
 let lastReorderWarningMessage = '';
 
-function sanitizePermissionTableSettingsState(state = null) {
+function sanitizeTableSettingsState(state = null, deprecatedKeys = []) {
     if (!state || typeof state !== 'object') {
         return state;
     }
 
-    const deprecatedKeys = new Set(['grant', '__select', 'handle']);
+    const deprecatedKeySet = new Set(
+        (Array.isArray(deprecatedKeys) ? deprecatedKeys : [])
+            .map((key) => String(key || '').trim())
+            .filter(Boolean)
+    );
     let changed = false;
     const nextState = { ...state };
 
-    ['visibleColumns', 'columnOrder', 'requiredColumns'].forEach((key) => {
+    [
+        'columnWidths',
+        'pageLength',
+        'sortSettings',
+        'currentPage',
+        'searchFormExpanded',
+        'searchFormState',
+        'requiredColumns',
+        'columnWidth',
+    ].forEach((key) => {
+        if (Object.prototype.hasOwnProperty.call(nextState, key)) {
+            delete nextState[key];
+            changed = true;
+        }
+    });
+
+    ['visibleColumns', 'columnOrder'].forEach((key) => {
         if (!Array.isArray(nextState[key])) {
             return;
         }
-        const filtered = nextState[key].map((item) => String(item || '').trim()).filter((item) => item !== '' && !deprecatedKeys.has(item));
+        const filtered = nextState[key]
+            .map((item) => String(item || '').trim())
+            .filter((item) => item !== '' && !deprecatedKeySet.has(item));
         if (filtered.length !== nextState[key].length) {
             nextState[key] = filtered;
             changed = true;
         }
     });
 
-    ['columnDisplayName', 'columnRequirementPolicy', 'columnWidths'].forEach((key) => {
+    ['columnDisplayName', 'columnRequirementPolicy'].forEach((key) => {
         if (!nextState[key] || typeof nextState[key] !== 'object') {
             return;
         }
         const filtered = Object.fromEntries(
-            Object.entries(nextState[key]).filter(([itemKey]) => !deprecatedKeys.has(String(itemKey || '').trim()))
+            Object.entries(nextState[key]).filter(([itemKey]) => !deprecatedKeySet.has(String(itemKey || '').trim()))
         );
         if (Object.keys(filtered).length !== Object.keys(nextState[key]).length) {
             nextState[key] = filtered;
@@ -59,28 +85,69 @@ function sanitizePermissionTableSettingsState(state = null) {
     return changed ? nextState : state;
 }
 
-function persistPermissionTableSettingsState(state = null) {
+function sanitizeRoleTableSettingsState(state = null) {
+    return sanitizeTableSettingsState(state, ['__legacy_role_status']);
+}
+
+function sanitizePermissionTableSettingsState(state = null) {
+    return sanitizeTableSettingsState(state, ['grant', '__select', 'handle']);
+}
+
+function persistTableSettingsState(storageKey, userSettingPageKey, state = null) {
     if (!state || typeof state !== 'object') {
         return;
     }
 
-    window.localStorage?.setItem(
-        PERMISSION_TABLE_SETTINGS_STORAGE_KEY,
-        JSON.stringify({
+    writeSystemUserSettingsStorage(
+        storageKey,
+        {
             ...state,
             updatedAt: new Date().toISOString(),
-        })
+        },
+        {
+            userSettingPageKey,
+            settingType: 'TABLE',
+        }
     );
 }
 
+function normalizeRoleTableSettingsState() {
+    const currentState = readDataTableSettingsState(ROLE_TABLE_SETTINGS_STORAGE_KEY, {
+        userSettingPageKey: ROLE_TABLE_USER_SETTING_PAGE_KEY,
+    });
+    const sanitizedState = sanitizeRoleTableSettingsState(currentState);
+    if (!sanitizedState || sanitizedState === currentState) {
+        return;
+    }
+
+    persistTableSettingsState(ROLE_TABLE_SETTINGS_STORAGE_KEY, ROLE_TABLE_USER_SETTING_PAGE_KEY, sanitizedState);
+}
+
 function normalizePermissionTableSettingsState() {
-    const currentState = readDataTableSettingsState(PERMISSION_TABLE_SETTINGS_STORAGE_KEY);
+    const currentState = readDataTableSettingsState(PERMISSION_TABLE_SETTINGS_STORAGE_KEY, {
+        userSettingPageKey: PERMISSION_TABLE_USER_SETTING_PAGE_KEY,
+    });
     const sanitizedState = sanitizePermissionTableSettingsState(currentState);
     if (!sanitizedState || sanitizedState === currentState) {
         return;
     }
 
-    persistPermissionTableSettingsState(sanitizedState);
+    persistTableSettingsState(PERMISSION_TABLE_SETTINGS_STORAGE_KEY, PERMISSION_TABLE_USER_SETTING_PAGE_KEY, sanitizedState);
+}
+
+function bindRoleTableSettingsPolicy() {
+    normalizeRoleTableSettingsState();
+
+    document.removeEventListener('datatable-settings:updated', window.__roleTableSettingsPolicyHandler);
+    window.__roleTableSettingsPolicyHandler = (event) => {
+        const storageKey = String(event?.detail?.storageKey || '').trim();
+        if (storageKey !== ROLE_TABLE_SETTINGS_STORAGE_KEY) {
+            return;
+        }
+
+        normalizeRoleTableSettingsState();
+    };
+    document.addEventListener('datatable-settings:updated', window.__roleTableSettingsPolicyHandler);
 }
 
 function bindPermissionTableSettingsPolicy() {
@@ -245,8 +312,9 @@ function initRoleTable() {
         api: API_ROLE_LIST,
         tableSettings: {
             pageKey: 'dashboard.settings.organization.permission-assignment.role-list',
+            userSettingPageKey: ROLE_TABLE_USER_SETTING_PAGE_KEY,
             tableKey: 'role-list-table',
-            storageKey: 'datatable.settings.dashboard.settings.organization.permission-assignment.role-list-table.v2',
+            storageKey: ROLE_TABLE_SETTINGS_STORAGE_KEY,
             metaDomain: 'role',
             tableLabel: '\uC5ED\uD560\uBAA9\uB85D',
             title: '\uC5ED\uD560\uBAA9\uB85D \uD14C\uC774\uBE14 \uC124\uC815',
@@ -367,12 +435,12 @@ function initPermissionTable() {
         tableSettings: {
             enabled: true,
             pageKey: 'settings.organization.role_permissions',
+            userSettingPageKey: PERMISSION_TABLE_USER_SETTING_PAGE_KEY,
             tableKey: 'permission-matrix',
-            storageKey: 'settings.organization.role_permissions.permission-matrix.flat.v2',
+            storageKey: PERMISSION_TABLE_SETTINGS_STORAGE_KEY,
             metaDomain: 'permission-assignment',
             tableLabel: '\uC5ED\uD560\uBCC4 \uAD8C\uD55C\uBAA9\uB85D',
             columns: buildPermissionColumns(),
-            requiredColumns: [],
             defaultVisibleColumns: [
                 '__select',
                 'handle',
@@ -1524,6 +1592,7 @@ function bindSaveButton() {
 }
 
 $(function onReady() {
+    bindRoleTableSettingsPolicy();
     bindPermissionTableSettingsPolicy();
     initRoleTable();
     initPermissionTable();

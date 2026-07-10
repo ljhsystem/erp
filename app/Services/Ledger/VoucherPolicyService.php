@@ -6,9 +6,7 @@ use PDO;
 
 class VoucherPolicyService
 {
-    public function __construct(private PDO $pdo, private array $callbacks = [])
-    {
-    }
+    public function __construct(private PDO $pdo, private array $callbacks = []) {}
 
     public function applyEvidenceRefsToVoucherLines(array $lines, array $evidence): array
     {
@@ -26,7 +24,7 @@ class VoucherPolicyService
             $refs = is_array($line['refs'] ?? null) ? $line['refs'] : [];
             $existingTypes = [];
             foreach ($refs as $ref) {
-                $type = $this->normalizeVoucherRefType((string) ($ref['ref_type'] ?? ''));
+                $type = $this->normalizeVoucherRefType((string) ($ref['ref_target'] ?? ''));
                 if ($type !== '') {
                     $existingTypes[$type] = true;
                 }
@@ -44,7 +42,7 @@ class VoucherPolicyService
                 }
 
                 $refs[] = [
-                    'ref_type' => $refType,
+                    'ref_target' => $refType,
                     'ref_id' => $refId,
                     'is_primary' => 0,
                 ];
@@ -89,8 +87,10 @@ class VoucherPolicyService
     {
         $target = $this->normalizeVoucherRefType($refType);
         foreach ((array) ($line['refs'] ?? []) as $ref) {
-            if ($this->normalizeVoucherRefType((string) ($ref['ref_type'] ?? '')) === $target
-                && trim((string) ($ref['ref_id'] ?? '')) !== '') {
+            if (
+                $this->normalizeVoucherRefType((string) ($ref['ref_target'] ?? '')) === $target
+                && trim((string) ($ref['ref_id'] ?? '')) !== ''
+            ) {
                 return true;
             }
         }
@@ -111,19 +111,19 @@ class VoucherPolicyService
 
         $policies = [];
 
-        if ($this->call('tableExists', 'ledger_sub_accounts')) {
-            $hasRefType = $this->call('tableColumnExists', 'ledger_sub_accounts', 'ref_type');
-            $hasSubCode = $this->call('tableColumnExists', 'ledger_sub_accounts', 'sub_code');
+        if ($this->call('tableExists', 'ledger_accounts_sub')) {
+            $hasRefType = $this->call('tableColumnExists', 'ledger_accounts_sub', 'ref_target');
+            $hasSubCode = $this->call('tableColumnExists', 'ledger_accounts_sub', 'sub_code');
             if ($hasRefType || $hasSubCode) {
                 $select = [
-                    $hasRefType ? 'ref_type' : "'' AS ref_type",
+                    $hasRefType ? 'ref_target' : "'' AS ref_target",
                     $hasSubCode ? 'sub_code' : "'' AS sub_code",
-                    $this->call('tableColumnExists', 'ledger_sub_accounts', 'is_required') ? 'is_required' : '0 AS is_required',
+                    $this->call('tableColumnExists', 'ledger_accounts_sub', 'is_required') ? 'is_required' : '0 AS is_required',
                 ];
-                $deleted = $this->call('tableColumnExists', 'ledger_sub_accounts', 'deleted_at') ? ' AND deleted_at IS NULL' : '';
+                $deleted = $this->call('tableColumnExists', 'ledger_accounts_sub', 'deleted_at') ? ' AND deleted_at IS NULL' : '';
                 $stmt = $this->pdo->prepare("
                     SELECT " . implode(', ', $select) . "
-                    FROM ledger_sub_accounts
+                    FROM ledger_accounts_sub
                     WHERE account_id = :account_id
                       {$deleted}
                 ");
@@ -161,7 +161,7 @@ class VoucherPolicyService
 
     public function policyRefTypeFromRow(array $row): string
     {
-        $refType = $this->normalizeVoucherRefType((string) ($row['ref_type'] ?? ''));
+        $refType = $this->normalizeVoucherRefType((string) ($row['ref_target'] ?? ''));
         $subCode = $this->normalizeVoucherRefType((string) ($row['sub_code'] ?? ''));
         if ($refType === 'REF_TARGET') {
             return $subCode;

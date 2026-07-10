@@ -1,4 +1,4 @@
-import { createDataTable, refreshDataTableLayout } from '/public/assets/js/common/table/data-table.js';
+import { createDataTable } from '/public/assets/js/common/table/data-table.js';
 import { readDataTableSettingsState, resolveDataTableColumnDisplayName, resolveDataTableColumnRequirementPolicy } from '/public/assets/js/common/datatable/dataTableSettings.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
@@ -188,8 +188,6 @@ export function bootEvidencePage(options = {}) {
                         ? row.sort_target_keys.map((value) => String(value || '').trim()).filter(Boolean)
                         : [],
                     transactionWorkflowRequired: row?.transaction_workflow_required !== false,
-                    excelManagerMode: String(row?.excel_manager_mode || row?.excelManagerMode || 'custom').trim() || 'custom',
-                    excelManagerDomain: String(row?.excel_manager_domain || row?.excelManagerDomain || '').trim(),
                     sourceKeyAliases: row?.source_key_aliases && typeof row.source_key_aliases === 'object'
                         ? { ...row.source_key_aliases }
                         : {},
@@ -298,11 +296,6 @@ export function bootEvidencePage(options = {}) {
         excelUploadCancelToken: '',
         excelUploadPreviewToken: '',
         excelManagerSettingsCore: null,
-        excelManagerSettingsType: '',
-        excelManagerSettingsState: {
-            template: null,
-            download: null,
-        },
     };
 
     function evidenceMetaDomain(type = '') {
@@ -397,8 +390,6 @@ export function bootEvidencePage(options = {}) {
         const text = String(value ?? '').trim();
         if (text === '') return true;
         return [
-            '__none__',
-            '__CODE_NONE__',
             '_none_',
             '__none',
             'none__',
@@ -1328,7 +1319,11 @@ export function bootEvidencePage(options = {}) {
     }
     function requirementMode(column = {}) {
         const key = String(column.system_field_name || column.original_column_key || editFieldKey(column) || '').trim();
-        const policyState = readDataTableSettingsState(evidenceStatusTableSettingsStorageKey(state.currentType)) || {};
+        const userSettingPageKey = evidenceMetaDomain(state.currentType);
+        const policyState = readDataTableSettingsState(evidenceStatusTableSettingsStorageKey(state.currentType), {
+            metaDomain: userSettingPageKey,
+            userSettingPageKey,
+        }) || {};
         const requirementPolicyMap = policyState.columnRequirementPolicy && typeof policyState.columnRequirementPolicy === 'object'
             ? policyState.columnRequirementPolicy
             : {};
@@ -1559,6 +1554,7 @@ export function bootEvidencePage(options = {}) {
         normalizeEvidenceType,
         evidenceTypePolicy,
         defaultEvidenceTypeCode,
+        evidenceMetaDomain,
     });
 
     const { splitModalColumns, splitCellHtml, bindSplitModalHorizontalWheel, bindSplitModalInputs, splitChildFromRow, splitMissingRequiredForRow, openProcessingSplitModal } = createEvidenceSplitModule({
@@ -1566,7 +1562,6 @@ export function bootEvidencePage(options = {}) {
         API,
         notify,
         updateSummary,
-        refreshDataTableLayout,
         escapeHtml,
         mapped,
         valueText,
@@ -1618,6 +1613,7 @@ export function bootEvidencePage(options = {}) {
         readDataTableSettingsState,
         normalizeEvidenceType,
         defaultEvidenceTypeCode,
+        evidenceMetaDomain,
     });
 
     const { rowDataFromTableNode, rebuildTable } = createEvidenceTableModule({
@@ -1625,7 +1621,6 @@ export function bootEvidencePage(options = {}) {
         API,
         SearchForm,
         createDataTable,
-        refreshDataTableLayout,
         bindRowReorder,
         normalizeEvidenceType,
         evidenceTypePolicy,
@@ -1690,7 +1685,6 @@ export function bootEvidencePage(options = {}) {
         API,
         notify,
         updateSummary,
-        refreshDataTableLayout,
         escapeHtml,
         mapped,
         splitModalColumns,
@@ -1890,8 +1884,5 @@ export function bootEvidencePage(options = {}) {
         .finally(() => {
             clearGlobalLoadingOverlay();
             setPageLoadingState(false);
-            window.requestAnimationFrame(() => {
-                refreshDataTableLayout?.();
-            });
         });
 }

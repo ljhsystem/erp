@@ -335,7 +335,7 @@ class EvidenceTemplateService
         $samples = [
             [
                 'header_row_no' => 2,
-                'line_no' => 1,
+                'sort_no' => 1,
                 'line_row_type' => '분개',
                 'account_id' => '1000',
                 'debit' => 55000,
@@ -344,7 +344,7 @@ class EvidenceTemplateService
             ],
             [
                 'header_row_no' => 2,
-                'line_no' => 2,
+                'sort_no' => 2,
                 'line_row_type' => '분개',
                 'account_id' => '4000',
                 'debit' => '',

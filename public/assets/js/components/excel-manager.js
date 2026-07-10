@@ -39,27 +39,28 @@
         }));
 
         const columns = readPreparedColumns(form, type);
+        const includeRequirementPolicy = type === 'template';
         const policyState = form?.__excelPreparedPolicy?.[type] && typeof form.__excelPreparedPolicy[type] === 'object'
             ? form.__excelPreparedPolicy[type]
             : { displayName: {}, requirementPolicy: {} };
-        form.__excelLastPreparedAction = {
+        const prepared = {
             type,
             columns,
             columnDisplayName: { ...(policyState.displayName || {}) },
-            columnRequirementPolicy: { ...(policyState.requirementPolicy || {}) },
         };
+        if (includeRequirementPolicy) {
+            prepared.columnRequirementPolicy = { ...(policyState.requirementPolicy || {}) };
+        }
+        form.__excelLastPreparedAction = prepared;
         form.dispatchEvent(new CustomEvent('excel:prepare-action', {
-            detail: {
-                type,
-                columns,
-                columnDisplayName: { ...(policyState.displayName || {}) },
-                columnRequirementPolicy: { ...(policyState.requirementPolicy || {}) },
-            },
+            detail: prepared,
         }));
         return {
             columns,
             columnDisplayName: { ...(policyState.displayName || {}) },
-            columnRequirementPolicy: { ...(policyState.requirementPolicy || {}) },
+            ...(includeRequirementPolicy
+                ? { columnRequirementPolicy: { ...(policyState.requirementPolicy || {}) } }
+                : {}),
         };
     }
 

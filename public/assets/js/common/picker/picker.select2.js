@@ -74,8 +74,7 @@ function selectableResults(openContainer) {
 
 function isCommonControlResult(option) {
     const text = String(option?.textContent || '').trim();
-    return text === COMMON_NONE_OPTION_TEXT
-        || text === COMMON_ADD_OPTION_TEXT
+    return text === COMMON_ADD_OPTION_TEXT
         || text === ''
         || /^\+\s*/.test(text);
 }
@@ -162,7 +161,9 @@ function keepOpenSelect2SearchFocused(event) {
     if (openContainer.contains(target)) return;
 
     window.setTimeout(() => {
-        if (!document.querySelector('.select2-container--open')) return;
+        if (!openContainer.isConnected || !search.isConnected) return;
+        if (!openContainer.classList.contains('select2-container--open')) return;
+        if (!openContainer.contains(search)) return;
         search.focus?.();
     }, 0);
 }
@@ -229,6 +230,10 @@ function closeOpenSelect2Dropdowns() {
 function redirectFocusFromHiddenSelect(select) {
     const $ = window.jQuery || window.$;
     if (!select || !$?.fn?.select2) {
+        return;
+    }
+
+    if (!select.isConnected) {
         return;
     }
 
@@ -306,22 +311,13 @@ function normalizeOptions(options = {}) {
         width: '100%',
         language: 'ko',
         allowClear: false,
-        placeholder: '선택',
         dropdownAutoWidth: false,
         ...options
     };
 }
 
-const COMMON_NONE_OPTION_ID = '__none__';
 const COMMON_ADD_OPTION_ID = '__add__';
-const COMMON_NONE_OPTION_TEXT = '선택(없음)';
 const COMMON_ADD_OPTION_TEXT = '+추가';
-
-function isCommonNoneOption(item = {}) {
-    const id = String(item.id ?? '').trim();
-    const text = String(item.text ?? '').trim();
-    return id === '' || id === COMMON_NONE_OPTION_ID || text === COMMON_NONE_OPTION_TEXT;
-}
 
 function isCommonAddOption(item = {}) {
     const id = String(item.id ?? '').trim();
@@ -351,22 +347,58 @@ function normalizeAjaxResultItem(row = {}) {
     };
 }
 
+function normalizeSortNo(value) {
+    const parsed = Number(String(value ?? '').replace(/,/g, '').trim());
+    return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
+}
+
+function sortRowsBySortNo(rows = []) {
+    return [...(Array.isArray(rows) ? rows : [])]
+        .map((row, index) => ({ row, index }))
+        .sort((left, right) => {
+            const leftSortNo = normalizeSortNo(left.row?.sort_no);
+            const rightSortNo = normalizeSortNo(right.row?.sort_no);
+            if (leftSortNo !== rightSortNo) {
+                return leftSortNo - rightSortNo;
+            }
+            return left.index - right.index;
+        })
+        .map((entry) => entry.row);
+}
+
+function sortAjaxPayloadBySortNo(payload) {
+    if (Array.isArray(payload)) {
+        return sortRowsBySortNo(payload);
+    }
+
+    if (!payload || typeof payload !== 'object') {
+        return payload;
+    }
+
+    const next = { ...payload };
+    if (Array.isArray(next.results)) {
+        next.results = sortRowsBySortNo(next.results);
+    }
+    if (Array.isArray(next.data)) {
+        next.data = sortRowsBySortNo(next.data);
+    }
+    if (Array.isArray(next.items)) {
+        next.items = sortRowsBySortNo(next.items);
+    }
+    return next;
+}
+
 function withCommonAjaxOptions(result = {}, params = {}, options = {}) {
     const page = Number(params?.page || 1);
-    const hasSearchTerm = String(params?.term || '').trim() !== '';
-    const includeCommonNone = options.includeCommonNone !== false && !hasSearchTerm;
     const includeCommonAdd = options.includeCommonAdd !== false;
     const quickAddEnabled = options.quickAddEnabled === true || options.includeCommonAdd === true;
-    const noneText = options.commonNoneText || COMMON_NONE_OPTION_TEXT;
     const addText = options.commonAddText || COMMON_ADD_OPTION_TEXT;
     const sourceResults = Array.isArray(result?.results) ? result.results : [];
-    const normalized = sourceResults
+    const normalized = sortRowsBySortNo(sourceResults)
         .map(normalizeAjaxResultItem)
-        .filter((item) => !isCommonNoneOption(item) && !isCommonAddOption(item));
+        .filter((item) => !isCommonAddOption(item));
 
-    const results = page <= 1 && includeCommonNone
-        ? [{ id: COMMON_NONE_OPTION_ID, text: noneText, isNone: true }, ...normalized]
-        : normalized;
+    const results = normalized;
 
     if (page <= 1 && includeCommonAdd) {
         results.push({ id: COMMON_ADD_OPTION_ID, text: addText, isAdd: true, disabled: !quickAddEnabled });
@@ -393,49 +425,9 @@ function resolveDropdownParent(el, options = {}) {
     return $(document.body);
 }
 
-function ensureEmptyOption(el, placeholder = '선택') {
-    if (!el || el.multiple) {
-        return;
-    }
-
-    const hasEmptyOption = Array.from(el.options || [])
-        .some((option) => option.value === '');
-
-    if (hasEmptyOption) {
-        return;
-    }
-
-    el.insertBefore(new Option(placeholder || '선택', '', false, false), el.firstChild);
-}
-
 function shouldIncludeCommonAdd(el, options = {}) {
     return options.includeCommonAdd !== false
         && el?.dataset?.hideCommonAdd !== 'true';
-}
-
-function hasQuickAddHandler(el, options = {}) {
-    return options.quickAddEnabled === true
-        || el?.dataset?.quickAddEnabled === 'true';
-}
-
-function ensureCommonStaticOptions(el, options = {}) {
-    if (!el || el.multiple) {
-        return;
-    }
-
-    Array.from(el.options || []).forEach((option) => {
-        const item = { id: option.value, text: option.textContent };
-        if (isCommonNoneOption(item) || isCommonAddOption(item)) {
-            option.remove();
-        }
-    });
-
-    el.insertBefore(new Option(COMMON_NONE_OPTION_TEXT, COMMON_NONE_OPTION_ID, false, false), el.firstChild);
-    if (shouldIncludeCommonAdd(el, options)) {
-        const option = new Option(COMMON_ADD_OPTION_TEXT, COMMON_ADD_OPTION_ID, false, false);
-        option.disabled = !hasQuickAddHandler(el, options);
-        el.appendChild(option);
-    }
 }
 
 function bindCommonSelect2Options($el) {
@@ -444,26 +436,14 @@ function bindCommonSelect2Options($el) {
     $el.off('select2:select.commonPickerOptions')
         .on('select2:select.commonPickerOptions', function (event) {
             const selectedId = String(event.params?.data?.id ?? '').trim();
-            if (selectedId === COMMON_NONE_OPTION_ID) {
-                window.setTimeout(() => {
-                    $el.val('').trigger('change');
-                }, 0);
-                return;
-            }
             if (selectedId === COMMON_ADD_OPTION_ID) {
                 if (this.dataset.quickAddEnabled !== 'true') {
-                    window.setTimeout(() => {
-                        $el.val('').trigger('change');
-                    }, 0);
                     return;
                 }
                 this.dispatchEvent(new CustomEvent('picker:add', {
                     bubbles: true,
                     detail: event.params?.data || {}
                 }));
-                window.setTimeout(() => {
-                    $el.val('').trigger('change');
-                }, 0);
             }
         });
 }
@@ -489,8 +469,6 @@ function createSelect2(target, options = {}) {
     if (config.quickAddEnabled === true) {
         el.dataset.quickAddEnabled = 'true';
     }
-    ensureEmptyOption(el, config.placeholder);
-    ensureCommonStaticOptions(el, config);
 
     const finalOptions = {
         ...config,
@@ -580,12 +558,29 @@ function reloadOptions(target, items = [], valueKey = 'id', textKey = 'text', se
     if (!el) return;
 
     const $el = $(el);
+    const currentValue = el.value;
+    let emptyOption = Array.from(el.options || [])
+        .find((option) => option.value === '');
 
-    $el.empty();
-    $el.append(new Option(COMMON_NONE_OPTION_TEXT, COMMON_NONE_OPTION_ID, false, false));
+    Array.from(el.options || []).forEach((option) => {
+        const value = String(option.value ?? '');
+        if (value !== '') {
+            option.remove();
+        }
+    });
 
-    items.forEach(item => {
-        if (isCommonNoneOption(item) || isCommonAddOption(item)) {
+    if (!emptyOption) {
+        emptyOption = document.createElement('option');
+        emptyOption.value = '';
+        el.insertBefore(emptyOption, el.firstChild);
+    }
+    emptyOption.textContent = '선택(없음)';
+    if (emptyOption !== el.firstElementChild) {
+        el.insertBefore(emptyOption, el.firstChild);
+    }
+
+    sortRowsBySortNo(items).forEach(item => {
+        if (String(item?.[valueKey] ?? '').trim() === '' || isCommonAddOption(item)) {
             return;
         }
         const option = new Option(
@@ -597,17 +592,11 @@ function reloadOptions(target, items = [], valueKey = 'id', textKey = 'text', se
         $el.append(option);
     });
 
-    if (shouldIncludeCommonAdd(el, options)) {
-        const option = new Option(COMMON_ADD_OPTION_TEXT, COMMON_ADD_OPTION_ID, false, false);
-        option.disabled = !hasQuickAddHandler(el, options);
-        $el.append(option);
-    }
-
     if (selectedValue !== null && selectedValue !== undefined) {
-        $el.val(selectedValue);
+        el.value = String(selectedValue ?? '');
+    } else {
+        el.value = currentValue;
     }
-
-    $el.trigger('change');
 }
 
 function createAjaxSelect2(target, options = {}) {
@@ -635,10 +624,8 @@ function createAjaxSelect2(target, options = {}) {
         dataBuilder,
         processResults,
         returnEmptyOnError = true,
-        includeCommonNone,
         includeCommonAdd,
         quickAddEnabled: optionQuickAddEnabled,
-        commonNoneText,
         commonAddText,
         ...rest
     } = options;
@@ -658,15 +645,16 @@ function createAjaxSelect2(target, options = {}) {
             transport(params, success, failure) {
                 const request = $.ajax(params);
                 request.then((data) => {
+                    const sortedData = sortAjaxPayloadBySortNo(data);
                     if (returnEmptyOnError && data?.success === false) {
                         console.warn('[picker.select2] AJAX search returned success=false. Fallback to empty results.', {
                             url,
-                            response: data
+                            response: sortedData
                         });
                         success({ results: [] });
                         return;
                     }
-                    success(data);
+                    success(sortedData);
                 }).catch((error) => {
                     if (returnEmptyOnError) {
                         console.warn('[picker.select2] AJAX search failed. Fallback to empty results.', {
@@ -693,15 +681,13 @@ function createAjaxSelect2(target, options = {}) {
             processResults(data, params) {
                 if (typeof processResults === 'function') {
                     return withCommonAjaxOptions(processResults(data, params), params, {
-                        includeCommonNone,
                         includeCommonAdd,
                         quickAddEnabled,
-                        commonNoneText,
                         commonAddText
                     });
                 }
 
-                const rows = data?.results ?? data?.data ?? data?.items ?? [];
+                const rows = sortRowsBySortNo(data?.results ?? data?.data ?? data?.items ?? []);
 
                 return withCommonAjaxOptions({
                     results: rows.map(row => ({
@@ -719,10 +705,8 @@ function createAjaxSelect2(target, options = {}) {
                             ?? ''
                     }))
                 }, params, {
-                    includeCommonNone,
                     includeCommonAdd,
                     quickAddEnabled,
-                    commonNoneText,
                     commonAddText
                 });
             }

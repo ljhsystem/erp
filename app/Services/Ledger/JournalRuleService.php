@@ -48,7 +48,11 @@ class JournalRuleService
 
         if ($id !== '') {
             $ok = $this->model->update($id, $data);
-            return ['success' => $ok, 'id' => $id, 'message' => $ok ? '분개규칙이 저장되었습니다.' : '분개규칙 저장에 실패했습니다.'];
+            return [
+                'success' => $ok,
+                'id' => $id,
+                'message' => $ok ? '분개규칙이 저장되었습니다.' : '수정 중 오류가 발생했습니다.',
+            ];
         }
 
         $data[':id'] = UuidHelper::generate();
@@ -56,7 +60,11 @@ class JournalRuleService
         $data[':created_by'] = ActorHelper::user();
         $ok = $this->model->create($data);
 
-        return ['success' => $ok, 'id' => $data[':id'], 'message' => $ok ? '분개규칙이 생성되었습니다.' : '분개규칙 생성에 실패했습니다.'];
+        return [
+            'success' => $ok,
+            'id' => $data[':id'],
+            'message' => $ok ? '분개규칙이 생성되었습니다.' : '저장 중 오류가 발생했습니다.',
+        ];
     }
 
     public function softDelete(string $id): array
@@ -176,7 +184,7 @@ class JournalRuleService
 
         return [
             'success' => $deleted,
-            'message' => $deleted ? '분개규칙이 영구삭제되었습니다.' : '영구삭제할 분개규칙을 찾을 수 없습니다.',
+            'message' => $deleted ? '분개규칙이 영구 삭제되었습니다.' : '영구 삭제할 분개규칙을 찾을 수 없습니다.',
             'data' => [
                 'deleted_count' => $deleted ? 1 : 0,
                 'skipped_count' => $deleted ? 0 : 1,
@@ -192,8 +200,8 @@ class JournalRuleService
         return [
             'success' => true,
             'message' => $deletedCount > 0
-                ? '선택한 분개규칙이 영구삭제되었습니다.'
-                : '영구삭제할 분개규칙이 없습니다.',
+                ? '선택한 분개규칙이 영구 삭제되었습니다.'
+                : '영구 삭제할 분개규칙이 없습니다.',
             'data' => [
                 'deleted_count' => $deletedCount,
                 'skipped_count' => max(0, count($ids) - $deletedCount),
@@ -208,8 +216,8 @@ class JournalRuleService
         return [
             'success' => true,
             'message' => $deletedCount > 0
-                ? '휴지통의 분개규칙이 모두 영구삭제되었습니다.'
-                : '영구삭제할 분개규칙이 없습니다.',
+                ? '휴지통의 분개규칙이 모두 영구 삭제되었습니다.'
+                : '영구 삭제할 분개규칙이 없습니다.',
             'data' => [
                 'deleted_count' => $deletedCount,
             ],
@@ -220,7 +228,8 @@ class JournalRuleService
     {
         $ruleCode = strtoupper(trim((string) ($payload['rule_code'] ?? '')));
         $ruleName = trim((string) ($payload['rule_name'] ?? ''));
-        $businessUnit = strtoupper(trim((string) ($payload['business_unit'] ?? '')));
+        $businessUnit = strtoupper(trim((string) ($payload['business_unit'] ?? 'CONSTRUCTION'))) ?: 'CONSTRUCTION';
+        $operationType = strtoupper(trim((string) ($payload['operation_type'] ?? 'GENERAL'))) ?: 'GENERAL';
         $direction = strtoupper(trim((string) ($payload['transaction_direction'] ?? '')));
         $clientType = strtoupper(trim((string) ($payload['client_type'] ?? '')));
         $importType = strtoupper(trim((string) ($payload['import_type'] ?? '')));
@@ -228,8 +237,8 @@ class JournalRuleService
         $creditAccountId = trim((string) ($payload['credit_account_id'] ?? ''));
         $vatAccountId = trim((string) ($payload['vat_account_id'] ?? ''));
 
-        if ($ruleCode === '' || $ruleName === '' || $businessUnit === '' || $direction === '' || $clientType === '' || $importType === '' || $debitAccountId === '' || $creditAccountId === '') {
-            throw new \InvalidArgumentException('규칙코드, 규칙명, 사업구분, 거래구분, 거래처구분, 자료유형, 차변계정, 대변계정은 필수입니다.');
+        if ($ruleCode === '' || $ruleName === '' || $direction === '' || $clientType === '' || $importType === '' || $debitAccountId === '' || $creditAccountId === '') {
+            throw new \InvalidArgumentException('규칙코드, 규칙명, 거래구분, 거래처유형, 자료유형, 차변계정, 대변계정은 필수입니다.');
         }
 
         if (!in_array($direction, ['PURCHASE', 'SALES', 'IN', 'OUT'], true)) {
@@ -240,6 +249,7 @@ class JournalRuleService
             ':rule_code' => $ruleCode,
             ':rule_name' => $ruleName,
             ':business_unit' => $businessUnit,
+            ':operation_type' => $operationType,
             ':transaction_direction' => $direction,
             ':client_type' => $clientType,
             ':import_type' => $importType,

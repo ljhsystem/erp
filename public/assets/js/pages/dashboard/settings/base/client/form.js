@@ -40,15 +40,6 @@ export function createClientFormModule({
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#039;');
 
-    function handleClientOptionalNoneChange(event) {
-        const select = event.currentTarget;
-        if (select?.value !== '__CODE_NONE__') return;
-        select.value = '';
-        if (window.jQuery?.fn?.select2) {
-            window.jQuery(select).val(null).trigger('change.select2');
-        }
-    }
-
     function applyClientOptionalCodeSelects(scope = document) {
         const root = scope || document;
         CLIENT_OPTIONAL_CODE_SELECT_IDS.forEach((id) => {
@@ -56,15 +47,14 @@ export function createClientFormModule({
             if (!select) return;
 
             const currentValue = select.value;
-            select.querySelectorAll('option[value="__none__"]').forEach((option) => option.remove());
-
             let emptyOption = select.querySelector('option[value=""]');
             if (!emptyOption) {
-                emptyOption = new Option('', '', false, false);
+                emptyOption = document.createElement('option');
+                emptyOption.value = '';
                 select.insertBefore(emptyOption, select.firstChild);
             }
+            emptyOption.textContent = '선택(없음)';
 
-            emptyOption.textContent = '';
             select.value = currentValue || '';
 
             if (window.jQuery?.fn?.select2) {
@@ -76,21 +66,11 @@ export function createClientFormModule({
                 $select.select2({
                     width: '100%',
                     dropdownAutoWidth: true,
-                    placeholder: '선택',
                     language: 'ko',
                     dropdownParent: modalParent.length ? modalParent : window.jQuery(document.body),
                 });
-                $select
-                    .off('select2:select.clientOptionalNone')
-                    .on('select2:select.clientOptionalNone', function (event) {
-                        if (event.params?.data?.id === '__CODE_NONE__') {
-                            window.jQuery(this).val(null).trigger('change');
-                        }
-                    });
+                $select.off('select2:select.clientOptionalNone');
             }
-
-            select.removeEventListener('change', handleClientOptionalNoneChange);
-            select.addEventListener('change', handleClientOptionalNoneChange);
         });
     }
 
@@ -404,12 +384,11 @@ export function createClientFormModule({
             AdminPicker.select2(select, {
                 dropdownParent: window.jQuery('#clientModal'),
                 width: '100%',
-                placeholder: '계정과목 선택',
             });
             AdminPicker.reloadSelect2(select, items, 'id', 'text', value || '');
             return;
         }
-        select.innerHTML = '<option value="">계정과목 선택</option>' + items
+        select.innerHTML = '<option value="">선택(없음)</option>' + items
             .map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.text)}</option>`).join('');
         select.value = value;
     }

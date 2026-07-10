@@ -42,7 +42,7 @@ class ChartAccountModel
             FROM ledger_accounts a
             LEFT JOIN ledger_accounts p
                 ON a.parent_id = p.id
-            LEFT JOIN ledger_sub_accounts sa
+            LEFT JOIN ledger_accounts_sub sa
                 ON sa.account_id = a.id
             WHERE a.deleted_at IS NULL
             GROUP BY a.id
@@ -95,6 +95,31 @@ class ChartAccountModel
             'updated_by_name' => 'updated_by_name',
             'deleted_by_name' => 'deleted_by_name',
         ]);
+    }
+
+    public function resolveByIdOrCode(string $value): ?array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT
+                id,
+                account_code,
+                COALESCE(NULLIF(account_name, ''), NULLIF(account_code, ''), id) AS account_name
+            FROM ledger_accounts
+            WHERE deleted_at IS NULL
+              AND (id = :id_value OR account_code = :code_value)
+            LIMIT 1
+        ");
+        $stmt->execute([
+            ':id_value' => $value,
+            ':code_value' => $value,
+        ]);
+
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
     public function getDetailByAccountCode(string $accountCode): ?array
@@ -436,7 +461,7 @@ class ChartAccountModel
                 CASE
                     WHEN EXISTS (
                         SELECT 1
-                        FROM ledger_sub_accounts sa
+                        FROM ledger_accounts_sub sa
                         WHERE sa.account_id = a.id
                     ) THEN 1
                     ELSE 0
@@ -445,7 +470,7 @@ class ChartAccountModel
             FROM ledger_accounts a
             LEFT JOIN ledger_accounts p
                 ON a.parent_id = p.id
-            LEFT JOIN ledger_sub_accounts sa
+            LEFT JOIN ledger_accounts_sub sa
                 ON sa.account_id = a.id
             WHERE a.deleted_at IS NULL
         ";
@@ -942,8 +967,8 @@ class ChartAccountModel
     private function subAccountNameExpr(string $alias = ''): string
     {
         $parts = [];
-        foreach (['sub_name', 'sub_code', 'ref_type'] as $column) {
-            if ($this->columnExists('ledger_sub_accounts', $column)) {
+        foreach (['sub_name', 'sub_code', 'ref_target'] as $column) {
+            if ($this->columnExists('ledger_accounts_sub', $column)) {
                 $parts[] = 'NULLIF(' . $this->qualify($alias, $column) . ", '')";
             }
         }

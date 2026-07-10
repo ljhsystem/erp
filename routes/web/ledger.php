@@ -58,6 +58,20 @@ $router->get('/ledger/data/formats', 'LedgerController@webDataFormat', [
     'log' => false,
 ]);
 
+$router->get('/ledger/data/evidence-metadata', 'EvidenceMetadataController@index', [
+    'key' => 'web.ledger.evidence_metadata',
+    'page' => '증빙정책',
+    'page_description' => '증빙 자료유형별 정책 관리',
+    'permission_name' => '화면조회',
+    'permission_description' => '증빙정책 화면 조회',
+    'name' => '증빙정책',
+    'description' => '회계관리 > 자료관리 > 증빙정책',
+    'category' => '회계관리 > 자료관리',
+    'auth' => true,
+    'permissions' => ['view'],
+    'log' => false,
+]);
+
 $router->get('/ledger/data/list', 'EvidenceController@webList', [
     'key' => 'web.ledger.data.list',
     'page' => '증빙원본',
@@ -172,7 +186,7 @@ $router->get('/ledger/transactions/create', 'TransactionController@webLedgerCrea
     'log' => false,
 ]);
 
-$router->get('/ledger/vouchers/input', 'LedgerController@webJournal', [
+$router->get('/ledger/vouchers/input', 'VoucherController@webInput', [
     'key' => 'web.ledger.vouchers.input',
     'page' => '전표입력',
     'page_description' => '전표 입력 관리',
@@ -200,7 +214,7 @@ $router->get('/ledger/accounts', 'ChartAccountController@index', [
     'log' => false,
 ]);
 
-$router->get('/ledger/journal', 'LedgerController@webJournal', [
+$router->get('/ledger/journal', 'VoucherController@webInput', [
     'key' => 'web.ledger.journal',
     'page' => '분개장',
     'page_description' => '분개장 관리',
@@ -326,19 +340,6 @@ $router->get('/ledger/funds/account-transactions', 'BankTransactionReportControl
     'log' => false,
 ]);
 
-$router->get('/ledger/funds/payment-info', 'PaymentInfoReportController@index', [
-    'key' => 'web.ledger.funds.payment_info',
-    'page' => '결제정보',
-    'page_description' => '결제정보 관리',
-    'permission_name' => '화면조회',
-    'permission_description' => '결제정보 화면 조회',
-    'name' => '결제정보',
-    'description' => '회계관리 > 자금관리 > 결제정보',
-    'category' => '회계관리 > 자금관리',
-    'auth' => true,
-    'permissions' => ['view'],
-    'log' => false,
-]);
 
 $router->get('/ledger/opening-balances', 'PlaceholderController@index', [
     'key' => 'web.ledger.opening_balances',

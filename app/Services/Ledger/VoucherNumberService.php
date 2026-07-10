@@ -2,7 +2,6 @@
 
 namespace App\Services\Ledger;
 
-use Core\Helpers\UuidHelper;
 use PDO;
 
 class VoucherNumberService
@@ -36,28 +35,9 @@ class VoucherNumberService
         }
 
         $this->assertUnique($voucherId, $nextNo);
-        $this->ensureHistoryTable();
 
         $this->pdo->beginTransaction();
         try {
-            $historyStmt = $this->pdo->prepare("
-                INSERT INTO ledger_voucher_number_histories (
-                    id, voucher_id, old_voucher_no, new_voucher_no, reason,
-                    created_by, created_at
-                ) VALUES (
-                    :id, :voucher_id, :old_voucher_no, :new_voucher_no, :reason,
-                    :created_by, NOW()
-                )
-            ");
-            $historyStmt->execute([
-                ':id' => UuidHelper::generate(),
-                ':voucher_id' => $voucherId,
-                ':old_voucher_no' => $oldNo,
-                ':new_voucher_no' => $nextNo,
-                ':reason' => 'manual_change',
-                ':created_by' => $actor,
-            ]);
-
             $updateStmt = $this->pdo->prepare("
                 UPDATE ledger_vouchers
                 SET voucher_no = :voucher_no,
@@ -124,24 +104,5 @@ class VoucherNumberService
         if ((int) $stmt->fetchColumn() > 0) {
             throw new \RuntimeException('이미 사용 중인 전표번호입니다.');
         }
-    }
-
-    private function ensureHistoryTable(): void
-    {
-        $this->pdo->exec("
-            CREATE TABLE IF NOT EXISTS ledger_voucher_number_histories (
-                id CHAR(36) NOT NULL,
-                voucher_id CHAR(36) NOT NULL,
-                old_voucher_no VARCHAR(30) NULL DEFAULT NULL,
-                new_voucher_no VARCHAR(30) NOT NULL,
-                reason VARCHAR(100) NULL DEFAULT NULL,
-                created_by VARCHAR(100) NULL DEFAULT NULL,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (id),
-                KEY idx_voucher_number_history_voucher (voucher_id),
-                KEY idx_voucher_number_history_new_no (new_voucher_no),
-                KEY idx_voucher_number_history_created_at (created_at)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        ");
     }
 }

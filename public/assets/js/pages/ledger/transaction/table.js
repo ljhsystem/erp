@@ -1,4 +1,5 @@
 import { actorColumn } from '/public/assets/js/common/actor.js';
+import { manageButtonRenderer } from '/public/assets/js/common/table/renderers/index.js';
 
 export function registerTable(ctx) {
     const {
@@ -7,6 +8,7 @@ export function registerTable(ctx) {
         SearchForm,
         bindRowReorder,
     } = ctx;
+    const TRANSACTION_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.ledger.transaction.transaction-table.v1';
 
     function buildTransactionDataColumns() {
         const textColumn = (data, title, options = {}) => ({
@@ -35,17 +37,37 @@ export function registerTable(ctx) {
             },
         });
 
+        const manageColumn = () => ({
+            data: null,
+            settingsKey: '__actions',
+            __dtColumnKind: 'virtual',
+            title: '\uAD00\uB9AC',
+            width: '90px',
+            widthResizable: true,
+            className: 'text-center no-colvis',
+            headerClassName: 'text-center no-colvis',
+            orderable: false,
+            searchable: false,
+            defaultContent: '',
+            render(_value, type, row) {
+                if (type !== 'display') {
+                    return '';
+                }
+                return manageButtonRenderer(row, { escapeHtml: ctx.escapeHtml });
+            },
+        });
+
         return [
             {
                 title: '<i class="bi bi-arrows-move"></i>',
-                className: 'reorder-handle no-colvis text-center',
+                className: 'reorder-handle no-colvis text-center no-export',
                 orderable: false,
                 searchable: false,
                 defaultContent: '<i class="bi bi-list"></i>',
             },
             textColumn('sort_no', '순번', {
                 visible: true,
-                className: 'text-center transaction-sort-no-cell',
+                className: 'text-center',
             }),
             textColumn('transaction_date', '거래일자', { visible: true }),
             textColumn('business_unit', '사업구분'),
@@ -57,33 +79,33 @@ export function registerTable(ctx) {
                     return ctx.escapeHtml(data || row.client_name || '-');
                 },
             },
-            textColumn('project_id', '프로젝트ID'),
+            textColumn('project_id', '프로젝트ID', { visible: false }),
             {
                 data: 'project_name',
-                title: '프로젝트',
+                title: '?熬곣뫁夷??釉띾콦',
                 defaultContent: '',
                 visible: false,
                 render(data, type, row) {
                     return ctx.escapeHtml(data || row.project_name || '-');
                 },
             },
-            amountColumn('transaction_foreign_amount', '외화금액', true),
-            amountColumn('transaction_supply_amount', '공급가액', true),
-            amountColumn('transaction_settlement_amount', '정산금액', true),
-            amountColumn('transaction_final_amount', '최종금액', true),
-            textColumn('currency', '통화'),
-            textColumn('exchange_rate', '환율', { className: 'text-end' }),
+            amountColumn('transaction_foreign_amount', '\uC678\uD654\uAE08\uC561', true),
+            amountColumn('transaction_supply_amount', '\uACF5\uAE09\uAC00\uC561', true),
+            amountColumn('transaction_settlement_amount', '\uC815\uC0B0\uAE08\uC561', true),
+            amountColumn('transaction_final_amount', '\uCD5C\uC885\uAE08\uC561', true),
+            textColumn('currency', '\uD1B5\uD654'),
+            textColumn('exchange_rate', '\uD658\uC728', { className: 'text-end' }),
             {
                 data: 'transaction_line_status',
-                title: '거래라인상태',
+                title: '\uAC70\uB798\uB77C\uC778\uC0C1\uD0DC',
                 className: 'text-center text-nowrap',
                 visible: true,
                 render: ctx.renderLineStatus,
             },
             {
                 data: 'description',
-                title: '적요',
-                className: 'transaction-description-cell',
+                title: '\uC801\uC694',
+                className: '',
                 defaultContent: '',
                 render(data) {
                     return ctx.escapeHtml(data || '');
@@ -91,7 +113,7 @@ export function registerTable(ctx) {
             },
             {
                 data: 'match_status',
-                title: '전표연결',
+                title: '\uC804\uD45C\uC5F0\uACB0',
                 className: 'text-center',
                 visible: true,
                 defaultContent: 'none',
@@ -99,19 +121,19 @@ export function registerTable(ctx) {
                     return ctx.renderMatchStatus(data);
                 },
             },
-            textColumn('status', '거래상태', {
+            textColumn('status', '\uAC70\uB798\uC0C1\uD0DC', {
                 visible: true,
                 className: 'text-center',
                 render: ctx.renderTransactionStatus,
             }),
-            textColumn('note', '비고'),
-            textColumn('memo', '메모'),
-            textColumn('created_at', '생성일시'),
-            actorColumn('created_by', '생성자', { visible: false }),
-            textColumn('updated_at', '수정일시'),
-            actorColumn('updated_by', '수정자', { visible: false }),
-            textColumn('deleted_at', '삭제일시'),
-            actorColumn('deleted_by', '삭제자', { visible: false }),
+            textColumn('note', '\uBE44\uACE0'),
+            textColumn('memo', '\uBA54\uBAA8'),
+            textColumn('created_at', '\uC0DD\uC131\uC77C\uC2DC'),
+            actorColumn('created_by', '\uC0DD\uC131\uC790', { visible: false }),
+            textColumn('updated_at', '\uC218\uC815\uC77C\uC2DC'),
+            actorColumn('updated_by', '\uC218\uC815\uC790', { visible: false }),
+            textColumn('deleted_at', '\uC0AD\uC81C\uC77C\uC2DC'),
+            actorColumn('deleted_by', '\uC0AD\uC81C\uC790', { visible: false }),
             {
                 data: 'id',
                 title: 'ID',
@@ -123,16 +145,18 @@ export function registerTable(ctx) {
                     return ctx.escapeHtml(data || '');
                 },
             },
+            manageColumn(),
         ];
     }
 
     function updateCount() {
-        if (!ctx.transactionTable || !ctx.countEl) return;
+        if (!ctx.transactionTable || !ctx.countEl) {
+            return;
+        }
 
         const info = ctx.transactionTable.page.info();
-        ctx.countEl.textContent = `${info.recordsDisplay || 0}건`; 
+        ctx.countEl.textContent = `총 ${info.recordsDisplay || 0}건`;
     }
-
     function initTransactionTable() {
         if (ctx.transactionTable || !window.jQuery?.fn?.DataTable) {
             return Boolean(ctx.transactionTable);
@@ -142,16 +166,21 @@ export function registerTable(ctx) {
             tableSelector: '#transaction-table',
             api: ctx.API.list,
             columns: buildTransactionDataColumns(),
+            tableSettings: {
+                enabled: true,
+                pageKey: 'ledger.transaction',
+                tableKey: 'transaction-table',
+                storageKey: TRANSACTION_TABLE_SETTINGS_STORAGE_KEY,
+                metaDomain: 'transaction-header',
+                description: ctx.TRANSACTION_PAGE_DESCRIPTION,
+                tableLabel: '거래헤더',
+                title: '거래헤더 테이블 설정',
+            },
             buttons: [
                 {
-                    extend: 'excelHtml5',
-                    text: '엑셀 다운로드',
-                    className: 'btn btn-outline-success btn-sm',
-                    title: '거래내역',
-                    filename: '거래내역',
-                    exportOptions: {
-                        columns: ':visible:not(.no-export):not(.no-colvis)',
-                    },
+                    text: '엑셀관리',
+                    className: 'btn btn-success btn-sm',
+                    action: () => ctx.openHeaderExcelManager?.(),
                 },
                 {
                     text: '휴지통',
@@ -159,7 +188,7 @@ export function registerTable(ctx) {
                     action: openTrashModal,
                 },
                 {
-                    text: '신규거래',
+                    text: '거래등록',
                     className: 'btn btn-warning btn-sm',
                     action: () => void ctx.openCreateModal(),
                 },
@@ -173,13 +202,13 @@ export function registerTable(ctx) {
         bindRowReorder(ctx.transactionTable, {
             api: ctx.API.reorder,
             onSuccess() {
-                ctx.notify('success', '거래 순번이 저장되었습니다.');
+                ctx.notify('success', '순서가 변경되었습니다.');
                 ctx.transactionTable?.ajax.reload(null, false);
             },
             onError(json) {
                 ctx.notify(
                     'error',
-                    json?.message || '거래 순번 저장에 실패했습니다.'
+                    json?.message || '순서 변경에 실패했습니다.'
                 );
                 ctx.transactionTable?.ajax.reload(null, false);
             },
@@ -200,7 +229,6 @@ export function registerTable(ctx) {
         updateCount();
         return true;
     }
-
     function reloadTable() {
         ctx.transactionTable?.ajax?.reload(null, false);
     }
@@ -209,7 +237,7 @@ export function registerTable(ctx) {
         const trashModal = document.getElementById('transactionTrashModal');
 
         if (!trashModal) {
-            ctx.notify('warning', '거래 휴지통 모달을 찾을 수 없습니다.');
+            ctx.notify('warning', '\uAC70\uB798 \uD734\uC9C0\uD1B5 \uBAA8\uB2EC\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.');
             return;
         }
 
@@ -222,32 +250,42 @@ export function registerTable(ctx) {
             .getOrCreateInstance(trashModal, { focus: false })
             .show();
     }
-
     function bindTableEvents() {
         const table = document.getElementById('transaction-table');
+
         table?.addEventListener('click', (event) => {
-            const editBtn = event.target.closest('.btn-edit-transaction');
+            const editBtn = event.target.closest('.seed-row-edit-btn');
             if (editBtn) {
                 void ctx.openDetail(editBtn.dataset.id || '');
                 return;
             }
 
             const deleteRowBtn = event.target.closest('.btn-delete-transaction');
-            if (deleteRowBtn && window.confirm('거래를 삭제하시겠습니까?')) {
+            if (
+                deleteRowBtn &&
+                window.confirm('정말 이 거래를 삭제하시겠습니까?')
+            ) {
                 void ctx.deleteTransaction(deleteRowBtn.dataset.id || '');
             }
         });
 
         table?.querySelector('tbody')?.addEventListener('dblclick', (event) => {
-            if (event.target.closest('a, button, input, select, textarea, .dropdown-menu, .reorder-handle')) {
+            if (
+                event.target.closest(
+                    'a, button, input, select, textarea, .dropdown-menu, .reorder-handle'
+                )
+            ) {
                 return;
             }
 
             const rowEl = event.target.closest('tr');
-            if (!rowEl || !ctx.transactionTable) return;
+            if (!rowEl || !ctx.transactionTable) {
+                return;
+            }
 
             const rowData = ctx.transactionTable.row(rowEl).data();
             const id = rowData?.id || '';
+
             if (id) {
                 void ctx.openDetail(id);
             }

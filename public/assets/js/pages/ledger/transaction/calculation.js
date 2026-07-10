@@ -164,7 +164,7 @@ export function registerCalculation(ctx) {
 
     function updateSettlementSectionHeading() {
         if (ctx.settlementTitleEl) {
-            ctx.settlementTitleEl.textContent = '거래정산';
+            ctx.settlementTitleEl.textContent = '거래 정산';
         }
         if (ctx.settlementSubtitleEl) {
             ctx.settlementSubtitleEl.textContent = '거래 전체 기준 정산을 관리합니다.';

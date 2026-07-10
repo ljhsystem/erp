@@ -53,18 +53,39 @@ export function createEvidenceModalModule({
     normalizeEvidenceType,
     evidenceTypePolicy,
     defaultEvidenceTypeCode,
+    evidenceMetaDomain,
 }) {
     const COMMON_BUSINESS_MODAL_FIELDS = Object.freeze([
         { key: 'business_unit', label: '\uC0AC\uC5C5\uAD6C\uBD84', group: 'business', data_type: 'varchar' },
         { key: 'transaction_direction', label: '\uAC70\uB798\uAD6C\uBD84', group: 'business', data_type: 'varchar' },
         { key: 'operation_type', label: '\uC785\uCD9C\uAE08\uC720\uD615', group: 'business', data_type: 'varchar' },
-        { key: 'client_id', label: '\uAC70\uB798\uCC98', group: 'business', data_type: 'varchar' },
-        { key: 'project_id', label: '\uD504\uB85C\uC81D\uD2B8', group: 'business', data_type: 'varchar' },
-        { key: 'bank_account_id', label: '\uACC4\uC88C', group: 'business', data_type: 'varchar' },
-        { key: 'card_id', label: '\uCE74\uB4DC', group: 'business', data_type: 'varchar' },
-        { key: 'team_id', label: '\uD300', group: 'business', data_type: 'varchar' },
-        { key: 'employee_id', label: '\uC9C1\uC6D0', group: 'business', data_type: 'varchar' },
+        { key: 'client_id', label: '\uAC70\uB798\uCC98 ID', group: 'business', data_type: 'varchar' },
+        { key: 'project_id', label: '\uD504\uB85C\uC81D\uD2B8 ID', group: 'business', data_type: 'varchar' },
+        { key: 'bank_account_id', label: '\uACC4\uC88C ID', group: 'business', data_type: 'varchar' },
+        { key: 'card_id', label: '\uCE74\uB4DC ID', group: 'business', data_type: 'varchar' },
+        { key: 'team_id', label: '\uD300 ID', group: 'business', data_type: 'varchar' },
+        { key: 'employee_id', label: '\uC9C1\uC6D0 ID', group: 'business', data_type: 'varchar' },
     ]);
+    const COMMON_BUSINESS_MODAL_FIELD_KEY_SET = new Set(COMMON_BUSINESS_MODAL_FIELDS.map((field) => field.key));
+    const BUSINESS_MODAL_FIELD_LABEL_ALIASES = Object.freeze({
+        '\uC0AC\uC5C5\uAD6C\uBD84': 'business_unit',
+        '\uAC70\uB798\uAD6C\uBD84': 'transaction_direction',
+        '\uC785\uCD9C\uAE08\uC720\uD615': 'operation_type',
+        '\uC5C5\uBB34\uC720\uD615': 'operation_type',
+        '\uAC70\uB798\uCC98': 'client_id',
+        '\uAC70\uB798\uCC98 ID': 'client_id',
+        '\uD504\uB85C\uC81D\uD2B8': 'project_id',
+        '\uD504\uB85C\uC81D\uD2B8 ID': 'project_id',
+        '\uACC4\uC88C': 'bank_account_id',
+        '\uACC4\uC88C ID': 'bank_account_id',
+        '\uCE74\uB4DC': 'card_id',
+        '\uCE74\uB4DC ID': 'card_id',
+        '\uD300': 'team_id',
+        '\uD300 ID': 'team_id',
+        '\uC9C1\uC6D0': 'employee_id',
+        '\uC9C1\uC6D0 ID': 'employee_id',
+        '\uC9C1\uC5C5': 'employee_id',
+    });
     const BANK_LIKE_MODAL_FIELDS = Object.freeze([
         { key: 'raw_transaction_datetime', label: '\uAC70\uB798\uC77C\uC2DC', group: 'raw', data_type: 'datetime', is_required: 1 },
         ...COMMON_BUSINESS_MODAL_FIELDS,
@@ -89,13 +110,13 @@ export function createEvidenceModalModule({
         },
         {
             key: 'raw',
-            title: '\uC6D0\uBCF8 \uC815\uBCF4',
+            title: '\uC6D0\uBCF8\uC815\uBCF4',
             description: '\uC6D0\uBCF8 \uD30C\uC77C\uC5D0\uC11C \uAC00\uC838\uC628 \uB370\uC774\uD130\uC785\uB2C8\uB2E4. \uAC70\uB798 \uC0DD\uC131 \uC804\uC5D0 \uD544\uC694\uD55C \uACBD\uC6B0\uC5D0\uB9CC \uBCF4\uC644\uD558\uC138\uC694.',
             collapsible: false,
         },
         {
             key: 'system',
-            title: '\uC2DC\uC2A4\uD15C \uCC98\uB9AC\uC815\uBCF4',
+            title: '\uC2DC\uC2A4\uD15C\uCC98\uB9AC\uC815\uBCF4',
             description: '\uCC98\uB9AC \uC0C1\uD0DC \uBC0F \uB0B4\uBD80 \uC2DD\uBCC4 \uC815\uBCF4\uC785\uB2C8\uB2E4. \uC218\uC815\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.',
             collapsible: true,
             default_open: false,
@@ -112,21 +133,31 @@ export function createEvidenceModalModule({
         },
         {
             key: 'raw',
-            title: '\uC6D0\uBCF8 \uC815\uBCF4',
+            title: '\uC6D0\uBCF8\uC815\uBCF4',
             description: '\uC6D0\uBCF8 \uD30C\uC77C\uC5D0\uC11C \uAC00\uC838\uC628 \uC99D\uBE59 \uB370\uC774\uD130\uC785\uB2C8\uB2E4. \uD544\uC694\uD55C \uACBD\uC6B0\uC5D0\uB9CC \uBCF4\uC644\uD558\uC138\uC694.',
         },
         {
             key: 'system',
-            title: '\uC2DC\uC2A4\uD15C \uCC98\uB9AC\uC815\uBCF4',
+            title: '\uC2DC\uC2A4\uD15C\uCC98\uB9AC\uC815\uBCF4',
             description: '\uCC98\uB9AC \uC0C1\uD0DC \uBC0F \uB0B4\uBD80 \uC2DD\uBCC4 \uC815\uBCF4\uC785\uB2C8\uB2E4. \uC218\uC815\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.',
             collapsible: true,
             default_open: false,
         },
     ]);
     const CANONICAL_MODAL_SYSTEM_FIELD_LABELS = Object.freeze({
+        id: '\uACE0\uC720 ID(UUID)',
+        sort_no: '\uC21C\uBC88',
+        evidence_sort_no: '\uC99D\uBE59 \uC21C\uBC88',
+        external_key: '\uC678\uBD80\uC6D0\uBCF8\uC2DD\uBCC4\uAC12',
         source_type: '\uC790\uB8CC\uCD9C\uCC98',
         import_type: '\uC790\uB8CC\uC720\uD615',
-        evidence_type: '\uC99D\uBE59\uC720\uD615',
+        evidence_status: '\uC99D\uBE59 \uC0C1\uD0DC',
+        created_at: '\uC0DD\uC131\uC77C\uC2DC',
+        created_by: '\uC0DD\uC131\uC790ID',
+        updated_at: '\uC218\uC815\uC77C\uC2DC',
+        updated_by: '\uC218\uC815\uC790ID',
+        deleted_at: '\uC0AD\uC81C\uC77C\uC2DC',
+        deleted_by: '\uC0AD\uC81C\uC790ID',
     });
     const MODAL_REQUIRED_VALIDATION_EXCLUDED_KEYS = new Set([
         'external_key',
@@ -151,7 +182,110 @@ export function createEvidenceModalModule({
         'deleted_at',
         'deleted_by',
     ]);
+    const MODAL_DISPLAY_SYSTEM_KEYS = Object.freeze([
+        'id',
+        'sort_no',
+        'evidence_sort_no',
+        'external_key',
+        'source_type',
+        'import_type',
+        'evidence_status',
+        'created_at',
+        'created_by',
+        'updated_at',
+        'updated_by',
+        'deleted_at',
+        'deleted_by',
+    ]);
+    const MODAL_PAYLOAD_SYSTEM_KEY_SET = new Set(MODAL_PAYLOAD_SYSTEM_KEYS);
+    const MODAL_DISPLAY_SYSTEM_KEY_SET = new Set(MODAL_DISPLAY_SYSTEM_KEYS);
     let workTeamModalBridge = null;
+
+    function specialModalCandidateKeys(column = {}) {
+        return [
+            column.key,
+            column.system_field_name,
+            column.original_column_key,
+            column.source_column,
+            column.excel_column_name,
+            column.label,
+        ]
+            .map((value) => String(value || '').trim())
+            .map((value) => value.replace(/\s*\*$/u, '').trim())
+            .filter(Boolean);
+    }
+
+    function canonicalBusinessModalFieldKey(column = {}) {
+        for (const candidate of specialModalCandidateKeys(column)) {
+            if (COMMON_BUSINESS_MODAL_FIELD_KEY_SET.has(candidate)) {
+                return candidate;
+            }
+            const alias = BUSINESS_MODAL_FIELD_LABEL_ALIASES[candidate];
+            if (alias) {
+                return alias;
+            }
+        }
+        return '';
+    }
+
+    function decorateMatchedBusinessModalColumn(field = {}, column = {}, displayOrder = 0) {
+        return decorateBankModalColumnPolicy({
+            ...column,
+            key: field.key,
+            system_field_name: field.key,
+            original_column_key: String(column.original_column_key || field.key).trim(),
+            source_column: String(column.source_column || field.key).trim(),
+            excel_column_name: String(column.excel_column_name || column.label || field.label || field.key).trim(),
+            label: String(column.label || column.excel_column_name || field.label || field.key).trim(),
+            display_order: displayOrder,
+        });
+    }
+
+    function canonicalSystemModalFieldKey(column = {}) {
+        for (const candidate of specialModalCandidateKeys(column)) {
+            if (MODAL_DISPLAY_SYSTEM_KEY_SET.has(candidate)) {
+                return candidate;
+            }
+        }
+        return '';
+    }
+
+    function inferSystemModalFieldDataType(key = '', value = '') {
+        const target = String(key || '').trim();
+        if (/_at$/i.test(target)) return 'datetime';
+        if (/_no$/i.test(target)) return 'int';
+        if (/(^|_)id$/i.test(target)) return 'varchar';
+        const text = String(value ?? '').trim();
+        if (/^\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2}(?::\d{2})?)?$/u.test(text)) return 'datetime';
+        if (/^-?\d+(?:\.\d+)?$/u.test(text)) return 'decimal';
+        return 'varchar';
+    }
+
+    function buildSystemFallbackColumns(existingColumns = [], policy = {}) {
+        const row = state.editingRow || {};
+        const existingKeys = new Set(
+            existingColumns
+                .map((column) => String(editFieldKey(column) || column.system_field_name || column.original_column_key || '').trim())
+                .filter(Boolean)
+        );
+
+        return MODAL_DISPLAY_SYSTEM_KEYS
+            .filter((key) => Object.prototype.hasOwnProperty.call(row, key))
+            .filter((key) => !existingKeys.has(key))
+            .map((key) => decorateBankModalColumnPolicy({
+                ...fallbackSpecialModalColumn({
+                    key,
+                    label: CANONICAL_MODAL_SYSTEM_FIELD_LABELS[key] || key,
+                    group: 'system',
+                    data_type: inferSystemModalFieldDataType(key, row[key]),
+                }, {
+                    group: 'system',
+                    sourceDomain: policy.metaDomain,
+                }),
+                display_order: 0,
+                editable: 0,
+            }));
+    }
 
     function ensureWorkTeamModalBridge() {
         if (workTeamModalBridge) {
@@ -237,8 +371,13 @@ export function createEvidenceModalModule({
 
     function currentPolicyState(type = state.currentType) {
         const fallbackType = defaultEvidenceTypeCode();
-        const storageKey = evidenceStatusTableSettingsStorageKey(normalizeEvidenceType(type || state.currentType || fallbackType));
-        return readDataTableSettingsState(storageKey) || {};
+        const normalizedType = normalizeEvidenceType(type || state.currentType || fallbackType);
+        const storageKey = evidenceStatusTableSettingsStorageKey(normalizedType);
+        const userSettingPageKey = evidenceMetaDomain(normalizedType);
+        return readDataTableSettingsState(storageKey, {
+            metaDomain: userSettingPageKey,
+            userSettingPageKey,
+        }) || {};
     }
 
     function currentModalPolicy(row = state.editingRow) {
@@ -352,7 +491,7 @@ export function createEvidenceModalModule({
 
     function isBusinessModalColumnKey(key = '') {
         const target = String(key || '').trim();
-        return COMMON_BUSINESS_MODAL_FIELDS.some((field) => field.key === target);
+        return COMMON_BUSINESS_MODAL_FIELD_KEY_SET.has(target);
     }
 
     function isRawModalColumnKey(key = '') {
@@ -361,7 +500,7 @@ export function createEvidenceModalModule({
 
     function isRawModalColumn(column = {}) {
         const group = String(column.system_field_group || column.group || '').trim();
-        return isRawModalColumnKey(editFieldKey(column)) || group.includes('\uC6D0\uBCF8');
+        return specialModalCandidateKeys(column).some((key) => isRawModalColumnKey(key)) || group.includes('\uC6D0\uBCF8');
     }
 
     function isSystemProcessingColumnKey(key = '') {
@@ -370,7 +509,10 @@ export function createEvidenceModalModule({
     }
 
     function isSystemProcessingColumn(column = {}) {
-        const target = editFieldKey(column);
+        if (canonicalSystemModalFieldKey(column)) {
+            return true;
+        }
+        const target = canonicalBusinessModalFieldKey(column) || editFieldKey(column);
         return target !== '' && !isBusinessModalColumnKey(target) && !isRawModalColumn(column);
     }
 
@@ -399,6 +541,25 @@ export function createEvidenceModalModule({
         if (orderA !== orderB) return orderA - orderB;
 
         return editFieldKey(a).localeCompare(editFieldKey(b), 'ko-KR', { numeric: true, sensitivity: 'base' });
+    }
+
+    function compareSystemProcessingColumnOrder(a = {}, b = {}) {
+        const keyA = canonicalSystemModalFieldKey(a);
+        const keyB = canonicalSystemModalFieldKey(b);
+        const orderA = keyA ? MODAL_DISPLAY_SYSTEM_KEYS.indexOf(keyA) : -1;
+        const orderB = keyB ? MODAL_DISPLAY_SYSTEM_KEYS.indexOf(keyB) : -1;
+
+        if (orderA >= 0 && orderB >= 0 && orderA !== orderB) {
+            return orderA - orderB;
+        }
+        if (orderA >= 0 && orderB < 0) {
+            return -1;
+        }
+        if (orderA < 0 && orderB >= 0) {
+            return 1;
+        }
+
+        return compareColumnDatabaseOrder(a, b);
     }
 
     function specialModalReadOnly(column = {}, resolver = null) {
@@ -435,14 +596,12 @@ export function createEvidenceModalModule({
             .filter((column) => !isDeprecatedFormatColumn(column))
             .filter((column) => editFieldKey(column) !== '');
         const policy = currentModalPolicy();
-        const byKey = new Map(visibleColumns.map((column) => [editFieldKey(column), column]));
+        const byKey = new Map(visibleColumns.map((column) => [canonicalBusinessModalFieldKey(column) || editFieldKey(column), column]));
+        const remainingColumns = visibleColumns.filter((column) => !canonicalBusinessModalFieldKey(column));
         const businessColumns = COMMON_BUSINESS_MODAL_FIELDS.map((field, index) => {
             const matched = byKey.get(field.key);
             if (matched) {
-                return decorateBankModalColumnPolicy({
-                    ...matched,
-                    display_order: index + 1,
-                });
+                return decorateMatchedBusinessModalColumn(field, matched, index + 1);
             }
             return decorateBankModalColumnPolicy({
                 ...fallbackSpecialModalColumn(field, {
@@ -452,23 +611,30 @@ export function createEvidenceModalModule({
                 display_order: index + 1,
             });
         });
-        const rawColumns = visibleColumns
+        const rawColumns = remainingColumns
+            .filter((column) => !canonicalSystemModalFieldKey(column))
             .filter((column) => isRawModalColumn(column))
             .sort(compareColumnDatabaseOrder)
             .map((column, index) => decorateBankModalColumnPolicy({
                 ...column,
                 display_order: businessColumns.length + index + 1,
             }));
-        const systemColumns = visibleColumns
+        const systemColumns = remainingColumns
             .filter((column) => isSystemProcessingColumn(column))
-            .sort(compareColumnDatabaseOrder)
+            .sort(compareSystemProcessingColumnOrder)
             .map((column, index) => decorateBankModalColumnPolicy({
                 ...column,
                 display_order: businessColumns.length + rawColumns.length + index + 1,
                 editable: 0,
             }));
+        const orderedSystemColumns = [...systemColumns, ...buildSystemFallbackColumns(systemColumns, policy)]
+            .sort(compareSystemProcessingColumnOrder)
+            .map((column, index) => ({
+                ...column,
+                display_order: businessColumns.length + rawColumns.length + index + 1,
+            }));
 
-        return [...businessColumns, ...rawColumns, ...systemColumns];
+        return [...businessColumns, ...rawColumns, ...orderedSystemColumns];
     }
 
     const BANK_LIKE_MODAL_FIELD_META = Object.freeze(
@@ -482,10 +648,12 @@ export function createEvidenceModalModule({
     }
 
     function bankModalGroupKeyForColumn(column = {}) {
-        const key = editFieldKey(column);
-        const meta = bankModalFieldMeta(key);
-        if (meta?.group) return meta.group;
-        return isSystemProcessingColumn(column) ? 'system' : 'business';
+        const canonicalKey = canonicalBusinessModalFieldKey(column);
+        const meta = bankModalFieldMeta(canonicalKey || editFieldKey(column));
+        if (meta?.group === 'business') return 'business';
+        if (canonicalSystemModalFieldKey(column)) return 'system';
+        if (meta?.group === 'raw' || isRawModalColumn(column)) return 'raw';
+        return 'system';
     }
 
     function bankModalIsReadOnly(column = {}) {
@@ -498,7 +666,11 @@ export function createEvidenceModalModule({
 
     function taxInvoiceModalGroupKeyForColumn(column = {}) {
         const key = editFieldKey(column);
-        return taxInvoiceModalFieldMeta(key)?.group || (isRawModalColumn(column) ? 'raw' : 'system');
+        const group = taxInvoiceModalFieldMeta(canonicalBusinessModalFieldKey(column) || key)?.group;
+        if (group === 'business') return 'business';
+        if (canonicalSystemModalFieldKey(column)) return 'system';
+        if (group === 'raw' || isRawModalColumn(column)) return 'raw';
+        return 'system';
     }
 
     function taxInvoiceModalColumns() {
@@ -507,14 +679,12 @@ export function createEvidenceModalModule({
             .filter((column) => !isDeprecatedFormatColumn(column))
             .filter((column) => editFieldKey(column) !== '');
         const policy = currentModalPolicy();
-        const byKey = new Map(visibleColumns.map((column) => [editFieldKey(column), column]));
+        const byKey = new Map(visibleColumns.map((column) => [canonicalBusinessModalFieldKey(column) || editFieldKey(column), column]));
+        const remainingColumns = visibleColumns.filter((column) => !canonicalBusinessModalFieldKey(column));
         const businessColumns = BUSINESS_ONLY_MODAL_FIELDS.map((field, index) => {
             const matched = byKey.get(field.key);
             if (matched) {
-                return decorateBankModalColumnPolicy({
-                    ...matched,
-                    display_order: index + 1,
-                });
+                return decorateMatchedBusinessModalColumn(field, matched, index + 1);
             }
             return decorateBankModalColumnPolicy({
                 ...fallbackSpecialModalColumn(field, {
@@ -524,23 +694,30 @@ export function createEvidenceModalModule({
                 display_order: index + 1,
             });
         });
-        const rawColumns = visibleColumns
+        const rawColumns = remainingColumns
+            .filter((column) => !canonicalSystemModalFieldKey(column))
             .filter((column) => isRawModalColumn(column))
             .sort(compareColumnDatabaseOrder)
             .map((column, index) => decorateBankModalColumnPolicy({
                 ...column,
                 display_order: businessColumns.length + index + 1,
             }));
-        const systemColumns = visibleColumns
+        const systemColumns = remainingColumns
             .filter((column) => isSystemProcessingColumn(column))
-            .sort(compareColumnDatabaseOrder)
+            .sort(compareSystemProcessingColumnOrder)
             .map((column, index) => decorateBankModalColumnPolicy({
                 ...column,
                 display_order: businessColumns.length + rawColumns.length + index + 1,
                 editable: 0,
             }));
+        const orderedSystemColumns = [...systemColumns, ...buildSystemFallbackColumns(systemColumns, policy)]
+            .sort(compareSystemProcessingColumnOrder)
+            .map((column, index) => ({
+                ...column,
+                display_order: businessColumns.length + rawColumns.length + index + 1,
+            }));
 
-        return [...businessColumns, ...rawColumns, ...systemColumns];
+        return [...businessColumns, ...rawColumns, ...orderedSystemColumns];
     }
 
     function renderEditField(column = {}, value = '', options = {}, row = {}) {

@@ -1,6 +1,7 @@
 <?php
-// 경로: PROJECT_ROOT . '/app/views/auth/password_change.php'
+
 use Core\Helpers\AssetHelper;
+
 header('Content-Type: text/html; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
@@ -18,7 +19,6 @@ $isForceChange = $isForceChange ?? false;
     <title>비밀번호 변경 안내 - SUKHYANG ERP</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <!-- Bootstrap -->
     <?= AssetHelper::css('https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css') ?>
 
     <style>
@@ -69,11 +69,6 @@ $isForceChange = $isForceChange ?? false;
             margin-bottom: 4px;
         }
 
-        .policy {
-            font-size: 0.8rem;
-            color: #6c757d;
-        }
-
         .btn-primary {
             background: #0d6efd;
             border: none;
@@ -91,16 +86,15 @@ $isForceChange = $isForceChange ?? false;
     <div class="wrapper">
         <div class="card">
             <div class="card-header text-center">
-                🔒 비밀번호 변경 안내
+                비밀번호 변경 안내
             </div>
 
             <div class="card-body p-4">
-
                 <div class="text-center mb-3">
-                    <div class="lock-icon">🔐</div>
+                    <div class="lock-icon">🔒</div>
                     <h5 class="fw-bold mb-2">
                         소중한 개인정보 보호를 위해<br>
-                        비밀번호를 지금 변경해 주세요.
+                        비밀번호를 지금 변경해 주세요
                     </h5>
                     <p class="desc">
                         보안 정책에 따라 일정 기간 동안<br>
@@ -123,7 +117,6 @@ $isForceChange = $isForceChange ?? false;
                         </div>
                     <?php endif; ?>
 
-
                     <div class="mb-3">
                         <label class="form-label">새 비밀번호</label>
                         <input type="password" id="new_password" class="form-control" required>
@@ -135,34 +128,27 @@ $isForceChange = $isForceChange ?? false;
                     </div>
 
                     <div class="d-grid gap-2">
-                        <!-- ✔ 변경만 submit -->
                         <button type="submit" class="btn btn-primary py-2">
                             비밀번호 변경하기
                         </button>
                     </div>
                 </form>
 
-                <!-- ✔ form 밖 -->
-                <?php if ($isForceChange): ?>
-                    <div class="d-grid gap-2 mt-2">
-                        <button type="button" id="btnLater" class="btn btn-outline-secondary py-2">
-                            다음에 변경하기
-                        </button>
-                    </div>
-                <?php endif; ?>
-
-
-
+                <div class="d-grid gap-2 mt-2">
+                    <button type="button" id="btnLater" class="btn btn-outline-secondary py-2">
+                        다음에 변경하기
+                    </button>
+                </div>
             </div>
         </div>
     </div>
+
     <script>
         window.AUTH_PASSWORD_CHANGE = {
             isForceChange: <?= $isForceChange ? 'true' : 'false' ?>
         };
     </script>
     <?= AssetHelper::js('/assets/js/pages/auth/password_change.js') ?>
-
 
 </body>
 

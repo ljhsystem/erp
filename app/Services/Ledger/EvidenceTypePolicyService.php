@@ -6,6 +6,57 @@ use PDO;
 
 class EvidenceTypePolicyService
 {
+    private const DEFAULT_EVIDENCE_UPLOAD_TYPES = [
+        'TAX_INVOICE',
+        'TAX_INVOICE_MANUAL',
+        'CASH_RECEIPT',
+        'CARD_HOMETAX',
+        'CARD_STATEMENT',
+        'CARD_APPROVAL',
+        'BANK_TRANSACTION',
+    ];
+
+    private const DEFAULT_BUSINESS_DATA_TYPES = [
+        'BUSINESS_DATA',
+        'SHOPPING_ORDER',
+        'PAYROLL',
+        'PAYROLL_WITHHOLDING',
+        'BUSINESS_INCOME',
+        'EMPLOYEE_EXPENSE',
+        'IMPORT_INVOICE',
+        'CONSTRUCTION',
+    ];
+
+    private const DEFAULT_LEGACY_DATA_TYPE_MAP = [
+        'DATA' => 'TAX_INVOICE',
+        'TAX' => 'TAX_INVOICE',
+        'TAX_INVOICE_HOMETAX' => 'TAX_INVOICE',
+        'MANUAL_TAX_INVOICE' => 'TAX_INVOICE_MANUAL',
+        'TAX_INVOICE_PURCHASE_SALES_MANUAL' => 'TAX_INVOICE_MANUAL',
+        'TAX_INVOICE_BUY_SELL_MANUAL' => 'TAX_INVOICE_MANUAL',
+        'CARD' => 'CARD_STATEMENT',
+        'CARD_PURCHASE' => 'CARD_STATEMENT',
+        'CARD_SALE' => 'CARD_STATEMENT',
+        'CARD_SALES' => 'SHOPPING_ORDER',
+        'CARD_SALES_SHOPPING' => 'SHOPPING_ORDER',
+        'CASH_RECEIPT_PURCHASE' => 'CASH_RECEIPT',
+        'CASH_RECEIPT_PURCHAS' => 'CASH_RECEIPT',
+        'CASH_RECEIPT_BUY' => 'CASH_RECEIPT',
+        'CASH_RECEIPT_SALES' => 'CASH_RECEIPT_SALES',
+        'CASH_RECEIPT_SALE' => 'CASH_RECEIPT_SALES',
+        'CASH_RECEIPT_SELL' => 'CASH_RECEIPT_SALES',
+        'CASH_SALES' => 'BUSINESS_DATA',
+        'BANK' => 'BANK_TRANSACTION',
+        'SHOPPING' => 'SHOPPING_ORDER',
+        'TRADE_IMPORT' => 'IMPORT_INVOICE',
+        'IMPORT' => 'IMPORT_INVOICE',
+        'DAILY_WORKER' => 'PAYROLL_WITHHOLDING',
+        'DAILY_WORK_REPORT' => 'PAYROLL_WITHHOLDING',
+        'PAYROLL_REPORT' => 'PAYROLL',
+        'BUSINESS_INCOME_REPORT' => 'BUSINESS_INCOME',
+        'EMPLOYEE_EXPENSE_PERSONAL' => 'EMPLOYEE_EXPENSE',
+    ];
+
     private const STATUS_VIEW_IMPORT_TYPES = [
         'TAX_INVOICE',
         'TAX_INVOICE_MANUAL',
@@ -124,7 +175,7 @@ class EvidenceTypePolicyService
                 'note',
                 'voucher_memo',
                 'header_row_no',
-                'line_no',
+                'sort_no',
                 'account_id',
                 'debit',
                 'credit',
@@ -243,16 +294,56 @@ class EvidenceTypePolicyService
         ],
     ];
 
-    /**
-     * @param callable(string):string $normalizeDataType
-     * @param array<string,string> $legacyDataTypeMap
-     */
+    /** @var callable(string):string|null */
+    private $normalizeDataTypeCallback;
+
+    /** @var array<string,string> */
+    private array $legacyDataTypeMap;
+
     public function __construct(
-        private $normalizeDataType,
-        private array $legacyDataTypeMap,
+        ?callable $normalizeDataType = null,
         private ?PDO $pdo = null,
         private array $callbacks = []
     ) {
+        $this->normalizeDataTypeCallback = $normalizeDataType;
+        $this->legacyDataTypeMap = self::defaultLegacyDataTypeMap();
+    }
+
+    /** @return array<string,string> */
+    public static function defaultLegacyDataTypeMap(): array
+    {
+        return self::DEFAULT_LEGACY_DATA_TYPE_MAP;
+    }
+
+    /** @return list<string> */
+    public static function defaultEvidenceUploadTypes(): array
+    {
+        return self::DEFAULT_EVIDENCE_UPLOAD_TYPES;
+    }
+
+    /** @return list<string> */
+    public static function defaultBusinessDataTypes(): array
+    {
+        return self::DEFAULT_BUSINESS_DATA_TYPES;
+    }
+
+    public static function normalizeLegacyDataType(string $type): string
+    {
+        $type = strtoupper(trim($type));
+
+        return self::DEFAULT_LEGACY_DATA_TYPE_MAP[$type] ?? $type;
+    }
+
+    /** @return list<string> */
+    public function evidenceUploadTypes(): array
+    {
+        return self::defaultEvidenceUploadTypes();
+    }
+
+    /** @return list<string> */
+    public function businessDataTypes(): array
+    {
+        return self::defaultBusinessDataTypes();
     }
 
     public function normalizeImportSourceType(string $sourceType): string
@@ -332,7 +423,11 @@ class EvidenceTypePolicyService
     {
         $rows = $this->statusViewImportTypeRows();
         if ($rows !== []) {
-            return array_map(function (array $row): array {
+            $activeTypes = array_values(array_filter(array_map(
+                static fn(array $row): string => strtoupper(trim((string) ($row['code'] ?? ''))),
+                $rows
+            )));
+            return array_map(function (array $row) use ($activeTypes): array {
                 $type = (string) ($row['code'] ?? '');
                 $meta = $this->statusViewPolicyMeta($type);
                 $config = $this->statusViewPolicyConfig($type);
@@ -345,7 +440,7 @@ class EvidenceTypePolicyService
                         'value' => 'mapped_payload.transaction_date',
                         'label' => (string) ($meta['date_label'] ?? '거래일자'),
                     ]],
-                    'aliases' => $this->legacyAliasesForType($type),
+                    'aliases' => $this->legacyAliasesForType($type, $activeTypes),
                     'meta_domain' => (string) ($config['meta_domain'] ?? ''),
                     'summary_bucket' => (string) ($config['summary_bucket'] ?? 'evidence'),
                     'date_candidate_keys' => array_values($config['date_candidate_keys'] ?? []),
@@ -424,12 +519,20 @@ class EvidenceTypePolicyService
         ];
     }
 
-    private function legacyAliasesForType(string $type): array
+    private function legacyAliasesForType(string $type, array $activeTypes = []): array
     {
+        $rawType = strtoupper(trim($type));
         $normalizedType = $this->normalizeDataType($type);
+        if ($rawType !== '' && $rawType !== $normalizedType && in_array($rawType, $activeTypes, true)) {
+            return [];
+        }
+
         $aliases = [];
         foreach ($this->legacyDataTypeMap as $legacy => $current) {
             if ($current !== $normalizedType) {
+                continue;
+            }
+            if ($legacy !== $rawType && in_array($legacy, $activeTypes, true)) {
                 continue;
             }
             $aliases[] = (string) $legacy;
@@ -456,7 +559,7 @@ class EvidenceTypePolicyService
 
         $rows = [];
         foreach (($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []) as $row) {
-            $type = $this->normalizeDataType((string) ($row['code'] ?? ''));
+            $type = strtoupper(trim((string) ($row['code'] ?? '')));
             if ($type === '' || isset($rows[$type])) {
                 continue;
             }
@@ -695,9 +798,22 @@ class EvidenceTypePolicyService
         return array_values(array_unique(array_merge($types, $codeTypes)));
     }
 
+    /** @return list<string> */
+    public function defaultAllowedDataTypes(): array
+    {
+        return $this->allowedDataTypes(
+            self::defaultEvidenceUploadTypes(),
+            self::defaultBusinessDataTypes()
+        );
+    }
+
     private function normalizeDataType(string $type): string
     {
-        return ($this->normalizeDataType)($type);
+        if (is_callable($this->normalizeDataTypeCallback)) {
+            return ($this->normalizeDataTypeCallback)($type);
+        }
+
+        return self::normalizeLegacyDataType($type);
     }
 
     private function amountOrNull(mixed $value): ?float

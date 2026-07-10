@@ -1,5 +1,4 @@
 .transaction-page .content-area {
-    overflow: visible !important;
     display: flex;
     flex-direction: column;
     gap: 14px;
@@ -22,21 +21,6 @@
     font-size: 1rem;
     font-weight: 500;
     line-height: 1;
-}
-
-.transaction-page .transaction-table th,
-.transaction-page .transaction-table td {
-    white-space: nowrap;
-    font-size: var(--font-size);
-}
-
-.transaction-page .transaction-table .transaction-summary-cell {
-    white-space: normal;
-    min-width: 260px;
-}
-
-.transaction-page .transaction-table .transaction-sort-no-cell {
-    min-width: 64px;
 }
 
 .transaction-status {
@@ -66,13 +50,17 @@
     color: #1d4ed8;
 }
 
-.transaction-status-approved {
+.transaction-status-completed {
     background: #ecfdf5;
     color: #047857;
 }
 
-.transaction-status-rejected {
+.transaction-status-closed {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.transaction-status-cancelled {
     background: #fef2f2;
     color: #b91c1c;
 }
-

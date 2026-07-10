@@ -1,0 +1,78 @@
+export function createVoucherLineGridSchema() {
+    return [
+        {
+            key: 'line_no',
+            label: '\uC21C\uBC88',
+            type: 'text',
+            width: 48,
+            minWidth: 48,
+            maxWidth: 64,
+            editable: false,
+            editor: 'voucher-line-order',
+            meta: {
+                editorOptions: {},
+            },
+        },
+        {
+            key: 'account_id',
+            label: '\uACC4\uC815\uACFC\uBAA9',
+            type: 'text',
+            width: 260,
+            minWidth: 220,
+            editable: true,
+            editor: 'voucher-line-account',
+            plugins: ['account-picker'],
+            meta: {
+                pluginOptions: {
+                    accountPicker: {},
+                },
+            },
+        },
+        {
+            key: 'refs',
+            label: '\uBCF4\uC870\uACC4\uC815',
+            type: 'text',
+            width: 320,
+            minWidth: 260,
+            editable: true,
+            editor: 'voucher-line-refs',
+        },
+        {
+            key: 'debit',
+            label: '\uCC28\uBCC0',
+            type: 'number',
+            width: 136,
+            minWidth: 120,
+            editable: true,
+            editor: 'voucher-line-debit',
+        },
+        {
+            key: 'credit',
+            label: '\uB300\uBCC0',
+            type: 'number',
+            width: 136,
+            minWidth: 120,
+            editable: true,
+            editor: 'voucher-line-credit',
+        },
+        {
+            key: 'line_summary',
+            label: '\uB77C\uC778 \uC801\uC694',
+            type: 'text',
+            width: 220,
+            minWidth: 180,
+            editable: true,
+            editor: 'voucher-line-summary',
+        },
+        {
+            key: 'row_action',
+            label: '',
+            type: 'text',
+            width: 50,
+            minWidth: 44,
+            maxWidth: 60,
+            editable: false,
+            editor: 'voucher-line-delete',
+        },
+    ];
+}

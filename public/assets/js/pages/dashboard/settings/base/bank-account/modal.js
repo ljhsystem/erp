@@ -27,7 +27,9 @@ export function createBankAccountModalModule({
     ]);
 
     function currentAccountPolicyState() {
-        return readDataTableSettingsState(ACCOUNT_TABLE_SETTINGS_STORAGE_KEY) || {};
+        return readDataTableSettingsState(ACCOUNT_TABLE_SETTINGS_STORAGE_KEY, {
+            userSettingPageKey: 'bank-account',
+        }) || {};
     }
 
     function accountFieldLabel(key, _fallback = '') {

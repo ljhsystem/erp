@@ -3,11 +3,9 @@ import {
     buildExcelDownloadColumns,
     buildExcelTemplateColumns,
 } from '../../common/column-meta/index.js';
+import { deleteSystemUserSettingsStorage } from '../../common/user-settings/systemUserSettingsStorage.js';
 import {
-    fetchDataTableMetaColumnsSync,
-    readDataTableSettingsState,
-    resolveDataTableColumnDisplayName,
-    resolveDataTableColumnRequirementPolicy,
+    buildDataTableDefaultMetaEntries,
 } from '../../common/datatable/dataTableSettings.js';
 import { loadExcelSettings, saveExcelSettings } from './storage.js';
 import {
@@ -18,18 +16,17 @@ import {
     toggleExcelSettingsPanel,
 } from './ui.js';
 
-const STORAGE_VERSION = 3;
+const STORAGE_VERSION = 4;
 const REQUIREMENT = Object.freeze({
     HIDDEN: 'hidden',
     OPTIONAL: 'optional',
     REQUIRED: 'required',
 });
-const TABLE_REQUIREMENT_POLICY = Object.freeze({
+const REQUIREMENT_POLICY = Object.freeze({
     NONE: 'none',
     OPTIONAL: 'optional',
     REQUIRED: 'required',
 });
-
 function notify(type, message) {
     if (window.AppCore?.notify) {
         window.AppCore.notify(type, message);
@@ -40,123 +37,46 @@ function isTemplateType(type) {
     return String(type || '').trim().toLowerCase() === 'template';
 }
 
-function normalizeTableRequirementPolicy(value = '') {
+function normalizeRequirementPolicy(value, fallback = REQUIREMENT_POLICY.NONE) {
     const normalized = String(value || '').trim().toLowerCase();
-    if (normalized === TABLE_REQUIREMENT_POLICY.REQUIRED) return TABLE_REQUIREMENT_POLICY.REQUIRED;
-    if (normalized === TABLE_REQUIREMENT_POLICY.OPTIONAL) return TABLE_REQUIREMENT_POLICY.OPTIONAL;
-    return TABLE_REQUIREMENT_POLICY.NONE;
+    if (normalized === REQUIREMENT_POLICY.REQUIRED) return REQUIREMENT_POLICY.REQUIRED;
+    if (normalized === REQUIREMENT_POLICY.OPTIONAL) return REQUIREMENT_POLICY.OPTIONAL;
+    if (normalized === REQUIREMENT_POLICY.NONE) return REQUIREMENT_POLICY.NONE;
+    return fallback;
 }
 
-function normalizePolicyState(state) {
-    return state && typeof state === 'object' ? state : {};
-}
-
-function findBoundTableSettingsState(targetDomain = '') {
-    const normalizedTargetDomain = String(targetDomain || '').trim();
-    if (!normalizedTargetDomain) {
-        return null;
-    }
-
-    const tableElements = Array.from(document.querySelectorAll('table'));
-    for (const tableElement of tableElements) {
-        const table = tableElement?.__dtCurrentInstance;
-        const context = table?.__dtTableSettings?.context;
-        const metaDomain = String(context?.config?.metaDomain || '').trim();
-        if (metaDomain !== normalizedTargetDomain) {
-            continue;
-        }
-        return normalizePolicyState(context?.state);
-    }
-
-    return null;
-}
-
-function resolvePolicyState(domain, form, options = {}) {
-    if (typeof options?.getTableSettingsState === 'function') {
-        return normalizePolicyState(options.getTableSettingsState());
-    }
-
-    const configuredStorageKey = String(
-        options?.tableSettingsStorageKey
-        || form?.dataset?.tableSettingsStorageKey
-        || ''
-    ).trim();
-    if (configuredStorageKey !== '') {
-        return normalizePolicyState(readDataTableSettingsState(configuredStorageKey));
-    }
-
-    const metaDomain = String(
-        options?.tableSettingsMetaDomain
-        || form?.dataset?.tableSettingsMetaDomain
-        || domain
-    ).trim();
-    return findBoundTableSettingsState(metaDomain) || {};
-}
-
-function applyPolicyToColumn(column = {}, policyState = {}) {
-    const key = String(column?.key || '').trim();
-    const sourceLabel = key || String(column?.sourceLabel || column?.label || '').trim();
-    const displayFallback = String(column?.displayLabel || column?.label || key).trim() || key;
-    const displayLabel = resolveDataTableColumnDisplayName(
-        { key, source_key: key, payload_key: key, system_field_name: key },
-        policyState,
-        displayFallback
-    );
-    const requirementPolicy = normalizeTableRequirementPolicy(
-        resolveDataTableColumnRequirementPolicy(
-            { key, source_key: key, payload_key: key, system_field_name: key },
-            policyState
-        )
-    );
-    const combinedLabel = displayLabel !== '' && sourceLabel !== '' && displayLabel !== sourceLabel
-        ? `${displayLabel} (${sourceLabel})`
-        : (displayLabel || sourceLabel || key);
-
+function resolveMetaConfig(domain, options = {}) {
     return {
-        ...column,
-        label: displayLabel || sourceLabel || key,
-        displayLabel: displayLabel || sourceLabel || key,
-        sourceLabel: sourceLabel || key,
-        combinedLabel,
-        requirementPolicy,
-    };
-}
-
-function resolveMetaConfig(domain, form, options = {}) {
-    return {
-        metaColumns: Array.isArray(options?.metaColumns) ? options.metaColumns : [],
-        metaCacheKey: String(options?.metaCacheKey || '').trim(),
-        metaUrl: String(options?.metaUrl || form?.dataset?.tableSettingsMetaUrl || '').trim(),
         metaDomain: String(
-            options?.tableSettingsMetaDomain
-            || form?.dataset?.tableSettingsMetaDomain
-            || options?.metaDomain
+            options?.metaDomain
             || domain
         ).trim(),
     };
 }
 
 function buildExcelColumnsFromMeta(domain, type, options = {}) {
-    const form = options?.form || null;
-    const metaColumns = fetchDataTableMetaColumnsSync(resolveMetaConfig(domain, form, options))
-        .filter((column) => String(column?.column_type || 'physical') === 'physical');
+    const metaEntries = buildDataTableDefaultMetaEntries(
+        resolveMetaConfig(domain, options),
+        { forceRefresh: options?.forceRefresh === true }
+    );
 
-    if (metaColumns.length === 0) {
-        return [];
-    }
-
-    const policyState = resolvePolicyState(domain, form, options);
-    return metaColumns.map((column) => applyPolicyToColumn({
-        key: column.key,
-        label: column.label || column.key,
-        sourceLabel: column.key,
-        required: false,
-        defaultSelected: type === 'download',
-        type: column.data_type || 'text',
+    return metaEntries.map((entry) => ({
+        key: entry.key,
+        label: entry.displayName || entry.key,
+        sourceLabel: entry.sourceTitle || entry.key,
+        displayLabel: entry.displayName || entry.key,
+        combinedLabel: (entry.displayName && entry.sourceTitle)
+            ? `${entry.displayName}(${entry.sourceTitle})`
+            : (entry.displayName || entry.sourceTitle || entry.key),
+        required: entry.requirementPolicy === REQUIREMENT_POLICY.REQUIRED,
+        defaultSelected: entry.visible === true,
+        defaultRequirementPolicy: normalizeRequirementPolicy(entry.requirementPolicy),
+        metaRequirementPolicy: normalizeRequirementPolicy(entry.requirementPolicy),
+        type: entry.dataType || 'text',
         width: null,
-        table: column.table || '',
-        ordinal_position: column.ordinal_position,
-    }, policyState));
+        table: entry.table || '',
+        ordinal_position: entry.ordinalPosition,
+    }));
 }
 
 function getDefaultColumns(domain, type, options = {}) {
@@ -165,24 +85,19 @@ function getDefaultColumns(domain, type, options = {}) {
         return metaColumns;
     }
 
-    const policyState = resolvePolicyState(domain, options?.form || null, options);
-    if (typeof options?.getColumns === 'function') {
-        const columns = options.getColumns(type, domain);
-        if (Array.isArray(columns)) {
-            return columns.map((column) => applyPolicyToColumn({
-                ...column,
-                sourceLabel: String(column?.key || column?.sourceLabel || column?.label || '').trim(),
-            }, policyState));
-        }
-    }
-
     const columns = isTemplateType(type)
         ? buildExcelTemplateColumns(domain)
         : buildExcelDownloadColumns(domain);
-    return columns.map((column) => applyPolicyToColumn({
+    return columns.map((column) => ({
         ...column,
+        label: String(column?.label || column?.key || '').trim(),
         sourceLabel: String(column?.key || column?.label || '').trim(),
-    }, policyState));
+        displayLabel: String(column?.displayLabel || column?.label || column?.key || '').trim(),
+        combinedLabel: String(column?.combinedLabel || column?.displayLabel || column?.label || column?.key || '').trim(),
+        ...(isTemplateType(type)
+            ? { requirementPolicy: normalizeRequirementPolicy(column?.requirementPolicy) }
+            : {}),
+    }));
 }
 
 function normalizeRequirement(value, fallback = REQUIREMENT.OPTIONAL) {
@@ -197,51 +112,84 @@ function editableRequirement(value) {
     return normalizeRequirement(value, REQUIREMENT.OPTIONAL);
 }
 
-function visibleForRequirement(requirement) {
-    return normalizeRequirement(requirement) !== REQUIREMENT.HIDDEN;
-}
-
-function isSystemRequiredColumn(column) {
-    return column?.systemRequired === true || column?.required === true;
-}
-
-function defaultRequirement(column, type) {
-    if (isTemplateType(type) && isSystemRequiredColumn(column)) {
+function requirementFromPolicy(policy = '', visible = true) {
+    const normalizedPolicy = normalizeRequirementPolicy(policy);
+    if (normalizedPolicy === REQUIREMENT_POLICY.REQUIRED) {
         return REQUIREMENT.REQUIRED;
     }
 
+    return visible ? REQUIREMENT.OPTIONAL : REQUIREMENT.HIDDEN;
+}
+
+function isDefaultRequiredColumn(column) {
+    return column?.required === true;
+}
+
+function isSystemRequiredColumn(column) {
+    return column?.systemRequired === true;
+}
+
+function defaultRequirement(column, type) {
     return column.defaultSelected === true
         ? REQUIREMENT.OPTIONAL
         : REQUIREMENT.HIDDEN;
+}
+
+function defaultRequirementPolicy(column, type) {
+    if (!isTemplateType(type)) {
+        return undefined;
+    }
+
+    return normalizeRequirementPolicy(
+        column?.defaultRequirementPolicy,
+        isDefaultRequiredColumn(column)
+            ? REQUIREMENT_POLICY.REQUIRED
+            : REQUIREMENT_POLICY.NONE
+    );
 }
 
 function createDefaultState(domain, type, options = {}) {
     const columns = getDefaultColumns(domain, type, options);
     const columnOrder = columns.map((column) => column.key);
     const visibleColumns = [];
-    const columnRequirement = {};
+    const columnRequirementPolicy = {};
     const states = columns.map((column, index) => {
-        const requirement = defaultRequirement(column, type);
-        const visible = visibleForRequirement(requirement);
+        const visible = column.defaultSelected === true;
+        const requirementPolicy = defaultRequirementPolicy(column, type);
+        const requirement = isTemplateType(type)
+            ? requirementFromPolicy(requirementPolicy, visible)
+            : defaultRequirement(column, type);
         if (visible) {
             visibleColumns.push(column.key);
         }
         if (isTemplateType(type)) {
-            columnRequirement[column.key] = requirement;
+            columnRequirementPolicy[column.key] = normalizeRequirementPolicy(requirementPolicy);
         }
 
-        return {
+        const baseColumnState = {
             key: column.key,
             label: column.label,
             sourceLabel: column.sourceLabel || column.label,
             displayLabel: column.displayLabel || column.label,
             combinedLabel: column.combinedLabel || column.label,
+            metaRequirementPolicy: normalizeRequirementPolicy(
+                column.metaRequirementPolicy,
+                requirementPolicy
+            ),
             systemRequired: isSystemRequiredColumn(column),
-            requirementPolicy: normalizeTableRequirementPolicy(column.requirementPolicy),
             visible,
-            requirement,
             order: index + 1,
         };
+
+        if (isTemplateType(type)) {
+            return {
+                ...baseColumnState,
+                requirement,
+                requirementPolicy: normalizeRequirementPolicy(requirementPolicy),
+            };
+        }
+
+        return baseColumnState;
     });
 
     const payload = {
@@ -255,37 +203,52 @@ function createDefaultState(domain, type, options = {}) {
     };
 
     if (isTemplateType(type)) {
-        payload.columnRequirement = columnRequirement;
+        payload.columnRequirementPolicy = columnRequirementPolicy;
     }
 
     return payload;
 }
 
-function buildColumnState(defaultColumns, columnOrder, type, visibleSet, columnRequirement) {
+function buildColumnState(defaultColumns, columnOrder, type, visibleSet, columnRequirementPolicy) {
     const orderMap = new Map(columnOrder.map((key, index) => [key, index]));
 
     return defaultColumns
         .map((column, index) => {
-            const requirement = isTemplateType(type)
-                ? (
-                    isSystemRequiredColumn(column)
-                        ? REQUIREMENT.REQUIRED
-                        : editableRequirement(columnRequirement[column.key] ?? defaultRequirement(column, type))
+            const isVisible = visibleSet.has(column.key);
+            const requirementPolicy = isTemplateType(type)
+                ? normalizeRequirementPolicy(
+                    columnRequirementPolicy[column.key],
+                    defaultRequirementPolicy(column, type)
                 )
-                : (visibleSet.has(column.key) ? REQUIREMENT.OPTIONAL : REQUIREMENT.HIDDEN);
+                : undefined;
+            const requirement = isTemplateType(type)
+                ? requirementFromPolicy(requirementPolicy, isVisible)
+                : (isVisible ? REQUIREMENT.OPTIONAL : REQUIREMENT.HIDDEN);
 
-            return {
+            const baseColumnState = {
                 key: column.key,
                 label: column.label,
                 sourceLabel: column.sourceLabel || column.label,
                 displayLabel: column.displayLabel || column.label,
                 combinedLabel: column.combinedLabel || column.label,
+                metaRequirementPolicy: normalizeRequirementPolicy(
+                    column.metaRequirementPolicy,
+                    defaultRequirementPolicy(column, 'template')
+                ),
                 systemRequired: isSystemRequiredColumn(column),
-                requirementPolicy: normalizeTableRequirementPolicy(column.requirementPolicy),
-                requirement,
-                visible: isTemplateType(type) && isSystemRequiredColumn(column) ? true : visibleForRequirement(requirement),
+                visible: isVisible,
                 order: orderMap.has(column.key) ? Number(orderMap.get(column.key)) + 1 : index + 1,
             };
+
+            if (isTemplateType(type)) {
+                return {
+                    ...baseColumnState,
+                    requirement,
+                    requirementPolicy,
+                };
+            }
+
+            return baseColumnState;
         })
         .sort((left, right) => Number(left.order || 0) - Number(right.order || 0))
         .map((column, index) => ({
@@ -297,31 +260,14 @@ function buildColumnState(defaultColumns, columnOrder, type, visibleSet, columnR
 function normalizeState(domain, type, state, options = {}) {
     const defaults = createDefaultState(domain, type, options);
     const defaultColumns = getDefaultColumns(domain, type, options);
-    const savedColumns = Array.isArray(state?.columns) ? state.columns : [];
-    const savedColumnMap = new Map(
-        savedColumns
-            .map((column) => [String(column?.key || '').trim(), column])
-            .filter(([key]) => key !== '')
-    );
-    const legacyVisibleColumns = savedColumns
-        .filter((column) => column?.visible !== false)
-        .map((column) => String(column?.key || '').trim())
-        .filter(Boolean);
-    const legacyColumnOrder = [...savedColumns]
-        .sort((left, right) => Number(left?.order || 0) - Number(right?.order || 0))
-        .map((column) => String(column?.key || '').trim())
-        .filter(Boolean);
     const visibleColumns = Array.isArray(state?.visibleColumns)
         ? state.visibleColumns.map((key) => String(key || '').trim()).filter(Boolean)
-        : (legacyVisibleColumns.length > 0 ? legacyVisibleColumns : defaults.visibleColumns);
-    const legacyStateDetected = savedColumns.length > 0
-        || Array.isArray(state?.visibleColumns)
-        || Array.isArray(state?.columnOrder);
+        : defaults.visibleColumns;
     const visibleSet = new Set(visibleColumns);
     const columnOrder = (() => {
         const savedOrder = Array.isArray(state?.columnOrder) && state.columnOrder.length > 0
             ? state.columnOrder
-            : legacyColumnOrder;
+            : defaults.columnOrder;
         const ordered = [];
         const seen = new Set();
 
@@ -343,37 +289,23 @@ function normalizeState(domain, type, state, options = {}) {
         return ordered;
     })();
 
-    const columnRequirement = {};
+    const columnRequirementPolicy = {};
     defaultColumns.forEach((column) => {
         const key = column.key;
-        const savedColumn = savedColumnMap.get(key);
 
         if (!isTemplateType(type)) {
-            columnRequirement[key] = visibleSet.has(key) ? REQUIREMENT.OPTIONAL : REQUIREMENT.HIDDEN;
             return;
         }
 
-        if (state?.columnRequirement && typeof state.columnRequirement === 'object' && Object.prototype.hasOwnProperty.call(state.columnRequirement, key)) {
-            columnRequirement[key] = editableRequirement(state.columnRequirement[key]);
+        if (state?.columnRequirementPolicy && typeof state.columnRequirementPolicy === 'object' && Object.prototype.hasOwnProperty.call(state.columnRequirementPolicy, key)) {
+            columnRequirementPolicy[key] = normalizeRequirementPolicy(state.columnRequirementPolicy[key]);
             return;
         }
 
-        if (savedColumn && typeof savedColumn.requirement === 'string') {
-            columnRequirement[key] = editableRequirement(savedColumn.requirement);
-            return;
-        }
-
-        if (legacyStateDetected) {
-            columnRequirement[key] = visibleSet.has(key)
-                ? REQUIREMENT.OPTIONAL
-                : REQUIREMENT.HIDDEN;
-            return;
-        }
-
-        columnRequirement[key] = editableRequirement(defaultRequirement(column, type));
+        columnRequirementPolicy[key] = defaultRequirementPolicy(column, type);
     });
 
-    const columns = buildColumnState(defaultColumns, columnOrder, type, visibleSet, columnRequirement);
+    const columns = buildColumnState(defaultColumns, columnOrder, type, visibleSet, columnRequirementPolicy);
     const normalized = {
         version: STORAGE_VERSION,
         domain,
@@ -385,8 +317,8 @@ function normalizeState(domain, type, state, options = {}) {
     };
 
     if (isTemplateType(type)) {
-        normalized.columnRequirement = columns.reduce((accumulator, column) => {
-            accumulator[column.key] = editableRequirement(column.requirement);
+        normalized.columnRequirementPolicy = columns.reduce((accumulator, column) => {
+            accumulator[column.key] = normalizeRequirementPolicy(column.requirementPolicy);
             return accumulator;
         }, {});
     }
@@ -396,6 +328,16 @@ function normalizeState(domain, type, state, options = {}) {
 
 function settingsKey(domain, type) {
     return buildExcelColumnSettingsKey(domain, type);
+}
+
+function buildStorageOptions(domain, type, options = {}) {
+    return {
+        domain,
+        metaDomain: String(options?.metaDomain || '').trim(),
+        userSettingPageKey: String(options?.userSettingPageKey || '').trim(),
+        description: String(options?.description || '').trim(),
+        settingType: isTemplateType(type) ? 'EXCEL_UPLOAD' : 'EXCEL_DOWNLOAD',
+    };
 }
 
 function needsStateMigration(type, state) {
@@ -412,11 +354,11 @@ function needsStateMigration(type, state) {
     }
 
     if (isTemplateType(type)) {
-        return !state.columnRequirement || typeof state.columnRequirement !== 'object';
+        return !state.columnRequirementPolicy
+            || typeof state.columnRequirementPolicy !== 'object';
     }
 
-    return Object.prototype.hasOwnProperty.call(state, 'columnRequirement')
-        || Array.isArray(state.columns);
+    return Object.prototype.hasOwnProperty.call(state, 'columnRequirementPolicy');
 }
 
 function serializeState(type, state) {
@@ -430,7 +372,7 @@ function serializeState(type, state) {
     };
 
     if (isTemplateType(type)) {
-        payload.columnRequirement = { ...(state.columnRequirement || {}) };
+        payload.columnRequirementPolicy = { ...(state.columnRequirementPolicy || {}) };
     }
 
     return payload;
@@ -439,11 +381,11 @@ function serializeState(type, state) {
 function loadState(domain, type, options = {}) {
     const fallback = serializeState(type, createDefaultState(domain, type, options));
     const key = settingsKey(domain, type);
-    const loaded = loadExcelSettings(key, fallback);
+    const loaded = loadExcelSettings(key, fallback, buildStorageOptions(domain, type, options));
     const normalized = normalizeState(domain, type, loaded, options);
 
     if (needsStateMigration(type, loaded)) {
-        saveExcelSettings(key, serializeState(type, normalized));
+        saveExcelSettings(key, serializeState(type, normalized), buildStorageOptions(domain, type, options));
     }
 
     return normalized;
@@ -452,7 +394,11 @@ function loadState(domain, type, options = {}) {
 function persistState(domain, type, state, options = {}) {
     const syncedState = syncStateSnapshot(type, state);
     const normalized = normalizeState(domain, type, syncedState, options);
-    const payload = saveExcelSettings(settingsKey(domain, type), serializeState(type, normalized));
+    const payload = saveExcelSettings(
+        settingsKey(domain, type),
+        serializeState(type, normalized),
+        buildStorageOptions(domain, type, options)
+    );
     return normalizeState(domain, type, payload, options);
 }
 
@@ -491,22 +437,28 @@ function reorderColumns(state, draggedKey, targetKey, dropPosition = 'after') {
 function syncStateSnapshot(type, state) {
     const columns = Array.isArray(state?.columns) ? [...state.columns] : [];
     const normalizedColumns = columns.map((column, index) => {
+        const isVisible = column?.visible !== false;
+        const requirementPolicy = isTemplateType(type)
+            ? normalizeRequirementPolicy(column?.requirementPolicy)
+            : undefined;
         const requirement = isTemplateType(type)
-            ? (
-                isSystemRequiredColumn(column)
-                    ? REQUIREMENT.REQUIRED
-                    : editableRequirement(column?.requirement)
-            )
-            : (column?.visible === false ? REQUIREMENT.HIDDEN : REQUIREMENT.OPTIONAL);
+            ? requirementFromPolicy(requirementPolicy, isVisible)
+            : (isVisible ? REQUIREMENT.OPTIONAL : REQUIREMENT.HIDDEN);
 
-        return {
+        const normalizedColumn = {
             ...column,
             requirement,
-            visible: isTemplateType(type) && isSystemRequiredColumn(column)
-                ? true
-                : visibleForRequirement(requirement),
+            visible: isVisible,
             order: index + 1,
         };
+
+        if (isTemplateType(type)) {
+            normalizedColumn.requirementPolicy = requirementPolicy;
+        } else {
+            delete normalizedColumn.requirementPolicy;
+        }
+
+        return normalizedColumn;
     });
 
     const nextState = {
@@ -519,8 +471,8 @@ function syncStateSnapshot(type, state) {
     };
 
     if (isTemplateType(type)) {
-        nextState.columnRequirement = normalizedColumns.reduce((accumulator, column) => {
-            accumulator[column.key] = editableRequirement(column.requirement);
+        nextState.columnRequirementPolicy = normalizedColumns.reduce((accumulator, column) => {
+            accumulator[column.key] = normalizeRequirementPolicy(column.requirementPolicy);
             return accumulator;
         }, {});
     }
@@ -536,28 +488,8 @@ function setVisibility(type, state, key, visible) {
                 return column;
             }
 
-            if (!isTemplateType(type)) {
-                return {
-                    ...column,
-                    requirement: visible ? REQUIREMENT.OPTIONAL : REQUIREMENT.HIDDEN,
-                    visible: visible === true,
-                };
-            }
-
-            if (isSystemRequiredColumn(column)) {
-                return {
-                    ...column,
-                    requirement: REQUIREMENT.REQUIRED,
-                    visible: true,
-                };
-            }
-
-            const currentRequirement = editableRequirement(column.requirement);
             return {
                 ...column,
-                requirement: visible
-                    ? (currentRequirement === REQUIREMENT.HIDDEN ? REQUIREMENT.OPTIONAL : currentRequirement)
-                    : REQUIREMENT.HIDDEN,
                 visible: visible === true,
             };
         }),
@@ -572,19 +504,9 @@ function setRequirement(state, key, requirement) {
                 return column;
             }
 
-            if (isSystemRequiredColumn(column)) {
-                return {
-                    ...column,
-                    requirement: REQUIREMENT.REQUIRED,
-                    visible: true,
-                };
-            }
-
-            const nextRequirement = editableRequirement(requirement);
             return {
                 ...column,
-                requirement: nextRequirement,
-                visible: visibleForRequirement(nextRequirement),
+                requirementPolicy: normalizeRequirementPolicy(requirement),
             };
         }),
     });
@@ -601,7 +523,7 @@ function buildColumnRequirement(state) {
     return (Array.isArray(state?.columns) ? state.columns : [])
         .sort((a, b) => Number(a.order || 0) - Number(b.order || 0))
         .reduce((accumulator, column) => {
-            accumulator[column.key] = editableRequirement(column.requirement);
+            accumulator[column.key] = normalizeRequirementPolicy(column.requirementPolicy);
             return accumulator;
         }, {});
 }
@@ -610,34 +532,10 @@ function setVisibilityAll(type, state, visible) {
     const columns = Array.isArray(state?.columns) ? state.columns : [];
     return syncStateSnapshot(type, {
         ...state,
-        columns: columns.map((column) => {
-            if (isTemplateType(type) && isSystemRequiredColumn(column)) {
-                return {
-                    ...column,
-                    requirement: REQUIREMENT.REQUIRED,
-                    visible: true,
-                };
-            }
-
-            if (!isTemplateType(type)) {
-                return {
-                    ...column,
-                    requirement: visible ? REQUIREMENT.OPTIONAL : REQUIREMENT.HIDDEN,
-                    visible,
-                };
-            }
-
-            const currentRequirement = editableRequirement(column.requirement);
-            const nextRequirement = visible
-                ? (currentRequirement === REQUIREMENT.HIDDEN ? REQUIREMENT.OPTIONAL : currentRequirement)
-                : REQUIREMENT.HIDDEN;
-
-            return {
-                ...column,
-                requirement: nextRequirement,
-                visible: visibleForRequirement(nextRequirement),
-            };
-        }),
+        columns: columns.map((column) => ({
+            ...column,
+            visible,
+        })),
     });
 }
 
@@ -662,28 +560,17 @@ function syncPreparedColumns(form, states) {
             .filter((column) => column.visible !== false)
             .reduce((acc, column) => {
                 acc.displayName[column.key] = String(column.displayLabel || column.label || column.key || '').trim();
-                acc.requirementPolicy[column.key] = normalizeTableRequirementPolicy(column.requirementPolicy);
+                acc.requirementPolicy[column.key] = normalizeRequirementPolicy(column.requirementPolicy);
                 return acc;
             }, { displayName: {}, requirementPolicy: {} }),
         download: (Array.isArray(states?.download?.columns) ? states.download.columns : [])
             .filter((column) => column.visible !== false)
             .reduce((acc, column) => {
                 acc.displayName[column.key] = String(column.displayLabel || column.label || column.key || '').trim();
-                acc.requirementPolicy[column.key] = normalizeTableRequirementPolicy(column.requirementPolicy);
                 return acc;
-            }, { displayName: {}, requirementPolicy: {} }),
+            }, { displayName: {} }),
     };
     delete form.__excelPreparedRequirement;
-}
-
-function applyCurrentPolicyState(domain, form, state, options = {}) {
-    const policyState = resolvePolicyState(domain, form, options);
-    const columns = Array.isArray(state?.columns) ? state.columns : [];
-
-    return {
-        ...state,
-        columns: columns.map((column) => applyPolicyToColumn(column, policyState)),
-    };
 }
 
 function clearDropIndicators(form, type = '') {
@@ -697,8 +584,6 @@ function clearDropIndicators(form, type = '') {
 }
 
 function render(form, domain, states, options = {}) {
-    states.template = applyCurrentPolicyState(domain, form, states.template, options);
-    states.download = applyCurrentPolicyState(domain, form, states.download, options);
     renderExcelSettingsPanel(form, 'template', states.template.columns);
     renderExcelSettingsPanel(form, 'download', states.download.columns);
     syncPreparedColumns(form, states);
@@ -730,7 +615,14 @@ function bindEvents(form, domain, states, options = {}) {
         const action = actionButton.dataset.excelSettingsAction || '';
 
         if (action === 'reset') {
-            states[type] = createDefaultState(domain, type, options);
+            deleteSystemUserSettingsStorage(
+                settingsKey(domain, type),
+                buildStorageOptions(domain, type, options)
+            );
+            states[type] = loadState(domain, type, {
+                ...options,
+                forceRefresh: true,
+            });
             render(form, domain, states, options);
             return;
         }
@@ -850,12 +742,6 @@ function bindEvents(form, domain, states, options = {}) {
         delete row.dataset.dropPosition;
     };
 
-    const reloadFromTableSettings = () => {
-        states.template = loadState(domain, 'template', options);
-        states.download = loadState(domain, 'download', options);
-        render(form, domain, states, options);
-    };
-
     const handleBeforePrepareAction = () => {
         syncPreparedColumns(form, states);
     };
@@ -874,7 +760,6 @@ function bindEvents(form, domain, states, options = {}) {
     form.addEventListener('dragend', handleDragEnd);
     form.addEventListener('dragleave', handleDragLeave);
     form.addEventListener('excel:before-prepare-action', handleBeforePrepareAction);
-    document.addEventListener('datatable-settings:updated', reloadFromTableSettings);
     modal?.addEventListener('hidden.bs.modal', handleModalHidden);
 
     form.__excelSettingsCoreBound = true;
@@ -887,7 +772,6 @@ function bindEvents(form, domain, states, options = {}) {
         form.removeEventListener('dragend', handleDragEnd);
         form.removeEventListener('dragleave', handleDragLeave);
         form.removeEventListener('excel:before-prepare-action', handleBeforePrepareAction);
-        document.removeEventListener('datatable-settings:updated', reloadFromTableSettings);
         modal?.removeEventListener('hidden.bs.modal', handleModalHidden);
         form.__excelSettingsCoreBound = false;
         form.__excelDragState = null;
@@ -899,11 +783,9 @@ export function createExcelManagerSettingsCore(config) {
     const formSelector = String(config?.formSelector || '').trim();
     const form = document.querySelector(formSelector);
     const stateOptions = {
-        getColumns: typeof config?.getColumns === 'function' ? config.getColumns : null,
-        form,
-        tableSettingsStorageKey: String(config?.tableSettingsStorageKey || '').trim(),
-        tableSettingsMetaDomain: String(config?.tableSettingsMetaDomain || '').trim(),
-        getTableSettingsState: typeof config?.getTableSettingsState === 'function' ? config.getTableSettingsState : null,
+        userSettingPageKey: String(config?.userSettingPageKey || '').trim(),
+        metaDomain: String(config?.metaDomain || '').trim(),
+        description: String(config?.description || '').trim(),
     };
 
     if (!domain || !form) {

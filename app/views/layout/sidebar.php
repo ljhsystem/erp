@@ -28,6 +28,7 @@ $isActiveLink = static function (string $href) use ($currentPath): bool {
 
 $link = static function (string $href, string $label, string $iconClass, string $extraClass = '') use ($icon, $isActiveLink): string {
     $class = trim('nav-link ' . ($isActiveLink($href) ? 'active ' : '') . $extraClass);
+
     return '<a href="' . htmlspecialchars($href, ENT_QUOTES, 'UTF-8') . '" class="' . htmlspecialchars($class, ENT_QUOTES, 'UTF-8') . '">' . $icon($iconClass) . '<span>' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</span></a>';
 };
 ?>
@@ -71,6 +72,7 @@ $link = static function (string $href, string $label, string $iconClass, string 
             <li>
                 <a href="#menu-ledger-data" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-database') ?><span>자료관리</span></a>
                 <ul id="menu-ledger-data" class="collapse">
+                    <li><?= $link('/ledger/data/evidence-metadata', '증빙정책', 'bi-database-gear') ?></li>
                     <li><?= $link('/ledger/data', '증빙원본', 'bi-clipboard-data') ?></li>
                     <li><?= $link('/ledger/data/create', '생성센터', 'bi-database-check') ?></li>
                 </ul>
@@ -87,7 +89,6 @@ $link = static function (string $href, string $label, string $iconClass, string 
                 <a href="#menu-ledger-funds" class="nav-link toggle" aria-expanded="false"><?= $icon('bi-bank') ?><span>자금관리</span></a>
                 <ul id="menu-ledger-funds" class="collapse">
                     <li><?= $link('/ledger/funds/account-transactions', '계좌별거래내역', 'bi-bank') ?></li>
-                    <li><?= $link('/ledger/funds/payment-info', '결제정보', 'bi-credit-card-2-front') ?></li>
                     <li><?= $link('/ledger/funds/deposit-ledger', '예금출납장', 'bi-journal-check') ?></li>
                     <li><?= $link('/ledger/funds/cash-ledger', '현금출납장', 'bi-cash-stack') ?></li>
                     <li><?= $link('/ledger/funds/daily-report', '자금일보', 'bi-calendar2-check') ?></li>

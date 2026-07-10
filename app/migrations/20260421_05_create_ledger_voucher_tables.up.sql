@@ -2,8 +2,8 @@ CREATE TABLE IF NOT EXISTS `ledger_vouchers` (
   `id` char(36) NOT NULL COMMENT '전표 식별자. 일반전표 1건을 구분하는 UUID',
   `code` varchar(50) NOT NULL COMMENT '전표 관리 코드. 화면과 검색에서 사용하는 전표 고유 코드',
   `voucher_date` date NOT NULL COMMENT '전표일자. 회계상 전표가 귀속되는 기준 일자',
-  `ref_type` varchar(30) NOT NULL COMMENT '원참조 유형. CLIENT, PROJECT, ACCOUNT, CARD, EMPLOYEE, ORDER 중 하나',
-  `ref_id` varchar(100) NOT NULL COMMENT '원참조 ID. ref_type이 가리키는 업무 데이터의 식별값',
+  `ref_target` varchar(30) NOT NULL COMMENT '원참조 유형. CLIENT, PROJECT, ACCOUNT, CARD, EMPLOYEE, ORDER 중 하나',
+  `ref_id` varchar(100) NOT NULL COMMENT '원참조 ID. ref_target이 가리키는 업무 데이터의 식별값',
   `status` varchar(20) NOT NULL DEFAULT 'draft' COMMENT '전표 상태. draft=작성중, posted=확정, locked=마감잠금, deleted=삭제상태',
   `summary_text` varchar(255) DEFAULT NULL COMMENT '전표 헤더 적요. 전표 전체를 설명하는 요약 문구',
   `note` varchar(500) DEFAULT NULL COMMENT '전표 비고. 업무 담당자가 추가로 기록하는 보조 설명',
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS `ledger_vouchers` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_ledger_vouchers_code` (`code`),
   KEY `idx_ledger_vouchers_date` (`voucher_date`),
-  KEY `idx_ledger_vouchers_ref` (`ref_type`, `ref_id`),
+  KEY `idx_ledger_vouchers_ref` (`ref_target`, `ref_id`),
   KEY `idx_ledger_vouchers_status` (`status`),
   KEY `idx_ledger_vouchers_deleted_at` (`deleted_at`)
 ) COMMENT='일반전표 헤더 테이블. 전표일자, 참조유형, 상태, 적요 등 전표 상단 정보를 저장한다';

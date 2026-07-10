@@ -83,16 +83,35 @@
     font-size: 13px;
 }
 
-#transactionModal .transaction-modal-state.transaction-status-approved {
+#transactionModal .transaction-modal-state.transaction-status-completed {
     border-color: #bbf7d0;
     background: #ecfdf5;
     color: #047857;
 }
 
-#transactionModal .transaction-modal-state.transaction-status-rejected {
+#transactionModal .transaction-modal-state.transaction-status-closed {
+    border-color: #fde68a;
+    background: #fef3c7;
+    color: #92400e;
+}
+
+#transactionModal .transaction-modal-state.transaction-status-cancelled {
     border-color: #fecaca;
     background: #fef2f2;
     color: #b91c1c;
+}
+
+.modal#transactionExcelModal,
+.modal.show#transactionExcelModal {
+    z-index: 30040 !important;
+}
+
+body:has(#transactionExcelModal.show) .modal-backdrop.show:last-of-type {
+    z-index: 30035 !important;
+}
+
+.modal-backdrop.transaction-excel-backdrop {
+    z-index: 30035 !important;
 }
 
 #transactionModal .transaction-modal-body {
@@ -206,46 +225,6 @@
 
 #transactionModal .transaction-card-body {
     padding: 16px;
-}
-
-#transactionModal .transaction-settlement-target {
-    display: inline-flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px 12px;
-    padding-top: 2px;
-}
-
-#transactionModal .transaction-settlement-target-label {
-    color: #475569;
-    font-size: 12px;
-    font-weight: 700;
-}
-
-#transactionModal .transaction-settlement-target-option {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin: 0;
-    color: #334155;
-    font-size: 12px;
-    font-weight: 600;
-}
-
-#transactionModal .transaction-settlement-target-option input {
-    margin: 0;
-}
-
-#transactionModal .transaction-current-selection {
-    display: inline-flex;
-    align-items: center;
-    margin-top: 6px;
-    padding: 4px 10px;
-    border-radius: 999px;
-    background: #eff6ff;
-    color: #1d4ed8;
-    font-size: 12px;
-    font-weight: 700;
 }
 
 #transactionModal .transaction-lines-section.is-item-focused {

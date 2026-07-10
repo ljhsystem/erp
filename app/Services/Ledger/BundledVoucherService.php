@@ -17,15 +17,23 @@ class BundledVoucherService
         if (count($rowIds) < 2) {
             return ['success' => false, 'message' => '묶음 전표는 2건 이상의 증빙을 선택해야 생성할 수 있습니다.'];
         }
-        if (!$this->call('tableExists', 'ledger_evidence_payloads')) {
+        if (!$this->call('tableExists', 'ledger_data_evidences')) {
             return ['success' => false, 'message' => '증빙 payload 테이블이 없어 묶음 전표를 생성할 수 없습니다.'];
         }
 
         [$inSql, $params] = $this->call('placeholdersForIds', $rowIds, 'bundled_voucher_evidence');
+        $processingJoin = '';
+        if ($this->call('tableExists', 'ledger_evidence_processing')) {
+            $processingJoin = "
+            LEFT JOIN ledger_evidence_processing pr
+                ON pr.evidence_type = p.source_type
+               AND pr.evidence_id = p.id
+               AND pr.deleted_at IS NULL";
+        }
         $stmt = $this->pdo->prepare("
             SELECT
-                p.evidence_id AS id,
-                p.evidence_type AS source_type,
+                p.id AS id,
+                p.source_type AS source_type,
                 JSON_UNQUOTE(JSON_EXTRACT(p.mapped_payload_json, '$.evidence_date')) AS evidence_date,
                 JSON_UNQUOTE(JSON_EXTRACT(p.mapped_payload_json, '$.client_id')) AS client_id,
                 JSON_UNQUOTE(JSON_EXTRACT(p.mapped_payload_json, '$.project_id')) AS project_id,
@@ -39,17 +47,14 @@ class BundledVoucherService
                 JSON_UNQUOTE(JSON_EXTRACT(p.mapped_payload_json, '$.card_name')) AS card_name,
                 p.mapped_payload_json,
                 tx.target_id AS transaction_id
-            FROM ledger_evidence_payloads p
-            LEFT JOIN ledger_evidence_processing pr
-                ON pr.evidence_type = p.evidence_type
-               AND pr.evidence_id = p.evidence_id
-               AND pr.deleted_at IS NULL
+            FROM ledger_data_evidences p
+            {$processingJoin}
             LEFT JOIN ledger_evidence_links tx
-                ON tx.evidence_type = p.evidence_type
-               AND tx.evidence_id = p.evidence_id
+                ON tx.evidence_type = p.source_type
+               AND tx.evidence_id = p.id
                AND tx.target_type = 'TRANSACTION'
                AND tx.deleted_at IS NULL
-            WHERE p.evidence_id IN ({$inSql})
+            WHERE p.id IN ({$inSql})
               AND p.deleted_at IS NULL
         ");
         $stmt->execute($params);
@@ -150,10 +155,9 @@ class BundledVoucherService
         try {
             $result = $this->call('saveVoucher', [
                 'voucher_date' => $voucherDate !== '' ? $voucherDate : date('Y-m-d'),
-                'summary_text' => '묶음 증빙 ' . count($rows) . '건',
+                'summary' => '묶음 증빙 ' . count($rows) . '건',
                 'source_type' => 'SYSTEM',
                 'lines' => $voucherLines,
-                'payments' => [],
             ]);
             $voucherId = (string) ($result['voucher_id'] ?? $result['id'] ?? '');
             if ($voucherId === '') {
@@ -185,36 +189,7 @@ class BundledVoucherService
 
     public function tagBundledVoucher(string $voucherId, string $firstEvidenceId, string $actor): void
     {
-        if ($voucherId === '') {
-            return;
-        }
-
-        $sets = [];
-        $params = [':id' => $voucherId, ':actor' => $actor];
-        if ($this->call('tableColumnExists', 'ledger_vouchers', 'source_type')) {
-            $sets[] = 'source_type = :source_type';
-            $params[':source_type'] = 'SYSTEM';
-        }
-        if ($firstEvidenceId !== '' && $this->call('tableColumnExists', 'ledger_vouchers', 'source_id')) {
-            $sets[] = 'source_id = :source_id';
-            $params[':source_id'] = $firstEvidenceId;
-        }
-        if ($this->call('tableColumnExists', 'ledger_vouchers', 'import_type')) {
-            $sets[] = 'import_type = :import_type';
-            $params[':import_type'] = 'BUNDLED_EVIDENCE';
-        }
-        if ($this->call('tableColumnExists', 'ledger_vouchers', 'updated_at')) {
-            $sets[] = 'updated_at = NOW()';
-        }
-        if ($this->call('tableColumnExists', 'ledger_vouchers', 'updated_by')) {
-            $sets[] = 'updated_by = :actor';
-        }
-        if ($sets === []) {
-            return;
-        }
-
-        $this->pdo->prepare('UPDATE ledger_vouchers SET ' . implode(', ', $sets) . ' WHERE id = :id')
-            ->execute($params);
+        return;
     }
 
     private function call(string $name, mixed ...$args): mixed

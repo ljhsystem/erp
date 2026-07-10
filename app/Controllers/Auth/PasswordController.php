@@ -2,7 +2,9 @@
 
 namespace App\Controllers\Auth;
 
+use App\Models\Auth\UserModel;
 use App\Services\Auth\AuthService;
+use App\Services\Auth\AuthSessionService;
 use Core\DbPdo;
 use PDO;
 
@@ -73,6 +75,19 @@ class PasswordController
     public function apiChangeLater()
     {
         $result = $this->authService->changePasswordLater();
+        if (($result['status'] ?? null) === 400) {
+            $sessionService = new AuthSessionService();
+            $userId = $sessionService->getCurrentUserId();
+            $user = $userId ? (new UserModel(DbPdo::conn()))->getById($userId) : null;
+            if ($user) {
+                $sessionService->createLoginSession($user);
+                $result = [
+                    'success' => true,
+                    'message' => '다음에 변경하도록 처리했습니다.',
+                    'redirect' => '/dashboard',
+                ];
+            }
+        }
 
         header('Content-Type: application/json; charset=UTF-8');
         if (!empty($result['status'])) {

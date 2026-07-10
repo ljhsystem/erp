@@ -10,9 +10,9 @@ export function initExcelDataset(api) {
 
     createExcelManagerSettingsCore({
         domain: 'card',
+        userSettingPageKey: 'card',
         formSelector: '#cardExcelForm',
-        tableSettingsStorageKey: 'datatable.settings.dashboard.settings.base-info.card.card-table.v1',
-        tableSettingsMetaDomain: 'card',
+        metaDomain: 'card',
     });
 }
 

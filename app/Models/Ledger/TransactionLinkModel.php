@@ -18,6 +18,10 @@ class TransactionLinkModel
 
     public function getList(array $filters = []): array
     {
+        if (!$this->tableExists()) {
+            return [];
+        }
+
         $sql = "
             SELECT *
             FROM {$this->table}
@@ -57,6 +61,10 @@ class TransactionLinkModel
 
     public function getById(string $id): ?array
     {
+        if (!$this->tableExists()) {
+            return null;
+        }
+
         $stmt = $this->db->prepare("
             SELECT *
             FROM {$this->table}
@@ -70,6 +78,10 @@ class TransactionLinkModel
 
     public function getByTransactionId(string $transactionId): array
     {
+        if (!$this->tableExists()) {
+            return [];
+        }
+
         $stmt = $this->db->prepare("
             SELECT *
             FROM {$this->table}
@@ -85,6 +97,10 @@ class TransactionLinkModel
 
     public function getByVoucherId(string $voucherId): array
     {
+        if (!$this->tableExists()) {
+            return [];
+        }
+
         $stmt = $this->db->prepare("
             SELECT *
             FROM {$this->table}
@@ -98,8 +114,89 @@ class TransactionLinkModel
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    public function getTransactionIdsByVoucherId(string $voucherId, ?string $linkType = null): array
+    {
+        $filters = [
+            'voucher_id' => $voucherId,
+            'is_active' => 1,
+        ];
+        if ($linkType !== null && $linkType !== '') {
+            $filters['link_type'] = $linkType;
+        }
+
+        return array_values(array_filter(array_unique(array_map(
+            static fn(array $row): string => trim((string) ($row['transaction_id'] ?? '')),
+            $this->getList($filters)
+        ))));
+    }
+
+    public function deactivateManualLinksByVoucherId(string $voucherId, string $actor): void
+    {
+        if ($voucherId === '' || !$this->tableExists()) {
+            return;
+        }
+
+        $stmt = $this->db->prepare("
+            UPDATE {$this->table}
+            SET is_active = 0,
+                deleted_at = NOW(),
+                deleted_by = :deleted_by,
+                updated_at = NOW(),
+                updated_by = :updated_by
+            WHERE voucher_id = :voucher_id
+              AND link_type = 'MANUAL'
+              AND is_active = 1
+              AND deleted_at IS NULL
+        ");
+        $stmt->execute([
+            ':voucher_id' => $voucherId,
+            ':deleted_by' => $actor,
+            ':updated_by' => $actor,
+        ]);
+    }
+
+    public function purgeByVoucherId(string $voucherId): void
+    {
+        if ($voucherId === '' || !$this->tableExists()) {
+            return;
+        }
+
+        $stmt = $this->db->prepare("
+            DELETE FROM {$this->table}
+            WHERE voucher_id = :voucher_id
+        ");
+        $stmt->execute([':voucher_id' => $voucherId]);
+    }
+
+    public function findLinkedVoucherInfoByTransactionId(string $transactionId): ?array
+    {
+        if ($transactionId === '' || !$this->tableExists()) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT v.id, v.voucher_no, v.voucher_date, v.status
+            FROM {$this->table} l
+            INNER JOIN ledger_vouchers v
+                ON v.id = l.voucher_id
+               AND v.deleted_at IS NULL
+            WHERE l.transaction_id = :transaction_id
+              AND l.deleted_at IS NULL
+              AND l.is_active = 1
+            ORDER BY v.voucher_date DESC, v.voucher_no DESC
+            LIMIT 1
+        ");
+        $stmt->execute([':transaction_id' => $transactionId]);
+
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
     public function existsLink(string $transactionId, string $voucherId): bool
     {
+        if (!$this->tableExists()) {
+            return false;
+        }
+
         $stmt = $this->db->prepare("
             SELECT COUNT(*) AS cnt
             FROM {$this->table}
@@ -118,6 +215,10 @@ class TransactionLinkModel
 
     public function findInactiveLink(string $transactionId, string $voucherId): ?array
     {
+        if (!$this->tableExists()) {
+            return null;
+        }
+
         $stmt = $this->db->prepare("
             SELECT *
             FROM {$this->table}
@@ -178,6 +279,10 @@ class TransactionLinkModel
 
     public function countActiveByTransactionId(string $transactionId): int
     {
+        if (!$this->tableExists()) {
+            return 0;
+        }
+
         $stmt = $this->db->prepare("
             SELECT COUNT(*) AS cnt
             FROM {$this->table}
@@ -227,6 +332,26 @@ class TransactionLinkModel
             'updated_at' => $timestamp,
             'updated_by' => $actor,
         ]);
+    }
+
+    private function tableExists(): bool
+    {
+        static $exists = null;
+        if ($exists !== null) {
+            return $exists;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT 1
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = :table_name
+            LIMIT 1
+        ");
+        $stmt->execute([':table_name' => $this->table]);
+        $exists = (bool) $stmt->fetchColumn();
+
+        return $exists;
     }
 
     public function insert(array $data): bool

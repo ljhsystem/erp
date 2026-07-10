@@ -21,9 +21,9 @@ export {
 export { ClientColumnRegistry } from './domains/client.js';
 export { BankAccountColumnRegistry } from './domains/bank-account.js';
 export { CardColumnRegistry } from './domains/card.js';
+export { AccountSubjectSubColumnRegistry } from './domains/account-subject-sub.js';
 export { LedgerAccountColumnRegistry } from './domains/ledger-account.js';
 export { LedgerJournalRuleColumnRegistry } from './domains/ledger-journal-rule.js';
-export { ProjectColumnRegistry } from './domains/project.js';
 export { WorkTeamColumnRegistry } from './domains/work-team.js';
 export {
     buildTableColumnMeta,

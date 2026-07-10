@@ -11,6 +11,7 @@ import {
     resolveDataTableColumnRequirementPolicy,
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
 import { actorDisplay } from '/public/assets/js/common/actor.js';
+import { writeSystemUserSettingsStorage } from '/public/assets/js/common/user-settings/systemUserSettingsStorage.js';
 
 window.AdminPicker = AdminPicker;
 
@@ -98,6 +99,7 @@ window.AdminPicker = AdminPicker;
     });
 
     function initCodePage($) {
+        sanitizeCodeTableSettingsState();
         initModal();
         bindCodePolicySync();
         initAdminDatePicker();
@@ -121,6 +123,64 @@ window.AdminPicker = AdminPicker;
         bindDateIconPicker();
         bindExcelEvents();
         bindTrashEvents();
+    }
+
+    function sanitizeCodeTableSettingsState() {
+        try {
+            const parsed = readDataTableSettingsState(CODE_TABLE_SETTINGS_STORAGE_KEY, {
+                userSettingPageKey: 'code',
+            });
+            if (!parsed || typeof parsed !== 'object') return;
+
+            let changed = false;
+            const nextState = { ...parsed };
+            const deprecated = new Set(['__legacy_code_status']);
+
+            [
+                'columnWidths',
+                'pageLength',
+                'sortSettings',
+                'currentPage',
+                'searchFormExpanded',
+                'searchFormState',
+                'requiredColumns',
+                'columnWidth',
+            ].forEach((key) => {
+                if (Object.prototype.hasOwnProperty.call(nextState, key)) {
+                    delete nextState[key];
+                    changed = true;
+                }
+            });
+
+            ['visibleColumns', 'columnOrder'].forEach((key) => {
+                if (!Array.isArray(nextState[key])) return;
+                const filtered = nextState[key].filter((item) => !deprecated.has(String(item || '').trim()));
+                if (filtered.length !== nextState[key].length) {
+                    nextState[key] = filtered;
+                    changed = true;
+                }
+            });
+
+            ['columnDisplayName', 'columnRequirementPolicy'].forEach((key) => {
+                if (!nextState[key] || typeof nextState[key] !== 'object') return;
+                const filtered = Object.fromEntries(
+                    Object.entries(nextState[key]).filter(([itemKey]) => !deprecated.has(String(itemKey || '').trim()))
+                );
+                if (Object.keys(filtered).length !== Object.keys(nextState[key]).length) {
+                    nextState[key] = filtered;
+                    changed = true;
+                }
+            });
+
+            if (changed) {
+                writeSystemUserSettingsStorage(CODE_TABLE_SETTINGS_STORAGE_KEY, nextState, {
+                    userSettingPageKey: 'code',
+                    settingType: 'TABLE',
+                });
+            }
+        } catch (error) {
+            console.warn('[code] table settings sanitize failed:', error);
+        }
     }
 
     function initModal() {
@@ -184,7 +244,9 @@ window.AdminPicker = AdminPicker;
     }
 
     function currentPolicyState() {
-        return readDataTableSettingsState(CODE_TABLE_SETTINGS_STORAGE_KEY) || {};
+        return readDataTableSettingsState(CODE_TABLE_SETTINGS_STORAGE_KEY, {
+            userSettingPageKey: 'code',
+        }) || {};
     }
 
     function codeFieldLabel(key, fallback = '') {
@@ -256,12 +318,15 @@ window.AdminPicker = AdminPicker;
         if (codePolicyBound) return;
         codePolicyBound = true;
 
+        sanitizeCodeTableSettingsState();
+
         document.addEventListener('datatable-settings:updated', (event) => {
             const storageKey = String(event?.detail?.storageKey || '').trim();
             if (storageKey && storageKey !== CODE_TABLE_SETTINGS_STORAGE_KEY) {
                 return;
             }
 
+            sanitizeCodeTableSettingsState();
             applyCodeModalPolicyLabels(document);
             applyCodeQuickModalPolicyLabels(document);
         });
@@ -335,9 +400,9 @@ window.AdminPicker = AdminPicker;
         excelForm.dataset.uploadUrl = API.EXCEL_UPLOAD;
         createExcelManagerSettingsCore({
             domain: 'code',
+            userSettingPageKey: 'code',
             formSelector: '#codeExcelForm',
-            tableSettingsStorageKey: 'datatable.settings.dashboard.settings.system.code.code-table.v1',
-            tableSettingsMetaDomain: 'code',
+            metaDomain: 'code',
         });
     }
 
@@ -355,6 +420,7 @@ window.AdminPicker = AdminPicker;
             },
             tableSettings: {
                 pageKey: 'dashboard.settings.system.code',
+                userSettingPageKey: 'code',
                 tableKey: 'code-table',
                 storageKey: 'datatable.settings.dashboard.settings.system.code.code-table.v1',
                 metaDomain: 'code',

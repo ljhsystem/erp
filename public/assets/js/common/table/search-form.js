@@ -184,7 +184,7 @@ export function SearchForm(config) {
     }
 
     function getSavedExpandedState() {
-        const value = table?.__dtTableSettings?.getState?.()?.searchFormExpanded;
+        const value = table?.__dtTableSettings?.getViewState?.()?.searchFormExpanded;
         return typeof value === 'boolean' ? value : null;
     }
 
@@ -193,18 +193,18 @@ export function SearchForm(config) {
             return;
         }
 
-        table?.__dtTableSettings?.updateState?.({
+        table?.__dtTableSettings?.updateViewState?.({
             searchFormExpanded: expanded,
         });
     }
 
     function getSavedSearchFormState() {
-        const value = table?.__dtTableSettings?.getState?.()?.searchFormState;
+        const value = table?.__dtTableSettings?.getViewState?.()?.searchFormState;
         return value && typeof value === 'object' ? value : null;
     }
 
     function persistSearchFormState(stateValue = null) {
-        table?.__dtTableSettings?.updateState?.({
+        table?.__dtTableSettings?.updateViewState?.({
             searchFormState: stateValue,
             currentPage: 0,
         });

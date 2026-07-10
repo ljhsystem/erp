@@ -32,6 +32,7 @@ export function createWorkTeamTableModule({
             },
             tableSettings: {
                 pageKey: 'dashboard.settings.base-info.work-team',
+                userSettingPageKey: 'work-team',
                 tableKey: 'work-team-table',
                 storageKey: 'datatable.settings.dashboard.settings.base-info.work-team.work-team-table.v1',
                 metaDomain: 'work-team',

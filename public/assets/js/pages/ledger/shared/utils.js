@@ -248,12 +248,9 @@ export function isNoneValue(value) {
     const raw = String(value ?? '').trim();
 
     return [
-        '__none__',
-        '__CODE_NONE__',
         '_none_',
         '__none',
         'none__',
-        '선택(없음)',
     ].includes(raw);
 }
 

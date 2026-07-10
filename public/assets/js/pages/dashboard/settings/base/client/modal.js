@@ -1,7 +1,5 @@
 import {
-    readDataTableSettingsState,
-    resolveDataTableColumnDisplayName,
-    resolveDataTableColumnRequirementPolicy,
+    fetchDataTableMetaColumnsSync,
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
 
 export function createClientModalModule({
@@ -16,9 +14,8 @@ export function createClientModalModule({
     let clientQuickBound = false;
     let clientDetailQuickBound = false;
     let clientSharedModalRoot = null;
-    let clientPolicyBound = false;
-
-    const CLIENT_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.base-info.client.client-table.v1';
+    let clientQuickModalContext = null;
+    const CLIENT_META_DOMAIN = 'client';
     const CLIENT_MODAL_FIELD_POLICIES = Object.freeze([
         { selector: '#modal_client_name', key: 'client_name', fallback: 'Client Name' },
         { selector: '#modal_company_name', key: 'company_name', fallback: 'Company Name' },
@@ -134,34 +131,45 @@ export function createClientModalModule({
         if (field) field.value = value ?? '';
     }
 
-    function currentClientPolicyState() {
-        return readDataTableSettingsState(CLIENT_TABLE_SETTINGS_STORAGE_KEY) || {};
+    function currentClientMetaPolicy() {
+        const metaColumns = fetchDataTableMetaColumnsSync({
+            metaDomain: CLIENT_META_DOMAIN,
+        });
+
+        return metaColumns.reduce((accumulator, column) => {
+            const key = String(column?.key || '').trim();
+            if (!key) {
+                return accumulator;
+            }
+
+            accumulator[key] = {
+                label: String(column?.label || key).trim() || key,
+                required: column?.required === true,
+            };
+            return accumulator;
+        }, {});
     }
 
-    function clientFieldLabel(key, _fallback = '') {
+    function resolveClientMetaColumn(key, fallback = '') {
         const normalizedKey = String(key || '').trim();
-        return resolveDataTableColumnDisplayName(
-            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
-            currentClientPolicyState(),
-            normalizedKey
-        );
+        const meta = currentClientMetaPolicy();
+        return meta[normalizedKey] || {
+            label: String(fallback || normalizedKey).trim() || normalizedKey,
+            required: false,
+        };
     }
 
-    function clientFieldRequirement(key) {
-        const normalizedKey = String(key || '').trim();
-        return resolveDataTableColumnRequirementPolicy(
-            { key: normalizedKey, system_field_name: normalizedKey, original_column_key: normalizedKey },
-            currentClientPolicyState()
-        );
+    function clientFieldLabel(key, fallback = '') {
+        return resolveClientMetaColumn(key, fallback).label;
     }
 
-    function clientFieldStarMarkup(key) {
-        const policy = clientFieldRequirement(key);
-        if (policy === 'required') {
+    function clientFieldRequirement(key, fallback = '') {
+        return resolveClientMetaColumn(key, fallback).required ? 'required' : 'none';
+    }
+
+    function clientFieldStarMarkup(key, fallback = '') {
+        if (resolveClientMetaColumn(key, fallback).required) {
             return '<span class="column-policy-star is-required" aria-hidden="true">*</span>';
-        }
-        if (policy === 'optional') {
-            return '<span class="column-policy-star is-optional" aria-hidden="true">*</span>';
         }
         return '';
     }
@@ -317,19 +325,8 @@ export function createClientModalModule({
             if (!labelEl) return;
 
             const displayName = clientFieldLabel(field.key, field.fallback);
-            const starMarkup = clientFieldStarMarkup(field.key);
+            const starMarkup = clientFieldStarMarkup(field.key, field.fallback);
             labelEl.innerHTML = `${displayName}${starMarkup ? ` ${starMarkup}` : ''}`;
-        });
-    }
-
-    function bindClientPolicySync() {
-        if (clientPolicyBound) return;
-        clientPolicyBound = true;
-
-        document.addEventListener('datatable-settings:updated', (event) => {
-            const storageKey = String(event?.detail?.storageKey || '').trim();
-            if (storageKey && storageKey !== CLIENT_TABLE_SETTINGS_STORAGE_KEY) return;
-            applyClientModalPolicyLabels(document);
         });
     }
 
@@ -337,14 +334,87 @@ export function createClientModalModule({
         return Object.fromEntries(new FormData(form).entries());
     }
 
+    function resolveTopVisibleModal(excludeEl = null) {
+        const visibleModals = Array.from(document.querySelectorAll('.modal.show'))
+            .filter((modal) => modal !== excludeEl);
+
+        if (visibleModals.length === 0) {
+            return null;
+        }
+
+        return visibleModals[visibleModals.length - 1];
+    }
+
+    function resolveModalScrollContainer(modalEl) {
+        if (!modalEl) return null;
+
+        return modalEl.querySelector('.journal-modal-body')
+            || modalEl.querySelector('.transaction-modal-body')
+            || modalEl.querySelector('.modal-body');
+    }
+
+    function captureClientQuickModalContext(modalEl) {
+        const parentModal = resolveTopVisibleModal(modalEl);
+        const parentScrollContainer = resolveModalScrollContainer(parentModal);
+
+        clientQuickModalContext = {
+            parentModalId: String(parentModal?.id || '').trim(),
+            bodyPaddingRight: document.body.style.paddingRight || '',
+            bodyOverflow: document.body.style.overflow || '',
+            parentScrollTop: parentScrollContainer ? parentScrollContainer.scrollTop : 0,
+        };
+    }
+
+    function restoreClientQuickModalContext(modalEl) {
+        const context = clientQuickModalContext;
+        clientQuickModalContext = null;
+        if (!context) return;
+
+        const visibleSiblingModals = Array.from(document.querySelectorAll('.modal.show'))
+            .filter((modal) => modal !== modalEl);
+        if (visibleSiblingModals.length === 0) {
+            return;
+        }
+
+        document.body.classList.add('modal-open');
+        if (context.bodyPaddingRight !== '') {
+            document.body.style.paddingRight = context.bodyPaddingRight;
+        } else {
+            document.body.style.removeProperty('padding-right');
+        }
+
+        if (context.bodyOverflow !== '') {
+            document.body.style.overflow = context.bodyOverflow;
+        } else {
+            document.body.style.removeProperty('overflow');
+        }
+
+        const parentModal = context.parentModalId
+            ? document.getElementById(context.parentModalId)
+            : resolveTopVisibleModal(modalEl);
+        const parentScrollContainer = resolveModalScrollContainer(parentModal);
+        if (!parentScrollContainer) {
+            return;
+        }
+
+        window.requestAnimationFrame(() => {
+            parentScrollContainer.scrollTop = Number(context.parentScrollTop || 0);
+        });
+    }
+
     function bringClientQuickModalToFront(modalEl) {
         if (!modalEl) return;
         const modalZIndex = 20000;
         const backdropZIndex = modalZIndex - 10;
-        modalEl.style.zIndex = String(modalZIndex);
-        modalEl.querySelector('.modal-dialog')?.style.setProperty('z-index', String(modalZIndex + 1));
-        const latestBackdrop = document.querySelectorAll('.modal-backdrop');
-        latestBackdrop[latestBackdrop.length - 1]?.style.setProperty('z-index', String(backdropZIndex));
+        const apply = () => {
+            modalEl.style.setProperty('z-index', String(modalZIndex), 'important');
+            modalEl.querySelector('.modal-dialog')?.style.setProperty('z-index', String(modalZIndex + 1), 'important');
+            const latestBackdrop = document.querySelectorAll('.modal-backdrop');
+            latestBackdrop[latestBackdrop.length - 1]?.style.setProperty('z-index', String(backdropZIndex), 'important');
+        };
+
+        apply();
+        [0, 16, 50, 120].forEach((delay) => window.setTimeout(apply, delay));
     }
 
     function bindClientDetailFromQuickOnce() {
@@ -501,6 +571,7 @@ export function createClientModalModule({
             form.reset();
             if (bodyEl) bodyEl.innerHTML = '';
             if (messageEl) messageEl.textContent = '';
+            restoreClientQuickModalContext(modalEl);
         });
     }
 
@@ -536,6 +607,7 @@ export function createClientModalModule({
         `;
         applyClientSubTypeRules(form);
         if (detailButton) detailButton.hidden = !document.getElementById('clientModal') && typeof options.openDetail !== 'function';
+        captureClientQuickModalContext(modalEl);
         modalEl.addEventListener('shown.bs.modal', () => bringClientQuickModalToFront(modalEl), { once: true });
         bootstrap.Modal.getOrCreateInstance(modalEl, { focus: false }).show();
         bringClientQuickModalToFront(modalEl);
@@ -608,7 +680,6 @@ export function createClientModalModule({
         state.clientModal = modalEl ? new bootstrap.Modal(modalEl, { focus: false }) : null;
         state.excelModal = document.getElementById('clientExcelModal') ? new bootstrap.Modal(document.getElementById('clientExcelModal')) : null;
         if (!modalEl) return;
-        bindClientPolicySync();
         applyClientModalPolicyLabels(document);
         modalEl.addEventListener('hide.bs.modal', closeClientModalSelect2);
         modalEl.addEventListener('hidden.bs.modal', () => {
@@ -691,7 +762,6 @@ export function createClientModalModule({
             });
             const formData = new FormData(form);
             formData.set('account_number', formModule.unformatAccountNumber?.(formData.get('account_number') || '') || '');
-            if (formData.get('default_account_id') === '__none__') formData.set('default_account_id', '');
             const requiredMessage = validateClientRequiredPolicies(
                 CLIENT_MODAL_FIELD_POLICIES,
                 collectClientDetailValues(form, formData),

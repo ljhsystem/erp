@@ -1,6 +1,6 @@
 import { defineDomainRegistry } from '../helpers.js';
 
-export const LedgerAccountColumnRegistry = defineDomainRegistry('ledger-account', [
+export const LedgerAccountColumnRegistry = defineDomainRegistry('account-subject-main', [
     { key: 'sort_no', label: '순번', tableVisible: true, tableDefault: true, excelDownload: true, searchable: false, width: 80, type: 'number' },
     { key: 'account_code', label: '계정코드', required: true, tableVisible: true, tableDefault: true, excelTemplate: true, excelDownload: true, searchable: true, searchDefault: true, width: 140, type: 'text' },
     { key: 'account_name', label: '계정과목명', required: true, tableVisible: true, tableDefault: true, excelTemplate: true, excelDownload: true, searchable: true, width: 220, type: 'text' },

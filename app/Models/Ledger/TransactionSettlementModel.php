@@ -22,11 +22,15 @@ class TransactionSettlementModel
             return [];
         }
 
+        $where = 'transaction_id = :transaction_id';
+        if ($this->usesSoftDelete()) {
+            $where .= ' AND deleted_at IS NULL';
+        }
+
         $stmt = $this->db->prepare("
             SELECT *
             FROM {$this->table}
-            WHERE transaction_id = :transaction_id
-              AND deleted_at IS NULL
+            WHERE {$where}
             ORDER BY sort_no ASC, created_at ASC
         ");
         $stmt->execute([':transaction_id' => $transactionId]);
@@ -142,6 +146,11 @@ class TransactionSettlementModel
 
         $cache[$columnName] = (bool) $stmt->fetchColumn();
         return $cache[$columnName];
+    }
+
+    private function usesSoftDelete(): bool
+    {
+        return $this->tableColumnExists('deleted_at');
     }
 
     private function bindParams(array $data): array

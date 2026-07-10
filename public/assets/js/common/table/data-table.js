@@ -5,7 +5,7 @@
  */
 // Path: /assets/js/common/table/data-table.js
 import { createTableInteraction } from './index.js';
-import { applyVisibilityToTable, attachDataTableSettings, prepareDataTableSettingsColumns, updateDataTableSettingsState } from '../datatable/dataTableSettings.js';
+import { applyVisibilityToTable, attachDataTableSettings, prepareDataTableSettingsColumns, updateDataTableViewState } from '../datatable/dataTableSettings.js';
 import { applyActorDataTableColumn } from '../actor.js';
 
 const __dtAdjustState = new WeakMap();
@@ -848,6 +848,10 @@ function shiftOrderForSelection(defaultOrder = [], shouldShift = false, insertIn
     });
 }
 
+function normalizeSortSettingsKey(value = '') {
+    return String(value || '').trim();
+}
+
 function resolveSettingsColumnKey(column = {}) {
     if (typeof column?.__dtSettingsKey === 'string' && column.__dtSettingsKey.trim() !== '') {
         return column.__dtSettingsKey.trim();
@@ -876,18 +880,60 @@ function normalizeColumnIndex(value) {
     return Number.isInteger(index) && index >= 0 ? index : null;
 }
 
+function resolveSettingsColumnKeys(column = {}) {
+    return Array.from(new Set([
+        column?.__dtSettingsKey,
+        column?.settingsKey,
+        column?.key,
+        column?.sourceField,
+        column?.system_field_name,
+        column?.original_column_key,
+        column?.name,
+        column?.data,
+    ].map((value) => String(value || '').trim()).filter(Boolean)));
+}
+
+function normalizeSortSettingsInput(sortSettings = []) {
+    return (Array.isArray(sortSettings) ? sortSettings : [])
+        .map((item) => {
+            if (Array.isArray(item)) {
+                const key = normalizeSortSettingsKey(item[0]);
+                if (key === '') {
+                    return null;
+                }
+
+                return {
+                    key,
+                    dir: normalizeSortDirection(item[1]),
+                };
+            }
+
+            const key = normalizeSortSettingsKey(item?.key);
+            if (key === '') {
+                return null;
+            }
+
+            return {
+                key,
+                dir: normalizeSortDirection(item?.dir),
+            };
+        })
+        .filter(Boolean);
+}
+
 function buildOrderFromSortSettings(sortSettings = [], tableColumns = []) {
     const indexByKey = new Map();
     tableColumns.forEach((column, index) => {
-        const key = resolveSettingsColumnKey(column);
-        if (key !== '' && !indexByKey.has(key)) {
-            indexByKey.set(key, index);
-        }
+        resolveSettingsColumnKeys(column).forEach((key) => {
+            if (!indexByKey.has(key)) {
+                indexByKey.set(key, index);
+            }
+        });
     });
 
-    return (Array.isArray(sortSettings) ? sortSettings : [])
+    return normalizeSortSettingsInput(sortSettings)
         .map((item) => {
-            const key = String(item?.key || '').trim();
+            const key = normalizeSortSettingsKey(item?.key);
             if (key === '' || !indexByKey.has(key)) {
                 return null;
             }
@@ -895,6 +941,60 @@ function buildOrderFromSortSettings(sortSettings = [], tableColumns = []) {
             return [indexByKey.get(key), normalizeSortDirection(item?.dir)];
         })
         .filter(Array.isArray);
+}
+
+function sortSettingsFromLegacyDefaultOrder(defaultOrder = [], referenceColumns = [], shouldShift = false, insertIndex = 0) {
+    const shiftedOrder = shiftOrderForSelection(defaultOrder, shouldShift, insertIndex);
+
+    return (Array.isArray(shiftedOrder) ? shiftedOrder : [])
+        .map((item) => {
+            if (!Array.isArray(item)) {
+                return null;
+            }
+
+            const columnIndex = normalizeColumnIndex(item[0]);
+            if (columnIndex === null) {
+                return null;
+            }
+
+            const column = referenceColumns[columnIndex];
+            const key = resolveSettingsColumnKey(column);
+            if (key === '') {
+                return null;
+            }
+
+            return {
+                key,
+                dir: normalizeSortDirection(item[1]),
+            };
+        })
+        .filter(Boolean);
+}
+
+function buildOrderFromDefaultOrder(
+    defaultOrder = [],
+    tableColumns = [],
+    referenceColumns = [],
+    shouldShift = false,
+    insertIndex = 0
+) {
+    const normalizedDefaultSortSettings = normalizeSortSettingsInput(defaultOrder);
+    if (normalizedDefaultSortSettings.length > 0) {
+        return buildOrderFromSortSettings(normalizedDefaultSortSettings, tableColumns);
+    }
+
+    const legacyDefaultSortSettings = sortSettingsFromLegacyDefaultOrder(
+        defaultOrder,
+        referenceColumns,
+        shouldShift,
+        insertIndex
+    );
+
+    if (legacyDefaultSortSettings.length > 0) {
+        return buildOrderFromSortSettings(legacyDefaultSortSettings, tableColumns);
+    }
+
+    return shiftOrderForSelection(defaultOrder, shouldShift, insertIndex);
 }
 
 function extractSortSettingsFromTable(table, tableColumns = []) {
@@ -925,33 +1025,6 @@ function extractSortSettingsFromTable(table, tableColumns = []) {
             };
         })
         .filter(Boolean);
-}
-
-function getDataTableWidthScope(wrapper) {
-    const customSelector = String(wrapper?.dataset?.dtWidthScopeSelector || '').trim();
-    if (customSelector !== '') {
-        const scoped = wrapper?.closest(customSelector) || document.querySelector(customSelector);
-        if (scoped) {
-            return scoped;
-        }
-    }
-
-    return wrapper?.closest('.table-box, .content-area, .card-body, .card, main') || wrapper?.parentElement || wrapper;
-}
-
-function getDataTableContainerWidth(table) {
-    const wrapper = table?.table?.().container?.();
-    const widthScope = getDataTableWidthScope(wrapper);
-    if (!widthScope) {
-        return 0;
-    }
-
-    return Math.ceil(
-        widthScope.clientWidth
-        || widthScope.getBoundingClientRect?.().width
-        || wrapper?.getBoundingClientRect?.().width
-        || 0
-    );
 }
 
 function resolveColumnWidthKey(column = {}, index = 0) {
@@ -1098,15 +1171,48 @@ function applyColumnWidthPx(table, index, widthPx) {
         if (!node?.style) {
             return;
         }
-        node.style.setProperty('width', widthValue, 'important');
-        node.style.setProperty('min-width', widthValue, 'important');
-        node.style.setProperty('max-width', widthValue, 'important');
-        node.style.setProperty('box-sizing', 'border-box');
+        const widthMatches = node.style.getPropertyValue('width') === widthValue
+            && node.style.getPropertyPriority('width') === 'important';
+        const minWidthMatches = node.style.getPropertyValue('min-width') === widthValue
+            && node.style.getPropertyPriority('min-width') === 'important';
+        const maxWidthMatches = node.style.getPropertyValue('max-width') === widthValue
+            && node.style.getPropertyPriority('max-width') === 'important';
+        const boxSizingMatches = node.style.getPropertyValue('box-sizing') === 'border-box';
+
+        if (!widthMatches) {
+            node.style.setProperty('width', widthValue, 'important');
+        }
+        if (!minWidthMatches) {
+            node.style.setProperty('min-width', widthValue, 'important');
+        }
+        if (!maxWidthMatches) {
+            node.style.setProperty('max-width', widthValue, 'important');
+        }
+        if (!boxSizingMatches) {
+            node.style.setProperty('box-sizing', 'border-box');
+        }
     };
 
     getHeaderNodesByIndex(table, index).forEach(applyWidth);
     getBodyCellNodesByIndex(table, index).forEach(applyWidth);
     getColgroupNodesByIndex(table, index).forEach(applyWidth);
+}
+
+function clearAppliedColumnWidths(table, tableColumns = []) {
+    tableColumns.forEach((_column, index) => {
+        [
+            ...getHeaderNodesByIndex(table, index),
+            ...getBodyCellNodesByIndex(table, index),
+            ...getColgroupNodesByIndex(table, index),
+        ].forEach((node) => {
+            if (!node?.style) {
+                return;
+            }
+            node.style.removeProperty('width');
+            node.style.removeProperty('min-width');
+            node.style.removeProperty('max-width');
+        });
+    });
 }
 
 function readExplicitNodeWidth(node) {
@@ -1182,8 +1288,14 @@ function freezeVisibleColumnWidths(table, tableColumns = []) {
 }
 
 function applyConfiguredColumnWidths(table, tableColumns = [], settingsContext = null) {
-    const columnWidths = settingsContext?.state?.columnWidths;
-    if (!table || !columnWidths || typeof columnWidths !== 'object') {
+    const columnWidths = settingsContext?.viewState?.columnWidths;
+    const wrapper = table?.table?.().container?.();
+    if (
+        !table
+        || wrapper?.classList.contains('dt-fixed-layout')
+        || !columnWidths
+        || typeof columnWidths !== 'object'
+    ) {
         return;
     }
 
@@ -1198,47 +1310,9 @@ function applyConfiguredColumnWidths(table, tableColumns = [], settingsContext =
     });
 }
 
-function syncRenderedColumnWidths(table, tableColumns = [], settingsContext = null) {
-    if (!table) {
-        return;
-    }
-
-    const configuredWidths = settingsContext?.state?.columnWidths && typeof settingsContext.state.columnWidths === 'object'
-        ? settingsContext.state.columnWidths
-        : {};
-    const configuredKeys = new Set(
-        Object.keys(configuredWidths)
-            .map((key) => String(key || '').trim())
-            .filter(Boolean)
-    );
-
-    tableColumns.forEach((column, index) => {
-        if (table.column(index).visible() === false) {
-            return;
-        }
-
-        const key = resolveColumnWidthKey(column, index);
-        if (key && configuredKeys.has(key)) {
-            return;
-        }
-
-        const headerNode = table.column(index).header?.();
-        const bodyNode = table.column(index).nodes?.()?.to$?.()?.first?.()?.get?.(0) || null;
-        const measuredWidth = Math.ceil(Math.max(
-            headerNode?.getBoundingClientRect?.().width || 0,
-            bodyNode?.getBoundingClientRect?.().width || 0
-        ));
-        if (!Number.isFinite(measuredWidth) || measuredWidth <= 0) {
-            return;
-        }
-
-        applyColumnWidthPx(table, index, measuredWidth);
-    });
-}
-
 function collectVisibleColumnWidths(table, tableColumns = [], settingsContext = null) {
-    const configuredWidths = settingsContext?.state?.columnWidths && typeof settingsContext.state.columnWidths === 'object'
-        ? settingsContext.state.columnWidths
+    const configuredWidths = settingsContext?.viewState?.columnWidths && typeof settingsContext.viewState.columnWidths === 'object'
+        ? settingsContext.viewState.columnWidths
         : {};
 
     return tableColumns.reduce((acc, column, index) => {
@@ -1263,57 +1337,6 @@ function collectVisibleColumnWidths(table, tableColumns = [], settingsContext = 
         });
         return acc;
     }, []);
-}
-
-function normalizeSmallConfiguredWidthOverflow(table, tableColumns = [], settingsContext = null, containerWidth = 0) {
-    if (!table || !settingsContext?.config?.enabled) {
-        return 0;
-    }
-
-    const visibleWidths = collectVisibleColumnWidths(table, tableColumns, settingsContext);
-    const configuredEntries = visibleWidths.filter((entry) => entry.configured);
-    const safeContainerWidth = Math.round(Number(containerWidth) || 0);
-    if (configuredEntries.length === 0 || safeContainerWidth <= 0) {
-        return 0;
-    }
-
-    const totalWidth = Math.round(visibleWidths.reduce((sum, entry) => sum + entry.width, 0));
-    const overflow = totalWidth - safeContainerWidth;
-    const threshold = Math.max(2, Math.min(24, visibleWidths.length * 2));
-    if (overflow <= 0 || overflow > threshold) {
-        return 0;
-    }
-
-    const target = [...configuredEntries].reverse().find((entry) => {
-        const column = tableColumns[entry.index] || {};
-        return isColumnWidthConfigurable(column) && Math.round(entry.width) - overflow >= 32;
-    });
-    if (!target) {
-        return 0;
-    }
-
-    const nextWidth = Math.max(32, Math.round(target.width) - overflow);
-    if (nextWidth === Math.round(target.width)) {
-        return 0;
-    }
-
-    applyColumnWidthPx(table, target.index, nextWidth);
-
-    if (target.key) {
-        const currentWidths = settingsContext.state?.columnWidths && typeof settingsContext.state.columnWidths === 'object'
-            ? settingsContext.state.columnWidths
-            : {};
-        if (Number(currentWidths[target.key]) !== nextWidth) {
-            updateDataTableSettingsState(settingsContext, {
-                columnWidths: {
-                    ...currentWidths,
-                    [target.key]: nextWidth,
-                },
-            });
-        }
-    }
-
-    return overflow;
 }
 
 function scheduleApplyConfiguredColumnWidths(table, tableColumns = [], settingsContext = null, delay = 0) {
@@ -1376,8 +1399,56 @@ function bindColumnResize(table, tableColumns = [], settingsContext = null) {
         key: '',
         startX: 0,
         startWidth: 0,
+        handle: null,
     };
     __dtResizeState.set(wrapper, dragState);
+    const RESIZE_HOVER_BOUNDARY_PX = 4;
+
+    const clearResizeHoverState = () => {
+        wrapper.querySelectorAll('.dt-column-resizable.dt-column-resize-hover, .dt-column-resizable.dt-column-resize-active')
+            .forEach((headerNode) => {
+                headerNode.classList.remove('dt-column-resize-hover', 'dt-column-resize-active');
+            });
+    };
+
+    const resolveResizeHeader = (event) => {
+        const header = event.target?.closest?.('thead th.dt-column-resizable');
+        if (!header || !wrapper.contains(header)) {
+            return null;
+        }
+
+        const handle = header.querySelector('.dt-column-resizer');
+        if (!handle) {
+            return null;
+        }
+
+        const rect = header.getBoundingClientRect?.();
+        if (!rect || !Number.isFinite(rect.right) || !Number.isFinite(rect.left)) {
+            return null;
+        }
+
+        const distanceFromRight = rect.right - event.clientX;
+        if (distanceFromRight < -RESIZE_HOVER_BOUNDARY_PX || distanceFromRight > RESIZE_HOVER_BOUNDARY_PX) {
+            return null;
+        }
+
+        return { header, handle };
+    };
+
+    const syncResizeHoverState = (event) => {
+        if (dragState.active) {
+            return dragState.handle;
+        }
+
+        clearResizeHoverState();
+        const resolved = resolveResizeHeader(event);
+        if (!resolved) {
+            return null;
+        }
+
+        resolved.header.classList.add('dt-column-resize-hover');
+        return resolved.handle;
+    };
 
     const stopEvent = (event) => {
         event.preventDefault();
@@ -1392,7 +1463,9 @@ function bindColumnResize(table, tableColumns = [], settingsContext = null) {
 
         dragState.active = false;
         dragState.pointerId = null;
+        dragState.handle = null;
         document.body.classList.remove('dt-column-resizing');
+        clearResizeHoverState();
 
         if (!dragState.key || dragState.index < 0) {
             return;
@@ -1404,10 +1477,10 @@ function bindColumnResize(table, tableColumns = [], settingsContext = null) {
         }
 
         const nextColumnWidths = {
-            ...(settingsContext.state?.columnWidths || {}),
+            ...(settingsContext.viewState?.columnWidths || {}),
             [dragState.key]: widthPx,
         };
-        updateDataTableSettingsState(settingsContext, {
+        updateDataTableViewState(settingsContext, {
             columnWidths: nextColumnWidths,
         });
         scheduleAdjust(table, {
@@ -1419,6 +1492,7 @@ function bindColumnResize(table, tableColumns = [], settingsContext = null) {
 
     const onPointerMove = (event) => {
         if (!dragState.active) {
+            syncResizeHoverState(event);
             return;
         }
 
@@ -1430,7 +1504,6 @@ function bindColumnResize(table, tableColumns = [], settingsContext = null) {
         stopEvent(event);
         const nextWidth = Math.max(32, dragState.startWidth + (event.clientX - dragState.startX));
         applyColumnWidthPx(table, dragState.index, nextWidth);
-        syncScrollHeadWidth(table);
     };
 
     const onPointerUp = (event) => {
@@ -1442,8 +1515,13 @@ function bindColumnResize(table, tableColumns = [], settingsContext = null) {
     };
 
     wrapper.addEventListener('pointerdown', (event) => {
-        const handle = event.target.closest('.dt-column-resizer');
+        const handle = event.target.closest('.dt-column-resizer') || syncResizeHoverState(event);
         if (!handle) {
+            return;
+        }
+
+        const headerNode = handle.closest('th.dt-column-resizable');
+        if (!headerNode) {
             return;
         }
 
@@ -1471,7 +1549,10 @@ function bindColumnResize(table, tableColumns = [], settingsContext = null) {
         dragState.key = key;
         dragState.startX = event.clientX;
         dragState.startWidth = startWidth;
+        dragState.handle = handle;
         document.body.classList.add('dt-column-resizing');
+        clearResizeHoverState();
+        headerNode.classList.add('dt-column-resize-active');
         handle.setPointerCapture?.(event.pointerId);
     }, true);
 
@@ -1486,6 +1567,10 @@ function bindColumnResize(table, tableColumns = [], settingsContext = null) {
             stopEvent(event);
         }
     }, true);
+
+    wrapper.addEventListener('pointermove', syncResizeHoverState, true);
+    wrapper.addEventListener('pointerleave', clearResizeHoverState, true);
+    wrapper.addEventListener('pointercancel', clearResizeHoverState, true);
 
     window.addEventListener('pointermove', onPointerMove, true);
     window.addEventListener('pointerup', onPointerUp, true);
@@ -1520,23 +1605,23 @@ function scheduleAdjust(table, options = {}) {
 
     state.raf = requestAnimationFrame(() => {
         try {
-            table.columns.adjust();
-            syncScrollHeadWidth(table);
-            applyConfiguredColumnWidths(table, tableColumns, settingsContext);
-            syncRenderedColumnWidths(table, tableColumns, settingsContext);
-            syncScrollHeadWidth(table);
-
             if (draw) {
                 table.draw(false);
-                syncScrollHeadWidth(table);
-                applyConfiguredColumnWidths(table, tableColumns, settingsContext);
-                syncRenderedColumnWidths(table, tableColumns, settingsContext);
-                syncScrollHeadWidth(table);
             }
+            reconcileDataTableLayout(table, tableColumns, settingsContext);
         } catch (err) {
             console.error('[data-table] scheduleAdjust failed:', err);
         }
     });
+}
+
+function reconcileDataTableLayout(table, tableColumns = [], settingsContext = null) {
+    if (!table) {
+        return;
+    }
+
+    table.columns.adjust();
+    applyConfiguredColumnWidths(table, tableColumns, settingsContext);
 }
 
 function isBackgroundTableDuringModal(table) {
@@ -1547,115 +1632,6 @@ function isBackgroundTableDuringModal(table) {
 
     const ownerModal = wrapper.closest('.modal');
     return !ownerModal || !ownerModal.classList.contains('show');
-}
-
-function syncScrollHeadWidth(table) {
-    const wrapper = table?.table?.().container?.();
-    if (!wrapper) return;
-
-    const widthScope = getDataTableWidthScope(wrapper);
-    const wrapperWidth = Math.floor(
-        widthScope.clientWidth
-        || widthScope.getBoundingClientRect().width
-        || wrapper.getBoundingClientRect().width
-        || 0
-    );
-    if (Number.isFinite(wrapperWidth) && wrapperWidth > 0) {
-        wrapper.style.maxWidth = `${wrapperWidth}px`;
-    }
-
-    // 일반 화면은 여기까지가 핵심이다.
-    // - SearchForm 과 같은 컨테이너 폭을 기준으로 wrapper 폭을 제한한다.
-    // - scrollX 구조가 없는 화면은 아래 분기 전에 종료된다.
-    const bodyTable = wrapper.querySelector('.dataTables_scrollBody table.dataTable');
-    const scroll = wrapper.querySelector('.dataTables_scroll');
-    const scrollHead = wrapper.querySelector('.dataTables_scrollHead');
-    const scrollBody = wrapper.querySelector('.dataTables_scrollBody');
-    const headInner = wrapper.querySelector('.dataTables_scrollHeadInner');
-    const headTable = wrapper.querySelector('.dataTables_scrollHead table.dataTable');
-    if (!bodyTable || !headInner || !headTable) return;
-
-    // scrollX 화면은 head/body 폭 동기화가 필요하다.
-    // - wrapperWidth 는 뷰포트 기준 폭
-    // - contentWidth 는 현재 body table 이 실제로 차지하는 폭
-    // - 더 큰 값을 사용해 scroll head 와 scroll body 를 같은 폭으로 맞춘다.
-    const explicitContentWidth = Number(wrapper.dataset.dtContentWidth || 0);
-    const colgroupWidth = Array.from(wrapper.querySelectorAll('.dataTables_scrollHead colgroup col'))
-        .reduce((sum, col) => {
-            const width = Math.ceil(
-                parseFloat(col.style.width || '0')
-                || parseFloat(col.style.minWidth || '0')
-                || col.getBoundingClientRect?.().width
-                || 0
-            );
-            return sum + (Number.isFinite(width) && width > 0 ? width : 0);
-        }, 0);
-    const contentWidth = Math.max(
-        explicitContentWidth,
-        colgroupWidth,
-        Math.floor(bodyTable.scrollWidth || 0),
-        Math.floor(bodyTable.getBoundingClientRect().width)
-    );
-    const settingsContext = table?.__dtTableSettings?.context || null;
-    const tableColumns = table?.__dtTableSettings?.tableColumns || [];
-    const configuredWidths = settingsContext?.state?.columnWidths;
-    const hasConfiguredWidths = configuredWidths
-        && typeof configuredWidths === 'object'
-        && Object.keys(configuredWidths).some((key) => {
-            const widthPx = Number(configuredWidths[key]);
-            return String(key || '').trim() !== '' && Number.isFinite(widthPx) && widthPx > 0;
-        });
-    const viewportWidth = Math.max(
-        0,
-        Math.floor(
-            scrollBody?.clientWidth
-            || scrollHead?.clientWidth
-            || wrapperWidth
-            || 0
-        )
-    );
-    if (hasConfiguredWidths && viewportWidth > 0) {
-        normalizeSmallConfiguredWidthOverflow(table, tableColumns, settingsContext, viewportWidth);
-    }
-
-    const configuredWidthEntries = hasConfiguredWidths
-        ? collectVisibleColumnWidths(table, tableColumns, settingsContext)
-        : [];
-    const configuredWidthSum = hasConfiguredWidths
-        ? configuredWidthEntries.reduce((sum, entry) => sum + entry.width, 0)
-        : 0;
-    let width = hasConfiguredWidths
-        ? Math.max(0, Math.round(configuredWidthSum || contentWidth))
-        : Math.max(wrapperWidth || 0, contentWidth);
-    if (hasConfiguredWidths && viewportWidth > 0) {
-        const overflow = width - viewportWidth;
-        const snapThreshold = Math.max(2, Math.min(12, Math.max(1, tableColumns.length)));
-        if (overflow > 0 && overflow <= snapThreshold) {
-            width = viewportWidth;
-        } else if (overflow > snapThreshold) {
-            width = Math.max(0, viewportWidth - 1);
-        }
-    }
-    if (!Number.isFinite(width) || width <= 0) return;
-
-    if (Number.isFinite(wrapperWidth) && wrapperWidth > 0) {
-        [scroll, scrollHead, scrollBody].forEach((node) => {
-            if (!node) return;
-            node.style.width = '100%';
-            node.style.maxWidth = `${wrapperWidth}px`;
-        });
-    }
-
-    headInner.style.width = `${width}px`;
-    headInner.style.minWidth = `${width}px`;
-    headInner.style.maxWidth = 'none';
-    headInner.style.paddingRight = '0px';
-    headTable.style.width = `${width}px`;
-    headTable.style.minWidth = `${width}px`;
-    headTable.style.tableLayout = 'fixed';
-    bodyTable.style.width = `${width}px`;
-    bodyTable.style.minWidth = `${width}px`;
-    bodyTable.style.tableLayout = 'fixed';
 }
 
 function findScrollParent(node) {
@@ -1696,18 +1672,38 @@ export function refreshDataTableLayout(table, options = {}) {
     if (!table) return;
 
     const delays = Array.isArray(options.delays) ? options.delays : [0, 80, 180];
-    delays.forEach((delay) => {
+    const draw = options?.draw === true;
+    const tableColumns = table.__dtTableSettings?.tableColumns || [];
+    const settingsContext = table.__dtTableSettings?.context || null;
+    delays.forEach((delay, index) => {
         window.setTimeout(() => {
             try {
                 updateStickyHeaderOffset(table);
-                table.columns.adjust();
-                syncScrollHeadWidth(table);
-                applyConfiguredColumnWidths(table, table.__dtTableSettings?.tableColumns || [], table.__dtTableSettings?.context || null);
+                scheduleAdjust(table, {
+                    draw: draw && index === 0,
+                    tableColumns,
+                    settingsContext,
+                });
             } catch (err) {
                 console.error('[data-table] refreshDataTableLayout failed:', err);
             }
         }, Math.max(0, Number(delay) || 0));
     });
+}
+
+export function setDataTableFixedLayout(table, enabled) {
+    const wrapper = table?.table?.().container?.();
+    if (!table || !wrapper) {
+        return;
+    }
+
+    const fixed = enabled === true;
+    const tableColumns = table.__dtTableSettings?.tableColumns || [];
+    wrapper.classList.toggle('dt-fixed-layout', fixed);
+    if (fixed) {
+        clearAppliedColumnWidths(table, tableColumns);
+    }
+    refreshDataTableLayout(table, { draw: false, delays: [0] });
 }
 
 export function refreshAllDataTableLayouts() {
@@ -2040,10 +2036,12 @@ function normalizeTableSettingsConfig(tableSettings, {
         title: String(baseConfig.title || 'Table Settings').trim(),
         columns: Array.isArray(baseConfig.columns) ? baseConfig.columns : columns,
         metaDomain: String(baseConfig.metaDomain || '').trim(),
+        userSettingPageKey: String(baseConfig.userSettingPageKey || '').trim(),
         metaUrl: String(baseConfig.metaUrl || '').trim(),
         metaCacheKey: String(baseConfig.metaCacheKey || '').trim(),
         metaColumns: Array.isArray(baseConfig.metaColumns) ? baseConfig.metaColumns : [],
         pageLength: Number(baseConfig.pageLength || pageLength) || null,
+        defaultSortSettings: Array.isArray(baseConfig.defaultSortSettings) ? baseConfig.defaultSortSettings : [],
         requiredColumns: Array.isArray(baseConfig.requiredColumns) ? baseConfig.requiredColumns : [],
         defaultVisibleColumns: Array.isArray(baseConfig.defaultVisibleColumns) ? baseConfig.defaultVisibleColumns : [],
     };
@@ -2324,6 +2322,7 @@ export function createDataTable(config) {
         showColumnVisibility = false,
         showCopyButton = true,
         selectable = true,
+        showSelectionMoveButtons = true,
         selectionColumnIndex = 0,
         selectionColumn = null,
         isRowSelectable = () => true,
@@ -2360,8 +2359,8 @@ export function createDataTable(config) {
         pageLength: normalizedPageLength,
     });
     const preparedTableSettings = prepareDataTableSettingsColumns(sourceColumnsWithSelection, resolvedTableSettings);
-    const savedPageLength = Number(preparedTableSettings.context?.state?.pageLength);
-    const savedCurrentPage = Number(preparedTableSettings.context?.state?.currentPage);
+    const savedPageLength = Number(preparedTableSettings.context?.viewState?.pageLength);
+    const savedCurrentPage = Number(preparedTableSettings.context?.viewState?.currentPage);
     const resolvedColumns = preparedTableSettings.columns || sourceColumnsWithSelection;
     const resolvedAutoWidth = hasExplicitAutoWidth
         ? autoWidth
@@ -2370,7 +2369,11 @@ export function createDataTable(config) {
     if (preparedTableSettings.context) {
         preparedTableSettings.context.tableColumns = tableColumns.map((column) => ({ ...column }));
     }
-    const resolvedInitialOrder = buildOrderFromSortSettings(preparedTableSettings.context?.state?.sortSettings || [], tableColumns);
+    const savedSortSettings = Array.isArray(preparedTableSettings.context?.viewState?.sortSettings)
+        ? preparedTableSettings.context.viewState.sortSettings
+        : [];
+    const resolvedInitialOrder = buildOrderFromSortSettings(savedSortSettings, tableColumns);
+    const hasPersistedSortSettings = savedSortSettings.length > 0;
     const resolvedInitialPageLength = PAGE_LENGTH_MENU.includes(savedPageLength)
         ? savedPageLength
         : normalizedPageLength;
@@ -2381,13 +2384,10 @@ export function createDataTable(config) {
         message: '\uB370\uC774\uD130\uB97C \uBD88\uB7EC\uC624\uB294 \uC911\uC785\uB2C8\uB2E4...',
     });
     const releasePageLoading = () => initialLoadingHandle.release();
-    const refreshTableSettingsLayout = ({ draw = false } = {}) => {
-        scheduleAdjust(table, {
-            draw,
-            tableColumns,
-            settingsContext: preparedTableSettings.context,
-        });
-    };
+    const refreshTableSettingsLayout = ({ draw = false } = {}) => refreshDataTableLayout(table, {
+        draw,
+        delays: [0],
+    });
     const dataTableConfig = {
         ...(api ? {
             ajax: {
@@ -2422,7 +2422,17 @@ export function createDataTable(config) {
         columns: tableColumns,
         order: resolvedInitialOrder.length > 0
             ? resolvedInitialOrder
-            : shiftOrderForSelection(defaultOrder, shouldAddSelectionColumn, selectionInsertIndex),
+            : (
+                hasPersistedSortSettings
+                    ? []
+                    : buildOrderFromDefaultOrder(
+                        defaultOrder,
+                        tableColumns,
+                        sourceColumnsWithSelection,
+                        shouldAddSelectionColumn,
+                        selectionInsertIndex
+                    )
+            ),
         pageLength: resolvedInitialPageLength,
         displayStart: Number.isFinite(savedCurrentPage) && savedCurrentPage > 0
             ? savedCurrentPage * resolvedInitialPageLength
@@ -2458,7 +2468,7 @@ export function createDataTable(config) {
                     return isColumnVisibleInColvis(tableColumns, index, node);
                 }
             }]),
-            ...(selectable === false ? [] : [{
+            ...(selectable === false || showSelectionMoveButtons === false ? [] : [{
                 text: '\u2191',
                 titleAttr: '\uC120\uD0DD\uD55C \uD589 \uC704\uB85C \uC774\uB3D9',
                 className: 'btn btn-outline-secondary btn-sm dt-selected-move-btn dt-selected-move-up-btn',
@@ -2594,9 +2604,6 @@ export function createDataTable(config) {
             applyColumnHeaderClasses(api, tableColumns);
             updateStickyHeaderOffset(api);
             api.columns.adjust();
-            syncScrollHeadWidth(api);
-            syncRenderedColumnWidths(api, tableColumns, preparedTableSettings.context);
-            syncScrollHeadWidth(api);
             renderColumnResizeHandles(api, tableColumns);
             scheduleApplyConfiguredColumnWidths(api, tableColumns, preparedTableSettings.context, 0);
             dataTableModuleLoadingHandle.release();
@@ -2622,9 +2629,6 @@ export function createDataTable(config) {
     });
     bindStickyHeaderOffsetUpdates(table);
     updateStickyHeaderOffset(table);
-    syncScrollHeadWidth(table);
-    syncRenderedColumnWidths(table, tableColumns, preparedTableSettings.context);
-    syncScrollHeadWidth(table);
     renderColumnResizeHandles(table, tableColumns);
     bindColumnResize(table, tableColumns, preparedTableSettings.context);
     scheduleApplyConfiguredColumnWidths(table, tableColumns, preparedTableSettings.context, 0);
@@ -2648,9 +2652,6 @@ export function createDataTable(config) {
 
     table.on('xhr.dt draw.dt', function () {
         updateStickyHeaderOffset(table);
-        syncScrollHeadWidth(table);
-        syncRenderedColumnWidths(table, tableColumns, preparedTableSettings.context);
-        syncScrollHeadWidth(table);
         renderColumnResizeHandles(table, tableColumns);
         applyConfiguredColumnWidths(table, tableColumns, preparedTableSettings.context);
         const info = table.page.info();
@@ -2662,7 +2663,6 @@ export function createDataTable(config) {
         }
 
     });
-
     table.on('column-visibility.dt responsive-resize.dt', function () {
         updateStickyHeaderOffset(table);
         applyColumnHeaderClasses(table, tableColumns);
@@ -2684,7 +2684,7 @@ export function createDataTable(config) {
             return;
         }
 
-        updateDataTableSettingsState(preparedTableSettings.context, {
+        updateDataTableViewState(preparedTableSettings.context, {
             pageLength: normalizedLength,
             currentPage: 0,
         });
@@ -2697,7 +2697,7 @@ export function createDataTable(config) {
 
         const pageInfo = table.page.info?.();
         const currentPage = Number(pageInfo?.page);
-        updateDataTableSettingsState(preparedTableSettings.context, {
+        updateDataTableViewState(preparedTableSettings.context, {
             currentPage: Number.isFinite(currentPage) && currentPage >= 0 ? currentPage : 0,
         });
     });
@@ -2707,13 +2707,16 @@ export function createDataTable(config) {
             return;
         }
 
-        updateDataTableSettingsState(preparedTableSettings.context, {
+        updateDataTableViewState(preparedTableSettings.context, {
             sortSettings: extractSortSettingsFromTable(table, tableColumns),
         });
     });
 
     onWindow('resize', () => {
         if (isBackgroundTableDuringModal(table)) {
+            return;
+        }
+        if (window.__erpSidebarLayoutSync === true) {
             return;
         }
 

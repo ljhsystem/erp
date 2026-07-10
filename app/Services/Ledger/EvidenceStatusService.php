@@ -29,9 +29,17 @@ class EvidenceStatusService
 
     public function updateStatus(array $ids, string $status): array
     {
+        if (!(($this->tableExists)('ledger_data_evidences'))) {
+            return ['success' => false, 'message' => '상태 변경 기능을 사용할 수 없습니다.', 'status' => 500];
+        }
+
         $status = strtoupper(trim($status));
         if ($ids === [] || !in_array($status, ['READY', 'ERROR', 'DUPLICATED'], true)) {
             return ['success' => false, 'message' => '상태를 변경할 증빙원본을 선택해 주세요.', 'status' => 400];
+        }
+
+        if (!(($this->tableExists)('ledger_evidence_processing'))) {
+            return ['success' => false, 'message' => '상태 변경 기능을 사용할 수 없습니다.', 'status' => 500];
         }
 
         [$inSql, $params] = ($this->placeholderBuilder)($ids, 'seed_id');
@@ -53,6 +61,10 @@ class EvidenceStatusService
 
     public function reorder(array $payload, string $actor): array
     {
+        if (!(($this->tableExists)('ledger_data_evidences'))) {
+            return ['success' => false, 'message' => '정렬 저장 기능을 사용할 수 없습니다.', 'status' => 500];
+        }
+
         $actor = $this->auditActor($actor);
         $changes = $payload['changes'] ?? [];
         if (is_string($changes)) {
@@ -99,12 +111,12 @@ class EvidenceStatusService
             [$inSql, $params] = ($this->placeholderBuilder)(array_keys($rows), 'reorder_id');
             $sql = "
                 SELECT
-                    evidence_id AS id,
-                    evidence_type,
+                    id,
+                    source_type,
                     mapped_payload_json,
                     CAST(JSON_UNQUOTE(JSON_EXTRACT(mapped_payload_json, '$.{$sortKey}')) AS UNSIGNED) AS current_sort_no
-                FROM ledger_evidence_payloads
-                WHERE evidence_id IN ({$inSql})
+                FROM ledger_data_evidences
+                WHERE id IN ({$inSql})
                   AND deleted_at IS NULL
             ";
             if ($scope === 'status') {
@@ -120,18 +132,18 @@ class EvidenceStatusService
                     $typePlaceholders[] = $key;
                     $params[$key] = $type;
                 }
-                $sql .= ' AND evidence_type IN (' . implode(', ', $typePlaceholders) . ')';
+                $sql .= ' AND source_type IN (' . implode(', ', $typePlaceholders) . ')';
             }
             $select = $this->pdo->prepare($sql);
             $select->execute($params);
             $storedRows = $select->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
             $update = $this->pdo->prepare("
-                UPDATE ledger_evidence_payloads
+                UPDATE ledger_data_evidences
                 SET mapped_payload_json = :mapped_payload_json,
                     updated_at = NOW(),
                     updated_by = :actor
-                WHERE evidence_id = :id
+                WHERE id = :id
             ");
             $bodyUpdates = [];
             foreach ($storedRows as $storedRow) {
@@ -152,7 +164,7 @@ class EvidenceStatusService
                     ':mapped_payload_json' => ($this->jsonEncoder)($mappedPayload),
                     ':actor' => $actor,
                 ]);
-                $tableName = $this->evidenceTableForType((string) ($storedRow['evidence_type'] ?? $importType));
+                $tableName = $this->evidenceTableForType((string) ($storedRow['source_type'] ?? $importType));
                 if ($tableName !== '') {
                     if (!isset($bodyUpdates[$tableName])) {
                         $bodyUpdates[$tableName] = $this->prepareSortNoUpdateStatement($tableName);
@@ -200,20 +212,20 @@ class EvidenceStatusService
             $updateBody = $this->prepareSortNoUpdateStatement('ledger_evidence_bank_transaction');
 
             $updatePayload = $this->pdo->prepare("
-                UPDATE ledger_evidence_payloads
+                UPDATE ledger_data_evidences
                 SET mapped_payload_json = :mapped_payload_json,
                     updated_at = NOW(),
                     updated_by = :actor
-                WHERE evidence_id = :id
-                  AND evidence_type = 'BANK_TRANSACTION'
+                WHERE id = :id
+                  AND source_type = 'BANK_TRANSACTION'
             ");
 
             [$inSql, $params] = ($this->placeholderBuilder)(array_keys($rows), 'bank_reorder_id');
             $payloadSelect = $this->pdo->prepare("
-                SELECT evidence_id AS id, mapped_payload_json
-                FROM ledger_evidence_payloads
-                WHERE evidence_id IN ({$inSql})
-                  AND evidence_type = 'BANK_TRANSACTION'
+                SELECT id, mapped_payload_json
+                FROM ledger_data_evidences
+                WHERE id IN ({$inSql})
+                  AND source_type = 'BANK_TRANSACTION'
                   AND deleted_at IS NULL
             ");
             $payloadSelect->execute($params);
@@ -325,10 +337,10 @@ class EvidenceStatusService
 
             [$inSql, $params] = ($this->placeholderBuilder)(array_keys($rows), 'cash_reorder_id');
             $payloadSelect = $this->pdo->prepare("
-                SELECT evidence_id AS id, mapped_payload_json
-                FROM ledger_evidence_payloads
-                WHERE evidence_id IN ({$inSql})
-                  AND evidence_type IN ({$typeSql})
+                SELECT id, mapped_payload_json
+                FROM ledger_data_evidences
+                WHERE id IN ({$inSql})
+                  AND source_type IN ({$typeSql})
                   AND deleted_at IS NULL
             ");
             $payloadSelect->execute($params + $typeParams);
@@ -342,12 +354,12 @@ class EvidenceStatusService
             }
 
             $updatePayload = $this->pdo->prepare("
-                UPDATE ledger_evidence_payloads
+                UPDATE ledger_data_evidences
                 SET mapped_payload_json = :mapped_payload_json,
                     updated_at = NOW(),
                     updated_by = :actor
-                WHERE evidence_id = :id
-                  AND evidence_type IN ({$typeSql})
+                WHERE id = :id
+                  AND source_type IN ({$typeSql})
             ");
 
             $position = 0;
@@ -546,12 +558,12 @@ class EvidenceStatusService
 
         $stmt = $this->pdo->prepare("
             SELECT
-                evidence_id AS id,
+                id,
                 CAST(JSON_UNQUOTE(JSON_EXTRACT(mapped_payload_json, '$._status_sort_no')) AS UNSIGNED) AS status_sort_no,
                 mapped_payload_json
-            FROM ledger_evidence_payloads
+            FROM ledger_data_evidences
             WHERE deleted_at IS NULL
-              AND evidence_type IN (" . implode(', ', $placeholders) . ")
+              AND source_type IN (" . implode(', ', $placeholders) . ")
             ORDER BY
                 CASE
                     WHEN CAST(JSON_UNQUOTE(JSON_EXTRACT(mapped_payload_json, '$._status_sort_no')) AS UNSIGNED) IS NULL
@@ -610,7 +622,7 @@ class EvidenceStatusService
         }
 
         $update = $this->pdo->prepare("
-            UPDATE ledger_evidence_payloads
+            UPDATE ledger_data_evidences
             SET mapped_payload_json = :mapped_payload_json,
                 updated_at = NOW(),
                 updated_by = :actor

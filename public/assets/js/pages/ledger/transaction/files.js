@@ -57,17 +57,17 @@ export function registerFiles(ctx) {
         }
 
         ctx.fileListEl.innerHTML = `
-            <div class="transaction-file-table" role="table" aria-label="거래 증빙 파일">
+            <div class="transaction-file-table" role="table" aria-label="\uAC70\uB798 \uC99D\uBE59 \uD30C\uC77C">
 
                 <div class="transaction-file-row transaction-file-head" role="row">
                     <span class="transaction-file-drag-head">
                         <i class="bi bi-arrows-move"></i>
                     </span>
 
-                    <span>순번</span>
-                    <span>파일명</span>
-                    <span>크기</span>
-                    <span>관리</span>
+                    <span>\uC21C\uBC88</span>
+                    <span>\uD30C\uC77C\uBA85</span>
+                    <span>\uBD84\uB958</span>
+                    <span>\uC6A9\uB7C9</span>
                 </div>
 
                 ${rows.map((file, index) => {
@@ -77,7 +77,7 @@ export function registerFiles(ctx) {
                     const type = ctx.escapeHtml(file.type || '');
 
                     const name = ctx.escapeHtml(
-                        file.file_name || `파일 ${index + 1}`
+                        file.file_name || `\uD30C\uC77C ${index + 1}`
                     );
 
                     const fileUrl = (
@@ -120,7 +120,7 @@ export function registerFiles(ctx) {
                         data-order-key="${ctx.escapeHtml(file.orderKey || '')}">
 
                         <span class="transaction-file-drag"
-                            aria-label="순서 변경">
+                            aria-label="??嶺?筌???⑤슢堉???>
                             <i class="bi bi-list"></i>
                         </span>
 
@@ -140,8 +140,7 @@ export function registerFiles(ctx) {
                         <button type="button"
                                 class="transaction-file-delete btn-delete-transaction-file"
                                 ${deleteAttrs}>
-                            -삭제
-                        </button>
+                            -????                        </button>
                     </div>
                     `;
                 }).join('')}
@@ -216,33 +215,44 @@ export function registerFiles(ctx) {
     }
 
     async function loadTransactionFilePolicy() {
-        if (!ctx.fileDropzoneEl) return;
+        if (!ctx.fileDropzoneEl) {
+            return;
+        }
 
         try {
             const list = await ctx.fetchJson(ctx.API.filePolicyList);
             const policies = Array.isArray(list) ? list : (list.data || []);
-            const policy = policies.find((item) => String(item.policy_key || '') === 'transaction_evidence');
+            const policy = policies.find(
+                (item) => String(item.policy_key || '') === 'transaction_evidence'
+            );
 
             if (!policy) {
-                ctx.fileDropzoneEmptyText = '파일을 드래그해서 첨부하세요';
+                ctx.fileDropzoneEmptyText = '파일 업로드 정책을 불러오지 못했습니다.';
                 ctx.updateFileDropzone([]);
                 return;
             }
 
             const ext = String(policy.allowed_ext || '').trim();
             const maxSize = Number(policy.max_size_mb || 0);
-            const description = String(policy.description || '거래 증빙 파일 업로드').trim();
+            const description = String(
+                policy.description || '거래 증빙 파일 업로드'
+            ).trim();
 
             if (ctx.fileInput && ext) {
-                ctx.fileInput.accept = ext.split(',').map((item) => `.${item.trim().replace(/^\./, '')}`).join(',');
+                ctx.fileInput.accept = ext
+                    .split(',')
+                    .map((item) => `.${item.trim().replace(/^\./, '')}`)
+                    .join(',');
             }
 
-            ctx.fileDropzoneEmptyText = `${description} / ${ext || '허용 확장자 확인'} / 최대 ${maxSize || '-'}MB`;
+            ctx.fileDropzoneEmptyText =
+                `${description} / ${ext || '-'} / 최대 ${maxSize}MB`;
+
             if (!ctx.currentFiles.length && !ctx.pendingFiles.length) {
                 ctx.updateFileDropzone([]);
             }
         } catch (error) {
-            ctx.fileDropzoneEmptyText = '파일을 드래그해서 첨부하세요';
+            ctx.fileDropzoneEmptyText = '파일 업로드 정책을 불러오지 못했습니다.';
             ctx.updateFileDropzone([]);
         }
     }
@@ -301,9 +311,9 @@ export function registerFiles(ctx) {
         bindFileReorderEvents();
         ctx.modalEl.querySelectorAll('.number-input').forEach((input) => bindNumberInput(input));
         void loadTransactionFilePolicy();
-        void ctx.initUnitCodeOptions();
-        void initCodeSelectControls(document.getElementById('clientModal'));
-        void initCodeSelectControls(ctx.modalEl);
+        await ctx.initUnitCodeOptions();
+        await initCodeSelectControls(document.getElementById('clientModal'));
+        await initCodeSelectControls(ctx.modalEl);
     }
 
     function markFileDeleted(fileId) {
@@ -322,13 +332,15 @@ export function registerFiles(ctx) {
     }
 
     function formatVoucherStatus(value) {
-        const status = String(value || 'draft').toLowerCase();
+        const status = String(value || 'DRAFT').trim().toUpperCase();
 
         return {
-            draft: '임시저장',
-            confirmed: '검토요청',
-            posted: '승인완료',
-            closed: '마감',
+            DRAFT: '\uC784\uC2DC\uC800\uC7A5',
+            REVIEW_REQUESTED: '\uAC80\uD1A0\uC694\uCCAD',
+            REVIEWED: '\uAC80\uD1A0\uC644\uB8CC',
+            POSTED: '\uC804\uD45C\uC2B9\uC778',
+            CLOSED: '\uB9C8\uAC10',
+            DELETED: '\uC0AD\uC81C',
         }[status] || status;
     }
 
@@ -339,63 +351,89 @@ export function registerFiles(ctx) {
 
     function handleVoucherSelected(voucher) {
         ctx.selectedVoucherId = String(voucher?.id || '');
-        ctx.selectedVoucherLabel = [voucher?.voucher_no, voucher?.client_name, voucher?.summary_text]
+        ctx.selectedVoucherLabel = [voucher?.voucher_no, voucher?.client_name, voucher?.summary]
             .filter(Boolean)
             .join(' / ');
         if (ctx.voucherSummaryEl && ctx.selectedVoucherId) {
             ctx.voucherSummaryEl.innerHTML = `
                 <div class="transaction-voucher-item">
-                    <strong>선택됨</strong>
+                    <strong>????ｋ???/strong>
                     <span>${ctx.escapeHtml(voucher?.voucher_no || ctx.selectedVoucherId)}</span>
                     <span>${ctx.escapeHtml(voucher?.voucher_date || '')}</span>
-                    <span>${ctx.escapeHtml(voucher?.summary_text || '')}</span>
+                    <span>${ctx.escapeHtml(voucher?.summary || '')}</span>
                 </div>
             `;
         }
     }
-
+    
     function renderVoucherState(transaction = {}) {
-        const links = Array.isArray(transaction.linked_vouchers) ? transaction.linked_vouchers : [];
-        const savedId = String(transaction.id || document.getElementById('transaction_id')?.value || '').trim();
-        const status = String(transaction.match_status || document.getElementById('transaction_match_status')?.value || 'none');
+        const links = Array.isArray(transaction.linked_vouchers)
+            ? transaction.linked_vouchers
+            : [];
+
+        const savedId = String(
+            transaction.id || document.getElementById('transaction_id')?.value || ''
+        ).trim();
+
+        const status = String(
+            transaction.match_status ||
+            document.getElementById('transaction_match_status')?.value ||
+            'none'
+        );
+
         const isLinked = links.length > 0 || status === 'matched';
 
         if (ctx.voucherStatusEl) {
-            ctx.voucherStatusEl.className = `transaction-status ${isLinked ? 'matched' : 'none'}`;
-            ctx.voucherStatusEl.textContent = isLinked ? '연결' : '미연결';
+            ctx.voucherStatusEl.className =
+                `transaction-status ${isLinked ? 'matched' : 'none'}`;
+
+            ctx.voucherStatusEl.textContent =
+                isLinked
+                    ? '전표 연결됨'
+                    : '전표 미연결';
         }
 
-        if (!ctx.voucherSummaryEl) return;
+        if (!ctx.voucherSummaryEl) {
+            return;
+        }
 
         if (!savedId) {
-            ctx.voucherSummaryEl.textContent = '저장 후 전표를 생성하거나 기존 전표와 연결할 수 있습니다.';
+            ctx.voucherSummaryEl.textContent =
+                '생성된 전표가 없거나 기존 전표 연결 정보가 없습니다.';
             return;
         }
 
         if (!links.length) {
-            ctx.voucherSummaryEl.textContent = '연결된 전표가 없습니다.';
+            ctx.voucherSummaryEl.textContent =
+                '연결된 전표가 없습니다.';
             return;
         }
 
         ctx.voucherSummaryEl.innerHTML = links.map((voucher) => {
             const voucherId = ctx.escapeHtml(voucher.id || '');
-            const label = ctx.escapeHtml(voucher.voucher_no || voucher.sort_no || voucherId);
+            const label = ctx.escapeHtml(
+                voucher.voucher_no || voucher.sort_no || voucherId
+            );
             const date = ctx.escapeHtml(voucher.voucher_date || '');
             const voucherStatus = ctx.escapeHtml(formatVoucherStatus(voucher.status));
-            const summary = ctx.escapeHtml(voucher.summary_text || '허용 확장자 없음');
+            const summary = ctx.escapeHtml(
+                voucher.summary || '요약 정보 없음'
+            );
 
             return `
                 <div class="transaction-voucher-item">
-                    <strong>선택됨</strong>
+                    <strong>${label}</strong>
                     <span>${date}</span>
                     <span>${voucherStatus}</span>
                     <span>${summary}</span>
-                    <input type="hidden" class="linked-voucher-id" value="${voucherId}">
+                    <input
+                        type="hidden"
+                        class="linked-voucher-id"
+                        value="${voucherId}">
                 </div>
             `;
         }).join('');
     }
-
 
     window.TrashColumns = window.TrashColumns || {};
     window.TrashColumns.transaction = function (row = {}) {
@@ -409,8 +447,8 @@ export function registerFiles(ctx) {
             <td>${ctx.escapeHtml(row.deleted_at || '')}</td>
             <td>${ctx.escapeHtml(actorDisplay(row, 'deleted_by'))}</td>
             <td>
-                <button type="button" class="btn btn-success btn-sm btn-restore" data-id="${id}">복원</button>
-                <button type="button" class="btn btn-danger btn-sm btn-purge" data-id="${id}">삭제</button>
+                <button type="button" class="btn btn-success btn-sm btn-restore" data-id="${id}">??⑤슢?뽫뵓??/button>
+                <button type="button" class="btn btn-danger btn-sm btn-purge" data-id="${id}">????/button>
             </td>
         `;
     };

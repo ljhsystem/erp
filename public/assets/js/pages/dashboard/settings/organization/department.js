@@ -10,6 +10,7 @@ import {
     resolveDataTableColumnDisplayName,
     resolveDataTableColumnRequirementPolicy
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
+import { writeSystemUserSettingsStorage } from '/public/assets/js/common/user-settings/systemUserSettingsStorage.js';
 import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
 
@@ -64,7 +65,7 @@ window.AdminPicker = AdminPicker;
         { selector: '#dept_edit_description', key: 'description', fallback: '설명' },
         { selector: '#dept_edit_is_active', key: 'is_active', fallback: '상태' }
     ]);
-    const MANAGER_NONE_VALUE = '__NONE__';
+    const MANAGER_NONE_VALUE = '';
 
     let departmentTable = null;
     let departmentModal = null;
@@ -105,18 +106,33 @@ window.AdminPicker = AdminPicker;
     }
 
     function sanitizeDepartmentTableSettingsState() {
-        const raw = window.localStorage?.getItem(DEPARTMENT_TABLE_SETTINGS_STORAGE_KEY);
-        if (!raw) return;
-
         try {
-            const parsed = JSON.parse(raw);
+            const parsed = readDataTableSettingsState(DEPARTMENT_TABLE_SETTINGS_STORAGE_KEY, {
+                userSettingPageKey: 'department',
+            });
             if (!parsed || typeof parsed !== 'object') return;
 
             let changed = false;
             const nextState = { ...parsed };
             const deprecated = new Set(['__legacy_department_status']);
 
-            ['visibleColumns', 'columnOrder', 'requiredColumns'].forEach((key) => {
+            [
+                'columnWidths',
+                'pageLength',
+                'sortSettings',
+                'currentPage',
+                'searchFormExpanded',
+                'searchFormState',
+                'requiredColumns',
+                'columnWidth',
+            ].forEach((key) => {
+                if (Object.prototype.hasOwnProperty.call(nextState, key)) {
+                    delete nextState[key];
+                    changed = true;
+                }
+            });
+
+            ['visibleColumns', 'columnOrder'].forEach((key) => {
                 if (!Array.isArray(nextState[key])) return;
                 const filtered = nextState[key].filter((item) => !deprecated.has(String(item || '').trim()));
                 if (filtered.length !== nextState[key].length) {
@@ -125,7 +141,7 @@ window.AdminPicker = AdminPicker;
                 }
             });
 
-            ['columnDisplayName', 'columnRequirementPolicy', 'columnWidth'].forEach((key) => {
+            ['columnDisplayName', 'columnRequirementPolicy'].forEach((key) => {
                 if (!nextState[key] || typeof nextState[key] !== 'object') return;
                 const filtered = Object.fromEntries(
                     Object.entries(nextState[key]).filter(([itemKey]) => !deprecated.has(String(itemKey || '').trim()))
@@ -137,7 +153,10 @@ window.AdminPicker = AdminPicker;
             });
 
             if (changed) {
-                window.localStorage?.setItem(DEPARTMENT_TABLE_SETTINGS_STORAGE_KEY, JSON.stringify(nextState));
+                writeSystemUserSettingsStorage(DEPARTMENT_TABLE_SETTINGS_STORAGE_KEY, nextState, {
+                    userSettingPageKey: 'department',
+                    settingType: 'TABLE',
+                });
             }
         } catch (error) {
             console.warn('[department] table settings sanitize failed:', error);
@@ -164,7 +183,9 @@ window.AdminPicker = AdminPicker;
     }
 
     function currentDepartmentPolicyState() {
-        return readDataTableSettingsState(DEPARTMENT_TABLE_SETTINGS_STORAGE_KEY) || {};
+        return readDataTableSettingsState(DEPARTMENT_TABLE_SETTINGS_STORAGE_KEY, {
+            userSettingPageKey: 'department',
+        }) || {};
     }
 
     function departmentFieldLabel(key, _fallback = '') {
@@ -380,6 +401,7 @@ window.AdminPicker = AdminPicker;
             columns,
             tableSettings: {
                 pageKey: 'dashboard.settings.organization.department',
+                userSettingPageKey: 'department',
                 tableKey: 'department-table',
                 storageKey: 'datatable.settings.dashboard.settings.organization.department.department-table.v1',
                 metaDomain: 'department',
@@ -713,7 +735,6 @@ window.AdminPicker = AdminPicker;
             AdminPicker.destroySelect2(select);
             AdminPicker.reloadSelect2(select, items, 'id', 'text', null);
             AdminPicker.select2(select, {
-                placeholder: '선택',
                 allowClear: true,
                 width: '100%',
                 dropdownParent: $('#deptEditModal')
@@ -726,7 +747,7 @@ window.AdminPicker = AdminPicker;
                 }
                 AdminPicker.setSelect2Value(select, selectedValue, true);
             } else {
-                AdminPicker.setSelect2Value(select, MANAGER_NONE_VALUE, true);
+                select.value = MANAGER_NONE_VALUE;
             }
         } catch (err) {
             console.error('[departments.js] manager load failed:', err);

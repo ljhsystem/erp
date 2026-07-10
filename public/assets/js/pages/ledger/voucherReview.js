@@ -1,11 +1,20 @@
 import {
     bindTableHighlight,
     createDataTable,
+    refreshDataTableLayout,
+    setDataTableFixedLayout,
 } from '/public/assets/js/common/table/data-table.js';
-import { bindRowReorder } from '/public/assets/js/common/row-reorder.js';
 import { SearchForm } from '/public/assets/js/components/search-form.js';
-import { actorDisplay } from '/public/assets/js/common/actor.js';
-import '/public/assets/js/components/trash-manager.js';
+import { fetchDataTableMetaColumnsSync } from '/public/assets/js/common/datatable/dataTableSettings.js';
+import {
+    normalizeStatus,
+    statusBadge as commonStatusBadge,
+} from '/public/assets/js/pages/ledger/shared/display-labels.js';
+
+const VOUCHER_META_DOMAIN = 'voucher-header';
+const VOUCHER_REVIEW_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.ledger.vouchers.review.voucher-review-table.v1';
+const VOUCHER_REVIEW_TABLE_SETTINGS_PAGE_KEY = 'ledger.vouchers.review';
+const VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY = 'voucher-review-table';
 
 (() => {
     const tableEl = document.getElementById('voucherReviewTable');
@@ -40,20 +49,6 @@ import '/public/assets/js/components/trash-manager.js';
         post: '/api/ledger/voucher/post',
         reverse: '/api/ledger/voucher/reverse',
         reject: '/api/ledger/voucher/reject',
-        reorder: '/api/ledger/voucher/reorder',
-        remove: '/api/ledger/voucher/delete',
-        trash: '/api/ledger/voucher/trash',
-        restore: '/api/ledger/voucher/restore',
-        purge: '/api/ledger/voucher/purge',
-        purgeAll: '/api/ledger/voucher/purge-all',
-    };
-
-    const STATUS_LABELS = {
-        draft: '임시저장',
-        confirmed: '검토요청',
-        reviewed: '검토완료',
-        posted: '승인',
-        closed: '마감',
     };
 
     let table = null;
@@ -77,56 +72,83 @@ import '/public/assets/js/components/trash-manager.js';
         return Number(value || 0).toLocaleString('ko-KR');
     }
 
-    function notify(type = 'info', message = '') {
-        const notifier = window.AppNotify || window.AppCore?.AppNotify || window.AppCore;
-        if (typeof notifier?.notify === 'function') {
-            notifier.notify(type, message);
-            return;
-        }
-        if (type === 'error') {
-            console.error(message);
-        }
+    function isActiveBoolean(value) {
+        const normalized = String(value ?? '').trim().toLowerCase();
+        return value === true || value === 1 || normalized === '1' || normalized === 'y' || normalized === 'true';
     }
 
-    function getVoucherSortNo(row = {}) {
-        const numericSortNo = Number(String(row.sort_no ?? '').replace(/,/g, ''));
-        return Number.isFinite(numericSortNo) ? numericSortNo : 0;
+    function renderBooleanBadge(value) {
+        return isActiveBoolean(value)
+            ? '<span class="voucher-review-badge reversal">예</span>'
+            : '<span class="voucher-review-badge reversed">아니오</span>';
     }
 
-    window.TrashColumns = window.TrashColumns || {};
-    window.TrashColumns.journal = function (row = {}) {
-        return `
-            <td>${escapeHtml(row.voucher_no ?? '')}</td>
-            <td>${escapeHtml(row.voucher_date ?? '')}</td>
-            <td>${statusBadge(row.status ?? 'draft')}</td>
-            <td class="text-end">${escapeHtml(formatNumber(row.voucher_amount ?? row.debit_total ?? 0))}</td>
-            <td>${escapeHtml(row.summary_text ?? '')}</td>
-            <td>${escapeHtml(row.deleted_at ?? '')}</td>
-            <td>${escapeHtml(actorDisplay(row, 'deleted_by'))}</td>
-            <td class="text-nowrap">
-                <button type="button" class="btn btn-success btn-sm btn-restore" data-id="${escapeHtml(row.id ?? '')}">복원</button>
-                <button type="button" class="btn btn-danger btn-sm btn-purge" data-id="${escapeHtml(row.id ?? '')}">영구삭제</button>
-            </td>
-        `;
-    };
-
-    function renderDragHandle() {
-        return '<i class="bi bi-list"></i>';
+    function voucherHeaderMetaColumns() {
+        return fetchDataTableMetaColumnsSync({
+            metaDomain: VOUCHER_META_DOMAIN,
+            storageKey: VOUCHER_REVIEW_TABLE_SETTINGS_STORAGE_KEY,
+            userSettingPageKey: VOUCHER_REVIEW_TABLE_SETTINGS_PAGE_KEY,
+        }).filter((column) => String(column?.column_type || 'physical') === 'physical');
     }
 
-    function openTrashModal() {
-        const modalEl = document.getElementById('journalTrashModal');
-        if (!modalEl) {
-            notify('warning', '전표 휴지통 모달을 찾을 수 없습니다.');
-            return;
+    function reviewColumnClassName(field = '') {
+        if (['sort_no', 'voucher_date', 'line_count', 'is_reversal'].includes(field)) {
+            return 'text-center';
+        }
+        if (field === 'status') {
+            return 'text-center dt-status-column';
+        }
+        if (['debit_total', 'credit_total'].includes(field)) {
+            return 'text-end';
+        }
+        return '';
+    }
+
+    function renderVoucherField(field, data, type, row = {}) {
+        const value = data ?? row[field] ?? '';
+        if (field === 'status') {
+            return statusBadge(value, type, row);
+        }
+        if (['debit_total', 'credit_total'].includes(field)) {
+            return type === 'sort' || type === 'type' ? Number(value || 0) : formatNumber(value || 0);
+        }
+        if (field === 'is_reversal') {
+            return type === 'sort' || type === 'type' ? (isActiveBoolean(value) ? 1 : 0) : renderBooleanBadge(value);
+        }
+        if (['sort_no', 'line_count'].includes(field)) {
+            return type === 'sort' || type === 'type' ? Number(value || 0) : escapeHtml(value ?? '');
         }
 
-        modalEl.dataset.listUrl = API.trash;
-        modalEl.dataset.restoreUrl = API.restore;
-        modalEl.dataset.deleteUrl = API.purge;
-        modalEl.dataset.deleteAllUrl = API.purgeAll;
+        const summaryNameFields = {
+            summary_account_id: 'summary_account_name',
+            summary_client_id: 'summary_client_name',
+            summary_project_id: 'summary_project_name',
+            summary_bank_account_id: 'summary_bank_account_name',
+            summary_card_id: 'summary_card_name',
+            summary_employee_id: 'summary_employee_name',
+        };
+        const displayValue = summaryNameFields[field] ? (row[summaryNameFields[field]] || value) : value;
+        return type === 'sort' || type === 'type' ? displayValue : escapeHtml(displayValue || '');
+    }
 
-        window.bootstrap?.Modal?.getOrCreateInstance(modalEl, { focus: false })?.show();
+    function buildVoucherHeaderColumns() {
+        return voucherHeaderMetaColumns().map((meta) => {
+            const field = String(meta?.key || '').trim();
+            if (field === '') return null;
+            return {
+                data: field,
+                name: field,
+                settingsKey: field,
+                sourceField: field,
+                title: String(meta?.label || field).trim() || field,
+                className: reviewColumnClassName(field),
+                visible: meta?.settings_visible !== false,
+                defaultContent: '',
+                render(data, type, row) {
+                    return renderVoucherField(field, data, type, row);
+                },
+            };
+        }).filter(Boolean);
     }
 
     async function fetchJson(url, options = {}) {
@@ -144,39 +166,42 @@ import '/public/assets/js/components/trash-manager.js';
     function reviewState(row = {}) {
         const debit = Number(row.debit_total || 0);
         const credit = Number(row.credit_total || 0);
-        const status = String(row.status || 'draft').toLowerCase();
+        const status = normalizeStatus(row.status);
 
         if (debit !== credit) {
             return { key: 'error', label: '오류' };
         }
 
-        if (status === 'draft') {
+        if (status === 'DRAFT') {
             return { key: 'pending', label: '검토대기' };
         }
 
-        if (status === 'confirmed') {
+        if (status === 'REVIEW_REQUESTED') {
             return { key: 'pending', label: '검토대기' };
         }
 
-        if (status === 'reviewed') {
+        if (status === 'REVIEWED') {
             return { key: 'ready', label: '검토완료' };
         }
 
-        if (status === 'posted') {
+        if (status === 'APPROVED' || status === 'POSTED') {
             return { key: 'done', label: '승인완료' };
         }
 
-        if (status === 'closed') {
+        if (status === 'CLOSED') {
             return { key: 'done', label: '마감' };
         }
 
         return { key: 'pending', label: '검토대기' };
     }
 
-    function statusBadge(status, _type, row = {}) {
-        const key = String(status || 'draft').toLowerCase();
+    function statusBadge(status, type, row = {}) {
+        const normalizedStatus = normalizeStatus(status);
+        if (type === 'sort' || type === 'type') {
+            return normalizedStatus;
+        }
         const badges = [
-            `<span class="voucher-review-badge ${escapeHtml(key)}">${escapeHtml(STATUS_LABELS[key] || key)}</span>`,
+            commonStatusBadge(normalizedStatus),
         ];
 
         if (Number(row.is_reversal || 0) === 1) {
@@ -188,57 +213,45 @@ import '/public/assets/js/components/trash-manager.js';
         return badges.join(' ');
     }
 
-    function reviewBadge(row) {
-        const state = reviewState(row);
-        return `<span class="voucher-review-badge ${state.key}">${state.label}</span>`;
-    }
-
     function selectedRows() {
-        if (!table) return [];
-        const ids = new Set(table.getSelectedIds?.().map((id) => String(id)) || []);
-        const selected = [];
-        table.rows().every(function () {
-            const row = this.data();
-            if (row?.id && ids.has(String(row.id))) {
-                selected.push(row);
-            }
-        });
-        return selected;
+        return selectedVoucher?.id ? [selectedVoucher] : [];
     }
 
     function selectedIdsByStatus(statuses = []) {
-        const allowed = new Set(statuses);
+        const allowed = new Set(statuses.map((status) => normalizeStatus(status)));
         return selectedRows()
-            .filter((row) => !allowed.size || allowed.has(String(row.status || '').toLowerCase()))
+            .filter((row) => !allowed.size || allowed.has(normalizeStatus(row.status)))
             .map((row) => String(row.id));
     }
 
     function actionIds(statuses = []) {
         const ids = selectedIdsByStatus(statuses);
         if (ids.length) return ids;
-        if ((table?.getSelectedIds?.() || []).length > 0) return [];
 
-        const status = String(selectedVoucher?.status || '').toLowerCase();
+        const status = normalizeStatus(selectedVoucher?.status);
         if (!selectedVoucher?.id) return [];
-        if (statuses.length && !statuses.includes(status)) return [];
+        if (statuses.length && !statuses.map((value) => normalizeStatus(value)).includes(status)) return [];
         return [String(selectedVoucher.id)];
     }
 
     function reverseActionIds() {
+        if (selectedVoucher?.id) {
+            const status = normalizeStatus(selectedVoucher.status);
+            if (status !== 'POSTED' || Number(selectedVoucher.is_reversal || 0) === 1) return [];
+            if (selectedVoucher.reversal_voucher?.id || selectedVoucher.reversal_voucher_id) return [];
+
+            return [String(selectedVoucher.id)];
+        }
+
         const ids = selectedRows()
-            .filter((row) => String(row.status || '').toLowerCase() === 'posted')
+            .filter((row) => normalizeStatus(row.status) === 'POSTED')
             .filter((row) => Number(row.is_reversal || 0) !== 1)
             .filter((row) => !row.reversal_voucher_id)
             .map((row) => String(row.id));
 
         if (ids.length) return ids;
-        if ((table?.getSelectedIds?.() || []).length > 0) return [];
 
-        const status = String(selectedVoucher?.status || '').toLowerCase();
-        if (!selectedVoucher?.id || status !== 'posted') return [];
-        if (Number(selectedVoucher.is_reversal || 0) === 1 || selectedVoucher.reversal_voucher?.id) return [];
-
-        return [String(selectedVoucher.id)];
+        return ids;
     }
 
     function hasUnlinkedVoucher(ids = []) {
@@ -280,17 +293,17 @@ import '/public/assets/js/components/trash-manager.js';
 
     function updateActionButtons() {
         const selected = selectedRows();
-        const currentStatus = String(selectedVoucher?.status || '').toLowerCase();
+        const currentStatus = normalizeStatus(selectedVoucher?.status);
 
-        const hasConfirmed = selected.some((row) => String(row.status || '').toLowerCase() === 'confirmed')
-            || currentStatus === 'confirmed';
-        const hasReviewed = selected.some((row) => String(row.status || '').toLowerCase() === 'reviewed')
-            || currentStatus === 'reviewed';
+        const hasReviewRequested = selected.some((row) => normalizeStatus(row.status) === 'REVIEW_REQUESTED')
+            || currentStatus === 'REVIEW_REQUESTED';
+        const hasReviewed = selected.some((row) => normalizeStatus(row.status) === 'REVIEWED')
+            || currentStatus === 'REVIEWED';
         const hasReversiblePosted = reverseActionIds().length > 0;
 
         hideAllButtons();
 
-        if (hasConfirmed) {
+        if (hasReviewRequested) {
             showButton(rejectBtn);
             showButton(confirmBtn);
             showButton(approveBtn);
@@ -310,16 +323,21 @@ import '/public/assets/js/components/trash-manager.js';
         }
     }
 
-    function closeDetailPanel() {
-        layoutEl?.classList.remove('is-detail-open');
+    function setDetailPanelOpen(open, rowEl = null) {
+        layoutEl?.classList.toggle('is-detail-open', open);
         tableEl.querySelectorAll('tbody tr').forEach((tr) => tr.classList.remove('is-selected'));
+        if (open && rowEl) {
+            rowEl.classList.add('is-selected');
+        }
+        setDataTableFixedLayout(table, open);
+    }
+
+    function closeDetailPanel() {
+        setDetailPanelOpen(false);
     }
 
     function openDetailPanel(rowEl = null) {
-        layoutEl?.classList.add('is-detail-open');
-        if (!rowEl) return;
-        tableEl.querySelectorAll('tbody tr').forEach((tr) => tr.classList.remove('is-selected'));
-        rowEl.classList.add('is-selected');
+        setDetailPanelOpen(true, rowEl);
     }
 
     function renderEmptyDetail() {
@@ -345,7 +363,16 @@ import '/public/assets/js/components/trash-manager.js';
 
         if (voucher.reversal_voucher?.id || voucher.reversal_voucher_id) {
             const reversalNo = voucher.reversal_voucher?.voucher_no || voucher.reversal_voucher_no || voucher.reversal_voucher_id || '';
-            return `<span class="voucher-review-badge reversed">취소됨</span> ${escapeHtml(reversalNo)}`;
+            const reversalStatus = voucher.reversal_voucher?.status || '';
+            const reversalCreatedAt = voucher.reversal_voucher?.created_at || '';
+            return `
+                <span class="voucher-review-badge reversed">취소전표 생성됨</span>
+                <button type="button" class="btn btn-link btn-sm p-0 ms-1 voucher-review-open-reversal" data-voucher-id="${escapeHtml(voucher.reversal_voucher?.id || voucher.reversal_voucher_id || '')}">
+                    ${escapeHtml(reversalNo)}
+                </button>
+                ${reversalStatus ? statusBadge(reversalStatus, 'display', voucher.reversal_voucher || {}) : ''}
+                ${reversalCreatedAt ? `<span class="text-muted small ms-1">${escapeHtml(reversalCreatedAt)}</span>` : ''}
+            `;
         }
 
         return '-';
@@ -359,13 +386,13 @@ import '/public/assets/js/components/trash-manager.js';
 
         titleEl.textContent = voucher.voucher_no || id;
         subEl.textContent = [voucher.voucher_date, voucher.summary_text].filter(Boolean).join(' / ');
-        statusEl.className = `voucher-review-status-badge voucher-review-badge ${escapeHtml(voucher.status || 'draft')}`;
-        statusEl.textContent = STATUS_LABELS[voucher.status] || voucher.status || 'draft';
+        statusEl.className = 'voucher-review-status-badge';
+        statusEl.innerHTML = statusBadge(voucher.status, 'display', voucher);
 
         basicInfoEl.innerHTML = `
             <dt>전표번호</dt><dd>${escapeHtml(voucher.voucher_no || '')}</dd>
             <dt>전표일자</dt><dd>${escapeHtml(voucher.voucher_date || '')}</dd>
-            <dt>상태</dt><dd>${escapeHtml(voucher.status || '')}</dd>
+            <dt>상태</dt><dd>${statusBadge(voucher.status, 'display', voucher)}</dd>
             <dt>취소구분</dt><dd>${renderReversalInfo(voucher)}</dd>
             <dt>적요</dt><dd>${escapeHtml(voucher.summary_text || '')}</dd>
             <dt>비고</dt><dd>${escapeHtml(voucher.note || '')}</dd>
@@ -375,7 +402,7 @@ import '/public/assets/js/components/trash-manager.js';
         linesEl.innerHTML = lines.length ? lines.map((line) => `
             <div class="voucher-review-line">
                 <div>
-                    <div class="voucher-review-line-main">${escapeHtml(line.account_text || line.account_name || line.account_id || '')}</div>
+                    <div class="voucher-review-line-main">${escapeHtml(line.line_no || '')}. ${escapeHtml(line.account_text || line.account_name || line.account_id || '')}</div>
                     <div class="voucher-review-line-sub">${escapeHtml(line.line_summary || '')}</div>
                 </div>
                 <div class="voucher-review-line-amount">
@@ -433,111 +460,40 @@ import '/public/assets/js/components/trash-manager.js';
         table = createDataTable({
             tableSelector: '#voucherReviewTable',
             api: API.list,
-            columns: [
-                {
-                    data: null,
-                    title: '<i class="bi bi-arrows-move"></i>',
-                    className: 'reorder-handle no-sort no-colvis text-center no-export',
-                    headerClassName: 'no-colvis text-center no-export',
-                    orderable: false,
-                    searchable: false,
-                    defaultContent: '<i class="bi bi-list"></i>',
-                    render() {
-                        return renderDragHandle();
-                    },
-                },
-                {
-                    data: 'sort_no',
-                    title: '순번',
-                    className: 'text-center voucher-review-sort-no-cell',
-                    render(data, type, row) {
-                        const sortNo = getVoucherSortNo(row);
-                        if (type === 'sort' || type === 'type') {
-                            return sortNo;
-                        }
-
-                        return escapeHtml(data || sortNo || '');
-                    },
-                },
-                { data: 'status', title: '전표상태', render: statusBadge },
-                {
-                    data: 'review_status',
-                    title: '\uAC80\uD1A0\uC0C1\uD0DC',
-                    render(_data, type, row) {
-                        const state = reviewState(row).key;
-                        if (type === 'sort' || type === 'type') {
-                            return state;
-                        }
-
-                        return reviewBadge(_data, type, row);
-                    },
-                },
-                { data: 'voucher_no', title: '전표번호', defaultContent: '' },
-                { data: 'voucher_date', title: '전표일자', defaultContent: '' },
-                {
-                    data: 'summary_text',
-                    title: '적요',
-                    defaultContent: '',
-                    className: 'voucher-review-summary-cell',
-                    render(data) {
-                        return escapeHtml(data || '');
-                    },
-                },
-                {
-                    data: 'debit_total',
-                    title: '차변합계',
-                    className: 'text-end',
-                    render(data, _, row) {
-                        return formatNumber(data || row.voucher_amount || 0);
-                    },
-                },
-                {
-                    data: 'credit_total',
-                    title: '대변합계',
-                    className: 'text-end',
-                    render(data) {
-                        return formatNumber(data || 0);
-                    },
-                },
-            ],
-            buttons: [
-                {
-                    extend: 'excelHtml5',
-                    text: '엑셀 다운로드',
-                    className: 'btn btn-outline-success btn-sm',
-                    title: '전표검토승인',
-                    filename: '전표검토승인',
-                    exportOptions: {
-                        columns: ':visible:not(.no-export):not(.no-colvis)',
-                    },
-                },
-                {
-                    text: '휴지통',
-                    className: 'btn btn-danger btn-sm',
-                    action: openTrashModal,
-                },
-            ],
-            deleteApi: API.remove,
+            ajaxData(request) {
+                return {
+                    ...request,
+                    scope: 'review',
+                };
+            },
+            columns: buildVoucherHeaderColumns(),
+            tableSettings: {
+                enabled: true,
+                pageKey: VOUCHER_REVIEW_TABLE_SETTINGS_PAGE_KEY,
+                tableKey: VOUCHER_REVIEW_TABLE_SETTINGS_TABLE_KEY,
+                storageKey: VOUCHER_REVIEW_TABLE_SETTINGS_STORAGE_KEY,
+                userSettingPageKey: VOUCHER_REVIEW_TABLE_SETTINGS_PAGE_KEY,
+                metaDomain: VOUCHER_META_DOMAIN,
+                description: '전표 헤더 메타데이터 기준 테이블 설정',
+                tableLabel: '전표검토/승인 목록',
+                title: '전표검토/승인 목록 테이블 설정',
+            },
             dataSrc(json) {
                 return Array.isArray(json?.data) ? json.data : [];
             },
-            defaultOrder: [[1, 'asc']],
+            defaultOrder: [[0, 'asc']],
             pageLength: 100,
+            selectable: false,
+            showCopyButton: false,
+            deleteButton: false,
         });
 
-        table.on('draw.dt xhr.dt', syncRowsAfterDraw);
-        bindRowReorder(table, {
-            api: API.reorder,
-            onSuccess() {
-                notify('success', '전표 순번이 변경되었습니다.');
-                table?.ajax.reload(null, false);
-            },
-            onError(json) {
-                notify('error', json?.message || '전표 순번 변경에 실패했습니다.');
-                table?.ajax.reload(null, false);
-            },
+        table.on('draw.dt xhr.dt', () => {
+            syncRowsAfterDraw();
         });
         bindTableHighlight('#voucherReviewTable', table);
+        refreshDataTableLayout(table, { delays: [0] });
+
     }
 
     function initSearchForm() {
@@ -556,11 +512,9 @@ import '/public/assets/js/components/trash-manager.js';
         const searchForm = document.getElementById('voucherReviewSearchConditionsForm');
         const resetButton = document.getElementById('voucherReviewResetButton');
         searchForm?.addEventListener('submit', () => {
-            table?.clearSelectedIds?.();
             renderEmptyDetail();
         });
         resetButton?.addEventListener('click', () => {
-            table?.clearSelectedIds?.();
             renderEmptyDetail();
         });
     }
@@ -579,7 +533,6 @@ import '/public/assets/js/components/trash-manager.js';
             });
         }
 
-        table?.clearSelectedIds?.();
         table.ajax.reload(null, false);
         if (selectedVoucher?.id) {
             await loadDetail(selectedVoucher.id).catch(renderEmptyDetail);
@@ -621,7 +574,7 @@ import '/public/assets/js/components/trash-manager.js';
 
     function bindEvents() {
         window.jQuery(tableEl).on('click', 'tbody tr', (event) => {
-            if (event.target.closest('input, .reorder-handle')) return;
+            if (event.target.closest('input')) return;
             const row = event.currentTarget;
             const data = table.row(row).data();
             if (!data?.id) return;
@@ -631,7 +584,7 @@ import '/public/assets/js/components/trash-manager.js';
         });
 
         window.jQuery(tableEl).on('dblclick', 'tbody tr', (event) => {
-            if (event.target.closest('input, .reorder-handle')) return;
+            if (event.target.closest('input')) return;
             openDetailPanel(event.currentTarget);
             const data = table.row(event.currentTarget).data();
             if (data?.id) void loadDetail(data.id);
@@ -650,25 +603,17 @@ import '/public/assets/js/components/trash-manager.js';
             renderEmptyDetail();
         });
 
-        tableEl.addEventListener('datatable:selection-changed', () => {
-            updateActionButtons();
-        });
-
-        tableEl.addEventListener('datatable:soft-delete-completed', () => {
-            renderEmptyDetail();
-        });
-
-        rejectBtn?.addEventListener('click', () => openRejectModal(actionIds(['confirmed'])));
+        rejectBtn?.addEventListener('click', () => openRejectModal(actionIds(['REVIEW_REQUESTED'])));
         confirmRejectBtn?.addEventListener('click', () => void confirmReject());
         rejectReasonEl?.addEventListener('input', () => {
             if (String(rejectReasonEl.value || '').trim()) {
                 rejectReasonErrorEl?.classList.add('d-none');
             }
         });
-        confirmBtn?.addEventListener('click', () => void runAction('completeReview', actionIds(['confirmed'])));
-        cancelConfirmBtn?.addEventListener('click', () => void runAction('cancelCompleteReview', actionIds(['reviewed'])));
+        confirmBtn?.addEventListener('click', () => void runAction('completeReview', actionIds(['REVIEW_REQUESTED'])));
+        cancelConfirmBtn?.addEventListener('click', () => void runAction('cancelCompleteReview', actionIds(['REVIEWED'])));
         approveBtn?.addEventListener('click', () => {
-            const ids = actionIds(['reviewed']);
+            const ids = actionIds(['REVIEWED']);
             if (!ids.length) return;
             if (hasUnlinkedVoucher(ids) && !window.confirm('거래가 연결되지 않은 전표가 있습니다. 승인 후에도 거래 연결은 가능하지만 회계에는 영향이 없습니다. 계속 승인하시겠습니까?')) {
                 return;
@@ -681,49 +626,14 @@ import '/public/assets/js/components/trash-manager.js';
             if (!window.confirm('정말 취소하시겠습니까?')) return;
             void runAction('reverse', ids);
         });
+        basicInfoEl?.addEventListener('click', (event) => {
+            const button = event.target.closest('.voucher-review-open-reversal');
+            const voucherId = String(button?.dataset?.voucherId || '').trim();
+            if (voucherId !== '') {
+                void loadDetail(voucherId);
+            }
+        });
     }
-
-    document.addEventListener('trash:changed', (event) => {
-        if (event.detail?.type === 'journal') {
-            table?.clearSelectedIds?.();
-            table?.ajax.reload(null, false);
-            renderEmptyDetail();
-        }
-    });
-
-    document.addEventListener('trash:detail-render', (event) => {
-        const detail = event.detail || {};
-        if (detail.type !== 'journal') {
-            return;
-        }
-
-        const detailEl = detail.modal?.querySelector('#journal-trash-detail');
-        const row = detail.data || {};
-        if (!detailEl) {
-            return;
-        }
-
-        detailEl.innerHTML = `
-            <div class="voucher-review-trash-detail">
-                <dl class="row mb-0 small">
-                    <dt class="col-4">전표번호</dt>
-                    <dd class="col-8">${escapeHtml(row.voucher_no ?? '-')}</dd>
-                    <dt class="col-4">전표일자</dt>
-                    <dd class="col-8">${escapeHtml(row.voucher_date ?? '-')}</dd>
-                    <dt class="col-4">상태</dt>
-                    <dd class="col-8">${statusBadge(row.status ?? 'draft')}</dd>
-                    <dt class="col-4">전표금액</dt>
-                    <dd class="col-8">${escapeHtml(formatNumber(row.voucher_amount ?? row.debit_total ?? 0))}</dd>
-                    <dt class="col-4">전표적요</dt>
-                    <dd class="col-8">${escapeHtml(row.summary_text ?? '-')}</dd>
-                    <dt class="col-4">삭제일시</dt>
-                    <dd class="col-8">${escapeHtml(row.deleted_at ?? '-')}</dd>
-                    <dt class="col-4">삭제자</dt>
-                    <dd class="col-8">${escapeHtml(actorDisplay(row, 'deleted_by'))}</dd>
-                </dl>
-            </div>
-        `;
-    });
 
     initTable();
     initSearchForm();

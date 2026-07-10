@@ -11,7 +11,7 @@ $layoutOptions = [
     'wrapper' => 'single',
 ];
 $pageStyles = AssetHelper::css('/assets/css/pages/funds/bank-transactions/index.css')
-    . AssetHelper::css('/assets/css/pages/ledger/journal.css')
+    . AssetHelper::css('/assets/css/pages/ledger/voucher/index.css')
     . AssetHelper::css('/assets/css/pages/ledger/account.css');
 $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journal.js')
     . AssetHelper::module('/assets/js/pages/funds/bank-transactions/index.js');

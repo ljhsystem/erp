@@ -50,7 +50,7 @@ class CustomSubAccountService
     {
         try {
             $accountId = trim((string) ($data['account_id'] ?? ''));
-            $subCode = $this->normalizeSubCode($data['sub_code'] ?? $data['ref_type'] ?? $data['sub_name'] ?? '');
+            $subCode = $this->normalizeSubCode($data['sub_code'] ?? $data['ref_target'] ?? $data['sub_name'] ?? '');
             $codeRow = $this->resolveRefTarget($subCode);
             $subName = (string) ($codeRow['code_name'] ?? $subCode);
 
@@ -68,7 +68,7 @@ class CustomSubAccountService
             $ok = $this->model->create([
                 'id' => $id,
                 'account_id' => $accountId,
-                'ref_type' => $subCode,
+                'ref_target' => $subCode,
                 'sub_code' => $subCode,
                 'sub_name' => $subName,
                 'custom_group_code' => self::REF_TARGET_GROUP,
@@ -102,9 +102,9 @@ class CustomSubAccountService
                 return ['success' => false, 'message' => '보조계정을 찾을 수 없습니다.'];
             }
 
-            $subCode = $this->normalizeSubCode($data['sub_code'] ?? $data['ref_type'] ?? $data['sub_name'] ?? $current['sub_code'] ?? '');
+            $subCode = $this->normalizeSubCode($data['sub_code'] ?? $data['ref_target'] ?? $data['sub_name'] ?? $current['sub_code'] ?? '');
             if ($subCode === '') {
-                $subCode = $this->normalizeSubCode($current['ref_type'] ?? '');
+                $subCode = $this->normalizeSubCode($current['ref_target'] ?? '');
             }
             $codeRow = $this->resolveRefTarget($subCode);
 
@@ -113,7 +113,7 @@ class CustomSubAccountService
             }
 
             $ok = $this->model->update($id, [
-                'ref_type' => $subCode,
+                'ref_target' => $subCode,
                 'sub_code' => $subCode,
                 'sub_name' => (string) ($codeRow['code_name'] ?? $subCode),
                 'custom_group_code' => self::REF_TARGET_GROUP,
@@ -208,7 +208,7 @@ class CustomSubAccountService
                 $ok = $this->model->create([
                     'id' => UuidHelper::generate(),
                     'account_id' => $accountId,
-                    'ref_type' => $row['sub_code'],
+                    'ref_target' => $row['sub_code'],
                     'sub_code' => $row['sub_code'],
                     'sub_name' => $row['sub_name'],
                     'custom_group_code' => self::REF_TARGET_GROUP,
@@ -247,8 +247,8 @@ class CustomSubAccountService
 
     private function normalizeRowForUi(array $row): array
     {
-        $subCode = $this->normalizeSubCode($row['sub_code'] ?? $row['ref_type'] ?? '');
-        $row['ref_type'] = $row['ref_type'] ?? $subCode;
+        $subCode = $this->normalizeSubCode($row['sub_code'] ?? $row['ref_target'] ?? '');
+        $row['ref_target'] = $row['ref_target'] ?? $subCode;
         $row['sub_code'] = $subCode;
 
         if (empty($row['sub_name'])) {
@@ -268,7 +268,7 @@ class CustomSubAccountService
     private function resolveRefTarget(string $code): array
     {
         if ($code === '') {
-            throw new \InvalidArgumentException('보조계정명을 선택하세요.');
+            throw new \InvalidArgumentException('보조계정 대상을 선택하세요.');
         }
 
         $row = $this->codeModel->getByGroupAndCode(self::REF_TARGET_GROUP, $code);

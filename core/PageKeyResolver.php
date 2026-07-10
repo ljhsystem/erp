@@ -49,7 +49,6 @@ class PageKeyResolver
         'api.ledger.transaction.' => 'ledger.transactions',
         'api.ledger.voucher.' => 'ledger.vouchers',
         'api.funds.bank_transactions.' => 'ledger.funds.bank_transactions',
-        'api.funds.payment_info.' => 'ledger.funds.payment_info',
         'api.approval.request.' => 'approval.dashboard',
         'api.approval.step.' => 'approval.dashboard',
         'api.import.format.' => 'ledger.data.formats',

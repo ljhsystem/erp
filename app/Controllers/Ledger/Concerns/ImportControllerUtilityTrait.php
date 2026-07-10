@@ -2,6 +2,8 @@
 
 namespace App\Controllers\Ledger\Concerns;
 
+use App\Services\Ledger\EvidenceTypePolicyService;
+
 trait ImportControllerUtilityTrait
 {
     private static function clearOutputBuffers(): void
@@ -77,18 +79,9 @@ trait ImportControllerUtilityTrait
         return function_exists('mb_strtolower') ? mb_strtolower($companyName, 'UTF-8') : strtolower($companyName);
     }
 
-    private static function legacyDataTypeMap(): array
-    {
-        $constantName = static::class . '::LEGACY_DATA_TYPE_MAP';
-
-        return defined($constantName) ? (array) constant($constantName) : [];
-    }
-
     private static function normalizeDataType(string $type): string
     {
-        $type = strtoupper(trim($type));
-
-        return self::legacyDataTypeMap()[$type] ?? $type;
+        return EvidenceTypePolicyService::normalizeLegacyDataType($type);
     }
 
     private function requestPayload(): array
@@ -108,7 +101,7 @@ trait ImportControllerUtilityTrait
     private static function fieldLabel(string $field): string
     {
         return [
-            'bank_direction' => '은행 거래방향',
+            'bank_direction' => '은행 거래 방향',
             'business_unit' => '사업부문',
             'operation_type' => '입출금유형',
             'transaction_date' => '거래일자',
@@ -126,7 +119,7 @@ trait ImportControllerUtilityTrait
             'receipt_claim_type' => '영수/청구구분',
             'total_amount' => '합계금액',
             'supply_amount' => '공급가액',
-            'vat_amount' => '부가세',
+            'vat_amount' => '부가세액',
             'service_amount' => '봉사료',
             'raw_deposit_amount' => '입금액',
             'raw_withdraw_amount' => '출금액',
@@ -144,8 +137,8 @@ trait ImportControllerUtilityTrait
             'customer_company_name' => '공급받는자 상호',
             'customer_ceo_name' => '공급받는자 대표자명',
             'customer_address' => '공급받는자 주소',
-            'customer_email_1' => '공급받는자 이메일1',
-            'customer_email_2' => '공급받는자 이메일2',
+            'customer_email_1' => '공급받는자 이메일',
+            'customer_email_2' => '공급받는자 이메일',
             'broker_business_number' => '수탁자 사업자등록번호',
             'broker_company_name' => '수탁자 상호',
             'item_date' => '품목일자',

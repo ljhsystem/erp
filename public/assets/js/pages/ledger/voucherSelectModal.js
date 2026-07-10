@@ -13,6 +13,17 @@ let onConfirmCallback = null;
 let bootstrapped = false;
 let voucherDataTable = null;
 
+function formatVoucherWorkflowStatus(status) {
+    return {
+        DRAFT: '작성중',
+        REVIEW_REQUESTED: '검토요청',
+        REVIEWED: '검토완료',
+        POSTED: '전표승인',
+        CLOSED: '마감',
+        DELETED: '삭제',
+    }[String(status || '').trim().toUpperCase()] || status || '';
+}
+
 function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, (char) => ({
         '&': '&amp;',
@@ -25,15 +36,6 @@ function escapeHtml(value) {
 
 function formatNumber(value) {
     return Number(value || 0).toLocaleString('ko-KR');
-}
-
-function formatStatus(status) {
-    return {
-        draft: '작성중',
-        confirmed: '확정',
-        posted: '전기',
-        closed: '마감',
-    }[String(status || '').toLowerCase()] || status || '';
 }
 
 async function fetchJson(url, options = {}) {
@@ -78,7 +80,7 @@ function buildSearchUrl(filters = {}) {
 export async function loadVoucherList(filters = {}) {
     if (!tableBodyEl) return [];
 
-    tableBodyEl.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">조회 중입니다.</td></tr>';
+    tableBodyEl.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">조회 중입니다.</td></tr>';
 
     try {
         const json = await fetchJson(buildSearchUrl(filters));
@@ -86,7 +88,7 @@ export async function loadVoucherList(filters = {}) {
         renderVoucherTable();
         return vouchers;
     } catch (error) {
-        tableBodyEl.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">${escapeHtml(error.message)}</td></tr>`;
+        tableBodyEl.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">${escapeHtml(error.message)}</td></tr>`;
         return [];
     }
 }
@@ -100,22 +102,23 @@ export function renderVoucherTable() {
     }
 
     if (!vouchers.length) {
-        tableBodyEl.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">조회된 전표가 없습니다.</td></tr>';
+        tableBodyEl.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">조회된 전표가 없습니다.</td></tr>';
         return;
     }
 
     tableBodyEl.innerHTML = vouchers.map((voucher) => {
         const id = escapeHtml(voucher.id || '');
-        const disabled = String(voucher.status || '').toLowerCase() === 'posted';
+        const disabled = String(voucher.status || '').trim().toUpperCase() === 'POSTED';
         const selected = selectedVoucher && String(selectedVoucher.id || '') === String(voucher.id || '');
         return `
             <tr data-voucher-id="${id}" class="${selected ? 'is-selected' : ''}${disabled ? ' is-disabled' : ''}">
                 <td>${escapeHtml(voucher.voucher_no || voucher.id || '')}</td>
                 <td>${escapeHtml(voucher.voucher_date || '')}</td>
                 <td>${escapeHtml(voucher.client_name || '-')}</td>
-                <td>${escapeHtml(voucher.summary_text || '')}</td>
-                <td class="text-end">${formatNumber(voucher.amount)}</td>
-                <td>${escapeHtml(formatStatus(voucher.status))}</td>
+                <td>${escapeHtml(voucher.summary || '')}</td>
+                <td class="text-end">${formatNumber(voucher.debit_total)}</td>
+                <td class="text-end">${formatNumber(voucher.credit_total)}</td>
+                <td>${escapeHtml(formatVoucherWorkflowStatus(voucher.status))}</td>
             </tr>
         `;
     }).join('');
@@ -147,7 +150,7 @@ async function loadVoucherDetail(voucherId) {
         const json = await fetchJson(`/api/ledger/voucher/detail?id=${encodeURIComponent(voucherId)}`);
         const voucher = json.data || {};
         const lines = Array.isArray(voucher.lines) ? voucher.lines : [];
-        detailSummaryEl.textContent = `${voucher.voucher_no || voucherId} / ${voucher.voucher_date || ''} / ${formatStatus(voucher.status)}`;
+        detailSummaryEl.textContent = `${voucher.voucher_no || voucherId} / ${voucher.voucher_date || ''} / ${formatVoucherWorkflowStatus(voucher.status)}`;
 
         if (!lines.length) {
             linesEl.innerHTML = '<div class="text-muted small">전표 라인이 없습니다.</div>';
@@ -164,8 +167,8 @@ async function loadVoucherDetail(voucherId) {
                         <div class="voucher-select-line-sub">${escapeHtml(line.line_summary || '')}</div>
                     </div>
                     <div class="voucher-select-line-amount">
-                        <div>차 ${formatNumber(debit)}</div>
-                        <div>대 ${formatNumber(credit)}</div>
+                        <div>차변 ${formatNumber(debit)}</div>
+                        <div>대변 ${formatNumber(credit)}</div>
                     </div>
                 </div>
             `;
@@ -176,7 +179,7 @@ async function loadVoucherDetail(voucherId) {
 }
 
 export function selectVoucher(voucher) {
-    if (!voucher || String(voucher.status || '').toLowerCase() === 'posted') {
+    if (!voucher || String(voucher.status || '').trim().toUpperCase() === 'POSTED') {
         selectedVoucher = null;
         if (confirmBtn) confirmBtn.disabled = true;
         renderVoucherTable();
@@ -190,7 +193,7 @@ export function selectVoucher(voucher) {
 }
 
 export function confirmSelection() {
-    if (!selectedVoucher || String(selectedVoucher.status || '').toLowerCase() === 'posted') return;
+    if (!selectedVoucher || String(selectedVoucher.status || '').trim().toUpperCase() === 'POSTED') return;
 
     if (typeof onConfirmCallback === 'function') {
         onConfirmCallback(selectedVoucher);

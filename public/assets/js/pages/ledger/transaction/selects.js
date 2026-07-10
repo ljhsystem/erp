@@ -1,6 +1,17 @@
 export function registerSelects(ctx) {
     const { AdminPicker, openClientQuickCreate } = ctx;
 
+    function getDropdownParent() {
+        return window.jQuery(ctx.modalEl);
+    }
+
+    function mapSelect2Results(rows = [], mapper, emptyLabel = '선택(없음)') {
+        return [
+            { id: '', text: emptyLabel },
+            ...rows.map((row) => mapper(row)).filter((item) => item.id !== '' && item.text !== ''),
+        ];
+    }
+
     function setCodeSelectValue(selectId, value) {
         const select = document.getElementById(selectId);
         if (!select) return;
@@ -19,9 +30,10 @@ export function registerSelects(ctx) {
         AdminPicker.select2Ajax(ctx.clientSelectEl, {
             url: ctx.API.clientSearch,
             placeholder: '거래처 검색',
+            allowClear: true,
             includeCommonAdd: true,
             minimumInputLength: 0,
-            dropdownParent: window.jQuery(ctx.modalEl),
+            dropdownParent: getDropdownParent(),
             width: '100%',
             dataBuilder(params) {
                 return {
@@ -34,10 +46,10 @@ export function registerSelects(ctx) {
                 const rows = data?.results ?? data?.data ?? [];
 
                 return {
-                    results: rows.map((row) => ({
+                    results: mapSelect2Results(rows, (row) => ({
                         id: String(row.id ?? ''),
                         text: row.text || row.client_name || row.company_name || '',
-                    })).filter((row) => row.id !== ''),
+                    })),
                 };
             },
         });
@@ -110,8 +122,9 @@ export function registerSelects(ctx) {
         AdminPicker.select2Ajax(ctx.projectSelectEl, {
             url: ctx.API.projectSearch,
             placeholder: '프로젝트 검색',
+            allowClear: true,
             minimumInputLength: 0,
-            dropdownParent: window.jQuery(ctx.modalEl),
+            dropdownParent: getDropdownParent(),
             width: '100%',
             dataBuilder(params) {
                 return {
@@ -123,24 +136,15 @@ export function registerSelects(ctx) {
                 const rows = data?.results ?? data?.data ?? [];
 
                 return {
-                    results: rows.map((row) => ({
+                    results: mapSelect2Results(rows, (row) => ({
                         id: String(row.id ?? ''),
                         text: row.text || row.project_name || row.construction_name || '',
-                    })).filter((row) => row.id !== ''),
+                    })),
                 };
             },
         });
 
-        window.jQuery(ctx.projectSelectEl)
-            .off('select2:select.transactionProject')
-            .on('select2:select.transactionProject', (event) => {
-                const item = event.params?.data;
-                if (!item) return;
-
-                if (item.id === '__none__') {
-                    clearProjectSelect();
-                }
-            });
+        window.jQuery(ctx.projectSelectEl).off('select2:select.transactionProject');
     }
 
     function clearProjectSelect() {
@@ -148,7 +152,7 @@ export function registerSelects(ctx) {
 
         ctx.projectSelectEl.value = '';
         if (window.jQuery?.fn?.select2) {
-            window.jQuery(ctx.projectSelectEl).val(null).trigger('change');
+            window.jQuery(ctx.projectSelectEl).trigger('change.select2');
         }
     }
 
@@ -180,10 +184,9 @@ export function registerSelects(ctx) {
 
         AdminPicker.select2Ajax(select, {
             url: options.url,
-            placeholder: options.placeholder || '선택(없음)',
             allowClear: true,
             minimumInputLength: 0,
-            dropdownParent: window.jQuery(ctx.modalEl),
+            dropdownParent: getDropdownParent(),
             width: '100%',
             dataBuilder(params) {
                 return {
@@ -195,13 +198,10 @@ export function registerSelects(ctx) {
             processResults(data) {
                 const rows = data?.results ?? data?.data ?? [];
                 return {
-                    results: [
-                        { id: '', text: '선택(없음)' },
-                        ...rows.map((row) => ({
-                            id: String(row.id ?? ''),
-                            text: options.labelForRow ? options.labelForRow(row) : String(row.text || row.name || ''),
-                        })).filter((item) => item.id !== ''),
-                    ],
+                    results: mapSelect2Results(rows, (row) => ({
+                        id: String(row.id ?? ''),
+                        text: options.labelForRow ? options.labelForRow(row) : String(row.text || row.name || ''),
+                    })),
                 };
             },
         });
@@ -212,10 +212,10 @@ export function registerSelects(ctx) {
 
         AdminPicker.select2Ajax(ctx.teamSelectEl, {
             url: ctx.API.workTeamList,
-            placeholder: '팀선택',
+            placeholder: ctx.teamSelectEl.dataset.placeholder || '팀 검색',
             allowClear: true,
             minimumInputLength: 0,
-            dropdownParent: window.jQuery(ctx.modalEl),
+            dropdownParent: getDropdownParent(),
             width: '100%',
             dataBuilder(params) {
                 const keyword = String(params.term || '').trim();
@@ -230,10 +230,10 @@ export function registerSelects(ctx) {
             processResults(data) {
                 const rows = Array.isArray(data?.data) ? data.data : [];
                 return {
-                    results: rows.map((row) => ({
+                    results: mapSelect2Results(rows, (row) => ({
                         id: String(row.id ?? ''),
                         text: String(row.team_name || row.text || '').trim(),
-                    })).filter((row) => row.id !== '' && row.text !== ''),
+                    })),
                 };
             },
         });
@@ -242,7 +242,7 @@ export function registerSelects(ctx) {
     function initBankAccountSelect() {
         initReferenceAjaxSelect(ctx.bankAccountSelectEl, {
             url: ctx.API.bankAccountSearch,
-            placeholder: '계좌선택',
+            placeholder: ctx.bankAccountSelectEl?.dataset?.placeholder || '계좌 검색',
             labelForRow: (row) => row.account_name || row.bank_account_name || row.name || '',
         });
     }
@@ -250,7 +250,7 @@ export function registerSelects(ctx) {
     function initCardSelect() {
         initReferenceAjaxSelect(ctx.cardSelectEl, {
             url: ctx.API.cardSearch,
-            placeholder: '카드선택',
+            placeholder: ctx.cardSelectEl?.dataset?.placeholder || '카드 검색',
             labelForRow: (row) => row.text || row.card_name || row.card_number || row.card_company_name || '',
         });
     }
@@ -258,7 +258,7 @@ export function registerSelects(ctx) {
     function initEmployeeSelect() {
         initReferenceAjaxSelect(ctx.employeeSelectEl, {
             url: ctx.API.employeeSearch,
-            placeholder: '직원선택',
+            placeholder: ctx.employeeSelectEl?.dataset?.placeholder || '직원 검색',
             labelForRow: (row) => row.text || row.employee_name || row.name || '',
         });
     }

@@ -144,13 +144,13 @@ class SubChartAccountService
         $sql = "
             UPDATE ledger_accounts a
             SET allow_sub_account = EXISTS (
-                SELECT 1 FROM ledger_sub_accounts sa
+                SELECT 1 FROM ledger_accounts_sub sa
                 WHERE sa.account_id = a.id
             )
             WHERE id = :id
             AND NOT EXISTS (
                 SELECT 1
-                FROM ledger_sub_accounts sa
+                FROM ledger_accounts_sub sa
                 WHERE sa.account_id = a.id
             )
         ";
@@ -166,7 +166,7 @@ class SubChartAccountService
     {
         $sql = "
             SELECT account_id
-            FROM ledger_sub_accounts
+            FROM ledger_accounts_sub
             WHERE id = :id
             LIMIT 1
         ";

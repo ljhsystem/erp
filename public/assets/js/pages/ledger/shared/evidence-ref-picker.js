@@ -214,7 +214,7 @@ function applyHydratedOption(select, value, label) {
 
 async function hydrateInitialRefOption(select, config, url) {
     const value = String(select?.value || '').trim();
-    if (!select || value === '' || value === '__none__' || value === '__add__') {
+    if (!select || value === '' || value === '__add__') {
         return;
     }
 
@@ -383,7 +383,6 @@ export function initEvidenceRefSelect(select, {
 
             return {
                 results: [
-                    { id: '', text: '선택(없음)' },
                     ...rows.map((row) => {
                         const text = typeof config.listText === 'function'
                             ? config.listText(row)

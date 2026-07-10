@@ -1,23 +1,28 @@
-export function loadExcelSettings(storageKey, fallbackState) {
+import {
+    ensureSystemUserSettingsStorage,
+    readSystemUserSettingsStorage,
+    writeSystemUserSettingsStorage,
+} from '../../common/user-settings/systemUserSettingsStorage.js';
+
+export function loadExcelSettings(storageKey, fallbackState, options = {}) {
     try {
-        const raw = window.localStorage.getItem(storageKey);
-        if (!raw) {
-            return fallbackState;
+        const savedFromDb = readSystemUserSettingsStorage(storageKey, options);
+        if (savedFromDb && typeof savedFromDb === 'object') {
+            return savedFromDb;
         }
 
-        const parsed = JSON.parse(raw);
-        return parsed && typeof parsed === 'object' ? parsed : fallbackState;
+        return ensureSystemUserSettingsStorage(storageKey, fallbackState, options) || fallbackState;
     } catch {
         return fallbackState;
     }
 }
 
-export function saveExcelSettings(storageKey, state) {
+export function saveExcelSettings(storageKey, state, options = {}) {
     const payload = {
         ...state,
         updatedAt: new Date().toISOString(),
     };
 
-    window.localStorage.setItem(storageKey, JSON.stringify(payload));
+    writeSystemUserSettingsStorage(storageKey, payload, options);
     return payload;
 }

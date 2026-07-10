@@ -10,9 +10,9 @@ export function initExcelDataset(api) {
 
     createExcelManagerSettingsCore({
         domain: 'project',
+        userSettingPageKey: 'project',
         formSelector: '#project-excel-upload-form',
-        tableSettingsStorageKey: 'datatable.settings.dashboard.settings.base-info.project.project-table.v1',
-        tableSettingsMetaDomain: 'project',
+        metaDomain: 'project',
     });
 }
 

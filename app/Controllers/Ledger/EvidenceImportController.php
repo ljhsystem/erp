@@ -35,61 +35,18 @@ class EvidenceImportController
     use ImportControllerBusinessInfoTrait;
     use ImportControllerUploadTrait;
 
-    private const EVIDENCE_UPLOAD_TYPES = [
-        'TAX_INVOICE',
-        'TAX_INVOICE_MANUAL',
-        'CASH_RECEIPT',
-        'CARD',
-        'CARD_HOMETAX',
-        'CARD_STATEMENT',
-        'CARD_APPROVAL',
-        'BANK_TRANSACTION',
-    ];
-
-    private const BUSINESS_DATA_TYPES = [
-        'BUSINESS_DATA',
-        'SHOPPING_ORDER',
-        'PAYROLL',
-        'PAYROLL_WITHHOLDING',
-        'BUSINESS_INCOME',
-        'EMPLOYEE_EXPENSE',
-        'IMPORT_INVOICE',
-        'CONSTRUCTION',
-    ];
-
-    private const DATA_TYPES = self::EVIDENCE_UPLOAD_TYPES;
     private const BANK_VOUCHER_LINE_FIELDS = [
         'header_row_no',
-        'line_no',
+        'sort_no',
         'line_row_type',
         'account_id',
         'debit',
         'credit',
         'line_summary',
-        'line_ref_type',
+        'line_ref_target',
         'line_ref_id',
     ];
     private const UPLOAD_PREVIEW_ROW_LIMIT = 200;
-    private const LEGACY_DATA_TYPE_MAP = [
-        'DATA' => 'TAX_INVOICE',
-        'TAX' => 'TAX_INVOICE',
-        'MANUAL_TAX_INVOICE' => 'TAX_INVOICE_MANUAL',
-        'TAX_INVOICE_PURCHASE_SALES_MANUAL' => 'TAX_INVOICE_MANUAL',
-        'TAX_INVOICE_BUY_SELL_MANUAL' => 'TAX_INVOICE_MANUAL',
-        'CARD' => 'CARD_STATEMENT',
-        'CARD_PURCHASE' => 'CARD_STATEMENT',
-        'CARD_SALE' => 'CARD_STATEMENT',
-        'CASH_RECEIPT_PURCHASE' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_PURCHAS' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_BUY' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SALES' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SALE' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SELL' => 'CASH_RECEIPT',
-        'BANK' => 'BANK_TRANSACTION',
-        'SHOPPING' => 'SHOPPING_ORDER',
-        'TRADE_IMPORT' => 'IMPORT_INVOICE',
-        'IMPORT' => 'IMPORT_INVOICE',
-    ];
 
     private PDO $pdo;
     private ?EvidenceTemplateService $evidenceTemplateService = null;
@@ -291,12 +248,13 @@ class EvidenceImportController
                     'enrichUploadRows' => fn(array $rows, string $dataType): array => $this->evidenceUploadValidationService()->enrichUploadRows($rows, $dataType),
                     'isManualTaxInvoiceDataType' => fn(string $dataType): bool => $this->evidenceTypePolicyService()->isManualTaxInvoiceDataType($dataType),
                     'normalizeBusinessNumber' => fn(string $value): string => self::normalizeBusinessNumber($value),
-                    'number' => fn(mixed $value): float => $this->number($value),
-                    'parseUploadedRows' => fn(array $file, array $columns): array => $this->evidenceUploadParserService()->parseUploadedRows($file, $columns),
-                    'tableColumnExists' => fn(string $tableName, string $columnName): bool => $this->tableColumnExists($tableName, $columnName),
-                    'validatePreviewRows' => fn(array $rows, array $columns, string $dataType): array => $this->evidenceUploadValidationService()->validatePreviewRows($rows, $columns, $dataType),
-                ]
-            );
+                     'number' => fn(mixed $value): float => $this->number($value),
+                     'parseUploadedRows' => fn(array $file, array $columns): array => $this->evidenceUploadParserService()->parseUploadedRows($file, $columns),
+                     'tableColumnExists' => fn(string $tableName, string $columnName): bool => $this->tableColumnExists($tableName, $columnName),
+                     'tableExists' => fn(string $tableName): bool => $this->tableExists($tableName),
+                     'validatePreviewRows' => fn(array $rows, array $columns, string $dataType): array => $this->evidenceUploadValidationService()->validatePreviewRows($rows, $columns, $dataType),
+                 ]
+             );
         }
 
         return $this->evidenceUploadService;
@@ -376,7 +334,6 @@ class EvidenceImportController
         if ($this->evidenceTypePolicyService === null) {
             $this->evidenceTypePolicyService = new EvidenceTypePolicyService(
                 fn(string $type): string => self::normalizeDataType($type),
-                self::LEGACY_DATA_TYPE_MAP,
                 $this->pdo,
                 [
                     'amountOrNull' => fn(mixed $value): ?float => $this->amountOrNull($value),
@@ -474,7 +431,7 @@ class EvidenceImportController
 
         $filtered = [];
         foreach ($requested as $index => $requestedKey) {
-            $column = $columnMap[$requestedKey] ?? $this->syntheticColumnForRequestedKey($dataType, $requestedKey);
+            $column = $columnMap[$requestedKey] ?? null;
             if ($column === null) {
                 continue;
             }
@@ -595,9 +552,6 @@ class EvidenceImportController
     {
         $options = [];
         $fieldOptions = $this->systemFieldService()->sourceColumnOptions($dataType);
-        if ($fieldOptions === []) {
-            $fieldOptions = $this->systemFieldService()->fieldOptions($dataType);
-        }
 
         foreach ($fieldOptions as $fieldOption) {
             $field = trim((string) ($fieldOption['value'] ?? ''));
@@ -702,13 +656,13 @@ class EvidenceImportController
             'note',
             'voucher_memo',
             'header_row_no',
-            'line_no',
+            'sort_no',
             'line_row_type',
             'account_id',
             'debit',
             'credit',
             'line_summary',
-            'line_ref_type',
+            'line_ref_target',
             'line_ref_id',
         ], true);
     }
@@ -753,7 +707,6 @@ class EvidenceImportController
                 'amountOrNull' => fn(mixed $value): ?float => $this->amountOrNull($value),
                 'bankBalanceStatus' => fn(mixed $value): string => $this->evidenceStatusHelperService()->bankBalanceStatus($value),
                 'bankVoucherLinesForSave' => fn(array $lines): array => $this->voucherCreateService()->bankVoucherLinesForSave($lines),
-                'bankVoucherPaymentsForSave' => fn(array $payload): array => $this->voucherCreateService()->bankVoucherPaymentsForSave($payload),
                 'businessRefIdForStorage' => fn(string $refType, array $payload): ?string => $this->evidenceBusinessRefService()->businessRefIdForStorage($refType, $payload),
                 'businessRefNameById' => fn(string $refType, string $id): ?string => $this->evidenceReferenceResolverService()->businessRefNameById($refType, $id),
                 'cleanCompanyName' => fn(string $value): string => $this->cleanCompanyName($value),

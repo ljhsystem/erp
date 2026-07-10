@@ -143,6 +143,58 @@ export function registerModal(ctx) {
         return json;
     }
 
+    function escapeEvidenceText(value = '') {
+        const el = document.createElement('span');
+        el.textContent = String(value ?? '');
+        return el.innerHTML;
+    }
+
+    function setLinkedEvidence(row = null) {
+        ctx.selectedEvidence = row && row.id ? row : null;
+        if (ctx.evidenceIdEl) {
+            ctx.evidenceIdEl.value = ctx.selectedEvidence?.id || '';
+        }
+        if (ctx.evidenceSummaryEl) {
+            const evidence = ctx.selectedEvidence;
+            ctx.evidenceSummaryEl.textContent = evidence
+                ? [evidence.source_type, evidence.source_key, evidence.evidence_date, evidence.client_name]
+                    .filter(Boolean).join(' · ')
+                : '연결된 증빙이 없습니다.';
+        }
+        if (ctx.clearEvidenceBtn) {
+            ctx.clearEvidenceBtn.disabled = !ctx.selectedEvidence;
+        }
+    }
+
+    function renderEvidenceSearchRows(rows = []) {
+        if (!ctx.evidenceSearchBodyEl) return;
+        if (!rows.length) {
+            ctx.evidenceSearchBodyEl.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">연결 가능한 자료증빙이 없습니다.</td></tr>';
+            return;
+        }
+        ctx.evidenceSearchBodyEl.innerHTML = rows.map((row, index) => `
+            <tr data-evidence-index="${index}">
+                <td>${escapeEvidenceText(row.evidence_date || '')}</td>
+                <td>${escapeEvidenceText(row.source_type || '')}</td>
+                <td>${escapeEvidenceText(row.client_name || '-')}</td>
+                <td class="text-end">${escapeEvidenceText(ctx.formatNumber(row.total_amount || 0))}</td>
+                <td>${escapeEvidenceText(row.description || row.source_key || '-')}</td>
+                <td class="text-center"><button type="button" class="btn btn-outline-primary btn-sm btn-pick-transaction-evidence">선택</button></td>
+            </tr>
+        `).join('');
+    }
+
+    async function loadEvidenceSearch() {
+        if (!ctx.evidenceSearchBodyEl) return;
+        ctx.evidenceSearchBodyEl.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">증빙을 불러오는 중입니다.</td></tr>';
+        const query = new URLSearchParams();
+        const keyword = String(ctx.evidenceSearchKeywordEl?.value || '').trim();
+        if (keyword) query.set('q', keyword);
+        const json = await ctx.fetchJson(`${ctx.API.evidenceSearch}?${query.toString()}`);
+        ctx.evidenceSearchRows = Array.isArray(json.data) ? json.data : [];
+        renderEvidenceSearchRows(ctx.evidenceSearchRows);
+    }
+
     async function createVoucherForCurrentTransaction() {
         const id = document.getElementById('transaction_id')?.value || '';
         if (!id) {
@@ -201,12 +253,13 @@ export function registerModal(ctx) {
         ctx.setCardValue('', '');
         ctx.setTeamValue('', '');
         ctx.setEmployeeValue('', '');
+        setLinkedEvidence(null);
         if (ctx.exchangeRateEl) ctx.exchangeRateEl.value = '';
         ctx.setHeaderAmountValues({});
         document.getElementById('transaction_status').value = 'draft';
         document.getElementById('transaction_match_status').value = 'none';
         ctx.updateTransactionStatusBadge('draft');
-        ctx.setSystemInfoFields({});
+        void ctx.setSystemInfoFields({});
         document.getElementById('transactionModalLabel').textContent = '거래 신규 등록';
         if (ctx.fileToggle) ctx.fileToggle.checked = false;
         if (ctx.importToggle) ctx.importToggle.checked = false;
@@ -251,6 +304,58 @@ export function registerModal(ctx) {
         });
     }
 
+    function bindDetailCardCollapses() {
+        if (!ctx.modalEl || !window.bootstrap?.Collapse) {
+            return;
+        }
+
+        ctx.modalEl.querySelectorAll('.transaction-card-toggle[data-bs-target]').forEach((button) => {
+            if (button.dataset.collapseBound === '1') {
+                return;
+            }
+
+            const targetSelector = String(button.getAttribute('data-bs-target') || '').trim();
+            if (targetSelector === '' || !targetSelector.startsWith('#')) {
+                return;
+            }
+
+            const targetEl = ctx.modalEl.querySelector(targetSelector);
+            if (!targetEl) {
+                return;
+            }
+
+            const collapse = bootstrap.Collapse.getOrCreateInstance(targetEl, { toggle: false });
+
+            const syncState = () => {
+                const expanded = targetEl.classList.contains('show');
+                button.classList.toggle('collapsed', !expanded);
+                button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+                window.requestAnimationFrame(() => {
+                    ctx.modal?.handleUpdate?.();
+                });
+            };
+
+            button.removeAttribute('data-bs-toggle');
+
+            button.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+
+                if (targetEl.classList.contains('show')) {
+                    collapse.hide();
+                    return;
+                }
+
+                collapse.show();
+            });
+
+            targetEl.addEventListener('shown.bs.collapse', syncState);
+            targetEl.addEventListener('hidden.bs.collapse', syncState);
+            syncState();
+            button.dataset.collapseBound = '1';
+        });
+    }
+
     function setTransactionModalLoading(isLoading = false) {
         const loading = Boolean(isLoading);
         ctx.modalEl?.classList.toggle('is-loading-detail', loading);
@@ -261,6 +366,7 @@ export function registerModal(ctx) {
         showTransactionModalShell('거래 신규 등록');
         try {
             await ctx.initModalControls();
+            bindDetailCardCollapses();
             await waitForTransactionModalShown();
             resetModal();
             ctx.markTransactionModalClean();
@@ -284,6 +390,7 @@ export function registerModal(ctx) {
                 ctx.fetchJson(`${ctx.API.detail}?id=${encodeURIComponent(id)}`),
                 ctx.initModalControls(),
             ]);
+            bindDetailCardCollapses();
             await waitForTransactionModalShown();
         } catch (error) {
             ctx.notify('error', error.message || '거래 상세 정보를 불러오는 중 오류가 발생했습니다.');
@@ -310,12 +417,19 @@ export function registerModal(ctx) {
         ctx.setCardValue(data.card_id || '', data.card_name || '');
         ctx.setTeamValue(data.team_id || '', data.team_name || '');
         ctx.setEmployeeValue(data.employee_id || '', data.employee_name || data.user_name || '');
+        setLinkedEvidence(data.evidence_id ? {
+            id: data.evidence_id,
+            source_type: data.import_type || data.source_type || '',
+            source_key: data.evidence_source_key || '',
+            evidence_date: data.evidence_date || '',
+            client_name: data.client_name || '',
+        } : null);
         document.getElementById('transaction_description').value = data.description || '';
         const transactionStatus = ctx.normalizeTransactionStatus(data.status);
         document.getElementById('transaction_status').value = transactionStatus;
         ctx.updateTransactionStatusBadge(transactionStatus);
         document.getElementById('transaction_match_status').value = data.match_status || 'none';
-        ctx.setSystemInfoFields({
+        await ctx.setSystemInfoFields({
             ...data,
             status: transactionStatus,
         });
@@ -340,7 +454,7 @@ export function registerModal(ctx) {
         ctx.renderFiles(ctx.currentFiles);
         ctx.renderVoucherState(data);
         syncConditionalPanels();
-        ctx.setTransactionModalEditable(!['approved', 'deleted'].includes(transactionStatus));
+        ctx.setTransactionModalEditable(!data.deleted_at && !['closed', 'cancelled'].includes(transactionStatus));
         ctx.markTransactionModalClean();
         setTransactionModalLoading(false);
         ctx.focusInitialLineGridCell();
@@ -393,6 +507,33 @@ export function registerModal(ctx) {
         ctx.reloadTable();
     }
 
+    if (ctx.selectEvidenceBtn && !ctx.selectEvidenceBtn.dataset.evidenceBound) {
+        ctx.selectEvidenceBtn.dataset.evidenceBound = '1';
+        ctx.selectEvidenceBtn.addEventListener('click', () => {
+            if (!ctx.evidenceSearchModalEl || !window.bootstrap) return;
+            if (ctx.evidenceSearchKeywordEl) ctx.evidenceSearchKeywordEl.value = '';
+            bootstrap.Modal.getOrCreateInstance(ctx.evidenceSearchModalEl).show();
+            void loadEvidenceSearch();
+        });
+        ctx.clearEvidenceBtn?.addEventListener('click', () => setLinkedEvidence(null));
+        ctx.searchEvidenceBtn?.addEventListener('click', () => void loadEvidenceSearch());
+        ctx.evidenceSearchKeywordEl?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                void loadEvidenceSearch();
+            }
+        });
+        ctx.evidenceSearchBodyEl?.addEventListener('click', (event) => {
+            const button = event.target.closest('.btn-pick-transaction-evidence');
+            if (!button) return;
+            const index = Number(button.closest('tr')?.dataset.evidenceIndex ?? -1);
+            const row = ctx.evidenceSearchRows[index];
+            if (!row) return;
+            setLinkedEvidence(row);
+            bootstrap.Modal.getInstance(ctx.evidenceSearchModalEl)?.hide();
+        });
+    }
+
     Object.assign(ctx, {
         initTransactionDatePicker,
         openTransactionDatePicker,
@@ -410,6 +551,7 @@ export function registerModal(ctx) {
         resetModal,
         showTransactionModalShell,
         waitForTransactionModalShown,
+        bindDetailCardCollapses,
         setTransactionModalLoading,
         postTransactionAction,
         createVoucherForCurrentTransaction,
@@ -419,6 +561,8 @@ export function registerModal(ctx) {
         openDetail,
         saveTransaction,
         deleteTransaction,
+        setLinkedEvidence,
+        loadEvidenceSearch,
     });
     return ctx;
 }

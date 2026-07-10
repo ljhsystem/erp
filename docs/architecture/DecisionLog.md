@@ -1,8 +1,31 @@
 # Decision Log
 
+- 2026-07-06: `EvidenceGenerationService` read refactor must shrink by moving processing SQL policy out
+  - Why: the body-table read conversion had started to add `ledger_evidence_processing` existence checks, JOIN SQL fragments, and processing status select rules directly into `EvidenceGenerationService`, which pushes the service toward a God Service and violates the evidence refactor direction of keeping generation focused on runtime read orchestration only.
+  - Decision: read-time processing-table policy is extracted to `EvidenceProcessingPolicyService`. `EvidenceGenerationService` may orchestrate reads and row expansion, but processing SQL policy must be obtained from the dedicated policy service instead of growing new policy methods inline.
+  - Impact: follow-up read conversion must continue shrinking `EvidenceGenerationService` by moving non-read-policy concerns outward rather than adding more type/page/field/UI/upload logic into the service.
+- 2026-07-06: `EvidenceGenerationService` body-table query blocks move to `EvidenceBodyReadService`
+  - Why: even after policy extraction, runtime body-table row query and count SQL still kept `EvidenceGenerationService` above the 1,500-line service limit and mixed orchestration with low-level body-table read details.
+  - Decision: body-table row reads, count queries, and evidence-type count helpers move to `EvidenceBodyReadService`. `EvidenceGenerationService` remains the read orchestrator and delegates DB-physical-column-based body queries outward.
+  - Impact: the read pipeline keeps the same controller entrypoints while reducing `EvidenceGenerationService` size under the AGENTS rule and making later read-runtime conversion steps safer.
+- 2026-07-06: `EvidenceBodyReadService` must not own SQL directly
+  - Why: AGENTS already defines `Controller -> Service -> Model` as the project standard, minimizes direct SQL in services, and assigns DB access responsibility to Model. Service-local logging remains acceptable, but query text inside the service violates the project read/write boundary.
+  - Decision: `EvidenceBodyReadService` becomes flow-only orchestration and delegates concrete body-table SQL to domain-specific read models such as `BankEvidenceReadModel`, `TaxInvoiceReadModel`, `CashReceiptEvidenceReadModel`, `CardStatementEvidenceReadModel`, `BusinessDataEvidenceReadModel`, `PayrollEvidenceReadModel`, and `ConstructionEvidenceReadModel`.
+  - Impact: runtime read behavior stays in the same service pipeline, while SQL ownership moves to the model layer without introducing a repository-only exception structure for the evidence domain.
+
 - 2026-06-05: Employee sequence SSOT fixed to `user_employees.sort_no`
   - Why: `auth_users.sort_no` is already used as account code in approval mail/token and account lookup flows, while employee list ordering, reorder, and external `employee_code` flows use `user_employees.sort_no`.
   - Impact: employee UI/docs must not interpret `auth_users.sort_no` as employee sequence; `user_sort_no` remains optional account-code metadata only.
+
+- 2026-07-06: Ledger evidence field meta SSOT phase 1 fixed to `SystemFieldService + DB physical columns`
+  - Why: `EvidenceTypePolicyService` had started to absorb `meta_domain`, `excel_manager_domain`, `source_key_aliases`, `split_key_aliases`, `modal_preset`, `date_options`, and field-label/display concerns, which are page/field metadata responsibilities rather than import/source type normalization policy. Keeping those concerns in the type-policy service would create another God Service and make evidence pages diverge from the shared DataTable/Excel/UserSetting structure already used by client/account/journal-rule screens.
+  - Decision: `EvidenceTypePolicyService` remains the SSOT only for import/source type normalization, legacy alias normalization, upload allow lists, and simple business-data classification. Field/meta-domain, modal preset, upload/download field policy, and display label concerns must converge to `SystemFieldService` plus DB physical-column metadata, while ready/planned page rollout stays in page policy and processing-plan logic becomes a separate processing policy concern.
+  - Impact: next read-conversion work must consume `SystemFieldService` metadata first, treat `mapped_payload_json` field lists as transitional only, and avoid adding any new field/UI metadata keys to `EvidenceTypePolicyService`.
+
+- 2026-07-06: Ledger evidence field-meta runtime default path switched to DB physical columns
+  - Why: `SystemFieldService::fieldOptions()` still merged `referenceFieldOptions()` and `mappedPayloadFieldOptions()`, so runtime field-meta generation was not actually using body-table columns as the default path even after the SSOT decision was documented.
+  - Decision: runtime default generation now starts from `targetTableForDataType() -> information_schema.COLUMNS` and reuses that physical-column set for `sourceColumnOptions()`. Controller-side requested-column filtering no longer synthesizes missing field definitions on the fly. Legacy payload-field helpers remain in code as classified compatibility paths but are excluded from the default runtime flow.
+  - Impact: evidence import/upload/table/excel field lists now derive from DB physical columns first. Remaining `mapped_payload_json` field metadata is a follow-up cleanup target for the read-conversion stage, not the active default generator.
 
 - 2026-06-04: `BundledVoucherService` split phase 1
   - Scope: `createBundledVoucherFromEvidenceRows`, `tagBundledVoucher`

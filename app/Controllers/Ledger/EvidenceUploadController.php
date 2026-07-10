@@ -37,61 +37,18 @@ class EvidenceUploadController
     use ImportControllerBusinessInfoTrait;
     use ImportControllerUploadTrait;
 
-    private const EVIDENCE_UPLOAD_TYPES = [
-        'TAX_INVOICE',
-        'TAX_INVOICE_MANUAL',
-        'CASH_RECEIPT',
-        'CARD',
-        'CARD_HOMETAX',
-        'CARD_STATEMENT',
-        'CARD_APPROVAL',
-        'BANK_TRANSACTION',
-    ];
-
-    private const BUSINESS_DATA_TYPES = [
-        'BUSINESS_DATA',
-        'SHOPPING_ORDER',
-        'PAYROLL',
-        'PAYROLL_WITHHOLDING',
-        'BUSINESS_INCOME',
-        'EMPLOYEE_EXPENSE',
-        'IMPORT_INVOICE',
-        'CONSTRUCTION',
-    ];
-
-    private const DATA_TYPES = self::EVIDENCE_UPLOAD_TYPES;
     private const BANK_VOUCHER_LINE_FIELDS = [
         'header_row_no',
-        'line_no',
+        'sort_no',
         'line_row_type',
         'account_id',
         'debit',
         'credit',
         'line_summary',
-        'line_ref_type',
+        'line_ref_target',
         'line_ref_id',
     ];
     private const UPLOAD_STORE_CHUNK_SIZE = 500;
-    private const LEGACY_DATA_TYPE_MAP = [
-        'DATA' => 'TAX_INVOICE',
-        'TAX' => 'TAX_INVOICE',
-        'MANUAL_TAX_INVOICE' => 'TAX_INVOICE_MANUAL',
-        'TAX_INVOICE_PURCHASE_SALES_MANUAL' => 'TAX_INVOICE_MANUAL',
-        'TAX_INVOICE_BUY_SELL_MANUAL' => 'TAX_INVOICE_MANUAL',
-        'CARD' => 'CARD_STATEMENT',
-        'CARD_PURCHASE' => 'CARD_STATEMENT',
-        'CARD_SALE' => 'CARD_STATEMENT',
-        'CASH_RECEIPT_PURCHASE' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_PURCHAS' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_BUY' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SALES' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SALE' => 'CASH_RECEIPT',
-        'CASH_RECEIPT_SELL' => 'CASH_RECEIPT',
-        'BANK' => 'BANK_TRANSACTION',
-        'SHOPPING' => 'SHOPPING_ORDER',
-        'TRADE_IMPORT' => 'IMPORT_INVOICE',
-        'IMPORT' => 'IMPORT_INVOICE',
-    ];
 
     private PDO $pdo;
     private ?EvidenceUploadService $evidenceUploadService = null;
@@ -164,17 +121,10 @@ class EvidenceUploadController
                 $this->json(['success' => false, 'message' => '업로드 양식 설정을 불러오지 못했습니다.'], 400);
                 return;
             }
-            if (!$format) {
-                $this->json(['success' => false, 'message' => '업로드 양식 설정을 불러오지 못했습니다.'], 400);
-                return;
-            }
 
             try {
                 if (!$this->isAllowedDataType($dataType)) {
                     throw new \RuntimeException('지원하지 않는 자료유형입니다.');
-                }
-                if (!$this->isAllowedDataType($dataType)) {
-                    throw new \RuntimeException('업로드 양식 설정을 불러오지 못했습니다.');
                 }
                 $prepared = $this->evidenceUploadService()->prepareSeedUploadFilePath(
                     $format,
@@ -198,13 +148,11 @@ class EvidenceUploadController
                     $this->evidenceUploadService()->buildStoredRowsTraceContext($cancelToken, count($rows), $stageStartedAt, $startedAt)
                 );
                 $this->evidenceUploadService()->clearUploadCancelToken($cancelToken);
-                $this->json(['success' => true, 'data' => $result, 'checks' => $checks, 'message' => '엑셀 업로드가 완료되었습니다.']);
+                $this->respondUploadBatchResult($result, ['checks' => $checks]);
                 return;
-                $this->evidenceUploadService()->clearUploadCancelToken($cancelToken);
-                $this->json(['success' => true, 'data' => $result, 'checks' => $checks, 'message' => '엑셀 업로드가 완료되었습니다.']);
             } catch (\Throwable $e) {
                 $this->evidenceUploadService()->uploadTrace('failed', $this->evidenceUploadService()->buildFailedUploadTraceContext($cancelToken, $startedAt, $e));
-                $this->json(['success' => false, 'message' => $e->getMessage()], 400);
+                $this->json(['success' => false, 'message' => '엑셀 업로드 중 오류가 발생했습니다.'], 400);
             }
             return;
         }
@@ -254,7 +202,7 @@ class EvidenceUploadController
                     $this->evidenceUploadService()->clearPreviewSession($token);
                     $this->evidenceUploadService()->clearUploadCancelToken($cancelToken);
                 }
-                $this->json(['success' => true, 'data' => $result, 'message' => $done ? '엑셀 업로드가 완료되었습니다.' : '업로드 청크가 저장되었습니다.']);
+                $this->respondUploadBatchResult($result, [], $done ? '엑셀 업로드가 완료되었습니다.' : '업로드 청크가 저장되었습니다.');
                 return;
             }
 
@@ -266,14 +214,11 @@ class EvidenceUploadController
             );
             $this->evidenceUploadService()->clearPreviewSession($token);
             $this->evidenceUploadService()->clearUploadCancelToken($cancelToken);
-            $this->json(['success' => true, 'data' => $result, 'message' => '엑셀 업로드가 완료되었습니다.']);
+            $this->respondUploadBatchResult($result);
             return;
-            $this->evidenceUploadService()->clearPreviewSession($token);
-            $this->evidenceUploadService()->clearUploadCancelToken($cancelToken);
-            $this->json(['success' => true, 'data' => $result, 'message' => '엑셀 업로드가 완료되었습니다.']);
         } catch (\Throwable $e) {
             $this->evidenceUploadService()->uploadTrace('failed_preview', $this->evidenceUploadService()->buildFailedPreviewTraceContext($cancelToken, $startedAt, $e));
-            $this->json(['success' => false, 'message' => $e->getMessage()], 400);
+            $this->json(['success' => false, 'message' => '엑셀 업로드 중 오류가 발생했습니다.'], 400);
         }
     }
 
@@ -331,12 +276,13 @@ class EvidenceUploadController
                     'enrichUploadRows' => fn(array $rows, string $dataType): array => $this->evidenceUploadValidationService()->enrichUploadRows($rows, $dataType),
                     'isManualTaxInvoiceDataType' => fn(string $dataType): bool => $this->evidenceTypePolicyService()->isManualTaxInvoiceDataType($dataType),
                     'normalizeBusinessNumber' => fn(string $value): string => self::normalizeBusinessNumber($value),
-                    'number' => fn(mixed $value): float => $this->number($value),
-                    'parseUploadedRows' => fn(array $file, array $columns): array => $this->evidenceUploadParserService()->parseUploadedRows($file, $columns),
-                    'tableColumnExists' => fn(string $tableName, string $columnName): bool => $this->tableColumnExists($tableName, $columnName),
-                    'validatePreviewRows' => fn(array $rows, array $columns, string $dataType): array => $this->evidenceUploadValidationService()->validatePreviewRows($rows, $columns, $dataType),
-                ]
-            );
+                     'number' => fn(mixed $value): float => $this->number($value),
+                     'parseUploadedRows' => fn(array $file, array $columns): array => $this->evidenceUploadParserService()->parseUploadedRows($file, $columns),
+                     'tableColumnExists' => fn(string $tableName, string $columnName): bool => $this->tableColumnExists($tableName, $columnName),
+                     'tableExists' => fn(string $tableName): bool => $this->tableExists($tableName),
+                     'validatePreviewRows' => fn(array $rows, array $columns, string $dataType): array => $this->evidenceUploadValidationService()->validatePreviewRows($rows, $columns, $dataType),
+                 ]
+             );
         }
 
         return $this->evidenceUploadService;
@@ -476,7 +422,6 @@ class EvidenceUploadController
         if ($this->evidenceTypePolicyService === null) {
             $this->evidenceTypePolicyService = new EvidenceTypePolicyService(
                 fn(string $type): string => self::normalizeDataType($type),
-                self::LEGACY_DATA_TYPE_MAP,
                 $this->pdo,
                 [
                     'amountOrNull' => fn(mixed $value): ?float => $this->amountOrNull($value),
@@ -607,7 +552,7 @@ class EvidenceUploadController
 
         $filtered = [];
         foreach ($requested as $index => $requestedKey) {
-            $column = $columnMap[$requestedKey] ?? $this->syntheticColumnForRequestedKey($dataType, $requestedKey);
+            $column = $columnMap[$requestedKey] ?? null;
             if ($column === null) {
                 continue;
             }
@@ -728,9 +673,6 @@ class EvidenceUploadController
     {
         $options = [];
         $fieldOptions = $this->systemFieldService()->sourceColumnOptions($dataType);
-        if ($fieldOptions === []) {
-            $fieldOptions = $this->systemFieldService()->fieldOptions($dataType);
-        }
 
         foreach ($fieldOptions as $fieldOption) {
             $field = trim((string) ($fieldOption['value'] ?? ''));
@@ -782,7 +724,6 @@ class EvidenceUploadController
                 'amountOrNull' => fn(mixed $value): ?float => $this->amountOrNull($value),
                 'bankBalanceStatus' => fn(mixed $value): string => $this->evidenceStatusHelperService()->bankBalanceStatus($value),
                 'bankVoucherLinesForSave' => fn(array $lines): array => $this->voucherCreateService()->bankVoucherLinesForSave($lines),
-                'bankVoucherPaymentsForSave' => fn(array $payload): array => $this->voucherCreateService()->bankVoucherPaymentsForSave($payload),
                 'businessRefIdForStorage' => fn(string $refType, array $payload): ?string => $this->evidenceBusinessRefService()->businessRefIdForStorage($refType, $payload),
                 'businessRefNameById' => fn(string $refType, string $id): ?string => $this->evidenceReferenceResolverService()->businessRefNameById($refType, $id),
                 'cleanCompanyName' => fn(string $value): string => $this->cleanCompanyName($value),
@@ -987,5 +928,22 @@ class EvidenceUploadController
     private function storeUploadBatch(array $format, array $file, array $rows, string $cancelToken = ''): array
     {
         return $this->evidenceUploadPersistService()->storeUploadBatch($format, $file, $rows, $cancelToken);
+    }
+
+    private function respondUploadBatchResult(array $result, array $extra = [], string $successMessage = '엑셀 업로드가 완료되었습니다.'): void
+    {
+        $nestedResult = is_array($result['data'] ?? null) ? $result['data'] : null;
+        $success = ($result['success'] ?? true) !== false;
+        if ($success && is_array($nestedResult) && array_key_exists('success', $nestedResult) && $nestedResult['success'] === false) {
+            $success = false;
+        }
+
+        $payload = ['success' => $success, 'data' => $result] + $extra;
+        $payload['message'] = $success
+            ? $successMessage
+            : (string) ($nestedResult['message'] ?? $result['message'] ?? '엑셀 업로드 중 오류가 발생했습니다.');
+
+        $status = (int) ($nestedResult['status'] ?? $result['status'] ?? ($success ? 200 : 400));
+        $this->json($payload, $status);
     }
 }

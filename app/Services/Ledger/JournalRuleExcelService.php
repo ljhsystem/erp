@@ -15,7 +15,7 @@ class JournalRuleExcelService
         ['key' => 'rule_code', 'label' => '규칙코드', 'required' => true, 'template_default' => true, 'download_default' => true],
         ['key' => 'rule_name', 'label' => '규칙명', 'required' => true, 'template_default' => true, 'download_default' => true],
         ['key' => 'business_unit', 'label' => '사업구분', 'required' => false, 'template_default' => true, 'download_default' => true],
-        ['key' => 'operation_type', 'label' => '입출금유형', 'required' => false, 'template_default' => true, 'download_default' => true],
+        ['key' => 'operation_type', 'label' => '업무유형', 'required' => false, 'template_default' => true, 'download_default' => true],
         ['key' => 'transaction_direction', 'label' => '거래구분', 'required' => false, 'template_default' => true, 'download_default' => true],
         ['key' => 'client_type', 'label' => '거래처구분', 'required' => false, 'template_default' => true, 'download_default' => true],
         ['key' => 'import_type', 'label' => '자료유형', 'required' => false, 'template_default' => true, 'download_default' => true],

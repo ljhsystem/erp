@@ -19,11 +19,11 @@ class SubChartAccountModel
     {
         $orderBy = $this->hasColumn('sub_name')
             ? 'created_at ASC, sub_name ASC'
-            : 'created_at ASC, ref_type ASC';
+            : 'created_at ASC, ref_target ASC';
 
         $sql = "
             SELECT *
-            FROM ledger_sub_accounts
+            FROM ledger_accounts_sub
             WHERE account_id = :account_id
         ";
 
@@ -36,6 +36,35 @@ class SubChartAccountModel
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function getRequiredRefTypesByAccountId(string $accountId): array
+    {
+        $accountId = trim($accountId);
+        if ($accountId === '') {
+            return [];
+        }
+
+        $required = [];
+        foreach ($this->getByAccountId($accountId) as $row) {
+            if ((int) ($row['is_required'] ?? 0) !== 1) {
+                continue;
+            }
+
+            $refType = strtoupper(trim((string) ($row['ref_type'] ?? '')));
+            $subCode = strtoupper(trim((string) ($row['sub_code'] ?? $row['ref_target'] ?? '')));
+            if ($refType === 'REF_TARGET') {
+                $refType = $subCode;
+            }
+            if ($refType === '') {
+                $refType = $subCode;
+            }
+            if ($refType !== '') {
+                $required[] = $refType;
+            }
+        }
+
+        return array_values(array_unique($required));
     }
 
     public function create(array $data): bool
@@ -54,19 +83,19 @@ class SubChartAccountModel
             ':updated_by' => $data['updated_by'] ?? $data['created_by'] ?? null,
         ];
 
-        if ($this->hasColumn('ref_type')) {
-            $fields['ref_type'] = ':ref_type';
-            $params[':ref_type'] = $data['ref_type'] ?? $data['sub_code'] ?? '';
+        if ($this->hasColumn('ref_target')) {
+            $fields['ref_target'] = ':ref_target';
+            $params[':ref_target'] = $data['ref_target'] ?? $data['sub_code'] ?? '';
         }
 
         if ($this->hasColumn('sub_code')) {
             $fields['sub_code'] = ':sub_code';
-            $params[':sub_code'] = $data['sub_code'] ?? $data['ref_type'] ?? '';
+            $params[':sub_code'] = $data['sub_code'] ?? $data['ref_target'] ?? '';
         }
 
         if ($this->hasColumn('sub_name')) {
             $fields['sub_name'] = ':sub_name';
-            $params[':sub_name'] = $data['sub_name'] ?? $data['ref_type'] ?? $data['sub_code'] ?? '';
+            $params[':sub_name'] = $data['sub_name'] ?? $data['ref_target'] ?? $data['sub_code'] ?? '';
         }
 
         if ($this->hasColumn('custom_group_code')) {
@@ -83,7 +112,7 @@ class SubChartAccountModel
         $placeholders = implode(",\n                ", array_values($fields));
 
         $stmt = $this->db->prepare("
-            INSERT INTO ledger_sub_accounts (
+            INSERT INTO ledger_accounts_sub (
                 {$columns}
             ) VALUES (
                 {$placeholders}
@@ -104,19 +133,19 @@ class SubChartAccountModel
             ':updated_by' => $data['updated_by'] ?? null,
         ];
 
-        if ($this->hasColumn('ref_type')) {
-            $sets[] = 'ref_type = :ref_type';
-            $params[':ref_type'] = $data['ref_type'] ?? $data['sub_code'] ?? '';
+        if ($this->hasColumn('ref_target')) {
+            $sets[] = 'ref_target = :ref_target';
+            $params[':ref_target'] = $data['ref_target'] ?? $data['sub_code'] ?? '';
         }
 
         if ($this->hasColumn('sub_code')) {
             $sets[] = 'sub_code = :sub_code';
-            $params[':sub_code'] = $data['sub_code'] ?? $data['ref_type'] ?? '';
+            $params[':sub_code'] = $data['sub_code'] ?? $data['ref_target'] ?? '';
         }
 
         if ($this->hasColumn('sub_name')) {
             $sets[] = 'sub_name = :sub_name';
-            $params[':sub_name'] = $data['sub_name'] ?? $data['ref_type'] ?? $data['sub_code'] ?? '';
+            $params[':sub_name'] = $data['sub_name'] ?? $data['ref_target'] ?? $data['sub_code'] ?? '';
         }
 
         if ($this->hasColumn('custom_group_code')) {
@@ -132,7 +161,7 @@ class SubChartAccountModel
         $setSql = implode(",\n                ", $sets);
 
         $stmt = $this->db->prepare("
-            UPDATE ledger_sub_accounts
+            UPDATE ledger_accounts_sub
             SET
                 {$setSql}
             WHERE id = :id
@@ -144,7 +173,7 @@ class SubChartAccountModel
     public function delete(string $id): bool
     {
         $stmt = $this->db->prepare("
-            DELETE FROM ledger_sub_accounts
+            DELETE FROM ledger_accounts_sub
             WHERE id = :id
         ");
 
@@ -156,7 +185,7 @@ class SubChartAccountModel
     public function deleteByAccountId(string $accountId, ?string $subType = null): bool
     {
         $sql = "
-            DELETE FROM ledger_sub_accounts
+            DELETE FROM ledger_accounts_sub
             WHERE account_id = :account_id
         ";
 
@@ -177,7 +206,7 @@ class SubChartAccountModel
 
         $sql = "
             SELECT id
-            FROM ledger_sub_accounts
+            FROM ledger_accounts_sub
             WHERE account_id = :account_id
               AND sub_name = :sub_name
         ";
@@ -197,11 +226,11 @@ class SubChartAccountModel
 
     public function findByAccountAndSubCode(string $accountId, string $subCode, ?string $excludeId = null): ?array
     {
-        $targetColumn = $this->hasColumn('ref_type') ? 'ref_type' : 'sub_code';
+        $targetColumn = $this->hasColumn('ref_target') ? 'ref_target' : 'sub_code';
 
         $sql = "
             SELECT id
-            FROM ledger_sub_accounts
+            FROM ledger_accounts_sub
             WHERE account_id = :account_id
               AND {$targetColumn} = :sub_code
         ";
@@ -232,7 +261,7 @@ class SubChartAccountModel
 
         $stmt = $this->db->prepare("
             SELECT COALESCE(MAX(CAST(sub_code AS UNSIGNED)), 0) AS max_code
-            FROM ledger_sub_accounts
+            FROM ledger_accounts_sub
             WHERE account_id = :account_id
         ");
 
@@ -249,7 +278,7 @@ class SubChartAccountModel
     {
         $sql = "
             SELECT COUNT(*)
-            FROM ledger_sub_accounts
+            FROM ledger_accounts_sub
             WHERE account_id = :account_id
         ";
 
@@ -277,7 +306,7 @@ class SubChartAccountModel
         $placeholders = implode(',', array_fill(0, count($accountIds), '?'));
         $stmt = $this->db->prepare("
             SELECT account_id, COUNT(*) AS sub_account_count
-            FROM ledger_sub_accounts
+            FROM ledger_accounts_sub
             WHERE account_id IN ({$placeholders})
             GROUP BY account_id
         ");
@@ -296,7 +325,7 @@ class SubChartAccountModel
     {
         $stmt = $this->db->prepare("
             SELECT account_id
-            FROM ledger_sub_accounts
+            FROM ledger_accounts_sub
             WHERE id = :id
             LIMIT 1
         ");
@@ -314,7 +343,7 @@ class SubChartAccountModel
     {
         $stmt = $this->db->prepare("
             SELECT *
-            FROM ledger_sub_accounts
+            FROM ledger_accounts_sub
             WHERE id = :id
             LIMIT 1
         ");
@@ -326,10 +355,27 @@ class SubChartAccountModel
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
+    public function getAllWithAccounts(): array
+    {
+        $stmt = $this->db->query("
+            SELECT
+                sa.*,
+                a.account_code,
+                a.account_name
+            FROM ledger_accounts_sub sa
+            INNER JOIN ledger_accounts a
+                ON a.id = sa.account_id
+            WHERE a.deleted_at IS NULL
+            ORDER BY a.sort_no ASC, a.account_code ASC, sa.sub_code ASC, sa.sub_name ASC
+        ");
+
+        return $stmt?->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     private function hasColumn(string $column): bool
     {
         if ($this->tableColumns === null) {
-            $stmt = $this->db->query('SHOW COLUMNS FROM ledger_sub_accounts');
+            $stmt = $this->db->query('SHOW COLUMNS FROM ledger_accounts_sub');
             $this->tableColumns = [];
 
             foreach (($stmt?->fetchAll(PDO::FETCH_ASSOC) ?: []) as $row) {

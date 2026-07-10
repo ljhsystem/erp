@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS `ledger_journal_learning_events` (
   KEY `idx_ljle_modified` (`is_user_modified`, `failure_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `ledger_client_account_patterns` (
+CREATE TABLE IF NOT EXISTS `ledger_journal_client_account_patterns` (
   `id` CHAR(36) NOT NULL,
   `client_id` CHAR(36) NOT NULL,
   `transaction_direction` VARCHAR(30) NOT NULL,
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS `ledger_client_account_patterns` (
   KEY `idx_lcap_client_rank` (`client_id`, `usage_count`, `last_used_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `ledger_recent_journal_patterns` (
+CREATE TABLE IF NOT EXISTS `ledger_journal_recent_patterns` (
   `id` CHAR(36) NOT NULL,
   `pattern_hash` CHAR(40) NOT NULL,
   `client_id` CHAR(36) NULL DEFAULT NULL,

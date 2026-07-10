@@ -99,8 +99,40 @@ function codeDisplayName(field, value) {
     return found?.code_name || raw;
 }
 
+const STATUS_LABELS = {
+    DRAFT: '임시저장',
+    REVIEW_REQUESTED: '검토요청',
+    REVIEWED: '검토완료',
+    APPROVED: '승인',
+    REJECTED: '반려',
+    POSTED: '전표승인',
+    CLOSED: '마감',
+    DELETED: '삭제',
+};
+
+function normalizeStatus(value, fallback = 'DRAFT') {
+    const normalized = String(value ?? '')
+        .trim()
+        .toUpperCase()
+        .replace(/[\s-]+/g, '_');
+    const alias = {
+        CONFIRMED: 'REVIEW_REQUESTED',
+    }[normalized] || normalized;
+
+    return alias || fallback;
+}
+
 function statusBadge(status) {
+    const normalizedStatus = normalizeStatus(status);
     const meta = {
+        DRAFT: [STATUS_LABELS.DRAFT, 'text-bg-secondary', STATUS_LABELS.DRAFT],
+        REVIEW_REQUESTED: [STATUS_LABELS.REVIEW_REQUESTED, 'text-bg-info', STATUS_LABELS.REVIEW_REQUESTED],
+        REVIEWED: [STATUS_LABELS.REVIEWED, 'text-bg-primary', STATUS_LABELS.REVIEWED],
+        APPROVED: [STATUS_LABELS.APPROVED, 'text-bg-success', STATUS_LABELS.APPROVED],
+        REJECTED: [STATUS_LABELS.REJECTED, 'text-bg-danger', STATUS_LABELS.REJECTED],
+        POSTED: [STATUS_LABELS.POSTED, 'text-bg-success', STATUS_LABELS.POSTED],
+        CLOSED: [STATUS_LABELS.CLOSED, 'text-bg-dark', STATUS_LABELS.CLOSED],
+        DELETED: [STATUS_LABELS.DELETED, 'text-bg-dark', STATUS_LABELS.DELETED],
         READY: ['READY', 'text-bg-success', '거래 생성 가능'],
         PROCESSED: ['PROCESSED', 'text-bg-primary', '거래 생성 완료'],
         ERROR: ['ERROR', 'text-bg-danger', '오류 발생'],
@@ -111,11 +143,10 @@ function statusBadge(status) {
         DUPLICATED: ['DUPLICATED', 'text-bg-secondary', '중복 검토'],
         UNCHANGED: ['UNCHANGED', 'text-bg-light text-dark border', '변경 없음'],
         UPDATED: ['UPDATED', 'text-bg-info', '수정 반영됨'],
-        DELETED: ['DELETED', 'text-bg-dark', '삭제됨'],
-    }[status] || [
-        status || '-',
+    }[normalizedStatus] || [
+        normalizedStatus || '-',
         'text-bg-secondary',
-        status || '-',
+        normalizedStatus || '-',
     ];
 
     return `
@@ -210,7 +241,7 @@ function readinessFieldLabel(key) {
         line_row_type: '행 구분',
         debit: '차변',
         credit: '대변',
-        line_ref_type: '참조유형',
+        line_ref_target: '참조대상',
         line_ref_id: '참조 ID',
     }[key] || key;
 }
@@ -240,6 +271,8 @@ export {
     normalizeCodeKey,
     normalizeCodeRows,
     codeDisplayName,
+    STATUS_LABELS,
+    normalizeStatus,
     statusBadge,
     labelBadge,
     readinessFieldLabel,

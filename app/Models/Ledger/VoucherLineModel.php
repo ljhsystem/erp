@@ -3,6 +3,7 @@
 namespace App\Models\Ledger;
 
 use Core\Database;
+use Core\Helpers\SequenceHelper;
 use PDO;
 
 class VoucherLineModel
@@ -36,7 +37,7 @@ class VoucherLineModel
             $params[':account_id'] = $filters['account_id'];
         }
 
-        $sql .= " ORDER BY sort_no DESC, voucher_id ASC, line_no ASC";
+        $sql .= " ORDER BY voucher_id ASC, line_no ASC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -74,11 +75,74 @@ class VoucherLineModel
                 ON a.id = l.account_id
                 OR a.account_code = l.account_id
             WHERE l.voucher_id = :voucher_id
-            ORDER BY l.line_no ASC, l.sort_no ASC
+            ORDER BY l.line_no ASC
         ");
         $stmt->execute([':voucher_id' => $voucherId]);
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function summarizeVoucher(string $voucherId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT
+                COUNT(l.id) AS line_count,
+                COALESCE(SUM(l.debit), 0) AS debit_total,
+                COALESCE(SUM(l.credit), 0) AS credit_total,
+                SUM(CASE WHEN a.id IS NULL THEN 1 ELSE 0 END) AS missing_account_count
+            FROM {$this->table} l
+            LEFT JOIN ledger_accounts a
+                ON (a.id = l.account_id OR a.account_code = l.account_id)
+               AND a.deleted_at IS NULL
+            WHERE l.voucher_id = :voucher_id
+        ");
+        $stmt->execute([':voucher_id' => $voucherId]);
+
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function getProcessingItemIdsByVoucherId(string $voucherId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT processing_item_id
+            FROM {$this->table}
+            WHERE voucher_id = :voucher_id
+              AND processing_item_id IS NOT NULL
+        ");
+        $stmt->execute([':voucher_id' => $voucherId]);
+
+        return array_values(array_filter(array_map(
+            static fn(array $row): string => trim((string) ($row['processing_item_id'] ?? '')),
+            $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []
+        )));
+    }
+
+    public function hasActiveVoucherForProcessingItem(string $processingItemId, string $excludeVoucherId = ''): bool
+    {
+        $processingItemId = trim($processingItemId);
+        if ($processingItemId === '') {
+            return false;
+        }
+
+        $excludeSql = $excludeVoucherId !== '' ? 'AND v.id <> :exclude_voucher_id' : '';
+        $params = [':processing_item_id' => $processingItemId];
+        if ($excludeVoucherId !== '') {
+            $params[':exclude_voucher_id'] = $excludeVoucherId;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT 1
+            FROM {$this->table} l
+            INNER JOIN ledger_vouchers v
+                ON v.id = l.voucher_id
+               AND v.deleted_at IS NULL
+            WHERE l.processing_item_id = :processing_item_id
+              {$excludeSql}
+            LIMIT 1
+        ");
+        $stmt->execute($params);
+
+        return (bool) $stmt->fetchColumn();
     }
 
     public function searchLineSummaryTexts(string $keyword, int $limit = 10): array
@@ -109,17 +173,14 @@ class VoucherLineModel
         $allowed = [
             'id',
             'sort_no',
+            'line_no',
             'voucher_id',
             'processing_item_id',
-            'line_no',
             'account_id',
             'debit',
             'credit',
             'line_summary',
-            'recommend_source',
-            'recommend_confidence',
             'journal_rule_id',
-            'recommend_reason',
             'is_user_modified',
             'created_at',
             'created_by',
@@ -152,16 +213,13 @@ class VoucherLineModel
     {
         $allowed = [
             'voucher_id',
-            'processing_item_id',
             'line_no',
+            'processing_item_id',
             'account_id',
             'debit',
             'credit',
             'line_summary',
-            'recommend_source',
-            'recommend_confidence',
             'journal_rule_id',
-            'recommend_reason',
             'is_user_modified',
             'updated_at',
             'updated_by',
@@ -216,8 +274,10 @@ class VoucherLineModel
     {
         $this->purgeByVoucherId($voucherId);
 
-        foreach ($lines as $line) {
+        foreach (array_values($lines) as $index => $line) {
             $line['voucher_id'] = $voucherId;
+            $line['sort_no'] = SequenceHelper::next($this->table, 'sort_no');
+            $line['line_no'] = $index + 1;
             if (!isset($line['created_by'])) {
                 $line['created_by'] = $actor;
             }

@@ -3,6 +3,7 @@
 namespace App\Models\Ledger;
 
 use Core\Database;
+use Core\Helpers\UuidHelper;
 use PDO;
 
 class VoucherLineRefModel
@@ -16,87 +17,49 @@ class VoucherLineRefModel
         $this->db = $pdo ?? Database::getInstance()->getConnection();
     }
 
-    public function getByVoucherLineId(string $voucherLineId): array
-    {
-        $stmt = $this->db->prepare("
-            SELECT
-                r.*,
-                sc.client_name,
-                sp.project_name,
-                ue.employee_name AS employee_name,
-                ba.account_name AS bank_account_name,
-                sca.card_name
-            FROM {$this->table} r
-            LEFT JOIN system_clients sc
-                ON sc.id = r.ref_id
-               AND r.ref_type IN ('CLIENT', 'CUSTOMER', 'VENDOR', 'COUNTERPARTY')
-            LEFT JOIN system_projects sp
-                ON sp.id = r.ref_id
-               AND r.ref_type IN ('PROJECT')
-            LEFT JOIN user_employees ue
-                ON ue.id = r.ref_id
-               AND r.ref_type IN ('EMPLOYEE')
-            LEFT JOIN system_bank_accounts ba
-                ON ba.id = r.ref_id
-               AND r.ref_type IN ('ACCOUNT', 'BANK_ACCOUNT')
-            LEFT JOIN system_cards sca
-                ON sca.id = r.ref_id
-               AND r.ref_type IN ('CARD')
-            WHERE voucher_line_id = :voucher_line_id
-            ORDER BY created_at ASC, ref_type ASC
-        ");
-        $stmt->execute([':voucher_line_id' => $voucherLineId]);
-
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    }
-
     public function getGroupedByVoucherLineIds(array $voucherLineIds): array
     {
-        $ids = array_values(array_filter(array_map(static fn($id) => trim((string) $id), $voucherLineIds)));
+        $ids = array_values(array_filter(array_map(
+            static fn($id): string => trim((string) $id),
+            $voucherLineIds
+        )));
         if ($ids === []) {
             return [];
         }
 
-        $placeholders = [];
-        $params = [];
-        foreach ($ids as $index => $id) {
-            $key = ':id' . $index;
-            $placeholders[] = $key;
-            $params[$key] = $id;
-        }
-
+        [$placeholders, $params] = $this->buildInClause($ids, 'line_id_');
         $stmt = $this->db->prepare("
             SELECT
                 r.*,
                 sc.client_name,
                 sp.project_name,
-                ue.employee_name AS employee_name,
+                ue.employee_name,
                 ba.account_name AS bank_account_name,
                 sca.card_name
             FROM {$this->table} r
             LEFT JOIN system_clients sc
                 ON sc.id = r.ref_id
-               AND r.ref_type IN ('CLIENT', 'CUSTOMER', 'VENDOR', 'COUNTERPARTY')
+               AND r.ref_target IN ('CLIENT', 'CUSTOMER', 'VENDOR', 'COUNTERPARTY')
             LEFT JOIN system_projects sp
                 ON sp.id = r.ref_id
-               AND r.ref_type IN ('PROJECT')
+               AND r.ref_target = 'PROJECT'
             LEFT JOIN user_employees ue
                 ON ue.id = r.ref_id
-               AND r.ref_type IN ('EMPLOYEE')
+               AND r.ref_target IN ('EMPLOYEE', 'USER')
             LEFT JOIN system_bank_accounts ba
                 ON ba.id = r.ref_id
-               AND r.ref_type IN ('ACCOUNT', 'BANK_ACCOUNT')
+               AND r.ref_target IN ('ACCOUNT', 'BANK', 'BANK_ACCOUNT')
             LEFT JOIN system_cards sca
                 ON sca.id = r.ref_id
-               AND r.ref_type IN ('CARD')
-            WHERE voucher_line_id IN (" . implode(', ', $placeholders) . ")
-            ORDER BY voucher_line_id ASC, created_at ASC, ref_type ASC
+               AND r.ref_target = 'CARD'
+            WHERE r.voucher_line_id IN ({$placeholders})
+            ORDER BY r.voucher_line_id ASC, r.created_at ASC, r.ref_target ASC
         ");
         $stmt->execute($params);
 
         $grouped = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
-            $lineId = (string) ($row['voucher_line_id'] ?? '');
+            $lineId = trim((string) ($row['voucher_line_id'] ?? ''));
             if ($lineId === '') {
                 continue;
             }
@@ -106,26 +69,86 @@ class VoucherLineRefModel
         return $grouped;
     }
 
+    public function replaceByVoucherLineIds(array $refsByVoucherLineId, ?string $actor = null, ?string $timestamp = null): void
+    {
+        $lineIds = array_values(array_filter(array_map(
+            static fn($lineId): string => trim((string) $lineId),
+            array_keys($refsByVoucherLineId)
+        )));
+        if ($lineIds === []) {
+            return;
+        }
+
+        $timestamp = $timestamp ?: date('Y-m-d H:i:s');
+        $this->deleteByVoucherLineIds($lineIds);
+
+        foreach ($refsByVoucherLineId as $voucherLineId => $refs) {
+            $voucherLineId = trim((string) $voucherLineId);
+            if ($voucherLineId === '') {
+                continue;
+            }
+
+            foreach ($refs as $ref) {
+                $payload = [
+                    'id' => UuidHelper::generate(),
+                    'voucher_line_id' => $voucherLineId,
+                    'ref_target' => trim((string) ($ref['ref_target'] ?? $ref['ref_type'] ?? '')),
+                    'ref_id' => trim((string) ($ref['ref_id'] ?? '')),
+                    'created_at' => $timestamp,
+                    'created_by' => $actor,
+                    'updated_at' => $timestamp,
+                    'updated_by' => $actor,
+                ];
+
+                if ($payload['ref_target'] === '' || $payload['ref_id'] === '') {
+                    continue;
+                }
+
+                if (!$this->insert($payload)) {
+                    throw new \RuntimeException('전표라인 보조계정 저장 중 오류가 발생했습니다.');
+                }
+            }
+        }
+    }
+
+    public function deleteByVoucherLineIds(array $voucherLineIds): void
+    {
+        $ids = array_values(array_filter(array_map(
+            static fn($id): string => trim((string) $id),
+            $voucherLineIds
+        )));
+        if ($ids === []) {
+            return;
+        }
+
+        [$placeholders, $params] = $this->buildInClause($ids, 'delete_line_id_');
+        $stmt = $this->db->prepare("
+            DELETE FROM {$this->table}
+            WHERE voucher_line_id IN ({$placeholders})
+        ");
+        $stmt->execute($params);
+    }
+
     public function insert(array $data): bool
     {
         $allowed = [
             'id',
             'voucher_line_id',
-            'ref_type',
+            'ref_target',
             'ref_id',
-            'is_primary',
             'created_at',
             'created_by',
+            'updated_at',
+            'updated_by',
         ];
 
         $payload = $this->filterData($data, $allowed);
-        if (!isset($payload['id'], $payload['voucher_line_id'], $payload['ref_type'], $payload['ref_id'])) {
+        if (!isset($payload['id'], $payload['voucher_line_id'], $payload['ref_target'], $payload['ref_id'])) {
             return false;
         }
 
         $columns = array_keys($payload);
-        $placeholders = array_map(static fn(string $column) => ':' . $column, $columns);
-
+        $placeholders = array_map(static fn(string $column): string => ':' . $column, $columns);
         $stmt = $this->db->prepare(sprintf(
             'INSERT INTO %s (%s) VALUES (%s)',
             $this->table,
@@ -136,40 +159,22 @@ class VoucherLineRefModel
         return $stmt->execute($this->bindParams($payload));
     }
 
-    public function bulkInsert(string $voucherLineId, array $refs, ?string $actor = null, ?string $createdAt = null): void
+    private function buildInClause(array $values, string $prefix): array
     {
-        $timestamp = $createdAt ?: date('Y-m-d H:i:s');
-
-        foreach ($refs as $ref) {
-            $ok = $this->insert([
-                'id' => \Core\Helpers\UuidHelper::generate(),
-                'voucher_line_id' => $voucherLineId,
-                'ref_type' => $ref['ref_type'],
-                'ref_id' => $ref['ref_id'],
-                'is_primary' => (int) ($ref['is_primary'] ?? 0),
-                'created_at' => $timestamp,
-                'created_by' => $actor,
-            ]);
-
-            if (!$ok) {
-                throw new \RuntimeException('분개라인 보조계정 저장에 실패했습니다.');
-            }
+        $placeholders = [];
+        $params = [];
+        foreach (array_values($values) as $index => $value) {
+            $key = ':' . $prefix . $index;
+            $placeholders[] = $key;
+            $params[$key] = $value;
         }
-    }
 
-    public function deleteByVoucherLineId(string $voucherLineId): void
-    {
-        $stmt = $this->db->prepare("
-            DELETE FROM {$this->table}
-            WHERE voucher_line_id = :voucher_line_id
-        ");
-        $stmt->execute([':voucher_line_id' => $voucherLineId]);
+        return [implode(', ', $placeholders), $params];
     }
 
     private function filterData(array $data, array $allowed): array
     {
         $payload = [];
-
         foreach ($allowed as $column) {
             if (array_key_exists($column, $data)) {
                 $payload[$column] = $data[$column];
@@ -182,7 +187,6 @@ class VoucherLineRefModel
     private function bindParams(array $data): array
     {
         $params = [];
-
         foreach ($data as $column => $value) {
             $params[':' . $column] = $value;
         }

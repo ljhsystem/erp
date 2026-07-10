@@ -3,7 +3,6 @@ export function createEvidenceTableModule({
     API,
     SearchForm,
     createDataTable,
-    refreshDataTableLayout,
     bindRowReorder,
     normalizeEvidenceType,
     evidenceTypePolicy,
@@ -107,7 +106,11 @@ export function createEvidenceTableModule({
     }
 
     function currentColumnPolicyState(type = state.currentType) {
-        return readDataTableSettingsState(currentTableSettingsStorageKey(type)) || {};
+        const userSettingPageKey = evidenceMetaDomain(type);
+        return readDataTableSettingsState(currentTableSettingsStorageKey(type), {
+            metaDomain: userSettingPageKey,
+            userSettingPageKey,
+        }) || {};
     }
 
     function currentColumnDisplayNameMap(type = state.currentType) {
@@ -631,7 +634,7 @@ export function createEvidenceTableModule({
                         if (type !== 'display') return '';
                         return `
                             <button type="button"
-                                    class="btn btn-outline-primary btn-sm evidence-edit-row-btn"
+                                    class="btn btn-outline-primary btn-sm dt-manage-edit-btn evidence-edit-row-btn"
                                     data-id="${escapeHtml(row?.id || '')}">
                                 수정
                             </button>
@@ -689,13 +692,156 @@ export function createEvidenceTableModule({
             if (!state.table) return;
             const body = state.table.table?.().body?.();
             if (!body) return;
-            body.querySelectorAll('tr.processing-child-display-row').forEach((tr) => tr.remove());
-            Array.from(body.querySelectorAll('tr')).forEach((tr) => {
+            const renderContext = processingChildRenderContext();
+            const renderedParentKeys = new Set();
+            Array.from(body.rows || []).forEach((tr) => {
+                if (tr.classList.contains('processing-child-display-row')) {
+                    return;
+                }
                 const row = state.table.row(tr).data();
                 tr.classList.toggle('processing-child-row', Boolean(row?.processing_is_child));
                 tr.classList.toggle('processing-parent-row', Boolean(row?.processing_has_children));
-                if (row?.processing_has_children && Array.isArray(row.processing_children) && row.processing_children.length > 0) {
-                    insertProcessingChildRows(tr, row.processing_children);
+                syncProcessingChildRows(tr, row, renderContext, renderedParentKeys);
+            });
+            cleanupStaleProcessingChildRows(body, renderedParentKeys);
+        }
+
+    function processingChildRenderContext() {
+            const settings = state.table?.settings?.()[0];
+            const columns = settings?.aoColumns || [];
+            const visibleIndexes = columns
+                .map((column, index) => (column?.bVisible === false ? null : index))
+                .filter((index) => index !== null);
+
+            return {
+                columns,
+                visibleIndexes,
+                columnSignature: visibleIndexes.join(','),
+            };
+        }
+
+    function processingParentRowKey(row = {}) {
+            return String(row?.processing_item_id || row?.id || '').trim();
+        }
+
+    function processingChildRowKey(child = {}, index = 0) {
+            return String(child?.processing_item_id || child?.id || child?.processing_display_path || child?.sort_no || `child-${index}`).trim();
+        }
+
+    function processingChildRowSignature(child = {}, renderContext = null) {
+            return JSON.stringify({
+                columnSignature: renderContext?.columnSignature || '',
+                child,
+            });
+        }
+
+    function collectProcessingChildRows(parentTr, parentKey) {
+            const rows = [];
+            let cursor = parentTr?.nextElementSibling || null;
+            while (cursor && cursor.classList.contains('processing-child-display-row')) {
+                if (String(cursor.dataset.processingParentId || '').trim() !== parentKey) {
+                    break;
+                }
+                rows.push(cursor);
+                cursor = cursor.nextElementSibling;
+            }
+            return rows;
+        }
+
+    function createProcessingChildRow(parentKey, childKey) {
+            const tr = document.createElement('tr');
+            tr.className = 'processing-child-row processing-child-display-row';
+            tr.dataset.processingParentId = parentKey;
+            tr.dataset.processingChildKey = childKey;
+            return tr;
+        }
+
+    function syncProcessingChildRows(parentTr, row = {}, renderContext = null, renderedParentKeys = null) {
+            const parentKey = processingParentRowKey(row);
+            const desiredChildren = row?.processing_has_children && Array.isArray(row?.processing_children)
+                ? row.processing_children
+                : [];
+
+            if (parentKey && renderedParentKeys) {
+                renderedParentKeys.add(parentKey);
+            }
+
+            const existingRows = parentKey ? collectProcessingChildRows(parentTr, parentKey) : [];
+            if (!parentKey || desiredChildren.length === 0) {
+                existingRows.forEach((childRow) => childRow.remove());
+                return;
+            }
+
+            const existingByKey = new Map();
+            existingRows.forEach((childRow, index) => {
+                existingByKey.set(String(childRow.dataset.processingChildKey || `existing-${index}`).trim(), childRow);
+            });
+
+            const usedRows = new Set();
+            let anchor = parentTr;
+            desiredChildren.forEach((child, index) => {
+                const childKey = processingChildRowKey(child, index);
+                let childRow = existingByKey.get(childKey);
+                if (!childRow) {
+                    childRow = createProcessingChildRow(parentKey, childKey);
+                }
+
+                if (anchor.nextElementSibling !== childRow) {
+                    anchor.insertAdjacentElement('afterend', childRow);
+                }
+
+                syncProcessingChildRowCells(childRow, child, renderContext, childKey, parentKey);
+                usedRows.add(childRow);
+                anchor = childRow;
+            });
+
+            existingRows.forEach((childRow) => {
+                if (!usedRows.has(childRow)) {
+                    childRow.remove();
+                }
+            });
+        }
+
+    function syncProcessingChildRowCells(childRow, child = {}, renderContext = null, childKey = '', parentKey = '') {
+            const columns = renderContext?.columns || [];
+            const visibleIndexes = renderContext?.visibleIndexes || [];
+            const nextSignature = processingChildRowSignature(child, renderContext);
+
+            childRow.dataset.processingParentId = parentKey;
+            childRow.dataset.processingChildKey = childKey;
+            childRow.__processingRowData = child;
+
+            if (childRow.dataset.processingRenderSignature === nextSignature && childRow.children.length === visibleIndexes.length) {
+                return;
+            }
+
+            while (childRow.children.length > visibleIndexes.length) {
+                childRow.removeChild(childRow.lastElementChild);
+            }
+
+            visibleIndexes.forEach((columnIndex, visibleIndex) => {
+                const column = columns[columnIndex] || {};
+                let td = childRow.children[visibleIndex];
+                if (!td) {
+                    td = document.createElement('td');
+                    childRow.appendChild(td);
+                }
+                const className = String(column.sClass || '').trim();
+                td.className = className;
+                td.innerHTML = renderProcessingChildCell(column, child, columnIndex);
+            });
+
+            childRow.dataset.processingRenderSignature = nextSignature;
+        }
+
+    function cleanupStaleProcessingChildRows(body, renderedParentKeys = null) {
+            Array.from(body.rows || []).forEach((tr) => {
+                if (!tr.classList.contains('processing-child-display-row')) {
+                    return;
+                }
+                const parentKey = String(tr.dataset.processingParentId || '').trim();
+                if (!parentKey || !renderedParentKeys?.has(parentKey)) {
+                    tr.remove();
                 }
             });
         }
@@ -726,31 +872,13 @@ export function createEvidenceTableModule({
         }
 
     function insertProcessingChildRows(parentTr, children = []) {
-            const settings = state.table?.settings?.()[0];
-            const columns = settings?.aoColumns || [];
-            if (!parentTr || columns.length === 0) return;
-    
-            const visibleIndexes = columns
-                .map((column, index) => (column.bVisible === false ? null : index))
-                .filter((index) => index !== null);
-            let anchor = parentTr;
-            children.forEach((child) => {
-                const tr = document.createElement('tr');
-                tr.className = 'processing-child-row processing-child-display-row';
-                tr.__processingRowData = child;
-                visibleIndexes.forEach((columnIndex) => {
-                    const column = columns[columnIndex] || {};
-                    const td = document.createElement('td');
-                    const className = String(column.sClass || '').trim();
-                    if (className !== '') {
-                        td.className = className;
-                    }
-                    td.innerHTML = renderProcessingChildCell(column, child, columnIndex);
-                    tr.appendChild(td);
-                });
-                anchor.insertAdjacentElement('afterend', tr);
-                anchor = tr;
-            });
+            const parentKey = processingParentRowKey(state.table?.row(parentTr).data() || {});
+            if (!parentTr || !parentKey) return;
+            syncProcessingChildRows(parentTr, {
+                processing_item_id: parentKey,
+                processing_has_children: Array.isArray(children) && children.length > 0,
+                processing_children: Array.isArray(children) ? children : [],
+            }, processingChildRenderContext());
         }
 
     function rowDataFromTableNode(rowNode) {
@@ -821,6 +949,7 @@ export function createEvidenceTableModule({
                     pageKey: 'ledger.data.status',
                     tableKey: typeTableKey,
                     storageKey: evidenceStatusTableSettingsStorageKey(typeStorageKey),
+                    userSettingPageKey: evidenceMetaDomain(typeStorageKey),
                     metaDomain: evidenceMetaDomain(typeStorageKey),
                     tableLabel: config.label,
                     title: '테이블 설정',
@@ -836,10 +965,6 @@ export function createEvidenceTableModule({
                         ? json.data.map((row) => decorateRowDisplayFields(row))
                         : [];
                     updateSummary(state.lastRows);
-                    if (state.currentType) {
-                        state.evidenceTypeCounts[state.currentType] = state.lastRows.length;
-                        renderEvidenceTypeTabs();
-                    }
                     return state.lastRows;
                 },
                 buttons: [
@@ -862,9 +987,8 @@ export function createEvidenceTableModule({
         });
         arrangeEvidenceToolbar(state.table);
             void updateTrashButtonState();
-            state.table.on('draw.dt xhr.dt', () => {
+            state.table.on('draw.dt', () => {
                 applyProcessingRowState();
-                refreshDataTableLayout(state.table, { delays: [0, 120] });
             });
             state.table.on('column-visibility.dt responsive-resize.dt', () => {
                 window.setTimeout(applyProcessingRowState, 0);

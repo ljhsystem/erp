@@ -20,10 +20,10 @@ $layoutOptions = [
 ];
 
 $pageStyles =
-    AssetHelper::css('/assets/css/pages/ledger/journal.css') .
+    AssetHelper::css('/assets/css/pages/ledger/voucher/index.css') .
     AssetHelper::css('/assets/css/pages/ledger/account.css');
 
-$pageScripts = AssetHelper::module('/assets/js/pages/ledger/journal.js');
+$pageScripts = AssetHelper::module('/assets/js/pages/ledger/voucher/index.js');
 ?>
 
 <main class="journal-page" id="journal-main">
@@ -82,6 +82,13 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/journal.js');
 </main>
 
 <?php include __DIR__ . '/partials/journal_modal.php'; ?>
+<?php
+$modalId = 'voucherExcelModal';
+$formId = 'voucher-excel-upload-form';
+$modalTitle = '전표입력 엑셀관리';
+$modalSubtitle = '거래입력과 동일한 공용 엑셀관리에서 업로드 양식설정과 다운로드 설정을 관리합니다.';
+include PROJECT_ROOT . '/app/views/components/ui-modal-excel.php';
+?>
 
 <?php
 $modalId = 'journalTrashModal';

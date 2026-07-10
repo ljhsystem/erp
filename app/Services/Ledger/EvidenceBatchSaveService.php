@@ -2,6 +2,7 @@
 
 namespace App\Services\Ledger;
 
+use Core\Helpers\SequenceHelper;
 use PDO;
 
 class EvidenceBatchSaveService
@@ -62,43 +63,40 @@ class EvidenceBatchSaveService
         return 'VALID';
     }
 
-    public function nextEvidenceJsonSortNo(string $key, string $sourceType = ''): int
+    public function nextBodySortNo(string $table): int
     {
-        $where = ['deleted_at IS NULL'];
-        $params = [];
-        $sourceType = self::normalizeDataType($sourceType);
-        if ($sourceType !== '') {
-            $where[] = 'evidence_type = :source_type';
-            $params[':source_type'] = $sourceType;
+        return SequenceHelper::next($table, 'sort_no');
+    }
+
+    public function nextEvidenceSortNo(string $actor): int
+    {
+        $actor = trim($actor);
+        if ($actor === '') {
+            $actor = 'SYSTEM';
         }
 
-        $stmt = $this->pdo->prepare("
-            SELECT mapped_payload_json
-            FROM ledger_evidence_payloads
-            WHERE " . implode(' AND ', $where)
-        );
-        $stmt->execute($params);
+        if ($this->tableExists('ledger_evidence_number_sequences')) {
+            $this->pdo->prepare("
+                INSERT INTO ledger_evidence_number_sequences
+                    (scope_code, last_evidence_sort_no, updated_at, updated_by)
+                VALUES
+                    ('EVIDENCE_GLOBAL', 0, NOW(), :actor)
+                ON DUPLICATE KEY UPDATE
+                    updated_at = updated_at
+            ")->execute([':actor' => $actor]);
 
-        $max = 0;
-        while ($json = $stmt->fetchColumn()) {
-            $payload = json_decode((string) $json, true);
-            if (!is_array($payload)) {
-                continue;
-            }
-            $value = $payload[$key] ?? 0;
-            if (is_string($value)) {
-                $value = str_replace(',', '', trim($value));
-            }
-            if (is_numeric($value)) {
-                $max = max($max, (int) $value);
-            }
+            $this->pdo->prepare("
+                UPDATE ledger_evidence_number_sequences
+                SET last_evidence_sort_no = LAST_INSERT_ID(last_evidence_sort_no + 1),
+                    updated_at = NOW(),
+                    updated_by = :actor
+                WHERE scope_code = 'EVIDENCE_GLOBAL'
+            ")->execute([':actor' => $actor]);
+
+            return (int) $this->pdo->query("SELECT LAST_INSERT_ID()")->fetchColumn();
         }
 
-        if ($key === '_create_sort_no') {
-            $max = max($max, $this->currentIssuedEvidenceSortNo());
-        }
-
-        return $max + 1;
+        return $this->currentIssuedEvidenceSortNo() + 1;
     }
 
     private function currentIssuedEvidenceSortNo(): int
@@ -146,29 +144,6 @@ class EvidenceBatchSaveService
         $cache[$table] = (bool) $stmt->fetchColumn();
 
         return $cache[$table];
-    }
-
-    public function assignEvidenceJsonSortNo(array &$payload, array $existingPayload, string $key, int &$nextSortNo): void
-    {
-        $existing = $existingPayload[$key] ?? null;
-        if (is_string($existing)) {
-            $existing = str_replace(',', '', trim($existing));
-        }
-        if (is_numeric($existing) && (int) $existing > 0) {
-            $payload[$key] = (int) $existing;
-            return;
-        }
-
-        $current = $payload[$key] ?? null;
-        if (is_string($current)) {
-            $current = str_replace(',', '', trim($current));
-        }
-        if (is_numeric($current) && (int) $current > 0) {
-            $payload[$key] = (int) $current;
-            return;
-        }
-
-        $payload[$key] = $nextSortNo++;
     }
 
     public function buildUploadRowState(array $row, string $dataType): array
@@ -267,6 +242,8 @@ class EvidenceBatchSaveService
         string $dataType,
         string $formatId,
         ?string $sourceKey,
+        int $sortNo,
+        int $evidenceSortNo,
         array $parsedPayload,
         string $processStatus,
         string $evidenceStatus,
@@ -296,8 +273,8 @@ class EvidenceBatchSaveService
             ':supply_amount' => $this->call('number', $parsedPayload['supply_amount'] ?? null),
             ':vat_amount' => $this->call('number', $parsedPayload['vat_amount'] ?? null),
             ':total_amount' => $this->call('evidenceTotalAmountForStorage', $parsedPayload, $dataType),
-            ':create_sort_no' => (int) ($parsedPayload['_create_sort_no'] ?? 0) ?: null,
-            ':status_sort_no' => (int) ($parsedPayload['_status_sort_no'] ?? 0) ?: null,
+            ':sort_no' => $sortNo > 0 ? $sortNo : null,
+            ':evidence_sort_no' => $evidenceSortNo > 0 ? $evidenceSortNo : null,
             ':evidence_status' => strtoupper(trim($evidenceStatus)) !== ''
                 ? strtoupper(trim($evidenceStatus))
                 : 'COMPLETED',

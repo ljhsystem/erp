@@ -1,2 +1,2 @@
-ALTER TABLE `ledger_sub_accounts`
+ALTER TABLE `ledger_accounts_sub`
   DROP COLUMN `is_required`;

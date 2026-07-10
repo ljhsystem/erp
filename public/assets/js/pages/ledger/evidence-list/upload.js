@@ -9,11 +9,17 @@ export function createEvidenceUploadModule({
     readDataTableSettingsState,
     normalizeEvidenceType,
     defaultEvidenceTypeCode,
+    evidenceMetaDomain,
 }) {
     function currentColumnPolicyPayload() {
         const fallbackType = defaultEvidenceTypeCode();
-        const storageKey = evidenceStatusTableSettingsStorageKey(normalizeEvidenceType(state.currentType || fallbackType));
-        const settingsState = readDataTableSettingsState(storageKey) || {};
+        const normalizedType = normalizeEvidenceType(state.currentType || fallbackType);
+        const storageKey = evidenceStatusTableSettingsStorageKey(normalizedType);
+        const userSettingPageKey = evidenceMetaDomain(normalizedType);
+        const settingsState = readDataTableSettingsState(storageKey, {
+            metaDomain: userSettingPageKey,
+            userSettingPageKey,
+        }) || {};
         return {
             column_display_name: settingsState.columnDisplayName && typeof settingsState.columnDisplayName === 'object'
                 ? settingsState.columnDisplayName

@@ -1,0 +1,2101 @@
+.journal-page .content-area {
+    overflow: visible !important;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+}
+
+.journal-page .journal-shell {
+    padding-top: 0;
+    min-width: 0;
+}
+
+.journal-page .table-box,
+.journal-page .dataTables_wrapper {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.journal-page .page-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.journal-page .page-count {
+    display: inline-flex;
+    align-items: center;
+    font-size: 1rem;
+    font-weight: 500;
+    line-height: 1;
+}
+
+.journal-transaction-search-table th,
+.journal-transaction-search-table td {
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    vertical-align: middle;
+}
+
+.journal-transaction-search-table .journal-search-main {
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.journal-transaction-search-table .journal-search-sub {
+    margin-top: 3px;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.25;
+}
+
+.journal-transaction-search-table tr.journal-search-row-linked-current > td {
+    background: #ecfdf3;
+}
+
+.journal-transaction-search-table tr.journal-search-row-linked-other > td {
+    background: #fff7ed;
+}
+
+.journal-search-link-badge {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    min-height: 22px;
+    margin-top: 6px;
+    padding: 3px 7px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+}
+
+.journal-search-link-badge.current {
+    color: #067647;
+    border-color: #abefc6;
+    background: #dcfae6;
+}
+
+.journal-search-link-badge.other {
+    color: #b54708;
+    border-color: #fedf89;
+    background: #fffaeb;
+}
+
+.journal-page .journal-status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 56px;
+    min-height: 20px;
+    padding: 2px 7px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.15;
+    white-space: nowrap;
+}
+
+.journal-page .journal-status-rejected {
+    color: #842029;
+    background: #f8d7da;
+    border-color: #f1aeb5;
+}
+
+.journal-page .journal-status-draft {
+    color: #4b5563;
+    background: #f3f4f6;
+    border-color: #d1d5db;
+}
+
+.journal-page .journal-status-review-requested {
+    color: #0b5ed7;
+    background: #e7f1ff;
+    border-color: #9ec5fe;
+}
+
+.journal-page .journal-status-reviewed {
+    color: #6f42c1;
+    background: #f1e7ff;
+    border-color: #d6b8ff;
+}
+
+.journal-page .journal-status-posted {
+    color: #146c43;
+    background: #d1e7dd;
+    border-color: #a3cfbb;
+}
+
+.journal-page .journal-status-closed {
+    color: #383d41;
+    background: #e2e3e5;
+    border-color: #c6c8ca;
+}
+
+.journal-page .journal-link-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 56px;
+    min-height: 20px;
+    max-width: 100%;
+    padding: 2px 7px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.15;
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+}
+
+.journal-page .journal-evidence-link-badges {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 3px;
+    max-width: 100%;
+}
+
+.journal-page .journal-evidence-link-badges .journal-link-badge {
+    min-width: 0;
+}
+
+.journal-page .journal-link-unlinked {
+    color: #64748b;
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+}
+
+.journal-page .journal-link-linked {
+    color: #0b5ed7;
+    background: #e7f1ff;
+    border-color: #9ec5fe;
+}
+
+.journal-page .journal-link-matched {
+    color: #146c43;
+    background: #d1e7dd;
+    border-color: #a3cfbb;
+}
+
+.journal-page .journal-status-empty {
+    color: #64748b;
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
+
+.journal-page .journal-status-unbalanced {
+    color: #b42318;
+    background: #fee4e2;
+    border-color: #fda29b;
+}
+
+.journal-page .journal-status-ready {
+    color: #146c43;
+    background: #d1e7dd;
+    border-color: #a3cfbb;
+}
+
+.journal-page .journal-status-posted {
+    color: #6f42c1;
+    background: #ede7f6;
+    border-color: #d6c6f2;
+}
+
+.journal-page .journal-source-origin {
+    margin-top: 4px;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.journal-page .date-icon {
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+.journal-page .journal-table,
+.journal-page .dataTables_wrapper,
+.journal-page .form-control,
+.journal-page .form-select,
+.journal-page .modal-body,
+.journal-page .modal-header,
+.journal-page .modal-footer {
+    font-size: var(--font-size);
+}
+
+#journalModal .modal-dialog {
+    width: min(1180px, calc(100vw - 32px));
+    max-width: min(1180px, calc(100vw - 32px));
+    height: calc(100vh - 40px);
+    max-height: calc(100vh - 40px);
+    margin: 20px auto;
+    display: flex;
+}
+
+#journalModal .modal-content {
+    height: 100%;
+    max-height: calc(100vh - 40px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#journalModal .journal-modal-form {
+    flex: 1;
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#journalModal .modal-header {
+    flex: 0 0 auto;
+    padding: 16px 18px;
+}
+
+#journalModal .journal-modal-header {
+    align-items: flex-start;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    border-bottom: 1px solid #e2e8f0;
+}
+
+#journalModal .modal-title {
+    font-size: 16px;
+    font-weight: 800;
+}
+
+#journalModal .journal-modal-subtitle {
+    margin-top: 4px;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+#journalModal .journal-modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: block;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 12px 16px;
+    background: #ffffff;
+}
+
+#journalModal .modal-content {
+    position: relative;
+}
+
+#journalModal.is-loading-detail .journal-modal-body {
+    pointer-events: none;
+}
+
+#journalModal.is-loading-detail .modal-content::after {
+    content: "전표 정보를 불러오는 중입니다.";
+    position: absolute;
+    inset: 52px 0 58px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, .72);
+    color: var(--color-primary);
+    font-size: 14px;
+    font-weight: 700;
+    z-index: 20;
+}
+
+#journalModal .journal-form-field {
+    min-width: 0;
+}
+
+#journalModal .form-label {
+    margin-bottom: 3px;
+    color: #374151;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+#journalModal .form-section,
+#journalModal .journal-section {
+    background: #ffffff;
+    border: 1px solid #dbe7f3;
+    border-radius: 14px;
+    min-width: 0;
+    padding: 0;
+    margin-bottom: 14px;
+    box-shadow: 0 14px 32px rgba(15, 23, 42, .06);
+}
+
+#journalModal .section-header,
+#journalModal .journal-section-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0;
+    min-height: 0;
+    padding: 16px 18px;
+    color: #0f172a;
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    border-bottom: 0;
+    border-radius: 14px 14px 0 0;
+}
+
+#journalModal .section-title {
+    display: inline-block;
+    line-height: 1.4;
+}
+
+#journalModal .section-body {
+    min-width: 0;
+    padding: 16px;
+}
+
+#journalModal .journal-card-heading {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+#journalModal .journal-card-title,
+#journalModal .journal-section-title {
+    margin: 0;
+    color: #0f172a;
+    font-size: 15px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+#journalModal .journal-card-description {
+    margin: 0;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: normal;
+}
+
+#journalModal .journal-card-header-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+#journalModal .journal-card-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 18px;
+    border: 0;
+    color: #0f172a;
+    background: linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%);
+    text-align: left;
+    border-radius: 14px 14px 0 0;
+}
+
+#journalModal .journal-card-icon {
+    color: #475569;
+    font-size: 14px;
+    transition: transform .2s ease;
+}
+
+#journalModal .journal-card-toggle.collapsed .journal-card-icon {
+    transform: rotate(-90deg);
+}
+
+#journalModal .journal-card-body {
+    padding: 16px;
+}
+
+#journalModal .journal-status-panel {
+    position: sticky;
+    top: -12px;
+    z-index: 12;
+    margin-bottom: 12px;
+    background: #ffffff;
+    box-shadow: 0 12px 24px rgba(15, 23, 42, .10);
+}
+
+#journalModal .journal-voucher-header {
+    flex: 0 0 auto;
+}
+
+#journalModal .journal-header-grid {
+    display: grid;
+    grid-template-columns: 170px 190px 220px minmax(260px, .8fr);
+    gap: 10px;
+    align-items: end;
+}
+
+#journalModal .journal-voucher-no-field .form-control {
+    color: #4b5563;
+    font-weight: 400;
+    background: #f8fafc;
+}
+
+#journalModal .date-input {
+    width: 100%;
+}
+
+#journalModal .date-input .admin-date {
+    width: 100%;
+}
+
+#journalModal .journal-summary-text-field {
+    min-width: 0;
+    grid-column: 3 / -1;
+}
+
+#journalModal .summary-autocomplete-wrap {
+    position: relative;
+}
+
+#journalModal .summary-autocomplete-list {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 30060;
+    max-height: 220px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 4px 0;
+    background: #fff;
+    border: 1px solid #dbe3ef;
+    border-radius: 8px;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, .16);
+}
+
+#journalModal .summary-autocomplete-item {
+    display: block;
+    width: 100%;
+    padding: 7px 10px;
+    color: #111827;
+    font-size: 12px;
+    line-height: 1.3;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+}
+
+#journalModal .summary-autocomplete-item:hover,
+#journalModal .summary-autocomplete-item.active {
+    background: #e8eef7;
+}
+
+#journalModal .journal-lines-panel {
+    --voucher-line-dense-font-size: 11px;
+    --voucher-line-header-font-size: 12px;
+    --voucher-line-subaccount-font-size: 10px;
+    --voucher-line-dense-control-height: 28px;
+    display: flex;
+    flex-direction: column;
+}
+
+#journalModal .journal-lines-toolbar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+#journalModal .section-header .btn,
+#journalModal .journal-lines-toolbar .btn {
+    height: 20px;
+    min-height: 20px;
+    padding: 0 6px !important;
+    font-size: 12px;
+    line-height: 1.15;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#journalModal .journal-lines-wrap {
+    flex: 0 0 auto;
+    overflow: visible;
+}
+
+#journalModal .journal-system-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+#journalModal .journal-link-card-body {
+    padding-top: 0;
+}
+
+#journalModal .journal-link-sections {
+    display: grid;
+    gap: 12px;
+}
+
+#journalModal .journal-link-section {
+    padding: 14px;
+    border: 1px solid #dbe7f3;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #f9fbff 0%, #f3f7fc 100%);
+}
+
+#journalModal .journal-link-section-head {
+    margin-bottom: 10px;
+}
+
+#journalModal .journal-link-section-title {
+    color: #0f172a;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+#journalModal .journal-lines-table-wrap {
+    overflow-x: hidden;
+    overflow-y: visible;
+    border: 1px solid #e5edf8;
+    border-radius: 8px;
+    background: #fff;
+}
+
+#journalModal #voucher-line-table {
+    width: 100%;
+    margin-bottom: 0;
+    min-width: 0;
+    table-layout: fixed;
+    font-size: var(--voucher-line-dense-font-size);
+}
+
+#journalModal #voucher-line-table .line-ref-cell {
+    display: none;
+}
+
+#journalModal #voucher-line-table.has-subaccounts {
+    min-width: 0;
+}
+
+#journalModal #voucher-line-table.has-subaccounts .line-ref-cell {
+    display: table-cell;
+}
+
+#journalModal #voucher-line-table th,
+#journalModal #voucher-line-table td {
+    padding: 2px 4px !important;
+    border-color: #e5ebf2;
+    font-size: var(--voucher-line-dense-font-size);
+    vertical-align: middle;
+    overflow: hidden;
+}
+
+#journalModal #voucher-line-table thead th {
+    height: 26px;
+    padding-top: 3px !important;
+    padding-bottom: 3px !important;
+    background: #f4f7fb;
+    color: #475569;
+    font-size: var(--voucher-line-header-font-size) !important;
+    font-weight: 800;
+    line-height: 1.2;
+    text-align: center;
+    white-space: nowrap;
+    word-break: keep-all;
+}
+
+#journalModal .journal-table-action-head {
+    padding: 0 1px !important;
+    text-align: center;
+}
+
+#journalModal .journal-table-action-head .btn {
+    max-width: 100%;
+    height: 22px;
+    min-height: 22px;
+    padding: 0 !important;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    color: #2563eb;
+    font-size: 0;
+    font-weight: 800;
+    line-height: 1.1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    text-decoration: none;
+}
+
+#journalModal .journal-table-action-head .btn::before {
+    content: "+추가";
+    font-size: var(--voucher-line-header-font-size);
+}
+
+#journalModal #voucher-line-table .btn-remove-line,
+#journalModal #voucher-payment-table .btn-remove-payment {
+    height: 22px;
+    min-height: 22px;
+    padding: 0 !important;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    color: #dc2626;
+    font-size: 0;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+#journalModal #voucher-line-table .btn-remove-line::before,
+#journalModal #voucher-payment-table .btn-remove-payment::before {
+    content: "-삭제";
+    font-size: 11px;
+}
+
+#journalModal #voucher-line-table th:nth-child(1),
+#journalModal #voucher-line-table td:nth-child(1) { width: 48px; }
+#journalModal #voucher-line-table th:nth-child(2),
+#journalModal #voucher-line-table td:nth-child(2) { width: 18%; }
+#journalModal #voucher-line-table th:nth-child(3),
+#journalModal #voucher-line-table td:nth-child(3) { width: 25%; }
+#journalModal #voucher-line-table th:nth-child(4),
+#journalModal #voucher-line-table td:nth-child(4),
+#journalModal #voucher-line-table th:nth-child(5),
+#journalModal #voucher-line-table td:nth-child(5) {
+    width: 128px;
+    min-width: 128px;
+}
+#journalModal #voucher-line-table th:nth-child(6),
+#journalModal #voucher-line-table td:nth-child(6) { width: 18%; }
+#journalModal #voucher-line-table th:nth-child(7),
+#journalModal #voucher-line-table td:nth-child(7) { width: 6%; }
+
+#journalModal .journal-summary {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: stretch;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: nowrap;
+    padding: 10px 0 0;
+    margin-top: 10px;
+    border-top: 1px solid #e5e7eb;
+}
+
+#journalModal .journal-summary-item {
+    flex: 0 0 132px;
+    min-width: 0;
+}
+
+#journalModal .journal-summary-item--status {
+    flex: 0 0 240px;
+}
+
+#journalModal .journal-summary .form-control {
+    font-weight: 600;
+}
+
+#journalModal .input-amount,
+#journalModal #voucher_debit_total,
+#journalModal #voucher_credit_total {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+#journalModal .journal-summary .form-control,
+#journalModal #voucher_balance_status {
+    box-sizing: border-box;
+    height: var(--row-height, 38px) !important;
+    min-height: var(--row-height, 38px) !important;
+}
+
+.voucher-validation-badge {
+    display: inline-flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    box-sizing: border-box;
+    height: auto;
+    min-height: 30px;
+    padding: 6px 10px;
+    border-radius: .375rem;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    text-align: left;
+}
+
+.voucher-validation-badge::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.voucher-validation-ok {
+    color: #146c43;
+    background: #e6f6eb;
+    border: 1px solid #b8dfc4;
+}
+
+.voucher-validation-error {
+    color: #b42318;
+    background: #fee4e2;
+    border: 1px solid #f5a9a3;
+}
+
+#journalModal #voucher_status_badge,
+#journalModal #voucher_balance_status {
+    width: 100%;
+}
+
+#journalModal #voucher_balance_status.voucher-validation-badge {
+    height: auto !important;
+    min-height: var(--row-height, 38px) !important;
+}
+
+.voucher-flow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.voucher-status-timeline {
+    width: 100%;
+    min-width: 0;
+}
+
+.voucher-timeline-reject-reason {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border: 1px solid #f1aeb5;
+    border-radius: 12px;
+    background: #fff6f7;
+}
+
+.voucher-timeline-reject-label {
+    display: inline-block;
+    margin-bottom: 6px;
+    color: #842029;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.voucher-timeline-reject-text {
+    margin: 0;
+    white-space: pre-wrap;
+    color: #842029;
+    font-size: 13px;
+    line-height: 1.5;
+    font-weight: 600;
+}
+
+.voucher-timeline {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(120px, 1fr));
+    justify-content: center;
+    align-items: start;
+    column-gap: 22px;
+    padding: 12px 8px 4px;
+}
+
+.voucher-timeline::before {
+    content: "";
+    position: absolute;
+    top: 20px;
+    left: calc((100% - 4 * 22px) / 10 + 8px);
+    right: calc((100% - 4 * 22px) / 10 + 8px);
+    height: 2px;
+    background: #e5e7eb;
+    border-radius: 999px;
+}
+
+.voucher-timeline-step {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+    text-align: center;
+}
+
+.voucher-timeline-step.done::after {
+    content: "";
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    width: calc(100% + 22px);
+    height: 2px;
+    background: #111827;
+    z-index: 1;
+}
+
+.voucher-timeline-step.done:last-child::after,
+.voucher-timeline-step.current::after {
+    display: none;
+}
+
+.voucher-timeline-node {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 2;
+    width: 16px;
+    height: 16px;
+    border: 0;
+    border-radius: 50%;
+    color: #fff;
+    background: #111827;
+    font-size: 10px;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.voucher-timeline-label {
+    margin-top: 8px;
+    color: #111827;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.voucher-timeline-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 4px;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.25;
+}
+
+.voucher-timeline-step.done .voucher-timeline-meta,
+.voucher-timeline-step.current .voucher-timeline-meta {
+    color: #111827;
+    font-weight: 600;
+}
+
+.voucher-timeline-step.final .voucher-timeline-meta,
+.voucher-timeline-step.final .voucher-timeline-label {
+    color: #166534;
+    font-weight: 800;
+}
+
+.voucher-timeline-draft.done .voucher-timeline-node,
+.voucher-timeline-review-requested.done .voucher-timeline-node,
+.voucher-timeline-reviewed.done .voucher-timeline-node,
+.voucher-timeline-posted.done .voucher-timeline-node,
+.voucher-timeline-closed.done .voucher-timeline-node,
+.voucher-timeline-draft.current .voucher-timeline-node,
+.voucher-timeline-review-requested.current .voucher-timeline-node,
+.voucher-timeline-reviewed.current .voucher-timeline-node,
+.voucher-timeline-posted.current .voucher-timeline-node,
+.voucher-timeline-closed.current .voucher-timeline-node {
+    background: #111827;
+}
+
+.voucher-timeline-draft.done .voucher-timeline-label,
+.voucher-timeline-review-requested.done .voucher-timeline-label,
+.voucher-timeline-reviewed.done .voucher-timeline-label,
+.voucher-timeline-posted.done .voucher-timeline-label,
+.voucher-timeline-closed.done .voucher-timeline-label,
+.voucher-timeline-draft.current .voucher-timeline-label,
+.voucher-timeline-review-requested.current .voucher-timeline-label,
+.voucher-timeline-reviewed.current .voucher-timeline-label,
+.voucher-timeline-posted.current .voucher-timeline-label,
+.voucher-timeline-closed.done .voucher-timeline-label,
+.voucher-timeline-closed.current .voucher-timeline-label {
+    color: #111827;
+}
+
+.voucher-timeline-step.pending .voucher-timeline-node {
+    background: #e5e7eb;
+}
+
+.voucher-timeline-step.pending .voucher-timeline-meta {
+    color: #9ca3af;
+}
+
+.voucher-timeline-step.pending .voucher-timeline-label {
+    color: #6b7280;
+}
+
+.voucher-timeline-step.final .voucher-timeline-node {
+    color: #ffffff;
+    background: #16a34a !important;
+    box-shadow: 0 0 0 4px rgba(22, 163, 74, .16);
+    animation: none !important;
+}
+
+.voucher-timeline-step.closed-final .voucher-timeline-node {
+    background: #475569 !important;
+    box-shadow: 0 0 0 4px rgba(71, 85, 105, .16);
+}
+
+.voucher-timeline-step.closed-final .voucher-timeline-meta,
+.voucher-timeline-step.closed-final .voucher-timeline-label {
+    color: #334155;
+}
+
+.voucher-timeline-step.final .voucher-timeline-node::before,
+.voucher-timeline-step.final .voucher-timeline-node::after {
+    display: none !important;
+    animation: none !important;
+}
+
+.voucher-flow-step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    padding: 5px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+    color: #fff;
+    background: #9ca3af;
+    border: 1px solid transparent;
+}
+
+.voucher-flow-step-draft.done,
+.voucher-flow-step-draft.current {
+    background: #facc15;
+    color: #422006;
+}
+
+.voucher-flow-step-review-requested.done,
+.voucher-flow-step-review-requested.current {
+    background: #3b82f6;
+}
+
+.voucher-flow-step-reviewed.done,
+.voucher-flow-step-reviewed.current {
+    background: #8b5cf6;
+}
+
+.voucher-flow-step-posted.done,
+.voucher-flow-step-posted.current {
+    background: #22c55e;
+}
+
+.voucher-flow-step-closed.done,
+.voucher-flow-step-closed.current {
+    background: #9ca3af;
+}
+
+.voucher-flow-step.pending {
+    color: #4b5563;
+    background: #e5e7eb;
+    border-color: #d1d5db;
+}
+
+.voucher-flow-step.final {
+    color: #ffffff;
+    background: #16a34a;
+    border-color: #15803d;
+    font-weight: 800;
+    animation: none !important;
+}
+
+.voucher-flow-step.closed-final {
+    background: #475569;
+    border-color: #334155;
+}
+
+.voucher-flow-check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    margin-right: 4px;
+    border-radius: 50%;
+    color: inherit;
+    background: rgba(255,255,255,.45);
+    font-size: 10px;
+    font-weight: 900;
+}
+
+.voucher-flow-arrow {
+    color: #9ca3af;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.voucher-flow-table {
+    gap: 3px;
+}
+
+.voucher-flow-table .voucher-flow-step {
+    min-height: 24px;
+    padding: 3px 6px;
+    font-size: 11px;
+}
+
+.voucher-flow-table .voucher-flow-arrow {
+    font-size: 10px;
+}
+
+.voucher-flow-table .voucher-flow-check {
+    width: 12px;
+    height: 12px;
+    margin-right: 3px;
+    font-size: 9px;
+}
+
+.current-step {
+    animation: none;
+}
+
+.voucher-timeline-node.current-step {
+    overflow: visible;
+    background: transparent !important;
+}
+
+.voucher-timeline-node.current-step::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #111827;
+    transform: translate(-50%, -50%);
+}
+
+.voucher-timeline-node.current-step::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #111827;
+    transform-origin: center;
+    animation: voucher-flow-pulse 2.8s infinite ease-out;
+}
+
+@keyframes voucher-flow-pulse {
+    0% {
+        opacity: .95;
+        transform: translate(-50%, -50%) scale(.44);
+    }
+    38% {
+        opacity: .72;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(2.15);
+    }
+}
+
+#journalModal .journal-transaction-summary {
+    min-width: 220px;
+    max-width: 360px;
+    padding: 5px 9px;
+    overflow: hidden;
+    color: #374151;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: #f8fafc;
+    border: 1px solid #dbe3ef;
+    border-radius: 8px;
+}
+
+#journalModal .journal-transaction-notice {
+    flex-basis: 100%;
+    color: #0f5132;
+    background: #d1e7dd;
+    border: 1px solid #badbcc;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+#journalModal .journal-note-grid {
+    display: grid;
+    grid-template-columns: minmax(220px, 0.35fr) minmax(360px, 0.65fr);
+    gap: 8px;
+    margin-top: 8px;
+}
+
+#journalModal .journal-note-grid textarea {
+    min-height: 52px;
+    height: 52px;
+    resize: none;
+}
+
+#journalModal .modal-footer {
+    flex: 0 0 auto;
+    gap: 8px;
+    padding: 9px 16px 12px;
+    background: #fff;
+    border-top: 1px solid #e6eaf0;
+}
+
+#journalModal .modal-footer .btn {
+    min-width: 96px;
+}
+
+#journalModal .journal-payment-panel {
+    --voucher-line-dense-font-size: 11px;
+    --voucher-line-header-font-size: 12px;
+    --voucher-line-dense-control-height: 28px;
+    flex: 0 0 auto;
+}
+
+#journalModal .journal-payments-wrap {
+    overflow-x: auto;
+    border: 1px solid #e5edf8;
+    border-radius: 8px;
+    background: #fff;
+}
+
+#journalModal #voucher-payment-table {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+    font-size: var(--voucher-line-dense-font-size);
+}
+
+#journalModal #voucher-payment-table .payment-direction-cell {
+    display: none;
+}
+
+#journalModal #voucher-payment-table.has-account-payment {
+    min-width: 0;
+}
+
+#journalModal #voucher-payment-table.has-account-payment .payment-direction-cell {
+    display: table-cell;
+}
+
+#journalModal #voucher-payment-table th,
+#journalModal #voucher-payment-table td {
+    padding: 2px 4px !important;
+    border-color: #e5ebf2;
+    font-size: var(--voucher-line-dense-font-size);
+    overflow: hidden;
+}
+
+#journalModal #voucher-payment-table thead th {
+    height: 26px;
+    padding-top: 3px !important;
+    padding-bottom: 3px !important;
+    background: #f4f7fb;
+    color: #475569;
+    font-size: var(--voucher-line-header-font-size) !important;
+    font-weight: 800;
+    line-height: 1.2;
+    text-align: center;
+    white-space: nowrap;
+    word-break: keep-all;
+}
+
+#journalModal #voucher-payment-table th:nth-child(1),
+#journalModal #voucher-payment-table td:nth-child(1) { width: 46px; }
+#journalModal #voucher-payment-table th:nth-child(2),
+#journalModal #voucher-payment-table td:nth-child(2) { width: 112px; }
+#journalModal #voucher-payment-table th:nth-child(3),
+#journalModal #voucher-payment-table td:nth-child(3) { width: 88px; }
+#journalModal #voucher-payment-table th:nth-child(4),
+#journalModal #voucher-payment-table td:nth-child(4) { width: 240px; }
+#journalModal #voucher-payment-table th:nth-child(5),
+#journalModal #voucher-payment-table td:nth-child(5) { width: 180px; }
+#journalModal #voucher-payment-table th:nth-child(6),
+#journalModal #voucher-payment-table td:nth-child(6) { width: 92px; }
+
+#journalModal #voucher-payment-table .payment-id + .select2-container,
+#journalModal #voucher-payment-table .payment-id {
+    max-width: 240px;
+}
+ 
+#journalModal .form-control-sm,
+#journalModal .form-select-sm,
+#journalModal .select2-container .select2-selection--single {
+    min-height: 30px;
+    font-size: 12px;
+}
+
+#journalModal .select2-container {
+    width: 100% !important;
+}
+
+.select2-dropdown.journal-ref-type-dropdown {
+    min-width: 132px;
+    max-width: 180px;
+}
+
+.select2-dropdown.journal-ref-type-dropdown .select2-results__option {
+    padding: 7px 10px;
+    font-size: 12px;
+}
+
+#journalModal .select2-container .select2-selection--single .select2-selection__rendered {
+    line-height: 28px;
+    padding-left: 8px;
+    padding-right: 22px;
+    font-size: 12px;
+}
+
+#journalModal .select2-container .select2-selection--single .select2-selection__arrow {
+    height: 28px;
+}
+
+#journalModal #voucher-line-table .form-control-sm,
+#journalModal #voucher-line-table .form-select-sm,
+#journalModal #voucher-payment-table .form-control-sm,
+#journalModal #voucher-payment-table .form-select-sm {
+    width: 100%;
+    min-width: 0;
+    min-height: var(--voucher-line-dense-control-height);
+    height: var(--voucher-line-dense-control-height);
+    padding: 0 2px;
+    border-color: #dce4ee;
+    border-radius: 3px;
+    font-size: var(--voucher-line-dense-font-size);
+    line-height: 1;
+}
+
+#journalModal #voucher-line-table .line-debit,
+#journalModal #voucher-line-table .line-credit {
+    min-width: 112px;
+    padding-right: 6px;
+}
+
+#journalModal #voucher-line-table .select2-container .select2-selection--single,
+#journalModal #voucher-payment-table .select2-container .select2-selection--single {
+    min-height: var(--voucher-line-dense-control-height);
+    height: var(--voucher-line-dense-control-height);
+}
+
+#journalModal #voucher-line-table .select2-container .select2-selection--single .select2-selection__rendered,
+#journalModal #voucher-payment-table .select2-container .select2-selection--single .select2-selection__rendered {
+    line-height: calc(var(--voucher-line-dense-control-height) - 2px);
+    padding-left: 2px;
+    padding-right: 10px;
+    font-size: var(--voucher-line-dense-font-size);
+}
+
+#journalModal #voucher-line-table .select2-container .select2-selection--single .select2-selection__arrow,
+#journalModal #voucher-payment-table .select2-container .select2-selection--single .select2-selection__arrow {
+    height: calc(var(--voucher-line-dense-control-height) - 2px);
+}
+
+#journalModal .select2-dropdown,
+#journalModal .select2-results,
+#journalModal .select2-results__options {
+    overflow-x: hidden !important;
+}
+
+#journalModal .select2-results__option {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.select2-dropdown.code-select-dropdown {
+    overflow-x: hidden !important;
+}
+
+.select2-dropdown.code-select-dropdown .select2-results,
+.select2-dropdown.code-select-dropdown .select2-results__options {
+    overflow-x: hidden !important;
+}
+
+.select2-dropdown.code-select-dropdown .select2-results__option {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#journalModal .btn-sm {
+    padding: 3px 7px;
+    font-size: 12px;
+}
+
+#journalModal .journal-line-subaccount-grid {
+    display: grid;
+    gap: 3px;
+}
+
+#journalModal .journal-line-subaccount-field {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+}
+
+#journalModal .journal-line-subaccount-field span {
+    color: #374151;
+    font-size: var(--voucher-line-subaccount-font-size, 10px);
+    font-weight: 600;
+}
+
+#journalModal .journal-line-subaccount-required {
+    color: #dc2626;
+    font-weight: 800;
+}
+
+#journalModal .journal-subaccount-empty {
+    display: inline-block;
+    color: #6b7280;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+#journalModal .journal-lines-panel {
+    --voucher-line-dense-font-size: 10.5px;
+    --voucher-line-header-font-size: 11.5px;
+    --voucher-line-subaccount-font-size: 9.5px;
+    --voucher-line-dense-control-height: 24px;
+}
+
+#journalModal #voucher-line-table th,
+#journalModal #voucher-line-table td {
+    padding: 1px 3px !important;
+    line-height: 1.1;
+}
+
+#journalModal #voucher-line-table thead th {
+    height: 24px;
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
+}
+
+#journalModal #voucher-line-table th:nth-child(1),
+#journalModal #voucher-line-table td:nth-child(1) {
+    width: 56px;
+}
+
+#journalModal #voucher-line-table th:nth-child(4),
+#journalModal #voucher-line-table td:nth-child(4),
+#journalModal #voucher-line-table th:nth-child(5),
+#journalModal #voucher-line-table td:nth-child(5) {
+    width: 136px;
+    min-width: 136px;
+}
+
+#journalModal #voucher-line-table th:nth-child(7),
+#journalModal #voucher-line-table td:nth-child(7) {
+    width: 50px;
+    min-width: 50px;
+}
+
+#journalModal #voucher-line-table .form-control-sm,
+#journalModal #voucher-line-table .form-select-sm,
+#journalModal #voucher-payment-table .form-control-sm,
+#journalModal #voucher-payment-table .form-select-sm {
+    min-height: var(--voucher-line-dense-control-height) !important;
+    height: var(--voucher-line-dense-control-height) !important;
+    padding: 0 4px !important;
+    font-size: var(--voucher-line-dense-font-size) !important;
+    line-height: 1 !important;
+}
+
+#journalModal #voucher-line-table .line-debit,
+#journalModal #voucher-line-table .line-credit {
+    min-width: 0;
+    padding-right: 5px !important;
+    text-align: right;
+}
+
+#journalModal #voucher-line-table .select2-container .select2-selection--single,
+#journalModal #voucher-payment-table .select2-container .select2-selection--single {
+    min-height: var(--voucher-line-dense-control-height) !important;
+    height: var(--voucher-line-dense-control-height) !important;
+}
+
+#journalModal #voucher-line-table .select2-container .select2-selection--single .select2-selection__rendered,
+#journalModal #voucher-payment-table .select2-container .select2-selection--single .select2-selection__rendered {
+    line-height: calc(var(--voucher-line-dense-control-height) - 2px) !important;
+    padding-left: 4px !important;
+    padding-right: 14px !important;
+    font-size: var(--voucher-line-dense-font-size) !important;
+}
+
+#journalModal #voucher-line-table .select2-container .select2-selection--single .select2-selection__arrow,
+#journalModal #voucher-payment-table .select2-container .select2-selection--single .select2-selection__arrow {
+    height: calc(var(--voucher-line-dense-control-height) - 2px) !important;
+}
+
+#journalModal .journal-line-subaccount-grid {
+    gap: 1px;
+}
+
+#journalModal .journal-line-subaccount-field {
+    gap: 1px;
+}
+
+#journalModal .journal-line-subaccount-field span {
+    line-height: 1;
+}
+
+#journalModal .journal-line-order-cell {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-width: 42px;
+    white-space: nowrap;
+}
+
+#journalModal .journal-line-drag-handle {
+    width: 16px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #94a3b8;
+    cursor: grab;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+#journalModal .journal-line-drag-handle:active {
+    cursor: grabbing;
+}
+
+#journalModal .journal-line-is-dragging {
+    opacity: .62;
+}
+
+#journalModal #voucher-line-table .journal-table-action-head .btn,
+#journalModal #voucher-payment-table .journal-table-action-head .btn {
+    width: 44px;
+    max-width: 44px;
+    height: 22px;
+    min-height: 22px;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: transparent !important;
+    font-size: 0 !important;
+    line-height: 1 !important;
+    overflow: hidden;
+    white-space: nowrap;
+    text-decoration: none !important;
+}
+
+#journalModal #voucher-line-table .journal-table-action-head .btn::before,
+#journalModal #voucher-payment-table .journal-table-action-head .btn::before {
+    content: "+추가";
+    color: #2563eb;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+#journalModal #voucher-line-table .btn-remove-line,
+#journalModal #voucher-payment-table .btn-remove-payment {
+    width: 42px;
+    max-width: 42px;
+    height: 22px;
+    min-height: 22px;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: transparent !important;
+    font-size: 0 !important;
+    line-height: 1 !important;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+#journalModal #voucher-line-table .btn-remove-line::before,
+#journalModal #voucher-payment-table .btn-remove-payment::before {
+    content: "-삭제";
+    color: #dc2626;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+#journalModal #voucher-line-table th:nth-child(1),
+#journalModal #voucher-line-table td:nth-child(1) {
+    width: 48px !important;
+    min-width: 48px !important;
+    white-space: nowrap;
+}
+
+#journalModal #voucher-line-table th:nth-child(2),
+#journalModal #voucher-line-table td:nth-child(2) {
+    width: 21% !important;
+}
+
+#journalModal #voucher-line-table th:nth-child(3),
+#journalModal #voucher-line-table td:nth-child(3) {
+    width: 28% !important;
+}
+
+#journalModal #voucher-line-table th:nth-child(4),
+#journalModal #voucher-line-table td:nth-child(4),
+#journalModal #voucher-line-table th:nth-child(5),
+#journalModal #voucher-line-table td:nth-child(5) {
+    width: 10% !important;
+    min-width: 0 !important;
+}
+
+#journalModal #voucher-line-table th:nth-child(6),
+#journalModal #voucher-line-table td:nth-child(6) {
+    width: 19% !important;
+}
+
+#journalModal #voucher-line-table th:nth-child(7),
+#journalModal #voucher-line-table td:nth-child(7) {
+    width: 6% !important;
+    min-width: 44px !important;
+}
+
+#journalModal .journal-line-subaccounts {
+    min-width: 0;
+    width: 100%;
+}
+
+#journalModal .journal-line-subaccount-grid {
+    display: grid;
+    gap: 1px;
+    width: 100%;
+}
+
+#journalModal .journal-line-subaccount-field {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr);
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    width: 100%;
+    margin: 0;
+}
+
+#journalModal .journal-line-subaccount-field span {
+    min-width: 0;
+    color: #475569;
+    font-size: var(--voucher-line-subaccount-font-size) !important;
+    font-weight: 700;
+    line-height: 1.15;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#journalModal #voucher-line-table .line-ref-picker,
+#journalModal #voucher-line-table .line-ref-picker option,
+#journalModal #voucher-line-table .line-ref-cell .select2-selection__rendered {
+    font-weight: 400 !important;
+}
+
+#journalModal .journal-line-order-cell {
+    gap: 3px;
+    min-width: 0;
+}
+
+#journalModal .journal-line-drag-handle {
+    width: 18px;
+    height: 24px;
+}
+
+#journalModal .journal-line-drag-handle i {
+    font-size: 14px;
+    line-height: 1;
+    pointer-events: none;
+}
+
+#journalModal .journal-evidence-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+#journalModal .journal-link-meta-grid {
+    display: grid;
+    grid-template-columns: minmax(160px, 220px) minmax(180px, 260px);
+    gap: 8px;
+    align-items: end;
+    flex: 1 1 100%;
+}
+
+#journalModal .journal-evidence-link .btn {
+    flex: 0 0 auto;
+}
+
+.journal-quick-create-option {
+    display: block;
+    font-weight: 700;
+    color: #0d6efd;
+}
+
+/* 전표 화면 모달 레이어: backdrop < 전표 모달 < 기준정보/빠른등록 모달 < select2 */
+.modal-backdrop {
+    z-index: 30000 !important;
+}
+
+.modal.show,
+.modal#journalModal,
+.modal.show#journalModal {
+    z-index: 30010 !important;
+}
+
+.modal#journalQuickCreateModal,
+.modal.show#journalQuickCreateModal,
+.modal#codeQuickModal,
+.modal.show#codeQuickModal,
+.modal#codeModal,
+.modal.show#codeModal,
+[data-journal-detail-modal] .modal,
+[data-journal-detail-modal] .modal.show {
+    z-index: 30030 !important;
+}
+
+body.modal-open .select2-container--open {
+    z-index: 30050 !important;
+}
+
+.journal-transaction-search {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.journal-search-table-wrap {
+    max-height: min(62vh, 640px);
+    overflow: auto;
+}
+
+.journal-transaction-search-table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.journal-transaction-search-table th,
+.journal-transaction-search-table td {
+    font-size: var(--font-size);
+    vertical-align: middle;
+}
+
+.journal-transaction-search-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #f8f9fa;
+    box-shadow: inset 0 -1px 0 #dee2e6;
+}
+
+.journal-transaction-search-table td:nth-child(3) {
+    white-space: normal;
+}
+
+@media (max-width: 991.98px) {
+    #journalModal .journal-header-grid {
+        grid-template-columns: 170px 190px minmax(260px, 1fr);
+    }
+
+    #journalModal .journal-system-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #journalModal .journal-summary-text-field {
+        grid-column: span 3;
+    }
+
+    #journalModal .journal-summary {
+        flex-wrap: wrap;
+    }
+
+    #journalModal .journal-summary-item {
+        flex: 1 1 calc(50% - 5px);
+    }
+
+    #journalModal .journal-summary-item--status {
+        flex: 1 1 100%;
+    }
+
+    #journalModal .journal-evidence-link {
+        flex-wrap: wrap;
+    }
+
+    #journalModal .journal-transaction-summary {
+        flex: 1 1 100%;
+        min-width: 0;
+        max-width: none;
+    }
+
+    #journalModal .journal-card-toggle,
+    #journalModal .section-header,
+    #journalModal .journal-section-head {
+        padding: 14px 16px;
+    }
+}
+
+#journalModal .voucher-line-grid-host {
+    --voucher-line-dense-font-size: 12px;
+    --voucher-line-header-font-size: 12px;
+    --voucher-line-dense-control-height: 25px;
+    overflow: visible;
+    max-height: none;
+    border: 1px solid #e5edf8;
+    border-radius: 8px;
+    background: #fff;
+}
+
+#journalModal .journal-lines-table-wrap.is-legacy-hidden {
+    display: none;
+}
+
+#journalModal .voucher-line-grid-host .html-grid-table {
+    width: 100%;
+    min-width: 0;
+    margin-bottom: 0;
+    table-layout: fixed;
+    font-size: var(--voucher-line-dense-font-size);
+    border-collapse: collapse;
+}
+
+#journalModal .voucher-line-grid-host .html-grid-header-cell,
+#journalModal .voucher-line-grid-host .html-grid-cell,
+#journalModal .voucher-line-grid-host tfoot td {
+    padding: 1px 2px !important;
+    border: 1px solid #e5ebf2;
+    overflow: hidden;
+    vertical-align: middle;
+    font-size: var(--voucher-line-dense-font-size);
+}
+
+#journalModal .voucher-line-grid-host .html-grid-header-cell {
+    position: relative;
+    height: 26px;
+    padding-top: 1px !important;
+    padding-bottom: 1px !important;
+    background: #f4f7fb;
+    color: #475569;
+    font-size: var(--voucher-line-header-font-size) !important;
+    font-weight: 800;
+    line-height: 1.15;
+    text-align: center;
+    white-space: nowrap;
+    word-break: keep-all;
+}
+
+#journalModal .voucher-line-grid-host .html-grid-header-resize-handle {
+    display: none !important;
+    position: absolute;
+    top: 0;
+    right: -3px;
+    width: 6px;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: col-resize;
+    opacity: 0;
+    z-index: 2;
+}
+
+#journalModal .voucher-line-grid-host .html-grid-header-cell:hover .html-grid-header-resize-handle,
+#journalModal .voucher-line-grid-host .html-grid-header-resize-handle:hover,
+#journalModal .voucher-line-grid-host .html-grid-header-resize-handle:focus-visible {
+    opacity: 0;
+}
+
+#journalModal .voucher-line-grid-host .html-grid-header-cell[data-column-key="row_action"] .html-grid-header-resize-handle {
+    display: none;
+}
+
+#journalModal .voucher-line-grid-host .html-grid-cell-content {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 27px;
+}
+
+#journalModal .voucher-line-grid-host .html-grid-cell-value {
+    display: none;
+}
+
+#journalModal .voucher-line-grid-host .html-grid-cell-editor-slot {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 27px;
+}
+
+#journalModal .voucher-line-grid-host .html-grid-editor,
+#journalModal .voucher-line-grid-host .form-control-sm,
+#journalModal .voucher-line-grid-host .form-select-sm {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    min-height: var(--voucher-line-dense-control-height) !important;
+    height: var(--voucher-line-dense-control-height) !important;
+    margin: 0 !important;
+    padding: 0 6px !important;
+    border-color: #dce4ee;
+    border-radius: 3px;
+    font-size: var(--voucher-line-dense-font-size) !important;
+    line-height: calc(var(--voucher-line-dense-control-height) - 2px) !important;
+    box-sizing: border-box;
+}
+
+#journalModal .voucher-line-grid-host .line-debit,
+#journalModal .voucher-line-grid-host .line-credit {
+    min-width: 0;
+    padding-right: 4px !important;
+    text-align: right;
+}
+
+#journalModal .voucher-line-grid-host .select2-container {
+    width: 100% !important;
+    min-width: 0;
+}
+
+#journalModal .voucher-line-grid-host .select2-container .select2-selection--single {
+    display: flex !important;
+    align-items: center;
+    min-height: var(--voucher-line-dense-control-height) !important;
+    height: var(--voucher-line-dense-control-height) !important;
+    padding: 0 20px 0 6px !important;
+    box-sizing: border-box;
+}
+
+#journalModal .voucher-line-grid-host .select2-container .select2-selection--single .select2-selection__rendered {
+    display: block !important;
+    width: 100%;
+    line-height: calc(var(--voucher-line-dense-control-height) - 2px) !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    font-size: var(--voucher-line-dense-font-size) !important;
+    font-weight: 400 !important;
+}
+
+#journalModal .voucher-line-grid-host .select2-container .select2-selection--single .select2-selection__arrow {
+    right: 4px !important;
+    height: 100% !important;
+}
+
+#journalModal .voucher-line-grid-host .html-grid-column-sort_no {
+    min-width: 48px !important;
+    white-space: nowrap;
+}
+
+#journalModal .voucher-line-grid-host .html-grid-column-debit,
+#journalModal .voucher-line-grid-host .html-grid-column-credit {
+    min-width: 0 !important;
+}
+
+#journalModal .voucher-line-grid-host .html-grid-column-row_action {
+    min-width: 44px !important;
+}
+
+#journalModal .voucher-line-grid-host .html-grid-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: -1px;
+    padding: 0 12px;
+    min-height: calc(var(--voucher-line-dense-control-height) + 4px);
+    height: calc(var(--voucher-line-dense-control-height) + 4px);
+    border-top: 1px solid #e5ebf2;
+    color: #6b7280;
+    font-size: 12px;
+    background: #fff;
+}
+
+#journalModal .voucher-line-grid-host .html-grid-empty.is-hidden {
+    display: none;
+}
+
+#journalModal .voucher-line-grid-host .html-grid-table.is-hidden {
+    display: table;
+}
+
+#journalModal .voucher-line-grid-host .voucher-grid-header-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    position: relative;
+    z-index: 3;
+    text-align: center;
+}
+
+#journalModal .voucher-line-grid-host .voucher-grid-header-action .btn,
+#journalModal .voucher-line-grid-host .voucher-grid-delete-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    text-decoration: none !important;
+    text-align: center;
+    line-height: 1.2;
+}
+
+#journalModal .voucher-line-grid-host .voucher-grid-header-action .btn {
+    color: #2563eb;
+    font-size: var(--voucher-line-header-font-size) !important;
+    font-weight: 400;
+    line-height: 1.15 !important;
+}
+
+#journalModal .voucher-line-grid-host .voucher-grid-delete-btn {
+    color: #dc2626;
+    font-size: var(--voucher-line-header-font-size) !important;
+    font-weight: 400;
+    line-height: 1.15 !important;
+}
+
+#journalModal .voucher-line-grid-host .html-grid-header-cell[data-column-key="row_action"] .html-grid-header-cell-content {
+    display: none;
+}
+
+#journalModal .voucher-line-grid-host .html-grid-header-cell[data-column-key="sort_no"],
+#journalModal .voucher-line-grid-host .html-grid-header-cell[data-column-key="account_id"],
+#journalModal .voucher-line-grid-host .html-grid-header-cell[data-column-key="refs"],
+#journalModal .voucher-line-grid-host .html-grid-header-cell[data-column-key="debit"],
+#journalModal .voucher-line-grid-host .html-grid-header-cell[data-column-key="credit"],
+#journalModal .voucher-line-grid-host .html-grid-header-cell[data-column-key="line_summary"] {
+    cursor: default;
+}
+
+#journalModal .voucher-line-grid-host tfoot {
+    border-top: 1px solid #e5e7eb;
+}
+
+#journalModal .voucher-line-grid-host tfoot td {
+    background: #f8fafc;
+    color: #334155;
+    font-weight: 700;
+    text-align: right;
+}
+
+@media (max-width: 767.98px) {
+    #journalModal .modal-dialog {
+        width: calc(100vw - 16px);
+        max-width: calc(100vw - 16px);
+        height: calc(100vh - 16px);
+        max-height: calc(100vh - 16px);
+        margin: 8px auto;
+    }
+
+    #journalModal .modal-content {
+        height: 100%;
+        max-height: calc(100vh - 16px);
+    }
+
+    #journalModal .journal-modal-body {
+        padding: 10px;
+    }
+
+    #journalModal .journal-header-grid,
+    #journalModal .journal-note-grid {
+        grid-template-columns: 1fr;
+    }
+
+    #journalModal .journal-system-grid {
+        grid-template-columns: 1fr;
+    }
+
+    #journalModal .journal-summary-text-field {
+        grid-column: auto;
+    }
+
+    .voucher-timeline {
+        grid-template-columns: 1fr;
+        justify-content: stretch;
+        gap: 10px;
+        padding: 8px 0 0;
+    }
+
+    .voucher-timeline::before {
+        display: none;
+    }
+
+    .voucher-timeline-step.done::after {
+        display: none;
+    }
+
+    .voucher-timeline-step {
+        align-items: flex-start;
+        flex-direction: row;
+        gap: 10px;
+        text-align: left;
+    }
+
+    .voucher-timeline-label {
+        margin-top: 2px;
+    }
+
+    #journalModal .journal-summary {
+        flex-direction: column;
+    }
+
+    #journalModal .journal-summary-item,
+    #journalModal .journal-summary-item--status {
+        flex: 1 1 auto;
+    }
+
+    .journal-transaction-search {
+        grid-template-columns: 1fr;
+    }
+
+    #journalModal .journal-lines-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    #journalModal .journal-evidence-link {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    #journalModal .journal-link-meta-grid {
+        grid-template-columns: 1fr;
+        width: 100%;
+    }
+
+    #journalModal .modal-footer {
+        justify-content: stretch;
+    }
+
+    #journalModal .modal-footer .btn {
+        flex: 1 1 auto;
+    }
+}

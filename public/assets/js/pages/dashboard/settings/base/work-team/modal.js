@@ -35,7 +35,9 @@ export function createWorkTeamModalModule({
     ]);
 
     function currentWorkTeamPolicyState() {
-        return readDataTableSettingsState(WORK_TEAM_TABLE_SETTINGS_STORAGE_KEY) || {};
+        return readDataTableSettingsState(WORK_TEAM_TABLE_SETTINGS_STORAGE_KEY, {
+            userSettingPageKey: 'work-team',
+        }) || {};
     }
 
     function workTeamFieldLabel(key, _fallback = '') {

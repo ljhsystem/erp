@@ -136,6 +136,16 @@ class EvidenceUploadValidationService
                 if ($dateTime !== '' && $this->dateTimeValue($dateTime) === null) {
                     $errors[] = '거래일시 형식이 올바르지 않습니다.';
                 }
+            } elseif ($dataType === 'CASH_RECEIPT') {
+                $dateTime = trim((string) ($row['raw_purchase_datetime'] ?? $row['purchase_datetime'] ?? ''));
+                if ($dateTime !== '' && $this->dateTimeValue($dateTime) === null) {
+                    $errors[] = '매입일시 형식이 올바르지 않습니다.';
+                }
+
+                $date = trim((string) ($row['transaction_date'] ?? $row['issue_date'] ?? $row['raw_written_date'] ?? $row['raw_issue_date'] ?? ''));
+                if ($date !== '' && !$this->isValidDateValue($date)) {
+                    $errors[] = '거래일자 형식이 올바르지 않습니다.';
+                }
             } else {
                 $date = trim((string) ($row['transaction_date'] ?? $row['issue_date'] ?? $row['raw_written_date'] ?? $row['raw_issue_date'] ?? ''));
                 if ($date !== '' && !$this->isValidDateValue($date)) {

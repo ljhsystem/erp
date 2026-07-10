@@ -4,23 +4,32 @@ namespace App\Controllers\Ledger;
 
 use App\Controllers\System\LayoutController;
 use App\Services\Ledger\TransactionCrudService;
+use App\Services\Ledger\TransactionExcelService;
 use App\Services\Ledger\TransactionVoucherService;
+use App\Models\Ledger\EvidenceDataModel;
 use Core\DbPdo;
+use Core\Helpers\ExcelTemplateFilenameHelper;
 use PDO;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class TransactionController
 {
     private PDO $pdo;
     private TransactionCrudService $service;
+    private TransactionExcelService $excelService;
     private TransactionVoucherService $transactionVoucherService;
     private LayoutController $layout;
+    private EvidenceDataModel $evidenceDataModel;
 
     public function __construct(?PDO $pdo = null)
     {
         $this->pdo = $pdo ?? DbPdo::conn();
         $this->service = new TransactionCrudService($this->pdo);
+        $this->excelService = new TransactionExcelService($this->pdo, $this->service);
         $this->transactionVoucherService = new TransactionVoucherService($this->pdo);
         $this->layout = new LayoutController($this->pdo);
+        $this->evidenceDataModel = new EvidenceDataModel($this->pdo);
     }
 
     private function renderPage(string $viewPath, array $params = []): void
@@ -147,6 +156,31 @@ class TransactionController
         });
     }
 
+    public function apiEvidenceSearch(): void
+    {
+        $this->json(function (): array {
+            $query = trim((string) ($_GET['q'] ?? ''));
+            $rows = $this->evidenceDataModel->searchForPicker($query, ['DATA', 'BOTH']);
+
+            return [
+                'success' => true,
+                'data' => array_map(static function (array $row): array {
+                    $payload = json_decode((string) ($row['mapped_payload_json'] ?? ''), true);
+                    $payload = is_array($payload) ? $payload : [];
+                    return [
+                        'id' => (string) ($row['id'] ?? ''),
+                        'source_type' => (string) ($row['source_type'] ?? ''),
+                        'source_key' => (string) ($row['source_key'] ?? ''),
+                        'evidence_date' => (string) ($row['evidence_date'] ?? ''),
+                        'client_name' => (string) ($row['client_name'] ?? $payload['client_name'] ?? ''),
+                        'total_amount' => (float) ($row['total_amount'] ?? $payload['total_amount'] ?? 0),
+                        'description' => (string) ($payload['description'] ?? $payload['memo'] ?? ''),
+                    ];
+                }, $rows),
+            ];
+        });
+    }
+
     public function apiFile(): void
     {
         $id = trim((string) ($_GET['id'] ?? ''));
@@ -170,6 +204,138 @@ class TransactionController
         );
         readfile((string) $download['absolute_path']);
         exit;
+    }
+
+    public function apiTemplate(): void
+    {
+        $this->downloadSpreadsheet(
+            $this->excelService->createTemplateSpreadsheet($_GET['columns'] ?? null),
+            'transactions_template.xlsx'
+        );
+    }
+
+    public function apiItemTemplate(): void
+    {
+        $this->downloadSpreadsheet(
+            $this->excelService->createItemTemplateSpreadsheet($_GET['columns'] ?? null),
+            'transaction_items_template.xlsx'
+        );
+    }
+
+    public function apiSettlementTemplate(): void
+    {
+        $this->downloadSpreadsheet(
+            $this->excelService->createSettlementTemplateSpreadsheet($_GET['columns'] ?? null),
+            'transaction_settlements_template.xlsx'
+        );
+    }
+
+    public function apiDownloadExcel(): void
+    {
+        $this->downloadSpreadsheet(
+            $this->excelService->createExportSpreadsheet($_GET['columns'] ?? null),
+            'transactions.xlsx'
+        );
+    }
+
+    public function apiDownloadItemExcel(): void
+    {
+        $payload = $this->requestPayload();
+        $rows = $this->decodeRequestRows($payload['rows'] ?? null);
+
+        $this->downloadSpreadsheet(
+            $this->excelService->createItemExportSpreadsheet($rows, $payload['columns'] ?? $_GET['columns'] ?? null),
+            'transaction_items.xlsx'
+        );
+    }
+
+    public function apiDownloadSettlementExcel(): void
+    {
+        $payload = $this->requestPayload();
+        $rows = $this->decodeRequestRows($payload['rows'] ?? null);
+
+        $this->downloadSpreadsheet(
+            $this->excelService->createSettlementExportSpreadsheet($rows, $payload['columns'] ?? $_GET['columns'] ?? null),
+            'transaction_settlements.xlsx'
+        );
+    }
+
+    public function apiExcelUpload(): void
+    {
+        try {
+            $uploadedFile = $this->uploadedExcelFile();
+            if (!$uploadedFile || empty($uploadedFile['tmp_name']) || !is_uploaded_file((string) $uploadedFile['tmp_name'])) {
+                http_response_code(400);
+                echo json_encode([
+                    'success' => false,
+                    'message' => '업로드할 엑셀 파일을 선택해 주세요.',
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            echo json_encode(
+                $this->excelService->importFromExcelFile((string) $uploadedFile['tmp_name']),
+                JSON_UNESCAPED_UNICODE
+            );
+        } catch (\Throwable $e) {
+            http_response_code(422);
+            echo json_encode([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    public function apiItemExcelUpload(): void
+    {
+        try {
+            $uploadedFile = $this->uploadedExcelFile();
+            if (!$uploadedFile || empty($uploadedFile['tmp_name']) || !is_uploaded_file((string) $uploadedFile['tmp_name'])) {
+                http_response_code(400);
+                echo json_encode([
+                    'success' => false,
+                    'message' => '업로드할 엑셀 파일을 선택해 주세요.',
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            echo json_encode(
+                $this->excelService->importItemsFromExcelFile((string) $uploadedFile['tmp_name']),
+                JSON_UNESCAPED_UNICODE
+            );
+        } catch (\Throwable $e) {
+            http_response_code(422);
+            echo json_encode([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    public function apiSettlementExcelUpload(): void
+    {
+        try {
+            $uploadedFile = $this->uploadedExcelFile();
+            if (!$uploadedFile || empty($uploadedFile['tmp_name']) || !is_uploaded_file((string) $uploadedFile['tmp_name'])) {
+                http_response_code(400);
+                echo json_encode([
+                    'success' => false,
+                    'message' => '업로드할 엑셀 파일을 선택해 주세요.',
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            echo json_encode(
+                $this->excelService->importSettlementsFromExcelFile((string) $uploadedFile['tmp_name']),
+                JSON_UNESCAPED_UNICODE
+            );
+        } catch (\Throwable $e) {
+            http_response_code(422);
+            echo json_encode([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE);
+        }
     }
 
     public function apiSave(): void
@@ -392,8 +558,47 @@ class TransactionController
         return is_array($payload) ? $payload : [];
     }
 
+    private function decodeRequestRows(mixed $rows): array
+    {
+        if (is_array($rows)) {
+            return $rows;
+        }
+
+        if (is_string($rows) && trim($rows) !== '') {
+            $decoded = json_decode($rows, true);
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        return [];
+    }
+
     private function withLinkedVouchers(array $transaction): array
     {
         return $this->transactionVoucherService->appendLinkedVouchers($transaction);
+    }
+
+    private function uploadedExcelFile(): ?array
+    {
+        foreach ($_FILES as $file) {
+            if (!is_array($file)) {
+                continue;
+            }
+
+            if (!empty($file['tmp_name']) && is_string($file['tmp_name'])) {
+                return $file;
+            }
+        }
+
+        return null;
+    }
+
+    private function downloadSpreadsheet(Spreadsheet $spreadsheet, string $filename): void
+    {
+        $filename = ExcelTemplateFilenameHelper::normalize($filename, 'transactions');
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="' . $filename . '"');
+        header('Cache-Control: max-age=0');
+        (new Xlsx($spreadsheet))->save('php://output');
+        exit;
     }
 }

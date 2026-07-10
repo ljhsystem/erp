@@ -13,6 +13,7 @@ import {
     resolveDataTableColumnDisplayName,
     resolveDataTableColumnRequirementPolicy,
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
+import { writeSystemUserSettingsStorage } from '/public/assets/js/common/user-settings/systemUserSettingsStorage.js';
 import '/public/assets/js/components/excel-manager.js';
 import '/public/assets/js/components/trash-manager.js';
 
@@ -20,6 +21,11 @@ window.AdminPicker = AdminPicker;
 
 (() => {
     'use strict';
+
+    const layoutTestMode = new URLSearchParams(window.location.search).get('dtCssTest');
+    if (layoutTestMode === 'account-width-off') {
+        document.documentElement.classList.add('dt-test-account-width-off');
+    }
 
     const API = {
         LIST: '/api/ledger/account/list',
@@ -35,7 +41,10 @@ window.AdminPicker = AdminPicker;
         EXCEL_TEMPLATE: '/api/ledger/account/template',
         EXCEL_DOWNLOAD: '/api/ledger/account/excel',
         EXCEL_UPLOAD: '/api/ledger/account/excel-upload',
-        SUB_LIST: '/api/ledger/sub-account/list'
+        SUB_LIST: '/api/ledger/sub-account/list',
+        SUB_TEMPLATE: '/api/ledger/sub-account/template',
+        SUB_DOWNLOAD: '/api/ledger/sub-account/excel',
+        SUB_UPLOAD: '/api/ledger/sub-account/excel-upload',
     };
 
     async function fetchJson(url, options = {}) {
@@ -131,6 +140,11 @@ window.AdminPicker = AdminPicker;
         { value: 'updated_at', label: '수정일자' }
     ];
     const ACCOUNT_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.ledger.account.account-table.v1';
+    const ACCOUNT_SUB_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.ledger.account.sub-account-table.v1';
+    const ACCOUNT_USER_SETTING_PAGE_KEY = 'account-subject-main';
+    const ACCOUNT_SUB_USER_SETTING_PAGE_KEY = 'account-subject-sub';
+    const ACCOUNT_META_DOMAIN = 'account-subject-main';
+    const ACCOUNT_SUB_META_DOMAIN = 'account-subject-sub';
     const NEW_PARENT_ACCOUNT_VALUE = '__new_parent_account__';
     const SUB_ACCOUNT_CODE_GROUP = 'REF_TARGET';
     const SUB_ACCOUNT_SELECT_NAME = 'ledger_sub_ref_target';
@@ -139,7 +153,7 @@ window.AdminPicker = AdminPicker;
         { selector: '#modal_account_name', key: 'account_name' },
         { selector: '#modal_parent_id', key: 'parent_id' },
         { selector: '#modal_account_group', key: 'account_group' },
-        { selector: '#modal_normal_balance_debit', key: 'normal_balance' },
+        { selector: '#modal_normal_balance_debit', key: 'normal_balance', labelSelector: '.col-md-4 > label.form-label' },
         { selector: '#modal_allow_sub_account_toggle', key: 'allow_sub_account' },
         { selector: '#modal_is_posting_toggle', key: 'is_posting' },
         { selector: '#modal_is_active_toggle', key: 'is_active' },
@@ -148,8 +162,10 @@ window.AdminPicker = AdminPicker;
     ]);
 
     let accountTable = null;
+    let subAccountTable = null;
     let accountModal = null;
     let excelModal = null;
+    let subExcelModal = null;
     let parentAccounts = [];
     let modalDraftSubAccounts = [];
     let accountFormInitialSnapshot = '';
@@ -195,8 +211,87 @@ window.AdminPicker = AdminPicker;
         }
     });
 
+    function sanitizeTableSettingsState(storageKey, userSettingPageKey, normalizer = null) {
+        try {
+            const parsed = readDataTableSettingsState(storageKey, {
+                userSettingPageKey,
+            });
+            if (!parsed || typeof parsed !== 'object') return;
+
+            let changed = false;
+            const nextState = { ...parsed };
+
+            [
+                'columnWidths',
+                'pageLength',
+                'sortSettings',
+                'currentPage',
+                'searchFormExpanded',
+                'searchFormState',
+                'requiredColumns',
+                'columnWidth',
+            ].forEach((key) => {
+                if (Object.prototype.hasOwnProperty.call(nextState, key)) {
+                    delete nextState[key];
+                    changed = true;
+                }
+            });
+
+            if (typeof normalizer === 'function') {
+                const normalizedState = normalizer(nextState);
+                if (normalizedState && normalizedState !== nextState) {
+                    Object.assign(nextState, normalizedState);
+                    changed = true;
+                }
+            }
+
+            if (changed) {
+                writeSystemUserSettingsStorage(storageKey, nextState, {
+                    userSettingPageKey,
+                    settingType: 'TABLE',
+                });
+            }
+        } catch (error) {
+            console.warn('[account-subject] table settings sanitize failed:', error);
+        }
+    }
+
+    function sanitizeAccountTableSettingsState() {
+        sanitizeTableSettingsState(ACCOUNT_TABLE_SETTINGS_STORAGE_KEY, ACCOUNT_USER_SETTING_PAGE_KEY);
+    }
+
+    function sanitizeSubAccountTableSettingsState() {
+        sanitizeTableSettingsState(
+            ACCOUNT_SUB_TABLE_SETTINGS_STORAGE_KEY,
+            ACCOUNT_SUB_USER_SETTING_PAGE_KEY,
+            (state) => {
+                const currentOrder = Array.isArray(state?.columnOrder) ? state.columnOrder : [];
+                if (currentOrder.length === 0 || !currentOrder.includes('__actions')) {
+                    return null;
+                }
+
+                const nextOrder = currentOrder.filter((key) => key !== '__actions');
+                nextOrder.push('__actions');
+
+                const unchanged = nextOrder.length === currentOrder.length
+                    && nextOrder.every((key, index) => key === currentOrder[index]);
+
+                if (unchanged) {
+                    return null;
+                }
+
+                return {
+                    ...state,
+                    columnOrder: nextOrder,
+                };
+            }
+        );
+    }
+
     function currentAccountPolicyState() {
-        return readDataTableSettingsState(ACCOUNT_TABLE_SETTINGS_STORAGE_KEY) || {};
+        return readDataTableSettingsState(ACCOUNT_TABLE_SETTINGS_STORAGE_KEY, {
+            userSettingPageKey: ACCOUNT_USER_SETTING_PAGE_KEY,
+        }) || {};
     }
 
     function accountFieldLabel(key, fallback = '') {
@@ -227,9 +322,20 @@ window.AdminPicker = AdminPicker;
         return '';
     }
 
-    function findAccountModalLabel(selector, root = document) {
+    function findAccountModalLabel(fieldConfig, root = document) {
+        const selector = String(fieldConfig?.selector || '').trim();
+        if (selector === '') return null;
+
         const field = root.querySelector(selector);
         if (!field) return null;
+
+        const explicitLabelSelector = String(fieldConfig?.labelSelector || '').trim();
+        if (explicitLabelSelector !== '') {
+            const explicitLabel = field.closest('.col-md-3, .col-md-4, .col-md-5, .col-md-6, .col-md-auto, .col-12, .mb-3')
+                ?.querySelector(explicitLabelSelector)
+                || root.querySelector(explicitLabelSelector);
+            if (explicitLabel) return explicitLabel;
+        }
 
         if (field.id) {
             const byFor = root.querySelector(`label[for="${field.id}"]`);
@@ -247,7 +353,7 @@ window.AdminPicker = AdminPicker;
 
     function applyAccountModalPolicyLabels(root = document) {
         ACCOUNT_MODAL_FIELD_POLICIES.forEach((field) => {
-            const labelEl = findAccountModalLabel(field.selector, root);
+            const labelEl = findAccountModalLabel(field, root);
             if (!labelEl) return;
 
             const displayName = accountFieldLabel(field.key, field.key);
@@ -259,6 +365,7 @@ window.AdminPicker = AdminPicker;
     function bindAccountPolicySync() {
         if (accountPolicyBound) return;
         accountPolicyBound = true;
+        sanitizeAccountTableSettingsState();
 
         document.addEventListener('datatable-settings:updated', (event) => {
             const storageKey = String(event?.detail?.storageKey || '').trim();
@@ -266,6 +373,7 @@ window.AdminPicker = AdminPicker;
                 return;
             }
 
+            sanitizeAccountTableSettingsState();
             applyAccountModalPolicyLabels(document);
         });
     }
@@ -384,6 +492,11 @@ window.AdminPicker = AdminPicker;
             excelModal = bootstrap.Modal.getOrCreateInstance(excelEl, { focus: false });
         }
 
+        const subExcelEl = document.getElementById('subAccountExcelModal');
+        if (subExcelEl) {
+            subExcelModal = bootstrap.Modal.getOrCreateInstance(subExcelEl, { focus: false });
+        }
+
         bindAccountPolicySync();
         applyAccountModalPolicyLabels(document);
     }
@@ -397,10 +510,24 @@ window.AdminPicker = AdminPicker;
         form.dataset.uploadUrl = API.EXCEL_UPLOAD;
 
         createExcelManagerSettingsCore({
-            domain: 'ledger-account',
+            domain: ACCOUNT_META_DOMAIN,
+            userSettingPageKey: ACCOUNT_USER_SETTING_PAGE_KEY,
             formSelector: '#account-excel-upload-form',
-            tableSettingsStorageKey: ACCOUNT_TABLE_SETTINGS_STORAGE_KEY,
-            tableSettingsMetaDomain: 'ledger-account',
+            metaDomain: ACCOUNT_META_DOMAIN,
+        });
+
+        const subForm = document.getElementById('sub-account-excel-upload-form');
+        if (!subForm) return;
+
+        subForm.dataset.templateUrl = API.SUB_TEMPLATE;
+        subForm.dataset.downloadUrl = API.SUB_DOWNLOAD;
+        subForm.dataset.uploadUrl = API.SUB_UPLOAD;
+
+        createExcelManagerSettingsCore({
+            domain: ACCOUNT_SUB_META_DOMAIN,
+            userSettingPageKey: ACCOUNT_SUB_USER_SETTING_PAGE_KEY,
+            formSelector: '#sub-account-excel-upload-form',
+            metaDomain: ACCOUNT_SUB_META_DOMAIN,
         });
     }
 
@@ -443,7 +570,7 @@ window.AdminPicker = AdminPicker;
                         <thead class="table-light">
                             <tr>
                                 <th width="56" class="text-center">순번</th>
-                                <th width="190">보조계정명</th>
+                                <th width="190">보조계정 대상</th>
                                 <th width="150" class="text-center">옵션</th>
                                 <th width="90" class="text-center">
                                     <button type="button" class="sub-add-action" id="btnAddSubAccountModal">+ 추가</button>
@@ -457,8 +584,199 @@ window.AdminPicker = AdminPicker;
         `;
 
         accountGroupCard.insertAdjacentElement('afterend', section);
+        initSubAccountTable();
     }
+
+    function createSubAccountDraftRow(row = {}) {
+        return {
+            __rowKey: String(row.__rowKey || row.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`),
+            id: String(row.id || ''),
+            sub_code: String(row.sub_code || ''),
+            sub_name: String(row.sub_name || ''),
+            is_required: row.is_required === '' ? '' : Number(row.is_required ?? ''),
+        };
+    }
+
+    function buildSubAccountTableRows() {
+        return modalDraftSubAccounts.map((row, index) => ({
+            ...createSubAccountDraftRow(row),
+            sort_no: index + 1,
+            sub_name: String(row.sub_name || getSubAccountCodeName(row.sub_code, row.sub_name) || ''),
+        }));
+    }
+
+    function refreshSubAccountTable() {
+        if (!subAccountTable) return;
+        const rows = buildSubAccountTableRows();
+        subAccountTable.clear();
+        subAccountTable.rows.add(rows);
+        subAccountTable.draw(false);
+    }
+
+    function hydrateSubAccountTargetCells(root = null) {
+        const scope = root instanceof HTMLElement ? root : document;
+        const tableRows = Array.from(scope.querySelectorAll('#modal-subaccount-table tbody tr'));
+
+        tableRows.forEach((rowEl, index) => {
+            const targetCell = rowEl.querySelector('td:nth-child(4)');
+            if (!(targetCell instanceof HTMLElement)) {
+                return;
+            }
+
+            const draftRow = modalDraftSubAccounts[index] || {};
+            targetCell.innerHTML = renderSubAccountCodeSelect(
+                'modal-sub-code-select',
+                draftRow?.sub_code ?? '',
+                'modal-sub-code-select',
+                draftRow?.__rowKey || ''
+            );
+        });
+    }
+
+    function buildSubAccountColumns() {
+        return [{
+            data: null,
+            title: '<i class="bi bi-arrows-move"></i>',
+            className: 'reorder-handle no-sort no-colvis text-center',
+            headerClassName: 'no-colvis text-center',
+            orderable: false,
+            searchable: false,
+            defaultContent: '<i class="bi bi-list"></i>',
+            settingsKey: '__reorder',
+            width: '36px',
+            widthResizable: true,
+        }, {
+            data: 'sort_no',
+            title: '순번',
+            className: 'text-center',
+            width: '56px',
+            settingsKey: 'sort_no',
+        }, {
+            data: 'sub_code',
+            title: '보조계정코드',
+            settingsKey: 'sub_code',
+            render(value, type) {
+                if (type !== 'display') return value ?? '';
+                return escapeHtml(value ?? '');
+            },
+        }, {
+            data: 'sub_name',
+            title: '보조계정 대상',
+            settingsKey: 'sub_name',
+            render(value, type, row) {
+                if (type === 'display') return row?.sub_name ?? value ?? '';
+                return row?.sub_code ?? value ?? '';
+            },
+        }, {
+            data: 'is_required',
+            title: '필수구분',
+            className: 'text-center',
+            settingsKey: 'is_required',
+            render(value, type, row) {
+                if (type !== 'display') return value ?? '';
+                return renderRequiredSelect('modal-sub-required-select', value, row.__rowKey || '');
+            },
+        }, {
+            data: null,
+            title: '관리',
+            className: 'text-center no-colvis',
+            headerClassName: 'text-center no-colvis',
+            orderable: false,
+            searchable: false,
+            settingsKey: '__actions',
+            render(_value, type, row) {
+                if (type !== 'display') return '';
+                return `
+                    <button type="button"
+                            class="sub-delete-action btnDeleteSubAccount"
+                            data-row-key="${escapeHtml(row.__rowKey || '')}">
+                        - 삭제
+                    </button>
+                `;
+            },
+        }];
+    }
+
+    function initSubAccountTable() {
+        if (subAccountTable || !document.getElementById('modal-subaccount-table')) {
+            return;
+        }
+
+        sanitizeSubAccountTableSettingsState();
+        subAccountTable = createDataTable({
+            tableSelector: '#modal-subaccount-table',
+            columns: buildSubAccountColumns(),
+            initialData: buildSubAccountTableRows(),
+            defaultOrder: [[2, 'asc']],
+            pageLength: 100,
+            autoWidth: false,
+            pageLoading: false,
+            paging: false,
+            info: false,
+            searchTableId: 'ledgerSubAccount',
+            deleteButton: false,
+            bulkDelete: false,
+            rowIdField: '__rowKey',
+            tableSettings: {
+                pageKey: 'ledger.account.sub',
+                tableKey: 'sub-account-table',
+                storageKey: ACCOUNT_SUB_TABLE_SETTINGS_STORAGE_KEY,
+                userSettingPageKey: ACCOUNT_SUB_USER_SETTING_PAGE_KEY,
+                metaDomain: ACCOUNT_SUB_META_DOMAIN,
+                tableLabel: '보조계정',
+                title: '보조계정 테이블 설정',
+                defaultVisibleColumns: ['sort_no', 'sub_name', 'is_required'],
+            },
+            buttons: [
+                { text: '엑셀관리', className: 'btn btn-success btn-sm', action: () => subExcelModal?.show() },
+                { text: '추가', className: 'btn btn-warning btn-sm', action: addSubAccount },
+            ],
+        });
+
+        subAccountTable.on('draw.dt', () => {
+            window.setTimeout(() => {
+                const tableEl = document.getElementById('modal-subaccount-table');
+                if (!tableEl) {
+                    return;
+                }
+
+                const initRoot = tableEl.closest('.dataTables_wrapper') || tableEl;
+                hydrateSubAccountTargetCells(initRoot);
+                void initSubAccountCodeSelects(initRoot);
+            }, 0);
+        });
+
+        document.querySelector('#modal-subaccount-table')?.addEventListener('datatable:move-selected', (event) => {
+            const ids = Array.isArray(event.detail?.ids) ? event.detail.ids.map((id) => String(id || '').trim()) : [];
+            if (ids.length === 0) return;
+
+            event.preventDefault();
+            syncModalDraftSubAccounts();
+
+            const rows = [...modalDraftSubAccounts];
+            const selected = rows.filter((row) => ids.includes(String(row.__rowKey || '')));
+            const remaining = rows.filter((row) => !ids.includes(String(row.__rowKey || '')));
+            if (selected.length === 0) {
+                return;
+            }
+
+            if (event.detail?.direction === 'up') {
+                const firstIndex = rows.findIndex((row) => ids.includes(String(row.__rowKey || '')));
+                const insertIndex = Math.max(0, firstIndex - 1);
+                remaining.splice(insertIndex, 0, ...selected);
+            } else {
+                const lastIndex = rows.map((row) => String(row.__rowKey || '')).reduce((acc, key, index) => ids.includes(key) ? index : acc, -1);
+                const beforeCount = rows.slice(0, lastIndex + 1).filter((row) => !ids.includes(String(row.__rowKey || ''))).length;
+                remaining.splice(Math.min(remaining.length, beforeCount + 1), 0, ...selected);
+            }
+
+            modalDraftSubAccounts = remaining.map((row) => createSubAccountDraftRow(row));
+            refreshSubAccountTable();
+        });
+    }
+
     function initDataTable() {
+        sanitizeAccountTableSettingsState();
         accountTable = createDataTable({
             tableSelector: '#account-table',
             api: API.LIST,
@@ -476,7 +794,8 @@ window.AdminPicker = AdminPicker;
                 pageKey: 'ledger.account',
                 tableKey: 'account-table',
                 storageKey: ACCOUNT_TABLE_SETTINGS_STORAGE_KEY,
-                metaDomain: 'ledger-account',
+                userSettingPageKey: ACCOUNT_USER_SETTING_PAGE_KEY,
+                metaDomain: ACCOUNT_META_DOMAIN,
                 tableLabel: '계정과목',
                 title: '계정과목 테이블 설정',
                 defaultVisibleColumns: ['sort_no', 'account_code', 'account_name', 'parent_id', 'account_group', 'normal_balance', 'level', 'is_posting', 'allow_sub_account', 'is_active'],
@@ -806,14 +1125,25 @@ window.AdminPicker = AdminPicker;
         $('#modal-subaccount-table tbody')
             .off('click.subDeleteModal')
             .on('click.subDeleteModal', '.btnDeleteSubAccount', function () {
-                if (this.dataset.draftIndex !== undefined) {
-                    syncModalDraftSubAccounts();
-                    modalDraftSubAccounts.splice(Number(this.dataset.draftIndex), 1);
-                    renderModalDraftSubAccounts();
-                    return;
-                }
-
+                syncModalDraftSubAccounts();
+                const rowKey = String(this.dataset.rowKey || '').trim();
+                modalDraftSubAccounts = modalDraftSubAccounts.filter((row) => String(row.__rowKey || '') !== rowKey);
                 renderModalDraftSubAccounts();
+            })
+            .off('change.subCodeModal')
+            .on('change.subCodeModal', '.modal-sub-code-select', function () {
+                const rowKey = String(this.dataset.rowKey || '').trim();
+                const draft = modalDraftSubAccounts.find((row) => String(row.__rowKey || '') === rowKey);
+                if (!draft) return;
+                draft.sub_code = String(this.value || '').trim();
+                draft.sub_name = getSubAccountCodeName(draft.sub_code, draft.sub_name);
+            })
+            .off('change.subRequiredModal')
+            .on('change.subRequiredModal', '.modal-sub-required-select', function () {
+                const rowKey = String(this.dataset.rowKey || '').trim();
+                const draft = modalDraftSubAccounts.find((row) => String(row.__rowKey || '') === rowKey);
+                if (!draft) return;
+                draft.is_required = this.value === '' ? '' : Number(this.value);
             });
     }
 
@@ -1406,7 +1736,7 @@ window.AdminPicker = AdminPicker;
             const json = await fetchJson(`${API.SUB_LIST}?account_id=${encodeURIComponent(accountId)}`);
             const rows = Array.isArray(json?.data) ? json.data : [];
 
-            modalDraftSubAccounts = rows.map((row) => ({
+            modalDraftSubAccounts = rows.map((row) => createSubAccountDraftRow({
                 id: row.id || '',
                 sub_code: row.sub_code || '',
                 sub_name: row.sub_name || '',
@@ -1442,7 +1772,7 @@ window.AdminPicker = AdminPicker;
 
     function addSubAccount() {
         syncModalDraftSubAccounts();
-        modalDraftSubAccounts.push({ sub_code: '', sub_name: '', is_required: '' });
+        modalDraftSubAccounts.push(createSubAccountDraftRow({ sub_code: '', sub_name: '', is_required: '' }));
         renderModalDraftSubAccounts();
         const selects = document.querySelectorAll('#modal-subaccount-table .modal-sub-code-select');
         selects[selects.length - 1]?.focus();
@@ -1458,34 +1788,23 @@ window.AdminPicker = AdminPicker;
         ensureModalDraftInput();
         const section = document.getElementById('modal_subaccount_section');
         section?.classList.add('is-hydrating');
+        modalDraftSubAccounts = modalDraftSubAccounts.map((row) => createSubAccountDraftRow(row));
+        refreshSubAccountTable();
 
-        tbody.innerHTML = modalDraftSubAccounts.map((row, index) => `
-            <tr>
-                <td class="text-center">${index + 1}</td>
-                <td>
-                    ${renderSubAccountCodeSelect('modal-sub-code-select', row.sub_code || '', 'modal-sub-code-select', index)}
-                </td>
-                <td>
-                    ${renderRequiredSelect('modal-sub-required-select', row.is_required)}
-                </td>
-                <td class="text-center">
-                    <button type="button"
-                            class="sub-delete-action btnDeleteSubAccount"
-                            data-draft-index="${index}">
-                        - 삭제
-                    </button>
-                </td>
-            </tr>
-        `).join('');
-
-        return initSubAccountCodeSelects(tbody)
-            .finally(() => {
-                section?.classList.remove('is-hydrating');
-            });
+        return new Promise((resolve) => {
+            window.setTimeout(() => {
+                hydrateSubAccountTargetCells(document);
+                initSubAccountCodeSelects(document)
+                    .finally(() => {
+                        section?.classList.remove('is-hydrating');
+                        resolve();
+                    });
+            }, 0);
+        });
     }
     function ensureModalDraftInput() {
         if (!modalDraftSubAccounts.length) {
-            modalDraftSubAccounts.push({ sub_code: '', sub_name: '', is_required: '' });
+            modalDraftSubAccounts.push(createSubAccountDraftRow({ sub_code: '', sub_name: '', is_required: '' }));
         }
     }
 
@@ -1496,12 +1815,16 @@ window.AdminPicker = AdminPicker;
         modalDraftSubAccounts = rows.map((row, index) => {
             const subCode = row.querySelector('.modal-sub-code-select')?.value?.trim() || '';
             const requiredValue = row.querySelector('.modal-sub-required-select')?.value ?? '';
-            return {
+            return createSubAccountDraftRow({
+                __rowKey: row.querySelector('.modal-sub-code-select')?.dataset.rowKey
+                    || row.querySelector('.modal-sub-required-select')?.dataset.rowKey
+                    || modalDraftSubAccounts[index]?.__rowKey
+                    || '',
                 id: modalDraftSubAccounts[index]?.id || '',
                 sub_code: subCode,
                 sub_name: getSubAccountCodeName(subCode),
                 is_required: requiredValue === '' ? '' : Number(requiredValue),
-            };
+            });
         });
     }
 
@@ -1522,7 +1845,7 @@ window.AdminPicker = AdminPicker;
             .filter((row) => row.sub_code !== '');
 
         if (!rows.length) {
-            notify('warning', '보조계정 사용 시 보조계정명을 1개 이상 선택해주세요.');
+            notify('warning', '보조계정 사용 시 보조계정 대상을 1개 이상 선택해주세요.');
             document.querySelector('#modal-subaccount-table .modal-sub-code-select')?.focus();
             return null;
         }
@@ -1536,7 +1859,7 @@ window.AdminPicker = AdminPicker;
             const requiredSelect = requiredSelects[index];
 
             if (!row.sub_code) {
-                notify('warning', `${rowNumber}번째 보조계정명을 선택해주세요.`);
+                notify('warning', `${rowNumber}번째 보조계정 대상을 선택해주세요.`);
                 codeSelect?.focus();
                 return null;
             }
@@ -1588,13 +1911,13 @@ window.AdminPicker = AdminPicker;
         const el = document.getElementById('accountCount');
         if (el) el.textContent = `총 ${count ?? 0}건`;
     }
-    function renderSubAccountCodeSelect(className, selectedValue = '', extraClass = '', index = '') {
+    function renderSubAccountCodeSelect(className, selectedValue = '', extraClass = '', rowKey = '') {
         const selectClass = [className, extraClass].filter(Boolean).join(' ');
         return `
             <select class="form-select form-select-sm ${selectClass}"
                     name="${SUB_ACCOUNT_SELECT_NAME}"
                     data-code-group="${SUB_ACCOUNT_CODE_GROUP}"
-                    data-index="${escapeHtml(index)}"
+                    data-row-key="${escapeHtml(rowKey)}"
                     data-selected="${escapeHtml(selectedValue || '')}">
                 <option value="" ${selectedValue ? '' : 'selected'}>선택(없음)</option>
                 ${selectedValue ? `<option value="${escapeHtml(selectedValue)}" selected>${escapeHtml(getSubAccountCodeName(selectedValue, selectedValue))}</option>` : ''}
@@ -1602,11 +1925,11 @@ window.AdminPicker = AdminPicker;
         `;
     }
 
-    function renderRequiredSelect(className, selectedValue = 0) {
+    function renderRequiredSelect(className, selectedValue = 0, rowKey = '') {
         const hasValue = selectedValue === 0 || selectedValue === 1 || selectedValue === '0' || selectedValue === '1';
         const value = hasValue ? Number(selectedValue) : '';
         return `
-            <select class="form-select form-select-sm ${className}">
+            <select class="form-select form-select-sm ${className}" data-row-key="${escapeHtml(rowKey)}">
                 <option value="" ${value === '' ? 'selected' : ''}>선택하세요</option>
                 <option value="1" ${value === 1 ? 'selected' : ''}>필수</option>
                 <option value="0" ${value === 0 ? 'selected' : ''}>선택</option>
@@ -1620,10 +1943,13 @@ window.AdminPicker = AdminPicker;
         selects.forEach((select) => {
             const selected = select.dataset.selected || select.value || '';
             const emptyOption = select.querySelector('option[value=""]');
-            if (emptyOption) {
-                emptyOption.textContent = '선택(없음)';
+            if (!emptyOption) {
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = '선택(없음)';
+                select.insertBefore(option, select.firstChild);
             } else {
-                select.insertAdjacentHTML('afterbegin', '<option value="">선택(없음)</option>');
+                emptyOption.textContent = '선택(없음)';
             }
 
             if (selected) {

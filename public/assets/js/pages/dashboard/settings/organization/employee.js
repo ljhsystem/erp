@@ -14,6 +14,7 @@ import {
     resolveDataTableColumnDisplayName,
     resolveDataTableColumnRequirementPolicy
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
+import { writeSystemUserSettingsStorage } from '/public/assets/js/common/user-settings/systemUserSettingsStorage.js';
 import {
     bindFilePreviewAndDeleteEvents,
     resolveFileSrc,
@@ -214,18 +215,17 @@ window.AdminPicker = AdminPicker;
     }
 
     function sanitizeEmployeeTableSettingsState() {
-        const raw = window.localStorage?.getItem(EMPLOYEE_TABLE_SETTINGS_STORAGE_KEY);
-        if (!raw) return;
-
         try {
-            const parsed = JSON.parse(raw);
+            const parsed = readDataTableSettingsState(EMPLOYEE_TABLE_SETTINGS_STORAGE_KEY, {
+                userSettingPageKey: 'employee',
+            });
             if (!parsed || typeof parsed !== 'object') return;
 
             const deprecated = new Set(EMPLOYEE_DEPRECATED_SETTINGS_KEYS);
             const nextState = { ...parsed };
             let changed = false;
 
-            ['visibleColumns', 'columnOrder', 'requiredColumns'].forEach((key) => {
+            ['visibleColumns', 'columnOrder'].forEach((key) => {
                 if (!Array.isArray(nextState[key])) return;
                 const filtered = nextState[key].filter((item) => !deprecated.has(String(item || '').trim()));
                 if (filtered.length !== nextState[key].length) {
@@ -234,7 +234,7 @@ window.AdminPicker = AdminPicker;
                 }
             });
 
-            ['columnDisplayName', 'columnRequirementPolicy', 'columnWidth'].forEach((key) => {
+            ['columnDisplayName', 'columnRequirementPolicy'].forEach((key) => {
                 if (!nextState[key] || typeof nextState[key] !== 'object') return;
                 const filtered = Object.fromEntries(
                     Object.entries(nextState[key]).filter(([itemKey]) => !deprecated.has(String(itemKey || '').trim()))
@@ -246,7 +246,10 @@ window.AdminPicker = AdminPicker;
             });
 
             if (changed) {
-                window.localStorage?.setItem(EMPLOYEE_TABLE_SETTINGS_STORAGE_KEY, JSON.stringify(nextState));
+                writeSystemUserSettingsStorage(EMPLOYEE_TABLE_SETTINGS_STORAGE_KEY, nextState, {
+                    userSettingPageKey: 'employee',
+                    settingType: 'TABLE',
+                });
             }
         } catch (error) {
             console.warn('[employee] table settings sanitize failed:', error);
@@ -288,7 +291,9 @@ window.AdminPicker = AdminPicker;
     }
 
     function currentEmployeePolicyState() {
-        return readDataTableSettingsState(EMPLOYEE_TABLE_SETTINGS_STORAGE_KEY) || {};
+        return readDataTableSettingsState(EMPLOYEE_TABLE_SETTINGS_STORAGE_KEY, {
+            userSettingPageKey: 'employee',
+        }) || {};
     }
 
     function employeeFieldLabel(key, _fallback = '') {
@@ -631,6 +636,7 @@ window.AdminPicker = AdminPicker;
             columns,
             tableSettings: {
                 pageKey: 'dashboard.settings.organization.employee',
+                userSettingPageKey: 'employee',
                 tableKey: 'employee-table',
                 storageKey: 'datatable.settings.dashboard.settings.organization.employee.employee-table.v1',
                 metaDomain: 'employee',
@@ -1483,11 +1489,11 @@ window.AdminPicker = AdminPicker;
                 json = JSON.parse(text);
             } catch (e) {
                 console.error('JSON parse failed:', apiUrl, text);
-                return [{ id: '__none__', text: '선택(없음)' }];
+                return [];
             }
 
             const list = Array.isArray(json.data) ? json.data : [];
-            const items = [{ id: '__none__', text: '선택(없음)' }];
+            const items = [];
 
             list.forEach((row) => {
                 const id = row.user_id ?? row.department_id ?? row.position_id ?? row.role_id ?? row.id ?? Object.values(row)[0];
@@ -1517,20 +1523,10 @@ window.AdminPicker = AdminPicker;
             AdminPicker.destroySelect2(selector);
             AdminPicker.reloadSelect2(selector, items, 'id', 'text', null);
             AdminPicker.select2(selector, {
-                placeholder: '선택하세요',
                 allowClear: true,
                 width: '100%',
                 dropdownParent: $('#employeeEditModal')
             });
-
-            const $select = $(selector);
-            $select
-                .off('select2:select.employeeOptionalNone')
-                .on('select2:select.employeeOptionalNone', function (event) {
-                    if (event.params?.data?.id === '__none__') {
-                        $(this).val(null).trigger('change');
-                    }
-                });
 
             if (selectedValue) {
                 const hasOption = items.some(item => String(item.id) === String(selectedValue));

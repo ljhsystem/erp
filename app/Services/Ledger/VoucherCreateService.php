@@ -9,9 +9,7 @@ use PDO;
 
 class VoucherCreateService
 {
-    public function __construct(private PDO $pdo, private array $callbacks = [])
-    {
-    }
+    public function __construct(private PDO $pdo, private array $callbacks = []) {}
 
     public function createVoucherFromBankPayload(string $evidenceId, array $row, string $transactionId, bool $linkExistingVoucher = false): ?string
     {
@@ -48,16 +46,11 @@ class VoucherCreateService
             }
 
             $lines = $this->call('applyEvidenceRefsToVoucherLines', $lines, $row);
-            $payments = $this->bankVoucherPaymentsForSave($row);
             $result = $this->call('saveVoucher', [
                 'voucher_date' => $this->call('dateValue', $row['voucher_date'] ?? $row['transaction_date'] ?? date('Y-m-d')),
-                'summary_text' => trim((string) ($row['voucher_summary_text'] ?? $row['summary_text'] ?? $row['description'] ?? '')),
-                'note' => trim((string) ($row['note'] ?? '')) ?: null,
-                'memo' => trim((string) ($row['voucher_memo'] ?? $row['memo'] ?? '')) ?: null,
-                'linked_transaction_id' => $transactionId,
+                'summary' => trim((string) ($row['voucher_summary_text'] ?? $row['summary'] ?? $row['summary_text'] ?? $row['description'] ?? '')),
                 'source_type' => 'BANK',
                 'lines' => $lines,
-                'payments' => $payments,
             ]);
 
             $voucherId = (string) ($result['voucher_id'] ?? $result['id'] ?? '');
@@ -172,7 +165,7 @@ class VoucherCreateService
 
     public function bankVoucherRawLineHasMeaningfulValue(array $line): bool
     {
-        foreach (['line_no', 'line_row_type', 'account_id', 'debit', 'credit', 'line_summary', 'line_ref_type', 'line_ref_id'] as $key) {
+        foreach (['line_no', 'line_row_type', 'account_id', 'debit', 'credit', 'line_summary', 'line_ref_target', 'line_ref_id'] as $key) {
             if (trim((string) ($line[$key] ?? '')) !== '') {
                 return true;
             }
@@ -183,76 +176,19 @@ class VoucherCreateService
 
     public function bankVoucherLineRefForSave(array $line): ?array
     {
-        $refType = $this->call('normalizeVoucherRefType', (string) ($line['line_ref_type'] ?? ''));
+        $refType = $this->call('normalizeVoucherRefType', (string) ($line['line_ref_target'] ?? ''));
         $refId = trim((string) ($line['line_ref_id'] ?? ''));
         if ($refType === '' || $refId === '') {
             return null;
         }
 
         return [
-            'ref_type' => $refType,
+            'ref_target' => $refType,
             'ref_id' => $this->call('resolveVoucherRefId', $refType, $refId) ?? $refId,
         ];
     }
 
-    public function bankVoucherPaymentsForSave(array $row): array
-    {
-        if (is_array($row['_voucher_payments'] ?? null)) {
-            $payments = [];
-            foreach ($row['_voucher_payments'] as $payment) {
-                if (!is_array($payment)) {
-                    continue;
-                }
-                $type = strtoupper(trim((string) ($payment['payment_type'] ?? 'ACCOUNT')));
-                $direction = strtoupper(trim((string) ($payment['payment_direction'] ?? $payment['direction'] ?? 'OUT')));
-                $amount = $this->call('amountOrNull', $payment['amount'] ?? null);
-                $paymentId = trim((string) ($payment['payment_id'] ?? ''));
-                if ($type === '' && $paymentId === '' && ($amount === null || $amount <= 0)) {
-                    continue;
-                }
-                if (!in_array($direction, ['IN', 'OUT'], true)) {
-                    $direction = 'OUT';
-                }
-                if (!in_array($type, ['ACCOUNT', 'CARD'], true)) {
-                    $type = 'ACCOUNT';
-                }
-                if ($type === 'ACCOUNT') {
-                    $paymentId = $this->call('resolveBankAccountId', $paymentId) ?? $paymentId;
-                }
-                if ($paymentId === '' || $amount === null || $amount <= 0) {
-                    continue;
-                }
-                $payments[] = [
-                    'payment_direction' => $direction,
-                    'payment_type' => $type,
-                    'payment_id' => $paymentId,
-                    'amount' => abs($amount),
-                ];
-            }
-            if ($payments !== []) {
-                return $payments;
-            }
-        }
-
-        $bankAccountId = $this->call('businessRefIdForStorage', 'ACCOUNT', $row);
-        if ($bankAccountId === null) {
-            throw new \RuntimeException('출금/입금 계좌를 확인할 수 없습니다. 계좌 매핑 또는 은행 계좌 정보를 먼저 확인해주세요.');
-        }
-
-        [$direction, $amount] = $this->bankVoucherPaymentDirectionAndAmount($row);
-        if ($direction === null || $amount === null || $amount <= 0) {
-            throw new \RuntimeException('지급 방향 또는 금액을 확인할 수 없어 전표 결제 정보를 만들 수 없습니다.');
-        }
-
-        return [[
-            'payment_direction' => $direction,
-            'payment_type' => 'ACCOUNT',
-            'payment_id' => $bankAccountId,
-            'amount' => $amount,
-        ]];
-    }
-
-    public function bankVoucherPaymentDirectionAndAmount(array $row): array
+    public function bankVoucherDirectionAndAmount(array $row): array
     {
         $withdraw = $this->call('amountOrNull', $row['withdraw_amount'] ?? null);
         $deposit = $this->call('amountOrNull', $row['deposit_amount'] ?? null);
@@ -268,65 +204,32 @@ class VoucherCreateService
 
     public function tagCreatedVoucher(string $voucherId, string $evidenceId, string $transactionId, string $actor): void
     {
-        $sets = [];
-        $params = [':id' => $voucherId, ':actor' => $actor];
-        if ($this->call('tableColumnExists', 'ledger_vouchers', 'source_type')) {
-            $sets[] = 'source_type = :source_type';
-            $params[':source_type'] = 'BANK';
-        }
-        if ($this->call('tableColumnExists', 'ledger_vouchers', 'source_id')) {
-            $sets[] = 'source_id = :source_id';
-            $params[':source_id'] = $evidenceId;
-        }
-        if ($this->call('tableColumnExists', 'ledger_vouchers', 'import_type')) {
-            $sets[] = 'import_type = :import_type';
-            $params[':import_type'] = 'BANK_TRANSACTION';
-        }
-        if ($transactionId !== '' && $this->call('tableColumnExists', 'ledger_vouchers', 'transaction_id')) {
-            $sets[] = 'transaction_id = :transaction_id';
-            $params[':transaction_id'] = $transactionId;
-        }
-        if ($this->call('tableColumnExists', 'ledger_vouchers', 'updated_at')) {
-            $sets[] = 'updated_at = NOW()';
-        }
-        if ($this->call('tableColumnExists', 'ledger_vouchers', 'updated_by')) {
-            $sets[] = 'updated_by = :actor';
-        }
-        if ($sets === []) {
-            return;
-        }
-
-        $this->pdo->prepare('UPDATE ledger_vouchers SET ' . implode(', ', $sets) . ' WHERE id = :id')->execute($params);
+        return;
     }
 
     public function existingVoucherForEvidenceId(string $evidenceId): ?array
     {
-        if ($evidenceId === '' || !$this->call('tableExists', 'ledger_vouchers') || !$this->call('tableColumnExists', 'ledger_vouchers', 'source_id')) {
+        if ($evidenceId === '' || !$this->call('tableExists', 'ledger_evidence_links') || !$this->call('tableExists', 'ledger_vouchers')) {
             return null;
         }
 
-        $where = ['deleted_at IS NULL', 'source_id = :evidence_id'];
-        $params = [':evidence_id' => $evidenceId];
-        if ($this->call('tableColumnExists', 'ledger_vouchers', 'import_type')) {
-            $where[] = "(import_type IS NULL OR import_type = '' OR import_type = 'BANK_TRANSACTION')";
-        }
-        if ($this->call('tableColumnExists', 'ledger_vouchers', 'source_type')) {
-            $where[] = "(source_type IS NULL OR source_type = '' OR source_type = 'BANK')";
-        }
-
-        $selects = ['id', 'voucher_no', 'voucher_date', 'source_id'];
-        $selects[] = $this->call('tableColumnExists', 'ledger_vouchers', 'source_type') ? 'source_type' : 'NULL AS source_type';
-        $selects[] = $this->call('tableColumnExists', 'ledger_vouchers', 'import_type') ? 'import_type' : 'NULL AS import_type';
-        $selects[] = $this->call('tableColumnExists', 'ledger_vouchers', 'transaction_id') ? 'transaction_id' : 'NULL AS transaction_id';
-
         $stmt = $this->pdo->prepare("
-            SELECT " . implode(', ', $selects) . "
-            FROM ledger_vouchers
-            WHERE " . implode(' AND ', $where) . "
-            ORDER BY created_at DESC, sort_no DESC
+            SELECT
+                v.id,
+                v.voucher_no,
+                v.voucher_date,
+                v.summary
+            FROM ledger_evidence_links l
+            INNER JOIN ledger_vouchers v
+                ON v.id = l.target_id
+               AND v.deleted_at IS NULL
+            WHERE l.evidence_id = :evidence_id
+              AND l.target_type = 'VOUCHER'
+              AND l.deleted_at IS NULL
+            ORDER BY v.created_at DESC, v.sort_no DESC
             LIMIT 1
         ");
-        $stmt->execute($params);
+        $stmt->execute([':evidence_id' => $evidenceId]);
 
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
@@ -353,34 +256,21 @@ class VoucherCreateService
         }
 
         $voucherDate = $this->call('dateValue', $row['voucher_date'] ?? $row['transaction_date'] ?? $row['evidence_date'] ?? '');
-        [, $paymentAmount] = $this->bankVoucherPaymentDirectionAndAmount($row);
+        [, $paymentAmount] = $this->bankVoucherDirectionAndAmount($row);
         $amount = $paymentAmount ?? $this->call('amountOrNull', $row['total_amount'] ?? $row['amount'] ?? null);
         if ($voucherDate === '' || $amount === null || abs((float) $amount) <= 0) {
             return null;
         }
 
-        $sourceSelect = $this->call('tableColumnExists', 'ledger_vouchers', 'source_type') ? 'v.source_type,' : "NULL AS source_type,";
-        $sourceIdSelect = $this->call('tableColumnExists', 'ledger_vouchers', 'source_id') ? 'v.source_id,' : "NULL AS source_id,";
-        $importSelect = $this->call('tableColumnExists', 'ledger_vouchers', 'import_type') ? 'v.import_type,' : "NULL AS import_type,";
-        $transactionSelect = $this->call('tableColumnExists', 'ledger_vouchers', 'transaction_id') ? 'v.transaction_id,' : "NULL AS transaction_id,";
         $lineDeletedFilter = $this->call('tableColumnExists', 'ledger_voucher_lines', 'deleted_at') ? 'AND l.deleted_at IS NULL' : '';
-        $groupBy = ['v.id', 'v.voucher_no', 'v.voucher_date', 'v.summary_text', 'v.created_at', 'v.sort_no'];
-        foreach (['source_type', 'source_id', 'import_type', 'transaction_id'] as $column) {
-            if ($this->call('tableColumnExists', 'ledger_vouchers', $column)) {
-                $groupBy[] = 'v.' . $column;
-            }
-        }
+        $groupBy = ['v.id', 'v.voucher_no', 'v.voucher_date', 'v.summary', 'v.created_at', 'v.sort_no'];
 
         $stmt = $this->pdo->prepare("
             SELECT
                 v.id,
                 v.voucher_no,
                 v.voucher_date,
-                {$sourceSelect}
-                {$sourceIdSelect}
-                {$importSelect}
-                {$transactionSelect}
-                COALESCE(v.summary_text, '') AS summary_text,
+                COALESCE(v.summary, '') AS summary,
                 COALESCE(SUM(l.debit), 0) AS debit_total,
                 COALESCE(SUM(l.credit), 0) AS credit_total
             FROM ledger_vouchers v
@@ -415,15 +305,11 @@ class VoucherCreateService
             SELECT e.id, e.source_type, e.evidence_date,
                    e.client_id, e.project_id, e.employee_id, e.bank_account_id, e.card_id,
                    e.client_name, e.project_name, e.employee_name, e.bank_account_name, e.card_name,
-                   p.mapped_payload_json
+                   e.mapped_payload_json
                    {$transactionSelect}
             FROM ledger_data_evidences e
-            INNER JOIN ledger_evidence_payloads p
-                ON p.evidence_type = e.source_type
-               AND p.evidence_id = e.id
             WHERE e.id IN ({$inSql})
               AND e.deleted_at IS NULL
-              AND p.deleted_at IS NULL
         ");
         $stmt->execute($params);
 

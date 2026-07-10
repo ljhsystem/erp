@@ -42,16 +42,16 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/voucherReview.js');
             <option value="">선택</option>
         ';
 
-        $periodGuideTitle = '전표검토 기간 조건 안내';
+        $periodGuideTitle = '전표 검토 기간 조건 안내';
         $periodGuideItems = [
-            '전표일자 또는 수정일시 기준으로 검토 대상 전표를 조회합니다.',
-            '빠른 기간 버튼 또는 직접 입력으로 조회 기간을 지정할 수 있습니다.',
+            '전표일자 또는 수정일시를 기준으로 조회 기간을 지정합니다.',
+            '빠른 기간 버튼이나 직접 입력으로 조회 범위를 조정할 수 있습니다.',
         ];
 
-        $searchGuideTitle = '전표검토 검색 조건 안내';
+        $searchGuideTitle = '전표 검토 검색 조건 안내';
         $searchGuideItems = [
-            '전표번호, 전표상태, 검토상태, 적요, 금액 조건을 조합해 조회할 수 있습니다.',
-            '검토상태는 error, pending, ready, done 값으로 검색할 수 있습니다.',
+            '전표번호, 전표상태, 적요, 금액 기준으로 전표를 검색할 수 있습니다.',
+            '검토/승인 흐름은 실제 status 컬럼 값으로 조회합니다.',
         ];
 
         include PROJECT_ROOT . '/app/views/components/ui-search.php';
@@ -59,16 +59,26 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/voucherReview.js');
 
         <div class="voucher-review-layout">
             <section class="voucher-review-list-panel">
-                <div class="table-responsive voucher-review-table-wrap">
-                    <table class="table table-bordered table-hover align-middle voucher-review-table" id="voucherReviewTable"></table>
+                <div class="voucher-review-table-wrap">
+                    <?php
+                    $tableId = 'voucherReviewTable';
+                    $ajaxUrl = '/api/ledger/voucher/list';
+                    $columnsType = 'voucher-header';
+                    $tableClass = 'table table-bordered align-middle table-cross-highlight voucher-review-table';
+                    $enableButtons = true;
+                    $enableSearch = true;
+                    $enablePaging = true;
+                    $enableReorder = false;
+                    include PROJECT_ROOT . '/app/views/components/ui-table.php';
+                    ?>
                 </div>
             </section>
 
             <aside class="voucher-review-detail-panel">
                 <div class="voucher-review-detail-head">
                     <div>
-                        <div class="voucher-review-detail-title" id="voucherReviewDetailTitle">전표를 선택해 주세요.</div>
-                        <div class="voucher-review-detail-sub" id="voucherReviewDetailSub">목록에서 전표를 클릭하면 상세가 표시됩니다.</div>
+                        <div class="voucher-review-detail-title" id="voucherReviewDetailTitle">전표를 선택해 주세요</div>
+                        <div class="voucher-review-detail-sub" id="voucherReviewDetailSub">목록에서 전표를 클릭하면 상세 정보가 표시됩니다.</div>
                     </div>
                     <span class="voucher-review-status-badge" id="voucherReviewDetailStatus">-</span>
                 </div>
@@ -89,14 +99,14 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/voucherReview.js');
                 </div>
 
                 <div class="voucher-review-detail-section">
-                    <h6>거래 연결 정보</h6>
+                    <h6>연결정보</h6>
                     <div class="voucher-review-linked" id="voucherReviewLinkedInfo">연결 정보를 불러오지 않았습니다.</div>
                 </div>
 
                 <div class="voucher-review-actions">
                     <button type="button" class="btn btn-outline-danger btn-sm d-none" id="rejectBtn">반려</button>
                     <button type="button" class="btn btn-primary btn-sm d-none" id="confirmBtn">검토완료</button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="cancelConfirmBtn">검토완료취소</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="cancelConfirmBtn">검토완료 취소</button>
                     <button type="button" class="btn btn-success btn-sm d-none" id="approveBtn">승인</button>
                     <button type="button" class="btn btn-outline-dark btn-sm d-none" id="reverseBtn">취소전표 생성</button>
                 </div>
@@ -104,30 +114,6 @@ $pageScripts = AssetHelper::module('/assets/js/pages/ledger/voucherReview.js');
         </div>
     </div>
 </main>
-
-<?php
-$modalId = 'journalTrashModal';
-$type = 'journal';
-$modalTitle = '전표 휴지통';
-$tableId = 'journal-trash-table';
-$checkAllId = 'journalTrashCheckAll';
-$tableHead = '
-    <th>전표번호</th>
-    <th>전표일자</th>
-    <th>상태</th>
-    <th>금액</th>
-    <th>전표 적요</th>
-    <th>삭제일시</th>
-    <th>삭제자</th>
-    <th width="150">관리</th>
-';
-$emptyMessage = '휴지통 전표를 선택하면 상세 정보가 표시됩니다.';
-$listUrl = '/api/ledger/voucher/trash';
-$restoreUrl = '/api/ledger/voucher/restore';
-$deleteUrl = '/api/ledger/voucher/purge';
-$deleteAllUrl = '/api/ledger/voucher/purge-all';
-include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
-?>
 
 <div class="modal fade" id="voucherRejectModal" tabindex="-1" aria-labelledby="voucherRejectModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -138,11 +124,13 @@ include PROJECT_ROOT . '/app/views/components/ui-modal-trash.php';
             </div>
             <div class="modal-body">
                 <label class="form-label" for="voucherRejectReason">반려 사유</label>
-                <textarea class="form-control"
-                          id="voucherRejectReason"
-                          rows="5"
-                          required
-                          placeholder="입력자가 확인할 수 있도록 반려 사유를 입력해 주세요."></textarea>
+                <textarea
+                    class="form-control"
+                    id="voucherRejectReason"
+                    rows="5"
+                    required
+                    placeholder="입력자가 확인할 수 있도록 반려 사유를 입력해 주세요."
+                ></textarea>
                 <div class="invalid-feedback d-block d-none" id="voucherRejectReasonError">반려 사유를 입력해 주세요.</div>
             </div>
             <div class="modal-footer">

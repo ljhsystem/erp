@@ -9,8 +9,7 @@ class VoucherLearningService
         private VoucherPolicyService $voucherPolicyService,
         private EvidenceBusinessRefService $evidenceBusinessRefService,
         private array $callbacks = []
-    ) {
-    }
+    ) {}
 
     public function recordBankVoucherLearning(string $transactionId, string $voucherId, array $evidence, array $lines, string $actor): void
     {
@@ -93,7 +92,7 @@ class VoucherLearningService
                 continue;
             }
 
-            $type = $this->voucherPolicyService->normalizeVoucherRefType((string) ($ref['ref_type'] ?? $ref['line_ref_type'] ?? ''));
+            $type = $this->voucherPolicyService->normalizeVoucherRefType((string) ($ref['ref_target'] ?? $ref['line_ref_target'] ?? ''));
             $id = trim((string) ($ref['ref_id'] ?? $ref['line_ref_id'] ?? ''));
             if ($type === '' || $id === '') {
                 continue;

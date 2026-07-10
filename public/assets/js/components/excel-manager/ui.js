@@ -18,6 +18,13 @@ function normalizeRequirementPolicy(value = '') {
     return 'none';
 }
 
+function requirementPolicySelectClass(policy = '') {
+    const normalized = normalizeRequirementPolicy(policy);
+    if (normalized === 'required') return 'is-required';
+    if (normalized === 'optional') return 'is-optional';
+    return 'is-none';
+}
+
 function panelTitle(type) {
     return isTemplateType(type) ? '업로드 양식설정' : '다운로드 설정';
 }
@@ -39,18 +46,19 @@ function requirementStarHtml(policy = '') {
     return '';
 }
 
-function isLockedColumn(column) {
-    return column?.systemRequired === true || column?.required === true;
-}
-
 function renderColumnLabel(column) {
     const displayLabel = String(column?.displayLabel || column?.label || '').trim();
     const sourceLabel = String(column?.sourceLabel || column?.key || '').trim();
     const combinedLabel = displayLabel && sourceLabel
         ? `${displayLabel}(${sourceLabel})`
         : (displayLabel || sourceLabel || String(column?.key || '').trim());
+    const starPolicy = String(
+        column?.requirementPolicy
+        ?? column?.metaRequirementPolicy
+        ?? ''
+    ).trim();
 
-    return `${escapeHtml(combinedLabel)} ${requirementStarHtml(column?.requirementPolicy)}`.trim();
+    return `${escapeHtml(combinedLabel)} ${requirementStarHtml(starPolicy)}`.trim();
 }
 
 function renderDragHeader() {
@@ -63,8 +71,7 @@ function renderDragHeader() {
 }
 
 function renderUsageHeader(type, columns) {
-    const editableColumns = (Array.isArray(columns) ? columns : [])
-        .filter((column) => !(isTemplateType(type) && isLockedColumn(column)));
+    const editableColumns = Array.isArray(columns) ? columns : [];
     const checkedCount = editableColumns.filter((column) => column.visible !== false).length;
     const allChecked = editableColumns.length > 0 && checkedCount === editableColumns.length;
     const partiallyChecked = checkedCount > 0 && checkedCount < editableColumns.length;
@@ -85,7 +92,21 @@ function renderUsageHeader(type, columns) {
 function renderRows(type, columns) {
     return columns.map((column, index) => {
         const checked = column.visible !== false ? 'checked' : '';
-        const locked = isTemplateType(type) && isLockedColumn(column);
+        const requirementPolicy = normalizeRequirementPolicy(column?.requirementPolicy);
+        const requirementCell = isTemplateType(type)
+            ? `
+                <div class="excel-settings-grid-cell dt-column-settings-policy-cell">
+                    <select class="form-select form-select-sm dt-requirement-policy-select ${requirementPolicySelectClass(requirementPolicy)}"
+                            data-excel-column-requirement
+                            data-type="${escapeHtml(type)}"
+                            data-key="${escapeHtml(column.key)}">
+                        <option value="none" ${requirementPolicy === 'none' ? 'selected' : ''}>사용안함</option>
+                        <option value="optional" ${requirementPolicy === 'optional' ? 'selected' : ''}>선택</option>
+                        <option value="required" ${requirementPolicy === 'required' ? 'selected' : ''}>필수</option>
+                    </select>
+                </div>
+            `
+            : '';
 
         return `
             <div class="excel-settings-grid-row ${isTemplateType(type) ? 'excel-settings-grid-row-template' : 'excel-settings-grid-row-download'}"
@@ -99,7 +120,6 @@ function renderRows(type, columns) {
                            data-excel-column-toggle
                            data-type="${escapeHtml(type)}"
                            data-key="${escapeHtml(column.key)}"
-                           ${locked ? 'disabled' : ''}
                            ${checked}>
                 </div>
                 <div class="excel-settings-grid-cell excel-settings-grid-cell-handle">
@@ -117,6 +137,7 @@ function renderRows(type, columns) {
                 <div class="excel-settings-grid-cell excel-settings-grid-cell-label">
                     <div class="excel-settings-column-label">${renderColumnLabel(column)}</div>
                 </div>
+                ${requirementCell}
             </div>
         `;
     }).join('');
@@ -184,18 +205,25 @@ export function renderExcelSettingsPanel(form, type, columns) {
     }
 
     const selectedCount = columns.filter((column) => column.visible !== false).length;
+    const gridClassName = isTemplateType(type)
+        ? 'excel-settings-grid is-template excel-upload-settings-grid'
+        : 'excel-settings-grid is-download';
+    const requirementHeader = isTemplateType(type)
+        ? '<div class="excel-settings-grid-head dt-column-settings-policy-head">필수구분</div>'
+        : '';
     panel.innerHTML = `
         <div class="excel-settings-panel-body">
             <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
                 <div class="text-muted small">${panelDescription(type)}</div>
                 <div class="text-muted small">선택 ${selectedCount}개 / 전체 ${columns.length}개</div>
             </div>
-            <div class="excel-settings-grid is-download" role="table" aria-label="${panelTitle(type)}">
+            <div class="${gridClassName}" role="table" aria-label="${panelTitle(type)}">
                 <div class="excel-settings-grid-header excel-settings-grid-header-download" role="row">
                     <div class="excel-settings-grid-head excel-settings-grid-cell-usage">${renderUsageHeader(type, columns)}</div>
                     <div class="excel-settings-grid-head excel-settings-grid-cell-handle">${renderDragHeader()}</div>
                     <div class="excel-settings-grid-head excel-settings-grid-cell-order">순번</div>
-                    <div class="excel-settings-grid-head excel-settings-grid-cell-label">컬럼리스트</div>
+                    <div class="excel-settings-grid-head excel-settings-grid-cell-label">컬럼명</div>
+                    ${requirementHeader}
                 </div>
                 <div class="excel-settings-grid-body">${renderRows(type, columns)}</div>
             </div>

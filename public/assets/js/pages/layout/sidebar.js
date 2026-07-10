@@ -3,8 +3,27 @@
 
     'use strict';
 
-    let layoutAnimFrame = null;
+    window.__erpSidebarLayoutSync = window.__erpSidebarLayoutSync || false;
     let layoutAnimTimer = null;
+    let layoutSyncCleanup = null;
+
+    function saveSidebarCollapsed(collapsed) {
+        fetch('/api/settings/system/user-settings/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+            },
+            body: JSON.stringify({
+                page_key: 'layout-sidebar',
+                setting_type: 'VIEW',
+                settings_json: {
+                    collapsed: collapsed === true,
+                    updatedAt: new Date().toISOString(),
+                },
+            }),
+        }).catch(() => {});
+    }
 
     document.addEventListener('DOMContentLoaded', function () {
 
@@ -74,7 +93,7 @@
 
             document.body.classList.toggle('is-sidebar-collapsed', collapsed);
 
-            localStorage.setItem('sidebar:collapsed', collapsed ? '1' : '0');
+            saveSidebarCollapsed(collapsed);
 
             toggleBtn.innerHTML = collapsed
                 ? '<i class="bi bi-chevron-right"></i>'
@@ -206,38 +225,67 @@
     function startLayoutSync(){
 
         stopLayoutSync();
+        window.__erpSidebarLayoutSync = true;
 
-        const startedAt = performance.now();
-        const duration = 360; // CSS transition(.3s)보다 살짝 크게
+        const sidebar = document.querySelector('.sidebar');
+        const mainContent = document.querySelector('.main-content');
+        const duration = 360;
+        let finished = false;
 
-        function tick(now){
+        const completeLayoutSync = () => {
+            if(finished) return;
+            finished = true;
+
+            if(layoutSyncCleanup){
+                layoutSyncCleanup();
+                layoutSyncCleanup = null;
+            }
 
             adjustAllDataTables();
             fireLayoutResize();
 
-            if(now - startedAt < duration){
-                layoutAnimFrame = requestAnimationFrame(tick);
-            }else{
-                stopLayoutSync();
-                adjustAllDataTables();
-                fireLayoutResize();
-            }
-        }
+            window.setTimeout(() => {
+                window.__erpSidebarLayoutSync = false;
+            }, 0);
+        };
 
-        layoutAnimFrame = requestAnimationFrame(tick);
+        const onTransitionEnd = (event) => {
+            const propertyName = String(event?.propertyName || '').trim();
+
+            if(event?.target === sidebar && propertyName === 'width'){
+                completeLayoutSync();
+                return;
+            }
+
+            if(event?.target === mainContent && (propertyName === 'width' || propertyName === 'margin-left')){
+                completeLayoutSync();
+            }
+        };
+
+        sidebar?.addEventListener('transitionend', onTransitionEnd);
+        mainContent?.addEventListener('transitionend', onTransitionEnd);
 
         layoutAnimTimer = setTimeout(() => {
-            stopLayoutSync();
-            adjustAllDataTables();
-            fireLayoutResize();
-        }, duration + 50);
+            completeLayoutSync();
+        }, duration + 80);
+
+        layoutSyncCleanup = () => {
+            sidebar?.removeEventListener('transitionend', onTransitionEnd);
+            mainContent?.removeEventListener('transitionend', onTransitionEnd);
+
+            if(layoutAnimTimer){
+                clearTimeout(layoutAnimTimer);
+                layoutAnimTimer = null;
+            }
+        };
     }
 
     function stopLayoutSync(){
+        window.__erpSidebarLayoutSync = false;
 
-        if(layoutAnimFrame){
-            cancelAnimationFrame(layoutAnimFrame);
-            layoutAnimFrame = null;
+        if(layoutSyncCleanup){
+            layoutSyncCleanup();
+            layoutSyncCleanup = null;
         }
 
         if(layoutAnimTimer){

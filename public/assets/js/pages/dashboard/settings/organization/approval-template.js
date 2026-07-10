@@ -6,6 +6,7 @@ import {
     resolveDataTableColumnRequirementPolicy,
 } from '/public/assets/js/common/datatable/dataTableSettings.js';
 import { actorDisplay } from '/public/assets/js/common/actor.js';
+import { writeSystemUserSettingsStorage } from '/public/assets/js/common/user-settings/systemUserSettingsStorage.js';
 
 const API = {
     TEMPLATE_LIST: '/api/settings/organization/approval/template/list',
@@ -28,10 +29,12 @@ let stepModal = null;
 let isSorting = false;
 let roleList = [];
 let userList = [];
-const ROLE_NONE_VALUE = '__NONE__';
-const APPROVER_NONE_VALUE = '__NONE__';
+const ROLE_NONE_VALUE = '';
+const APPROVER_NONE_VALUE = '';
 const TEMPLATE_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.organization.approval-template.template-list.v1';
 const STEP_TABLE_SETTINGS_STORAGE_KEY = 'datatable.settings.dashboard.settings.organization.approval-template.step-list.v1';
+const TEMPLATE_TABLE_USER_SETTING_PAGE_KEY = 'approval-template-list';
+const STEP_TABLE_USER_SETTING_PAGE_KEY = 'approval-template-step';
 let approvalPolicyBound = false;
 const TEMPLATE_MODAL_FIELD_POLICIES = Object.freeze([
     { selector: '#tpl-edit-name', key: 'template_name', fallback: '\uD15C\uD50C\uB9BF\uBA85' },
@@ -93,8 +96,108 @@ function getRows(json) {
     return Array.isArray(json?.data) ? json.data : [];
 }
 
+function userSettingPageKeyForStorageKey(storageKey) {
+    return String(storageKey || '').trim() === STEP_TABLE_SETTINGS_STORAGE_KEY
+        ? STEP_TABLE_USER_SETTING_PAGE_KEY
+        : TEMPLATE_TABLE_USER_SETTING_PAGE_KEY;
+}
+
+function sanitizeApprovalTableSettingsState(state = null, deprecatedKeys = []) {
+    if (!state || typeof state !== 'object') {
+        return state;
+    }
+
+    const deprecatedKeySet = new Set(
+        (Array.isArray(deprecatedKeys) ? deprecatedKeys : [])
+            .map((key) => String(key || '').trim())
+            .filter(Boolean)
+    );
+    let changed = false;
+    const nextState = { ...state };
+
+    [
+        'columnWidths',
+        'pageLength',
+        'sortSettings',
+        'currentPage',
+        'searchFormExpanded',
+        'searchFormState',
+        'requiredColumns',
+        'columnWidth',
+    ].forEach((key) => {
+        if (Object.prototype.hasOwnProperty.call(nextState, key)) {
+            delete nextState[key];
+            changed = true;
+        }
+    });
+
+    ['visibleColumns', 'columnOrder'].forEach((key) => {
+        if (!Array.isArray(nextState[key])) {
+            return;
+        }
+
+        const filtered = nextState[key]
+            .map((item) => String(item || '').trim())
+            .filter((item) => item !== '' && !deprecatedKeySet.has(item));
+
+        if (filtered.length !== nextState[key].length) {
+            nextState[key] = filtered;
+            changed = true;
+        }
+    });
+
+    ['columnDisplayName', 'columnRequirementPolicy'].forEach((key) => {
+        if (!nextState[key] || typeof nextState[key] !== 'object') {
+            return;
+        }
+
+        const filtered = Object.fromEntries(
+            Object.entries(nextState[key]).filter(([itemKey]) => !deprecatedKeySet.has(String(itemKey || '').trim()))
+        );
+
+        if (Object.keys(filtered).length !== Object.keys(nextState[key]).length) {
+            nextState[key] = filtered;
+            changed = true;
+        }
+    });
+
+    return changed ? nextState : state;
+}
+
+function persistApprovalTableSettingsState(storageKey, userSettingPageKey, state = null) {
+    if (!state || typeof state !== 'object') {
+        return;
+    }
+
+    writeSystemUserSettingsStorage(
+        storageKey,
+        {
+            ...state,
+            updatedAt: new Date().toISOString(),
+        },
+        {
+            userSettingPageKey,
+            settingType: 'TABLE',
+        }
+    );
+}
+
+function normalizeApprovalTableSettingsState(storageKey, userSettingPageKey, deprecatedKeys = []) {
+    const currentState = readDataTableSettingsState(storageKey, {
+        userSettingPageKey,
+    });
+    const sanitizedState = sanitizeApprovalTableSettingsState(currentState, deprecatedKeys);
+    if (!sanitizedState || sanitizedState === currentState) {
+        return;
+    }
+
+    persistApprovalTableSettingsState(storageKey, userSettingPageKey, sanitizedState);
+}
+
 function currentPolicyState(storageKey) {
-    return readDataTableSettingsState(storageKey) || {};
+    return readDataTableSettingsState(storageKey, {
+        userSettingPageKey: userSettingPageKeyForStorageKey(storageKey),
+    }) || {};
 }
 
 function approvalFieldLabel(storageKey, key, fallback = '') {
@@ -242,6 +345,17 @@ function bindApprovalPolicySync() {
     if (approvalPolicyBound) return;
     approvalPolicyBound = true;
 
+    normalizeApprovalTableSettingsState(
+        TEMPLATE_TABLE_SETTINGS_STORAGE_KEY,
+        TEMPLATE_TABLE_USER_SETTING_PAGE_KEY,
+        ['__legacy_template_status']
+    );
+    normalizeApprovalTableSettingsState(
+        STEP_TABLE_SETTINGS_STORAGE_KEY,
+        STEP_TABLE_USER_SETTING_PAGE_KEY,
+        ['__legacy_step_status']
+    );
+
     document.addEventListener('datatable-settings:updated', (event) => {
         const storageKey = String(event?.detail?.storageKey || '').trim();
         if (
@@ -250,6 +364,22 @@ function bindApprovalPolicySync() {
             && storageKey !== STEP_TABLE_SETTINGS_STORAGE_KEY
         ) {
             return;
+        }
+
+        if (storageKey === TEMPLATE_TABLE_SETTINGS_STORAGE_KEY) {
+            normalizeApprovalTableSettingsState(
+                TEMPLATE_TABLE_SETTINGS_STORAGE_KEY,
+                TEMPLATE_TABLE_USER_SETTING_PAGE_KEY,
+                ['__legacy_template_status']
+            );
+        }
+
+        if (storageKey === STEP_TABLE_SETTINGS_STORAGE_KEY) {
+            normalizeApprovalTableSettingsState(
+                STEP_TABLE_SETTINGS_STORAGE_KEY,
+                STEP_TABLE_USER_SETTING_PAGE_KEY,
+                ['__legacy_step_status']
+            );
         }
 
         applyTemplateModalPolicyLabels(document);
@@ -366,6 +496,7 @@ function initTemplateTable() {
         api: API.TEMPLATE_LIST,
         tableSettings: {
             pageKey: 'dashboard.settings.organization.approval-template.template-list',
+            userSettingPageKey: TEMPLATE_TABLE_USER_SETTING_PAGE_KEY,
             tableKey: 'approval-template-list-table',
             storageKey: 'datatable.settings.dashboard.settings.organization.approval-template.template-list.v1',
             metaDomain: 'approval-template',
@@ -492,6 +623,7 @@ function initStepTable() {
         api: API.STEP_LIST,
         tableSettings: {
             pageKey: 'dashboard.settings.organization.approval-template.step-list',
+            userSettingPageKey: STEP_TABLE_USER_SETTING_PAGE_KEY,
             tableKey: 'approval-template-step-table',
             storageKey: 'datatable.settings.dashboard.settings.organization.approval-template.step-list.v1',
             metaDomain: 'approval-template-step',
@@ -858,7 +990,12 @@ function resetSelect(selector) {
     if ($el.hasClass('select2-hidden-accessible')) {
         $el.select2('destroy');
     }
+    const select = $el[0];
+    const emptyOption = select?.querySelector?.('option[value=""]')?.cloneNode(true) || null;
     $el.empty();
+    if (emptyOption) {
+        select.append(emptyOption);
+    }
 }
 
 function initSelect2(selector, dropdownParent, options = {}) {
@@ -872,32 +1009,47 @@ function initSelect2(selector, dropdownParent, options = {}) {
     $el.select2({
         width: '100%',
         dropdownParent: $(dropdownParent),
-        placeholder: options.placeholder || '\uC120\uD0DD',
         allowClear: Boolean(options.allowClear)
     });
 }
 
 function fillRoleSelect(selector, selected = '') {
     const $el = $(selector);
+    const select = $el[0];
     const selectedValue = selected ? String(selected) : ROLE_NONE_VALUE;
 
     resetSelect(selector);
-    $el.append(new Option('\uC120\uD0DD\uC548\uD568', ROLE_NONE_VALUE, false, selectedValue === ROLE_NONE_VALUE));
+    if (select && !select.querySelector('option[value=""]')) {
+        const option = document.createElement('option');
+        option.value = ROLE_NONE_VALUE;
+        option.textContent = '선택(없음)';
+        select.append(option);
+    } else if (select) {
+        select.querySelector('option[value=""]').textContent = '선택(없음)';
+    }
 
     roleList.forEach((role) => {
         $el.append(new Option(role.role_name || role.role_key || role.id, role.id, false, selectedValue === String(role.id)));
     });
 
-    initSelect2(selector, '#modal-step-edit', { placeholder: '\uC120\uD0DD' });
-    $el.val(selectedValue).trigger('change');
+    if (select) select.value = selectedValue;
+    initSelect2(selector, '#modal-step-edit');
 }
 
 function fillUserSelect(selector, selected = '') {
     const $el = $(selector);
+    const select = $el[0];
     const selectedValue = selected ? String(selected) : APPROVER_NONE_VALUE;
 
     resetSelect(selector);
-    $el.append(new Option('\uC120\uD0DD\uC548\uD568', APPROVER_NONE_VALUE, false, selectedValue === APPROVER_NONE_VALUE));
+    if (select && !select.querySelector('option[value=""]')) {
+        const option = document.createElement('option');
+        option.value = APPROVER_NONE_VALUE;
+        option.textContent = '선택(없음)';
+        select.append(option);
+    } else if (select) {
+        select.querySelector('option[value=""]').textContent = '선택(없음)';
+    }
 
     userList.forEach((user) => {
         const userId = user.user_id || user.id || '';
@@ -908,8 +1060,8 @@ function fillUserSelect(selector, selected = '') {
         $el.append(new Option(label, userId, false, selectedValue === String(userId)));
     });
 
-    initSelect2(selector, '#modal-step-edit', { placeholder: '\uC120\uD0DD' });
-    $el.val(selectedValue).trigger('change');
+    if (select) select.value = selectedValue;
+    initSelect2(selector, '#modal-step-edit');
 }
 
 function updateTemplateCount() {

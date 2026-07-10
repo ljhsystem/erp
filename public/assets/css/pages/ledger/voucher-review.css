@@ -13,6 +13,16 @@
     line-height: 1;
 }
 
+.voucher-review-page .voucher-review-table,
+.voucher-review-page .dataTables_wrapper,
+.voucher-review-page .form-control,
+.voucher-review-page .form-select,
+.voucher-review-page .modal-body,
+.voucher-review-page .modal-header,
+.voucher-review-page .modal-footer {
+    font-size: var(--font-size);
+}
+
 .voucher-review-page {
     --voucher-review-sticky-top: 12px;
     --voucher-review-filter-sticky-height: 34px;
@@ -33,6 +43,7 @@
 
 .voucher-review-layout {
     display: grid;
+    min-width: 0;
     grid-template-columns: minmax(0, 1fr);
     gap: 14px;
     align-items: start;
@@ -50,12 +61,22 @@
     background: #fff;
 }
 
+.voucher-review-list-panel {
+    min-width: 0;
+    overflow: visible;
+}
+
 .voucher-review-table-wrap {
+    min-width: 0;
+    max-width: 100%;
     padding: 10px 0 10px 10px;
     overflow: visible;
 }
 
 .voucher-review-list-panel .dataTables_wrapper {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
     --dt-sticky-top: calc(var(--voucher-review-sticky-top) + var(--voucher-review-filter-sticky-height));
     --dt-sticky-header-top: calc(
         var(--voucher-review-sticky-top)
@@ -64,75 +85,22 @@
     );
 }
 
+.voucher-review-list-panel .dataTables_scroll,
+.voucher-review-list-panel .dataTables_scrollHead,
+.voucher-review-list-panel .dataTables_scrollBody {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+}
+
 .voucher-review-table {
-    width: 100% !important;
+    width: 100%;
     margin: 0;
-    font-size: 12px;
 }
 
 .voucher-review-list-panel .dataTables_wrapper .dt-top {
-    margin: -10px 0 0 -10px;
-    padding: 10px;
+    margin: 0;
     border-bottom: 1px solid #e2e8f0;
-}
-
-.voucher-review-table th,
-.voucher-review-table td {
-    white-space: nowrap;
-    vertical-align: middle;
-}
-
-.voucher-review-table th.dt-select-column,
-.voucher-review-table td.dt-select-column {
-    width: 36px !important;
-    min-width: 36px;
-    max-width: 36px;
-    box-sizing: border-box !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-    text-align: center !important;
-}
-
-.voucher-review-table th.dt-reorder-column,
-.voucher-review-table td.dt-reorder-column,
-.voucher-review-table th.reorder-handle,
-.voucher-review-table td.reorder-handle {
-    width: 36px !important;
-    min-width: 36px;
-    max-width: 36px;
-    box-sizing: border-box !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-    text-align: center !important;
-}
-
-.voucher-review-table th.dt-sequence-column,
-.voucher-review-table td.dt-sequence-column,
-.voucher-review-table th.voucher-review-sort-no-cell,
-.voucher-review-table td.voucher-review-sort-no-cell {
-    width: 48px !important;
-    min-width: 48px;
-    max-width: 48px;
-    box-sizing: border-box !important;
-    padding-left: 6px !important;
-    padding-right: 6px !important;
-    text-align: center !important;
-}
-
-.voucher-review-table td.reorder-handle {
-    cursor: move;
-    color: #64748b;
-    font-size: 16px;
-}
-
-.voucher-review-table td.reorder-handle:hover {
-    color: #0f172a;
-}
-
-.voucher-review-table .voucher-review-summary-cell {
-    max-width: 260px;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 .voucher-review-table tbody tr {
@@ -149,43 +117,61 @@
     --bs-table-hover-bg: #ffe4e6;
 }
 
+.voucher-review-table td.dt-status-column .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 20px;
+    line-height: 1;
+    vertical-align: middle;
+}
+
 .voucher-review-badge {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 68px;
-    padding: 3px 8px;
+    min-width: 56px;
+    min-height: 20px;
+    padding: 2px 7px;
+    border: 1px solid transparent;
     border-radius: 999px;
     font-size: 11px;
     font-weight: 700;
+    line-height: 1.15;
+    white-space: nowrap;
 }
 
 .voucher-review-badge.draft,
 .voucher-review-badge.pending {
-    color: #92400e;
-    background: #fef3c7;
+    color: #4b5563;
+    background: #f3f4f6;
+    border-color: #d1d5db;
 }
 
-.voucher-review-badge.confirmed,
+.voucher-review-badge.review-requested,
 .voucher-review-badge.ready {
-    color: #075985;
-    background: #e0f2fe;
+    color: #0b5ed7;
+    background: #e7f1ff;
+    border-color: #9ec5fe;
 }
 
 .voucher-review-badge.reviewed {
     color: #6f42c1;
     background: #f1e7ff;
+    border-color: #d6b8ff;
 }
 
 .voucher-review-badge.posted,
 .voucher-review-badge.done {
-    color: #166534;
-    background: #dcfce7;
+    color: #146c43;
+    background: #d1e7dd;
+    border-color: #a3cfbb;
 }
 
 .voucher-review-badge.error {
-    color: #b42318;
-    background: #fee4e2;
+    color: #842029;
+    background: #f8d7da;
+    border-color: #f1aeb5;
 }
 
 .voucher-review-badge.reversal {
@@ -194,8 +180,9 @@
 }
 
 .voucher-review-badge.reversed {
-    color: #991b1b;
-    background: #fee2e2;
+    color: #383d41;
+    background: #e2e3e5;
+    border-color: #c6c8ca;
 }
 
 .voucher-review-detail-panel {
